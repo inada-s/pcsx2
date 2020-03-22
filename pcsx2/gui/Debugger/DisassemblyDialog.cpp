@@ -22,6 +22,7 @@
 #include "DebugTools/MipsStackWalk.h"
 #include "BreakpointWindow.h"
 #include "PathDefs.h"
+#include "GundamDXDebug.h"
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -176,8 +177,9 @@ void CpuTabPage::setBottomTabPage(wxWindow* win)
 
 void CpuTabPage::update()
 {
+    gdx_reload_breakpoints();
 	breakpointList->reloadBreakpoints();
-
+    
 	if (threadList != NULL && cpu->isAlive())
 	{
 		threadList->reloadThreads();
@@ -275,6 +277,8 @@ DisassemblyDialog::DisassemblyDialog(wxWindow* parent):
 		SetSize(width,height);
 
 	setDebugMode(true,true);
+
+    gdx_initialize();
 }
 
 void DisassemblyDialog::onSizeEvent(wxSizeEvent& event)
@@ -637,6 +641,15 @@ void DisassemblyDialog::setDebugMode(bool debugMode, bool switchPC)
 			stepOverButton->Enable(false);
 			stepOutButton->Enable(false);
 		}
+
+		if (debugMode && currentCpu != NULL) {
+            bool cont = gdx_on_hit_breakpoint(currentCpu->getCpu());
+            if (cont) {
+                CBreakPoints::SetBreakpointTriggered(false);
+                CBreakPoints::SetSkipFirst(r5900Debug.getPC());
+                r5900Debug.resumeCpu();
+            }
+        }
 	} else {
 		breakRunButton->SetLabel(L"Run");
 		stepIntoButton->Enable(false);

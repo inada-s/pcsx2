@@ -33,6 +33,8 @@
 #include "DebugTools/Debug.h"
 #include "R3000A.h"
 
+#include "Debugger/GundamDXDebug.h"
+
 // renderswitch - tells GSdx to go into dx9 sw if "renderswitch" is set.
 bool renderswitch = false;
 uint renderswitch_delay = 0;
@@ -125,6 +127,7 @@ namespace Implementations
 		}
 
 		gsUpdateFrequency(g_Conf->EmuOptions);
+
 
 		pauser.AllowResume();
 	}

@@ -24,6 +24,7 @@
 #include "Elfheader.h"
 
 #include "../DebugTools/Breakpoints.h"
+#include "gui/Debugger/GundamDXDebug.h"
 
 #include <float.h>
 
@@ -59,9 +60,9 @@ void intBreakpoint(bool memcheck)
 			return;
 	}
 
-	CBreakPoints::SetBreakpointTriggered(true);
-	GetCoreThread().PauseSelf();
-	throw Exception::ExitCpuExecute();
+    CBreakPoints::SetBreakpointTriggered(true);
+    GetCoreThread().PauseSelf();
+    throw Exception::ExitCpuExecute();
 }
 
 void intMemcheck(u32 op, u32 bits, bool store)

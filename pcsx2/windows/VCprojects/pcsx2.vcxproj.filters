@@ -889,6 +889,9 @@
     <ClCompile Include="..\..\Recording\VirtualPad.cpp">
       <Filter>Recording\gui</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\gui\Debugger\GundamDXDebug.cpp">
+      <Filter>AppHost\Debugger</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\Patch.h">
@@ -1349,6 +1352,9 @@
     </ClInclude>
     <ClInclude Include="..\..\Recording\VirtualPad.h">
       <Filter>Recording\gui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\gui\Debugger\GundamDXDebug.h">
+      <Filter>AppHost\Debugger</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

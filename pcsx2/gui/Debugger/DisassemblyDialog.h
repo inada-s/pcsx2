@@ -108,11 +108,15 @@ protected:
 	void stepInto();
 	void stepOut();
 	void gotoPc();
-private:
+//private:
+public:
 	CpuTabPage* eeTab;
+
+private:
 	CpuTabPage* iopTab;
 	CpuTabPage* currentCpu;
 	wxNotebook* middleBook;
+
 
 	wxBoxSizer* topSizer;
 	wxButton* breakRunButton;
