@@ -43,6 +43,28 @@ enum {
     REG_t8, REG_t9, REG_k0, REG_k1, REG_gp, REG_sp, REG_fp, REG_ra,
 };
 
+void dump_addr(const char* name, u32 addr) {
+    printf("%s: %08x %s\n", name, addr, symbolMap.GetDescription(addr).c_str());
+}
+
+void dump_state(DebugInterface *cpu) {
+    puts("=== dump_state ===");
+
+	dump_addr("pc", cpu->getPC());
+	dump_addr("a0", cpu->getRegister(0, REG_a0)._u32[0]);
+	dump_addr("a1", cpu->getRegister(0, REG_a1)._u32[0]);
+	dump_addr("a2", cpu->getRegister(0, REG_a2)._u32[0]);
+	dump_addr("a3", cpu->getRegister(0, REG_a3)._u32[0]);
+	dump_addr("ra", cpu->getRegister(0, REG_ra)._u32[0]);
+    puts("");
+    puts(">> trace");
+	int d = 0;
+    for (auto t : MipsStackWalk::Walk(cpu, cpu->getPC(), cpu->getRegister(0, REG_ra)._u32[0], cpu->getRegister(0, REG_sp)._u32[0], 0, 0)) {
+		printf("%2d: %08x %s (+%dh)\n", d++, t.pc, symbolMap.GetDescription(t.entry).c_str(), (t.pc - t.entry) / 4);
+    }
+    puts("=== ---------- ===");
+}
+
 std::string gdx_read_string(DebugInterface *cpu, u32 address)
 {
     if (address == 0) {
@@ -199,8 +221,11 @@ void Ave_TcpStat(bool init, DebugInterface *cpu)
         printf("recv %d bytes (peek)\n", n);
         cpu->write32(cpu->getRegister(0, REG_a1), 4); // important value
 		// cpu->setRegister(0, REG_a1, u128::From32(4)); // important value
-    }
-	cpu->setRegister(0, REG_v0, u128::From32(n));
+    } else {
+        // cpu->write32(cpu->getRegister(0, REG_a1), 0);
+	}
+	cpu->setRegister(0, REG_v0, u128::From32(0));
+	// cpu->setRegister(0, REG_v0, u128::From32(n));
 }
 
 void Ave_TcpSend(bool init, DebugInterface *cpu)
@@ -217,14 +242,22 @@ void Ave_TcpSend(bool init, DebugInterface *cpu)
         return;
     }
 
-	// int write(sock_t sock, void* buff, const size_t len)
     char buf[1024] = {0};
-    // int sock = cpu->getRegister(0, REG_a0)._u32[0];
     const u32 p = cpu->getRegister(0, REG_a1)._u32[0];
     const u32 len = cpu->getRegister(0, REG_a2)._u32[0];
     for (int i = 0; i < len; ++i) {
         buf[i] = cpu->read8(p + i);
     }
+    printf("-- send --\n");
+    for (int i = 0; i < len; ++i) {
+        printf("%02x", buf[i] & 0xFF);
+        if (i + 1 != len)
+            printf(" ");
+        else
+            printf("\n");
+    }
+    printf("--\n");
+
     const int n = send(sock, buf, len, 0);
 	assert(n == len);
 	cpu->setRegister(0, REG_v0, u128::From32(n));
@@ -232,7 +265,6 @@ void Ave_TcpSend(bool init, DebugInterface *cpu)
 
 void Ave_TcpRecv(bool init, DebugInterface *cpu)
 {
-    puts(__func__);
     auto func = gdx_remaps_symbols[__func__];
 
     if (init) {
@@ -244,16 +276,32 @@ void Ave_TcpRecv(bool init, DebugInterface *cpu)
         return;
     }
 
+
 	// int sock_read(sock_t sock, void* buff, const size_t len)
     char buf[1024] = {0};
     // int sock = cpu->getRegister(0, REG_a0)._u32[0];
     const u32 p = cpu->getRegister(0, REG_a1)._u32[0];
     const u32 len = cpu->getRegister(0, REG_a2)._u32[0];
+    printf("recv %d bytes\n", len);
     const int n = recv(sock, buf, len, 0);
+    printf("recv %d bytes done\n", len);
+
 	assert(n == len);
     for (int i = 0; i < n; ++i) {
         cpu->write8(p + i, buf[i]);
     }
+
+    printf("-- recv --\n");
+    printf("send:\n");
+    for (int i = 0; i < len; ++i) {
+        printf("%02x", buf[i] & 0xFF);
+        if (i + 1 != len)
+            printf(" ");
+        else
+            printf("\n");
+    }
+    printf("--\n");
+
 	cpu->setRegister(0, REG_v0, u128::From32(n));
 }
 
@@ -340,13 +388,27 @@ void AvepppGetStatus(bool init, DebugInterface* cpu) {
     if (init) {
         // erase the function.
         for (int i = 0; i < func.size; ++i) {
-            cpu->write8(func.address + i, 0);
-        }
-        cpu->write32(func.address, OP_JR_RA);
-        return;
-    }
+cpu->write8(func.address + i, 0);
+		}
+		cpu->write32(func.address, OP_JR_RA);
+		return;
+	}
 
-    cpu->setRegister(0, REG_v0, u128::From32(5)); // I don't know the magic number.
+	cpu->setRegister(0, REG_v0, u128::From32(5)); // I don't know the magic number.
+}
+
+
+
+void SetSendCommand(bool init, DebugInterface* cpu) {
+	if (init) {
+		return;
+	}
+}
+
+void sock_read(bool init, DebugInterface* cpu) {
+	if (init) {
+		return;
+	}
 }
 
 } // end of namespace
@@ -355,81 +417,100 @@ void AvepppGetStatus(bool init, DebugInterface* cpu) {
 
 void gdx_initialize()
 {
-    gdx_remaps_name["Ave_SifCallRpc"] = Ave_SifCallRpc;
+	gdx_remaps_name["Ave_SifCallRpc"] = Ave_SifCallRpc;
 
-    gdx_remaps_name["Ave_DnsGetTicket"] = Ave_DnsGetTicket;
-    gdx_remaps_name["Ave_DnsReleaseTicket"] = Ave_DnsReleaseTicket;
+	gdx_remaps_name["Ave_DnsGetTicket"] = Ave_DnsGetTicket;
+	gdx_remaps_name["Ave_DnsReleaseTicket"] = Ave_DnsReleaseTicket;
 
-    gdx_remaps_name["gethostbyname_ps2_0"] = gethostbyname_ps2_0;
-    gdx_remaps_name["gethostbyname_ps2_1"] = gethostbyname_ps2_1;
+	gdx_remaps_name["gethostbyname_ps2_0"] = gethostbyname_ps2_0;
+	gdx_remaps_name["gethostbyname_ps2_1"] = gethostbyname_ps2_1;
 
-    gdx_remaps_name["Ave_TcpOpen"] = Ave_TcpOpen;
-    gdx_remaps_name["Ave_TcpClose"] = Ave_TcpClose;
-    gdx_remaps_name["Ave_TcpStat"] = Ave_TcpStat;
-    gdx_remaps_name["Ave_TcpSend"] = Ave_TcpSend;
-    gdx_remaps_name["Ave_TcpRecv"] = Ave_TcpRecv;
+	gdx_remaps_name["Ave_TcpOpen"] = Ave_TcpOpen;
+	gdx_remaps_name["Ave_TcpClose"] = Ave_TcpClose;
+	gdx_remaps_name["Ave_TcpStat"] = Ave_TcpStat;
+	gdx_remaps_name["Ave_TcpSend"] = Ave_TcpSend;
+	gdx_remaps_name["Ave_TcpRecv"] = Ave_TcpRecv;
+	// gdx_remaps_name["TcpRead"] = Ave_TcpRecv;
 
-    gdx_remaps_name["AvepppGetStatus"] = AvepppGetStatus;
+	gdx_remaps_name["AvepppGetStatus"] = AvepppGetStatus;
 
+	gdx_remaps_name["SetSendCommand"] = SetSendCommand;
+	gdx_remaps_name["sock_read"] = sock_read;
 
-    printf("Initialising Winsock");
-    if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) {
-        printf("Failed. Error Code : %d", WSAGetLastError());
-    }
-    sock = 0;
+	printf("Initialising Winsock");
+	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) {
+		printf("Failed. Error Code : %d", WSAGetLastError());
+	}
+	sock = 0;
 	FD_ZERO(&readfds);
 
-    gdx_reload_breakpoints();
+	gdx_reload_breakpoints();
+
 }
 
 void gdx_reload_breakpoints()
 {
-    if (!gdx_remaps_addr.empty()) {
+	// TODO force reload
+	if (!CBreakPoints::GetBreakpoints().empty()) {
+		return;
+	}
+
+	/*
+	auto datas = symbolMap.GetAllSymbols(ST_DATA);
+    if (datas.empty()) {
         return;
     }
+*/
+	auto* dlg = wxGetApp().GetDisassemblyPtr();
+	if (!dlg) {
+		return;
+	}
 
-    auto *dlg = wxGetApp().GetDisassemblyPtr();
-    if (!dlg) {
-        return;
-    }
+	auto funcs = symbolMap.GetAllSymbols(ST_FUNCTION);
+	if (funcs.empty())
+		return;
 
-    auto funcs = symbolMap.GetAllSymbols(ST_FUNCTION);
-    if (funcs.empty())
-        return;
 
-    printf("gdx_reload_breakpoints\n");
-    auto cpu = dlg->eeTab->getCpu();
+	printf("gdx_reload_breakpoints\n");
+	auto cpu = dlg->eeTab->getCpu();
 
-    /*
-    for (auto &f : funcs) {
-        addr2symbol[f.address] = f;
-        if (f.name.substr(0, 4) == "Ave_") {
-            puts(f.name.c_str());
-        }
-    }
+	/*
+	for (auto &f : funcs) {
+		addr2symbol[f.address] = f;
+		if (f.name.substr(0, 4) == "Ave_") {
+			puts(f.name.c_str());
+		}
+	}
 	*/
 
-    for (auto &f : funcs) {
-        if (gdx_remaps_name.find(f.name) != gdx_remaps_name.end()) {
-            CBreakPoints::AddBreakPoint(f.address, false);
-            gdx_remaps_addr[f.address] = gdx_remaps_name[f.name];
-            gdx_remaps_symbols[f.name] = f;
-            printf("breakpoint added %s\n", f.name.c_str());
-            gdx_remaps_addr[f.address](true, cpu);
-        }
-    }
+	for (auto& f : funcs) {
+		if (gdx_remaps_name.find(f.name) != gdx_remaps_name.end()) {
+			CBreakPoints::AddBreakPoint(f.address, false);
+			gdx_remaps_addr[f.address] = gdx_remaps_name[f.name];
+			gdx_remaps_symbols[f.name] = f;
+			printf("breakpoint added %s\n", f.name.c_str());
+			gdx_remaps_addr[f.address](true, cpu);
+		}
+        addr2symbol[f.address] = f;
+	}
+	
 
     // replace modem_recognition with network_battle.
     cpu->write32(0x003c4f58, 0x0015f110);
 
     // skip ppp dialing step
     cpu->write32(0x0035a660, 0x24030002);
+
+
 }
 
 extern FILE *emuLog;
 
 bool gdx_on_hit_breakpoint(DebugInterface *cpu)
 {
+	setvbuf(stdout, 0, _IONBF, 0);
+	setvbuf(emuLog, 0, _IONBF, 0);
+
     u32 pc = cpu->getPC();
 
     bool gdx_hit = false;
@@ -441,6 +522,7 @@ bool gdx_on_hit_breakpoint(DebugInterface *cpu)
             cpu->pauseCpu();
         }
 
+		dump_state(cpu);
         gdx_remaps_addr[pc](false, cpu);
 
         if (active) {
@@ -448,8 +530,7 @@ bool gdx_on_hit_breakpoint(DebugInterface *cpu)
         }
     }
 
-    if (emuLog != NULL) {
-        fflush(emuLog);
-    }
+	Sleep(16);
+
     return gdx_hit;
 }
