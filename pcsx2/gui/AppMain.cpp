@@ -30,6 +30,7 @@
 #include "Dialogs/LogOptionsDialog.h"
 
 #include "Debugger/DisassemblyDialog.h"
+#include "Debugger/GundamDXDebug.h"
 
 #ifndef DISABLE_RECORDING
 #	include "Recording/RecordingControls.h"
@@ -815,13 +816,31 @@ GSFrame& Pcsx2App::GetGsFrame() const
 
 void Pcsx2App::enterDebugMode()
 {
-	DisassemblyDialog* dlg = GetDisassemblyPtr();
-	if (dlg)
-		dlg->setDebugMode(true,false);
+    gdx_reload_breakpoints();
+
+    if (gdx_check_breakpoint()) {
+        bool stop = gdx_break();
+        if (!stop) {
+            if (CBreakPoints::GetBreakpointTriggered()) {
+                CBreakPoints::SetBreakpointTriggered(false);
+                CBreakPoints::SetSkipFirst(r5900Debug.getPC());
+                r5900Debug.resumeCpu();
+                return;
+            }
+        }
+    }
+
+    DisassemblyDialog *dlg = GetDisassemblyPtr();
+    if (dlg)
+        dlg->setDebugMode(true, false);
 }
 	
 void Pcsx2App::leaveDebugMode()
 {
+    if (gdx_check_breakpoint()) {
+        return;
+    }
+
 	DisassemblyDialog* dlg = GetDisassemblyPtr();
 	if (dlg)
 		dlg->setDebugMode(false,false);

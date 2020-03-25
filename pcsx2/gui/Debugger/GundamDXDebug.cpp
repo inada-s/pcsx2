@@ -11,61 +11,142 @@
 #include "DisassemblyDialog.h"
 #include "Dump.h"
 
-
-//#include "CtrlDisassemblyView.h"
-//#include "CtrlRegisterList.h"
-//#include "CtrlMemView.h"
-
-//#include "DebugEvents.h"
-
 namespace
 {
+struct GdxBP;
+std::vector<GdxBP> gdx_breakpoints;
+std::map<u32, GdxBP> gdx_breakpoints_map;
 
 std::map<std::string, std::function<void(bool, DebugInterface *)>> gdx_remaps_name;
 std::map<u32, std::function<void(bool, DebugInterface *)>> gdx_remaps_addr;
-std::map<std::string, SymbolEntry> gdx_remaps_symbols;
-std::map<u32, SymbolEntry> addr2symbol;
-
 const u32 OP_NOP = 0;
 const u32 OP_JR_RA = 0x03e00008;
-
-std::string last_resolved_hostname;
 
 // winsock data
 WSADATA wsa;
 SOCKET sock = 0;
 fd_set fds, readfds;
+std::string last_resolved_hostname;
 
-enum {
-    REG_r0, REG_at, REG_v0, REG_v1, REG_a0, REG_a1, REG_a2, REG_a3,
-    REG_t0, REG_t1, REG_t2, REG_t3, REG_t4, REG_t5, REG_t6, REG_t7,
-    REG_s0, REG_s1, REG_s2, REG_s3, REG_s4, REG_s5, REG_s6, REG_s7,
-    REG_t8, REG_t9, REG_k0, REG_k1, REG_gp, REG_sp, REG_fp, REG_ra,
+std::mutex io_mtx;
+int io_recv_size = 0;
+bool io_thread_spawn = false;
+
+
+// custom break point
+
+struct GdxBP
+{
+    std::string label;
+    u32 addr;
+    bool erase;
+    bool stop;
+    std::function<void()> hook;
 };
 
-void dump_addr(const char* name, u32 addr) {
+GdxBP labelBP(const std::string &label, std::function<void()> hook, bool erase = false, bool stop = false)
+{
+    GdxBP bp;
+    bp.label = label;
+    bp.erase = erase;
+    bp.stop = stop;
+    bp.hook = hook;
+    return bp;
+}
+
+GdxBP addrBP(u32 addr, std::function<void()> hook, bool erase = false, bool stop = false)
+{
+    GdxBP bp;
+    bp.addr = addr;
+    bp.erase = erase;
+    bp.stop = stop;
+    bp.hook = hook;
+    return bp;
+}
+
+
+enum {
+    REG_r0,
+    REG_at,
+    REG_v0,
+    REG_v1,
+    REG_a0,
+    REG_a1,
+    REG_a2,
+    REG_a3,
+    REG_t0,
+    REG_t1,
+    REG_t2,
+    REG_t3,
+    REG_t4,
+    REG_t5,
+    REG_t6,
+    REG_t7,
+    REG_s0,
+    REG_s1,
+    REG_s2,
+    REG_s3,
+    REG_s4,
+    REG_s5,
+    REG_s6,
+    REG_s7,
+    REG_t8,
+    REG_t9,
+    REG_k0,
+    REG_k1,
+    REG_gp,
+    REG_sp,
+    REG_fp,
+    REG_ra,
+};
+
+void dump_addr(const char *name, u32 addr)
+{
     printf("%s: %08x %s\n", name, addr, symbolMap.GetDescription(addr).c_str());
 }
 
-void dump_state(DebugInterface *cpu) {
+void dump_state()
+{
     puts("=== dump_state ===");
 
-	dump_addr("pc", cpu->getPC());
-	dump_addr("a0", cpu->getRegister(0, REG_a0)._u32[0]);
-	dump_addr("a1", cpu->getRegister(0, REG_a1)._u32[0]);
-	dump_addr("a2", cpu->getRegister(0, REG_a2)._u32[0]);
-	dump_addr("a3", cpu->getRegister(0, REG_a3)._u32[0]);
-	dump_addr("ra", cpu->getRegister(0, REG_ra)._u32[0]);
+    dump_addr("pc", r5900Debug.getPC());
+    dump_addr("a0", r5900Debug.getRegister(0, REG_a0)._u32[0]);
+    dump_addr("a1", r5900Debug.getRegister(0, REG_a1)._u32[0]);
+    dump_addr("a2", r5900Debug.getRegister(0, REG_a2)._u32[0]);
+    dump_addr("a3", r5900Debug.getRegister(0, REG_a3)._u32[0]);
+    dump_addr("ra", r5900Debug.getRegister(0, REG_ra)._u32[0]);
     puts("");
     puts(">> trace");
-	int d = 0;
-    for (auto t : MipsStackWalk::Walk(cpu, cpu->getPC(), cpu->getRegister(0, REG_ra)._u32[0], cpu->getRegister(0, REG_sp)._u32[0], 0, 0)) {
-		printf("%2d: %08x %s (+%dh)\n", d++, t.pc, symbolMap.GetDescription(t.entry).c_str(), (t.pc - t.entry) / 4);
+    int d = 0;
+    for (auto t : MipsStackWalk::Walk((DebugInterface *)&r5900Debug, r5900Debug.getPC(), r5900Debug.getRegister(0, REG_ra)._u32[0], r5900Debug.getRegister(0, REG_sp)._u32[0], 0, 0)) {
+        printf("%2d: %08x %s (+%dh)\n", d++, t.pc, symbolMap.GetDescription(t.entry).c_str(), (t.pc - t.entry) / 4);
     }
     puts("=== ---------- ===");
 }
 
-std::string gdx_read_string(DebugInterface *cpu, u32 address)
+void clear_function(u32 addr)
+{
+    const u32 start = symbolMap.GetFunctionStart(addr);
+    if (start == symbolMap.INVALID_ADDRESS) {
+        return;
+    }
+    const u32 size = symbolMap.GetFunctionSize(start);
+    assert(start == addr);
+    for (int i = 0; i < size; ++i) {
+        r5900Debug.write8(start + i, 0);
+    }
+    r5900Debug.write32(start + size - 8, OP_JR_RA);
+}
+
+void clear_function(const char *name)
+{
+    u32 addr = 0;
+    if (symbolMap.GetLabelValue(name, addr)) {
+        clear_function(addr);
+    }
+}
+
+std::string gdx_read_string(u32 address)
 {
     if (address == 0) {
         return "";
@@ -73,7 +154,7 @@ std::string gdx_read_string(DebugInterface *cpu, u32 address)
 
     char buf[4096] = {0};
     for (int i = 0; i < 4096; ++i) {
-        buf[i] = static_cast<char>(cpu->read8(address + i));
+        buf[i] = static_cast<char>(r5900Debug.read8(address + i));
         if (buf[i] == 0) {
             break;
         }
@@ -82,455 +163,316 @@ std::string gdx_read_string(DebugInterface *cpu, u32 address)
     return std::string(buf);
 }
 
-/*
-Ave_SifCallRpc
-Ave_TcpInitialize
-Ave_TcpTerminate
-Ave_SetOpt
-Ave_GetOpt
-Ave_TcpOpen
-Ave_TcpClose
-Ave_TcpStat
-Ave_TcpSend
-Ave_TcpRecv
-Ave_PppInit
-Ave_PppDisp
-Ave_PppStart
-Ave_PppFinish
-Ave_PppStatus
-Ave_PppGetUsbDeviceId
-Ave_PppSetOption
-Ave_PppGetOption
-Ave_DnsInit
-Ave_DnsDisp
-Ave_DnsGetTicket
-Ave_DnsReleaseTicket
-Ave_DnsLookUp
-*/
-
-
-void Ave_SifCallRpc(bool init, DebugInterface *cpu)
-{
-    puts(__func__);
-    auto func = gdx_remaps_symbols[__func__];
-
-    if (init) {
-        // erase the function.
-        for (int i = 0; i < func.size; ++i) {
-            cpu->write8(func.address + i, 0);
-        }
-        cpu->write32(func.address, OP_JR_RA);
-        return;
-    }
-
-	assert(false);
-}
-
-
-void Ave_TcpOpen(bool init, DebugInterface *cpu)
-{
-    puts(__func__);
-    auto func = gdx_remaps_symbols[__func__];
-
-    if (init) {
-        // erase the function.
-        for (int i = 0; i < func.size; ++i) {
-            cpu->write8(func.address + i, 0);
-        }
-        cpu->write32(func.address, OP_JR_RA);
-        return;
-    }
-
-    printf("TcpOpen:%s\n", last_resolved_hostname.c_str());
-    if (last_resolved_hostname.empty()) {
-        printf("no host available");
-        return;
-    }
-
-    sock = socket(AF_INET, SOCK_STREAM, 0);
-    if (sock == INVALID_SOCKET) {
-        printf("socket error : %d\n", WSAGetLastError());
-        return;
-    }
-
-	puts("connecting to dummy server");
-    // local dummy server
-    auto hostEntry = gethostbyname("localhost");
-    assert(hostEntry);
-
-    SOCKADDR_IN addr;
-    addr.sin_family = AF_INET;
-    addr.sin_addr = *((LPIN_ADDR)hostEntry->h_addr_list[0]);
-    addr.sin_port = htons(3333);
-    auto err = connect(sock, (const sockaddr *)&addr, sizeof(addr));
-    assert(err == 0);
-    FD_SET(sock, &readfds);
-
-    cpu->setRegister(0, REG_v0, u128::From32(1)); // return socket number
-	puts("connecting to dummy server done");
-}
-
-void Ave_TcpClose(bool init, DebugInterface *cpu)
-{
-    puts(__func__);
-    auto func = gdx_remaps_symbols[__func__];
-
-    if (init) {
-        // erase the function.
-        for (int i = 0; i < func.size; ++i) {
-            cpu->write8(func.address + i, 0);
-        }
-        cpu->write32(func.address, OP_JR_RA);
-        return;
-    }
-
-    if (sock != 0) {
-        closesocket(sock);
-        sock = 0;
-    }
-}
-
-void Ave_TcpStat(bool init, DebugInterface *cpu)
-{
-    puts(__func__);
-    auto func = gdx_remaps_symbols[__func__];
-
-    if (init) {
-        // erase the function.
-        for (int i = 0; i < func.size; ++i) {
-            cpu->write8(func.address + i, 0);
-        }
-        cpu->write32(func.address, OP_JR_RA);
-        return;
-    }
-
-    // cpu->getRegister(0, REG_a0) // the socket number?
-
-    // return value:
-    // -1 : error
-    // 0 : no data comming
-    // n : how many byts can be recv.
-    int n = 0;
-    memcpy(&fds, &readfds, sizeof(fd_set));
-    timeval timeout;
-    timeout.tv_usec = 1;
-    select(0, &fds, NULL, NULL, &timeout);
-    char buf[1024] = {0};
-    if (FD_ISSET(sock, &fds)) {
-        n = recv(sock, buf, sizeof(buf), MSG_PEEK); // peek
-        printf("recv %d bytes (peek)\n", n);
-        cpu->write32(cpu->getRegister(0, REG_a1), 4); // important value
-		// cpu->setRegister(0, REG_a1, u128::From32(4)); // important value
-    } else {
-        // cpu->write32(cpu->getRegister(0, REG_a1), 0);
-	}
-	cpu->setRegister(0, REG_v0, u128::From32(0));
-	// cpu->setRegister(0, REG_v0, u128::From32(n));
-}
-
-void Ave_TcpSend(bool init, DebugInterface *cpu)
-{
-    puts(__func__);
-    auto func = gdx_remaps_symbols[__func__];
-
-    if (init) {
-        // erase the function.
-        for (int i = 0; i < func.size; ++i) {
-            cpu->write8(func.address + i, 0);
-        }
-        cpu->write32(func.address, OP_JR_RA);
-        return;
-    }
-
-    char buf[1024] = {0};
-    const u32 p = cpu->getRegister(0, REG_a1)._u32[0];
-    const u32 len = cpu->getRegister(0, REG_a2)._u32[0];
-    for (int i = 0; i < len; ++i) {
-        buf[i] = cpu->read8(p + i);
-    }
-    printf("-- send --\n");
-    for (int i = 0; i < len; ++i) {
-        printf("%02x", buf[i] & 0xFF);
-        if (i + 1 != len)
-            printf(" ");
-        else
-            printf("\n");
-    }
-    printf("--\n");
-
-    const int n = send(sock, buf, len, 0);
-	assert(n == len);
-	cpu->setRegister(0, REG_v0, u128::From32(n));
-}
-
-void Ave_TcpRecv(bool init, DebugInterface *cpu)
-{
-    auto func = gdx_remaps_symbols[__func__];
-
-    if (init) {
-        // erase the function.
-        for (int i = 0; i < func.size; ++i) {
-            cpu->write8(func.address + i, 0);
-        }
-        cpu->write32(func.address, OP_JR_RA);
-        return;
-    }
-
-
-	// int sock_read(sock_t sock, void* buff, const size_t len)
-    char buf[1024] = {0};
-    // int sock = cpu->getRegister(0, REG_a0)._u32[0];
-    const u32 p = cpu->getRegister(0, REG_a1)._u32[0];
-    const u32 len = cpu->getRegister(0, REG_a2)._u32[0];
-    printf("recv %d bytes\n", len);
-    const int n = recv(sock, buf, len, 0);
-    printf("recv %d bytes done\n", len);
-
-	assert(n == len);
-    for (int i = 0; i < n; ++i) {
-        cpu->write8(p + i, buf[i]);
-    }
-
-    printf("-- recv --\n");
-    printf("send:\n");
-    for (int i = 0; i < len; ++i) {
-        printf("%02x", buf[i] & 0xFF);
-        if (i + 1 != len)
-            printf(" ");
-        else
-            printf("\n");
-    }
-    printf("--\n");
-
-	cpu->setRegister(0, REG_v0, u128::From32(n));
-}
-
-
-void Ave_DnsGetTicket(bool init, DebugInterface *cpu)
-{
-    puts(__func__);
-    auto func = gdx_remaps_symbols[__func__];
-
-    if (init) {
-        // erase the function.
-        for (int i = 0; i < func.size; ++i) {
-            cpu->write8(func.address + i, 0);
-        }
-        cpu->write32(func.address, OP_JR_RA);
-        return;
-    }
-}
-
-void Ave_DnsReleaseTicket(bool init, DebugInterface *cpu)
-{
-    puts(__func__);
-    auto func = gdx_remaps_symbols[__func__];
-
-    if (init) {
-        // erase the function.
-        for (int i = 0; i < func.size; ++i) {
-            cpu->write8(func.address + i, 0);
-        }
-        cpu->write32(func.address, OP_JR_RA);
-        return;
-    }
-
-    // returns -1 means failed
-    cpu->setRegister(0, REG_v0, u128::From32(0)); // ?
-}
-
-
-void gethostbyname_ps2_0(bool init, DebugInterface *cpu)
-{
-    puts(__func__);
-    auto func = gdx_remaps_symbols[__func__];
-
-    if (init) {
-        // erase the function.
-        for (int i = 0; i < func.size; ++i) {
-            cpu->write8(func.address + i, 0);
-        }
-        cpu->write32(func.address, OP_JR_RA);
-        return;
-    }
-
-    auto hostname = gdx_read_string(cpu, cpu->getRegister(0, REG_a0));
-    printf("gethostbyname_ps2_0 %s\n", hostname.c_str());
-
-    last_resolved_hostname = hostname;
-    cpu->setRegister(0, REG_v0, u128::From32(1));
-}
-
-
-void gethostbyname_ps2_1(bool init, DebugInterface *cpu)
-{
-    puts(__func__);
-    auto func = gdx_remaps_symbols[__func__];
-
-    if (init) {
-        // erase the function.
-        for (int i = 0; i < func.size; ++i) {
-            cpu->write8(func.address + i, 0);
-        }
-        cpu->write32(func.address, OP_JR_RA);
-        return;
-    }
-
-	// unknown
-    // auto ticket_number = cpu->read32(cpu->getRegister(0, REG_a0));
-    // printf("ticket_number %d\n", ticket_number);
-}
-
-void AvepppGetStatus(bool init, DebugInterface* cpu) {
-    puts(__func__);
-    auto func = gdx_remaps_symbols[__func__];
-
-    if (init) {
-        // erase the function.
-        for (int i = 0; i < func.size; ++i) {
-cpu->write8(func.address + i, 0);
-		}
-		cpu->write32(func.address, OP_JR_RA);
-		return;
-	}
-
-	cpu->setRegister(0, REG_v0, u128::From32(5)); // I don't know the magic number.
-}
-
-
-
-void SetSendCommand(bool init, DebugInterface* cpu) {
-	if (init) {
-		return;
-	}
-}
-
-void sock_read(bool init, DebugInterface* cpu) {
-	if (init) {
-		return;
-	}
-}
-
 } // end of namespace
 
 // ---
 
 void gdx_initialize()
 {
-	gdx_remaps_name["Ave_SifCallRpc"] = Ave_SifCallRpc;
+    gdx_breakpoints.clear();
+    gdx_breakpoints.push_back(labelBP(
+        "Ave_SifCallRpc", []() {
+            assert(false);
+        },
+        true));
 
-	gdx_remaps_name["Ave_DnsGetTicket"] = Ave_DnsGetTicket;
-	gdx_remaps_name["Ave_DnsReleaseTicket"] = Ave_DnsReleaseTicket;
+    gdx_breakpoints.push_back(labelBP(
+        "Ave_DnsGetTicket", []() {
+        },
+        true));
 
-	gdx_remaps_name["gethostbyname_ps2_0"] = gethostbyname_ps2_0;
-	gdx_remaps_name["gethostbyname_ps2_1"] = gethostbyname_ps2_1;
+    gdx_breakpoints.push_back(labelBP(
+        "Ave_DnsReleaseTicket", []() {
+            r5900Debug.setRegister(0, REG_v0, u128::From32(0));
+        },
+        true));
 
-	gdx_remaps_name["Ave_TcpOpen"] = Ave_TcpOpen;
-	gdx_remaps_name["Ave_TcpClose"] = Ave_TcpClose;
-	gdx_remaps_name["Ave_TcpStat"] = Ave_TcpStat;
-	gdx_remaps_name["Ave_TcpSend"] = Ave_TcpSend;
-	gdx_remaps_name["Ave_TcpRecv"] = Ave_TcpRecv;
-	// gdx_remaps_name["TcpRead"] = Ave_TcpRecv;
+    gdx_breakpoints.push_back(labelBP(
+        "gethostbyname_ps2_0", []() {
+            auto hostname = gdx_read_string(r5900Debug.getRegister(0, REG_a0));
+            printf("gethostbyname_ps2_0 %s\n", hostname.c_str());
+            last_resolved_hostname = hostname;
+            r5900Debug.setRegister(0, REG_v0, u128::From32(1));
+        },
+        true));
 
-	gdx_remaps_name["AvepppGetStatus"] = AvepppGetStatus;
+    gdx_breakpoints.push_back(labelBP(
+        "gethostbyname_ps2_1", []() {
+            // unknown
+            // auto ticket_number = r5900Debug.read32(r5900Debug.getRegister(0, REG_a0));
+            // printf("ticket_number %d\n", ticket_number);
+        },
+        true));
 
-	gdx_remaps_name["SetSendCommand"] = SetSendCommand;
-	gdx_remaps_name["sock_read"] = sock_read;
+    gdx_breakpoints.push_back(labelBP(
+        "Ave_TcpOpen", []() {
+            std::lock_guard<std::mutex> lock(io_mtx);
 
-	printf("Initialising Winsock");
-	if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) {
-		printf("Failed. Error Code : %d", WSAGetLastError());
-	}
-	sock = 0;
-	FD_ZERO(&readfds);
+            printf("TcpOpen:%s\n", last_resolved_hostname.c_str());
+            if (last_resolved_hostname.empty()) {
+                printf("no host available");
+                return;
+            }
 
-	gdx_reload_breakpoints();
+            puts("connecting to dummy server");
+            // local dummy server
+            auto hostEntry = gethostbyname("localhost");
+            assert(hostEntry);
 
+            if (sock != 0) {
+                closesocket(sock);
+                sock = 0;
+            }
+            sock = socket(AF_INET, SOCK_STREAM, 0);
+            if (sock == INVALID_SOCKET) {
+                printf("socket error : %d\n", WSAGetLastError());
+                return;
+            }
+            SOCKADDR_IN addr;
+            addr.sin_family = AF_INET;
+            addr.sin_addr = *((LPIN_ADDR)hostEntry->h_addr_list[0]);
+            addr.sin_port = htons(3333);
+            auto err = connect(sock, (const sockaddr *)&addr, sizeof(addr));
+            FD_SET(sock, &readfds);
+
+            r5900Debug.setRegister(0, REG_v0, u128::From32(1)); // return socket number
+            puts("connecting to dummy server done");
+        },
+        true));
+
+    gdx_breakpoints.push_back(labelBP(
+        "Ave_TcpClose", []() {
+            std::lock_guard<std::mutex> lock(io_mtx);
+            if (sock != 0) {
+                closesocket(sock);
+                sock = 0;
+            }
+        },
+        true));
+
+    gdx_breakpoints.push_back(labelBP(
+        "Ave_TcpSend", []() {
+            char buf[1024] = {0};
+            const u32 p = r5900Debug.getRegister(0, REG_a1)._u32[0];
+            const u32 len = r5900Debug.getRegister(0, REG_a2)._u32[0];
+            for (int i = 0; i < len; ++i) {
+                buf[i] = r5900Debug.read8(p + i);
+            }
+            printf("-- send --\n");
+            for (int i = 0; i < len; ++i) {
+                printf("%02x", buf[i] & 0xFF);
+                if (i + 1 != len)
+                    printf(" ");
+                else
+                    printf("\n");
+            }
+            printf("--\n");
+
+            io_mtx.lock();
+            const int n = send(sock, buf, len, 0);
+            io_mtx.unlock();
+
+            if (n != len) {
+                printf("unexpected send size\n");
+            }
+            r5900Debug.setRegister(0, REG_v0, u128::From32(n));
+        },
+        true));
+
+    gdx_breakpoints.push_back(labelBP(
+        "Ave_TcpRecv", []() {
+            // int sock_read(sock_t sock, void* buff, const size_t len)
+            char buf[1024] = {0};
+            // int sock = r5900Debug.getRegister(0, REG_a0)._u32[0];
+            const u32 p = r5900Debug.getRegister(0, REG_a1)._u32[0];
+            const u32 len = r5900Debug.getRegister(0, REG_a2)._u32[0];
+            printf("recv %d bytes\n", len);
+            int n = 0;
+            {
+                std::lock_guard<std::mutex> lock(io_mtx);
+                while (n < len) {
+                    const int r = recv(sock, buf, len, 0);
+                    if (r == SOCKET_ERROR) {
+                        r5900Debug.setRegister(0, REG_v0, u128::From32(-1));
+                        return;
+                    }
+                    n += r;
+                }
+                io_recv_size = 0;
+            }
+            printf("recv %d bytes done\n", len);
+
+            for (int i = 0; i < n; ++i) {
+                r5900Debug.write8(p + i, buf[i]);
+            }
+
+            printf("-- recv --\n");
+            for (int i = 0; i < len; ++i) {
+                printf("%02x", buf[i] & 0xFF);
+                if (i + 1 != len)
+                    printf(" ");
+                else
+                    printf("\n");
+            }
+            printf("--\n");
+
+            r5900Debug.setRegister(0, REG_v0, u128::From32(n));
+        },
+        true));
+
+    gdx_breakpoints.push_back(labelBP("SetSendCommand", nullptr, false));
+    gdx_breakpoints.push_back(labelBP("sock_read", nullptr, false));
+
+    printf("Initialising Winsock");
+    if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) {
+        printf("Failed. Error Code : %d", WSAGetLastError());
+    }
+
+    {
+        std::lock_guard<std::mutex> lock(io_mtx);
+        sock = 0;
+        FD_ZERO(&readfds);
+
+        if (!io_thread_spawn) {
+            io_thread_spawn = true;
+            new std::thread([]() {
+                printf("io_thread spawn");
+                char buf[1024];
+                for (;;) {
+                    if (sock != 0) {
+                        std::lock_guard<std::mutex> lock(io_mtx);
+
+                        memcpy(&fds, &readfds, sizeof(fd_set));
+                        timeval timeout;
+                        timeout.tv_usec = 1;
+                        select(0, &fds, NULL, NULL, &timeout);
+                        char buf[1024] = {0};
+                        if (FD_ISSET(sock, &fds)) {
+                            int n = recv(sock, buf, sizeof(buf), MSG_PEEK);
+                            io_recv_size = n;
+                        }
+                    }
+                    std::this_thread::sleep_for(std::chrono::milliseconds(16));
+                }
+            });
+        }
+    }
 }
 
 void gdx_reload_breakpoints()
 {
-	// TODO force reload
-	if (!CBreakPoints::GetBreakpoints().empty()) {
-		return;
-	}
-
-	/*
-	auto datas = symbolMap.GetAllSymbols(ST_DATA);
-    if (datas.empty()) {
+    // TODO force reload
+    if (!CBreakPoints::GetBreakpoints().empty()) {
         return;
     }
-*/
-	auto* dlg = wxGetApp().GetDisassemblyPtr();
-	if (!dlg) {
-		return;
-	}
 
-	auto funcs = symbolMap.GetAllSymbols(ST_FUNCTION);
-	if (funcs.empty())
-		return;
+    auto funcs = symbolMap.GetAllSymbols(ST_FUNCTION);
+    if (funcs.empty())
+        return;
 
+    printf("gdx_reload_breakpoints\n");
 
-	printf("gdx_reload_breakpoints\n");
-	auto cpu = dlg->eeTab->getCpu();
+    for (auto &bp : gdx_breakpoints) {
+        if (!bp.label.empty()) {
+            if (!symbolMap.GetLabelValue(bp.label.c_str(), bp.addr)) {
+                printf("failed to get label value %s\n", bp.label.c_str());
+                return;
+            }
+        }
+        assert(bp.addr);
 
-	/*
-	for (auto &f : funcs) {
-		addr2symbol[f.address] = f;
-		if (f.name.substr(0, 4) == "Ave_") {
-			puts(f.name.c_str());
-		}
-	}
-	*/
+        CBreakPoints::AddBreakPoint(bp.addr, false);
+        printf("breakpoint added %08x %s\n", bp.addr, bp.label.c_str());
+        if (bp.erase) {
+            clear_function(bp.addr);
+        }
+        gdx_breakpoints_map[bp.addr] = bp;
+    }
 
-	for (auto& f : funcs) {
-		if (gdx_remaps_name.find(f.name) != gdx_remaps_name.end()) {
-			CBreakPoints::AddBreakPoint(f.address, false);
-			gdx_remaps_addr[f.address] = gdx_remaps_name[f.name];
-			gdx_remaps_symbols[f.name] = f;
-			printf("breakpoint added %s\n", f.name.c_str());
-			gdx_remaps_addr[f.address](true, cpu);
-		}
-        addr2symbol[f.address] = f;
-	}
-	
+    // -- patch --
 
     // replace modem_recognition with network_battle.
-    cpu->write32(0x003c4f58, 0x0015f110);
+    r5900Debug.write32(0x003c4f58, 0x0015f110);
 
-    // skip ppp dialing step
-    cpu->write32(0x0035a660, 0x24030002);
+    // skip ppp dialing step.
+    r5900Debug.write32(0x0035a660, 0x24030002);
 
 
+
+    //
+    // The game calls these function frequently, so it contribute to too bad performance.
+    //
+
+    // rewrite AvepppGetStatus
+    /*
+	It's too slow
+	gdx_breakpoints.push_back(labelBP("AvepppGetStatus", []() {
+		r5900Debug.setRegister(0, REG_v0, u128::From32(5)); // I don't know the magic number.
+	}, true));
+	*/
+    // AvepppGetStatus:
+    // jr    ra
+    // return 0x05
+    r5900Debug.write32(0x003584d0, OP_JR_RA);
+    r5900Debug.write32(0x003584d4, 0x24020005); // ppp status ok (probably).
+
+
+    // rewrite Ave_TcpStat
+    /*
+	It's too slow
+	gdx_breakpoints.push_back(labelBP("Ave_TcpStat", []() {
+		std::lock_guard<std::mutex> lock(io_mtx);
+		if (io_recv_size) {
+			r5900Debug.write32(r5900Debug.getRegister(0, REG_a1), 4);
+		}
+		else {
+			r5900Debug.write32(r5900Debug.getRegister(0, REG_a1), 0);
+		}
+		}, true));
+	*/
+    // Ave_TcpStat:
+    // addiu v0, zero, $000x
+    // sw    v0, $0000(a1)
+    // jr    ra
+    // addiu v0, zero, $0000
+    r5900Debug.write32(0x00350990, 0x24020000); // 0: no data comming
+    // r5900Debug.write32(0x00350990, 0x24020004); // 4: some data comming (later, change this address dynamically)
+    r5900Debug.write32(0x00350994, 0xaca20000);
+    r5900Debug.write32(0x00350998, OP_JR_RA);
+    r5900Debug.write32(0x0035099c, 0x24020000);
+}
+
+void gdx_in_vsync()
+{
+    if (r5900Debug.isAlive()) {
+        if (io_recv_size) {
+            r5900Debug.write32(0x00350990, 0x24020004); // 4: some data comming (later, change this address dynamically)
+        } else {
+            r5900Debug.write32(0x00350990, 0x24020000); // 0: no data comming
+        }
+    }
 }
 
 extern FILE *emuLog;
 
-bool gdx_on_hit_breakpoint(DebugInterface *cpu)
+bool gdx_check_breakpoint()
 {
-	setvbuf(stdout, 0, _IONBF, 0);
-	setvbuf(emuLog, 0, _IONBF, 0);
+    const u32 pc = r5900Debug.getPC();
+    return gdx_breakpoints_map.find(pc) != gdx_breakpoints_map.end();
+}
 
-    u32 pc = cpu->getPC();
+bool gdx_break()
+{
+    const u32 pc = r5900Debug.getPC();
 
-    bool gdx_hit = false;
-    if (gdx_remaps_addr.find(pc) != gdx_remaps_addr.end()) {
-        gdx_hit = true;
+    dump_state();
+    setvbuf(stdout, 0, _IONBF, 0);
+    setvbuf(emuLog, 0, _IONBF, 0);
 
-        bool active = !cpu->isCpuPaused();
-        if (active) {
-            cpu->pauseCpu();
-        }
-
-		dump_state(cpu);
-        gdx_remaps_addr[pc](false, cpu);
-
-        if (active) {
-            cpu->resumeCpu();
-        }
+    auto &bp = gdx_breakpoints_map[pc];
+    if (bp.hook) {
+        bp.hook();
     }
 
-	Sleep(16);
-
-    return gdx_hit;
+    return bp.stop;
 }

@@ -177,7 +177,6 @@ void CpuTabPage::setBottomTabPage(wxWindow* win)
 
 void CpuTabPage::update()
 {
-    gdx_reload_breakpoints();
 	breakpointList->reloadBreakpoints();
     
 	if (threadList != NULL && cpu->isAlive())
@@ -277,8 +276,8 @@ DisassemblyDialog::DisassemblyDialog(wxWindow* parent):
 		SetSize(width,height);
 
 	setDebugMode(true,true);
-
     gdx_initialize();
+
 }
 
 void DisassemblyDialog::onSizeEvent(wxSizeEvent& event)
@@ -599,6 +598,7 @@ void DisassemblyDialog::setDebugMode(bool debugMode, bool switchPC)
 
 	if (running)
 	{
+
 		if (currentCpu == NULL)
 		{
 			wxWindow* currentPage = middleBook->GetCurrentPage();
@@ -634,6 +634,7 @@ void DisassemblyDialog::setDebugMode(bool debugMode, bool switchPC)
 
 			if (currentCpu != NULL)
 				currentCpu->loadCycles();
+
 		} else {
 			breakRunButton->SetLabel(L"Break");
 
@@ -641,15 +642,6 @@ void DisassemblyDialog::setDebugMode(bool debugMode, bool switchPC)
 			stepOverButton->Enable(false);
 			stepOutButton->Enable(false);
 		}
-
-		if (debugMode && currentCpu != NULL) {
-            bool cont = gdx_on_hit_breakpoint(currentCpu->getCpu());
-            if (cont) {
-                CBreakPoints::SetBreakpointTriggered(false);
-                CBreakPoints::SetSkipFirst(r5900Debug.getPC());
-                r5900Debug.resumeCpu();
-            }
-        }
 	} else {
 		breakRunButton->SetLabel(L"Run");
 		stepIntoButton->Enable(false);
