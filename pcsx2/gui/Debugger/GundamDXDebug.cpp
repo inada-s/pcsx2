@@ -28,10 +28,6 @@ SOCKET sock = 0;
 fd_set fds, readfds;
 std::string last_resolved_hostname;
 
-std::mutex io_mtx;
-int io_recv_size = 0;
-bool io_thread_spawn = false;
-
 
 // custom break point
 
@@ -206,8 +202,6 @@ void gdx_initialize()
 
     gdx_breakpoints.push_back(labelBP(
         "Ave_TcpOpen", []() {
-            std::lock_guard<std::mutex> lock(io_mtx);
-
             printf("TcpOpen:%s\n", last_resolved_hostname.c_str());
             if (last_resolved_hostname.empty()) {
                 printf("no host available");
@@ -242,7 +236,6 @@ void gdx_initialize()
 
     gdx_breakpoints.push_back(labelBP(
         "Ave_TcpClose", []() {
-            std::lock_guard<std::mutex> lock(io_mtx);
             if (sock != 0) {
                 closesocket(sock);
                 sock = 0;
@@ -268,9 +261,7 @@ void gdx_initialize()
             }
             printf("--\n");
 
-            io_mtx.lock();
             const int n = send(sock, buf, len, 0);
-            io_mtx.unlock();
 
             if (n != len) {
                 printf("unexpected send size\n");
@@ -288,17 +279,13 @@ void gdx_initialize()
             const u32 len = r5900Debug.getRegister(0, REG_a2)._u32[0];
             printf("recv %d bytes\n", len);
             int n = 0;
-            {
-                std::lock_guard<std::mutex> lock(io_mtx);
-                while (n < len) {
-                    const int r = recv(sock, buf, len, 0);
-                    if (r == SOCKET_ERROR) {
-                        r5900Debug.setRegister(0, REG_v0, u128::From32(-1));
-                        return;
-                    }
-                    n += r;
+            while (n < len) {
+                const int r = recv(sock, buf, len, 0);
+                if (r == SOCKET_ERROR) {
+                    r5900Debug.setRegister(0, REG_v0, u128::From32(-1));
+                    return;
                 }
-                io_recv_size = 0;
+                n += r;
             }
             printf("recv %d bytes done\n", len);
 
@@ -328,35 +315,8 @@ void gdx_initialize()
         printf("Failed. Error Code : %d", WSAGetLastError());
     }
 
-    {
-        std::lock_guard<std::mutex> lock(io_mtx);
-        sock = 0;
-        FD_ZERO(&readfds);
-
-        if (!io_thread_spawn) {
-            io_thread_spawn = true;
-            new std::thread([]() {
-                printf("io_thread spawn");
-                char buf[1024];
-                for (;;) {
-                    if (sock != 0) {
-                        std::lock_guard<std::mutex> lock(io_mtx);
-
-                        memcpy(&fds, &readfds, sizeof(fd_set));
-                        timeval timeout;
-                        timeout.tv_usec = 1;
-                        select(0, &fds, NULL, NULL, &timeout);
-                        char buf[1024] = {0};
-                        if (FD_ISSET(sock, &fds)) {
-                            int n = recv(sock, buf, sizeof(buf), MSG_PEEK);
-                            io_recv_size = n;
-                        }
-                    }
-                    std::this_thread::sleep_for(std::chrono::milliseconds(16));
-                }
-            });
-        }
-    }
+    sock = 0;
+    FD_ZERO(&readfds);
 }
 
 void gdx_reload_breakpoints()
@@ -445,10 +405,17 @@ void gdx_reload_breakpoints()
 void gdx_in_vsync()
 {
     if (r5900Debug.isAlive()) {
-        if (io_recv_size) {
-            r5900Debug.write32(0x00350990, 0x24020004); // 4: some data comming (later, change this address dynamically)
-        } else {
-            r5900Debug.write32(0x00350990, 0x24020000); // 0: no data comming
+        if (sock != 0) {
+            memcpy(&fds, &readfds, sizeof(fd_set));
+            timeval timeout;
+            timeout.tv_usec = 1;
+            select(0, &fds, NULL, NULL, &timeout);
+            char buf[1024] = {0};
+            if (FD_ISSET(sock, &fds)) {
+                r5900Debug.write32(0x00350990, 0x24020004); // 4: some data comming (later, change this address dynamically)
+            } else {
+                r5900Debug.write32(0x00350990, 0x24020000); // 0: no data comming
+            }
         }
     }
 }
