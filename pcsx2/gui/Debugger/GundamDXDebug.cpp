@@ -17,15 +17,12 @@ struct GdxBP;
 std::vector<GdxBP> gdx_breakpoints;
 std::map<u32, GdxBP> gdx_breakpoints_map;
 
-std::map<std::string, std::function<void(bool, DebugInterface *)>> gdx_remaps_name;
-std::map<u32, std::function<void(bool, DebugInterface *)>> gdx_remaps_addr;
 const u32 OP_NOP = 0;
 const u32 OP_JR_RA = 0x03e00008;
 
 // winsock data
 WSADATA wsa;
 SOCKET sock = 0;
-fd_set fds, readfds;
 std::string last_resolved_hostname;
 
 
@@ -217,6 +214,7 @@ void gdx_initialize()
                 closesocket(sock);
                 sock = 0;
             }
+
             sock = socket(AF_INET, SOCK_STREAM, 0);
             if (sock == INVALID_SOCKET) {
                 printf("socket error : %d\n", WSAGetLastError());
@@ -227,7 +225,6 @@ void gdx_initialize()
             addr.sin_addr = *((LPIN_ADDR)hostEntry->h_addr_list[0]);
             addr.sin_port = htons(3333);
             auto err = connect(sock, (const sockaddr *)&addr, sizeof(addr));
-            FD_SET(sock, &readfds);
 
             r5900Debug.setRegister(0, REG_v0, u128::From32(1)); // return socket number
             puts("connecting to dummy server done");
@@ -248,9 +245,15 @@ void gdx_initialize()
             char buf[1024] = {0};
             const u32 p = r5900Debug.getRegister(0, REG_a1)._u32[0];
             const u32 len = r5900Debug.getRegister(0, REG_a2)._u32[0];
+            if (len == 0) {
+                r5900Debug.setRegister(0, REG_v0, u128::From32(0));
+                return;
+            }
+
             for (int i = 0; i < len; ++i) {
                 buf[i] = r5900Debug.read8(p + i);
             }
+
             printf("-- send --\n");
             for (int i = 0; i < len; ++i) {
                 printf("%02x", buf[i] & 0xFF);
@@ -261,27 +264,71 @@ void gdx_initialize()
             }
             printf("--\n");
 
+            if (sock == 0) {
+                r5900Debug.setRegister(0, REG_v0, u128::From32(-1));
+                return;
+            }
+
             const int n = send(sock, buf, len, 0);
 
-            if (n != len) {
+            if (n == len) {
+                r5900Debug.setRegister(0, REG_v0, u128::From32(n));
+                printf("-- sent --\n");
+            } else {
+                r5900Debug.setRegister(0, REG_v0, u128::From32(-1));
                 printf("unexpected send size\n");
+                closesocket(sock);
+                sock = 0;
             }
-            r5900Debug.setRegister(0, REG_v0, u128::From32(n));
         },
         true));
 
     gdx_breakpoints.push_back(labelBP(
         "Ave_TcpRecv", []() {
-            // int sock_read(sock_t sock, void* buff, const size_t len)
             char buf[1024] = {0};
             // int sock = r5900Debug.getRegister(0, REG_a0)._u32[0];
             const u32 p = r5900Debug.getRegister(0, REG_a1)._u32[0];
             const u32 len = r5900Debug.getRegister(0, REG_a2)._u32[0];
             printf("recv %d bytes\n", len);
+
+            if (len == 0xffffffff) {
+                puts("[WARN] Invalid length");
+                r5900Debug.setRegister(0, REG_v0, u128::From32(-1));
+                return;
+            }
+
+            if (sock == 0) {
+                puts("[WARN] Invalid socket");
+                r5900Debug.setRegister(0, REG_v0, u128::From32(-1));
+                return;
+            }
+
+            bool data_comming = false;
+            {
+                fd_set fds;
+                FD_ZERO(&fds);
+                FD_SET(sock, &fds);
+                timeval timeout;
+                timeout.tv_sec = 0;
+                timeout.tv_usec = 1;
+                select(0, &fds, NULL, NULL, &timeout);
+                if (FD_ISSET(sock, &fds)) {
+                    data_comming = true;
+                }
+            }
+            if (!data_comming) {
+                puts("[WARN] Ave_TcpRecv is called but no data comming");
+                r5900Debug.setRegister(0, REG_v0, u128::From32(0));
+                return;
+            }
+
             int n = 0;
             while (n < len) {
-                const int r = recv(sock, buf, len, 0);
+                const int r = recv(sock, buf, len - n, 0);
                 if (r == SOCKET_ERROR) {
+                    closesocket(sock);
+                    sock = 0;
+
                     r5900Debug.setRegister(0, REG_v0, u128::From32(-1));
                     return;
                 }
@@ -308,15 +355,19 @@ void gdx_initialize()
         true));
 
     gdx_breakpoints.push_back(labelBP("SetSendCommand", nullptr, false));
-    gdx_breakpoints.push_back(labelBP("sock_read", nullptr, false));
+
+    /*
+	gdx_breakpoints.push_back(labelBP("Check_RequestResult",[]() {
+		printf("Check_RequestResult %02x\n", r5900Debug.read8(0x00aa64e8));
+	}, false));
+	*/
+
 
     printf("Initialising Winsock");
     if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) {
         printf("Failed. Error Code : %d", WSAGetLastError());
     }
-
     sock = 0;
-    FD_ZERO(&readfds);
 }
 
 void gdx_reload_breakpoints()
@@ -378,43 +429,45 @@ void gdx_reload_breakpoints()
 
 
     // rewrite Ave_TcpStat
-    /*
-	It's too slow
-	gdx_breakpoints.push_back(labelBP("Ave_TcpStat", []() {
-		std::lock_guard<std::mutex> lock(io_mtx);
-		if (io_recv_size) {
-			r5900Debug.write32(r5900Debug.getRegister(0, REG_a1), 4);
-		}
-		else {
-			r5900Debug.write32(r5900Debug.getRegister(0, REG_a1), 0);
-		}
-		}, true));
-	*/
     // Ave_TcpStat:
-    // addiu v0, zero, $000x
+    // addiu v0, zero, $0000
     // sw    v0, $0000(a1)
     // jr    ra
-    // addiu v0, zero, $0000
-    r5900Debug.write32(0x00350990, 0x24020000); // 0: no data comming
-    // r5900Debug.write32(0x00350990, 0x24020004); // 4: some data comming (later, change this address dynamically)
+    // nop
+    r5900Debug.write32(0x00350990, 0x24020000); // edit this address in vsync
     r5900Debug.write32(0x00350994, 0xaca20000);
     r5900Debug.write32(0x00350998, OP_JR_RA);
+    // r5900Debug.write32(0x0035099c, OP_NOP);
     r5900Debug.write32(0x0035099c, 0x24020000);
 }
 
 void gdx_in_vsync()
 {
+    static int is_set = 0;
     if (r5900Debug.isAlive()) {
+        if (sock == 0) {
+            r5900Debug.write32(0x00350990, 0x2402ffff);
+        }
         if (sock != 0) {
-            memcpy(&fds, &readfds, sizeof(fd_set));
+            fd_set fds;
+            FD_ZERO(&fds);
+            FD_SET(sock, &fds);
             timeval timeout;
+            timeout.tv_sec = 0;
             timeout.tv_usec = 1;
             select(0, &fds, NULL, NULL, &timeout);
-            char buf[1024] = {0};
             if (FD_ISSET(sock, &fds)) {
-                r5900Debug.write32(0x00350990, 0x24020004); // 4: some data comming (later, change this address dynamically)
+                if (!is_set) {
+                    puts("data comming");
+                }
+                is_set = 1;
+                r5900Debug.write32(0x00350990, 0x24020004);
             } else {
-                r5900Debug.write32(0x00350990, 0x24020000); // 0: no data comming
+                if (is_set) {
+                    puts("no data");
+                }
+                is_set = 0;
+                r5900Debug.write32(0x00350990, 0x24020000);
             }
         }
     }
