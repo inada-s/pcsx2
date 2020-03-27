@@ -13,18 +13,77 @@
 
 namespace
 {
+
+class GdxTcpClient {
+	SOCKET sock = INVALID_SOCKET;
+
+public:
+	void do_connect(const char* host, int port) {
+		SOCKET new_sock = socket(AF_INET, SOCK_STREAM, 0);
+		if (new_sock == INVALID_SOCKET) {
+			printf("socket error : %d\n", WSAGetLastError());
+			return;
+		}
+
+		auto host_entry = gethostbyname(host);
+		SOCKADDR_IN addr;
+		addr.sin_family = AF_INET;
+		addr.sin_addr = *((LPIN_ADDR)host_entry->h_addr_list[0]);
+		addr.sin_port = htons(port);
+		if (connect(new_sock, (const sockaddr*)&addr, sizeof(addr)) != NO_ERROR) {
+			printf("socket error : %d\n", WSAGetLastError());
+			return;
+		}
+
+		/*
+		u_long mode = 1; // non-blocking
+		if (ioctlsocket(new_sock, FIONBIO, &mode) != NO_ERROR) {
+			printf("ioctlsocket error : %d\n", WSAGetLastError());
+			return;
+		}
+		*/
+
+		if (sock != INVALID_SOCKET) {
+			closesocket(sock);
+		}
+
+		sock = new_sock;
+	}
+
+	int is_connected() {
+		return sock != INVALID_SOCKET;
+	}
+
+	int do_recv(char* buf, int len) {
+		return recv(sock, buf, len, 0);
+	}
+
+	int do_send(const char* buf, int len) {
+		return send(sock, buf, len, 0);
+	}
+
+	void do_close() {
+		if (sock != 0) {
+			closesocket(sock);
+			sock = 0;
+		}
+	}
+
+	u32 readable_size() {
+		u_long n = 0;
+		ioctlsocket(sock, FIONREAD, &n);
+		return u32(n);
+	}
+};
+
+GdxTcpClient tcp;
 struct GdxBP;
 std::vector<GdxBP> gdx_breakpoints;
 std::map<u32, GdxBP> gdx_breakpoints_map;
+std::string last_resolved_hostname;
 
 const u32 OP_NOP = 0;
 const u32 OP_JR_RA = 0x03e00008;
-
-// winsock data
-WSADATA wsa;
-SOCKET sock = 0;
-std::string last_resolved_hostname;
-
 
 // custom break point
 
@@ -108,7 +167,10 @@ void dump_state()
     dump_addr("a2", r5900Debug.getRegister(0, REG_a2)._u32[0]);
     dump_addr("a3", r5900Debug.getRegister(0, REG_a3)._u32[0]);
     dump_addr("ra", r5900Debug.getRegister(0, REG_ra)._u32[0]);
-    puts("");
+	// "ReadedDataLength", 0x00580120
+	// "LobbyDataLength", 0x00580124
+	// "HeaderReadedFlag", 0x00580128
+
     puts(">> trace");
     int d = 0;
     for (auto t : MipsStackWalk::Walk((DebugInterface *)&r5900Debug, r5900Debug.getPC(), r5900Debug.getRegister(0, REG_ra)._u32[0], r5900Debug.getRegister(0, REG_sp)._u32[0], 0, 0)) {
@@ -199,44 +261,13 @@ void gdx_initialize()
 
     gdx_breakpoints.push_back(labelBP(
         "Ave_TcpOpen", []() {
-            printf("TcpOpen:%s\n", last_resolved_hostname.c_str());
-            if (last_resolved_hostname.empty()) {
-                printf("no host available");
-                return;
-            }
-
-            puts("connecting to dummy server");
-            // local dummy server
-            auto hostEntry = gethostbyname("localhost");
-            assert(hostEntry);
-
-            if (sock != 0) {
-                closesocket(sock);
-                sock = 0;
-            }
-
-            sock = socket(AF_INET, SOCK_STREAM, 0);
-            if (sock == INVALID_SOCKET) {
-                printf("socket error : %d\n", WSAGetLastError());
-                return;
-            }
-            SOCKADDR_IN addr;
-            addr.sin_family = AF_INET;
-            addr.sin_addr = *((LPIN_ADDR)hostEntry->h_addr_list[0]);
-            addr.sin_port = htons(3333);
-            auto err = connect(sock, (const sockaddr *)&addr, sizeof(addr));
-
-            r5900Debug.setRegister(0, REG_v0, u128::From32(1)); // return socket number
-            puts("connecting to dummy server done");
+			tcp.do_connect("localhost", 3333); // dummy
         },
         true));
 
     gdx_breakpoints.push_back(labelBP(
         "Ave_TcpClose", []() {
-            if (sock != 0) {
-                closesocket(sock);
-                sock = 0;
-            }
+			tcp.do_close();
         },
         true));
 
@@ -254,42 +285,22 @@ void gdx_initialize()
                 buf[i] = r5900Debug.read8(p + i);
             }
 
-            printf("-- send --\n");
-            for (int i = 0; i < len; ++i) {
-                printf("%02x", buf[i] & 0xFF);
-                if (i + 1 != len)
-                    printf(" ");
-                else
-                    printf("\n");
-            }
-            printf("--\n");
-
-            if (sock == 0) {
-                r5900Debug.setRegister(0, REG_v0, u128::From32(-1));
-                return;
-            }
-
-            const int n = send(sock, buf, len, 0);
-
+			const int n = tcp.do_send(buf, len);
             if (n == len) {
                 r5900Debug.setRegister(0, REG_v0, u128::From32(n));
                 printf("-- sent --\n");
             } else {
                 r5900Debug.setRegister(0, REG_v0, u128::From32(-1));
-                printf("unexpected send size\n");
-                closesocket(sock);
-                sock = 0;
             }
         },
         true));
 
     gdx_breakpoints.push_back(labelBP(
         "Ave_TcpRecv", []() {
-            char buf[1024] = {0};
             // int sock = r5900Debug.getRegister(0, REG_a0)._u32[0];
             const u32 p = r5900Debug.getRegister(0, REG_a1)._u32[0];
             const u32 len = r5900Debug.getRegister(0, REG_a2)._u32[0];
-            printf("recv %d bytes\n", len);
+            printf("try to recv %d bytes\n", len);
 
             if (len == 0xffffffff) {
                 puts("[WARN] Invalid length");
@@ -297,51 +308,23 @@ void gdx_initialize()
                 return;
             }
 
-            if (sock == 0) {
-                puts("[WARN] Invalid socket");
+			if (tcp.readable_size() < len) {
+                puts("[WARN] Not enough length");
                 r5900Debug.setRegister(0, REG_v0, u128::From32(-1));
                 return;
-            }
+			}
 
-            bool data_comming = false;
-            {
-                fd_set fds;
-                FD_ZERO(&fds);
-                FD_SET(sock, &fds);
-                timeval timeout;
-                timeout.tv_sec = 0;
-                timeout.tv_usec = 1;
-                select(0, &fds, NULL, NULL, &timeout);
-                if (FD_ISSET(sock, &fds)) {
-                    data_comming = true;
-                }
-            }
-            if (!data_comming) {
-                puts("[WARN] Ave_TcpRecv is called but no data comming");
-                r5900Debug.setRegister(0, REG_v0, u128::From32(0));
-                return;
-            }
+			char buf[1024];
+			int n = tcp.do_recv(buf, len);
+            r5900Debug.setRegister(0, REG_v0, u128::From32(n));
 
-            int n = 0;
-            while (n < len) {
-                const int r = recv(sock, buf, len - n, 0);
-                if (r == SOCKET_ERROR) {
-                    closesocket(sock);
-                    sock = 0;
-
-                    r5900Debug.setRegister(0, REG_v0, u128::From32(-1));
-                    return;
-                }
-                n += r;
-            }
-            printf("recv %d bytes done\n", len);
-
+            printf("recv %d bytes done\n", n);
             for (int i = 0; i < n; ++i) {
                 r5900Debug.write8(p + i, buf[i]);
             }
 
             printf("-- recv --\n");
-            for (int i = 0; i < len; ++i) {
+            for (int i = 0; i < n; ++i) {
                 printf("%02x", buf[i] & 0xFF);
                 if (i + 1 != len)
                     printf(" ");
@@ -350,11 +333,13 @@ void gdx_initialize()
             }
             printf("--\n");
 
-            r5900Debug.setRegister(0, REG_v0, u128::From32(n));
         },
         true));
 
     gdx_breakpoints.push_back(labelBP("SetSendCommand", nullptr, false));
+    // gdx_breakpoints.push_back(labelBP("connect_ps2", nullptr, false, true));
+    // gdx_breakpoints.push_back(labelBP("connect_ps2_check", nullptr, false, true));
+    // gdx_breakpoints.push_back(labelBP("select_ps2", nullptr, false, true));
 
     /*
 	gdx_breakpoints.push_back(labelBP("Check_RequestResult",[]() {
@@ -364,10 +349,10 @@ void gdx_initialize()
 
 
     printf("Initialising Winsock");
+	WSADATA wsa;
     if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0) {
-        printf("Failed. Error Code : %d", WSAGetLastError());
+        printf("WSAStartup failed. error : %d", WSAGetLastError());
     }
-    sock = 0;
 }
 
 void gdx_reload_breakpoints()
@@ -424,12 +409,17 @@ void gdx_reload_breakpoints()
     // AvepppGetStatus:
     // jr    ra
     // return 0x05
+	// ppp status ok (probably).
     r5900Debug.write32(0x003584d0, OP_JR_RA);
-    r5900Debug.write32(0x003584d4, 0x24020005); // ppp status ok (probably).
+    r5900Debug.write32(0x003584d4, 0x24020005); // v0 = 5 
 
 
     // rewrite Ave_TcpStat
     // Ave_TcpStat:
+	// return -1 if no data comming
+	// set a1[0] = fd
+	// 
+	// 
     // addiu v0, zero, $0000
     // sw    v0, $0000(a1)
     // jr    ra
@@ -441,35 +431,30 @@ void gdx_reload_breakpoints()
     r5900Debug.write32(0x0035099c, 0x24020000);
 }
 
+void rewrite_connect_ps2_check() {
+	// 00357d90: connect_ps2_check
+	// return 1 if connected
+	r5900Debug.write32(0x00357d90, 0x24020000 | tcp.is_connected());
+	r5900Debug.write32(0x00357d94, OP_JR_RA);
+	r5900Debug.write32(0x00357d98, OP_NOP);
+}
+
+
 void gdx_in_vsync()
 {
     static int is_set = 0;
     if (r5900Debug.isAlive()) {
-        if (sock == 0) {
+		rewrite_connect_ps2_check();
+
+		if (tcp.is_connected()) {
+			// r5900Debug.write32(0x00350990, 0x24020c04);
+			r5900Debug.write32(0x00350990, 0x24020004);
+			// r5900Debug.write32(0x00350990, 0x24020ffff);
+		}
+		else {
             r5900Debug.write32(0x00350990, 0x2402ffff);
-        }
-        if (sock != 0) {
-            fd_set fds;
-            FD_ZERO(&fds);
-            FD_SET(sock, &fds);
-            timeval timeout;
-            timeout.tv_sec = 0;
-            timeout.tv_usec = 1;
-            select(0, &fds, NULL, NULL, &timeout);
-            if (FD_ISSET(sock, &fds)) {
-                if (!is_set) {
-                    puts("data comming");
-                }
-                is_set = 1;
-                r5900Debug.write32(0x00350990, 0x24020004);
-            } else {
-                if (is_set) {
-                    puts("no data");
-                }
-                is_set = 0;
-                r5900Debug.write32(0x00350990, 0x24020000);
-            }
-        }
+		}
+
     }
 }
 
