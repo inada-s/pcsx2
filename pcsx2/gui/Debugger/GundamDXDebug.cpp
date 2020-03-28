@@ -4,6 +4,7 @@
 #include <map>
 #include <string>
 #include <functional>
+#include <fstream>
 
 #include "App.h"
 #include "DebuggerLists.h"
@@ -13,6 +14,34 @@
 
 namespace
 {
+
+// Apparently, the phone number was used to identify the user.
+// We will use the initial value of the connection ID to identify the user.
+std::string gdx_get_login_key()
+{
+    wxString file_path(Path::Combine(g_Conf->Folders.Logs.ToString(), L"gdxsv.txt"));
+
+    if (!wxFileExists(file_path)) {
+        // generate new login key.
+        auto randchar = []() -> char {
+            const char charset[] =
+                "0123456789"
+                "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+                "abcdefghijklmnopqrstuvwxyz";
+            const size_t max_index = (sizeof(charset) - 1);
+            return charset[rand() % max_index];
+        };
+        std::string str(8, 0);
+        std::generate_n(str.begin(), 8, randchar);
+        std::ofstream ofs(file_path.ToStdString());
+        ofs << str << std::endl;
+    }
+
+    std::string login_key;
+    std::ifstream ifs(file_path.ToStdString());
+    ifs >> login_key;
+    return login_key;
+}
 
 class GdxTcpClient
 {
@@ -281,10 +310,19 @@ void gdx_initialize()
                 buf[i] = r5900Debug.read8(p + i);
             }
 
+            printf("-- send --\n");
+            for (int i = 0; i < len; ++i) {
+                printf("%02x", buf[i] & 0xFF);
+                if (i + 1 != len)
+                    printf(" ");
+                else
+                    printf("\n");
+            }
+            printf("--\n");
+
             const int n = tcp.do_send(buf, len);
             if (n == len) {
                 r5900Debug.setRegister(0, REG_v0, u128::From32(n));
-                printf("-- sent --\n");
             } else {
                 r5900Debug.setRegister(0, REG_v0, u128::From32(-1));
             }
@@ -327,6 +365,23 @@ void gdx_initialize()
 
     // it causes too slow game but the trace is useful for lobby debugging.
     gdx_breakpoints.push_back(labelBP("SetSendCommand", nullptr, false));
+    // gdx_breakpoints.push_back(labelBP("lobby_act_06_01", nullptr, false));
+    // gdx_breakpoints.push_back(labelBP("lobby_act_06_02", nullptr, false));
+    // gdx_breakpoints.push_back(labelBP("lobby_act_06_03", nullptr, false, true));
+    // gdx_breakpoints.push_back(labelBP("ADXF_GetStat", nullptr, false));
+    // gdx_breakpoints.push_back(labelBP("net_CharLoad", nullptr, false, false));
+    // gdx_breakpoints.push_back(labelBP("tk_rank_set", nullptr, false, true));
+    // gdx_breakpoints.push_back(labelBP("lobby_act_06_04", nullptr, false, false));
+    // gdx_breakpoints.push_back(labelBP("lobby_act_06_05", nullptr, false));
+
+    gdx_breakpoints.push_back(labelBP("InetLoadEnd", nullptr, false, true));
+    //    gdx_breakpoints.push_back(labelBP("network_connect", nullptr, false, true));
+    gdx_breakpoints.push_back(labelBP("net_stage_select", nullptr, false, true));
+    gdx_breakpoints.push_back(labelBP("net_mode_main_sub", nullptr, false, true));
+
+    gdx_breakpoints.push_back(labelBP("NetHeyaDataSet", nullptr, false, true));
+    // gdx_breakpoints.push_back(labelBP("NetRecvHeyaBinDef", nullptr, false, true));
+
 
     /*
 	// client sometimes check msg error code
@@ -375,8 +430,21 @@ void gdx_reload_breakpoints()
 
 //
 // patch functions
-// The game calls these function frequently, so it contribute to too bad performance.
 //
+
+
+void patch_connection_id()
+{
+    const u32 addr = 0x00A8760A;
+    if (r5900Debug.read8(addr) == 0) {
+        auto login_key = gdx_get_login_key();
+        int n = login_key.length();
+        for (int i = 0; i < n; ++i) {
+            r5900Debug.write8(addr + i, login_key[i]);
+        }
+        r5900Debug.write8(n, 0);
+    }
+}
 
 void patch_skip_modem()
 {
@@ -427,7 +495,7 @@ void patch_TcpGetStatus()
     r5900Debug.write32(0x00381e74, 0xaca20000);                 // sw    v0, $0000(a1)
     r5900Debug.write32(0x00381e78, 0x24020000 | readable_size); // addiu v0, zero, $0000
     r5900Debug.write32(0x00381e7c, 0xaca20004);                 // sw    v0, $0004(a1)
-    r5900Debug.write32(0x00381e80, 0x24020000 | retvalue);      // // sw    v0, $0000(a1)
+    r5900Debug.write32(0x00381e80, 0x24020000 | retvalue);      // sw    v0, $0000(a1)
     r5900Debug.write32(0x00381e84, OP_JR_RA);
     r5900Debug.write32(0x00381e88, OP_NOP);
 }
@@ -435,6 +503,7 @@ void patch_TcpGetStatus()
 void gdx_in_vsync()
 {
     if (r5900Debug.isAlive()) {
+        patch_connection_id();
         patch_skip_modem();
         patch_AvepppGetStatus();
         patch_connect_ps2_check();
@@ -442,13 +511,13 @@ void gdx_in_vsync()
     }
 }
 
-extern FILE *emuLog;
-
 bool gdx_check_breakpoint()
 {
     const u32 pc = r5900Debug.getPC();
     return gdx_breakpoints_map.find(pc) != gdx_breakpoints_map.end();
 }
+
+extern FILE *emuLog;
 
 bool gdx_break()
 {
