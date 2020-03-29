@@ -1,6 +1,7 @@
 #include "PrecompiledHeader.h"
 #include "GundamDXDebug.h"
 
+#include <random>
 #include <map>
 #include <string>
 #include <functional>
@@ -15,6 +16,7 @@
 namespace
 {
 
+
 // Apparently, the phone number was used to identify the user.
 // We will use the initial value of the connection ID to identify the user.
 std::string gdx_get_login_key()
@@ -23,16 +25,16 @@ std::string gdx_get_login_key()
 
     if (!wxFileExists(file_path)) {
         // generate new login key.
-        auto randchar = []() -> char {
-            const char charset[] =
-                "0123456789"
-                "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-                "abcdefghijklmnopqrstuvwxyz";
-            const size_t max_index = (sizeof(charset) - 1);
-            return charset[rand() % max_index];
-        };
-        std::string str(8, 0);
-        std::generate_n(str.begin(), 8, randchar);
+        const int n = 8; // login-key length
+
+        std::random_device rd;
+        std::mt19937 gen(rd());
+        std::string chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+        std::uniform_int_distribution<> dist(0, chars.length() - 1);
+        std::string str(n, 0);
+        std::generate_n(str.begin(), n, [&]() {
+            return chars[dist(gen)];
+        });
         std::ofstream ofs(file_path.ToStdString());
         ofs << str << std::endl;
     }
