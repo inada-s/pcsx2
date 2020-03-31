@@ -21,7 +21,8 @@ namespace
 // We will use the initial value of the connection ID to identify the user.
 std::string gdx_get_login_key()
 {
-    wxString file_path(Path::Combine(g_Conf->Folders.Logs.ToString(), L"gdxsv.txt"));
+    wxString app_root = Path::GetDirectory(g_Conf->Folders.Logs.ToString());
+    wxString file_path = Path::Combine(app_root, L"gdxsv_loginkey.txt");
 
     if (!wxFileExists(file_path)) {
         // generate new login key.
@@ -45,17 +46,36 @@ std::string gdx_get_login_key()
     return login_key;
 }
 
+// server address must be set in a file.
+std::pair<std::string, int> gdx_get_lobby_addr()
+{
+    wxString app_root = Path::GetDirectory(g_Conf->Folders.Logs.ToString());
+    wxString file_path = Path::Combine(app_root, L"gdxsv_addr.txt");
+    if (!wxFileExists(file_path)) {
+        printf("file not exists : %s", file_path.c_str());
+        return std::make_pair("localhost", 3333);
+    }
+
+    std::string host;
+    int port = 0;
+    std::ifstream ifs(file_path.ToStdString());
+    ifs >> host >> port;
+    return std::make_pair(host, port);
+}
+
 class GdxTcpClient
 {
     SOCKET sock = INVALID_SOCKET;
 
 public:
-    void do_connect(const char *host, int port)
+    bool do_connect(const char *host, int port)
     {
+        printf("do_connect : %s:%d\n", host, port);
+
         SOCKET new_sock = socket(AF_INET, SOCK_STREAM, 0);
         if (new_sock == INVALID_SOCKET) {
             printf("socket error : %d\n", WSAGetLastError());
-            return;
+            return false;
         }
 
         auto host_entry = gethostbyname(host);
@@ -65,7 +85,7 @@ public:
         addr.sin_port = htons(port);
         if (connect(new_sock, (const sockaddr *)&addr, sizeof(addr)) != NO_ERROR) {
             printf("socket error : %d\n", WSAGetLastError());
-            return;
+            return false;
         }
 
         if (sock != INVALID_SOCKET) {
@@ -73,6 +93,7 @@ public:
         }
 
         sock = new_sock;
+        return true;
     }
 
     int is_connected()
@@ -111,6 +132,7 @@ struct GdxBP;
 std::vector<GdxBP> gdx_breakpoints;
 std::map<u32, GdxBP> gdx_breakpoints_map;
 std::string last_resolved_hostname;
+FILE *mylog = nullptr;
 
 const u32 OP_NOP = 0;
 const u32 OP_JR_RA = 0x03e00008;
@@ -251,50 +273,82 @@ std::string gdx_read_string(u32 address)
 
 void gdx_initialize()
 {
+    gdx_get_lobby_addr();
+    gdx_get_login_key();
+    if (!mylog) {
+        mylog = fopen("mylog.txt", "w");
+    }
+
     gdx_breakpoints.clear();
     gdx_breakpoints.push_back(labelBP(
         "Ave_SifCallRpc", []() {
-            assert(false);
-        },
-        true));
-
-    gdx_breakpoints.push_back(labelBP(
-        "Ave_DnsGetTicket", []() {
-        },
-        true));
-
-    gdx_breakpoints.push_back(labelBP(
-        "Ave_DnsReleaseTicket", []() {
-            r5900Debug.setRegister(0, REG_v0, u128::From32(0));
+            puts("==============  WARNING ===============");
+            puts("=========  Ave_SifCallRpc   ===========");
+            puts("==============  WARNING ===============");
         },
         true));
 
     gdx_breakpoints.push_back(labelBP(
         "gethostbyname_ps2_0", []() {
-            auto hostname = gdx_read_string(r5900Debug.getRegister(0, REG_a0));
-            printf("gethostbyname_ps2_0 %s\n", hostname.c_str());
-            last_resolved_hostname = hostname;
-            r5900Debug.setRegister(0, REG_v0, u128::From32(1));
+            // set hostname to lookup
+            // return ticket_id
+            // auto hostname = gdx_read_string(r5900Debug.getRegister(0, REG_a0));
+            // printf("gethostbyname_ps2_0 %s\n", hostname.c_str());
+            r5900Debug.setRegister(0, REG_v0, u128::From32(0x0007));
         },
         true));
 
     gdx_breakpoints.push_back(labelBP(
         "gethostbyname_ps2_1", []() {
-            // unknown
-            // auto ticket_number = r5900Debug.read32(r5900Debug.getRegister(0, REG_a0));
-            // printf("ticket_number %d\n", ticket_number);
+            // Do dns lookup
+            // return
+            //	0         while lookup is continue
+            //	ipv4 addr if lookup is done
+            //  -1        error
+            auto ticket_id = r5900Debug.getRegister(0, REG_a0);
+            printf("ticket_id %d\n", ticket_id);
+            r5900Debug.setRegister(0, REG_v0, u128::From32(0x0077)); // return lobby addr
+        },
+        true));
+
+    gdx_breakpoints.push_back(labelBP(
+        "Ave_DnsReleaseTicket", []() {
+            // release the ticket
+            r5900Debug.setRegister(0, REG_v0, u128::From32(0));
         },
         true));
 
     gdx_breakpoints.push_back(labelBP(
         "Ave_TcpOpen", []() {
-            tcp.do_connect("localhost", 3333); // dummy
+            // Do tcp connect
+            // return socket number
+            const u32 a0 = r5900Debug.getRegister(0, REG_a0)._u32[0];
+            const u32 a1 = r5900Debug.getRegister(0, REG_a1)._u32[0];
+            auto host_port = gdx_get_lobby_addr();
+            std::string host;
+            if (a0 != 0x0077) {
+                auto ip = r5900Debug.getRegister(0, REG_a0)._u8;
+                char buf[1024] = {0};
+                sprintf(buf, "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
+
+                host_port = std::make_pair(std::string(buf), a1);
+            }
+            bool ok = tcp.do_connect(host_port.first.c_str(), host_port.second);
+            assert(ok);
+            r5900Debug.setRegister(0, REG_v0, u128::From32(7)); // dummy sock
         },
         true));
 
     gdx_breakpoints.push_back(labelBP(
         "Ave_TcpClose", []() {
             tcp.do_close();
+            r5900Debug.setRegister(0, REG_v0, u128::From32(0));
+        },
+        true));
+
+    gdx_breakpoints.push_back(labelBP(
+        "LobbyToMcsInitSocket", []() {
+            r5900Debug.setRegister(0, REG_v0, u128::From32(0));
         },
         true));
 
@@ -365,6 +419,87 @@ void gdx_initialize()
         },
         true));
 
+    gdx_breakpoints.push_back(labelBP(
+        "McsSifCallRpc", []() {
+            puts("==============  WARNING ===============");
+            puts("=========  McsSifCallRpc   ===========");
+            puts("==============  WARNING ===============");
+        },
+        true));
+
+    gdx_breakpoints.push_back(labelBP(
+        "McsInitialize", []() {
+        },
+        true));
+
+    gdx_breakpoints.push_back(labelBP(
+        "McsReceive", []() {
+            const u32 p = r5900Debug.getRegister(0, REG_a0)._u32[0];
+            const u32 len = r5900Debug.getRegister(0, REG_a1)._u32[0];
+            if (len == 0) {
+                r5900Debug.setRegister(0, REG_v0, u128::From32(0));
+                return;
+            }
+
+            const u32 len2 = std::min(len, tcp.readable_size());
+            if (len2 == 0) {
+                r5900Debug.setRegister(0, REG_v0, u128::From32(-1));
+                return;
+            }
+
+            printf("try to recv %d bytes\n", len);
+
+            char buf[1024];
+            int n = tcp.do_recv(buf, len2);
+            r5900Debug.setRegister(0, REG_v0, u128::From32(n));
+
+            printf("recv %d bytes done\n", n);
+            for (int i = 0; i < n; ++i) {
+                r5900Debug.write8(p + i, buf[i]);
+            }
+
+            printf("-- recv --\n");
+            for (int i = 0; i < n; ++i) {
+                printf("%02x", buf[i] & 0xFF);
+                if (i + 1 != len)
+                    printf(" ");
+                else
+                    printf("\n");
+            }
+            printf("--\n");
+        },
+        true, false));
+    // }, true, true));
+
+    gdx_breakpoints.push_back(labelBP(
+        "McsDispose", []() {
+        },
+        true));
+
+    /*
+	gdx_breakpoints.push_back(labelBP("net_stage_select", [](){
+		printf("Stage select scene !!");
+	}, false));
+
+    gdx_breakpoints.push_back(addrBP(0x0038b364, []() {
+		dump_addr("v0", r5900Debug.getRegister(0, REG_v0)._u32[0]);
+	}, false));
+
+    gdx_breakpoints.push_back(addrBP(0x0017375c, []() {
+		dump_addr("v0", r5900Debug.getRegister(0, REG_v0)._u32[0]);
+	}, false));
+	
+    gdx_breakpoints.push_back(labelBP("InetSwSet", []() { dump_addr("InetSwSet", r5900Debug.read32(0x00aa91ec));
+	}, false, true));
+
+    gdx_breakpoints.push_back(labelBP("wr_connection_id", []() {
+	}, false, true));
+*/
+
+    // gdx_breakpoints.push_back(labelBP("ReflectMsg", []() {}, false, true));
+    // gdx_breakpoints.push_back(addrBP(0x0037ff0c, []() {}, false, true));
+
+
     // it causes too slow game but the trace is useful for lobby debugging.
     gdx_breakpoints.push_back(labelBP("SetSendCommand", nullptr, false));
     // gdx_breakpoints.push_back(labelBP("lobby_act_06_01", nullptr, false));
@@ -376,12 +511,14 @@ void gdx_initialize()
     // gdx_breakpoints.push_back(labelBP("lobby_act_06_04", nullptr, false, false));
     // gdx_breakpoints.push_back(labelBP("lobby_act_06_05", nullptr, false));
 
-    gdx_breakpoints.push_back(labelBP("InetLoadEnd", nullptr, false, true));
+    // gdx_breakpoints.push_back(labelBP("InetLoadEnd", nullptr, false, true));
     //    gdx_breakpoints.push_back(labelBP("network_connect", nullptr, false, true));
-    gdx_breakpoints.push_back(labelBP("net_stage_select", nullptr, false, true));
-    gdx_breakpoints.push_back(labelBP("net_mode_main_sub", nullptr, false, true));
+    // gdx_breakpoints.push_back(labelBP("net_stage_select", nullptr, false, true));
+    // gdx_breakpoints.push_back(labelBP("net_mode_main_sub", nullptr, false, true));
 
-    gdx_breakpoints.push_back(labelBP("NetHeyaDataSet", nullptr, false, true));
+    // gdx_breakpoints.push_back(labelBP("game_start_to_mcs", nullptr, false, true));
+
+    // gdx_breakpoints.push_back(labelBP("NetHeyaDataSet", nullptr, false, true));
     // gdx_breakpoints.push_back(labelBP("NetRecvHeyaBinDef", nullptr, false, true));
 
 
@@ -391,6 +528,9 @@ void gdx_initialize()
 		printf("Check_RequestResult %02x\n", r5900Debug.read8(0x00aa64e8));
 	}, false));
 	*/
+
+
+    // gdx_breakpoints.push_back(labelBP("Net_Pl_Name_Suu", nullptr, false, true));
 
     printf("Initialising Winsock");
     WSADATA wsa;
@@ -428,6 +568,32 @@ void gdx_reload_breakpoints()
         }
         gdx_breakpoints_map[bp.addr] = bp;
     }
+
+    /*
+	auto paused = r3000Debug.isCpuPaused();
+	if (paused) {
+		r3000Debug.pauseCpu();
+	}
+
+	const u32 AVETCP = 0x000A9430;
+	auto text = r3000Debug.stringFromPointer(AVETCP + 0x0c);
+	if (std::string(text) == "avetcp") {
+		// ps2_debug_trace_flag 
+		r3000Debug.write32(AVETCP + 0x00014798, 1);
+		r3000Debug.write32(AVETCP + 0x000104c4, 0);
+
+	}
+	else {
+		puts("=== WARNING === mismatch avetcp load addr");
+	}
+
+
+	//
+
+	if (paused) {
+		r3000Debug.resumeCpu();
+	}
+	*/
 }
 
 //
@@ -510,6 +676,17 @@ void gdx_in_vsync()
         patch_AvepppGetStatus();
         patch_connect_ps2_check();
         patch_TcpGetStatus();
+
+        static u32 phase = 0;
+        auto new_phase = r5900Debug.read32(0x00580138);
+        if (phase != new_phase) {
+            phase = new_phase;
+            printf("game_start_to_mcs_phase: %08x\n", phase);
+        }
+
+        // use dummy user?
+        // r5900Debug.write32(0x0038b3ec, OP_NOP);
+        // r5900Debug.write32(0x0038b3f0, OP_NOP);
     }
 }
 
@@ -526,6 +703,10 @@ bool gdx_break()
     const u32 pc = r5900Debug.getPC();
 
     dump_state();
+    dump_addr("TicketID (DNS)", r5900Debug.read32(0x00580180));
+    dump_addr("COM_R_No_2", r5900Debug.read32(0x0057fee0));
+    dump_addr("COM_R_No_0", r5900Debug.read32(0x0057fee8)); // jump table 0035a750 modem_connect
+
     setvbuf(stdout, 0, _IONBF, 0);
     setvbuf(emuLog, 0, _IONBF, 0);
 
@@ -535,4 +716,24 @@ bool gdx_break()
     }
 
     return bp.stop;
+}
+
+
+void gdx_on_load_irx(std::string name, u32 import_table, u16 index)
+{
+    /*
+	fprintf(mylog, "=========\n");
+	fprintf(mylog, "gdx_on_load_irx %s table:%08x index:%04x\n", name.c_str(), import_table, index);
+
+	for (int i = 0; i < 16; ++i) {
+		for (int j = 0; j < 16; ++j) {
+			fprintf(mylog, "%02x ", r3000Debug.read8(import_table + i*16 + j) & 0xFF);
+		}
+		for (int j = 0; j < 16; ++j) {
+			char c = r3000Debug.read8(import_table + i * 16 + j) & 0xFF;
+			fprintf(mylog, "%c", isprint(c) ? c : '.');
+		}
+		fprintf(mylog, "\n");
+	}
+*/
 }

@@ -17,6 +17,7 @@
 #include "PrecompiledHeader.h"
 #include "IopCommon.h"
 #include "R5900.h" // for g_GameStarted
+#include "Debugger/GundamDXDebug.h"
 
 #include <ctype.h>
 #include <string.h>
@@ -712,6 +713,8 @@ int irxImportExec(u32 import_table, u16 index)
 	const char *funcname = irxImportFuncname(libname, index);
 	irxHLE hle = irxImportHLE(libname, index);
 	irxDEBUG debug = irxImportDebug(libname, index);
+
+//	gdx_on_load_irx(libname, import_table, index);
 
 	irxImportLog(libname, index, funcname);
 

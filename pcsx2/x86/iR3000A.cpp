@@ -23,6 +23,7 @@
 #include "iR3000A.h"
 #include "BaseblockEx.h"
 #include "System/RecTypes.h"
+#include "Debugger/GundamDXDebug.h"
 
 #include <time.h>
 
@@ -525,6 +526,9 @@ static void psxRecompileIrxImport()
 
 	if (!hle && !debug && (!SysTraceActive(IOP.Bios) || !funcname))
 		return;
+
+	gdx_on_load_irx(funcname, import_table, index);
+
 
 	xMOV(ptr32[&psxRegs.code], psxRegs.code);
 	xMOV(ptr32[&psxRegs.pc], psxpc);
