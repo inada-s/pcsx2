@@ -445,6 +445,7 @@ void gdx_initialize()
     }
 
     gdx_breakpoints.clear();
+
     gdx_breakpoints.push_back(labelBP(
         "Ave_SifCallRpc", []() {
             puts("==============  WARNING ===============");
@@ -453,146 +454,6 @@ void gdx_initialize()
         },
         true));
 
-	/*
-    gdx_breakpoints.push_back(labelBP(
-        "gethostbyname_ps2_0", []() {
-            // set hostname to lookup
-            // return ticket_id
-            // auto hostname = gdx_read_string(r5900Debug.getRegister(0, REG_a0));
-            // printf("gethostbyname_ps2_0 %s\n", hostname.c_str());
-            r5900Debug.setRegister(0, REG_v0, u128::From32(0x0007));
-        },
-        true));
-
-    gdx_breakpoints.push_back(labelBP(
-        "gethostbyname_ps2_1", []() {
-            // Do dns lookup
-            // return
-            //	0         while lookup is continue
-            //	ipv4 addr if lookup is done
-            //  -1        error
-            auto ticket_id = r5900Debug.getRegister(0, REG_a0);
-            printf("ticket_id %d\n", ticket_id);
-            r5900Debug.setRegister(0, REG_v0, u128::From32(0x0077)); // return lobby addr
-        },
-        true));
-
-    gdx_breakpoints.push_back(labelBP(
-        "Ave_DnsReleaseTicket", []() {
-            // release the ticket
-            r5900Debug.setRegister(0, REG_v0, u128::From32(0));
-        },
-        true));
-*/
-    /*
-    gdx_breakpoints.push_back(labelBP(
-        "Ave_TcpOpen", []() {
-            // Do tcp connect
-            // return socket number
-            const u32 a0 = r5900Debug.getRegister(0, REG_a0)._u32[0];
-            const u32 a1 = r5900Debug.getRegister(0, REG_a1)._u32[0];
-            auto host_port = gdx_get_lobby_addr();
-            std::string host;
-            if (a0 != 0x0077) {
-                auto ip = r5900Debug.getRegister(0, REG_a0)._u8;
-                char buf[1024] = {0};
-                sprintf(buf, "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
-
-                host_port = std::make_pair(std::string(buf), a1);
-            }
-            bool ok = tcp.do_connect(host_port.first.c_str(), host_port.second);
-            assert(ok);
-            r5900Debug.setRegister(0, REG_v0, u128::From32(7)); // dummy sock
-        },
-        true));
-
-    gdx_breakpoints.push_back(labelBP(
-        "Ave_TcpClose", []() {
-            tcp.do_close();
-            r5900Debug.setRegister(0, REG_v0, u128::From32(0));
-        },
-        true));
-
-    gdx_breakpoints.push_back(labelBP(
-        "LobbyToMcsInitSocket", []() {
-            r5900Debug.setRegister(0, REG_v0, u128::From32(0));
-        },
-        true));
-	*/
-
-    // gdx_breakpoints.push_back(labelBP("GetMsgMCS", []() { }, false, true));
-    // gdx_breakpoints.push_back(addrBP(0x0037fe30, []() { }, false, true));
-
-    /*
-    gdx_breakpoints.push_back(labelBP(
-        "Ave_TcpSend", []() {
-            char buf[1024] = {0};
-            const u32 p = r5900Debug.getRegister(0, REG_a1)._u32[0];
-            const u32 len = r5900Debug.getRegister(0, REG_a2)._u32[0];
-            if (len == 0) {
-                r5900Debug.setRegister(0, REG_v0, u128::From32(0));
-                return;
-            }
-
-            for (int i = 0; i < len; ++i) {
-                buf[i] = r5900Debug.read8(p + i);
-            }
-
-            printf("-- send --\n");
-            for (int i = 0; i < len; ++i) {
-                printf("%02x", buf[i] & 0xFF);
-                if (i + 1 != len)
-                    printf(" ");
-                else
-                    printf("\n");
-            }
-            printf("--\n");
-
-            const int n = tcp.do_send(buf, len);
-            if (n == len) {
-                r5900Debug.setRegister(0, REG_v0, u128::From32(n));
-            } else {
-                r5900Debug.setRegister(0, REG_v0, u128::From32(-1));
-            }
-        },
-        true));
-	*/
-
-    /*
-    gdx_breakpoints.push_back(labelBP(
-        "Ave_TcpRecv", []() {
-            // int sock = r5900Debug.getRegister(0, REG_a0)._u32[0];
-            const u32 p = r5900Debug.getRegister(0, REG_a1)._u32[0];
-            const u32 len = r5900Debug.getRegister(0, REG_a2)._u32[0];
-            printf("try to recv %d bytes\n", len);
-
-            if (tcp.readable_size() < len) {
-                puts("[WARN] Not enough length");
-                r5900Debug.setRegister(0, REG_v0, u128::From32(-1));
-                return;
-            }
-
-            char buf[1024];
-            int n = tcp.do_recv(buf, len);
-            r5900Debug.setRegister(0, REG_v0, u128::From32(n));
-
-            printf("recv %d bytes done\n", n);
-            for (int i = 0; i < n; ++i) {
-                r5900Debug.write8(p + i, buf[i]);
-            }
-
-            printf("-- recv --\n");
-            for (int i = 0; i < n; ++i) {
-                printf("%02x", buf[i] & 0xFF);
-                if (i + 1 != len)
-                    printf(" ");
-                else
-                    printf("\n");
-            }
-            printf("--\n");
-        },
-        true));
-	*/
     gdx_breakpoints.push_back(labelBP(
         "McsSifCallRpc", []() {
             puts("==============  WARNING ===============");
@@ -601,114 +462,11 @@ void gdx_initialize()
         },
         true));
 
-    /*
-    gdx_breakpoints.push_back(labelBP(
-        "McsInitialize", []() {
-        },
-        true));
-*/
-
-    /*
-    gdx_breakpoints.push_back(labelBP(
-        "McsReceive", []() {
-            const u32 p = r5900Debug.getRegister(0, REG_a0)._u32[0];
-            const u32 len = r5900Debug.getRegister(0, REG_a1)._u32[0];
-            if (len == 0) {
-                r5900Debug.setRegister(0, REG_v0, u128::From32(0));
-                return;
-            }
-
-            const u32 len2 = std::min(len, tcp.readable_size());
-            if (len2 == 0) {
-                r5900Debug.setRegister(0, REG_v0, u128::From32(-1));
-                return;
-            }
-
-            printf("try to recv %d bytes\n", len);
-
-            char buf[1024];
-            int n = tcp.do_recv(buf, len2);
-            r5900Debug.setRegister(0, REG_v0, u128::From32(n));
-
-            printf("recv %d bytes done\n", n);
-            for (int i = 0; i < n; ++i) {
-                r5900Debug.write8(p + i, buf[i]);
-            }
-
-            printf("-- recv --\n");
-            for (int i = 0; i < n; ++i) {
-                printf("%02x", buf[i] & 0xFF);
-                if (i + 1 != len)
-                    printf(" ");
-                else
-                    printf("\n");
-            }
-            printf("--\n");
-        },
-        true, false));
-    // }, true, true));
-	*/
-
-    gdx_breakpoints.push_back(labelBP(
-        "McsDispose", []() {
-        },
-        true));
-
-    /*
-	gdx_breakpoints.push_back(labelBP("net_stage_select", [](){
-		printf("Stage select scene !!");
-	}, false));
-
-    gdx_breakpoints.push_back(addrBP(0x0038b364, []() {
-		dump_addr("v0", r5900Debug.getRegister(0, REG_v0)._u32[0]);
-	}, false));
-
-    gdx_breakpoints.push_back(addrBP(0x0017375c, []() {
-		dump_addr("v0", r5900Debug.getRegister(0, REG_v0)._u32[0]);
-	}, false));
-	
-    gdx_breakpoints.push_back(labelBP("InetSwSet", []() { dump_addr("InetSwSet", r5900Debug.read32(0x00aa91ec));
-	}, false, true));
-
-    gdx_breakpoints.push_back(labelBP("wr_connection_id", []() {
-	}, false, true));
-*/
-
-    // gdx_breakpoints.push_back(labelBP("ReflectMsg", []() {}, false, true));
-    // gdx_breakpoints.push_back(addrBP(0x0037ff0c, []() {}, false, true));
-
 
     // it causes too slow game but the trace is useful for lobby debugging.
     gdx_breakpoints.push_back(labelBP("SetSendCommand", nullptr, false));
-    // gdx_breakpoints.push_back(labelBP("lobby_act_06_01", nullptr, false));
-    // gdx_breakpoints.push_back(labelBP("lobby_act_06_02", nullptr, false));
-    // gdx_breakpoints.push_back(labelBP("lobby_act_06_03", nullptr, false, true));
-    // gdx_breakpoints.push_back(labelBP("ADXF_GetStat", nullptr, false));
-    // gdx_breakpoints.push_back(labelBP("net_CharLoad", nullptr, false, false));
-    // gdx_breakpoints.push_back(labelBP("tk_rank_set", nullptr, false, true));
-    // gdx_breakpoints.push_back(labelBP("lobby_act_06_04", nullptr, false, false));
-    // gdx_breakpoints.push_back(labelBP("lobby_act_06_05", nullptr, false));
-
-    // gdx_breakpoints.push_back(labelBP("InetLoadEnd", nullptr, false, true));
-    //    gdx_breakpoints.push_back(labelBP("network_connect", nullptr, false, true));
-    // gdx_breakpoints.push_back(labelBP("net_stage_select", nullptr, false, true));
-    // gdx_breakpoints.push_back(labelBP("net_mode_main_sub", nullptr, false, true));
-
-    // gdx_breakpoints.push_back(labelBP("game_start_to_mcs", nullptr, false, true));
-
     // gdx_breakpoints.push_back(labelBP("NetHeyaDataSet", nullptr, false, true));
     // gdx_breakpoints.push_back(labelBP("NetRecvHeyaBinDef", nullptr, false, true));
-
-
-    /*
-	// client sometimes check msg error code
-	gdx_breakpoints.push_back(labelBP("Check_RequestResult",[]() {
-		printf("Check_RequestResult %02x\n", r5900Debug.read8(0x00aa64e8));
-	}, false));
-	*/
-
-
-    // gdx_breakpoints.push_back(labelBP("Net_Pl_Name_Suu", nullptr, false, true));
 
     printf("Initialising Winsock");
     WSADATA wsa;
@@ -746,32 +504,6 @@ void gdx_reload_breakpoints()
         }
         gdx_breakpoints_map[bp.addr] = bp;
     }
-
-    /*
-	auto paused = r3000Debug.isCpuPaused();
-	if (paused) {
-		r3000Debug.pauseCpu();
-	}
-
-	const u32 AVETCP = 0x000A9430;
-	auto text = r3000Debug.stringFromPointer(AVETCP + 0x0c);
-	if (std::string(text) == "avetcp") {
-		// ps2_debug_trace_flag 
-		r3000Debug.write32(AVETCP + 0x00014798, 1);
-		r3000Debug.write32(AVETCP + 0x000104c4, 0);
-
-	}
-	else {
-		puts("=== WARNING === mismatch avetcp load addr");
-	}
-
-
-	//
-
-	if (paused) {
-		r3000Debug.resumeCpu();
-	}
-	*/
 }
 
 //
@@ -790,17 +522,6 @@ void patch_connection_id()
         }
         r5900Debug.write8(n, 0);
     }
-}
-
-void patch_skip_modem()
-{
-    /*
-    // replace modem_recognition with network_battle.
-    r5900Debug.write32(0x003c4f58, 0x0015f110);
-
-    // skip ppp dialing step.
-    r5900Debug.write32(0x0035a660, 0x24030002);
-*/
 }
 
 void patch_AvepppGetStatus()
@@ -856,7 +577,6 @@ void gdx_in_vsync()
         update_gdx_queue();
         update_gdx_rpc();
         patch_connection_id();
-        patch_skip_modem();
         patch_AvepppGetStatus();
         patch_connect_ps2_check();
         patch_TcpGetStatus();
