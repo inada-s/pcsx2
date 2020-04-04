@@ -267,6 +267,171 @@ std::string gdx_read_string(u32 address)
     return std::string(buf);
 }
 
+
+#define BUFSIZE 4096
+u32 gdx_rpc_addr = 0;
+u32 gdx_rxq_addr = 0;
+u32 gdx_txq_addr = 0;
+
+void find_addr()
+{
+	// too short tag...
+    const int tag_rpc = 0x00637072; // "rpc"
+    const int tag_rxq = 0x00717872; // "rxq"
+    const int tag_txq = 0x00717874; // "txq"
+
+    for (int i = 0; i < BUFSIZE * 4; ++i) {
+        u32 addr = 0x000f0000 + i * 4;
+        u32 vale = r5900Debug.read32(addr);
+        if (vale == tag_rpc) {
+            gdx_rpc_addr = addr;
+        }
+        if (vale == tag_rxq) {
+            gdx_rxq_addr = addr;
+        }
+        if (vale == tag_txq) {
+            gdx_txq_addr = addr;
+        }
+    }
+}
+
+struct gdx_queue
+{
+    char name[4];
+    u32 head;
+    u32 tail;
+    u32 buf; // u8 buf[BUFSIZE];
+};
+
+u32 gdx_queue_size(struct gdx_queue *q)
+{
+    return (q->tail + BUFSIZE - q->head) % BUFSIZE;
+}
+
+void gdx_queue_push(struct gdx_queue *q, u8 data)
+{
+    r5900Debug.write8(q->buf + q->tail, data);
+    q->tail = (q->tail + 1) % BUFSIZE;
+}
+
+u8 gdx_queue_pop(struct gdx_queue *q)
+{
+    u8 ret = r5900Debug.read8(q->buf + q->head);
+    q->head = (q->head + 1) % BUFSIZE;
+    return ret;
+}
+
+void update_gdx_queue()
+{
+    if (gdx_rxq_addr == 0 || gdx_txq_addr == 0) {
+        find_addr();
+    }
+
+    if (gdx_txq_addr == 0 || gdx_txq_addr == 0) {
+        return;
+    }
+
+    if (!tcp.is_connected()) {
+        return;
+    }
+
+    gdx_queue q;
+    char buf[BUFSIZE];
+    u32 n;
+
+    n = tcp.readable_size();
+    q.head = r5900Debug.read32(gdx_rxq_addr + 4);
+    q.tail = r5900Debug.read32(gdx_rxq_addr + 8);
+    q.buf = gdx_rxq_addr + 12;
+    if (n) {
+        n = tcp.do_recv(buf, n);
+        for (int i = 0; i < n; ++i) {
+            gdx_queue_push(&q, buf[i]);
+        }
+        r5900Debug.write32(gdx_rxq_addr + 8, q.tail);
+    }
+
+    q.head = r5900Debug.read32(gdx_txq_addr + 4);
+    q.tail = r5900Debug.read32(gdx_txq_addr + 8);
+    q.buf = gdx_txq_addr + 12;
+    n = gdx_queue_size(&q);
+    if (n) {
+        for (int i = 0; i < n; ++i) {
+            buf[i] = gdx_queue_pop(&q);
+        }
+        tcp.do_send(buf, n);
+        r5900Debug.write32(gdx_txq_addr + 4, 0);
+        r5900Debug.write32(gdx_txq_addr + 8, 0);
+    }
+}
+enum {
+    RPC_TCP_OPEN = 1,
+    RPC_TCP_CLOSE = 2,
+};
+
+struct gdx_rpc_t
+{
+    char tag[4];
+    u32 request;
+    u32 response;
+
+    u32 param1;
+    u32 param2;
+    u32 param3;
+    u32 param4;
+    u8 name1[128];
+    u8 name2[128];
+};
+
+void update_gdx_rpc()
+{
+    if (gdx_rpc_addr == 0) {
+        find_addr();
+    }
+
+    if (gdx_rpc_addr == 0) {
+        return;
+    }
+
+    gdx_rpc_t gdx_rpc;
+	gdx_rpc.request = r5900Debug.read32(gdx_rpc_addr + 4);
+	gdx_rpc.response = r5900Debug.read32(gdx_rpc_addr + 8);
+	gdx_rpc.param1 = r5900Debug.read32(gdx_rpc_addr + 12);
+	gdx_rpc.param2 = r5900Debug.read32(gdx_rpc_addr + 16);
+	gdx_rpc.param3 = r5900Debug.read32(gdx_rpc_addr + 20);
+	gdx_rpc.param4 = r5900Debug.read32(gdx_rpc_addr + 24);
+
+	if (gdx_rpc.request == RPC_TCP_OPEN) {
+		u32 tolobby = gdx_rpc.param1;
+		u32 host_ip = gdx_rpc.param2;
+		u32 port_no = gdx_rpc.param3;
+
+		auto host_port = gdx_get_lobby_addr();
+
+		if (tolobby != 1) {
+			union {
+				u32 _u32;
+				u8 _u8[4];
+			} ipv4addr;
+			ipv4addr._u32 = host_ip;
+			auto ip = ipv4addr._u8;
+			char buf[1024] = {0};
+			sprintf(buf, "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
+			host_port = std::make_pair(std::string(buf), port_no);
+		}
+
+		bool ok = tcp.do_connect(host_port.first.c_str(), host_port.second);
+		if (!ok) {
+			printf("[WARN] Failed to connect %s:%d\n", host_port.first.c_str(), host_port.second);
+		}
+	}
+	if (gdx_rpc.request == RPC_TCP_CLOSE) {
+		tcp.do_close();
+	}
+
+	r5900Debug.write32(gdx_rpc_addr + 4, 0);
+}
+
 } // end of namespace
 
 // ---
@@ -288,6 +453,7 @@ void gdx_initialize()
         },
         true));
 
+	/*
     gdx_breakpoints.push_back(labelBP(
         "gethostbyname_ps2_0", []() {
             // set hostname to lookup
@@ -317,7 +483,8 @@ void gdx_initialize()
             r5900Debug.setRegister(0, REG_v0, u128::From32(0));
         },
         true));
-
+*/
+    /*
     gdx_breakpoints.push_back(labelBP(
         "Ave_TcpOpen", []() {
             // Do tcp connect
@@ -351,7 +518,12 @@ void gdx_initialize()
             r5900Debug.setRegister(0, REG_v0, u128::From32(0));
         },
         true));
+	*/
 
+    // gdx_breakpoints.push_back(labelBP("GetMsgMCS", []() { }, false, true));
+    // gdx_breakpoints.push_back(addrBP(0x0037fe30, []() { }, false, true));
+
+    /*
     gdx_breakpoints.push_back(labelBP(
         "Ave_TcpSend", []() {
             char buf[1024] = {0};
@@ -384,7 +556,9 @@ void gdx_initialize()
             }
         },
         true));
+	*/
 
+    /*
     gdx_breakpoints.push_back(labelBP(
         "Ave_TcpRecv", []() {
             // int sock = r5900Debug.getRegister(0, REG_a0)._u32[0];
@@ -418,7 +592,7 @@ void gdx_initialize()
             printf("--\n");
         },
         true));
-
+	*/
     gdx_breakpoints.push_back(labelBP(
         "McsSifCallRpc", []() {
             puts("==============  WARNING ===============");
@@ -427,11 +601,14 @@ void gdx_initialize()
         },
         true));
 
+    /*
     gdx_breakpoints.push_back(labelBP(
         "McsInitialize", []() {
         },
         true));
+*/
 
+    /*
     gdx_breakpoints.push_back(labelBP(
         "McsReceive", []() {
             const u32 p = r5900Debug.getRegister(0, REG_a0)._u32[0];
@@ -470,6 +647,7 @@ void gdx_initialize()
         },
         true, false));
     // }, true, true));
+	*/
 
     gdx_breakpoints.push_back(labelBP(
         "McsDispose", []() {
@@ -616,11 +794,13 @@ void patch_connection_id()
 
 void patch_skip_modem()
 {
+    /*
     // replace modem_recognition with network_battle.
     r5900Debug.write32(0x003c4f58, 0x0015f110);
 
     // skip ppp dialing step.
     r5900Debug.write32(0x0035a660, 0x24030002);
+*/
 }
 
 void patch_AvepppGetStatus()
@@ -668,9 +848,13 @@ void patch_TcpGetStatus()
     r5900Debug.write32(0x00381e88, OP_NOP);
 }
 
+
+
 void gdx_in_vsync()
 {
     if (r5900Debug.isAlive()) {
+        update_gdx_queue();
+        update_gdx_rpc();
         patch_connection_id();
         patch_skip_modem();
         patch_AvepppGetStatus();
