@@ -30,7 +30,7 @@ std::string gdx_get_login_key()
 
         std::random_device rd;
         std::mt19937 gen(rd());
-        std::string chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
+        std::string chars = "0123456789";
         std::uniform_int_distribution<> dist(0, chars.length() - 1);
         std::string str(n, 0);
         std::generate_n(str.begin(), n, [&]() {
@@ -53,7 +53,7 @@ std::pair<std::string, int> gdx_get_lobby_addr()
     wxString file_path = Path::Combine(app_root, L"gdxsv_addr.txt");
     if (!wxFileExists(file_path)) {
         printf("file not exists : %s", file_path.c_str());
-        return std::make_pair("localhost", 3333);
+        return std::make_pair("localhost", 9876);
     }
 
     std::string host;
@@ -275,7 +275,7 @@ u32 gdx_txq_addr = 0;
 
 void find_addr()
 {
-	// too short tag...
+    // too short tag...
     const int tag_rpc = 0x00637072; // "rpc"
     const int tag_rxq = 0x00717872; // "rxq"
     const int tag_txq = 0x00717874; // "txq"
@@ -394,42 +394,43 @@ void update_gdx_rpc()
     }
 
     gdx_rpc_t gdx_rpc;
-	gdx_rpc.request = r5900Debug.read32(gdx_rpc_addr + 4);
-	gdx_rpc.response = r5900Debug.read32(gdx_rpc_addr + 8);
-	gdx_rpc.param1 = r5900Debug.read32(gdx_rpc_addr + 12);
-	gdx_rpc.param2 = r5900Debug.read32(gdx_rpc_addr + 16);
-	gdx_rpc.param3 = r5900Debug.read32(gdx_rpc_addr + 20);
-	gdx_rpc.param4 = r5900Debug.read32(gdx_rpc_addr + 24);
+    gdx_rpc.request = r5900Debug.read32(gdx_rpc_addr + 4);
+    gdx_rpc.response = r5900Debug.read32(gdx_rpc_addr + 8);
+    gdx_rpc.param1 = r5900Debug.read32(gdx_rpc_addr + 12);
+    gdx_rpc.param2 = r5900Debug.read32(gdx_rpc_addr + 16);
+    gdx_rpc.param3 = r5900Debug.read32(gdx_rpc_addr + 20);
+    gdx_rpc.param4 = r5900Debug.read32(gdx_rpc_addr + 24);
 
-	if (gdx_rpc.request == RPC_TCP_OPEN) {
-		u32 tolobby = gdx_rpc.param1;
-		u32 host_ip = gdx_rpc.param2;
-		u32 port_no = gdx_rpc.param3;
+    if (gdx_rpc.request == RPC_TCP_OPEN) {
+        u32 tolobby = gdx_rpc.param1;
+        u32 host_ip = gdx_rpc.param2;
+        u32 port_no = gdx_rpc.param3;
 
-		auto host_port = gdx_get_lobby_addr();
+        auto host_port = gdx_get_lobby_addr();
 
-		if (tolobby != 1) {
-			union {
-				u32 _u32;
-				u8 _u8[4];
-			} ipv4addr;
-			ipv4addr._u32 = host_ip;
-			auto ip = ipv4addr._u8;
-			char buf[1024] = {0};
-			sprintf(buf, "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
-			host_port = std::make_pair(std::string(buf), port_no);
-		}
+        if (tolobby != 1) {
+            union
+            {
+                u32 _u32;
+                u8 _u8[4];
+            } ipv4addr;
+            ipv4addr._u32 = host_ip;
+            auto ip = ipv4addr._u8;
+            char buf[1024] = {0};
+            sprintf(buf, "%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
+            host_port = std::make_pair(std::string(buf), port_no);
+        }
 
-		bool ok = tcp.do_connect(host_port.first.c_str(), host_port.second);
-		if (!ok) {
-			printf("[WARN] Failed to connect %s:%d\n", host_port.first.c_str(), host_port.second);
-		}
-	}
-	if (gdx_rpc.request == RPC_TCP_CLOSE) {
-		tcp.do_close();
-	}
+        bool ok = tcp.do_connect(host_port.first.c_str(), host_port.second);
+        if (!ok) {
+            printf("[WARN] Failed to connect %s:%d\n", host_port.first.c_str(), host_port.second);
+        }
+    }
+    if (gdx_rpc.request == RPC_TCP_CLOSE) {
+        tcp.do_close();
+    }
 
-	r5900Debug.write32(gdx_rpc_addr + 4, 0);
+    r5900Debug.write32(gdx_rpc_addr + 4, 0);
 }
 
 } // end of namespace
@@ -440,9 +441,6 @@ void gdx_initialize()
 {
     gdx_get_lobby_addr();
     gdx_get_login_key();
-    if (!mylog) {
-        mylog = fopen("mylog.txt", "w");
-    }
 
     gdx_breakpoints.clear();
 
@@ -452,7 +450,7 @@ void gdx_initialize()
             puts("=========  Ave_SifCallRpc   ===========");
             puts("==============  WARNING ===============");
         },
-        true));
+        false));
 
     gdx_breakpoints.push_back(labelBP(
         "McsSifCallRpc", []() {
@@ -511,16 +509,23 @@ void gdx_reload_breakpoints()
 //
 
 
-void patch_connection_id()
+void patch_personalform()
 {
-    const u32 addr = 0x00A8760A;
-    if (r5900Debug.read8(addr) == 0) {
+	u32 addr = 0x00a88370;
+    if (r5900Debug.read32(addr) == 0) {
+		// replace modem_recognition with network_battle.
+        r5900Debug.write32(0x003c4f58, 0x0015f110);
+
+		// skip form validation
+        r5900Debug.write32(0x003551c0, 0);
+
+		// fill login key to telephone number form
         auto login_key = gdx_get_login_key();
         int n = login_key.length();
         for (int i = 0; i < n; ++i) {
             r5900Debug.write8(addr + i, login_key[i]);
         }
-        r5900Debug.write8(n, 0);
+        r5900Debug.write8(addr + n, 0);
     }
 }
 
@@ -569,14 +574,45 @@ void patch_TcpGetStatus()
     r5900Debug.write32(0x00381e88, OP_NOP);
 }
 
-
+int ave_tcp_addr = 0;
 
 void gdx_in_vsync()
 {
+    if (r3000Debug.isAlive()) {
+        auto paused = r3000Debug.isCpuPaused();
+        if (paused) {
+            r3000Debug.pauseCpu();
+        }
+
+        if (ave_tcp_addr == 0) {
+            int base = 0x000afffc;
+            for (u32 addr = base; 0x00060000 <= addr; addr -= 4) {
+                u32 a1 = r3000Debug.read32(addr);
+                if (a1 == 0x74657661) {
+                    u32 a2 = r3000Debug.read32(addr + 4);
+                    if (a2 == 0x00007063) {
+                        ave_tcp_addr = addr + 4;
+                        printf("found! %x\n", ave_tcp_addr);
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (ave_tcp_addr) {
+            // auto value = r3000Debug.read32(AVETCP + 0x00014798);
+            r3000Debug.write32(ave_tcp_addr + 0x00014798, 0xffffffff);
+            r3000Debug.write32(ave_tcp_addr + 0x000104c4, 0);
+        }
+
+        if (paused) {
+            r3000Debug.resumeCpu();
+        }
+    }
     if (r5900Debug.isAlive()) {
         update_gdx_queue();
         update_gdx_rpc();
-        patch_connection_id();
+        patch_personalform();
         patch_AvepppGetStatus();
         patch_connect_ps2_check();
         patch_TcpGetStatus();
