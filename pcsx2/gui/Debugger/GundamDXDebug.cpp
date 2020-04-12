@@ -450,7 +450,7 @@ void gdx_initialize()
             puts("=========  Ave_SifCallRpc   ===========");
             puts("==============  WARNING ===============");
         },
-        false));
+        true));
 
     gdx_breakpoints.push_back(labelBP(
         "McsSifCallRpc", []() {
@@ -462,7 +462,7 @@ void gdx_initialize()
 
 
     // it causes too slow game but the trace is useful for lobby debugging.
-    gdx_breakpoints.push_back(labelBP("SetSendCommand", nullptr, false));
+    // gdx_breakpoints.push_back(labelBP("SetSendCommand", nullptr, false));
     // gdx_breakpoints.push_back(labelBP("NetHeyaDataSet", nullptr, false, true));
     // gdx_breakpoints.push_back(labelBP("NetRecvHeyaBinDef", nullptr, false, true));
 
