@@ -54,6 +54,10 @@
   <PropertyGroup>
     <CodeAnalysisRuleSet>AllRules.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Devel|Win32'">
+    <IncludePath>$(ProjectRootDir)/../3rdparty\protobuf\include;$(VC_IncludePath);$(WindowsSDK_IncludePath);</IncludePath>
+    <LibraryPath>$(ProjectRootDir)/../3rdparty\protobuf\lib;$(VC_LibraryPath_x86);$(WindowsSDK_LibraryPath_x86)</LibraryPath>
+  </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
       <AdditionalIncludeDirectories>$(ProjectRootDir)/gui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
@@ -62,9 +66,14 @@
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>PrecompiledHeader.h</PrecompiledHeaderFile>
       <EnableEnhancedInstructionSet>NoExtensions</EnableEnhancedInstructionSet>
+      <PreprocessorDefinitions Condition="'$(Configuration)|$(Platform)'=='Devel|Win32'">PCSX2_DEVEL;PCSX2_DEVBUILD;NDEBUG;_SECURE_SCL_=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <RuntimeLibrary Condition="'$(Configuration)|$(Platform)'=='Devel|Win32'">MultiThreadedDLL</RuntimeLibrary>
     </ClCompile>
     <Link>
       <LargeAddressAware>Yes</LargeAddressAware>
+      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Devel|Win32'">libprotobuf.lib;comctl32.lib;ws2_32.lib;shlwapi.lib;winmm.lib;rpcrt4.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">libprotobuf.lib;comctl32.lib;ws2_32.lib;shlwapi.lib;winmm.lib;rpcrt4.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">libprotobuf.lib;comctl32.lib;ws2_32.lib;shlwapi.lib;winmm.lib;rpcrt4.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -145,6 +154,7 @@
       <Command>cmd.exe /c %(RelativeDir)bin2cpp.cmd %(Filename)%(Extension)</Command>
       <Outputs>%(RelativeDir)%(Filename).h</Outputs>
     </CustomBuild>
+    <None Include="gdxsv\gdxsv_patch.inc" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\CDVD\BlockdumpFileReader.cpp" />
@@ -175,7 +185,6 @@
     <ClCompile Include="..\..\gui\Debugger\DebugEvents.cpp" />
     <ClCompile Include="..\..\gui\Debugger\DebuggerLists.cpp" />
     <ClCompile Include="..\..\gui\Debugger\DisassemblyDialog.cpp" />
-    <ClCompile Include="..\..\gui\Debugger\GundamDXDebug.cpp" />
     <ClCompile Include="..\..\gui\Dialogs\McdConfigDialog.cpp" />
     <ClCompile Include="..\..\gui\Panels\MemoryCardListView.cpp" />
     <ClCompile Include="..\..\IopGte.cpp" />
@@ -294,6 +303,14 @@
     <ClCompile Include="..\..\IopIrq.cpp" />
     <ClCompile Include="..\..\IopMem.cpp" />
     <ClCompile Include="..\WinKeyCodes.cpp" />
+    <ClCompile Include="gdxsv\gdxsv.cpp" />
+    <ClCompile Include="gdxsv\gdxsv.pb.cc">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Devel|Win32'">NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="gdxsv\gdxsv_emu_debug.cpp" />
+    <ClCompile Include="gdxsv\gdxsv_emu_hooks.cpp" />
+    <ClCompile Include="gdxsv\gdxsv_network.cpp" />
     <ClCompile Include="IopSif.cpp" />
     <ClCompile Include="..\..\IopSio2.cpp" />
     <ClCompile Include="..\..\R3000A.cpp" />
@@ -434,7 +451,6 @@
     <ClInclude Include="..\..\GameDatabase.h" />
     <ClInclude Include="..\..\Gif_Unit.h" />
     <ClInclude Include="..\..\gui\AppGameDatabase.h" />
-    <ClInclude Include="..\..\gui\Debugger\GundamDXDebug.h" />
     <ClInclude Include="..\..\gui\Saveslots.h" />
     <ClInclude Include="..\..\gui\Debugger\BreakpointWindow.h" />
     <ClInclude Include="..\..\gui\Debugger\CtrlDisassemblyView.h" />
@@ -538,6 +554,19 @@
     <ClInclude Include="..\..\DebugTools\DisASM.h" />
     <ClInclude Include="..\..\DebugTools\DisVUmicro.h" />
     <ClInclude Include="..\..\DebugTools\DisVUops.h" />
+    <ClInclude Include="gdxsv\gdxsv.h" />
+    <ClInclude Include="gdxsv\gdxsv.pb.h" />
+    <ClInclude Include="gdxsv\gdxsv_backend_replay.h" />
+    <ClInclude Include="gdxsv\gdxsv_backend_tcp.h" />
+    <ClInclude Include="gdxsv\gdxsv_backend_udp.h" />
+    <ClInclude Include="gdxsv\gdxsv_emu_debug.h" />
+    <ClInclude Include="gdxsv\gdxsv_emu_hooks.h" />
+    <ClInclude Include="gdxsv\gdxsv_network.h" />
+    <ClInclude Include="gdxsv\gdx_queue.h" />
+    <ClInclude Include="gdxsv\lbs_message.h" />
+    <ClInclude Include="gdxsv\libs.h" />
+    <ClInclude Include="gdxsv\mcs_message.h" />
+    <ClInclude Include="gdxsv\types.h" />
     <CustomBuildStep Include="..\..\rdebug\deci2.h">
       <ExcludedFromBuild>true</ExcludedFromBuild>
     </CustomBuildStep>

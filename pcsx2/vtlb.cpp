@@ -35,6 +35,7 @@
 #include "COP0.h"
 #include "Cache.h"
 #include "R5900Exceptions.h"
+#include "gdxsv/gdxsv_emu_hooks.h"
 
 #include "Utilities/MemsetFast.inl"
 

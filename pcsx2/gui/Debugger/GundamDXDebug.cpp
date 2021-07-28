@@ -327,7 +327,7 @@ void update_gdx_queue()
         find_addr();
     }
 
-    if (gdx_txq_addr == 0 || gdx_txq_addr == 0) {
+    if (gdx_rxq_addr == 0 || gdx_txq_addr == 0) {
         return;
     }
 
@@ -349,6 +349,7 @@ void update_gdx_queue()
             gdx_queue_push(&q, buf[i]);
         }
         r5900Debug.write32(gdx_rxq_addr + 8, q.tail);
+		printf("Recv %d bytes\n", n);
     }
 
     q.head = r5900Debug.read32(gdx_txq_addr + 4);
@@ -362,6 +363,7 @@ void update_gdx_queue()
         tcp.do_send(buf, n);
         r5900Debug.write32(gdx_txq_addr + 4, 0);
         r5900Debug.write32(gdx_txq_addr + 8, 0);
+		printf("Send %d bytes\n", n);
     }
 }
 enum {
@@ -440,6 +442,8 @@ void update_gdx_rpc()
 void gdx_initialize()
 {
     gdx_get_lobby_addr();
+
+    // gdx_breakpoints.push_back(labelBP( "plmv_turn01", []() { }, false, true));
     gdx_get_login_key();
 
     gdx_breakpoints.clear();
@@ -459,7 +463,6 @@ void gdx_initialize()
             puts("==============  WARNING ===============");
         },
         true));
-
 
     // it causes too slow game but the trace is useful for lobby debugging.
     // gdx_breakpoints.push_back(labelBP("SetSendCommand", nullptr, false));
@@ -578,6 +581,7 @@ int ave_tcp_addr = 0;
 
 void gdx_in_vsync()
 {
+	/*
     if (r3000Debug.isAlive()) {
         auto paused = r3000Debug.isCpuPaused();
         if (paused) {
@@ -609,13 +613,14 @@ void gdx_in_vsync()
             r3000Debug.resumeCpu();
         }
     }
+	*/
     if (r5900Debug.isAlive()) {
         update_gdx_queue();
         update_gdx_rpc();
         patch_personalform();
         patch_AvepppGetStatus();
         patch_connect_ps2_check();
-        patch_TcpGetStatus();
+        // patch_TcpGetStatus();
 
         static u32 phase = 0;
         auto new_phase = r5900Debug.read32(0x00580138);

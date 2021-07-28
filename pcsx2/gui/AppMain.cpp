@@ -30,7 +30,7 @@
 #include "Dialogs/LogOptionsDialog.h"
 
 #include "Debugger/DisassemblyDialog.h"
-#include "Debugger/GundamDXDebug.h"
+#include "gdxsv/gdxsv_emu_debug.h"
 
 #ifndef DISABLE_RECORDING
 #	include "Recording/RecordingControls.h"
@@ -816,10 +816,10 @@ GSFrame& Pcsx2App::GetGsFrame() const
 
 void Pcsx2App::enterDebugMode()
 {
-    gdx_reload_breakpoints();
+    gdxsv_emu_reload_breakpoints();
 
-    if (gdx_check_breakpoint()) {
-        bool stop = gdx_break();
+    if (gdxsv_emu_check_breakpoint()) {
+        bool stop = gdxsv_emu_break();
         if (!stop) {
             if (CBreakPoints::GetBreakpointTriggered()) {
                 CBreakPoints::SetBreakpointTriggered(false);
@@ -837,7 +837,7 @@ void Pcsx2App::enterDebugMode()
 	
 void Pcsx2App::leaveDebugMode()
 {
-    if (gdx_check_breakpoint()) {
+    if (gdxsv_emu_check_breakpoint()) {
         return;
     }
 

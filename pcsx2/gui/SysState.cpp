@@ -31,6 +31,8 @@
 
 #include "Patch.h"
 
+#include "gdxsv/gdxsv_emu_hooks.h"
+
 // Used to hold the current state backup (fullcopy of PS2 memory and plugin states).
 //static VmStateBuffer state_buffer( L"Public Savestate Buffer" );
 
@@ -701,4 +703,6 @@ void StateCopy_LoadFromSlot( uint slot, bool isFromBackup )
 #ifdef USE_NEW_SAVESLOTS_UI
 	UI_UpdateSysControls();
 #endif
+
+	gdxsv_emu_loadstate(slot);
 }

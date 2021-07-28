@@ -22,7 +22,6 @@
 #include "DebugTools/MipsStackWalk.h"
 #include "BreakpointWindow.h"
 #include "PathDefs.h"
-#include "GundamDXDebug.h"
 
 #ifdef _WIN32
 #include <Windows.h>
@@ -276,7 +275,6 @@ DisassemblyDialog::DisassemblyDialog(wxWindow* parent):
 		SetSize(width,height);
 
 	setDebugMode(true,true);
-    gdx_initialize();
 
 }
 

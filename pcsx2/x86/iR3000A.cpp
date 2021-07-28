@@ -527,7 +527,7 @@ static void psxRecompileIrxImport()
 	if (!hle && !debug && (!SysTraceActive(IOP.Bios) || !funcname))
 		return;
 
-	gdx_on_load_irx(funcname, import_table, index);
+	// gdx_on_load_irx(funcname, import_table, index);
 
 
 	xMOV(ptr32[&psxRegs.code], psxRegs.code);

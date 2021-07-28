@@ -32,6 +32,7 @@
 #include "Patch.h"
 #include "R5900Exceptions.h"
 #include "Sio.h"
+#include "gdxsv/gdxsv_emu_hooks.h"
 
 __aligned16 SysMtgsThread mtgsThread;
 __aligned16 AppCoreThread CoreThread;
@@ -115,6 +116,7 @@ void AppCoreThread::Reset()
 	}
 
 	_parent::Reset();
+	gdxsv_emu_reset();
 }
 
 void AppCoreThread::ResetQuick()

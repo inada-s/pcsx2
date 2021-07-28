@@ -30,6 +30,8 @@
 #	include "Recording/VirtualPad.h"
 #endif
 
+#include "gdxsv/gdxsv_emu_hooks.h"
+
 #include <wx/cmdline.h>
 #include <wx/intl.h>
 #include <wx/stdpaths.h>
@@ -95,6 +97,7 @@ void Pcsx2App::OpenMainFrame()
 	SetTopWindow( mainFrame );		// not really needed...
 	SetExitOnFrameDelete( false );	// but being explicit doesn't hurt...
 	mainFrame->Show();
+	gdxsv_emu_reset();
 }
 
 void Pcsx2App::OpenProgramLog()
@@ -273,6 +276,8 @@ void Pcsx2App::OnInitCmdLine( wxCmdLineParser& parser )
 		);
 	} while( ++pi, pi->shortname != NULL );
 
+	parser.AddOption( wxEmptyString,L"replay",		_("gdxsv replay file path"), wxCMD_LINE_VAL_STRING);
+
 	parser.SetSwitchChars( L"-" );
 }
 
@@ -337,7 +342,7 @@ bool Pcsx2App::ParseOverrides( wxCmdLineParser& parser )
 		Overrides.Filenames.Plugins[pi->id] = dest;
 
 	} while( ++pi, pi->shortname != NULL );
-	
+
 	return true;
 }
 
@@ -395,6 +400,15 @@ bool Pcsx2App::OnCmdLineParsed( wxCmdLineParser& parser )
 	{
 		Startup.CdvdSource = CDVD_SourceType::NoDisc;
 		Startup.SysAutoRun = true;
+	}
+
+	wxString dest;
+	if (parser.Found( L"replay", &dest ) && !dest.IsEmpty())
+	{
+		gdxsv_emu_arg("replay", dest.c_str());
+	}
+	if (Startup.SysAutoRun) {
+		gdxsv_emu_arg("autorun", "1");
 	}
 
 	return true;

@@ -154,6 +154,9 @@
     <Filter Include="Recording\gui">
       <UniqueIdentifier>{93e36831-627f-4529-b709-1f4bad398512}</UniqueIdentifier>
     </Filter>
+    <Filter Include="gdxsv">
+      <UniqueIdentifier>{42fa557c-35d3-4eff-847a-24ff4b40cae9}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\Utilities\folderdesc.txt">
@@ -206,6 +209,9 @@
     </None>
     <None Include="..\..\gui\Dialogs\BaseConfigurationDialog.inl">
       <Filter>AppHost\Dialogs</Filter>
+    </None>
+    <None Include="gdxsv\gdxsv_patch.inc">
+      <Filter>gdxsv</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>
@@ -889,8 +895,20 @@
     <ClCompile Include="..\..\Recording\VirtualPad.cpp">
       <Filter>Recording\gui</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\gui\Debugger\GundamDXDebug.cpp">
-      <Filter>AppHost\Debugger</Filter>
+    <ClCompile Include="gdxsv\gdxsv.cpp">
+      <Filter>gdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="gdxsv\gdxsv.pb.cc">
+      <Filter>gdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="gdxsv\gdxsv_network.cpp">
+      <Filter>gdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="gdxsv\gdxsv_emu_hooks.cpp">
+      <Filter>gdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="gdxsv\gdxsv_emu_debug.cpp">
+      <Filter>gdxsv</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -1353,8 +1371,44 @@
     <ClInclude Include="..\..\Recording\VirtualPad.h">
       <Filter>Recording\gui</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\gui\Debugger\GundamDXDebug.h">
-      <Filter>AppHost\Debugger</Filter>
+    <ClInclude Include="gdxsv\gdx_queue.h">
+      <Filter>gdxsv</Filter>
+    </ClInclude>
+    <ClInclude Include="gdxsv\gdxsv.h">
+      <Filter>gdxsv</Filter>
+    </ClInclude>
+    <ClInclude Include="gdxsv\gdxsv.pb.h">
+      <Filter>gdxsv</Filter>
+    </ClInclude>
+    <ClInclude Include="gdxsv\gdxsv_backend_replay.h">
+      <Filter>gdxsv</Filter>
+    </ClInclude>
+    <ClInclude Include="gdxsv\gdxsv_backend_tcp.h">
+      <Filter>gdxsv</Filter>
+    </ClInclude>
+    <ClInclude Include="gdxsv\gdxsv_backend_udp.h">
+      <Filter>gdxsv</Filter>
+    </ClInclude>
+    <ClInclude Include="gdxsv\gdxsv_network.h">
+      <Filter>gdxsv</Filter>
+    </ClInclude>
+    <ClInclude Include="gdxsv\lbs_message.h">
+      <Filter>gdxsv</Filter>
+    </ClInclude>
+    <ClInclude Include="gdxsv\mcs_message.h">
+      <Filter>gdxsv</Filter>
+    </ClInclude>
+    <ClInclude Include="gdxsv\types.h">
+      <Filter>gdxsv</Filter>
+    </ClInclude>
+    <ClInclude Include="gdxsv\libs.h">
+      <Filter>gdxsv</Filter>
+    </ClInclude>
+    <ClInclude Include="gdxsv\gdxsv_emu_hooks.h">
+      <Filter>gdxsv</Filter>
+    </ClInclude>
+    <ClInclude Include="gdxsv\gdxsv_emu_debug.h">
+      <Filter>gdxsv</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

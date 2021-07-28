@@ -27,7 +27,7 @@
 
 #include "../DebugTools/MIPSAnalyst.h"
 #include "../DebugTools/SymbolMap.h"
-#include "../gui/Debugger/GundamDXDebug.h"
+#include "gdxsv/gdxsv_emu_hooks.h"
 
 #include "Utilities/PageFaultSource.h"
 #include "Utilities/Threading.h"
@@ -225,7 +225,7 @@ void SysCoreThread::DoCpuReset()
 //
 void SysCoreThread::VsyncInThread()
 {
-	gdx_in_vsync();
+	gdxsv_emu_update();
 	ApplyLoadedPatches(PPT_CONTINUOUSLY);
 }
 
