@@ -76,16 +76,6 @@ void Gdxsv::Reset() {
 
 void Gdxsv::Update() {
     if (!enabled) return;
-	if (gdxsv_ReadMem8(symbols["read_sync"])) {
-		SyncNetwork(false);
-		gdxsv_WriteMem8(symbols["read_sync"], 0);
-	}
-
-	if (gdxsv_ReadMem8(symbols["write_sync"])) {
-		SyncNetwork(true);
-		gdxsv_WriteMem8(symbols["write_sync"], 0);
-	}
-
     WritePatch();
 }
 
@@ -159,6 +149,7 @@ std::vector<u8> Gdxsv::GeneratePlatformInfoPacket() {
 }
 
 void Gdxsv::SyncNetwork(bool write) {
+    if (!enabled) return;
     gdx_rpc_t gdx_rpc{};
     u32 gdx_rpc_addr = symbols["gdx_rpc"];
     if (gdx_rpc_addr == 0) {

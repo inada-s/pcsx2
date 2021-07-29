@@ -51,5 +51,9 @@ static inline void INFO_LOG(LogCategory cat, const char* format, ...) {
 #define gdxsv_ReadMem16 r5900Debug.read16
 #define gdxsv_ReadMem8 r5900Debug.read8
 #define gdxsv_WriteMem32 r5900Debug.write32
-#define gdxsv_WriteMem16 r5900Debug.write16
 #define gdxsv_WriteMem8 r5900Debug.write8
+
+static inline void gdxsv_WriteMem16(u32 addr, u16 value) {
+	gdxsv_WriteMem8(addr, u8((value >> 8) & 0xff));
+	gdxsv_WriteMem8(addr + 1, u8(value & 0xff)); // TODO check endian
+}

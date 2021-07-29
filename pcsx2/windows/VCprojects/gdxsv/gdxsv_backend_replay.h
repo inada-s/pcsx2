@@ -416,7 +416,7 @@ private:
 
     void RestorePatch() {
         if (log_file_.game_disk() == "dc2") {
-            gdxsv_WriteMem16(0x8c045f64, 0x410b);
+            // gdxsv_WriteMem16(0x8c045f64, 0x410b);
         }
 
         if (log_file_.game_disk() == "ps2") {

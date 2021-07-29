@@ -23,6 +23,7 @@
 #include "R5900OpcodeTables.h"
 #include "R5900Exceptions.h"
 #include "GS.h"
+#include "gdxsv/gdxsv_emu_hooks.h"
 
 GS_VideoMode gsVideoMode = GS_VideoMode::Uninitialized;
 bool gsIsInterlaced = false;
@@ -1002,6 +1003,11 @@ void SYSCALL()
 					cpuRegs.GPR.n.t3.UL[0]
 				);
 			}
+
+			if (cpuRegs.GPR.n.a0.UL[0] == 0) {
+				gdxsv_emu_memhook(cpuRegs.GPR.n.a1.UL[0]);
+			}
+
 			break;
 		}
 		

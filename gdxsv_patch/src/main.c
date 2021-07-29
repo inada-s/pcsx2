@@ -40,24 +40,22 @@ struct gdx_queue {
     u8 buf[GDX_QUEUE_SIZE];
 };
 
-int gdx_debug_print GDXDATA = 1;
+int gdx_debug_print GDXDATA = 0;
 int gdx_initialized GDXDATA = 0;
 
 GDXDATA u32 patch_id = 0;
 GDXDATA u32 disk = 0;
 GDXDATA u32 is_online = 0;
-volatile GDXDATA u8 read_sync = 0;
-volatile GDXDATA u8 write_sync = 0;
 struct gdx_rpc_t gdx_rpc GDXDATA = {0};
 struct gdx_queue gdx_rxq GDXDATA = {0};
 struct gdx_queue gdx_txq GDXDATA = {0};
 
 void GDXFUNC gdx_read_sync() {
-    read_sync = 1;
+    ((u32 (*)())0x00103f30)(0, 0);
 }
 
 void GDXFUNC gdx_write_sync() {
-    write_sync = 1;
+    ((u32 (*)())0x00103f30)(0, 1);
 }
 
 int GDXFUNC gdx_debug(const char *format, ...) {
@@ -185,6 +183,7 @@ u32 GDXFUNC gdx_Ave_TcpRecv(u32 sock, u32 ptr, u32 len) {
 
   int i;
   gdx_debug("gdx_Ave_TcpRecv sock:%d ptr:%08x size:%d\n", sock, ptr, len);
+
   if (gdx_queue_size(&gdx_rxq) < len) {
     return -1;
   }
