@@ -67,7 +67,12 @@ public:
             const auto &data = log_file_.battle_data(i);
             r.Write(data.body().data(), data.body().size());
             while (r.Read(msg)) {
-                msg_list_.emplace_back(msg);
+                if (msg.Type() == McsMessage::KeyMsg2) {
+                    msg_list_.emplace_back(msg.FirstKeyMsg());
+                    msg_list_.emplace_back(msg.SecondKeyMsg());
+                } else {
+                    msg_list_.emplace_back(msg);
+                }
             }
         }
 
@@ -143,14 +148,19 @@ public:
             }
         }
 
+        if (state_ <= State::LbsStartBattleFlow) {
+            ProcessLbsMessage();
+        }
+        else {
+            ProcessMcsMessage();
+        }
+
         ApplyPatch(false);
     }
 
     void OnGameRead() {
         if (state_ <= State::LbsStartBattleFlow) {
             ProcessLbsMessage();
-        } else {
-            ProcessMcsMessage();
         }
 
         if (recv_buf_.empty()) {
@@ -175,13 +185,6 @@ public:
         }
 
         int n = std::min<int>(recv_buf_.size(), static_cast<int>(gdx_queue_avail(&q)));
-        /*
-        std::string hexstr(n * 2, ' ');
-        for (int i = 0; i < n; ++i) {
-            std::sprintf(&hexstr[0] + i * 2, "%02x", recv_buf_[i]);
-        }
-        NOTICE_LOG(COMMON, "write %s", hexstr.c_str());
-        */
         if (0 < n) {
             for (int i = 0; i < n; ++i) {
                 gdxsv_WriteMem8(buf_addr + q.tail, recv_buf_.front());
@@ -209,9 +212,10 @@ private:
                         }
                     }
 
-                    if (msg.Type() == McsMessage::MsgType::KeyMsg) {
+                    if (msg.Type() == McsMessage::MsgType::KeyMsg1) {
                         key_msg_index_[p].emplace_back(i);
                     }
+                    verify(msg.Type() != McsMessage::KeyMsg2);
                 }
             }
         }
@@ -346,12 +350,28 @@ private:
                     break;
                 case McsMessage::MsgType::ForceMsg:
                     break;
-                case McsMessage::MsgType::KeyMsg:
+                case McsMessage::MsgType::KeyMsg1: {
+                    // printf("KeyMsg1:%s\n", msg.ToHex().c_str());
                     for (int i = 0; i < log_file_.users_size(); ++i) {
-                        auto key_msg = msg_list_[key_msg_index_[i][msg.FirstFrame() / 2]];
+                        auto key_msg = msg_list_[key_msg_index_[i][msg.FirstFrame()]];
+                        printf("KeyMsg:%s\n", key_msg.ToHex().c_str());
                         std::copy(key_msg.body.begin(), key_msg.body.end(), std::back_inserter(recv_buf_));
-                        verify(key_msg.FirstFrame() == msg.FirstFrame());
                     }
+                    break;
+                }
+                case McsMessage::MsgType::KeyMsg2: {
+                    // printf("KeyMsg2:%s\n", msg.ToHex().c_str());
+                    for (int i = 0; i < log_file_.users_size(); ++i) {
+                        auto key_msg = msg_list_[key_msg_index_[i][msg.FirstFrame()]];
+                        printf("KeyMsg:%s\n", key_msg.ToHex().c_str());
+                        std::copy(key_msg.body.begin(), key_msg.body.end(), std::back_inserter(recv_buf_));
+                    }
+                    for (int i = 0; i < log_file_.users_size(); ++i) {
+                        auto key_msg = msg_list_[key_msg_index_[i][msg.SecondFrame()]];
+                        printf("KeyMsg:%s\n", key_msg.ToHex().c_str());
+                        std::copy(key_msg.body.begin(), key_msg.body.end(), std::back_inserter(recv_buf_));
+                    }
+                }
                     break;
                 case McsMessage::MsgType::LoadStartMsg:
                     for (int i = 0; i < log_file_.users_size(); ++i) {
@@ -391,6 +411,7 @@ private:
         }
         if (log_file_.game_disk() == "ps2") {
             gdxsv_WriteMem32(0x0037f5a0, 0);
+            gdxsv_WriteMem8(0x00580340, 1);
         }
 
         // Online Patch
@@ -421,6 +442,7 @@ private:
 
         if (log_file_.game_disk() == "ps2") {
             gdxsv_WriteMem32(0x0037f5a0, 0x0c0e0be4);
+            gdxsv_WriteMem8(0x00580340, 2);
         }
 
         // Online Patch

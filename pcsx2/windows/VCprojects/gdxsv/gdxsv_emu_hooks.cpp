@@ -27,7 +27,7 @@ void gdxsv_emu_memhook(u32 param) {
 
 void gdxsv_emu_loadstate(int slot) {
 	printf("gdxsv_emu_loadstate");
-	if (slot == 9) {
+	if (slot == 1) {
         if (emu_args.find("replay") != emu_args.end()) {
             printf("replay");
             gdxsv.StartReplayFile(emu_args["replay"].c_str());

@@ -58,6 +58,10 @@ void GDXFUNC gdx_write_sync() {
     ((u32 (*)())0x00103f30)(0, 1);
 }
 
+int GDXFUNC net_FontDisp(const char* text, float x, float y) {
+    return ((int (*)(const char *, float, float))0x00378430)(text, x, y);
+}
+
 int GDXFUNC gdx_debug(const char *format, ...) {
   if (gdx_debug_print) {
     va_list arg;
