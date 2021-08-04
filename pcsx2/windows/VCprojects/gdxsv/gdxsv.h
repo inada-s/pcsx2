@@ -35,7 +35,7 @@ public:
 
     void Update();
 
-    void SyncNetwork(bool write);
+    void HandleRPC();
 
     bool StartReplayFile(const char *path);
 

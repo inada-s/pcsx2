@@ -562,7 +562,7 @@
     <ClInclude Include="gdxsv\gdxsv_emu_debug.h" />
     <ClInclude Include="gdxsv\gdxsv_emu_hooks.h" />
     <ClInclude Include="gdxsv\gdxsv_network.h" />
-    <ClInclude Include="gdxsv\gdx_queue.h" />
+    <ClInclude Include="gdxsv\gdx_rpc.h" />
     <ClInclude Include="gdxsv\lbs_message.h" />
     <ClInclude Include="gdxsv\libs.h" />
     <ClInclude Include="gdxsv\mcs_message.h" />

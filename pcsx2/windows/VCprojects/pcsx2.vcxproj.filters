@@ -1371,9 +1371,6 @@
     <ClInclude Include="..\..\Recording\VirtualPad.h">
       <Filter>Recording\gui</Filter>
     </ClInclude>
-    <ClInclude Include="gdxsv\gdx_queue.h">
-      <Filter>gdxsv</Filter>
-    </ClInclude>
     <ClInclude Include="gdxsv\gdxsv.h">
       <Filter>gdxsv</Filter>
     </ClInclude>
@@ -1408,6 +1405,9 @@
       <Filter>gdxsv</Filter>
     </ClInclude>
     <ClInclude Include="gdxsv\gdxsv_emu_debug.h">
+      <Filter>gdxsv</Filter>
+    </ClInclude>
+    <ClInclude Include="gdxsv\gdx_rpc.h">
       <Filter>gdxsv</Filter>
     </ClInclude>
   </ItemGroup>

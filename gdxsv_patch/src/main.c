@@ -6,21 +6,24 @@ typedef unsigned int u32;
 
 #define GDXDATA __attribute__((section("gdx.data")))
 #define GDXFUNC __attribute__((section("gdx.func")))
-#define GDXHOOK __attribute__((section("gdx.hook")))
 
 #define GDX_QUEUE_SIZE 1024
 #define OP_NOP 0
 #define OP_JR_RA 0x03e00008
-#define READ8(a) *((u8*)(a))
-#define READ16(a) *((u16*)(a))
-#define READ32(a) *((u32*)(a))
-#define WRITE8(a, b) *((u8*)(a)) = (b)
-#define WRITE16(a, b) *((u16*)(a)) = (b)
-#define WRITE32(a, b) *((u32*)(a)) = (b)
+
+#define read8(a) *((u8*)(a))
+#define read16(a) *((u16*)(a))
+#define read32(a) *((u32*)(a))
+#define write8(a, b) *((u8*)(a)) = (b)
+#define write16(a, b) *((u16*)(a)) = (b)
+#define write32(a, b) *((u32*)(a)) = (b)
 
 enum {
-  RPC_TCP_OPEN = 1,
-  RPC_TCP_CLOSE = 2,
+    GDX_RPC_SOCK_OPEN = 1,
+    GDX_RPC_SOCK_CLOSE = 2,
+    GDX_RPC_SOCK_READ = 3,
+    GDX_RPC_SOCK_WRITE = 4,
+    GDX_RPC_SOCK_POLL = 5,
 };
 
 struct gdx_rpc_t {
@@ -34,12 +37,6 @@ struct gdx_rpc_t {
     u8 name2[128];
 };
 
-struct gdx_queue {
-    u32 head;
-    u32 tail;
-    u8 buf[GDX_QUEUE_SIZE];
-};
-
 int gdx_debug_print GDXDATA = 0;
 int gdx_initialized GDXDATA = 0;
 
@@ -47,15 +44,16 @@ GDXDATA u32 patch_id = 0;
 GDXDATA u32 disk = 0;
 GDXDATA u32 is_online = 0;
 struct gdx_rpc_t gdx_rpc GDXDATA = {0};
-struct gdx_queue gdx_rxq GDXDATA = {0};
-struct gdx_queue gdx_txq GDXDATA = {0};
 
-void GDXFUNC gdx_read_sync() {
+u32 GDXFUNC gdx_rpc_call(u32 request, u32 param1, u32 param2, u32 param3, u32 param4) {
+    gdx_rpc.request = request;
+    gdx_rpc.response = 0;
+    gdx_rpc.param1 = param1;
+    gdx_rpc.param2 = param2;
+    gdx_rpc.param3 = param3;
+    gdx_rpc.param4 = param4;
     ((u32 (*)())0x00103f30)(0, 0);
-}
-
-void GDXFUNC gdx_write_sync() {
-    ((u32 (*)())0x00103f30)(0, 1);
+    return gdx_rpc.response;
 }
 
 int GDXFUNC net_FontDisp(const char* text, float x, float y) {
@@ -82,70 +80,15 @@ int GDXFUNC gdx_info(const char *format, ...) {
   return done;
 }
 
-u32 GDXFUNC read32(u32 addr) {
-  u32* p = addr;
-  return *p;
-}
-
-u16 GDXFUNC read16(u32 addr) {
-  u16* p = addr;
-  return *p;
-}
-
-u8 GDXFUNC read8(u32 addr) {
-  u8* p = addr;
-  return *p;
-}
-
-void GDXFUNC write32(u32 addr, u32 value) {
-  u32* p = addr;
-  *p = value;
-}
-
-void GDXFUNC write16(u32 addr, u16 value) {
-  u16* p = addr;
-  *p = value;
-}
-
-void GDXFUNC write8(u32 addr, u8 value) {
-  u8* p = addr;
-  *p = value;
-}
-
 u32 GDXFUNC OP_JAL(u32 addr) {
   return 0x0c000000 + addr / 4;
 }
 
-void GDXFUNC gdx_queue_init(struct gdx_queue *q) {
-    q->head = 0;
-    q->tail = 0;
-}
-
-u32 GDXFUNC gdx_queue_size(struct gdx_queue *q) {
-    return (q->tail + GDX_QUEUE_SIZE - q->head) % GDX_QUEUE_SIZE;
-}
-
-u32 GDXFUNC gdx_queue_avail(struct gdx_queue *q) {
-    return GDX_QUEUE_SIZE - gdx_queue_size(q) - 1;
-}
-
-void GDXFUNC gdx_queue_push(struct gdx_queue *q, u8 data) {
-    q->buf[q->tail] = data;
-    q->tail = (q->tail + 1) % GDX_QUEUE_SIZE;
-}
-
-u8 GDXFUNC gdx_queue_pop(struct gdx_queue *q) {
-    u8 ret = q->buf[q->head];
-    q->head = (q->head + 1) % GDX_QUEUE_SIZE;
-    return ret;
-}
-
 u32 GDXFUNC gdx_TcpGetStatus(u32 sock, u32 dst) {
-  gdx_read_sync();
-
   u32 retvalue = -1;
   u32 readable_size = 0;
-  const int n = gdx_queue_size(&gdx_rxq);
+
+  const int n = gdx_rpc_call(GDX_RPC_SOCK_POLL, 0, 0, 0, 0);
   if (0 < n) {
       retvalue = 0;
       readable_size = n <= 0x7fff ? n : 0x7fff;
@@ -164,76 +107,26 @@ u32 GDXFUNC gdx_Ave_TcpSend(u32 sock, u32 ptr, u32 len) {
     return 0;
   }
 
-  if (gdx_queue_avail(&gdx_txq) < len) {
-    return 0;
-  }
-
   gdx_debug("send:");
   for (i = 0; i < len; ++i) {
     gdx_debug("%02x ", read8(ptr + i));
   }
   gdx_debug("\n");
 
-  for (i = 0; i < len; ++i) {
-    gdx_queue_push(&gdx_txq, read8(ptr + i));
-  }
-
-  gdx_write_sync();
-  return len;
+  return gdx_rpc_call(GDX_RPC_SOCK_WRITE, ptr, len, 0, 0);
 }
 
 u32 GDXFUNC gdx_Ave_TcpRecv(u32 sock, u32 ptr, u32 len) {
-  gdx_read_sync();
-
-  int i;
   gdx_debug("gdx_Ave_TcpRecv sock:%d ptr:%08x size:%d\n", sock, ptr, len);
-
-  if (gdx_queue_size(&gdx_rxq) < len) {
-    return -1;
-  }
-
-  for (i = 0; i < len; ++i) {
-    write8(ptr + i, gdx_queue_pop(&gdx_rxq));
-  }
-
-  gdx_debug("recv:");
-  for (i = 0; i < len; ++i) {
-    gdx_debug("%02x ", read8(ptr + i));
-  }
-  gdx_debug("\n");
-  return len;
+  // TODO: should return -1?
+  if (len == 0) return 0;
+  return gdx_rpc_call(GDX_RPC_SOCK_READ, ptr, len, 0, 0);
 }
 
 u32 GDXFUNC gdx_McsReceive(u32 ptr, u32 len) {
-  gdx_read_sync();
-
-  int i;
   gdx_debug("gdx_McsReceive ptr:%08x size:%d\n", ptr, len);
-
-  if (len == 0) {
-    return 0;
-  }
-
-  gdx_debug("gdx_queue_size size:%d\n", gdx_queue_size(&gdx_rxq));
-  if (gdx_queue_size(&gdx_rxq) < len) {
-    len = gdx_queue_size(&gdx_rxq);
-  }
-
-  if (len == 0) {
-    return 0;
-  }
-
-  for (i = 0; i < len; ++i) {
-    write8(ptr + i, gdx_queue_pop(&gdx_rxq));
-  }
-
-  gdx_debug("recv:");
-  for (i = 0; i < len; ++i) {
-    gdx_debug("%02x ", read8(ptr + i));
-  }
-  gdx_debug("\n");
-
-  return len;
+  if (len == 0) return 0;
+  return gdx_rpc_call(GDX_RPC_SOCK_READ, ptr, len, 0, 0);
 }
 
 u32 GDXFUNC gdx_McsDispose() {
@@ -241,30 +134,15 @@ u32 GDXFUNC gdx_McsDispose() {
 }
 
 u32 GDXFUNC gdx_Ave_TcpOpen(u32 ip, u32 port) {
-  gdx_info("gdx_Ave_TcpOpen :)\n");
-  // u32 ret = ((u32 (*)())0x00350630)(); // TCPInitialize()
-  // gdx_info("ret=%d\n", ret);
-
-  // endian fix
-  port = port >> 8 | (port & 0xFF) << 8;
-
-  gdx_queue_init(&gdx_rxq);
-  gdx_queue_init(&gdx_txq);
-  gdx_rpc.request = RPC_TCP_OPEN;
-  gdx_rpc.param1 = ip == 0x0077; // to lobby
-  gdx_rpc.param2 = ip;
-  gdx_rpc.param3 = port;
-  gdx_read_sync();
+  gdx_info("gdx_Ave_TcpOpen\n");
+  port = port >> 8 | (port & 0xFF) << 8; // endian fix
+  gdx_rpc_call(GDX_RPC_SOCK_OPEN, ip == 0x0077, ip, port, 0);
   return 7; // dummy socket id
 }
 
 u32 GDXFUNC gdx_Ave_TcpClose(u32 sock) {
   gdx_info("gdx_Ave_TcpClose\n");
-  gdx_queue_init(&gdx_rxq);
-  gdx_queue_init(&gdx_txq);
-  gdx_rpc.request = RPC_TCP_CLOSE;
-  gdx_rpc.param1 = sock;
-  gdx_read_sync();
+  gdx_rpc_call(GDX_RPC_SOCK_CLOSE, 0, 0, 0, 0);
   return 0;
 }
 
@@ -285,8 +163,6 @@ void GDXFUNC gdx_connect_ps2_check() {
 }
 
 void GDXFUNC gdx_LobbyToMcsInitSocket() {
-  // gdx_queue_init(&gdx_rxq);
-  // gdx_queue_init(&gdx_txq);
 }
 
 u32 GDXFUNC gdx_gethostbyname_ps2_0(u32 hostname) {
@@ -349,8 +225,5 @@ void GDXFUNC gdx_dial_start() {
   }
 
   write_patch();
-  gdx_queue_init(&gdx_rxq);
-  gdx_queue_init(&gdx_txq);
-
   gdx_initialized = 1;
 }

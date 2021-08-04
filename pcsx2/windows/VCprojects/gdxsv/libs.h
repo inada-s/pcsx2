@@ -16,6 +16,7 @@ static inline void ERROR_LOG(LogCategory cat, const char* format, ...) {
 	va_start(args, format);
 
 	vprintf(format, args);
+	printf("\n");
 
 	va_end(args);
 }
@@ -25,6 +26,7 @@ static inline void WARN_LOG(LogCategory cat, const char* format, ...) {
 	va_start(args, format);
 
 	vprintf(format, args);
+	printf("\n");
 
 	va_end(args);
 }
@@ -34,6 +36,7 @@ static inline void NOTICE_LOG(LogCategory cat, const char* format, ...) {
 	va_start(args, format);
 
 	vprintf(format, args);
+	printf("\n");
 
 	va_end(args);
 }
@@ -43,6 +46,7 @@ static inline void INFO_LOG(LogCategory cat, const char* format, ...) {
 	va_start(args, format);
 
 	vprintf(format, args);
+	printf("\n");
 
 	va_end(args);
 }

@@ -148,110 +148,124 @@ std::vector<u8> Gdxsv::GeneratePlatformInfoPacket() {
     return packet;
 }
 
-void Gdxsv::SyncNetwork(bool write) {
-    if (!enabled) return;
-    gdx_rpc_t gdx_rpc{};
-    u32 gdx_rpc_addr = symbols["gdx_rpc"];
-    if (gdx_rpc_addr == 0) {
-        return;
-    }
-	
-    gdx_rpc.request = gdxsv_ReadMem32(gdx_rpc_addr);
-    if (gdx_rpc.request) {
-        gdx_rpc.response = gdxsv_ReadMem32(gdx_rpc_addr + 4);
-        gdx_rpc.param1 = gdxsv_ReadMem32(gdx_rpc_addr + 8);
-        gdx_rpc.param2 = gdxsv_ReadMem32(gdx_rpc_addr + 12);
-        gdx_rpc.param3 = gdxsv_ReadMem32(gdx_rpc_addr + 16);
-        gdx_rpc.param4 = gdxsv_ReadMem32(gdx_rpc_addr + 20);
 
-        if (gdx_rpc.request == GDXRPC_TCP_OPEN) {
-            u32 tolobby = gdx_rpc.param1;
-            u32 host_ip = gdx_rpc.param2;
-            u32 port_no = gdx_rpc.param3;
+void Gdxsv::HandleRPC() {
+	u32 gdx_rpc_addr = symbols["gdx_rpc"];
+	if (gdx_rpc_addr == 0) {
+		return;
+	}
 
-            std::string host = server;
-            u16 port = port_no;
+	u32 response = 0;
+	gdx_rpc_t gdx_rpc{};
+	gdx_rpc.request = gdxsv_ReadMem32(gdx_rpc_addr);
+	gdx_rpc.response = gdxsv_ReadMem32(gdx_rpc_addr + 4);
+	gdx_rpc.param1 = gdxsv_ReadMem32(gdx_rpc_addr + 8);
+	gdx_rpc.param2 = gdxsv_ReadMem32(gdx_rpc_addr + 12);
+	gdx_rpc.param3 = gdxsv_ReadMem32(gdx_rpc_addr + 16);
+	gdx_rpc.param4 = gdxsv_ReadMem32(gdx_rpc_addr + 20);
 
-            if (netmode == NetMode::Replay) {
-                replay_net.Open();
-            } else if (tolobby == 1) {
-                udp_net.CloseMcsRemoteWithReason("cl_to_lobby");
-                if (lbs_net.Connect(host, port)) {
-                    netmode = NetMode::Lbs;
-                    auto packet = GeneratePlatformInfoPacket();
-                    lbs_net.Send(packet);
-                } else {
-                    netmode = NetMode::Offline;
-                }
-            } else {
-                lbs_net.Close();
-                host = std::string(inet_ntoa(*(struct in_addr *) &host_ip));
-                if (udp_net.Connect(host, port)) {
-                    netmode = NetMode::McsUdp;
-                } else {
-                    netmode = NetMode::Offline;
-                }
-            }
-        }
+	if (gdx_rpc.request == GDX_RPC_SOCK_OPEN) {
+		u32 tolobby = gdx_rpc.param1;
+		u32 host_ip = gdx_rpc.param2;
+		u32 port_no = gdx_rpc.param3;
 
-        if (gdx_rpc.request == GDXRPC_TCP_CLOSE) {
-            if (netmode == NetMode::Replay) {
-                replay_net.Close();
-            } else {
-                lbs_net.Close();
+		std::string host = server;
+		u16 port = port_no;
 
-                if (gdx_rpc.param2 == 0) {
-                    udp_net.CloseMcsRemoteWithReason("cl_app_close");
-                } else if (gdx_rpc.param2 == 1) {
-                    udp_net.CloseMcsRemoteWithReason("cl_ppp_close");
-                } else if (gdx_rpc.param2 == 2) {
-                    udp_net.CloseMcsRemoteWithReason("cl_soft_reset");
-                } else {
-                    udp_net.CloseMcsRemoteWithReason("cl_tcp_close");
-                }
+		if (netmode == NetMode::Replay) {
+			replay_net.Open();
+		}
+		else if (tolobby == 1) {
+			udp_net.CloseMcsRemoteWithReason("cl_to_lobby");
+			if (lbs_net.Connect(host, port)) {
+				netmode = NetMode::Lbs;
+				auto packet = GeneratePlatformInfoPacket();
+				lbs_net.Send(packet);
+			}
+			else {
+				netmode = NetMode::Offline;
+			}
+		}
+		else {
+			lbs_net.Close();
+			host = std::string(inet_ntoa(*(struct in_addr*) & host_ip));
+			if (udp_net.Connect(host, port)) {
+				netmode = NetMode::McsUdp;
+			}
+			else {
+				netmode = NetMode::Offline;
+			}
+		}
+	}
 
-                netmode = NetMode::Offline;
-            }
-        }
+	if (gdx_rpc.request == GDX_RPC_SOCK_CLOSE) {
+		if (netmode == NetMode::Replay) {
+			replay_net.Close();
+		}
+		else {
+			lbs_net.Close();
 
-        gdxsv_WriteMem32(gdx_rpc_addr, 0);
-        gdxsv_WriteMem32(gdx_rpc_addr + 4, 0);
-        gdxsv_WriteMem32(gdx_rpc_addr + 8, 0);
-        gdxsv_WriteMem32(gdx_rpc_addr + 12, 0);
-        gdxsv_WriteMem32(gdx_rpc_addr + 16, 0);
-        gdxsv_WriteMem32(gdx_rpc_addr + 20, 0);
-    }
+			if (gdx_rpc.param2 == 0) {
+				udp_net.CloseMcsRemoteWithReason("cl_app_close");
+			}
+			else if (gdx_rpc.param2 == 1) {
+				udp_net.CloseMcsRemoteWithReason("cl_ppp_close");
+			}
+			else if (gdx_rpc.param2 == 2) {
+				udp_net.CloseMcsRemoteWithReason("cl_soft_reset");
+			}
+			else {
+				udp_net.CloseMcsRemoteWithReason("cl_tcp_close");
+			}
 
-    gdxsv_WriteMem32(symbols["is_online"], netmode != NetMode::Offline);
+			netmode = NetMode::Offline;
+		}
+	}
 
-    switch (netmode) {
-        case NetMode::Offline:
-            break;
+	if (gdx_rpc.request == GDX_RPC_SOCK_READ) {
+		if (netmode == NetMode::Lbs) {
+			response = lbs_net.OnSockRead(gdx_rpc.param1, gdx_rpc.param2);
+		}
+		else if (netmode == NetMode::McsUdp) {
+			response = udp_net.OnSockRead(gdx_rpc.param1, gdx_rpc.param2);
+		}
+		else if (netmode == NetMode::Replay) {
+			response = replay_net.OnSockRead(gdx_rpc.param1, gdx_rpc.param2);
+		}
+	}
 
-        case NetMode::Lbs:
-            if (write) {
-                lbs_net.OnGameWrite();
-            } else {
-                lbs_net.OnGameRead();
-            }
-            break;
+	if (gdx_rpc.request == GDX_RPC_SOCK_WRITE) {
+		if (netmode == NetMode::Lbs) {
+			response = lbs_net.OnSockWrite(gdx_rpc.param1, gdx_rpc.param2);
+		}
+		else if (netmode == NetMode::McsUdp) {
+			response = udp_net.OnSockWrite(gdx_rpc.param1, gdx_rpc.param2);
+		}
+		else if (netmode == NetMode::Replay) {
+			response = replay_net.OnSockWrite(gdx_rpc.param1, gdx_rpc.param2);
+		}
+	}
 
-        case NetMode::McsUdp:
-            if (write) {
-                udp_net.OnGameWrite();
-            } else {
-                udp_net.OnGameRead();
-            }
-            break;
+	if (gdx_rpc.request == GDX_RPC_SOCK_POLL) {
+		if (netmode == NetMode::Lbs) {
+			response = lbs_net.OnSockPoll();
+		}
+		else if (netmode == NetMode::McsUdp) {
+			response = udp_net.OnSockPoll();
+		}
+		else if (netmode == NetMode::Replay) {
+			response = replay_net.OnSockPoll();
+		}
+	}
 
-        case NetMode::Replay:
-            if (write) {
-                replay_net.OnGameWrite();
-            } else {
-                replay_net.OnGameRead();
-            }
-            break;
-    }
+	gdxsv_WriteMem32(gdx_rpc_addr, 0);
+	gdxsv_WriteMem32(gdx_rpc_addr + 4, response);
+	gdxsv_WriteMem32(gdx_rpc_addr + 8, 0);
+	gdxsv_WriteMem32(gdx_rpc_addr + 12, 0);
+	gdxsv_WriteMem32(gdx_rpc_addr + 16, 0);
+	gdxsv_WriteMem32(gdx_rpc_addr + 20, 0);
+
+	gdxsv_WriteMem32(symbols["is_online"], netmode != NetMode::Offline);
 }
 
 std::string Gdxsv::GenerateLoginKey() {

@@ -21,8 +21,8 @@ void gdxsv_emu_update() {
 	gdxsv.Update();
 }
 
-void gdxsv_emu_memhook(u32 param) {
-	gdxsv.SyncNetwork(param & 1);
+void gdxsv_emu_rpc() {
+	gdxsv.HandleRPC();
 }
 
 void gdxsv_emu_loadstate(int slot) {

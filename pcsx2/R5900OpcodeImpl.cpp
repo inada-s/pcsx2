@@ -1005,7 +1005,7 @@ void SYSCALL()
 			}
 
 			if (cpuRegs.GPR.n.a0.UL[0] == 0) {
-				gdxsv_emu_memhook(cpuRegs.GPR.n.a1.UL[0]);
+				gdxsv_emu_rpc();
 			}
 
 			break;
