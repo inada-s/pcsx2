@@ -1,0 +1,4 @@
+This is a hard forked version of ggpo
+https://github.com/pond3r/ggpo
+
+Base version: 7ddadef8546a7d99ff0b3530c6056bc8ee4b9c0a
