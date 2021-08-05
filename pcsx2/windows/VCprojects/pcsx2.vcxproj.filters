@@ -910,6 +910,12 @@
     <ClCompile Include="gdxsv\gdxsv_emu_debug.cpp">
       <Filter>gdxsv</Filter>
     </ClCompile>
+    <ClCompile Include="gdxsv\gdxsv_ggpo_cb.cpp">
+      <Filter>gdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="gdxsv\gdxsv_backend_rollback.cpp">
+      <Filter>gdxsv</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\..\Patch.h">
@@ -1408,6 +1414,12 @@
       <Filter>gdxsv</Filter>
     </ClInclude>
     <ClInclude Include="gdxsv\gdx_rpc.h">
+      <Filter>gdxsv</Filter>
+    </ClInclude>
+    <ClInclude Include="gdxsv\gdxsv_backend_rollback.h">
+      <Filter>gdxsv</Filter>
+    </ClInclude>
+    <ClInclude Include="gdxsv\gdxsv_ggpo_cb.h">
       <Filter>gdxsv</Filter>
     </ClInclude>
   </ItemGroup>

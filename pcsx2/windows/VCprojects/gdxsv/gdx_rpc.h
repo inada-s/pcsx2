@@ -10,6 +10,9 @@ enum {
 	GDX_RPC_SOCK_READ = 3,
 	GDX_RPC_SOCK_WRITE = 4,
 	GDX_RPC_SOCK_POLL = 5,
+
+	GDX_RPC_GAME_BODY_BEGIN = 10,
+    GDX_RPC_GAME_BODY_END = 11,
 };
 
 struct gdx_rpc_t {

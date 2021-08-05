@@ -277,6 +277,7 @@ void Pcsx2App::OnInitCmdLine( wxCmdLineParser& parser )
 	} while( ++pi, pi->shortname != NULL );
 
 	parser.AddOption( wxEmptyString,L"replay",		_("gdxsv replay file path"), wxCMD_LINE_VAL_STRING);
+	parser.AddSwitch(wxEmptyString, L"rollback-test", _("gdxsv rollback test mode"));
 
 	parser.SetSwitchChars( L"-" );
 }
@@ -406,6 +407,10 @@ bool Pcsx2App::OnCmdLineParsed( wxCmdLineParser& parser )
 	if (parser.Found( L"replay", &dest ) && !dest.IsEmpty())
 	{
 		gdxsv_emu_arg("replay", dest.c_str());
+	}
+	if (parser.Found( L"rollback-test", &dest ))
+	{
+		gdxsv_emu_arg("rollback-test", "1");
 	}
 	if (Startup.SysAutoRun) {
 		gdxsv_emu_arg("autorun", "1");

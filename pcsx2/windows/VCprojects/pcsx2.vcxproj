@@ -55,6 +55,10 @@
     <CodeAnalysisRuleSet>AllRules.ruleset</CodeAnalysisRuleSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Devel|Win32'">
+    <IncludePath>$(ProjectRootDir)/../3rdparty\protobuf\include;$(VC_IncludePath);$(WindowsSDK_IncludePath);$(ProjectRootDir)/../3rdparty\ggpo\src\include;</IncludePath>
+    <LibraryPath>$(ProjectRootDir)/../3rdparty\protobuf\lib;$(VC_LibraryPath_x86);$(WindowsSDK_LibraryPath_x86)</LibraryPath>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <IncludePath>$(ProjectRootDir)/../3rdparty\protobuf\include;$(VC_IncludePath);$(WindowsSDK_IncludePath);</IncludePath>
     <LibraryPath>$(ProjectRootDir)/../3rdparty\protobuf\lib;$(VC_LibraryPath_x86);$(WindowsSDK_LibraryPath_x86)</LibraryPath>
   </PropertyGroup>
@@ -71,8 +75,8 @@
     </ClCompile>
     <Link>
       <LargeAddressAware>Yes</LargeAddressAware>
-      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Devel|Win32'">libprotobuf.lib;comctl32.lib;ws2_32.lib;shlwapi.lib;winmm.lib;rpcrt4.lib;%(AdditionalDependencies)</AdditionalDependencies>
-      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">libprotobuf.lib;comctl32.lib;ws2_32.lib;shlwapi.lib;winmm.lib;rpcrt4.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Devel|Win32'">ggpo-dev.lib;libprotobuf.lib;comctl32.lib;ws2_32.lib;shlwapi.lib;winmm.lib;rpcrt4.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">ggpo-dbg.lib;libprotobuf.lib;comctl32.lib;ws2_32.lib;shlwapi.lib;winmm.lib;rpcrt4.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalDependencies Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">libprotobuf.lib;comctl32.lib;ws2_32.lib;shlwapi.lib;winmm.lib;rpcrt4.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
@@ -307,9 +311,14 @@
     <ClCompile Include="gdxsv\gdxsv.pb.cc">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">NotUsing</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Devel|Win32'">NotUsing</PrecompiledHeader>
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">NotUsing</PrecompiledHeader>
     </ClCompile>
+    <ClCompile Include="gdxsv\gdxsv_backend_rollback.cpp" />
     <ClCompile Include="gdxsv\gdxsv_emu_debug.cpp" />
     <ClCompile Include="gdxsv\gdxsv_emu_hooks.cpp" />
+    <ClCompile Include="gdxsv\gdxsv_ggpo_cb.cpp">
+      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Devel|Win32'">Use</PrecompiledHeader>
+    </ClCompile>
     <ClCompile Include="gdxsv\gdxsv_network.cpp" />
     <ClCompile Include="IopSif.cpp" />
     <ClCompile Include="..\..\IopSio2.cpp" />
@@ -557,10 +566,12 @@
     <ClInclude Include="gdxsv\gdxsv.h" />
     <ClInclude Include="gdxsv\gdxsv.pb.h" />
     <ClInclude Include="gdxsv\gdxsv_backend_replay.h" />
+    <ClInclude Include="gdxsv\gdxsv_backend_rollback.h" />
     <ClInclude Include="gdxsv\gdxsv_backend_tcp.h" />
     <ClInclude Include="gdxsv\gdxsv_backend_udp.h" />
     <ClInclude Include="gdxsv\gdxsv_emu_debug.h" />
     <ClInclude Include="gdxsv\gdxsv_emu_hooks.h" />
+    <ClInclude Include="gdxsv\gdxsv_ggpo_cb.h" />
     <ClInclude Include="gdxsv\gdxsv_network.h" />
     <ClInclude Include="gdxsv\gdx_rpc.h" />
     <ClInclude Include="gdxsv\lbs_message.h" />
@@ -630,6 +641,9 @@
     <ResourceCompile Include="..\wxResources.rc" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="..\..\..\3rdparty\ggpo\ggpo.vcxproj">
+      <Project>{bb3fe343-6fc7-49a3-9b60-57dbb7e215c2}</Project>
+    </ProjectReference>
     <ProjectReference Include="..\..\..\3rdparty\pthreads4w\build\pthreads4w.vcxproj">
       <Project>{0fae817d-9a32-4830-857e-81da57246e16}</Project>
       <ReferenceOutputAssembly>false</ReferenceOutputAssembly>

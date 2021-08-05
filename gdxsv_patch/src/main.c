@@ -24,6 +24,9 @@ enum {
     GDX_RPC_SOCK_READ = 3,
     GDX_RPC_SOCK_WRITE = 4,
     GDX_RPC_SOCK_POLL = 5,
+
+    GDX_RPC_GAME_BODY_BEGIN = 10,
+    GDX_RPC_GAME_BODY_END = 11,
 };
 
 struct gdx_rpc_t {
@@ -179,6 +182,25 @@ u32 GDXFUNC gdx_gethostbyname_ps2_1(u32 ticket_id) {
 u32 GDXFUNC gdx_gethostbyname_ps2_release(u32 ticket_id) {
   gdx_info("gdx_gethostbyname_ps2_release\n");
   return 0; // ok
+}
+
+u32 GDXFUNC gdx_game_body_main() {
+  if (read8(read32(0x0057fcb0)) != 3) {
+      // not net mode
+      return ((u32 (*)()) 0x00174cb0)();
+  }
+
+  int rollbacked_frames = gdx_rpc_call(GDX_RPC_GAME_BODY_BEGIN, 0, 0, 0, 0);
+  int i = 0;
+  for (i = 0; i < rollbacked_frames; ++i) {
+      ((u32 (*)()) 0x00174cb0)();
+  }
+  u32 ret = ((u32 (*)()) 0x00174cb0)();
+  if (0 < rollbacked_frames) {
+      ret = 0;
+  }
+  gdx_rpc_call(GDX_RPC_GAME_BODY_END, 0, 0, 0, 0);
+  return ret;
 }
 
 void GDXFUNC write_patch() {

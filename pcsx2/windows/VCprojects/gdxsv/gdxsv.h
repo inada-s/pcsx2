@@ -12,6 +12,7 @@
 #include "gdxsv.pb.h"
 #include "gdxsv_backend_tcp.h"
 #include "gdxsv_backend_udp.h"
+#include "gdxsv_backend_rollback.h"
 #include "gdxsv_backend_replay.h"
 
 class Gdxsv {
@@ -20,11 +21,13 @@ public:
         Offline,
         Lbs,
         McsUdp,
+        McsRollback,
         Replay,
     };
 
     Gdxsv() : lbs_net(symbols),
               udp_net(symbols, maxlag),
+              rbk_net(symbols, maxlag),
               replay_net(symbols, maxlag) {};
 
     bool Enabled() const;
@@ -38,6 +41,8 @@ public:
     void HandleRPC();
 
     bool StartReplayFile(const char *path);
+
+    bool StartRollbackReplayTest(const char *path);
 
 private:
     static std::string GenerateLoginKey();
@@ -68,6 +73,7 @@ private:
 
     GdxsvBackendTcp lbs_net;
     GdxsvBackendUdp udp_net;
+    GdxsvBackendRollback rbk_net;
     GdxsvBackendReplay replay_net;
 };
 

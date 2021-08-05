@@ -1,3 +1,4 @@
+#pragma once
 // Mock network implementation to replay local battle log
 
 #include <array>

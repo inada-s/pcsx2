@@ -186,6 +186,9 @@ void Gdxsv::HandleRPC() {
 				netmode = NetMode::Offline;
 			}
 		}
+		else if (rbk_net.IsReplayTest()) {
+			rbk_net.Open();
+		}
 		else {
 			lbs_net.Close();
 			host = std::string(inet_ntoa(*(struct in_addr*) & host_ip));
@@ -201,6 +204,9 @@ void Gdxsv::HandleRPC() {
 	if (gdx_rpc.request == GDX_RPC_SOCK_CLOSE) {
 		if (netmode == NetMode::Replay) {
 			replay_net.Close();
+		}
+		else if (rbk_net.IsReplayTest()) {
+			rbk_net.Close();
 		}
 		else {
 			lbs_net.Close();
@@ -256,6 +262,10 @@ void Gdxsv::HandleRPC() {
 		else if (netmode == NetMode::Replay) {
 			response = replay_net.OnSockPoll();
 		}
+	}
+
+	if (gdx_rpc.request != 0 && netmode == NetMode::McsRollback) {
+		response = rbk_net.HandleRPC(gdx_rpc);
 	}
 
 	gdxsv_WriteMem32(gdx_rpc_addr, 0);
@@ -370,6 +380,17 @@ bool Gdxsv::StartReplayFile(const char *path) {
     wxString replay_path = Path::Combine(app_root, path);
     if (replay_net.StartFile(replay_path.c_str())) {
         netmode = NetMode::Replay;
+        return true;
+    }
+    return false;
+}
+
+bool Gdxsv::StartRollbackReplayTest(const char* path) {
+	rbk_net.Reset();
+    wxString app_root = Path::GetDirectory(g_Conf->Folders.Logs.ToString());
+    wxString replay_path = Path::Combine(app_root, path);
+    if (rbk_net.StartReplayTest(replay_path.c_str())) {
+        netmode = NetMode::McsRollback;
         return true;
     }
     return false;

@@ -28,9 +28,14 @@ void gdxsv_emu_rpc() {
 void gdxsv_emu_loadstate(int slot) {
 	printf("gdxsv_emu_loadstate");
 	if (slot == 1) {
-        if (emu_args.find("replay") != emu_args.end()) {
-            printf("replay");
-            gdxsv.StartReplayFile(emu_args["replay"].c_str());
-        }
+		if (emu_args.find("replay") != emu_args.end()) {
+			if (emu_args.find("rollback-test") != emu_args.end()) {
+				printf("rollback-replay-test");
+				gdxsv.StartRollbackReplayTest(emu_args["replay"].c_str());
+			} else {
+				printf("replay");
+				gdxsv.StartReplayFile(emu_args["replay"].c_str());
+			}
+		}
 	}
 }
