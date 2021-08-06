@@ -27,6 +27,7 @@ enum {
 
     GDX_RPC_GAME_BODY_BEGIN = 10,
     GDX_RPC_GAME_BODY_END = 11,
+    GDX_RPC_GAME_BODY_ROLLBACK = 12,
 };
 
 struct gdx_rpc_t {
@@ -190,11 +191,19 @@ u32 GDXFUNC gdx_game_body_main() {
       return ((u32 (*)()) 0x00174cb0)();
   }
 
-  int rollbacked_frames = gdx_rpc_call(GDX_RPC_GAME_BODY_BEGIN, 0, 0, 0, 0);
+  gdx_rpc_call(GDX_RPC_GAME_BODY_BEGIN, 0, 0, 0, 0);
+
+  // Rollback
+  int rollbacked_frames = gdx_rpc_call(GDX_RPC_GAME_BODY_ROLLBACK, 0, 0, 0, 0);
   int i = 0;
   for (i = 0; i < rollbacked_frames; ++i) {
+      gdx_rpc_call(GDX_RPC_GAME_BODY_ROLLBACK, 1, 0, 0, 0);
       ((u32 (*)()) 0x00174cb0)();
+      gdx_rpc_call(GDX_RPC_GAME_BODY_ROLLBACK, 2, 0, 0, 0);
   }
+  gdx_rpc_call(GDX_RPC_GAME_BODY_ROLLBACK, 3, 0, 0, 0);
+
+  // Advance Frame
   u32 ret = ((u32 (*)()) 0x00174cb0)();
   if (0 < rollbacked_frames) {
       ret = 0;

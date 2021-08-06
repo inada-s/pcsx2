@@ -18,6 +18,7 @@
 #define MAX_PREDICTION_FRAMES    8
 
 class SyncTestBackend;
+class GdxsvSyncTestBackend;
 
 class Sync {
 public:
@@ -62,6 +63,7 @@ public:
 
 protected:
    friend SyncTestBackend;
+   friend GdxsvSyncTestBackend;
 
    struct SavedFrame {
       byte    *buf;

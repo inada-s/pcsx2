@@ -27,6 +27,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\lib\ggpo\backends\gdxsv_synctest.cpp" />
     <ClCompile Include="src\lib\ggpo\backends\p2p.cpp" />
     <ClCompile Include="src\lib\ggpo\backends\spectator.cpp" />
     <ClCompile Include="src\lib\ggpo\backends\synctest.cpp" />
@@ -45,6 +46,7 @@
   <ItemGroup>
     <ClInclude Include="src\include\ggponet.h" />
     <ClInclude Include="src\lib\ggpo\backends\backend.h" />
+    <ClInclude Include="src\lib\ggpo\backends\gdxsv_synctest.h" />
     <ClInclude Include="src\lib\ggpo\backends\p2p.h" />
     <ClInclude Include="src\lib\ggpo\backends\spectator.h" />
     <ClInclude Include="src\lib\ggpo\backends\synctest.h" />

@@ -15,6 +15,7 @@
 #include "lbs_message.h"
 #include "mcs_message.h"
 
+
 class GdxsvBackendRollback {
 public:
 	GdxsvBackendRollback(const std::map<std::string, u32>& symbols, std::atomic<int>& maxlag);
@@ -100,8 +101,11 @@ private:
 	int in_game_scene_ = 0;
 	std::vector<McsMessage> msg_list_{};
 	std::array<int, 4> start_index_{};
+	std::array<int, 4> key_counter_{};
 	std::array<std::vector<int>, 4> key_msg_index_{};
 
+	u16 tsw_tmp_ = 0;
+	bool is_rollbacking_ = false;
 	GGPOSession* ggpo_ = nullptr;
 	std::array<GGPOPlayerHandle, 4> ggpo_handle_{};
 };

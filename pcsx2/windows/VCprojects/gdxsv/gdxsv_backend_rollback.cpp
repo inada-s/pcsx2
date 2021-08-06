@@ -36,12 +36,13 @@ void GdxsvBackendRollback::Reset() {
     log_file_.Clear();
     recv_buf_.clear();
     recv_delay_ = 0;
-    me_ = 0;
+    me_ = 2;
     msg_list_.clear();
     for (int i = 0; i < 4; ++i) {
         key_msg_index_[i].clear();
     }
     std::fill(start_index_.begin(), start_index_.end(), 0);
+    std::fill(key_counter_.begin(), key_counter_.end(), 0);
     if (ggpo_ != nullptr) {
         ggpo_close_session(ggpo_);
         ggpo_ = nullptr;
@@ -141,6 +142,7 @@ bool GdxsvBackendRollback::StartReplayTest(const char* path) {
 	NOTICE_LOG(COMMON, "msg_list.size = %d", msg_list_.size());
 
 	std::fill(start_index_.begin(), start_index_.end(), 0);
+    std::fill(key_counter_.begin(), key_counter_.end(), 0);
 	state_ = State::Start;
 	maxlag_ = 1;
 	is_replay_test_ = true;
@@ -163,8 +165,8 @@ void GdxsvBackendRollback::Open() {
 
 	GGPOErrorCode result;
 	if (IsReplayTest()) {
-		result = ggpo_start_synctest(&ggpo_, &cb, "gdxsv-ps2", 4, sizeof(int), 1);
-		
+		ggpo_start_gdxsv_synctest(&ggpo_, &cb, "gdxsv-ps2", 4, sizeof(GameInput), 1);
+
 		for (int i = 0; i < log_file_.users_size(); i++) {
 			GGPOPlayer player;
 			player.player_num = i + 1;
@@ -185,6 +187,8 @@ void GdxsvBackendRollback::Open() {
 			}
 		}
 
+		ggpo_idle(ggpo_, 0); // must call it at before first add_local_input
+
 		recv_buf_.assign({ 0x0e, 0x61, 0x00, 0x22, 0x10, 0x31, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd });
 		state_ = State::McsSessionExchange;
 		ApplyPatch(true);
@@ -203,22 +207,105 @@ u32 GdxsvBackendRollback::HandleRPC(const gdx_rpc_t& rpc) {
 	if (rpc.request == GDX_RPC_SOCK_WRITE) {
 		return OnSockWrite(rpc.param1, rpc.param2);
 	}
-	if (rpc.request == GDX_RPC_SOCK_READ) {
+	else if (rpc.request == GDX_RPC_SOCK_READ) {
 		return OnSockRead(rpc.param1, rpc.param2);
 	}
-	if (rpc.request == GDX_RPC_SOCK_POLL) {
+	else if (rpc.request == GDX_RPC_SOCK_POLL) {
 		return OnSockPoll();
 	}
-	if (rpc.request == GDX_RPC_GAME_BODY_BEGIN) {
+	else if (rpc.request == GDX_RPC_GAME_BODY_BEGIN) {
 		NOTICE_LOG(COMMON, "OnGameBodyBegin");
 		in_game_scene_ = 1;
-		u16 pad = gdxsv_ReadMem16(0x00870cc0);
-		if (ggpo_add_local_input(ggpo_, ggpo_handle_[me_], &pad, sizeof(pad)) == GGPO_OK) {
-			NOTICE_LOG(COMMON, "ggpo_add_local_input ok");
-		}
+		tsw_tmp_ = gdxsv_ReadMem16(0x00870CC0);
+
+		// InetSwSet = 
 		return 0;
 	}
-	if (rpc.request == GDX_RPC_GAME_BODY_END) {
+	else if (rpc.request == GDX_RPC_GAME_BODY_ROLLBACK) {
+		NOTICE_LOG(COMMON, "GDX_RPC_GAME_BODY_ROLLBACK %d", rpc.param1);
+		if (rpc.param1 == 0) {
+			// Rollback start
+			int rollback_frames = 0;
+			ggpo_begin_rollback(ggpo_, &rollback_frames);
+			if (rollback_frames) {
+				is_rollbacking_ = true;
+			}
+			return (u32)rollback_frames;
+		}
+		else if (rpc.param1 == 1) {
+			// Before rollback a frame (skip if no rollback)
+			GameInput inputs[4];
+			if (ggpo_synchronize_input(ggpo_, inputs, sizeof(inputs), 0) == GGPO_OK) {
+				for (int i = 0; i < log_file_.users_size(); ++i) {
+					auto key_msg = McsMessage::Create(McsMessage::KeyMsg1, i);
+					key_msg.body[2] = inputs[i].keycode & 0xff;
+					key_msg.body[3] = (inputs[i].keycode >> 8) & 0xff;
+					NOTICE_LOG(COMMON, "KeyMsg(Rollback):%s", key_msg.ToHex().c_str());
+					std::copy(key_msg.body.begin(), key_msg.body.end(), std::back_inserter(recv_buf_));
+				}
+			}
+		}
+		else if (rpc.param1 == 2) {
+			// After rollback a frame (skip if no rollback)
+			ggpo_advance_frame(ggpo_);
+			ggpo_step_rollback(ggpo_);
+		}
+		else if (rpc.param1 == 3) {
+			// Rollback end
+			if (is_rollbacking_) {
+				is_rollbacking_ = false;
+				ggpo_end_rollback(ggpo_);
+			}
+
+			GameInput input{};
+			input.keycode = tsw_tmp_;
+			for (int i = 0; i < 4; ++i) {
+				if (ggpo_add_local_input(ggpo_, ggpo_handle_[i], &input, sizeof(input)) == GGPO_OK) {
+				}
+			}
+
+			GameInput inputs[4];
+			if (ggpo_synchronize_input(ggpo_, inputs, sizeof(inputs), 0) == GGPO_OK) {
+				for (int i = 0; i < log_file_.users_size(); ++i) {
+					auto key_msg = McsMessage::Create(McsMessage::KeyMsg1, i);
+					key_msg.body[2] = inputs[i].keycode & 0xff;
+					key_msg.body[3] = (inputs[i].keycode >> 8) & 0xff;
+					NOTICE_LOG(COMMON, "KeyMsg:%s", key_msg.ToHex().c_str());
+					std::copy(key_msg.body.begin(), key_msg.body.end(), std::back_inserter(recv_buf_));
+				}
+			}
+
+			/*
+			for (int i = 0; i < 4; ++i) {
+				input.keycode = u16() << 8 | key_msg.body[0];
+				auto key_msg = msg_list_[key_msg_index_[i][key_counter_[i]]];
+				input.keycode = u16(key_msg.body[1]) << 8 | key_msg.body[0];
+				if (ggpo_add_local_input(ggpo_, ggpo_handle_[i], &input, sizeof(input)) == GGPO_OK) {
+					NOTICE_LOG(COMMON, "ggpo_add_local_input ok");
+					key_counter_[i]++;
+				}
+			}
+
+
+			if (prev_count != key_counter_[0]) {
+				GameInput inputs[4];
+				if (ggpo_synchronize_input(ggpo_, inputs, sizeof(inputs), 0) == GGPO_OK) {
+					for (int i = 0; i < log_file_.users_size(); ++i) {
+						auto key_msg = McsMessage::Create(McsMessage::KeyMsg1, i);
+						key_msg.body[2] = (inputs[i].keycode >> 8) & 0xff;
+						key_msg.body[3] = inputs[i].keycode & 0xff;
+						NOTICE_LOG(COMMON, "KeyMsg:%s", key_msg.ToHex().c_str());
+						std::copy(key_msg.body.begin(), key_msg.body.end(), std::back_inserter(recv_buf_));
+					}
+				}
+			}
+			else {
+				verify(false);
+			}
+*/
+		}
+	}
+	else if (rpc.request == GDX_RPC_GAME_BODY_END) {
 		NOTICE_LOG(COMMON, "OnGameBodyEnd");
 		ggpo_advance_frame(ggpo_);
 		ggpo_idle(ggpo_, 0);
@@ -256,6 +343,7 @@ bool GdxsvBackendRollback::ggpo_cb_save_game_state(unsigned char** buffer, int* 
 }
 
 void GdxsvBackendRollback::ggpo_cb_free_buffer(void* buffer) {
+	std::free(buffer);
 	NOTICE_LOG(COMMON, "ggpo_cb_free_buffer");
 	return;
 }
@@ -500,27 +588,14 @@ void GdxsvBackendRollback::ProcessMcsMessage() {
 		case McsMessage::MsgType::ForceMsg:
 			break;
 		case McsMessage::MsgType::KeyMsg1: {
-			NOTICE_LOG(COMMON, "KeyMsg1:%s", msg.ToHex().c_str());
-
-			if (in_game_scene_) {
-				// TODO: More strict check
-				u16 inputs[4] = { 0 };
-				if (ggpo_synchronize_input(ggpo_, inputs, sizeof(inputs), 0) == GGPO_OK) {
-					for (int i = 0; i < log_file_.users_size(); ++i) {
-						auto key_msg = McsMessage::Create(McsMessage::KeyMsg1, i);
-						// key_msg.body[2] = (inputs[0] >> 8) & 0xff;
-						// key_msg.body[3] = inputs[0] & 0xff;
-						NOTICE_LOG(COMMON, "KeyMsg:%s", key_msg.ToHex().c_str());
-						std::copy(key_msg.body.begin(), key_msg.body.end(), std::back_inserter(recv_buf_));
-					}
-				}
-			}
-			else {
+			// NOTICE_LOG(COMMON, "KeyMsg1:%s", msg.ToHex().c_str());
+			if (!in_game_scene_) {
 				for (int i = 0; i < log_file_.users_size(); ++i) {
 					if (msg.FirstSeq() < key_msg_index_[i].size()) {
 						auto key_msg = msg_list_[key_msg_index_[i][msg.FirstSeq()]];
 						NOTICE_LOG(COMMON, "KeyMsg:%s", key_msg.ToHex().c_str());
 						std::copy(key_msg.body.begin(), key_msg.body.end(), std::back_inserter(recv_buf_));
+						key_counter_[i] = msg.FirstSeq() + 1;
 					}
 				}
 			}

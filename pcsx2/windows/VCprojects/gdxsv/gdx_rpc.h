@@ -13,6 +13,7 @@ enum {
 
 	GDX_RPC_GAME_BODY_BEGIN = 10,
     GDX_RPC_GAME_BODY_END = 11,
+    GDX_RPC_GAME_BODY_ROLLBACK = 12,
 };
 
 struct gdx_rpc_t {

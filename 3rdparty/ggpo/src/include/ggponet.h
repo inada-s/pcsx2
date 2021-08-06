@@ -560,6 +560,19 @@ GGPO_API void __cdecl ggpo_logv(GGPOSession *,
                                 const char *fmt,
                                 va_list args);
 
+
+GGPO_API GGPOErrorCode __cdecl ggpo_start_gdxsv_synctest(
+    GGPOSession **session,
+    GGPOSessionCallbacks *cb,
+    char *game,
+    int num_players,
+    int input_size,
+    int frames);
+
+GGPO_API GGPOErrorCode __cdecl ggpo_begin_rollback(GGPOSession*, int* frame);
+GGPO_API GGPOErrorCode __cdecl ggpo_step_rollback(GGPOSession*);
+GGPO_API GGPOErrorCode __cdecl ggpo_end_rollback(GGPOSession*);
+
 #ifdef __cplusplus
 };
 #endif

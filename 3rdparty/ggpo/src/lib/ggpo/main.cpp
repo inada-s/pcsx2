@@ -8,6 +8,7 @@
 #include "types.h"
 #include "backends/p2p.h"
 #include "backends/synctest.h"
+#include "backends/gdxsv_synctest.h"
 #include "backends/spectator.h"
 #include "ggponet.h"
 
@@ -206,3 +207,39 @@ GGPOErrorCode ggpo_start_spectating(GGPOSession **session,
    return GGPO_OK;
 }
 
+
+GGPOErrorCode ggpo_start_gdxsv_synctest(
+    GGPOSession **ggpo,
+    GGPOSessionCallbacks *cb,
+    char *game,
+    int num_players,
+    int input_size,
+    int frames)
+{
+   *ggpo = (GGPOSession *)new GdxsvSyncTestBackend(cb, game, frames, num_players);
+   return GGPO_OK;
+}
+
+GGPOErrorCode ggpo_begin_rollback(GGPOSession *ggpo, int *frame)
+{
+   if (!ggpo) {
+      return GGPO_ERRORCODE_INVALID_SESSION;
+   }
+   return ggpo->BeginRollback(frame);
+}
+
+GGPOErrorCode ggpo_step_rollback(GGPOSession *ggpo)
+{
+   if (!ggpo) {
+      return GGPO_ERRORCODE_INVALID_SESSION;
+   }
+   return ggpo->StepRollback();
+}
+
+GGPOErrorCode ggpo_end_rollback(GGPOSession *ggpo)
+{
+   if (!ggpo) {
+      return GGPO_ERRORCODE_INVALID_SESSION;
+   }
+   return ggpo->EndRollback();
+}
