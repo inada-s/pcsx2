@@ -61,3 +61,17 @@ static inline void gdxsv_WriteMem16(u32 addr, u16 value) {
 	gdxsv_WriteMem8(addr, u8((value >> 8) & 0xff));
 	gdxsv_WriteMem8(addr + 1, u8(value & 0xff)); // TODO check endian
 }
+
+static inline void gdxsv_ReadMemBlock(u8* dst, u32 addr, u32 size) {
+	// TODO: Optimize
+	for (int i = 0; i < size; ++i) {
+		*(dst + i) = gdxsv_ReadMem8(addr + i);
+	}
+}
+
+static inline void gdxsv_WriteMemBlock(u32 dst, const u8* src, u32 size) {
+	// TODO: Optimize
+	for (int i = 0; i < size; ++i) {
+		gdxsv_WriteMem8(dst + i, *(src + i));
+	}
+}

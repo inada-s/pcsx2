@@ -24,8 +24,59 @@ public:
 		u16 keycode;
 	};
 
+	template<int T_ADDR, int T_SIZE>
+	struct GameMemoryRange {
+		std::array<u8, T_SIZE> value;
+
+		void Read() {
+			gdxsv_ReadMemBlock(value.data(), T_ADDR, T_SIZE);
+		}
+
+		void Write() const {
+			gdxsv_WriteMemBlock(T_ADDR, value.data(), T_SIZE);
+		}
+	};
+
 	struct GameState {
-		std::array<u8, 0x2100 * 4> PlayerWorks;
+		GameMemoryRange<0x0057fadc, 8> KRand;
+		GameMemoryRange<0x0057fc00, 0x0057fc44-0x0057fc00> HitWorkWork;
+		GameMemoryRange<0x0057fc44, 0x0057fcb0-0x0057fc44> WorkWork;
+		GameMemoryRange<0x0072f0e0, 4 * 0x40> WorkMoveLast;
+		GameMemoryRange<0x0072f1e0, 4 * 0x40> WorkMoveHead;
+		GameMemoryRange<0x0072f2e0, 0x180 * 0x100> HitWork;
+		GameMemoryRange<0x007472e0, 0x2c0 * 0x140> Work1;
+		GameMemoryRange<0x0077e2e0, 0x200 * 0x140> Work0;
+		GameMemoryRange<0x00866620, 0x2100 * 5> PlayerWorks;
+		GameMemoryRange<0x00870dd0, 0x0300> SystemWork2;
+		GameMemoryRange<0x008710d0, 0x0300> SystemWork;
+
+		void Read() {
+			WorkMoveLast.Read();
+			WorkMoveHead.Read();
+			HitWork.Read();
+			HitWorkWork.Read();
+			KRand.Read();
+			PlayerWorks.Read();
+			SystemWork.Read();
+			SystemWork2.Read();
+			Work0.Read();
+			Work1.Read();
+			WorkWork.Read();
+		}
+
+		void Write() const {
+			WorkMoveLast.Write();
+			WorkMoveHead.Write();
+			HitWork.Write();
+			HitWorkWork.Write();
+			KRand.Write();
+			PlayerWorks.Write();
+			SystemWork.Write();
+			SystemWork2.Write();
+			Work0.Write();
+			Work1.Write();
+			WorkWork.Write();
+		}
 	};
 
 	enum class State {

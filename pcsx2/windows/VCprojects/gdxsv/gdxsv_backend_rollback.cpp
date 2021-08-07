@@ -165,7 +165,8 @@ void GdxsvBackendRollback::Open() {
 
 	GGPOErrorCode result;
 	if (IsReplayTest()) {
-		ggpo_start_gdxsv_synctest(&ggpo_, &cb, "gdxsv-ps2", 4, sizeof(GameInput), 1);
+		int test_interval = 1;
+		ggpo_start_gdxsv_synctest(&ggpo_, &cb, "gdxsv-ps2", 4, sizeof(GameInput), test_interval);
 
 		for (int i = 0; i < log_file_.users_size(); i++) {
 			GGPOPlayer player;
@@ -361,19 +362,11 @@ bool GdxsvBackendRollback::ggpo_cb_log_game_state(char* filename, unsigned char*
 // private
 
 void GdxsvBackendRollback::SaveCurrentGameState(GdxsvBackendRollback::GameState& state) {
-	for (int p = 0; p < 4; ++p) {
-		for (int i = 0; i < 0x2100; ++i) {
-			state.PlayerWorks[p * 0x2100 + i] = gdxsv_ReadMem8(0x00866620 + p * 0x2100 + i);
-		}
-	}
+	state.Read();
 }
 
 void GdxsvBackendRollback::LoadGameState(const GameState& state) {
-	for (int p = 0; p < 4; ++p) {
-		for (int i = 0; i < 0x2100; ++i) {
-			gdxsv_WriteMem8(0x00866620 + p * 0x2100 + i, state.PlayerWorks[p * 0x2100 + i]);
-		}
-	}
+	state.Write();
 }
 
 u32 GdxsvBackendRollback::OnSockWrite(u32 addr, u32 size) {

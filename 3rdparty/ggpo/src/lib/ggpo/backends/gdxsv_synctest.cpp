@@ -16,18 +16,20 @@ GGPOErrorCode GdxsvSyncTestBackend::IncrementFrame(void)
         return GGPO_OK;
     }
 
-    int frame = _sync.GetFrameCount();
-    // Hold onto the current frame in our queue of saved states.  We'll need
-    // the checksum later to verify that our replay of the same frame got the
-    // same results.
-    SavedInfo info;
-    info.frame = frame;
-    info.input = _last_input;
-    info.cbuf = _sync.GetLastSavedFrame().cbuf;
-    info.buf = (char *)malloc(info.cbuf);
-    memcpy(info.buf, _sync.GetLastSavedFrame().buf, info.cbuf);
-    info.checksum = _sync.GetLastSavedFrame().checksum;
-    _saved_frames.push(info);
+	if (0 < _check_distance) {
+		int frame = _sync.GetFrameCount();
+		// Hold onto the current frame in our queue of saved states.  We'll need
+		// the checksum later to verify that our replay of the same frame got the
+		// same results.
+		SavedInfo info;
+		info.frame = frame;
+		info.input = _last_input;
+		info.cbuf = _sync.GetLastSavedFrame().cbuf;
+		info.buf = (char *)malloc(info.cbuf);
+		memcpy(info.buf, _sync.GetLastSavedFrame().buf, info.cbuf);
+		info.checksum = _sync.GetLastSavedFrame().checksum;
+		_saved_frames.push(info);
+	}
 
     return GGPO_OK;
 }
@@ -37,7 +39,7 @@ GGPOErrorCode GdxsvSyncTestBackend::BeginRollback(int *rollback_frame)
     Log("BeginRollback");
 	*rollback_frame = 0;
     int frame = _sync.GetFrameCount();
-	if (frame - _last_verified == _check_distance) {
+	if (0 < _check_distance && frame - _last_verified == _check_distance) {
 		// We've gone far enough ahead and should now start replaying frames.
 		// Load the last verified frame and set the rollback flag to true.
 		_sync.LoadFrame(_last_verified);

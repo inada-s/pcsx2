@@ -205,9 +205,6 @@ u32 GDXFUNC gdx_game_body_main() {
 
   // Advance Frame
   u32 ret = ((u32 (*)()) 0x00174cb0)();
-  if (0 < rollbacked_frames) {
-      ret = 0;
-  }
   gdx_rpc_call(GDX_RPC_GAME_BODY_END, 0, 0, 0, 0);
   return ret;
 }
