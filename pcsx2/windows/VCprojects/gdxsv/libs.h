@@ -64,14 +64,28 @@ static inline void gdxsv_WriteMem16(u32 addr, u16 value) {
 
 static inline void gdxsv_ReadMemBlock(u8* dst, u32 addr, u32 size) {
 	// TODO: Optimize
-	for (int i = 0; i < size; ++i) {
-		*(dst + i) = gdxsv_ReadMem8(addr + i);
+	if (addr % 4 == 0 && size % 4 == 0) {
+		for (int i = 0; i < size / 4; ++i) {
+			*(u32*)(dst + 4 * i) = gdxsv_ReadMem32(addr + 4 * i);
+		}
+	}
+	else {
+		for (int i = 0; i < size; ++i) {
+			*(dst + i) = gdxsv_ReadMem8(addr + i);
+		}
 	}
 }
 
 static inline void gdxsv_WriteMemBlock(u32 dst, const u8* src, u32 size) {
 	// TODO: Optimize
-	for (int i = 0; i < size; ++i) {
-		gdxsv_WriteMem8(dst + i, *(src + i));
+	if (dst % 4 == 0 && size % 4 == 0) {
+		for (int i = 0; i < size / 4; ++i) {
+			gdxsv_WriteMem32(dst + 4 * i, *((u32*)(src + 4 * i)));
+		}
+	}
+	else {
+		for (int i = 0; i < size; ++i) {
+			gdxsv_WriteMem8(dst + i, *(src + i));
+		}
 	}
 }

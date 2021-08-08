@@ -196,16 +196,18 @@ u32 GDXFUNC gdx_game_body_main() {
   // Rollback
   int rollbacked_frames = gdx_rpc_call(GDX_RPC_GAME_BODY_ROLLBACK, 0, 0, 0, 0);
   int i = 0;
+  u32 ret = 0;
   for (i = 0; i < rollbacked_frames; ++i) {
       gdx_rpc_call(GDX_RPC_GAME_BODY_ROLLBACK, 1, 0, 0, 0);
-      ((u32 (*)()) 0x00174cb0)();
-      gdx_rpc_call(GDX_RPC_GAME_BODY_ROLLBACK, 2, 0, 0, 0);
+      ret = ((u32 (*)()) 0x00174cb0)();
+      gdx_rpc_call(GDX_RPC_GAME_BODY_ROLLBACK, 2, ret, 0, 0);
+      ((u32 (*)()) 0x00305eb0)(); // GameTransReset
   }
   gdx_rpc_call(GDX_RPC_GAME_BODY_ROLLBACK, 3, 0, 0, 0);
 
   // Advance Frame
-  u32 ret = ((u32 (*)()) 0x00174cb0)();
-  gdx_rpc_call(GDX_RPC_GAME_BODY_END, 0, 0, 0, 0);
+  ret = ((u32 (*)()) 0x00174cb0)();
+  gdx_rpc_call(GDX_RPC_GAME_BODY_END, ret, 0, 0, 0);
   return ret;
 }
 

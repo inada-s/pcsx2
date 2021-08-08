@@ -36,7 +36,7 @@ void GdxsvBackendRollback::Reset() {
     log_file_.Clear();
     recv_buf_.clear();
     recv_delay_ = 0;
-    me_ = 2;
+    me_ = 0;
     msg_list_.clear();
     for (int i = 0; i < 4; ++i) {
         key_msg_index_[i].clear();
@@ -245,8 +245,16 @@ u32 GdxsvBackendRollback::HandleRPC(const gdx_rpc_t& rpc) {
 					std::copy(key_msg.body.begin(), key_msg.body.end(), std::back_inserter(recv_buf_));
 				}
 			}
+			else {
+				WARN_LOG(COMMON, "ggpo_synchronize_input failed in rollback");
+				verify(false);
+			}
 		}
 		else if (rpc.param1 == 2) {
+			u32 swSetRet = gdxsv_ReadMem32(0x005802f8);
+			if (swSetRet == 0) {
+				WARN_LOG(COMMON, "swSetRet == 0");
+			}
 			// After rollback a frame (skip if no rollback)
 			ggpo_advance_frame(ggpo_);
 			ggpo_step_rollback(ggpo_);
@@ -263,6 +271,10 @@ u32 GdxsvBackendRollback::HandleRPC(const gdx_rpc_t& rpc) {
 			for (int i = 0; i < 4; ++i) {
 				if (ggpo_add_local_input(ggpo_, ggpo_handle_[i], &input, sizeof(input)) == GGPO_OK) {
 				}
+				else {
+					WARN_LOG(COMMON, "ggpo_add_local_input failed");
+					verify(false);
+				}
 			}
 
 			GameInput inputs[4];
@@ -274,6 +286,10 @@ u32 GdxsvBackendRollback::HandleRPC(const gdx_rpc_t& rpc) {
 					NOTICE_LOG(COMMON, "KeyMsg:%s", key_msg.ToHex().c_str());
 					std::copy(key_msg.body.begin(), key_msg.body.end(), std::back_inserter(recv_buf_));
 				}
+			}
+			else {
+				WARN_LOG(COMMON, "ggpo_synchronize_input failed");
+				verify(false);
 			}
 
 			/*
@@ -308,6 +324,10 @@ u32 GdxsvBackendRollback::HandleRPC(const gdx_rpc_t& rpc) {
 	}
 	else if (rpc.request == GDX_RPC_GAME_BODY_END) {
 		NOTICE_LOG(COMMON, "OnGameBodyEnd");
+		u32 swSetRet = gdxsv_ReadMem32(0x005802f8);
+		if (swSetRet == 0) {
+			WARN_LOG(COMMON, "swSetRet == 0");
+		}
 		ggpo_advance_frame(ggpo_);
 		ggpo_idle(ggpo_, 0);
 		return 0;
@@ -333,6 +353,7 @@ bool GdxsvBackendRollback::ggpo_cb_load_game_state(unsigned char* buffer, int le
 
 bool GdxsvBackendRollback::ggpo_cb_save_game_state(unsigned char** buffer, int* len, int* checksum, int frame) {
 	NOTICE_LOG(COMMON, "ggpo_cb_save_game_state");
+	NOTICE_LOG(COMMON, "sizeof(GameState) = %d", sizeof(GameState));
 	*len = sizeof(GameState);
 	* buffer = reinterpret_cast<unsigned char*>(std::malloc(*len));
 	if (!*buffer) {
@@ -592,6 +613,7 @@ void GdxsvBackendRollback::ProcessMcsMessage() {
 					}
 				}
 			}
+			// use gppo input in game scene
 
 			break;
 		}
