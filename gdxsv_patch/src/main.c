@@ -187,27 +187,32 @@ u32 GDXFUNC gdx_gethostbyname_ps2_release(u32 ticket_id) {
 
 u32 GDXFUNC gdx_game_body_main() {
   if (read8(read32(0x0057fcb0)) != 3) {
-      // not net mode
+      gdx_info("net mode = %d", read8(read32(0x0057fcb0)));
       return ((u32 (*)()) 0x00174cb0)();
   }
+  gdx_info("gdx_game_body_main\n");
 
   gdx_rpc_call(GDX_RPC_GAME_BODY_BEGIN, 0, 0, 0, 0);
 
   // Rollback
-  int rollbacked_frames = gdx_rpc_call(GDX_RPC_GAME_BODY_ROLLBACK, 0, 0, 0, 0);
-  int i = 0;
   u32 ret = 0;
-  for (i = 0; i < rollbacked_frames; ++i) {
-      gdx_rpc_call(GDX_RPC_GAME_BODY_ROLLBACK, 1, 0, 0, 0);
-      ret = ((u32 (*)()) 0x00174cb0)();
-      gdx_rpc_call(GDX_RPC_GAME_BODY_ROLLBACK, 2, ret, 0, 0);
-      ((u32 (*)()) 0x00305eb0)(); // GameTransReset
+  if (gdx_rpc_call(GDX_RPC_GAME_BODY_ROLLBACK, 0, 0, 0, 0)) {
+      while (gdx_rpc_call(GDX_RPC_GAME_BODY_ROLLBACK, 1, 0, 0, 0)) {
+          ((u32 (*)()) 0x0015b440)(); // Random
+          ret = ((u32 (*)()) 0x00174cb0)();
+          ret = gdx_rpc_call(GDX_RPC_GAME_BODY_ROLLBACK, 2, ret, 0, 0);
+          if (ret) {
+              return ret;
+          }
+          ((u32 (*)()) 0x00305eb0)(); // GameTransReset
+      }
+      ((u32 (*)()) 0x0015b440)(); // Random
   }
   gdx_rpc_call(GDX_RPC_GAME_BODY_ROLLBACK, 3, 0, 0, 0);
 
   // Advance Frame
   ret = ((u32 (*)()) 0x00174cb0)();
-  gdx_rpc_call(GDX_RPC_GAME_BODY_END, ret, 0, 0, 0);
+  ret = gdx_rpc_call(GDX_RPC_GAME_BODY_END, ret, 0, 0, 0);
   return ret;
 }
 

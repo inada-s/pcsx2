@@ -207,6 +207,21 @@ GGPOErrorCode ggpo_start_spectating(GGPOSession **session,
    return GGPO_OK;
 }
 
+GGPO_API GGPOErrorCode __cdecl ggpo_get_frame(
+	GGPOSession* ggpo, int* current_frame, int* confirmed_frame) {
+    if (!ggpo) {
+        return GGPO_ERRORCODE_INVALID_SESSION;
+    }
+	ggpo->GetFrame(current_frame, confirmed_frame);
+}
+
+GGPO_API GGPOErrorCode __cdecl ggpo_get_confirmed_input(
+	GGPOSession* ggpo, GGPOPlayerHandle player, int frame, void* values, int size) {
+    if (!ggpo) {
+        return GGPO_ERRORCODE_INVALID_SESSION;
+    }
+	ggpo->GetConfirmedInput(player, frame, values, size);
+}
 
 GGPOErrorCode ggpo_start_gdxsv_synctest(
     GGPOSession **ggpo,

@@ -16,6 +16,8 @@ public:
     virtual GGPOErrorCode Logv(char *fmt, va_list list);
 */
     virtual GGPOErrorCode IncrementFrame(void);
+    virtual GGPOErrorCode GetFrame(int *current_frame, int *confirmed_frame);
+	virtual GGPOErrorCode GetConfirmedInput(GGPOPlayerHandle player, int frame, void * values, int size);
     virtual GGPOErrorCode BeginRollback(int *frame);
     virtual GGPOErrorCode StepRollback();
     virtual GGPOErrorCode EndRollback();

@@ -27,6 +27,8 @@ struct GGPOSession {
    virtual GGPOErrorCode SetDisconnectTimeout(int timeout) { return GGPO_ERRORCODE_UNSUPPORTED; }
    virtual GGPOErrorCode SetDisconnectNotifyStart(int timeout) { return GGPO_ERRORCODE_UNSUPPORTED; }
 
+   virtual GGPOErrorCode GetFrame(int *current, int *confirmed) { return GGPO_ERRORCODE_UNSUPPORTED; }
+   virtual GGPOErrorCode GetConfirmedInput(GGPOPlayerHandle player, int frame, void* values, int size) { return GGPO_ERRORCODE_UNSUPPORTED; }
    virtual GGPOErrorCode BeginRollback(int *frame) { return GGPO_ERRORCODE_UNSUPPORTED; }
    virtual GGPOErrorCode StepRollback() { return GGPO_ERRORCODE_UNSUPPORTED; }
    virtual GGPOErrorCode EndRollback() { return GGPO_ERRORCODE_UNSUPPORTED; }

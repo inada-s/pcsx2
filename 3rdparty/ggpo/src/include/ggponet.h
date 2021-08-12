@@ -560,6 +560,11 @@ GGPO_API void __cdecl ggpo_logv(GGPOSession *,
                                 const char *fmt,
                                 va_list args);
 
+GGPO_API GGPOErrorCode __cdecl ggpo_get_frame(
+	GGPOSession*, int* current_frame, int* confirmed_frame);
+
+GGPO_API GGPOErrorCode __cdecl ggpo_get_confirmed_input(
+	GGPOSession*, GGPOPlayerHandle player, int frame, void* values, int size);
 
 GGPO_API GGPOErrorCode __cdecl ggpo_start_gdxsv_synctest(
     GGPOSession **session,

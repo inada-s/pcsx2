@@ -38,6 +38,10 @@ public:
 	};
 
 	struct GameState {
+		GameMemoryRange<0x0057fd00, 4> CrrView;
+		GameMemoryRange<0x0058027c, 8> SwCrnt;
+		GameMemoryRange<0x00580348, 4> RandData;
+		GameMemoryRange<0x0057fad8, 4> RandomSeed;
 		GameMemoryRange<0x0057fadc, 8> KRand;
 		GameMemoryRange<0x0057fc00, 0x0057fc44-0x0057fc00> HitWorkWork;
 		GameMemoryRange<0x0057fc44, 0x0057fcb0-0x0057fc44> WorkWork;
@@ -49,8 +53,15 @@ public:
 		GameMemoryRange<0x00866620, 0x2100 * 5> PlayerWorks;
 		GameMemoryRange<0x00870dd0, 0x0300> SystemWork2;
 		GameMemoryRange<0x008710d0, 0x0300> SystemWork;
+		GameMemoryRange<0x00aa9610, 4 * 2> InetSys;
+		GameMemoryRange<0x00aa8690, 0x00aa86e0-0x00aa8690> McsPsw;
+		GameMemoryRange<0x007A90E0, 0x180 * 10> CameraWork;
 
 		void Read() {
+			// SwCrnt.Read();
+			CrrView.Read();
+			RandomSeed.Read();
+			RandData.Read();
 			WorkMoveLast.Read();
 			WorkMoveHead.Read();
 			HitWork.Read();
@@ -62,9 +73,16 @@ public:
 			Work0.Read();
 			Work1.Read();
 			WorkWork.Read();
+			InetSys.Read();
+			McsPsw.Read();
+			CameraWork.Read();
 		}
 
 		void Write() const {
+			// SwCrnt.Write();
+			CrrView.Write();
+			RandomSeed.Write();
+			RandData.Write();
 			WorkMoveLast.Write();
 			WorkMoveHead.Write();
 			HitWork.Write();
@@ -76,6 +94,9 @@ public:
 			Work0.Write();
 			Work1.Write();
 			WorkWork.Write();
+			InetSys.Write();
+			McsPsw.Write();
+			CameraWork.Write();
 		}
 	};
 
@@ -155,7 +176,11 @@ private:
 	std::array<int, 4> key_counter_{};
 	std::array<std::vector<int>, 4> key_msg_index_{};
 
+	bool is_ggpo_mode_ = false;
 	u16 tsw_tmp_ = 0;
+	int game_set_frame_ = 0;
+	int rollback_frames_ = 0;
+	bool keymsg_updated_ = false;
 	bool is_rollbacking_ = false;
 	GGPOSession* ggpo_ = nullptr;
 	std::array<GGPOPlayerHandle, 4> ggpo_handle_{};

@@ -16,11 +16,13 @@ GGPOErrorCode GdxsvSyncTestBackend::IncrementFrame(void)
         return GGPO_OK;
     }
 
-	if (0 < _check_distance) {
-		int frame = _sync.GetFrameCount();
-		// Hold onto the current frame in our queue of saved states.  We'll need
-		// the checksum later to verify that our replay of the same frame got the
-		// same results.
+	int frame = _sync.GetFrameCount();
+	// Hold onto the current frame in our queue of saved states.  We'll need
+	// the checksum later to verify that our replay of the same frame got the
+	// same results.
+	if (_check_distance == 0) {
+		_last_verified = frame;
+	} else if (0 < _check_distance) {
 		SavedInfo info;
 		info.frame = frame;
 		info.input = _last_input;
@@ -90,4 +92,27 @@ GGPOErrorCode GdxsvSyncTestBackend::EndRollback()
 	_last_verified = begin_rollback_frame;
 	_rollingback = false;
     return GGPO_OK;
+}
+
+GGPOErrorCode GdxsvSyncTestBackend::GetFrame(int *current, int *confirmed)
+{
+	*current = _sync.GetFrameCount();
+	*confirmed = _last_verified;
+    return GGPO_OK;
+}
+
+GGPOErrorCode GdxsvSyncTestBackend::GetConfirmedInput(GGPOPlayerHandle player, int frame, void * values, int size)
+{
+    if (_sync.InRollback()) {
+        return GGPO_ERRORCODE_IN_ROLLBACK;
+    }
+
+    GameInput input;
+    int index = (int)player;
+    bool is_confirmed = _sync._input_queues[index].GetConfirmedInput(frame, &input);
+    if (is_confirmed) {
+        memcpy(values, input.bits, size);
+        return GGPO_OK;
+    }
+    return GGPO_ERRORCODE_INVALID_REQUEST;
 }
