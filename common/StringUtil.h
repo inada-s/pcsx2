@@ -25,7 +25,7 @@
 #include <string_view>
 #include <vector>
 
-#include "fast_float/fast_float.h"
+#include "c4/ext/fast_float.hpp"
 
 // Older versions of libstdc++ are missing support for from_chars() with floats, and was only recently
 // merged in libc++. So, just fall back to stringstream (yuck!) on everywhere except MSVC.
