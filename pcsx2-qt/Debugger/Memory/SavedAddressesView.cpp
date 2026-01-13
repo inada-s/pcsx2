@@ -50,6 +50,11 @@ SavedAddressesView::SavedAddressesView(const DebuggerViewParameters& parameters)
 
 		return true;
 	});
+
+	receiveEvent<DebuggerEvents::Refresh>([this](const DebuggerEvents::Refresh& event) -> bool {
+		m_model->refreshData();
+		return true;
+	});
 }
 
 void SavedAddressesView::openContextMenu(QPoint pos)
@@ -66,7 +71,7 @@ void SavedAddressesView::openContextMenu(QPoint pos)
 
 	std::vector<QAction*> go_to_actions = createEventActions<DebuggerEvents::GoToAddress>(
 		menu, [this, index_at_pos]() {
-			const QModelIndex rowAddressIndex = m_model->index(index_at_pos.row(), 0, QModelIndex());
+			const QModelIndex rowAddressIndex = m_model->index(index_at_pos.row(), SavedAddressesModel::ADDRESS, QModelIndex());
 
 			DebuggerEvents::GoToAddress event;
 			event.address = m_model->data(rowAddressIndex, Qt::UserRole).toUInt();
@@ -153,8 +158,8 @@ void SavedAddressesView::addAddress(u32 address)
 
 	u32 row_count = m_model->rowCount();
 
-	QModelIndex address_index = m_model->index(row_count - 1, SavedAddressesModel::ADDRESS);
-	m_model->setData(address_index, address, Qt::UserRole);
+	QModelIndex expression_index = m_model->index(row_count - 1, SavedAddressesModel::EXPRESSION);
+	m_model->setData(expression_index, QString::number(address, 16).toUpper(), Qt::EditRole);
 
 	QModelIndex label_index = m_model->index(row_count - 1, SavedAddressesModel::LABEL);
 	if (label_index.isValid())

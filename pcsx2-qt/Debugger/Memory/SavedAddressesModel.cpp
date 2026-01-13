@@ -5,6 +5,7 @@
 #include "SavedAddressesModel.h"
 
 #include "common/Console.h"
+#include "DebugTools/ExpressionParser.h"
 
 std::map<BreakPointCpu, SavedAddressesModel*> SavedAddressesModel::s_instances;
 
@@ -23,11 +24,91 @@ SavedAddressesModel* SavedAddressesModel::getInstance(DebugInterface& cpu)
 	return iterator->second;
 }
 
+QString SavedAddressesModel::memorySizeToString(MemorySize size)
+{
+	switch (size)
+	{
+		case SIZE_1_BYTE:
+			return "1";
+		case SIZE_2_BYTES:
+			return "2";
+		case SIZE_4_BYTES:
+			return "4";
+		case SIZE_8_BYTES:
+			return "8";
+		default:
+			return "4";
+	}
+}
+
+SavedAddressesModel::MemorySize SavedAddressesModel::stringToMemorySize(const QString& str)
+{
+	bool ok;
+	int val = str.toInt(&ok);
+	if (!ok)
+		return SIZE_4_BYTES;
+
+	switch (val)
+	{
+		case 1:
+			return SIZE_1_BYTE;
+		case 2:
+			return SIZE_2_BYTES;
+		case 4:
+			return SIZE_4_BYTES;
+		case 8:
+			return SIZE_8_BYTES;
+		default:
+			return SIZE_4_BYTES;
+	}
+}
+
+QString SavedAddressesModel::readMemoryValue(u32 address, MemorySize size) const
+{
+	if (!m_cpu.isAlive() || !m_cpu.isValidAddress(address))
+		return tr("N/A");
+
+	switch (size)
+	{
+		case SIZE_1_BYTE:
+			return QString("%1").arg(m_cpu.read8(address), 2, 16, QChar('0')).toUpper();
+		case SIZE_2_BYTES:
+			return QString("%1").arg(m_cpu.read16(address), 4, 16, QChar('0')).toUpper();
+		case SIZE_4_BYTES:
+			return QString("%1").arg(m_cpu.read32(address), 8, 16, QChar('0')).toUpper();
+		case SIZE_8_BYTES:
+			return QString("%1").arg(m_cpu.read64(address), 16, 16, QChar('0')).toUpper();
+		default:
+			return QString("%1").arg(m_cpu.read32(address), 8, 16, QChar('0')).toUpper();
+	}
+}
+
+u32 SavedAddressesModel::evaluateAddress(const QString& expression) const
+{
+	QString input = expression.trimmed();
+	if (input.isEmpty())
+		return 0;
+
+	// First try as simple hex number
+	bool ok = false;
+	u32 address = input.toUInt(&ok, 16);
+	if (ok)
+		return address;
+
+	// Try parsing as expression (e.g., "0x082000 + 0x0120")
+	u64 result;
+	std::string error;
+	if (m_cpu.evaluateExpression(input.toUtf8().constData(), result, error))
+		return static_cast<u32>(result);
+
+	return 0;
+}
+
 QVariant SavedAddressesModel::data(const QModelIndex& index, int role) const
 {
 	size_t row = static_cast<size_t>(index.row());
 	if (!index.isValid() || row >= m_savedAddresses.size())
-		return false;
+		return QVariant();
 
 	const SavedAddress& entry = m_savedAddresses[row];
 
@@ -38,8 +119,14 @@ QVariant SavedAddressesModel::data(const QModelIndex& index, int role) const
 	{
 		switch (index.column())
 		{
+			case HeaderColumns::EXPRESSION:
+				return entry.expression;
 			case HeaderColumns::ADDRESS:
 				return QString::number(entry.address, 16).toUpper();
+			case HeaderColumns::SIZE:
+				return memorySizeToString(entry.size);
+			case HeaderColumns::VALUE:
+				return readMemoryValue(entry.address, entry.size);
 			case HeaderColumns::LABEL:
 				return entry.label;
 			case HeaderColumns::DESCRIPTION:
@@ -50,8 +137,14 @@ QVariant SavedAddressesModel::data(const QModelIndex& index, int role) const
 	{
 		switch (index.column())
 		{
+			case HeaderColumns::EXPRESSION:
+				return entry.expression;
 			case HeaderColumns::ADDRESS:
 				return entry.address;
+			case HeaderColumns::SIZE:
+				return static_cast<int>(entry.size);
+			case HeaderColumns::VALUE:
+				return readMemoryValue(entry.address, entry.size);
 			case HeaderColumns::LABEL:
 				return entry.label;
 			case HeaderColumns::DESCRIPTION:
@@ -75,15 +168,20 @@ bool SavedAddressesModel::setData(const QModelIndex& index, const QVariant& valu
 
 	if (role == Qt::EditRole)
 	{
-		if (index.column() == HeaderColumns::ADDRESS)
+		if (index.column() == HeaderColumns::EXPRESSION)
 		{
-			bool ok = false;
-			const u32 address = value.toString().toUInt(&ok, 16);
-			if (ok)
-				entry.address = address;
-			else
-				return false;
+			QString input = value.toString().trimmed();
+			entry.expression = input;
+			entry.address = evaluateAddress(input);
+			// Notify that both EXPRESSION and ADDRESS columns changed
+			emit dataChanged(this->index(row, HeaderColumns::EXPRESSION), 
+			                 this->index(row, HeaderColumns::ADDRESS), 
+			                 QList<int>(role));
+			return true;
 		}
+
+		if (index.column() == HeaderColumns::SIZE)
+			entry.size = stringToMemorySize(value.toString());
 
 		if (index.column() == HeaderColumns::DESCRIPTION)
 			entry.description = value.toString();
@@ -96,11 +194,14 @@ bool SavedAddressesModel::setData(const QModelIndex& index, const QVariant& valu
 	}
 	else if (role == Qt::UserRole)
 	{
-		if (index.column() == HeaderColumns::ADDRESS)
+		if (index.column() == HeaderColumns::EXPRESSION)
 		{
-			const u32 address = value.toUInt();
-			entry.address = address;
+			entry.expression = value.toString();
+			entry.address = evaluateAddress(entry.expression);
 		}
+
+		if (index.column() == HeaderColumns::SIZE)
+			entry.size = static_cast<MemorySize>(value.toInt());
 
 		if (index.column() == HeaderColumns::DESCRIPTION)
 			entry.description = value.toString();
@@ -124,8 +225,14 @@ QVariant SavedAddressesModel::headerData(int section, Qt::Orientation orientatio
 	{
 		switch (section)
 		{
+			case SavedAddressesModel::EXPRESSION:
+				return tr("EXPRESSION");
 			case SavedAddressesModel::ADDRESS:
-				return tr("MEMORY ADDRESS");
+				return tr("ADDRESS");
+			case SavedAddressesModel::SIZE:
+				return tr("SIZE");
+			case SavedAddressesModel::VALUE:
+				return tr("VALUE");
 			case SavedAddressesModel::LABEL:
 				return tr("LABEL");
 			case SavedAddressesModel::DESCRIPTION:
@@ -138,8 +245,14 @@ QVariant SavedAddressesModel::headerData(int section, Qt::Orientation orientatio
 	{
 		switch (section)
 		{
+			case SavedAddressesModel::EXPRESSION:
+				return "EXPRESSION";
 			case SavedAddressesModel::ADDRESS:
-				return "MEMORY ADDRESS";
+				return "ADDRESS";
+			case SavedAddressesModel::SIZE:
+				return "SIZE";
+			case SavedAddressesModel::VALUE:
+				return "VALUE";
 			case SavedAddressesModel::LABEL:
 				return "LABEL";
 			case SavedAddressesModel::DESCRIPTION:
@@ -153,12 +266,15 @@ QVariant SavedAddressesModel::headerData(int section, Qt::Orientation orientatio
 
 Qt::ItemFlags SavedAddressesModel::flags(const QModelIndex& index) const
 {
-	return Qt::ItemIsEnabled | Qt::ItemIsSelectable | Qt::ItemIsEditable;
+	Qt::ItemFlags flags = Qt::ItemIsEnabled | Qt::ItemIsSelectable;
+	if (index.column() != HeaderColumns::ADDRESS && index.column() != HeaderColumns::VALUE)
+		flags |= Qt::ItemIsEditable;
+	return flags;
 }
 
 void SavedAddressesModel::addRow()
 {
-	const SavedAddress defaultNewAddress = {0, tr("Name"), tr("Description")};
+	const SavedAddress defaultNewAddress = {"0", 0, SIZE_4_BYTES, tr("Name"), tr("Description")};
 	addRow(defaultNewAddress);
 }
 
@@ -193,23 +309,60 @@ int SavedAddressesModel::columnCount(const QModelIndex&) const
 
 void SavedAddressesModel::loadSavedAddressFromFieldList(QStringList fields)
 {
-	if (fields.size() != SavedAddressesModel::HeaderColumns::COLUMN_COUNT)
+	if (fields.size() < 3)
 	{
 		Console.WriteLn("Debugger Saved Addresses Model: Invalid number of columns, skipping");
 		return;
 	}
 
-	bool ok;
-	const u32 address = fields[SavedAddressesModel::HeaderColumns::ADDRESS].toUInt(&ok, 16);
-	if (!ok)
+	SavedAddressesModel::SavedAddress importedAddress;
+	
+	// New format: EXPRESSION, ADDRESS, SIZE, VALUE, LABEL, DESCRIPTION (6+ fields)
+	// Old format with size: ADDRESS, SIZE, VALUE, LABEL, DESCRIPTION (5 fields)
+	// Legacy format: ADDRESS, LABEL, DESCRIPTION (3 fields)
+	
+	if (fields.size() >= 6)
 	{
-		Console.WriteLn("Debugger Saved Addresses Model: Failed to parse address '%s', skipping", fields[SavedAddressesModel::HeaderColumns::ADDRESS].toUtf8().constData());
-		return;
+		// New format with expression
+		importedAddress.expression = fields[0];
+		importedAddress.address = evaluateAddress(fields[0]);
+		importedAddress.size = stringToMemorySize(fields[2]);
+		importedAddress.label = fields[4];
+		importedAddress.description = fields[5];
+	}
+	else if (fields.size() >= 5)
+	{
+		// Old format - use address as expression
+		bool ok;
+		const u32 address = fields[0].toUInt(&ok, 16);
+		if (!ok)
+		{
+			Console.WriteLn("Debugger Saved Addresses Model: Failed to parse address, skipping");
+			return;
+		}
+		importedAddress.expression = fields[0];
+		importedAddress.address = address;
+		importedAddress.size = stringToMemorySize(fields[1]);
+		importedAddress.label = fields[3];
+		importedAddress.description = fields[4];
+	}
+	else
+	{
+		// Legacy format
+		bool ok;
+		const u32 address = fields[0].toUInt(&ok, 16);
+		if (!ok)
+		{
+			Console.WriteLn("Debugger Saved Addresses Model: Failed to parse address, skipping");
+			return;
+		}
+		importedAddress.expression = fields[0];
+		importedAddress.address = address;
+		importedAddress.size = SIZE_4_BYTES;
+		importedAddress.label = fields[1];
+		importedAddress.description = fields[2];
 	}
 
-	const QString label = fields[SavedAddressesModel::HeaderColumns::LABEL];
-	const QString description = fields[SavedAddressesModel::HeaderColumns::DESCRIPTION];
-	const SavedAddressesModel::SavedAddress importedAddress = {address, label, description};
 	addRow(importedAddress);
 }
 
@@ -218,4 +371,21 @@ void SavedAddressesModel::clear()
 	beginResetModel();
 	m_savedAddresses.clear();
 	endResetModel();
+}
+
+void SavedAddressesModel::refreshData()
+{
+	if (m_savedAddresses.empty())
+		return;
+
+	// Refresh ADDRESS column (expression may contain dynamic values like registers)
+	for (size_t i = 0; i < m_savedAddresses.size(); ++i)
+	{
+		m_savedAddresses[i].address = evaluateAddress(m_savedAddresses[i].expression);
+	}
+
+	emit dataChanged(
+		index(0, HeaderColumns::ADDRESS),
+		index(m_savedAddresses.size() - 1, HeaderColumns::VALUE),
+		{Qt::DisplayRole});
 }
