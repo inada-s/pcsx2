@@ -209,6 +209,17 @@ namespace Sessions
 		endpoint.sin_addr = std::bit_cast<in_addr>(destIP);
 		endpoint.sin_port = htons(destPort);
 
+		// zdxsv: the battle server named in the lobby's battle info is reached
+		// through the UDP bridge (DEV9/Zdxsv) instead of TCP.
+		u16 bridgePort = 0;
+		if (Zdxsv::RedirectConnect(std::bit_cast<u32>(destIP), destPort, bridgePort))
+		{
+			Console.WriteLn("DEV9: TCP: zdxsv battle server %d.%d.%d.%d:%u -> UDP bridge 127.0.0.1:%u",
+				destIP.bytes[0], destIP.bytes[1], destIP.bytes[2], destIP.bytes[3], destPort, bridgePort);
+			endpoint.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+			endpoint.sin_port = htons(bridgePort);
+		}
+
 		ret = connect(client, reinterpret_cast<const sockaddr*>(&endpoint), sizeof(endpoint));
 
 		if (ret != 0)

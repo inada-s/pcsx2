@@ -87,6 +87,20 @@ namespace Sessions
 		else
 			maxSize = std::min<int>(maxSegmentSize, windowSize.load() - outstanding);
 
+		if (maxSize > 0 && zdxsvLobbyFilter && zdxsvLobbyFilter->Ready() > 0)
+		{
+			// Lobby bytes the PS2's window could not take last time go first.
+			PayloadData* heldData = new PayloadData(static_cast<int>(std::min<size_t>(maxSize, zdxsvLobbyFilter->Ready())));
+			const u32 held = static_cast<u32>(zdxsvLobbyFilter->Take(heldData->data.get(), heldData->GetLength()));
+
+			std::unique_ptr<TCP_Packet> iRet = CreateBasePacket(heldData);
+			IncrementMyNumber(held);
+			iRet->SetACK(true);
+			iRet->SetPSH(true);
+			myNumberACKed.store(false);
+			return ReceivedPayload{destIP, std::move(iRet)};
+		}
+
 		if (maxSize > 0)
 		{
 			std::unique_ptr<u8[]> buffer;
@@ -170,6 +184,14 @@ namespace Sessions
 				}
 				DevCon.WriteLn("DEV9: TCP: [SRV] Sending %d bytes", recived);
 				ZdxsvSendPlatformInfo(buffer.get(), recived);
+				if (zdxsvLobbyFilter)
+				{
+					// Strips the lobby's battle info notice; may hold back a partial frame.
+					zdxsvLobbyFilter->Feed(buffer.get(), recived);
+					recived = static_cast<int>(zdxsvLobbyFilter->Take(buffer.get(), maxSize));
+					if (recived == 0)
+						return std::nullopt;
+				}
 
 				PayloadData* recivedData = new PayloadData(recived);
 				memcpy(recivedData->data.get(), buffer.get(), recived);
@@ -226,6 +248,14 @@ namespace Sessions
 #else
 		body += "cpu=unknown\n";
 #endif
+		// udp=1: this emulator bridges the game's battle TCP to the battle server
+		// over UDP (DEV9/Zdxsv), so the lobby sends it battle info (0x9951).
+		if (Zdxsv::Enabled())
+		{
+			body += "udp=1\n";
+			Zdxsv::SetLogger([](const std::string& s) { Console.WriteLn("DEV9: %s", s.c_str()); });
+			zdxsvLobbyFilter = std::make_unique<Zdxsv::LobbyFilter>();
+		}
 
 		std::vector<u8> msg = {0x81, 0xFF, 0x99, 0x50,
 			static_cast<u8>(body.size() >> 8), static_cast<u8>(body.size()),
