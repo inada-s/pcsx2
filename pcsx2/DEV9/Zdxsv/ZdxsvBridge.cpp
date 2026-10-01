@@ -497,9 +497,11 @@ namespace Zdxsv
 			sock_t tcp = INVALID_SOCKET;
 			std::vector<Link> links;
 			bool greeted = false, refused = false;
-			// MessageFilter: per-sender next-in-order check. Every sender's first
-			// message is seq 1 (zproxy, bridge and the server's TCP peers), so a
-			// message that took a faster path can't make the filter skip ahead.
+			// MessageFilter: per-sender next-in-order check, first message any seq
+			// (as zdxsv proto.MessageFilter): the server can drop a sender's seq 1
+			// (bridge_test e2e s572: seq 1 never relayed, first seen = 2). A peer
+			// link resends from its seq 1, so P2P only loses seq 1 if the relayed
+			// seq 2 wins the race, as on the relay alone.
 			std::map<std::string, uint32_t> recvSeq;
 			uint32_t msgSeq = 1;
 			uint64_t sentMsgs = 0, recvMsgs = 0;
@@ -645,7 +647,7 @@ namespace Zdxsv
 				for (const Proto::BattleMessage& m : pkt.battle)
 				{
 					auto it = recvSeq.find(m.userId);
-					if (it == recvSeq.end() || m.seq != it->second + 1)
+					if (it == recvSeq.end() || !(it->second == 0 || m.seq == it->second + 1))
 						continue;
 					it->second = m.seq;
 					recvMsgs++;
@@ -758,17 +760,20 @@ namespace Zdxsv
 						m.userId = info.userId;
 						m.seq = msgSeq++;
 						m.body.assign(buf, buf + n);
+						fin = n == 4 && buf[0] == 0x04 && buf[1] == 0xF0 && buf[2] == 0x00 && buf[3] == 0x00;
 						// Every link gets every message (a peer that comes up late
 						// catches up from its queue); peers that never answer are
-						// dropped after 10 s.
-						for (Link& l : links)
+						// dropped after 10 s. Server only: seq 1 (the 22-byte session
+						// handshake, the server joins the room on it) and fin; the
+						// server relays neither (udp_peer.go).
+						const bool serverOnly = m.seq == 1 || fin;
+						for (size_t i = 0; i < (serverOnly ? 1 : links.size()); i++)
 						{
-							l.pending.push_back(m);
-							l.end++;
+							links[i].pending.push_back(m);
+							links[i].end++;
 						}
 						sentMsgs++;
 						flush = true;
-						fin = n == 4 && buf[0] == 0x04 && buf[1] == 0xF0 && buf[2] == 0x00 && buf[3] == 0x00;
 					}
 					if (FD_ISSET(udp, &rd))
 						Poll(0);
