@@ -977,10 +977,18 @@ namespace Zdxsv
 		g_stateLoaded = true;
 	}
 
+	bool LobbyStateEnabled()
+	{
+		static const bool enabled = [] {
+			const char* env = std::getenv("ZDXSV_LOBBY_STATE");
+			return env && std::string(env) == "1";
+		}();
+		return enabled;
+	}
+
 	bool AdoptConnections()
 	{
-		const char* env = std::getenv("ZDXSV_TCP_ADOPT");
-		return g_stateLoaded && !(env && std::string(env) == "0");
+		return g_stateLoaded && LobbyStateEnabled();
 	}
 
 	void Shutdown()
