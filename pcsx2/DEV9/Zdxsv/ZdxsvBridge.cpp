@@ -16,6 +16,9 @@
 #include <thread>
 
 #ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX // std::min/std::max; the CMake build doesn't define it, the MSBuild one does
+#endif
 #include <winsock2.h>
 #include <ws2tcpip.h>
 using sock_t = SOCKET;
