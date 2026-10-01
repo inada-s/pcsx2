@@ -4,6 +4,7 @@
 #pragma once
 #include <atomic>
 #include <chrono>
+#include <memory>
 #include <mutex>
 #include <tuple>
 #include <vector>
@@ -16,6 +17,7 @@
 #include "DEV9/SimpleQueue.h"
 #include "DEV9/Sessions/BaseSession.h"
 #include "DEV9/PacketReader/IP/TCP/TCP_Packet.h"
+#include "DEV9/Zdxsv/ZdxsvBridge.h"
 
 namespace Sessions
 {
@@ -91,6 +93,8 @@ namespace Sessions
 		// zdxsv: tell the lobby server this peer is an emulator (see TCP_Session_In.cpp)
 		bool zdxsvChecked = false;
 		void ZdxsvSendPlatformInfo(const u8* data, int len);
+		// zdxsv: strips the lobby's battle info notice (DEV9/Zdxsv), set with udp=1
+		std::unique_ptr<Zdxsv::LobbyFilter> zdxsvLobbyFilter;
 
 		void IncrementMyNumber(u32 amount);
 		void UpdateReceivedAckNumber(u32 ack);
