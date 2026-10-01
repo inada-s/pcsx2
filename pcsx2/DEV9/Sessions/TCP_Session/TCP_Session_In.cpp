@@ -212,6 +212,20 @@ namespace Sessions
 		return std::nullopt;
 	}
 
+	// Adopted after a state load: the server side starts mid-session (no key
+	// pair question, no platform info), but battle info and the UDP socket
+	// still work as on a fresh lobby connection.
+	void TCP_Session::ZdxsvAdopted()
+	{
+		zdxsvChecked = true;
+		if (!Zdxsv::Enabled())
+			return;
+		Zdxsv::SetLogger([](const std::string& s) { Console.WriteLn("DEV9: %s", s.c_str()); });
+		const char* stunPort = std::getenv("ZDXSV_STUN_PORT");
+		Zdxsv::OpenUdp(std::bit_cast<u32>(destIP), stunPort ? static_cast<u16>(std::atoi(stunPort)) : 8201);
+		zdxsvLobbyFilter = std::make_unique<Zdxsv::LobbyFilter>();
+	}
+
 	// The zdxsv lobby server opens every connection with a key pair question
 	// (dir 0x18, category 0x01, command 0x6101). On such a connection, send the
 	// server a custom message (dir 0x81, category 0xFF, command 0x9950) with

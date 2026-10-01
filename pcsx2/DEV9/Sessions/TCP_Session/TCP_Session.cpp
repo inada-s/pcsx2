@@ -79,6 +79,15 @@ namespace Sessions
 			_OldMyNumbers.push_back(1);
 	}
 
+	void TCP_Session::AdoptMyNumbers(u32 ack)
+	{
+		std::lock_guard numberlock(myNumberSentry);
+		_MySequenceNumber = ack;
+		_ReceivedAckNumber = ack;
+		// As after a fresh connect (old = ISN, acked = ISN + 1): else ShouldWaitForAck() holds all data.
+		_OldMyNumbers.assign(oldMyNumCount, ack - 1);
+	}
+
 	TCP_Session::TCP_Session(ConnectionKey parKey, IP_Address parAdapterIP)
 		: BaseSession(parKey, parAdapterIP)
 	{

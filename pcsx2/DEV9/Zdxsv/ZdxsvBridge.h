@@ -77,6 +77,11 @@ namespace Zdxsv
 	// order ip, host order port), starts the bridge and returns its loopback port.
 	bool RedirectConnect(uint32_t ip, uint16_t port, uint16_t& bridgePort);
 
+	// A save state was loaded: from now on DEV9 adopts TCP connections the PS2
+	// opened before the save (ZDXSV_TCP_ADOPT=0: reset them, as upstream).
+	void OnStateLoaded();
+	bool AdoptConnections();
+
 	// Stops a running bridge (emulator shutdown).
 	void Shutdown();
 

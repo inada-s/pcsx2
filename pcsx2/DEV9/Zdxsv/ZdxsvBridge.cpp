@@ -970,6 +970,19 @@ namespace Zdxsv
 		return g_udp->lines;
 	}
 
+	static std::atomic<bool> g_stateLoaded{false};
+
+	void OnStateLoaded()
+	{
+		g_stateLoaded = true;
+	}
+
+	bool AdoptConnections()
+	{
+		const char* env = std::getenv("ZDXSV_TCP_ADOPT");
+		return g_stateLoaded && !(env && std::string(env) == "0");
+	}
+
 	void Shutdown()
 	{
 		g_bridge.reset();
