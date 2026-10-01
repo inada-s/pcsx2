@@ -88,6 +88,10 @@ namespace Sessions
 		void PushRecvBuff(ReceivedPayload tcp);
 		std::optional<ReceivedPayload> PopRecvBuff();
 
+		// zdxsv: tell the lobby server this peer is an emulator (see TCP_Session_In.cpp)
+		bool zdxsvChecked = false;
+		void ZdxsvSendPlatformInfo(const u8* data, int len);
+
 		void IncrementMyNumber(u32 amount);
 		void UpdateReceivedAckNumber(u32 ack);
 		u32 GetMyNumber();
