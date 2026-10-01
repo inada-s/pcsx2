@@ -3,14 +3,17 @@ name: 🖥️ Windows Builds
 # zdxsv fork: one Windows build only, the configuration upstream releases with
 # (release_cut_new.yml: CMake + clang-cl). The other upstream variants (MSVC/clang
 # SSE4/AVX2 msbuild, CMake MSVC) are dropped to keep CI short.
+# Runs on pushes to ai/zdxsv and on PRs into it: a PR run restores the base
+# branch caches, a push to a new branch would not (the
+# repository default branch is gdxsv-dev). No secrets: none are used.
 
 on:
   push:
-    branches-ignore:
-      - "l10n_master"
+    branches:
+      - "ai/zdxsv"
   pull_request:
     branches:
-      - master
+      - "ai/zdxsv"
   workflow_dispatch:
 
 jobs:
@@ -24,4 +27,3 @@ jobs:
       configuration: CMake
       buildSystem: cmake
       cmakeFlags: -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl
-    secrets: inherit
