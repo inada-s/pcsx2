@@ -510,6 +510,38 @@ namespace Zdxsv
 			uint64_t udpCount = 0, dropped = 0;
 			// ZDXSV_UDP_TEST_P2P_ONLY=1: ignore battle data from the server (tests P2P alone).
 			bool p2pOnly = false;
+			// ZDXSV_UDP_TEST_P2P_BLOCK=1: drop all peer packets, both ways (a NAT
+			// that lets nothing through: every message must go via the server).
+			bool p2pBlock = false;
+			uint64_t blocked = 0;
+			// ZDXSV_UDP_TEST_P2P_DELAY=ms: hold packets to peers ms before sending
+			// (a slow direct path; ~16 ms granularity, the Serve tick).
+			int p2pDelayMs = 0;
+			struct Delayed
+			{
+				Clock::time_point due;
+				sockaddr_in to;
+				std::vector<uint8_t> data;
+			};
+			std::deque<Delayed> delayed;
+
+			bool IsServer(const sockaddr_in& a) { return SameAddr(a, links[0].addr); }
+
+			void SendRaw(const std::vector<uint8_t>& data, const sockaddr_in& to)
+			{
+				sendto(udp, reinterpret_cast<const char*>(data.data()), static_cast<int>(data.size()), 0,
+					reinterpret_cast<const sockaddr*>(&to), sizeof(to));
+			}
+
+			void SendDelayed()
+			{
+				const auto now = Clock::now();
+				while (!delayed.empty() && delayed.front().due <= now)
+				{
+					SendRaw(delayed.front().data, delayed.front().to);
+					delayed.pop_front();
+				}
+			}
 
 			bool WriteTCP(const uint8_t* p, size_t n)
 			{
@@ -534,9 +566,17 @@ namespace Zdxsv
 			{
 				if (Drop())
 					return;
-				const std::vector<uint8_t> data = Proto::Encode(pkt);
-				sendto(udp, reinterpret_cast<const char*>(data.data()), static_cast<int>(data.size()), 0,
-					reinterpret_cast<const sockaddr*>(&to), sizeof(to));
+				if (p2pBlock && !IsServer(to))
+				{
+					blocked++;
+					return;
+				}
+				if (p2pDelayMs > 0 && !IsServer(to))
+				{
+					delayed.push_back({Clock::now() + std::chrono::milliseconds(p2pDelayMs), to, Proto::Encode(pkt)});
+					return;
+				}
+				SendRaw(Proto::Encode(pkt), to);
 			}
 			Link* FindLink(const sockaddr_in& from)
 			{
@@ -548,6 +588,7 @@ namespace Zdxsv
 			// Reads and handles one UDP packet if one comes within ms.
 			void Poll(int ms)
 			{
+				SendDelayed();
 				if (!WaitReadable(udp, ms))
 					return;
 				uint8_t buf[4096];
@@ -558,6 +599,11 @@ namespace Zdxsv
 				Proto::Packet pkt;
 				if (n <= 0 || Drop() || !Proto::Decode(buf, n, pkt))
 					return;
+				if (p2pBlock && !IsServer(from))
+				{
+					blocked++;
+					return;
+				}
 				if (pkt.type == Proto::HelloServer && SameAddr(from, links[0].addr))
 				{
 					greeted = pkt.helloOk;
@@ -663,6 +709,12 @@ namespace Zdxsv
 					dropEvery = std::atoi(env);
 				if (const char* env = std::getenv("ZDXSV_UDP_TEST_P2P_ONLY"))
 					p2pOnly = std::string(env) == "1";
+				if (const char* env = std::getenv("ZDXSV_UDP_TEST_P2P_BLOCK"))
+					p2pBlock = std::string(env) == "1";
+				if (const char* env = std::getenv("ZDXSV_UDP_TEST_P2P_DELAY"))
+					p2pDelayMs = std::atoi(env);
+				if (p2pBlock || p2pDelayMs > 0)
+					Log("bridge test: p2p block " + std::to_string(p2pBlock) + ", p2p delay " + std::to_string(p2pDelayMs) + " ms");
 				const auto acceptUntil = Clock::now() + std::chrono::seconds(10);
 				while (!stop && Clock::now() < acceptUntil && tcp == INVALID_SOCKET)
 					if (WaitReadable(listener, 100))
@@ -723,7 +775,8 @@ namespace Zdxsv
 				Log("bridge end: sent " + std::to_string(sentMsgs) + " msgs / " + std::to_string(links[0].sentPkts) +
 					" pkts, received " + std::to_string(recvMsgs) + " msgs / " + std::to_string(links[0].recvPkts) + " pkts" +
 					", server first " + std::to_string(links[0].firstMsgs) + " msgs" + peers +
-					(dropEvery > 0 ? ", test-dropped " + std::to_string(dropped) + " pkts" : ""));
+					(dropEvery > 0 ? ", test-dropped " + std::to_string(dropped) + " pkts" : "") +
+					(p2pBlock ? ", test-blocked " + std::to_string(blocked) + " pkts" : ""));
 				if (ownUdp)
 					closesocket(udp);
 				closesocket(tcp);
@@ -777,6 +830,7 @@ namespace Zdxsv
 					}
 					if (FD_ISSET(udp, &rd))
 						Poll(0);
+					SendDelayed();
 					const auto now = Clock::now();
 					if (now - lastPing >= std::chrono::milliseconds(100))
 					{
