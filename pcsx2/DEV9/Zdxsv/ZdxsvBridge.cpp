@@ -788,7 +788,7 @@ namespace Zdxsv
 				if (!WriteTCP(firstData, sizeof(firstData)))
 					return;
 				const auto start = Clock::now();
-				auto lastSend = start, lastPing = start;
+				auto lastSend = start, lastPing = start, lastStatus = start;
 				auto lastGame = start;
 				bool fin = false;
 				while (!stop && !fin)
@@ -853,6 +853,17 @@ namespace Zdxsv
 							if (l.up)
 								Flush(l);
 						lastSend = now;
+					}
+					if (now - lastStatus >= std::chrono::seconds(10))
+					{
+						lastStatus = now;
+						std::string s = "bridge status: sent " + std::to_string(sentMsgs) + " / received " + std::to_string(recvMsgs) + " msgs";
+						for (const Link& l : links)
+							s += ", " + (l.userId.empty() ? std::string("server") : l.userId) + " pkts " + std::to_string(l.sentPkts) + "/" +
+								 std::to_string(l.recvPkts) + " pending " + std::to_string(l.pending.size()) + " ack " + std::to_string(l.recvAck);
+						for (const auto& [id, seq] : recvSeq)
+							s += ", seq " + id + " " + std::to_string(seq);
+						Log(s);
 					}
 					if (now - lastGame > std::chrono::seconds(10))
 					{
