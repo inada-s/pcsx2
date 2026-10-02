@@ -8,6 +8,8 @@
 #include "common/HostSys.h"
 #include "common/SingleRegisterTypes.h"
 
+#include <vector>
+
 static const uptr VTLB_AllocUpperBounds = _1gb * 2;
 
 // Specialized function pointers for each read type
@@ -239,6 +241,7 @@ using mmap_DeltaWriteHook = void (*)(u32 page);
 extern void mmap_DeltaSetHook(mmap_DeltaWriteHook hook); // nullptr: unwatch all pages
 extern void mmap_DeltaWatchAll();
 extern void mmap_DeltaWatchPage(u32 page);
+extern void mmap_DeltaWatchPages(const std::vector<u32>& pages); // same, adjacent pages in one call
 // Writes a page without calling the hook; the page stays unwatched. Clears recompiled code in it.
 extern void mmap_DeltaRestorePage(u32 page, const u8* data);
 

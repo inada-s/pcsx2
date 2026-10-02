@@ -11,6 +11,7 @@
 //   port=7001    local UDP port
 //   peer=7002    peer UDP port, on host= (default 127.0.0.1)
 //   delay=0      GGPO frame delay of the local input
+//   sync=0       no state hashes: checksum 0, no zdxsv_sync.txt, no dump= (play, not test)
 //   dump=F       write the final delta state of frame F (scratch masked) to logs/zdxsv_dump.bin
 //   start=1500   vsync (counted from boot) the session starts at
 //   frames=3000  frames the session runs, then it is closed and reported
@@ -102,6 +103,7 @@ namespace ZdxsvGgpo
 		bool s_host_input = false, s_no_input = false, s_control_input = false;
 		u16 s_mask = 0xffff;
 		bool s_iop_flush = false;
+		bool s_sync = true; // sync=0: no state hashes (checksum 0, no zdxsv_sync.txt)
 		int s_trace_frame = 0; // trace= probe
 		std::FILE* s_trace_file = nullptr;
 		int s_p2p = 0; // local player 1/2, 0 = synctest
@@ -127,6 +129,7 @@ namespace ZdxsvGgpo
 
 		int s_rollback_frames = 0, s_loads = 0, s_mismatches = 0, s_errors = 0;
 		Stat s_save_ms, s_hash_ms, s_load_ms;
+		Stat s_rerun_ms, s_wait_ms; // between frames: rollback rerun emulation, p2p wait for the peer
 		Stat s_emu_ms, s_exit_ms, s_ours_ms; // wall: last OnExecuteReturned end -> OnVsync -> OnExecuteReturned start -> its end
 		Common::Timer::Value s_t_vsync = 0, s_t_returned = 0;
 
@@ -177,6 +180,8 @@ namespace ZdxsvGgpo
 					s_ref = std::string(value);
 				else if (key == "dump")
 					s_dump_frame = n;
+				else if (key == "sync")
+					s_sync = (n != 0);
 				else
 					Console.Warning("ZdxsvGgpo: unknown key '%.*s'", static_cast<int>(key.size()), key.data());
 			}
@@ -190,6 +195,10 @@ namespace ZdxsvGgpo
 			Console.WriteLn("ZdxsvGgpo: %s wall ms per frame: emulate mean %.2f max %.1f | exit %.2f | between frames (save, ggpo, rollbacks) mean %.2f max %.1f",
 				what, s_emu_ms.Mean(), s_emu_ms.max, s_exit_ms.Mean(), s_ours_ms.Mean(), s_ours_ms.max);
 			const double n = std::max(s_session_frames, 1);
+			const double ours = s_ours_ms.sum / n, split = (s_save_ms.sum + s_hash_ms.sum + s_load_ms.sum + s_rerun_ms.sum + s_wait_ms.sum) / n;
+			Console.WriteLn("ZdxsvGgpo: %s between frames ms per frame %.2f: save %.2f hash %.2f load %.2f rerun %.2f wait %.2f rest (ggpo) %.2f | sync=%d",
+				what, ours, s_save_ms.sum / n, s_hash_ms.sum / n, s_load_ms.sum / n, s_rerun_ms.sum / n, s_wait_ms.sum / n, ours - split, s_sync);
+			Console.WriteLn("ZdxsvGgpo: %s delta %s | %s", what, ZdxsvDeltaState::Times().c_str(), SaveState_DeltaTimes().c_str());
 			Console.WriteLn("ZdxsvGgpo: %s EE rec per frame: recompiles %.1f manual discards %.1f recClear %.1f page resets %.1f overlap clears %.1f vtlb protect clears %.1f backpatch clears %.1f",
 				what, g_zdxsv_rec_counts[0] / n, g_zdxsv_rec_counts[1] / n, g_zdxsv_rec_counts[2] / n,
 				g_zdxsv_rec_counts[3] / n, g_zdxsv_rec_counts[4] / n, (g_zdxsv_rec_counts[5] % 1000000) / n, (g_zdxsv_rec_counts[5] / 1000000) / n);
@@ -401,6 +410,8 @@ namespace ZdxsvGgpo
 			g_trace = s_trace_file;
 		}
 
+		void HashSave(int frame, int* checksum);
+
 		bool __cdecl SaveGameState(unsigned char** buffer, int* len, int* checksum, int frame)
 		{
 			TraceFrame("save", frame);
@@ -411,23 +422,38 @@ namespace ZdxsvGgpo
 				return false;
 			s_save_ms.Add(timer.GetTimeMilliseconds());
 			timer.Reset();
+			*checksum = 0;
+			if (s_sync)
+				HashSave(frame, checksum);
+			s_hash_ms.Add(timer.GetTimeMilliseconds());
+			int* saved = new int(frame);
+			*buffer = reinterpret_cast<unsigned char*>(saved);
+			*len = sizeof(int);
+			// GGPO never goes back further than its check distance / prediction window.
+			ZdxsvDeltaState::DiscardBefore(frame - std::max(s_check, 8) - 4);
+			return true;
+		}
+
+		// sync=1 part of SaveGameState: checksum, p2p per-frame sums and dump, synctest diff samples.
+		void HashSave(int frame, int* checksum)
+		{
 			const std::vector<u8>* state = ZdxsvDeltaState::GetState(frame);
 			Sample sample;
 			sample.pages.resize(Ps2MemSize::ExposedRam / PAGE_SIZE);
 			for (size_t i = 0; i < sample.pages.size(); i++)
 				sample.pages[i] = XXH3_64bits(&eeMem->Main[i * PAGE_SIZE], PAGE_SIZE);
-			const u64 hash = XXH3_64bits(sample.pages.data(), sample.pages.size() * sizeof(u64)) ^
-							 ZdxsvDeltaState::HashState(*state);
-			s_hash_ms.Add(timer.GetTimeMilliseconds());
+			const u64 ram_hash = XXH3_64bits(sample.pages.data(), sample.pages.size() * sizeof(u64));
+			const u64 state_hash = ZdxsvDeltaState::HashState(*state);
+			const u64 hash = ram_hash ^ state_hash;
 			*checksum = static_cast<int>(hash ^ (hash >> 32));
-			std::vector<u8> masked = *state;
-			ZdxsvDeltaState::MaskScratch(masked);
 			if (s_p2p)
 			{
 				// A rerun after a misprediction legitimately differs: keep the last save of each frame.
-				s_sums[frame] = {XXH3_64bits(sample.pages.data(), sample.pages.size() * sizeof(u64)), ZdxsvDeltaState::HashState(*state)};
+				s_sums[frame] = {ram_hash, state_hash};
 				if (frame == s_dump_frame)
 				{
+					std::vector<u8> masked = *state;
+					ZdxsvDeltaState::MaskScratch(masked);
 					if (std::FILE* f = FileSystem::OpenCFile(Path::Combine(EmuFolders::Logs, "zdxsv_dump.bin").c_str(), "wb"))
 					{
 						std::fwrite(sample.pages.data(), sizeof(u64), sample.pages.size(), f);
@@ -437,8 +463,11 @@ namespace ZdxsvGgpo
 					s_dump.pages = sample.pages;
 					s_dump.state = masked;
 				}
+				return;
 			}
-			else if (s_rerun)
+			std::vector<u8> masked = *state;
+			ZdxsvDeltaState::MaskScratch(masked);
+			if (s_rerun)
 			{
 				const auto first = s_first.find(frame);
 				if (first != s_first.end())
@@ -451,12 +480,6 @@ namespace ZdxsvGgpo
 				while (!s_first.empty() && s_first.begin()->first < frame - 16)
 					s_first.erase(s_first.begin());
 			}
-			int* saved = new int(frame);
-			*buffer = reinterpret_cast<unsigned char*>(saved);
-			*len = sizeof(int);
-			// GGPO never goes back further than its check distance / prediction window.
-			ZdxsvDeltaState::DiscardBefore(frame - std::max(s_check, 8) - 4);
-			return true;
 		}
 
 		bool __cdecl LoadGameState(unsigned char* buffer, int len)
@@ -494,7 +517,9 @@ namespace ZdxsvGgpo
 			if (!SyncAndApply(true))
 				return false;
 			g_in_rollback = true;
+			Common::Timer timer;
 			const bool ok = RunFrame();
+			s_rerun_ms.Add(timer.GetTimeMilliseconds());
 			g_in_rollback = false;
 			s_rerun = true;
 			ggpo_advance_frame(s_session);
@@ -516,7 +541,7 @@ namespace ZdxsvGgpo
 			if (s_session)
 				ggpo_close_session(s_session);
 			s_session = nullptr;
-			if (s_p2p)
+			if (s_p2p && s_sync)
 			{
 				// Frames near the end may still be unconfirmed: leave out the last prediction window.
 				int written = 0;
@@ -725,6 +750,7 @@ namespace ZdxsvGgpo
 				ggpo_idle(s_session, 0);
 				Threading::Sleep(1);
 			}
+			s_wait_ms.Add(wait.GetTimeMilliseconds());
 		}
 		if (s_session_frames >= s_frames)
 		{

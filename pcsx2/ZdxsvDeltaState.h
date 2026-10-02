@@ -5,6 +5,7 @@
 
 #include "common/Pcsx2Defs.h"
 
+#include <string>
 #include <vector>
 
 // zdxsv delta state (#31): fast per-frame save/load of the VM for rollback (GGPO).
@@ -25,6 +26,8 @@ namespace ZdxsvDeltaState
 	u64 HashState(const std::vector<u8>& state);
 	// Zeroes the scratch bytes in a copy of the state of the last saved frame, for compares.
 	void MaskScratch(std::vector<u8>& state);
+	// Mean wall ms of the parts of Save so far.
+	std::string Times();
 	// Drops everything and stops EE RAM tracking.
 	void Clear();
 

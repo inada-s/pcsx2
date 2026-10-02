@@ -37,6 +37,7 @@
 #include "common/Path.h"
 #include "common/ScopedGuard.h"
 #include "common/StringUtil.h"
+#include "common/Timer.h"
 #include "common/ZipHelpers.h"
 
 #include "IconsFontAwesome.h"
@@ -1377,10 +1378,37 @@ void SaveState_DeltaMarkScratch(size_t pos, size_t size)
 		s_delta_scratch.emplace_back(pos, size);
 }
 
+// Wall ms per section summed over delta saves [0] and loads [1], in section order.
+static std::vector<std::pair<const char*, double>> s_delta_ms[2];
+static int s_delta_calls[2] = {};
+
+std::string SaveState_DeltaTimes()
+{
+	std::string out;
+	for (int io = 0; io < 2; io++)
+	{
+		out += io ? " | load ms:" : "save ms:";
+		for (const auto& [name, ms] : s_delta_ms[io])
+			out += fmt::format(" {} {:.3f}", name, ms / std::max(s_delta_calls[io], 1));
+	}
+	return out;
+}
+
 static bool DeltaFreezeAll(SaveStateBase& s, Error* error)
 {
-	auto mark = [&s](const char* name) {
-		if (s.IsSaving())
+	const int io = s.IsSaving() ? 0 : 1;
+	s_delta_calls[io]++;
+	size_t section = 0;
+	const char* current = "internals";
+	Common::Timer::Value t = Common::Timer::GetCurrentValue();
+	auto mark = [&](const char* name) {
+		const Common::Timer::Value now = Common::Timer::GetCurrentValue();
+		if (section >= s_delta_ms[io].size())
+			s_delta_ms[io].emplace_back(current, 0.0);
+		s_delta_ms[io][section++].second += Common::Timer::ConvertValueToMilliseconds(now - t);
+		t = now;
+		current = name;
+		if (s.IsSaving() && name)
 			s_delta_marks.emplace_back(name, s.GetCurrentPos());
 	};
 	if (s.IsSaving())
@@ -1434,7 +1462,9 @@ static bool DeltaFreezeAll(SaveStateBase& s, Error* error)
 	s.Freeze(iopEventAction);
 
 	mark("Pad");
-	return DeltaFreezeWrapper(s, &Pad::Freeze);
+	const bool ok = DeltaFreezeWrapper(s, &Pad::Freeze);
+	mark(nullptr);
+	return ok;
 }
 
 bool SaveState_DeltaSave(std::vector<u8>& buffer)

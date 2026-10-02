@@ -1567,6 +1567,38 @@ void mmap_DeltaWatchPage(u32 page)
 		mmap_DeltaProtect(page, true);
 }
 
+// Protects each run of adjacent addresses with one call. Only within one allocation: each fastmem
+// alias is its own mapped view, and a protect across views fails (pages left writable, #31).
+static void mmap_DeltaProtectRuns(std::vector<uptr>& addrs, PageProtectionMode mode)
+{
+	std::sort(addrs.begin(), addrs.end());
+	for (size_t i = 0; i < addrs.size();)
+	{
+		size_t j = i + 1;
+		while (j < addrs.size() && addrs[j] == addrs[j - 1] + __pagesize)
+			j++;
+		HostSys::MemProtect(reinterpret_cast<void*>(addrs[i]), (j - i) * __pagesize, mode);
+		i = j;
+	}
+}
+
+void mmap_DeltaWatchPages(const std::vector<u32>& pages)
+{
+	pxAssert(s_delta_hook);
+	std::vector<uptr> host;
+	for (u32 page : pages)
+	{
+		if (s_delta_watched[page])
+			continue;
+		s_delta_watched[page] = true;
+		if (m_PageProtectInfo[page].Mode == ProtMode_Write)
+			continue;
+		host.push_back(reinterpret_cast<uptr>(&eeMem->Main[page << __pageshift]));
+		vtlb_UpdateFastmemProtection(page << __pageshift, __pagesize, PageAccess_ReadOnly());
+	}
+	mmap_DeltaProtectRuns(host, PageAccess_ReadOnly());
+}
+
 void mmap_DeltaRestorePage(u32 page, const u8* data)
 {
 	if (m_PageProtectInfo[page].Mode == ProtMode_Write)
