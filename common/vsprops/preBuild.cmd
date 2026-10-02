@@ -64,6 +64,18 @@ if !ERRORLEVEL! EQU 0 (
     echo #define GIT_TAG_MID %%b >> "%CD%\svnrev.h"
     echo #define GIT_TAG_LO %%c >> "%CD%\svnrev.h"
   )
+  goto cleanup
+)
+:: zdxsv: release tags are zdxsv-X.Y.Z (the auto updater compares these).
+echo %GIT_TAG%|FINDSTR /R "^zdxsv-[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*$" > NUL
+if !ERRORLEVEL! EQU 0 (
+  echo #define GIT_REV "%GIT_TAG%" >> "%CD%\svnrev.h"
+  echo #define GIT_TAGGED_COMMIT 1 >> "%CD%\svnrev.h"
+  FOR /F "tokens=2,3,4 delims=-." %%a in ("%GIT_TAG%") DO (
+    echo #define GIT_TAG_HI %%a >> "%CD%\svnrev.h"
+    echo #define GIT_TAG_MID %%b >> "%CD%\svnrev.h"
+    echo #define GIT_TAG_LO %%c >> "%CD%\svnrev.h"
+  )
 ) else (
   :: Local branches
   echo #define GIT_REV "%GIT_REV%" >> "%CD%\svnrev.h"

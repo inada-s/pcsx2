@@ -109,6 +109,18 @@ function(write_svnrev_h)
 			"#define GIT_HASH \"${PCSX2_GIT_HASH}\"\n"
 			"#define GIT_DATE \"${PCSX2_GIT_DATE}\"\n"
 		)
+	# zdxsv: release tags are zdxsv-X.Y.Z (the auto updater compares these).
+	elseif ("${PCSX2_GIT_TAG}" MATCHES "^zdxsv-([0-9]+)\\.([0-9]+)\\.([0-9]+)$")
+		file(WRITE ${CMAKE_BINARY_DIR}/common/include/svnrev.h
+			"#define GIT_TAG \"${PCSX2_GIT_TAG}\"\n"
+			"#define GIT_TAGGED_COMMIT 1\n"
+			"#define GIT_TAG_HI  ${CMAKE_MATCH_1}\n"
+			"#define GIT_TAG_MID ${CMAKE_MATCH_2}\n"
+			"#define GIT_TAG_LO  ${CMAKE_MATCH_3}\n"
+			"#define GIT_REV \"${PCSX2_GIT_TAG}\"\n"
+			"#define GIT_HASH \"${PCSX2_GIT_HASH}\"\n"
+			"#define GIT_DATE \"${PCSX2_GIT_DATE}\"\n"
+		)
 	elseif ("${PCSX2_GIT_REV}" MATCHES "^v([0-9]+)\\.([0-9]+)\\.([0-9]+)")
 		file(WRITE ${CMAKE_BINARY_DIR}/common/include/svnrev.h
 			"#define GIT_TAG \"${PCSX2_GIT_TAG}\"\n"
