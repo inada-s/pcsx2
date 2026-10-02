@@ -67,6 +67,11 @@ extern bool g_SaveStateDeltaLoad;
 extern bool SaveState_DeltaSave(std::vector<u8>& buffer);
 extern bool SaveState_DeltaLoad(const std::vector<u8>& buffer);
 extern std::string SaveState_DeltaDescribe(const std::vector<u8>& buffer, size_t offset);
+// Byte ranges (offset, size) of the last SaveState_DeltaSave holding values no later frame reads
+// as saved (decode scratch, MTGS-thread counters reset on load): left out of hashes and compares.
+extern const std::vector<std::pair<size_t, size_t>>& SaveState_DeltaScratch();
+// Freeze functions: the next size bytes at pos are scratch (recorded only by a delta save).
+extern void SaveState_DeltaMarkScratch(size_t pos, size_t size);
 
 // --------------------------------------------------------------------------------------
 //  SaveStateBase class

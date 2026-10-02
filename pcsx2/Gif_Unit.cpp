@@ -203,6 +203,7 @@ bool SaveStateBase::gifPathFreeze(u32 path)
 	}
 	u8* bufferPtr = gifPath.buffer; // Backup current buffer ptr
 	Freeze(gifPath.mtvu.fakePackets);
+	SaveState_DeltaMarkScratch(GetCurrentPos() + offsetof(Gif_Path, readAmount), sizeof(gifPath.readAmount));
 	FreezeMem(&gifPath, sizeof(gifPath) - sizeof(gifPath.mtvu));
 	FreezeMem(bufferPtr, gifPath.curSize);
 	gifPath.buffer = bufferPtr;

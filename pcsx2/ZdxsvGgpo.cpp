@@ -280,18 +280,20 @@ namespace ZdxsvGgpo
 			for (size_t i = 0; i < sample.pages.size(); i++)
 				sample.pages[i] = XXH3_64bits(&eeMem->Main[i * PAGE_SIZE], PAGE_SIZE);
 			const u64 hash = XXH3_64bits(sample.pages.data(), sample.pages.size() * sizeof(u64)) ^
-							 XXH3_64bits(state->data(), state->size());
+							 ZdxsvDeltaState::HashState(*state);
 			s_hash_ms.Add(timer.GetTimeMilliseconds());
 			*checksum = static_cast<int>(hash ^ (hash >> 32));
+			std::vector<u8> masked = *state;
+			ZdxsvDeltaState::MaskScratch(masked);
 			if (s_rerun)
 			{
 				const auto first = s_first.find(frame);
 				if (first != s_first.end())
-					Diff(frame, first->second, sample.pages, *state);
+					Diff(frame, first->second, sample.pages, masked);
 			}
 			else
 			{
-				sample.state = *state;
+				sample.state = std::move(masked);
 				s_first[frame] = std::move(sample);
 				while (!s_first.empty() && s_first.begin()->first < frame - 16)
 					s_first.erase(s_first.begin());

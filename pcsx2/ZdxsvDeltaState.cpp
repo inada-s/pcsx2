@@ -168,6 +168,31 @@ namespace ZdxsvDeltaState
 		return it == s_states.end() ? nullptr : &it->second;
 	}
 
+	u64 HashState(const std::vector<u8>& state)
+	{
+		XXH3_state_t xs;
+		XXH3_64bits_reset(&xs);
+		size_t at = 0;
+		for (const auto& [pos, size] : SaveState_DeltaScratch())
+		{
+			if (pos < at || pos + size > state.size())
+				continue;
+			XXH3_64bits_update(&xs, state.data() + at, pos - at);
+			at = pos + size;
+		}
+		XXH3_64bits_update(&xs, state.data() + at, state.size() - at);
+		return XXH3_64bits_digest(&xs);
+	}
+
+	void MaskScratch(std::vector<u8>& state)
+	{
+		for (const auto& [pos, size] : SaveState_DeltaScratch())
+		{
+			if (pos + size <= state.size())
+				std::memset(state.data() + pos, 0, size);
+		}
+	}
+
 	void DiscardBefore(int frame)
 	{
 		while (!s_states.empty() && s_states.begin()->first < frame)
@@ -273,6 +298,7 @@ namespace ZdxsvDeltaState
 			for (u32 i = 0; i < pages; i++)
 				s.ee_pages[i] = XXH3_64bits(&eeMem->Main[i * PAGE_SIZE], PAGE_SIZE);
 			s.state = s_states[frame];
+			MaskScratch(s.state);
 			return s;
 		}
 

@@ -186,7 +186,9 @@ bool SaveStateBase::FreezeInternals(Error* error)
 	if (!FreezeTag("cpuRegs"))
 		return false;
 
+	SaveState_DeltaMarkScratch(GetCurrentPos() + offsetof(cpuRegisters, code), sizeof(cpuRegs.code));
 	Freeze(cpuRegs);		// cpu regs + COP0
+	SaveState_DeltaMarkScratch(GetCurrentPos() + offsetof(psxRegisters, code), sizeof(psxRegs.code));
 	Freeze(psxRegs);		// iop regs
 	Freeze(fpuRegs);
 	Freeze(tlb);			// tlbs
@@ -1361,6 +1363,20 @@ static std::vector<std::pair<const char*, size_t>> s_delta_marks;
 
 bool g_SaveStateDeltaLoad = false;
 
+static bool s_delta_saving = false;
+static std::vector<std::pair<size_t, size_t>> s_delta_scratch;
+
+const std::vector<std::pair<size_t, size_t>>& SaveState_DeltaScratch()
+{
+	return s_delta_scratch;
+}
+
+void SaveState_DeltaMarkScratch(size_t pos, size_t size)
+{
+	if (s_delta_saving)
+		s_delta_scratch.emplace_back(pos, size);
+}
+
 static bool DeltaFreezeAll(SaveStateBase& s, Error* error)
 {
 	auto mark = [&s](const char* name) {
@@ -1420,7 +1436,11 @@ bool SaveState_DeltaSave(std::vector<u8>& buffer)
 {
 	memSavingState s(buffer);
 	Error error;
-	if (!DeltaFreezeAll(s, &error))
+	s_delta_scratch.clear();
+	s_delta_saving = true;
+	const bool saved = DeltaFreezeAll(s, &error);
+	s_delta_saving = false;
+	if (!saved)
 	{
 		Console.Error(fmt::format("(ZdxsvDelta) save failed: {}", error.GetDescription()));
 		return false;

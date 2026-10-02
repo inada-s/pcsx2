@@ -21,6 +21,10 @@ namespace ZdxsvDeltaState
 	void DiscardBefore(int frame);
 	// The state of a saved frame without EE RAM, or nullptr.
 	const std::vector<u8>* GetState(int frame);
+	// Hash of the state of the last saved frame, without its scratch bytes (SaveState_DeltaScratch).
+	u64 HashState(const std::vector<u8>& state);
+	// Zeroes the scratch bytes in a copy of the state of the last saved frame, for compares.
+	void MaskScratch(std::vector<u8>& state);
 	// Drops everything and stops EE RAM tracking.
 	void Clear();
 
