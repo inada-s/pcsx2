@@ -337,7 +337,9 @@ bool Updater::StageUpdate()
 			return false;
 		}
 
-		const bool wrote_completely = std::fwrite(out_buffer + out_offset, extracted_size, 1, fp) == 1 && std::fflush(fp) == 0;
+		// zdxsv: an empty file (portable.txt) writes 0 items; that is complete, not a failure.
+		const bool wrote_completely = (extracted_size == 0 || std::fwrite(out_buffer + out_offset, extracted_size, 1, fp) == 1) &&
+									  std::fflush(fp) == 0;
 		if (std::fclose(fp) != 0 || !wrote_completely)
 		{
 			m_progress->DisplayFormattedModalError("Failed to write output file '%s'", destination_file.c_str());

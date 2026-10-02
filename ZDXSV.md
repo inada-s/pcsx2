@@ -11,7 +11,7 @@ This build of PCSX2 is set up to play *Mobile Suit Gundam: Gundam vs. Zeta Gunda
 
 ## Install
 
-1. Download the zip and extract it to a folder you can write to (for example `C:\Games\pcsx2-zdxsv`).
+1. Download `pcsx2-zdxsv-windows-x64.zip` from https://github.com/inada-s/pcsx2/releases and extract it to a folder you can write to (for example `C:\Games\pcsx2-zdxsv`).
    Do not put it in `Program Files`.
 2. The zip includes a `portable.txt` file. Keep it. With this file, PCSX2 keeps all
    settings, memory cards and save states in this folder. It does not use or change
@@ -55,3 +55,12 @@ If your memory card is empty, the game makes the files it needs by itself:
 5. ログイン, then enter a handle name. You then see 戦場選択 (the lobby).
 
 Later sessions only need 通信対戦 → ログイン.
+
+## Updates
+
+When PCSX2 starts and a newer zdxsv release exists on
+https://github.com/inada-s/pcsx2/releases, it shows an update window.
+Press "Download and Install": PCSX2 downloads the new version, closes, replaces its
+files and starts again. Your settings, memory cards and save states are kept.
+"Remind Me Later" asks again on the next start; "Skip This Update" waits for the next version.
+You can also check by hand from the Help menu (Check for Updates).
