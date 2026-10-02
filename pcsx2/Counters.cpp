@@ -20,6 +20,7 @@
 #include "Recording/InputRecording.h"
 #include "VMManager.h"
 #include "ZdxsvInputLatency.h"
+#include "ZdxsvDeltaState.h"
 #include "VUmicro.h"
 
 static const uint EECNT_FUTURE_TARGET = 0x10000000;
@@ -501,6 +502,8 @@ static __fi void VSyncStart(u64 sCycle)
 	VMManager::Internal::VSyncOnCPUThread();
 	if (ZdxsvInputLatency::g_enabled)
 		ZdxsvInputLatency::OnFrameEnd();
+	if (ZdxsvDeltaState::g_test_enabled)
+		ZdxsvDeltaState::OnVsync();
 
 	if (EmuConfig.EmulationSpeed.LowLatencyVsync)
 	{

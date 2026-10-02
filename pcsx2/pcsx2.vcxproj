@@ -443,6 +443,7 @@
     <ClCompile Include="MTVU.cpp" />
     <ClCompile Include="VUmicro.cpp" />
     <ClCompile Include="ZdxsvInputLatency.cpp" />
+    <ClCompile Include="ZdxsvDeltaState.cpp" />
     <ClCompile Include="VUmicroMem.cpp" />
     <ClCompile Include="x86\microVU.cpp">
       <ExcludedFromBuild Condition="'$(Platform)'!='x64'">true</ExcludedFromBuild>
@@ -896,6 +897,7 @@
     <ClInclude Include="VU.h" />
     <ClInclude Include="VUmicro.h" />
     <ClInclude Include="ZdxsvInputLatency.h" />
+    <ClInclude Include="ZdxsvDeltaState.h" />
     <ClInclude Include="x86\iR5900Analysis.h" />
     <ClInclude Include="x86\microVU.h" />
     <ClInclude Include="x86\microVU_IR.h" />

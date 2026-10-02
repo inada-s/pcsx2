@@ -130,6 +130,7 @@ set(pcsx2Sources
 	VU0.cpp
 	VUmicro.cpp
 	ZdxsvInputLatency.cpp
+	ZdxsvDeltaState.cpp
 	VU0micro.cpp
 	VU0microInterp.cpp
 	VU1micro.cpp
@@ -203,6 +204,7 @@ set(pcsx2Headers
 	VUflags.h
 	VUmicro.h
 	ZdxsvInputLatency.h
+	ZdxsvDeltaState.h
 	VUops.h)
 
 # CDVD sources

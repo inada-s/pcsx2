@@ -1292,3 +1292,132 @@ void SaveState_ReportSaveErrorOSD(const std::string& message, std::optional<s32>
 	Host::AddIconOSDMessage("SaveState", ICON_FA_TRIANGLE_EXCLAMATION,
 		full_message, Host::OSD_WARNING_DURATION);
 }
+
+// --------------------------------------------------------------------------------------
+//  zdxsv delta state (#31)
+// --------------------------------------------------------------------------------------
+// The state minus EE RAM (tracked per page by ZdxsvDeltaState) and the GS thread state (an
+// output device, not rolled back). In memory, no zip. Loaded on the CPU thread at the point
+// it was saved (vsync), like a hotkey load.
+
+// Code memory: on load only the 4 KB chunks that differ are written and their blocks cleared.
+template <typename ClearFn>
+static void DeltaFreezeCode(SaveStateBase& s, u8* mem, u32 size, ClearFn clear)
+{
+	if (s.IsSaving())
+	{
+		s.FreezeMem(mem, size);
+		return;
+	}
+
+	s.PrepBlock(size);
+	if (!s.IsOkay())
+		return;
+
+	const u8* src = s.GetBlockPtr();
+	for (u32 off = 0; off < size; off += 4096)
+	{
+		const u32 n = std::min<u32>(4096, size - off);
+		if (std::memcmp(mem + off, src + off, n) != 0)
+		{
+			std::memcpy(mem + off, src + off, n);
+			clear(off, n);
+		}
+	}
+	s.CommitBlock(size);
+}
+
+static bool DeltaFreezeWrapper(SaveStateBase& s, bool (*do_state_func)(StateWrapper&))
+{
+	if (s.IsSaving())
+	{
+		StateWrapper::VectorMemoryStream stream(16 * 1024);
+		StateWrapper sw(&stream, StateWrapper::Mode::Write, g_SaveVersion);
+		if (!do_state_func(sw))
+			return false;
+		u32 size = static_cast<u32>(stream.GetPosition());
+		s.Freeze(size);
+		s.FreezeMem(const_cast<u8*>(stream.GetBuffer().data()), size);
+	}
+	else
+	{
+		u32 size = 0;
+		s.Freeze(size);
+		s.PrepBlock(size);
+		if (!s.IsOkay())
+			return false;
+		StateWrapper::ReadOnlyMemoryStream stream(s.GetBlockPtr(), size);
+		StateWrapper sw(&stream, StateWrapper::Mode::Read, g_SaveVersion);
+		if (!do_state_func(sw))
+			return false;
+		s.CommitBlock(size);
+	}
+	return s.IsOkay();
+}
+
+static bool DeltaFreezeAll(SaveStateBase& s, Error* error)
+{
+	if (!s.FreezeInternals(error))
+		return false;
+
+	DeltaFreezeCode(s, iopMem->Main, Ps2MemSize::ExposedIopRam, [](u32 addr, u32 n) { psxCpu->Clear(addr, n / 4); });
+	s.FreezeMem(eeHw, sizeof(eeHw));
+	s.FreezeMem(iopHw, sizeof(iopHw));
+	s.FreezeMem(eeMem->Scratch, sizeof(eeMem->Scratch));
+	s.FreezeMem(vuRegs[0].Mem, VU0_MEMSIZE);
+	s.FreezeMem(vuRegs[1].Mem, VU1_MEMSIZE);
+	DeltaFreezeCode(s, vuRegs[0].Micro, VU0_PROGSIZE, [](u32 addr, u32 n) { CpuVU0->Clear(addr, n); });
+	DeltaFreezeCode(s, vuRegs[1].Micro, VU1_PROGSIZE, [](u32 addr, u32 n) { CpuVU1->Clear(addr, n); });
+
+	freezeData fP = {};
+	SPU2freeze(FreezeAction::Size, &fP);
+	s.PrepBlock(fP.size);
+	if (!s.IsOkay())
+		return false;
+	fP.data = s.GetBlockPtr();
+	if (SPU2freeze(s.IsSaving() ? FreezeAction::Save : FreezeAction::Load, &fP) != 0)
+		return false;
+	s.CommitBlock(fP.size);
+
+	return DeltaFreezeWrapper(s, &Pad::Freeze);
+}
+
+bool SaveState_DeltaSave(std::vector<u8>& buffer)
+{
+	memSavingState s(buffer);
+	Error error;
+	if (!DeltaFreezeAll(s, &error))
+	{
+		Console.Error(fmt::format("(ZdxsvDelta) save failed: {}", error.GetDescription()));
+		return false;
+	}
+	buffer.resize(s.GetCurrentPos());
+	return true;
+}
+
+bool SaveState_DeltaLoad(const std::vector<u8>& buffer)
+{
+	if (THREAD_VU1)
+		vu1Thread.WaitVU();
+	std::memcpy(s_tlb_backup, tlb, sizeof(s_tlb_backup));
+
+	memLoadingState s(buffer);
+	Error error;
+	if (!DeltaFreezeAll(s, &error))
+	{
+		Console.Error(fmt::format("(ZdxsvDelta) load failed: {}", error.GetDescription()));
+		return false;
+	}
+
+	resetCache();
+	for (int i = 0; i < 48; i++)
+	{
+		if (std::memcmp(&s_tlb_backup[i], &tlb[i], sizeof(tlbs)) != 0)
+		{
+			UnmapTLB(s_tlb_backup[i], i);
+			MapTLB(tlb[i], i);
+		}
+	}
+	UpdateVSyncRate(false);
+	return true;
+}
