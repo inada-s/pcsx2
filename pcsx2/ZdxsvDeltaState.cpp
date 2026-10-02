@@ -41,6 +41,16 @@ namespace ZdxsvDeltaState
 	// A control run: ZDXSV_DELTA_TEST=...,blocks=linked keeps the recompilers' history-dependent block ends.
 	bool g_fixed_blocks = (g_test_enabled && !std::strstr(std::getenv("ZDXSV_DELTA_TEST"), "blocks=linked")) ||
 		std::getenv("ZDXSV_GGPO") != nullptr;
+	bool g_fixed_blocks_iop = g_fixed_blocks;
+	static const bool s_fixed_blocks_probe = [] {
+		const char* v = std::getenv("ZDXSV_FIXED_BLOCKS");
+		if (v)
+		{
+			g_fixed_blocks = !std::strcmp(v, "ee") || !std::strcmp(v, "both");
+			g_fixed_blocks_iop = !std::strcmp(v, "iop") || !std::strcmp(v, "both");
+		}
+		return v != nullptr;
+	}();
 
 	namespace
 	{

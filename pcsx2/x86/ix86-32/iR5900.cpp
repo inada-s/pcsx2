@@ -384,6 +384,7 @@ void recCall(void (*func)())
 // =====================================================================================================
 
 static void recRecompile(const u32 startpc);
+u64 g_zdxsv_rec_counts[6] = {}; // zdxsv probe: recompiles, manual-block discards, recClear calls, page resets, overlap clears, vtlb clears
 static void dyna_block_discard(u32 start, u32 sz);
 static void dyna_page_reset(u32 start, u32 sz);
 static void recError(u32 error);
@@ -808,6 +809,7 @@ void R5900::Dynarec::OpcodeImpl::recBREAK()
 // Size is in dwords (4 bytes)
 void recClear(u32 addr, u32 size)
 {
+	g_zdxsv_rec_counts[2]++;
 	if ((addr) >= maxrecmem || !(recLUT[(addr) >> 16] + (addr & ~0xFFFFUL)))
 		return;
 	addr = HWADDR(addr);
@@ -2028,6 +2030,7 @@ static void PreBlockCheck(u32 blockpc)
 //  less likely, self-modifying code)
 void dyna_block_discard(u32 start, u32 sz)
 {
+	g_zdxsv_rec_counts[1]++;
 	eeRecPerfLog.Write(Color_StrongGray, "Clearing Manual Block @ 0x%08X  [size=%d]", start, sz * 4);
 	recClear(start, sz);
 }
@@ -2037,6 +2040,7 @@ void dyna_block_discard(u32 start, u32 sz)
 // and the block is re-assigned for write protection.
 void dyna_page_reset(u32 start, u32 sz)
 {
+	g_zdxsv_rec_counts[3]++;
 	recClear(start & ~0xfffUL, 0x400);
 	manual_counter[start >> 12]++;
 	mmap_MarkCountedRamPage(start);
@@ -2199,6 +2203,7 @@ static void recRecompile(const u32 startpc)
 {
 	u32 i = 0;
 	u32 willbranch3 = 0;
+	g_zdxsv_rec_counts[0]++;
 
 	pxAssert(startpc);
 
@@ -2692,6 +2697,15 @@ StartRecomp:
 			if (memcmp(&recRAMCopy[oldBlock->startpc / 4], PSM(oldBlock->startpc),
 					oldBlock->size * 4))
 			{
+				if (g_zdxsv_rec_counts[4]++ % 5000 < 6)
+				{
+					u32 d = 0;
+					while (d < oldBlock->size && recRAMCopy[oldBlock->startpc / 4 + d] == ((u32*)PSM(oldBlock->startpc))[d])
+						d++;
+					Console.WriteLn("zdxsv overlap clear: new %08x..%08x old %08x size %u, first diff at %08x: copy %08x ram %08x",
+						startpc, pc, oldBlock->startpc, oldBlock->size, oldBlock->startpc + d * 4,
+						recRAMCopy[oldBlock->startpc / 4 + d], ((u32*)PSM(oldBlock->startpc))[d]);
+				}
 				recClear(startpc, (pc - startpc) / 4);
 				s_pCurBlockEx = recBlocks.Get(HWADDR(startpc));
 				pxAssert(s_pCurBlockEx->startpc == HWADDR(startpc));

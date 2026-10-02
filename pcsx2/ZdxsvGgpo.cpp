@@ -62,6 +62,8 @@
 #include <utility>
 #include <vector>
 
+extern u64 g_zdxsv_rec_counts[6]; // x86/ix86-32/iR5900.cpp
+
 namespace ZdxsvGgpo
 {
 	bool g_enabled = std::getenv("ZDXSV_GGPO") != nullptr;
@@ -103,6 +105,7 @@ namespace ZdxsvGgpo
 		int s_trace_frame = 0; // trace= probe
 		std::FILE* s_trace_file = nullptr;
 		int s_p2p = 0; // local player 1/2, 0 = synctest
+		int s_probe = 0; // probe= (no session)
 		int s_port = 7001, s_peer_port = 7002, s_delay = 0, s_dump_frame = -1;
 		std::string s_ref; // p2p: the peer's zdxsv_dump.bin, diffed against ours at the end
 		std::string s_peer_host = "127.0.0.1";
@@ -124,6 +127,8 @@ namespace ZdxsvGgpo
 
 		int s_rollback_frames = 0, s_loads = 0, s_mismatches = 0, s_errors = 0;
 		Stat s_save_ms, s_hash_ms, s_load_ms;
+		Stat s_emu_ms, s_exit_ms, s_ours_ms; // wall: last OnExecuteReturned end -> OnVsync -> OnExecuteReturned start -> its end
+		Common::Timer::Value s_t_vsync = 0, s_t_returned = 0;
 
 		void Parse()
 		{
@@ -166,6 +171,8 @@ namespace ZdxsvGgpo
 					s_peer_host = std::string(value);
 				else if (key == "delay")
 					s_delay = n;
+				else if (key == "probe")
+					s_probe = n;
 				else if (key == "ref")
 					s_ref = std::string(value);
 				else if (key == "dump")
@@ -180,6 +187,12 @@ namespace ZdxsvGgpo
 			Console.WriteLn("ZdxsvGgpo: %s frames %d rollback frames %d loads %d mismatches %d errors %d | save ms mean %.3f max %.3f | hash ms mean %.3f | load ms mean %.3f max %.3f",
 				what, s_session_frames, s_rollback_frames, s_loads, s_mismatches, s_errors, s_save_ms.Mean(), s_save_ms.max,
 				s_hash_ms.Mean(), s_load_ms.Mean(), s_load_ms.max);
+			Console.WriteLn("ZdxsvGgpo: %s wall ms per frame: emulate mean %.2f max %.1f | exit %.2f | between frames (save, ggpo, rollbacks) mean %.2f max %.1f",
+				what, s_emu_ms.Mean(), s_emu_ms.max, s_exit_ms.Mean(), s_ours_ms.Mean(), s_ours_ms.max);
+			const double n = std::max(s_session_frames, 1);
+			Console.WriteLn("ZdxsvGgpo: %s EE rec per frame: recompiles %.1f manual discards %.1f recClear %.1f page resets %.1f overlap clears %.1f vtlb protect clears %.1f backpatch clears %.1f",
+				what, g_zdxsv_rec_counts[0] / n, g_zdxsv_rec_counts[1] / n, g_zdxsv_rec_counts[2] / n,
+				g_zdxsv_rec_counts[3] / n, g_zdxsv_rec_counts[4] / n, (g_zdxsv_rec_counts[5] % 1000000) / n, (g_zdxsv_rec_counts[5] / 1000000) / n);
 		}
 
 		Input HostInput()
@@ -631,15 +644,55 @@ namespace ZdxsvGgpo
 				return;
 			s_started = true;
 			g_active = true;
+			std::fill_n(g_zdxsv_rec_counts, 6, 0);
 		}
 		s_frame_ended = true;
+		if (!g_in_rollback)
+		{
+			s_t_vsync = Common::Timer::GetCurrentValue();
+			if (s_t_returned)
+				s_emu_ms.Add(Common::Timer::ConvertValueToMilliseconds(s_t_vsync - s_t_returned));
+		}
 		Cpu->ExitExecution();
 	}
+
+	static void Returned();
 
 	void OnExecuteReturned()
 	{
 		if (!g_active || !std::exchange(s_frame_ended, false))
 			return;
+		const Common::Timer::Value t0 = Common::Timer::GetCurrentValue();
+		if (s_t_vsync)
+			s_exit_ms.Add(Common::Timer::ConvertValueToMilliseconds(t0 - s_t_vsync));
+		Returned();
+		s_t_returned = Common::Timer::GetCurrentValue();
+		s_ours_ms.Add(Common::Timer::ConvertValueToMilliseconds(s_t_returned - t0));
+	}
+
+	static void Returned()
+	{
+		// probe=: no session, frame cost of 1 exit per vsync, 2 + delta save, 3 + hashes as in SaveGameState.
+		if (s_probe)
+		{
+			if (s_probe == 2)
+			{
+				Common::Timer timer;
+				ZdxsvDeltaState::Save(s_session_frames);
+				s_save_ms.Add(timer.GetTimeMilliseconds());
+				ZdxsvDeltaState::DiscardBefore(s_session_frames - 12);
+			}
+			else if (s_probe >= 3)
+			{
+				unsigned char* buffer;
+				int len, checksum;
+				SaveGameState(&buffer, &len, &checksum, s_session_frames);
+				FreeBuffer(buffer);
+			}
+			if (++s_session_frames >= s_frames)
+				Stop("probe done");
+			return;
+		}
 		if (!s_session)
 		{
 			if (!Start())
