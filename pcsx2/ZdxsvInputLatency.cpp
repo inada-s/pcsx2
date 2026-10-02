@@ -113,6 +113,15 @@ namespace ZdxsvInputLatency
 		// Present times by frame number, written by the GS thread.
 		constexpr u32 RING = 256;
 		std::array<std::atomic<u64>, RING> s_present_t{};
+		// Push start (CPU) and GSvsync start (GS thread) by frame number; per present while
+		// pacing runs: [push -> GS thread reaches the vsync, GSvsync = present].
+		std::array<std::atomic<u64>, RING> s_push_t{};
+		Common::Timer::Value s_vsync_start_t = 0;
+		struct GsSplit
+		{
+			double queue, vsync;
+		};
+		std::vector<GsSplit> s_gs_split;
 		std::atomic<u64> s_presented{0};
 
 		// Present -> present intervals while presses run (frame pacing), GS thread.
@@ -120,6 +129,15 @@ namespace ZdxsvInputLatency
 		std::mutex s_pace_mutex;
 		std::vector<double> s_pace_ms;
 		Common::Timer::Value s_pace_prev = 0;
+		std::vector<double> s_end_ms; // frame end -> frame end, CPU thread
+		double s_end_prev = 0;
+		// Same intervals split: [emulation of this frame, push and limiter sleep of the one before].
+		struct Split
+		{
+			double emu, push, sleep;
+		};
+		std::vector<Split> s_split;
+		double s_t_push0 = 0, s_push_ms = 0, s_t_resume = 0;
 
 		// Search mode: candidate bytes and snapshots of EE main RAM.
 		std::vector<u8> s_cand, s_idle, s_pre, s_prev_pre, s_post, s_rel;
@@ -296,6 +314,23 @@ namespace ZdxsvInputLatency
 				mean(s.frames), *std::max_element(s.frames.begin(), s.frames.end()));
 		}
 
+		void Pacing(const char* name, const std::vector<double>& v)
+		{
+			if (v.empty())
+				return;
+			const double m = mean(v);
+			double var = 0;
+			size_t late = 0;
+			for (double x : v)
+			{
+				var += (x - m) * (x - m);
+				late += x > 1.5 * m;
+			}
+			Console.WriteLn("ZdxsvLatency: %s n=%zu ms min %.2f mean %.2f max %.2f sd %.2f >1.5x %zu", name, v.size(),
+				*std::min_element(v.begin(), v.end()), m, *std::max_element(v.begin(), v.end()),
+				std::sqrt(var / v.size()), late);
+		}
+
 		void Report()
 		{
 			FILE* f = s_cfg.out.empty() ? nullptr : std::fopen(s_cfg.out.c_str(), "w");
@@ -365,19 +400,38 @@ namespace ZdxsvInputLatency
 			Summarize(pres);
 			Summarize(total);
 			std::lock_guard lock(s_pace_mutex);
-			if (!s_pace_ms.empty())
+			Pacing("present->present", s_pace_ms);
+			Pacing("frameend->frameend", s_end_ms); // CPU thread: emulated frame done
+			std::vector<double> gq, gv, sl;
+			for (const GsSplit& g : s_gs_split)
 			{
-				const double m = mean(s_pace_ms);
-				double var = 0;
-				size_t late = 0;
-				for (double v : s_pace_ms)
+				gq.push_back(g.queue);
+				gv.push_back(g.vsync);
+			}
+			for (const Split& s : s_split)
+				sl.push_back(s.sleep);
+			Pacing("push->GS at vsync", gq);
+			Pacing("GSvsync", gv);
+			Pacing("limiter sleep", sl);
+			// Late presents with the frame-end intervals around them (stall in emulation or in present).
+			const double m = s_pace_ms.empty() ? 0 : mean(s_pace_ms);
+			for (size_t i = 0, shown = 0; i < s_pace_ms.size() && shown < 8; i++)
+			{
+				if (s_pace_ms[i] <= 1.5 * m)
+					continue;
+				shown++;
+				auto end = [](size_t j) { return j < s_end_ms.size() ? s_end_ms[j] : -1.0; };
+				Console.WriteLn("ZdxsvLatency: late present %zu: %.2f ms, frame ends %.2f %.2f %.2f %.2f %.2f",
+					i, s_pace_ms[i], end(i - 2), end(i - 1), end(i), end(i + 1), end(i + 2));
+				for (size_t j = i - 1; j <= i + 1; j++)
 				{
-					var += (v - m) * (v - m);
-					late += v > 1.5 * m;
+					if (j < s_split.size())
+						Console.WriteLn("ZdxsvLatency:   frame end %zu: %.2f ms = push %.2f + sleep %.2f + emulation %.2f",
+							j, end(j), s_split[j].push, s_split[j].sleep, s_split[j].emu);
+					if (j < s_gs_split.size())
+						Console.WriteLn("ZdxsvLatency:   present %zu: %.2f ms, push -> GS thread at vsync %.2f, GSvsync %.2f",
+							j, s_pace_ms[j], s_gs_split[j].queue, s_gs_split[j].vsync);
 				}
-				Console.WriteLn("ZdxsvLatency: present->present n=%zu ms min %.2f mean %.2f max %.2f sd %.2f >1.5x %zu",
-					s_pace_ms.size(), *std::min_element(s_pace_ms.begin(), s_pace_ms.end()), m,
-					*std::max_element(s_pace_ms.begin(), s_pace_ms.end()), std::sqrt(var / s_pace_ms.size()), late);
 			}
 			Console.WriteLn("ZdxsvLatency: done");
 		}
@@ -397,12 +451,24 @@ namespace ZdxsvInputLatency
 		}
 	} // namespace
 
+	void OnPush(bool after)
+	{
+		if (!after)
+		{
+			s_push_t[(s_frames_pushed + 1) % RING].store(Common::Timer::GetCurrentValue(), std::memory_order_relaxed);
+			s_t_push0 = Now();
+		}
+		else
+			s_push_ms = Now() - s_t_push0;
+	}
+
 	void OnVsync()
 	{
 		if (!s_parsed)
 			Parse();
 		if (s_done)
 			return;
+		s_t_resume = Now();
 		s_frames_pushed++;
 		s_vsync++;
 		const double now = Now();
@@ -483,7 +549,20 @@ namespace ZdxsvInputLatency
 
 	void OnFrameEnd()
 	{
-		if (!s_parsed || s_done || !s_cfg.has_addr || s_presses.empty())
+		if (!s_parsed || s_done)
+			return;
+		if (s_pace_on.load(std::memory_order_relaxed))
+		{
+			const double now = Now();
+			if (s_end_prev > 0)
+			{
+				s_end_ms.push_back(now - s_end_prev);
+				const double emu = now - s_t_resume;
+				s_split.push_back({emu, s_push_ms, now - s_end_prev - s_push_ms - emu});
+			}
+			s_end_prev = now;
+		}
+		if (!s_cfg.has_addr || s_presses.empty())
 			return;
 		// The frame emulated since the last poll ends here, before it is pushed; with the
 		// default order the limiter sleep follows, with LowLatencyVsync the push does.
@@ -520,8 +599,16 @@ namespace ZdxsvInputLatency
 			{
 				std::lock_guard lock(s_pace_mutex);
 				s_pace_ms.push_back(Common::Timer::ConvertValueToMilliseconds(t - s_pace_prev));
+				const Common::Timer::Value push = s_push_t[n % RING].load(std::memory_order_relaxed);
+				s_gs_split.push_back({Common::Timer::ConvertValueToMilliseconds(s_vsync_start_t - push),
+					Common::Timer::ConvertValueToMilliseconds(t - s_vsync_start_t)});
 			}
 			s_pace_prev = t;
 		}
+	}
+
+	void OnPresentStart()
+	{
+		s_vsync_start_t = Common::Timer::GetCurrentValue();
 	}
 } // namespace ZdxsvInputLatency

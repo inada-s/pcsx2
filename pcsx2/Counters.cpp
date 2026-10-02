@@ -485,6 +485,15 @@ static __fi void DoFMVSwitch()
 	}
 }
 
+static __fi void ZdxsvPostVsyncStart()
+{
+	if (ZdxsvInputLatency::g_enabled)
+		ZdxsvInputLatency::OnPush(false);
+	gsPostVsyncStart();
+	if (ZdxsvInputLatency::g_enabled)
+		ZdxsvInputLatency::OnPush(true);
+}
+
 static __fi void VSyncStart(u64 sCycle)
 {
 	// End-of-frame tasks.
@@ -497,7 +506,7 @@ static __fi void VSyncStart(u64 sCycle)
 	{
 		// zdxsv: present the finished frame now, sleep, then poll input right before the next
 		// frame is emulated. Press -> present loses the limiter sleep (#29).
-		gsPostVsyncStart();
+		ZdxsvPostVsyncStart();
 		if (!VMManager::Internal::IsExecutionInterrupted())
 			VMManager::Internal::Throttle();
 	}
@@ -507,7 +516,7 @@ static __fi void VSyncStart(u64 sCycle)
 		if (!VMManager::Internal::IsExecutionInterrupted())
 			VMManager::Internal::Throttle();
 
-		gsPostVsyncStart(); // MUST be after framelimit; doing so before causes funk with frame times!
+		ZdxsvPostVsyncStart(); // MUST be after framelimit; doing so before causes funk with frame times!
 	}
 
 	// Poll input after MTGS frame push, just in case it has to stall to catch up.
