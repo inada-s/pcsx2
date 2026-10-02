@@ -163,6 +163,13 @@ jobs:
           set PATH=%PATH%;%GITHUB_WORKSPACE%\bin
           cmake --build build --config Release --target unittests
 
+      # zdxsv: the artifact is the player zip. portable.txt keeps its settings apart from any other PCSX2.
+      - name: Add zdxsv distribution files
+        shell: bash
+        run: |
+          touch bin/portable.txt
+          cp ZDXSV.md bin/ZDXSV.md
+
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:

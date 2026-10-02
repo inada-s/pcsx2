@@ -1311,6 +1311,16 @@ const char* Pcsx2Config::DEV9Options::DnsModeNames[] = {
 Pcsx2Config::DEV9Options::DEV9Options()
 {
 	HddFile = "DEV9hdd.raw";
+
+	// zdxsv: point the game's servers at the zdxsv production server (zdxsv.net) by default.
+	static constexpr const char* zdxsv_hosts[][2] = {
+		{"www01.kddi-mmbb.jp", "zdxsv login"},
+		{"gate1.jp.dnas.playstation.org", "zdxsv dnas"},
+		{"ca1202.mmcp6", "zdxsv lobby"},
+		{"ca1203.mmcp6", "zdxsv lobby"},
+	};
+	for (const auto& [url, desc] : zdxsv_hosts)
+		EthHosts.push_back({url, desc, {153, 121, 44, 150}, true});
 }
 
 void Pcsx2Config::DEV9Options::LoadSave(SettingsWrapper& wrap)
