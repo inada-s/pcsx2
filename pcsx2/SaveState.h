@@ -61,8 +61,12 @@ extern bool SaveState_ReadScreenshot(const std::string& filename, u32* out_width
 extern bool SaveState_UnzipFromDisk(const std::string& filename, Error* error);
 
 // zdxsv delta state (#31): everything but EE RAM and the GS thread, in memory. CPU thread, vsync.
+// True while SaveState_DeltaLoad runs: it loads at the point the state was saved (vsync, mid
+// rcntUpdate), so freeze functions skip their load-time fix-ups to restore the state exactly.
+extern bool g_SaveStateDeltaLoad;
 extern bool SaveState_DeltaSave(std::vector<u8>& buffer);
 extern bool SaveState_DeltaLoad(const std::vector<u8>& buffer);
+extern std::string SaveState_DeltaDescribe(const std::vector<u8>& buffer, size_t offset);
 
 // --------------------------------------------------------------------------------------
 //  SaveStateBase class

@@ -38,6 +38,8 @@
 namespace ZdxsvDeltaState
 {
 	bool g_test_enabled = std::getenv("ZDXSV_DELTA_TEST") != nullptr;
+	// A control run: ZDXSV_DELTA_TEST=...,blocks=linked keeps the recompilers' history-dependent block ends.
+	bool g_fixed_blocks = g_test_enabled && !std::strstr(std::getenv("ZDXSV_DELTA_TEST"), "blocks=linked");
 
 	namespace
 	{
@@ -209,6 +211,13 @@ namespace ZdxsvDeltaState
 		int s_start = 3000, s_frames = 1800, s_depth = 8, s_every = 20;
 		int s_frame = 0; // vsyncs since boot; set back by a rollback
 		int s_replay_until = -1, s_next_rollback = 0;
+		// replays=N: a window is replayed N times, each pass compared with the one before it (pass 0 =
+		// the first run). Pass 2 vs 1 runs both from a load, so it separates code cache history.
+		int s_replays = 1, s_pass = 0;
+		// preload=1: the first run also loads the window start right after saving it.
+		bool s_preload = false;
+		int s_preload_logged = 0;
+		int s_mismatched_pass[2] = {};
 		bool s_done = false;
 		std::map<int, Sample> s_samples;
 		int s_rollbacks = 0, s_compared = 0, s_mismatched = 0;
@@ -233,8 +242,14 @@ namespace ZdxsvDeltaState
 					s_depth = std::max(n, 1);
 				else if (key == "every")
 					s_every = std::max(n, 1);
+				else if (key == "preload")
+					s_preload = n != 0;
+				else if (key == "replays")
+					s_replays = std::max(n, 1);
 				else if (key == "break")
 					s_break_ee = (value == "ee");
+				else if (key == "blocks")
+					; // read at startup (g_fixed_blocks)
 				else
 					Console.Warning("ZdxsvDelta: unknown key '%.*s'", static_cast<int>(key.size()), key.data());
 			}
@@ -268,6 +283,8 @@ namespace ZdxsvDeltaState
 				}
 			}
 			int st_diff = 0, st_first = -1;
+			size_t st_last = 0;
+			std::vector<size_t> st_runs; // first offset of each differing run (gap > 8 bytes)
 			const size_t n = std::min(first.state.size(), again.state.size());
 			for (size_t i = 0; i < n; i++)
 			{
@@ -275,23 +292,33 @@ namespace ZdxsvDeltaState
 				{
 					if (st_first < 0)
 						st_first = static_cast<int>(i);
+					if (st_runs.empty() || i > st_last + 8)
+						st_runs.push_back(i);
+					st_last = i;
 					st_diff++;
 				}
 			}
 			if (ee_diff == 0 && st_diff == 0 && first.state.size() == again.state.size())
 				return;
+			s_mismatched_pass[std::min(s_pass, 2) - 1]++;
 			if (s_mismatched++ < 20)
 			{
-				Console.WriteLn("ZdxsvDelta: MISMATCH frame %d: ee pages %d (first 0x%08x), state bytes %d (first offset %d), size %zu/%zu",
-					frame, ee_diff, ee_first < 0 ? 0 : ee_first * PAGE_SIZE, st_diff, st_first, first.state.size(), again.state.size());
+				Console.WriteLn("ZdxsvDelta: MISMATCH pass %d frame %d: ee pages %d (first 0x%08x), state bytes %d (first offset %d), size %zu/%zu",
+					s_pass, frame, ee_diff, ee_first < 0 ? 0 : ee_first * PAGE_SIZE, st_diff, st_first, first.state.size(), again.state.size());
+				for (size_t k = 0; k < st_runs.size() && k < 6; k++)
+				{
+					const size_t o = st_runs[k];
+					Console.WriteLn("ZdxsvDelta:   state offset %zu = %s: %02x -> %02x", o,
+						SaveState_DeltaDescribe(first.state, o).c_str(), first.state[o], again.state[o]);
+				}
 			}
 		}
 
 		void Report(const char* what)
 		{
-			Console.WriteLn("ZdxsvDelta: %s frame %d rollbacks %d compared %d mismatched %d | save ms mean %.3f max %.3f | load ms mean %.3f max %.3f | ee pages/frame mean %.1f max %.0f | state KB %.0f",
+			Console.WriteLn("ZdxsvDelta: %s frame %d rollbacks %d compared %d mismatched %d | save ms mean %.3f max %.3f | load ms mean %.3f max %.3f | ee pages/frame mean %.1f max %.0f | state KB %.0f | mismatched pass 1 %d pass 2+ %d",
 				what, s_frame, s_rollbacks, s_compared, s_mismatched, s_save_ms.Mean(), s_save_ms.max, s_load_ms.Mean(), s_load_ms.max,
-				s_pages.Mean(), s_pages.max, s_state_kb.Mean());
+				s_pages.Mean(), s_pages.max, s_state_kb.Mean(), s_mismatched_pass[0], s_mismatched_pass[1]);
 		}
 	} // namespace
 
@@ -324,11 +351,40 @@ namespace ZdxsvDeltaState
 		s_save_ms.Add(timer.GetTimeMilliseconds());
 		s_state_kb.Add(s_states[frame].size() / 1024.0);
 
+		if (s_preload && s_pass == 0 && frame == s_next_rollback - s_depth)
+		{
+			if (!Load(frame))
+			{
+				s_done = true;
+				Clear();
+				return;
+			}
+			// A load must be a no-op here: the state saved again has to match byte for byte.
+			std::vector<u8> after;
+			if (SaveState_DeltaSave(after))
+			{
+				const std::vector<u8>& before = s_states[frame];
+				size_t last = 0;
+				int logged = 0;
+				for (size_t i = 0; i < std::min(before.size(), after.size()) && s_preload_logged < 60; i++)
+				{
+					if (before[i] != after[i] && (logged == 0 || i > last + 8))
+					{
+						Console.WriteLn("ZdxsvDelta: LOAD CHANGED frame %d offset %zu = %s: %02x -> %02x", frame, i,
+							SaveState_DeltaDescribe(before, i).c_str(), before[i], after[i]);
+						logged++;
+						s_preload_logged++;
+					}
+					if (before[i] != after[i])
+						last = i;
+				}
+			}
+		}
+
 		Sample sample = TakeSample(frame);
 		if (frame <= s_replay_until)
 			Compare(frame, s_samples[frame], sample);
-		else
-			s_samples[frame] = std::move(sample);
+		s_samples[frame] = std::move(sample);
 
 		DiscardBefore(frame - s_depth);
 		while (!s_samples.empty() && s_samples.begin()->first < frame - s_depth)
@@ -337,8 +393,13 @@ namespace ZdxsvDeltaState
 		if ((frame - s_start) % 600 == 0)
 			Report("progress");
 
-		if (frame >= s_next_rollback)
+		const bool window_end = s_pass == 0 && frame >= s_next_rollback;
+		const bool replay_end = s_pass > 0 && frame == s_replay_until;
+		if (replay_end && s_pass >= s_replays)
+			s_pass = 0;
+		else if (window_end || replay_end)
 		{
+			s_pass++;
 			timer.Reset();
 			if (!Load(frame - s_depth))
 			{
@@ -348,8 +409,11 @@ namespace ZdxsvDeltaState
 			}
 			s_load_ms.Add(timer.GetTimeMilliseconds());
 			s_rollbacks++;
-			s_replay_until = frame;
-			s_next_rollback = frame + s_every;
+			if (window_end)
+			{
+				s_replay_until = frame;
+				s_next_rollback = frame + s_every;
+			}
 			s_frame = frame - s_depth;
 		}
 	}

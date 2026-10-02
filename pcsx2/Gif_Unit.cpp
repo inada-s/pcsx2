@@ -209,7 +209,8 @@ bool SaveStateBase::gifPathFreeze(u32 path)
 	if (!IsSaving())
 	{
 		gifPath.readAmount = 0;
-		gifPath.gsPack.readAmount = 0;
+		if (!g_SaveStateDeltaLoad) // EE side bookkeeping of RealignPacket, kept as saved
+			gifPath.gsPack.readAmount = 0;
 	}
 
 	return IsOkay();

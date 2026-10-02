@@ -164,3 +164,55 @@ s32 SPU2Savestate::SizeIt()
 {
 	return sizeof(DataBlock);
 }
+
+// zdxsv delta state (#31): ThawIt points each voice's SBuffer at its cache line after wiping the
+// cache (zeroed samples). A delta load instead restores the line each voice is decoding from.
+struct SPU2DeltaVoice
+{
+	s32 line; // pcm_cache_data index, -1 = SBuffer null
+	PcmCacheEntry entry;
+};
+
+size_t SPU2DeltaVoicesSize()
+{
+	return sizeof(SPU2DeltaVoice) * 2 * 24;
+}
+
+void SPU2DeltaSaveVoices(u8* out)
+{
+	SPU2DeltaVoice* dv = reinterpret_cast<SPU2DeltaVoice*>(out);
+	for (int c = 0; c < 2; c++)
+	{
+		for (int v = 0; v < 24; v++, dv++)
+		{
+			std::memset(dv, 0, sizeof(*dv));
+			const s16* sbuf = Cores[c].Voices[v].SBuffer;
+			if (!sbuf)
+			{
+				dv->line = -1;
+				continue;
+			}
+			const size_t line = (reinterpret_cast<const u8*>(sbuf) - reinterpret_cast<const u8*>(pcm_cache_data)) / sizeof(PcmCacheEntry);
+			dv->line = static_cast<s32>(line);
+			std::memcpy(&dv->entry, &pcm_cache_data[line], sizeof(PcmCacheEntry));
+		}
+	}
+}
+
+void SPU2DeltaLoadVoices(const u8* in)
+{
+	const SPU2DeltaVoice* dv = reinterpret_cast<const SPU2DeltaVoice*>(in);
+	for (int c = 0; c < 2; c++)
+	{
+		for (int v = 0; v < 24; v++, dv++)
+		{
+			if (dv->line < 0 || dv->line >= static_cast<s32>(pcm_BlockCount))
+			{
+				Cores[c].Voices[v].SBuffer = nullptr;
+				continue;
+			}
+			std::memcpy(&pcm_cache_data[dv->line], &dv->entry, sizeof(PcmCacheEntry));
+			Cores[c].Voices[v].SBuffer = pcm_cache_data[dv->line].Sampledata;
+		}
+	}
+}

@@ -42,6 +42,7 @@
 #include "IconsFontAwesome.h"
 #include "fmt/format.h"
 
+#include <algorithm>
 #include <csetjmp>
 #include <png.h>
 
@@ -1355,20 +1356,41 @@ static bool DeltaFreezeWrapper(SaveStateBase& s, bool (*do_state_func)(StateWrap
 	return s.IsOkay();
 }
 
+// Section starts of the last delta save, for SaveState_DeltaDescribe.
+static std::vector<std::pair<const char*, size_t>> s_delta_marks;
+
+bool g_SaveStateDeltaLoad = false;
+
 static bool DeltaFreezeAll(SaveStateBase& s, Error* error)
 {
+	auto mark = [&s](const char* name) {
+		if (s.IsSaving())
+			s_delta_marks.emplace_back(name, s.GetCurrentPos());
+	};
+	if (s.IsSaving())
+		s_delta_marks.clear();
+
 	if (!s.FreezeInternals(error))
 		return false;
 
+	mark("iopMem");
 	DeltaFreezeCode(s, iopMem->Main, Ps2MemSize::ExposedIopRam, [](u32 addr, u32 n) { psxCpu->Clear(addr, n / 4); });
+	mark("eeHw");
 	s.FreezeMem(eeHw, sizeof(eeHw));
+	mark("iopHw");
 	s.FreezeMem(iopHw, sizeof(iopHw));
+	mark("Scratch");
 	s.FreezeMem(eeMem->Scratch, sizeof(eeMem->Scratch));
+	mark("VU0Mem");
 	s.FreezeMem(vuRegs[0].Mem, VU0_MEMSIZE);
+	mark("VU1Mem");
 	s.FreezeMem(vuRegs[1].Mem, VU1_MEMSIZE);
+	mark("VU0Micro");
 	DeltaFreezeCode(s, vuRegs[0].Micro, VU0_PROGSIZE, [](u32 addr, u32 n) { CpuVU0->Clear(addr, n); });
+	mark("VU1Micro");
 	DeltaFreezeCode(s, vuRegs[1].Micro, VU1_PROGSIZE, [](u32 addr, u32 n) { CpuVU1->Clear(addr, n); });
 
+	mark("SPU2");
 	freezeData fP = {};
 	SPU2freeze(FreezeAction::Size, &fP);
 	s.PrepBlock(fP.size);
@@ -1379,6 +1401,18 @@ static bool DeltaFreezeAll(SaveStateBase& s, Error* error)
 		return false;
 	s.CommitBlock(fP.size);
 
+	mark("SPU2Voices");
+	const u32 voices_size = static_cast<u32>(SPU2DeltaVoicesSize());
+	s.PrepBlock(voices_size);
+	if (!s.IsOkay())
+		return false;
+	if (s.IsSaving())
+		SPU2DeltaSaveVoices(s.GetBlockPtr());
+	else
+		SPU2DeltaLoadVoices(s.GetBlockPtr());
+	s.CommitBlock(voices_size);
+
+	mark("Pad");
 	return DeltaFreezeWrapper(s, &Pad::Freeze);
 }
 
@@ -1403,7 +1437,10 @@ bool SaveState_DeltaLoad(const std::vector<u8>& buffer)
 
 	memLoadingState s(buffer);
 	Error error;
-	if (!DeltaFreezeAll(s, &error))
+	g_SaveStateDeltaLoad = true;
+	const bool loaded = DeltaFreezeAll(s, &error);
+	g_SaveStateDeltaLoad = false;
+	if (!loaded)
 	{
 		Console.Error(fmt::format("(ZdxsvDelta) load failed: {}", error.GetDescription()));
 		return false;
@@ -1420,4 +1457,77 @@ bool SaveState_DeltaLoad(const std::vector<u8>& buffer)
 	}
 	UpdateVSyncRate(false);
 	return true;
+}
+
+// Names the FreezeInternals register block an offset of a delta state falls in (synctest reports).
+std::string SaveState_DeltaDescribe(const std::vector<u8>& buffer, size_t offset)
+{
+	static const char tag[] = "cpuRegs";
+	auto it = std::search(buffer.begin(), buffer.end(), tag, tag + sizeof(tag));
+	if (it == buffer.end())
+		return "?";
+	size_t pos = static_cast<size_t>(it - buffer.begin()) + 32;
+	const struct { const char* name; size_t size; } blocks[] = {
+		{"cpuRegs", sizeof(cpuRegs)}, {"psxRegs", sizeof(psxRegs)}, {"fpuRegs", sizeof(fpuRegs)},
+		{"tlb", sizeof(tlb)}, {"cachedTlbs", sizeof(cachedTlbs)},
+	};
+	if (offset < pos)
+		return fmt::format("before cpuRegs (at {})", pos);
+	for (const auto& b : blocks)
+	{
+		if (offset < pos + b.size)
+		{
+			const size_t o = offset - pos;
+			std::string field;
+			auto arr = [&](const char* name, size_t start, size_t size, size_t elem) {
+				if (o >= start && o < start + size)
+					field = fmt::format(" {}[{}]", name, (o - start) / elem);
+			};
+			if (b.name[0] == 'c' && b.name[1] == 'p')
+			{
+				arr("eCycle", offsetof(cpuRegisters, eCycle), sizeof(cpuRegs.eCycle), 4);
+				arr("sCycle", offsetof(cpuRegisters, sCycle), sizeof(cpuRegs.sCycle), 8);
+				arr("CP0", offsetof(cpuRegisters, CP0), sizeof(cpuRegs.CP0), 4);
+				arr("cycle", offsetof(cpuRegisters, cycle), 8, 8);
+				arr("nextEventCycle", offsetof(cpuRegisters, nextEventCycle), 8, 8);
+			}
+			else if (b.name[0] == 'p')
+			{
+				arr("eCycle", offsetof(psxRegisters, eCycle), sizeof(psxRegs.eCycle), 4);
+				arr("sCycle", offsetof(psxRegisters, sCycle), sizeof(psxRegs.sCycle), 8);
+				arr("cycle", offsetof(psxRegisters, cycle), 8, 8);
+				arr("iopNextEventCycle", offsetof(psxRegisters, iopNextEventCycle), 8, 8);
+			}
+			return fmt::format("{}+{}{} (block at {})", b.name, o, field, pos);
+		}
+		pos += b.size;
+	}
+	// Nearest preceding FreezeTag or delta section.
+	static const char* const tags[] = {"Cycles", "EE-Subsystems", "IOP-Subsystems", "cdvd", "cdrom", "GIFdma",
+		"Gif Unit", "hostHandles", "iopCounters", "IPU", "IPUdma", "MTVU", "deci2", "SIFdma", "SPRdma", "VIF0dma",
+		"VIF1dma", "vuMicroRegs"};
+	const char* best = "cachedTlbs end";
+	size_t best_pos = pos;
+	for (const char* t : tags)
+	{
+		const size_t len = std::strlen(t) + 1;
+		for (auto at = buffer.begin(); (at = std::search(at, buffer.end(), t, t + len)) != buffer.end(); ++at)
+		{
+			const size_t p = static_cast<size_t>(at - buffer.begin()) + 32;
+			if (p <= offset && p > best_pos && (s_delta_marks.empty() || p < s_delta_marks[0].second))
+			{
+				best = t;
+				best_pos = p;
+			}
+		}
+	}
+	for (const auto& [name, p] : s_delta_marks)
+	{
+		if (p <= offset && p > best_pos)
+		{
+			best = name;
+			best_pos = p;
+		}
+	}
+	return fmt::format("{}+{}", best, offset - best_pos);
 }

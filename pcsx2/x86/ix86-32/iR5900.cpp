@@ -4,6 +4,7 @@
 #include "Common.h"
 #include "CDVD/CDVD.h"
 #include "DebugTools/Breakpoints.h"
+#include "ZdxsvDeltaState.h"
 #include "Elfheader.h"
 #include "GS.h"
 #include "Host.h"
@@ -2349,7 +2350,7 @@ static void recRecompile(const u32 startpc)
 				break;
 			}
 
-			if (pblock->GetFnptr() != (uptr)JITCompile)
+			if (!ZdxsvDeltaState::g_fixed_blocks && pblock->GetFnptr() != (uptr)JITCompile)
 			{
 				willbranch3 = 1;
 				s_nEndBlock = i;

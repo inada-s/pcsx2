@@ -18,6 +18,11 @@ namespace ZdxsvDeltaState
 	// Drops everything and stops EE RAM tracking.
 	void Clear();
 
+	// The EE/IOP recompilers end a block where the next PC is already compiled, so block ends
+	// (and the cycles at which events are tested) depend on the code cache history, which a
+	// rollback does not restore. When set, blocks end only at branches and page splits.
+	extern bool g_fixed_blocks;
+
 	// ZDXSV_DELTA_TEST: synctest in a running game, see ZdxsvDeltaState.cpp.
 	extern bool g_test_enabled;
 	void OnVsync();
