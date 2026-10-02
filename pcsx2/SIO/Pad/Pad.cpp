@@ -17,6 +17,7 @@
 #include "IconsFontAwesome.h"
 
 #include "VMManager.h"
+#include "ZdxsvGgpo.h"
 #include "common/Assertions.h"
 #include "common/Console.h"
 #include "common/FileSystem.h"
@@ -546,6 +547,9 @@ PadBase* Pad::GetPad(const u8 unifiedSlot)
 void Pad::SetControllerState(u32 controller, u32 bind, float value)
 {
 	if (controller >= NUM_CONTROLLER_PORTS)
+		return;
+
+	if (ZdxsvGgpo::g_active && ZdxsvGgpo::CaptureHostInput(controller, bind, value))
 		return;
 
 	s_controllers[controller]->Set(bind, value);

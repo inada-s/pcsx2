@@ -21,6 +21,7 @@
 #include "VMManager.h"
 #include "ZdxsvInputLatency.h"
 #include "ZdxsvDeltaState.h"
+#include "ZdxsvGgpo.h"
 #include "VUmicro.h"
 
 static const uint EECNT_FUTURE_TARGET = 0x10000000;
@@ -504,19 +505,21 @@ static __fi void VSyncStart(u64 sCycle)
 		ZdxsvInputLatency::OnFrameEnd();
 	if (ZdxsvDeltaState::g_test_enabled)
 		ZdxsvDeltaState::OnVsync();
+	if (ZdxsvGgpo::g_enabled)
+		ZdxsvGgpo::OnVsync();
 
 	if (EmuConfig.EmulationSpeed.LowLatencyVsync)
 	{
 		// zdxsv: present the finished frame now, sleep, then poll input right before the next
 		// frame is emulated. Press -> present loses the limiter sleep (#29).
 		ZdxsvPostVsyncStart();
-		if (!VMManager::Internal::IsExecutionInterrupted())
+		if (!VMManager::Internal::IsExecutionInterrupted() && !ZdxsvGgpo::g_in_rollback)
 			VMManager::Internal::Throttle();
 	}
 	else
 	{
 		// Don't bother throttling if we're going to pause.
-		if (!VMManager::Internal::IsExecutionInterrupted())
+		if (!VMManager::Internal::IsExecutionInterrupted() && !ZdxsvGgpo::g_in_rollback)
 			VMManager::Internal::Throttle();
 
 		ZdxsvPostVsyncStart(); // MUST be after framelimit; doing so before causes funk with frame times!

@@ -131,6 +131,7 @@ set(pcsx2Sources
 	VUmicro.cpp
 	ZdxsvInputLatency.cpp
 	ZdxsvDeltaState.cpp
+	ZdxsvGgpo.cpp
 	VU0micro.cpp
 	VU0microInterp.cpp
 	VU1micro.cpp
@@ -205,6 +206,7 @@ set(pcsx2Headers
 	VUmicro.h
 	ZdxsvInputLatency.h
 	ZdxsvDeltaState.h
+	ZdxsvGgpo.h
 	VUops.h)
 
 # CDVD sources
@@ -1081,6 +1083,7 @@ set(pcsx2LTOSources
 if(ARCH_X86)
 	list(APPEND pcsx2LTOSources ${pcsx2x86Sources} ${pcsx2x86Headers})
 	target_link_libraries(PCSX2_FLAGS INTERFACE zydis)
+	target_link_libraries(PCSX2_FLAGS INTERFACE pcsx2-ggpo)
 elseif(ARCH_ARM64)
 	list(APPEND pcsx2LTOSources ${pcsx2arm64Sources} ${pcsx2arm64Headers})
 	target_link_libraries(PCSX2_FLAGS INTERFACE vixl)

@@ -22,11 +22,8 @@ public:  // types
 
 public:  // functions
    static ProcessID GetProcessID() { return GetCurrentProcessId(); }
-   static void AssertFailed(char *msg) { 
-#ifndef TARGET_UWP
-	   MessageBoxA(NULL, msg, "GGPO Assertion Failed", MB_OK | MB_ICONEXCLAMATION);
-#endif
-   }
+   // zdxsv: no MessageBox (it blocked the emulator CPU thread); the GGPOException thrown next is logged.
+   static void AssertFailed(char *msg) { fprintf(stderr, "%s\n", msg); }
    static uint32 GetCurrentTimeMS() {
 #ifdef TARGET_UWP
 	   using namespace std::chrono;

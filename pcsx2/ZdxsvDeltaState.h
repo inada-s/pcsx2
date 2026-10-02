@@ -3,6 +3,10 @@
 
 #pragma once
 
+#include "common/Pcsx2Defs.h"
+
+#include <vector>
+
 // zdxsv delta state (#31): fast per-frame save/load of the VM for rollback (GGPO).
 // EE RAM is copy-on-write (vtlb mmap_Delta*): a save keeps only the old data of the pages
 // written since the previous save. The rest (SaveState_DeltaSave) is copied whole.
@@ -15,6 +19,8 @@ namespace ZdxsvDeltaState
 	bool Load(int frame);
 	// Drops the saved frames before frame.
 	void DiscardBefore(int frame);
+	// The state of a saved frame without EE RAM, or nullptr.
+	const std::vector<u8>* GetState(int frame);
 	// Drops everything and stops EE RAM tracking.
 	void Clear();
 

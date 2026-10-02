@@ -39,7 +39,8 @@ namespace ZdxsvDeltaState
 {
 	bool g_test_enabled = std::getenv("ZDXSV_DELTA_TEST") != nullptr;
 	// A control run: ZDXSV_DELTA_TEST=...,blocks=linked keeps the recompilers' history-dependent block ends.
-	bool g_fixed_blocks = g_test_enabled && !std::strstr(std::getenv("ZDXSV_DELTA_TEST"), "blocks=linked");
+	bool g_fixed_blocks = (g_test_enabled && !std::strstr(std::getenv("ZDXSV_DELTA_TEST"), "blocks=linked")) ||
+		std::getenv("ZDXSV_GGPO") != nullptr;
 
 	namespace
 	{
@@ -159,6 +160,12 @@ namespace ZdxsvDeltaState
 		}
 
 		return SaveState_DeltaLoad(state->second);
+	}
+
+	const std::vector<u8>* GetState(int frame)
+	{
+		const auto it = s_states.find(frame);
+		return it == s_states.end() ? nullptr : &it->second;
 	}
 
 	void DiscardBefore(int frame)
