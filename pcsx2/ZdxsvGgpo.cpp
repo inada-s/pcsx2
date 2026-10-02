@@ -10,12 +10,15 @@
 //   seed=1       random pad input (both pads; a new input every 5 frames)
 //   input=host   pad 1 from the host pad instead of random (pad 2 stays random)
 //   input=none   no buttons, sticks centered
+//   mask=fcff    random buttons limited to these bits (hex, PadDualshock2::Inputs; fcff = no Select/Start)
 //   control=input  control run: reruns get other inputs (must report mismatches)
+//   iopflush=1   probe: reset the IOP recompiler at every save and load (empty IOP code cache per frame)
 // Results go to the log, lines start with "ZdxsvGgpo".
 
 #include "ZdxsvGgpo.h"
 #include "ZdxsvDeltaState.h"
 #include "Memory.h"
+#include "R3000A.h"
 #include "R5900.h"
 #include "SIO/Pad/Pad.h"
 #include "SIO/Pad/PadDualshock2.h"
@@ -24,6 +27,8 @@
 #include "common/Console.h"
 #include "common/StringUtil.h"
 #include "common/Timer.h"
+
+#include "fmt/format.h"
 
 #include "ggpo_log.h"
 #include "ggponet.h"
@@ -78,6 +83,8 @@ namespace ZdxsvGgpo
 		int s_start = 1500, s_frames = 3000, s_check = 6;
 		u32 s_seed = 1;
 		bool s_host_input = false, s_no_input = false, s_control_input = false;
+		u16 s_mask = 0xffff;
+		bool s_iop_flush = false;
 
 		GGPOSession* s_session = nullptr;
 		GGPOPlayerHandle s_handles[PLAYERS] = {};
@@ -115,8 +122,12 @@ namespace ZdxsvGgpo
 					s_host_input = (value == "host");
 					s_no_input = (value == "none");
 				}
+				else if (key == "mask")
+					s_mask = StringUtil::FromChars<u16>(value, 16).value_or(0xffff);
 				else if (key == "control")
 					s_control_input = (value == "input");
+				else if (key == "iopflush")
+					s_iop_flush = (n != 0);
 				else
 					Console.Warning("ZdxsvGgpo: unknown key '%.*s'", static_cast<int>(key.size()), key.data());
 			}
@@ -186,7 +197,7 @@ namespace ZdxsvGgpo
 			{
 				for (Input& in : s_random)
 				{
-					in.buttons = static_cast<u16>(s_rng() & s_rng());
+					in.buttons = static_cast<u16>(s_rng() & s_rng() & s_mask);
 					if (s_no_input)
 						in.buttons = 0;
 					in.lx = static_cast<u8>(s_rng());
@@ -255,6 +266,19 @@ namespace ZdxsvGgpo
 				{
 					Console.WriteLn("ZdxsvGgpo: DIFF frame %d state offset %zu = %s: %02x -> %02x", frame, i,
 						SaveState_DeltaDescribe(first.state, i).c_str(), first.state[i], state[i]);
+					// Words around it, first run / rerun (pointers name the code that wrote them).
+					const size_t w0 = (i & ~size_t{3}) >= 16 ? (i & ~size_t{3}) - 16 : 0;
+					std::string a, b;
+					for (size_t w = w0; w + 4 <= std::min(state.size(), first.state.size()) && w < w0 + 36; w += 4)
+					{
+						u32 x, y;
+						std::memcpy(&x, &first.state[w], 4);
+						std::memcpy(&y, &state[w], 4);
+						a += fmt::format(" {:08x}", x);
+						b += fmt::format(" {:08x}", y);
+					}
+					Console.WriteLn("ZdxsvGgpo: DIFF words from offset %zu first:%s", w0, a.c_str());
+					Console.WriteLn("ZdxsvGgpo: DIFF words from offset %zu rerun:%s", w0, b.c_str());
 					s_diff_logged++;
 				}
 				any = true;
@@ -270,6 +294,8 @@ namespace ZdxsvGgpo
 		bool __cdecl SaveGameState(unsigned char** buffer, int* len, int* checksum, int frame)
 		{
 			Common::Timer timer;
+			if (s_iop_flush)
+				psxCpu->Reset();
 			if (!ZdxsvDeltaState::Save(frame))
 				return false;
 			s_save_ms.Add(timer.GetTimeMilliseconds());
@@ -312,6 +338,8 @@ namespace ZdxsvGgpo
 				return false;
 			Common::Timer timer;
 			const bool ok = ZdxsvDeltaState::Load(*reinterpret_cast<int*>(buffer));
+			if (s_iop_flush)
+				psxCpu->Reset();
 			s_load_ms.Add(timer.GetTimeMilliseconds());
 			s_loads++;
 			return ok;
@@ -390,8 +418,8 @@ namespace ZdxsvGgpo
 					return false;
 			}
 			s_rng.seed(s_seed);
-			Console.WriteLn("ZdxsvGgpo: synctest start=%d frames=%d check=%d seed=%u input=%s control=%d",
-				s_start, s_frames, s_check, s_seed, s_host_input ? "host" : s_no_input ? "none" : "random", s_control_input);
+			Console.WriteLn("ZdxsvGgpo: synctest start=%d frames=%d check=%d seed=%u input=%s mask=%04x control=%d iopflush=%d",
+				s_start, s_frames, s_check, s_seed, s_host_input ? "host" : s_no_input ? "none" : "random", s_mask, s_control_input, s_iop_flush);
 			return true;
 		}
 	} // namespace
