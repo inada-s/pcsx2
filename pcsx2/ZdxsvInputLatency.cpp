@@ -7,6 +7,9 @@
 //   addr=0x...   EE address of the byte the press changes; omitted = search mode
 //   count=20     presses
 //   start=600    vsync (counted from boot) of the first press
+//   go=path      instead of start: first press 60 vsyncs after this file appears (e.g. in battle)
+//   held=1       search for bytes that differ only while the button is held (a pad buffer),
+//                not bytes that stay changed after the press (a cursor)
 //   hold=4       frames each press is held
 //   gap=60       frames from one press to the next (>= hold + 20)
 //   seed=1       seed of the press time inside the frame before its poll
@@ -30,6 +33,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <mutex>
 #include <random>
 #include <string>
@@ -90,6 +94,8 @@ namespace ZdxsvInputLatency
 			u32 hold = 4;
 			u32 gap = 60;
 			u32 seed = 1;
+			bool held = false;
+			std::string go;
 			std::string out;
 		};
 
@@ -116,7 +122,7 @@ namespace ZdxsvInputLatency
 		Common::Timer::Value s_pace_prev = 0;
 
 		// Search mode: candidate bytes and snapshots of EE main RAM.
-		std::vector<u8> s_cand, s_idle, s_pre, s_prev_pre, s_post;
+		std::vector<u8> s_cand, s_idle, s_pre, s_prev_pre, s_post, s_rel;
 		std::vector<u8> s_post0, s_post1, s_pre0; // values seen at the first two presses
 
 		// Search/watch index: EE main RAM, then the scratchpad (0x70000000).
@@ -184,6 +190,10 @@ namespace ZdxsvInputLatency
 					s_cfg.gap = std::strtoul(val.c_str(), nullptr, 0);
 				else if (key == "seed")
 					s_cfg.seed = std::strtoul(val.c_str(), nullptr, 0);
+				else if (key == "held")
+					s_cfg.held = (val != "0");
+				else if (key == "go")
+					s_cfg.go = val;
 				else if (key == "out")
 					s_cfg.out = val;
 				else
@@ -194,7 +204,7 @@ namespace ZdxsvInputLatency
 			s_presses.reserve(s_cfg.count);
 			Console.WriteLn("ZdxsvLatency: btn=%s back=%s %s count=%u start=%llu hold=%u gap=%u seed=%u",
 				s_cfg.btn->name, s_cfg.back ? s_cfg.back->name : "none",
-				s_cfg.has_addr ? "addr" : "search", s_cfg.count,
+				s_cfg.has_addr ? "addr" : (s_cfg.held ? "search-held" : "search"), s_cfg.count,
 				static_cast<unsigned long long>(s_cfg.start), s_cfg.hold, s_cfg.gap, s_cfg.seed);
 			if (s_cfg.has_addr)
 				Console.WriteLn("ZdxsvLatency: addr=%08x", EeAddr(s_cfg.addr));
@@ -212,12 +222,13 @@ namespace ZdxsvInputLatency
 		{
 			if (s_cand.empty())
 				s_cand.assign(SEARCH_SIZE, 1);
-			const bool check_return = s_cfg.back && (k & 1) && !s_prev_pre.empty();
+			const bool check_return = !s_cfg.held && s_cfg.back && (k & 1) && !s_prev_pre.empty();
 			for (u32 a = 0; a < SEARCH_SIZE; a++)
 			{
 				if (!s_cand[a])
 					continue;
-				if (s_idle[a] != s_pre[a] || s_post[a] == s_pre[a] || (check_return && s_post[a] != s_prev_pre[a]))
+				if (s_idle[a] != s_pre[a] || s_post[a] == s_pre[a] || (check_return && s_post[a] != s_prev_pre[a]) ||
+					(s_cfg.held && s_rel[a] != s_pre[a]))
 					s_cand[a] = 0;
 			}
 			if (k == 0)
@@ -397,6 +408,15 @@ namespace ZdxsvInputLatency
 		const double now = Now();
 		const double prev_poll = s_t_prev_poll;
 		s_t_prev_poll = now;
+		if (!s_cfg.go.empty())
+		{
+			std::error_code ec;
+			if (s_vsync % 30 != 0 || !std::filesystem::exists(s_cfg.go, ec))
+				return;
+			s_cfg.go.clear();
+			s_cfg.start = s_vsync + 60;
+			Console.WriteLn("ZdxsvLatency: go at vsync %llu", static_cast<unsigned long long>(s_vsync));
+		}
 		if (s_vsync + 8 < s_cfg.start)
 			return;
 
@@ -419,6 +439,7 @@ namespace ZdxsvInputLatency
 				s_pre.clear();
 				s_prev_pre.clear();
 				s_post.clear();
+				s_rel.clear();
 			}
 			return;
 		}
@@ -450,9 +471,11 @@ namespace ZdxsvInputLatency
 			Pad::SetControllerState(0, btn->bind, 0.0f);
 		}
 
+		if (phase == 8 + s_cfg.hold && !s_cfg.has_addr && s_cfg.held)
+			Snapshot(s_post); // frames emulated while held
 		if (phase == s_cfg.gap - 1 && !s_cfg.has_addr)
 		{
-			Snapshot(s_post);
+			Snapshot(s_cfg.held ? s_rel : s_post);
 			SearchCycle(k);
 		}
 		CollectPresents();
