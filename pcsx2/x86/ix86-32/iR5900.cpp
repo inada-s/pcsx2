@@ -72,6 +72,8 @@ eeProfiler EE::Profiler;
 #define X86
 
 static DynamicHeapArray<u8, 4096> recRAMCopy;
+// Word view: the copy holds RAM words at their word index (indexing the u8 array by word overlapped neighbouring blocks' copies).
+static u32* recRAMCopyW() { return reinterpret_cast<u32*>(recRAMCopy.data()); }
 static DynamicHeapArray<BASEBLOCK, 4096> recLutReserve_RAM;
 static DynamicHeapArray<BASEBLOCK, 4096> recLutUnmapped;
 static size_t recLutEntries;
@@ -2694,17 +2696,17 @@ StartRecomp:
 			if ((oldBlock->startpc + oldBlock->size * 4) <= HWADDR(startpc))
 				break;
 
-			if (memcmp(&recRAMCopy[oldBlock->startpc / 4], PSM(oldBlock->startpc),
+			if (memcmp(&recRAMCopyW()[oldBlock->startpc / 4], PSM(oldBlock->startpc),
 					oldBlock->size * 4))
 			{
 				if (g_zdxsv_rec_counts[4]++ % 5000 < 6)
 				{
 					u32 d = 0;
-					while (d < oldBlock->size && recRAMCopy[oldBlock->startpc / 4 + d] == ((u32*)PSM(oldBlock->startpc))[d])
+					while (d < oldBlock->size && recRAMCopyW()[oldBlock->startpc / 4 + d] == ((u32*)PSM(oldBlock->startpc))[d])
 						d++;
 					Console.WriteLn("zdxsv overlap clear: new %08x..%08x old %08x size %u, first diff at %08x: copy %08x ram %08x",
 						startpc, pc, oldBlock->startpc, oldBlock->size, oldBlock->startpc + d * 4,
-						recRAMCopy[oldBlock->startpc / 4 + d], ((u32*)PSM(oldBlock->startpc))[d]);
+						recRAMCopyW()[oldBlock->startpc / 4 + d], ((u32*)PSM(oldBlock->startpc))[d]);
 				}
 				recClear(startpc, (pc - startpc) / 4);
 				s_pCurBlockEx = recBlocks.Get(HWADDR(startpc));
@@ -2713,7 +2715,7 @@ StartRecomp:
 			}
 		}
 
-		memcpy(&recRAMCopy[HWADDR(startpc) / 4], PSM(startpc), pc - startpc);
+		memcpy(&recRAMCopyW()[HWADDR(startpc) / 4], PSM(startpc), pc - startpc);
 	}
 
 	s_pCurBlock->SetFnptr((uptr)recPtr);
