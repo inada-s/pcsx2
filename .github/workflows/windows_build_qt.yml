@@ -170,6 +170,26 @@ jobs:
           touch bin/portable.txt
           cp ZDXSV.md bin/ZDXSV.md
 
+      # zdxsv: release packages. The .7z is what the auto updater downloads (files at the top
+      # level, updater.exe included); the .zip is the same files for a first install.
+      - name: Package zdxsv release files
+        shell: bash
+        run: |
+          mkdir -p zdxsv-release
+          cd bin
+          X='-xr!*.bsc -xr!*.exp -xr!*.ilk -xr!*.iobj -xr!*.ipdb -xr!*.pdb -xr!*.lib'
+          7z a -t7z -mx=7 ../zdxsv-release/pcsx2-zdxsv-windows-x64.7z . $X > /dev/null
+          7z a -tzip ../zdxsv-release/pcsx2-zdxsv-windows-x64.zip . $X > /dev/null
+          cd ..
+          ls -l zdxsv-release
+          7z l zdxsv-release/pcsx2-zdxsv-windows-x64.7z | tr -d '\r' | grep -E " (pcsx2-qt(x64)?|updater)\.exe$| portable\.txt$"
+
+      - name: Upload zdxsv release files
+        uses: actions/upload-artifact@v7
+        with:
+          name: zdxsv-release-windows-x64
+          path: zdxsv-release
+
       - name: Upload artifact
         uses: actions/upload-artifact@v7
         with:

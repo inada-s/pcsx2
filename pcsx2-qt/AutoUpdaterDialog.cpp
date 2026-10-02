@@ -23,7 +23,10 @@
 
 #include "cpuinfo.h"
 
+#include <array>
+#include <cstdlib>
 #include <functional>
+#include <optional>
 #include <QtCore/QCoreApplication>
 #include <QtCore/QDir>
 #include <QtCore/QFile>
@@ -33,6 +36,7 @@
 #include <QtCore/QJsonObject>
 #include <QtCore/QJsonValue>
 #include <QtCore/QProcess>
+#include <QtCore/QRegularExpression>
 #include <QtCore/QString>
 #include <QtCore/QTemporaryDir>
 #include <QtWidgets/QDialog>
@@ -47,35 +51,23 @@
 // Interval at which HTTP requests are polled.
 static constexpr u32 HTTP_POLL_INTERVAL = 10;
 
+// zdxsv: updates come from the GitHub releases of inada-s/pcsx2, tagged zdxsv-X.Y.Z
+// (.github/workflows/zdxsv_release.yml). ZDXSV_UPDATE_URL overrides the release list URL (tests).
+#define UPDATE_TAG_PREFIX "zdxsv-"
+#define LATEST_RELEASE_URL "https://api.github.com/repos/inada-s/pcsx2/releases?per_page=20"
+#define CHANGES_URL "https://api.github.com/repos/inada-s/pcsx2/compare/%1...%2"
+
 #if defined(_WIN32)
-#define UPDATE_PLATFORM_STR "Windows"
+#define UPDATE_ASSET_NAME "pcsx2-zdxsv-windows-x64.7z"
 #elif defined(__linux__)
-#define UPDATE_PLATFORM_STR "Linux"
+#define UPDATE_ASSET_NAME "pcsx2-zdxsv-linux-x64.AppImage"
 #elif defined(__APPLE__)
-#define UPDATE_PLATFORM_STR "MacOS"
+#define UPDATE_ASSET_NAME "pcsx2-zdxsv-macos.tar.xz"
 #endif
 
-#ifdef MULTI_ISA_SHARED_COMPILATION
-// #undef UPDATE_ADDITIONAL_TAGS
-#elif _M_SSE >= 0x501
-#define UPDATE_ADDITIONAL_TAGS "AVX2"
-#else
-#define UPDATE_ADDITIONAL_TAGS "SSE4"
-#endif
-
-#define LATEST_RELEASE_URL "https://api.pcsx2.net/v1/%1Releases?pageSize=1"
-#define CHANGES_URL "https://api.github.com/repos/PCSX2/pcsx2/compare/%1...%2"
-
-// Available release channels.
-static const char* UPDATE_TAGS[] = {"stable", "nightly"};
-
-// TODO: Make manual releases create this file, and make it contain `#define DEFAULT_UPDATER_CHANNEL "stable"`.
-#if __has_include("DefaultUpdaterChannel.h")
-#include "DefaultUpdaterChannel.h"
-#endif
-#ifndef DEFAULT_UPDATER_CHANNEL
-#define DEFAULT_UPDATER_CHANNEL "nightly"
-#endif
+// One release channel.
+static const char* UPDATE_TAGS[] = {"zdxsv"};
+#define DEFAULT_UPDATER_CHANNEL "zdxsv"
 
 AutoUpdaterDialog::AutoUpdaterDialog(QWidget* parent /* = nullptr */)
 	: QDialog(parent)
@@ -211,7 +203,8 @@ void AutoUpdaterDialog::queueUpdateCheck(bool display_message)
 			return;
 		}
 
-		m_http->CreateRequest(QStringLiteral(LATEST_RELEASE_URL).arg(getCurrentUpdateTag()).toStdString(),
+		const char* url_override = std::getenv("ZDXSV_UPDATE_URL");
+		m_http->CreateRequest(url_override ? std::string(url_override) : std::string(LATEST_RELEASE_URL),
 			std::bind(&AutoUpdaterDialog::getLatestReleaseComplete, this, std::placeholders::_1, std::placeholders::_3));
 	}
 	else
@@ -220,141 +213,59 @@ void AutoUpdaterDialog::queueUpdateCheck(bool display_message)
 	}
 }
 
+// zdxsv-X.Y.Z -> {X, Y, Z}; anything else (dev builds, upstream tags) -> empty.
+static std::optional<std::array<int, 3>> ParseZdxsvVersion(const QString& tag)
+{
+	const QRegularExpressionMatch m = QRegularExpression(QStringLiteral("^" UPDATE_TAG_PREFIX "(\\d+)\\.(\\d+)\\.(\\d+)$")).match(tag);
+	if (!m.hasMatch())
+		return std::nullopt;
+	return std::array<int, 3>{m.captured(1).toInt(), m.captured(2).toInt(), m.captured(3).toInt()};
+}
+
 void AutoUpdaterDialog::getLatestReleaseComplete(s32 status_code, std::vector<u8> data)
 {
-#ifdef _M_X86
-	// should already be initialized, but just in case this somehow runs before the CPU thread starts setting up...
-	cpuinfo_initialize();
-#endif
-
 	if (!isSupported())
 		return;
 
+	// GitHub releases list, newest first. Take the newest published zdxsv-X.Y.Z release
+	// that has an asset for this platform.
 	bool found_update_info = false;
-
 	if (status_code == HTTPDownloader::HTTP_STATUS_OK)
 	{
 		QJsonParseError parse_error;
-		QJsonDocument doc(QJsonDocument::fromJson(QByteArray(reinterpret_cast<const char*>(data.data()), data.size()), &parse_error));
-		if (doc.isObject())
+		const QJsonDocument doc(QJsonDocument::fromJson(QByteArray(reinterpret_cast<const char*>(data.data()), data.size()), &parse_error));
+		if (doc.isArray())
 		{
-			const QJsonObject doc_object(doc.object());
-			const QJsonArray data_array(doc_object["data"].toArray());
-			if (!data_array.isEmpty())
+			for (const QJsonValue& release_value : doc.array())
 			{
-				// just take the first one, that's all we requested anyway
-				const QJsonObject data_object(data_array.first().toObject());
-				const QJsonObject assets_object(data_object["assets"].toObject());
-				const QJsonArray platform_array(assets_object[UPDATE_PLATFORM_STR].toArray());
-				if (!platform_array.isEmpty())
+				const QJsonObject release(release_value.toObject());
+				const QString tag(release["tag_name"].toString());
+				if (release["draft"].toBool() || release["prerelease"].toBool() || !ParseZdxsvVersion(tag))
+					continue;
+
+				for (const QJsonValue& asset_value : release["assets"].toArray())
 				{
-					QJsonObject best_asset;
-					int best_asset_score = 0;
+					const QJsonObject asset(asset_value.toObject());
+					if (asset["name"].toString() != QStringLiteral(UPDATE_ASSET_NAME))
+						continue;
 
-					// search for usable files
-					for (const QJsonValue& asset_value : platform_array)
-					{
-						const QJsonObject asset_object(asset_value.toObject());
-						const QJsonArray additional_tags_array(asset_object["additionalTags"].toArray());
-						bool is_symbols = false;
-						bool is_installer = false;
-						bool is_avx2 = false;
-						bool is_sse4 = false;
-						bool is_perfect_match = false;
-						for (const QJsonValue& additional_tag : additional_tags_array)
-						{
-							const QString additional_tag_str(additional_tag.toString());
-							if (additional_tag_str == QStringLiteral("symbols"))
-							{
-								// we're not interested in symbols downloads
-								is_symbols = true;
-								break;
-							}
-							if (additional_tag_str == QStringLiteral("installer"))
-							{
-								// we're not interested in installer download
-								is_installer = true;
-								break;
-							}
-							else if (additional_tag_str == QStringLiteral("SSE4"))
-							{
-								is_sse4 = true;
-							}
-							else if (additional_tag_str == QStringLiteral("AVX2"))
-							{
-								is_avx2 = true;
-							}
-#ifdef UPDATE_ADDITIONAL_TAGS
-							if (additional_tag_str == QStringLiteral(UPDATE_ADDITIONAL_TAGS))
-							{
-								// Found the same variant as what's currently running!  But keep checking in case it's symbols.
-								is_perfect_match = true;
-							}
-#endif
-						}
-
-						if (is_symbols)
-						{
-							// skip this asset
-							continue;
-						}
-
-						if (is_installer)
-						{
-							// skip this asset
-							continue;
-						}
-#ifdef _M_X86
-						if (is_avx2 && cpuinfo_has_x86_avx2())
-						{
-							// skip this asset
-							continue;
-						}
-#endif
-
-						int score;
-						if (is_perfect_match)
-							score = 4; // #1 choice is the one matching this binary
-						else if (is_avx2)
-							score = 3; // Prefer AVX2 over SSE4 (support test was done above)
-						else if (is_sse4)
-							score = 2; // Prefer SSE4 over one with no tags at all
-						else
-							score = 1; // Multi-ISA builds will have no tags, they'll only get picked because they're the only available build
-
-						if (score > best_asset_score)
-						{
-							best_asset = std::move(asset_object);
-							best_asset_score = score;
-						}
-					}
-
-					if (best_asset_score == 0)
-					{
-						reportError("no matching assets found");
-					}
-					else
-					{
-						m_latest_version = data_object["version"].toString();
-						m_latest_version_timestamp = QDateTime::fromString(data_object["publishedAt"].toString(), QStringLiteral("yyyy-MM-ddThh:mm:ss.zzzZ"));
-						m_download_url = best_asset["url"].toString();
-						m_download_size = best_asset["size"].toInt();
-						found_update_info = true;
-					}
+					m_latest_version = tag;
+					m_latest_version_timestamp = QDateTime::fromString(release["published_at"].toString(), Qt::ISODate);
+					m_download_url = asset["browser_download_url"].toString();
+					m_download_size = asset["size"].toInt();
+					found_update_info = true;
+					break;
 				}
-				else
-				{
-					reportError("platform not found in assets array");
-				}
+				if (found_update_info)
+					break;
 			}
-			else
-			{
-				reportError("data is not an array");
-			}
+
+			if (!found_update_info)
+				reportError("no %s release with %s found", UPDATE_TAG_PREFIX, UPDATE_ASSET_NAME);
 		}
 		else
 		{
-			reportError("JSON is not an object");
+			reportError("JSON is not an array");
 		}
 	}
 	else
@@ -539,7 +450,11 @@ void AutoUpdaterDialog::checkIfUpdateNeeded()
 	Console.WriteLn(Color_StrongGreen, "Current version: %s", BuildVersion::GitTag);
 	Console.WriteLn(Color_StrongYellow, "Latest version: %s", m_latest_version.toUtf8().constData());
 	Console.WriteLn(Color_StrongOrange, "Last checked version: %s", last_checked_version.toUtf8().constData());
-	if (m_latest_version == BuildVersion::GitTag || m_latest_version == last_checked_version)
+	// Only offer a strictly newer zdxsv-X.Y.Z (no downgrade from a newer local build).
+	const std::optional<std::array<int, 3>> current = ParseZdxsvVersion(QString(BuildVersion::GitTag));
+	const std::optional<std::array<int, 3>> latest = ParseZdxsvVersion(m_latest_version);
+	const bool newer = latest && (!current || *latest > *current);
+	if (!newer || m_latest_version == last_checked_version)
 	{
 		Console.WriteLn(Color_StrongGreen, "No update needed.");
 
