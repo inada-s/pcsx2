@@ -17,6 +17,8 @@ namespace ZdxsvInputLatency
 {
 	extern bool g_enabled;
 
+	// CPU thread, every vsync, when the emulated frame ends (before limiter sleep and push).
+	void OnFrameEnd();
 	// CPU thread, every vsync, after the host input poll.
 	void OnVsync();
 	// CPU thread, SIO2 pad poll that returns the button word to the game (active low).

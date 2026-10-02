@@ -19,6 +19,7 @@
 #include "SPU2/spu2.h"
 #include "Recording/InputRecording.h"
 #include "VMManager.h"
+#include "ZdxsvInputLatency.h"
 #include "VUmicro.h"
 
 static const uint EECNT_FUTURE_TARGET = 0x10000000;
@@ -489,12 +490,25 @@ static __fi void VSyncStart(u64 sCycle)
 	// End-of-frame tasks.
 	DoFMVSwitch();
 	VMManager::Internal::VSyncOnCPUThread();
+	if (ZdxsvInputLatency::g_enabled)
+		ZdxsvInputLatency::OnFrameEnd();
 
-	// Don't bother throttling if we're going to pause.
-	if (!VMManager::Internal::IsExecutionInterrupted())
-		VMManager::Internal::Throttle();
+	if (EmuConfig.EmulationSpeed.LowLatencyVsync)
+	{
+		// zdxsv: present the finished frame now, sleep, then poll input right before the next
+		// frame is emulated. Press -> present loses the limiter sleep (#29).
+		gsPostVsyncStart();
+		if (!VMManager::Internal::IsExecutionInterrupted())
+			VMManager::Internal::Throttle();
+	}
+	else
+	{
+		// Don't bother throttling if we're going to pause.
+		if (!VMManager::Internal::IsExecutionInterrupted())
+			VMManager::Internal::Throttle();
 
-	gsPostVsyncStart(); // MUST be after framelimit; doing so before causes funk with frame times!
+		gsPostVsyncStart(); // MUST be after framelimit; doing so before causes funk with frame times!
+	}
 
 	// Poll input after MTGS frame push, just in case it has to stall to catch up.
 	VMManager::Internal::PollInputOnCPUThread();

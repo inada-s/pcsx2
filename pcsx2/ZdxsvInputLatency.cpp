@@ -15,6 +15,7 @@
 
 #include "ZdxsvInputLatency.h"
 
+#include "Config.h"
 #include "Memory.h"
 #include "SIO/Pad/Pad.h"
 #include "SIO/Pad/PadDualshock2.h"
@@ -24,10 +25,12 @@
 
 #include <algorithm>
 #include <array>
+#include <cmath>
 #include <atomic>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <mutex>
 #include <random>
 #include <string>
 #include <vector>
@@ -105,6 +108,12 @@ namespace ZdxsvInputLatency
 		constexpr u32 RING = 256;
 		std::array<std::atomic<u64>, RING> s_present_t{};
 		std::atomic<u64> s_presented{0};
+
+		// Present -> present intervals while presses run (frame pacing), GS thread.
+		std::atomic<bool> s_pace_on{false};
+		std::mutex s_pace_mutex;
+		std::vector<double> s_pace_ms;
+		Common::Timer::Value s_pace_prev = 0;
 
 		// Search mode: candidate bytes and snapshots of EE main RAM.
 		std::vector<u8> s_cand, s_idle, s_pre, s_prev_pre, s_post;
@@ -189,6 +198,7 @@ namespace ZdxsvInputLatency
 				static_cast<unsigned long long>(s_cfg.start), s_cfg.hold, s_cfg.gap, s_cfg.seed);
 			if (s_cfg.has_addr)
 				Console.WriteLn("ZdxsvLatency: addr=%08x", EeAddr(s_cfg.addr));
+			Console.WriteLn("ZdxsvLatency: LowLatencyVsync=%d", EmuConfig.EmulationSpeed.LowLatencyVsync ? 1 : 0);
 		}
 
 		void Snapshot(std::vector<u8>& dst)
@@ -254,6 +264,14 @@ namespace ZdxsvInputLatency
 			std::vector<double> ms, frames;
 		};
 
+		double mean(const std::vector<double>& v)
+		{
+			double sum = 0;
+			for (double x : v)
+				sum += x;
+			return sum / v.size();
+		}
+
 		void Summarize(Stat& s)
 		{
 			if (s.ms.empty())
@@ -261,12 +279,6 @@ namespace ZdxsvInputLatency
 				Console.WriteLn("ZdxsvLatency: %-14s n=0", s.name);
 				return;
 			}
-			auto mean = [](const std::vector<double>& v) {
-				double sum = 0;
-				for (double x : v)
-					sum += x;
-				return sum / v.size();
-			};
 			Console.WriteLn("ZdxsvLatency: %-14s n=%zu ms min %.2f mean %.2f max %.2f | frames min %.0f mean %.2f max %.0f",
 				s.name, s.ms.size(), *std::min_element(s.ms.begin(), s.ms.end()), mean(s.ms),
 				*std::max_element(s.ms.begin(), s.ms.end()), *std::min_element(s.frames.begin(), s.frames.end()),
@@ -341,6 +353,21 @@ namespace ZdxsvInputLatency
 			Summarize(pram);
 			Summarize(pres);
 			Summarize(total);
+			std::lock_guard lock(s_pace_mutex);
+			if (!s_pace_ms.empty())
+			{
+				const double m = mean(s_pace_ms);
+				double var = 0;
+				size_t late = 0;
+				for (double v : s_pace_ms)
+				{
+					var += (v - m) * (v - m);
+					late += v > 1.5 * m;
+				}
+				Console.WriteLn("ZdxsvLatency: present->present n=%zu ms min %.2f mean %.2f max %.2f sd %.2f >1.5x %zu",
+					s_pace_ms.size(), *std::min_element(s_pace_ms.begin(), s_pace_ms.end()), m,
+					*std::max_element(s_pace_ms.begin(), s_pace_ms.end()), std::sqrt(var / s_pace_ms.size()), late);
+			}
 			Console.WriteLn("ZdxsvLatency: done");
 		}
 
@@ -382,6 +409,7 @@ namespace ZdxsvInputLatency
 			if (phase >= 8) // last press' frames are presented by now
 			{
 				s_done = true;
+				s_pace_on.store(false, std::memory_order_release);
 				if (s_cfg.has_addr)
 					Report();
 				else
@@ -395,7 +423,6 @@ namespace ZdxsvInputLatency
 			return;
 		}
 		const Button* btn = (s_cfg.back && (k & 1)) ? s_cfg.back : s_cfg.btn;
-		Press* p = s_presses.empty() ? nullptr : &s_presses.back();
 
 		if (phase == 0)
 		{
@@ -415,6 +442,7 @@ namespace ZdxsvInputLatency
 				Snapshot(s_pre);
 			s_presses.push_back(np);
 			s_cur = &s_presses.back();
+			s_pace_on.store(true, std::memory_order_release);
 			Pad::SetControllerState(0, btn->bind, 1.0f);
 		}
 		else if (phase == 8 + s_cfg.hold)
@@ -422,20 +450,29 @@ namespace ZdxsvInputLatency
 			Pad::SetControllerState(0, btn->bind, 0.0f);
 		}
 
-		if (p && phase > 8 && s_cfg.has_addr && !p->ram && *ByteAt(s_cfg.addr) != p->pre)
-		{
-			p->ram = true;
-			p->v_ram = s_vsync;
-			p->t_ram = now;
-			p->post = *ByteAt(s_cfg.addr);
-			p->frame = s_frames_pushed;
-		}
 		if (phase == s_cfg.gap - 1 && !s_cfg.has_addr)
 		{
 			Snapshot(s_post);
 			SearchCycle(k);
 		}
 		CollectPresents();
+	}
+
+	void OnFrameEnd()
+	{
+		if (!s_parsed || s_done || !s_cfg.has_addr || s_presses.empty())
+			return;
+		// The frame emulated since the last poll ends here, before it is pushed; with the
+		// default order the limiter sleep follows, with LowLatencyVsync the push does.
+		Press& p = s_presses.back();
+		if (!p.ram && *ByteAt(s_cfg.addr) != p.pre)
+		{
+			p.ram = true;
+			p.v_ram = s_vsync + 1; // frames counted like polls: written after poll v_poll -> 1
+			p.t_ram = Now();
+			p.post = *ByteAt(s_cfg.addr);
+			p.frame = s_frames_pushed + 1;
+		}
 	}
 
 	void OnPadPoll(u8 unifiedSlot, u32 buttons)
@@ -453,5 +490,15 @@ namespace ZdxsvInputLatency
 		const u64 n = s_presented.load(std::memory_order_relaxed) + 1;
 		s_present_t[n % RING].store(Common::Timer::GetCurrentValue(), std::memory_order_relaxed);
 		s_presented.store(n, std::memory_order_release);
+		const Common::Timer::Value t = s_present_t[n % RING].load(std::memory_order_relaxed);
+		if (s_pace_on.load(std::memory_order_acquire))
+		{
+			if (s_pace_prev)
+			{
+				std::lock_guard lock(s_pace_mutex);
+				s_pace_ms.push_back(Common::Timer::ConvertValueToMilliseconds(t - s_pace_prev));
+			}
+			s_pace_prev = t;
+		}
 	}
 } // namespace ZdxsvInputLatency
