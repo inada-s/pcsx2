@@ -32,7 +32,7 @@ u32 Cycles;
 
 int PlayMode;
 
-static bool has_to_call_irq_dma[2] = {false, false};
+bool has_to_call_irq_dma[2] = {false, false}; // zdxsv: not static, saved by the delta state (spu2freeze.cpp)
 StereoOut32 (*ReverbUpsample)(V_Core& core);
 s32 (*ReverbDownsample)(V_Core& core, bool right);
 

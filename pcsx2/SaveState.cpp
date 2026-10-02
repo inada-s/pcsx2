@@ -1428,6 +1428,11 @@ static bool DeltaFreezeAll(SaveStateBase& s, Error* error)
 		SPU2DeltaLoadVoices(s.GetBlockPtr());
 	s.CommitBlock(voices_size);
 
+	// Not in full states: set when the IOP must run at the next EE event test (pending IOP
+	// interrupt, IOP counter). Left stale, the IOP takes an interrupt at another point (#31).
+	mark("iopEventAction");
+	s.Freeze(iopEventAction);
+
 	mark("Pad");
 	return DeltaFreezeWrapper(s, &Pad::Freeze);
 }

@@ -167,15 +167,19 @@ s32 SPU2Savestate::SizeIt()
 
 // zdxsv delta state (#31): ThawIt points each voice's SBuffer at its cache line after wiping the
 // cache (zeroed samples). A delta load instead restores the line each voice is decoding from.
+// The block ends with has_to_call_irq_dma (spu2sys.cpp), a pending DMA IRQ the full save drops.
 struct SPU2DeltaVoice
 {
 	s32 line; // pcm_cache_data index, -1 = SBuffer null
 	PcmCacheEntry entry;
 };
 
+extern bool has_to_call_irq_dma[2];
+static constexpr size_t SPU2DeltaVoicesBytes = sizeof(SPU2DeltaVoice) * 2 * 24;
+
 size_t SPU2DeltaVoicesSize()
 {
-	return sizeof(SPU2DeltaVoice) * 2 * 24;
+	return SPU2DeltaVoicesBytes + 8;
 }
 
 void SPU2DeltaSaveVoices(u8* out)
@@ -197,6 +201,9 @@ void SPU2DeltaSaveVoices(u8* out)
 			std::memcpy(&dv->entry, &pcm_cache_data[line], sizeof(PcmCacheEntry));
 		}
 	}
+	std::memset(out + SPU2DeltaVoicesBytes, 0, 8);
+	out[SPU2DeltaVoicesBytes] = has_to_call_irq_dma[0];
+	out[SPU2DeltaVoicesBytes + 1] = has_to_call_irq_dma[1];
 }
 
 void SPU2DeltaLoadVoices(const u8* in)
@@ -215,4 +222,6 @@ void SPU2DeltaLoadVoices(const u8* in)
 			Cores[c].Voices[v].SBuffer = pcm_cache_data[dv->line].Sampledata;
 		}
 	}
+	has_to_call_irq_dma[0] = in[SPU2DeltaVoicesBytes] != 0;
+	has_to_call_irq_dma[1] = in[SPU2DeltaVoicesBytes + 1] != 0;
 }

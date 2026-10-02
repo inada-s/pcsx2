@@ -13,10 +13,13 @@
 //   mask=fcff    random buttons limited to these bits (hex, PadDualshock2::Inputs; fcff = no Select/Start)
 //   control=input  control run: reruns get other inputs (must report mismatches)
 //   iopflush=1   probe: reset the IOP recompiler at every save and load (empty IOP code cache per frame)
+//   trace=F      probe: log SPU2 register access and IOP interrupts (with psxRegs.cycle) of frames F-7..F
+//                to logs/zdxsv_trace.txt, for the first run and every rerun
 // Results go to the log, lines start with "ZdxsvGgpo".
 
 #include "ZdxsvGgpo.h"
 #include "ZdxsvDeltaState.h"
+#include "Config.h"
 #include "Memory.h"
 #include "R3000A.h"
 #include "R5900.h"
@@ -24,6 +27,8 @@
 #include "SIO/Pad/PadDualshock2.h"
 #include "SaveState.h"
 
+#include "common/FileSystem.h"
+#include "common/Path.h"
 #include "common/Console.h"
 #include "common/StringUtil.h"
 #include "common/Timer.h"
@@ -53,6 +58,7 @@ namespace ZdxsvGgpo
 	bool g_enabled = std::getenv("ZDXSV_GGPO") != nullptr;
 	bool g_active = false;
 	bool g_in_rollback = false;
+	std::FILE* g_trace = nullptr;
 
 	namespace
 	{
@@ -85,6 +91,8 @@ namespace ZdxsvGgpo
 		bool s_host_input = false, s_no_input = false, s_control_input = false;
 		u16 s_mask = 0xffff;
 		bool s_iop_flush = false;
+		int s_trace_frame = 0; // trace= probe
+		std::FILE* s_trace_file = nullptr;
 
 		GGPOSession* s_session = nullptr;
 		GGPOPlayerHandle s_handles[PLAYERS] = {};
@@ -128,6 +136,8 @@ namespace ZdxsvGgpo
 					s_control_input = (value == "input");
 				else if (key == "iopflush")
 					s_iop_flush = (n != 0);
+				else if (key == "trace")
+					s_trace_frame = n;
 				else
 					Console.Warning("ZdxsvGgpo: unknown key '%.*s'", static_cast<int>(key.size()), key.data());
 			}
@@ -291,8 +301,27 @@ namespace ZdxsvGgpo
 		bool __cdecl BeginGame(const char*) { return true; }
 		bool __cdecl OnEvent(GGPOEvent*) { return true; }
 
+		// trace= probe: the next frame to run is `frame`.
+		void TraceFrame(const char* what, int frame)
+		{
+			if (s_trace_frame <= 0)
+				return;
+			g_trace = nullptr;
+			if (s_trace_file)
+				std::fflush(s_trace_file);
+			if (frame < s_trace_frame - 7 || frame >= s_trace_frame)
+				return;
+			if (!s_trace_file)
+				s_trace_file = FileSystem::OpenCFile(Path::Combine(EmuFolders::Logs, "zdxsv_trace.txt").c_str(), "w");
+			if (!s_trace_file)
+				return;
+			std::fprintf(s_trace_file, "== %s %d cycle %08x\n", what, frame, psxRegs.cycle);
+			g_trace = s_trace_file;
+		}
+
 		bool __cdecl SaveGameState(unsigned char** buffer, int* len, int* checksum, int frame)
 		{
+			TraceFrame("save", frame);
 			Common::Timer timer;
 			if (s_iop_flush)
 				psxCpu->Reset();
@@ -340,6 +369,7 @@ namespace ZdxsvGgpo
 			const bool ok = ZdxsvDeltaState::Load(*reinterpret_cast<int*>(buffer));
 			if (s_iop_flush)
 				psxCpu->Reset();
+			TraceFrame("load", *reinterpret_cast<int*>(buffer));
 			s_load_ms.Add(timer.GetTimeMilliseconds());
 			s_loads++;
 			return ok;
