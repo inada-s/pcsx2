@@ -41,6 +41,13 @@ add_library(pcsx2-ggpo STATIC
 target_include_directories(pcsx2-ggpo PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
 target_include_directories(pcsx2-ggpo PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/lib/ggpo")
 
+# GGPO throws internally and catches at its API (main.cpp); PCSX2 builds without exceptions.
+if(MSVC)
+	target_compile_options(pcsx2-ggpo PRIVATE /EHsc)
+else()
+	target_compile_options(pcsx2-ggpo PRIVATE -fexceptions)
+endif()
+
 if(WIN32)
 	target_compile_definitions(pcsx2-ggpo PRIVATE NOMINMAX)
 	target_link_libraries(pcsx2-ggpo PRIVATE ws2_32 winmm)
