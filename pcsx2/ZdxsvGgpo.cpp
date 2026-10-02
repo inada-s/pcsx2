@@ -1,9 +1,17 @@
 // SPDX-FileCopyrightText: 2002-2026 PCSX2 Dev Team
 // SPDX-License-Identifier: GPL-3.0+
 
-// ZDXSV_GGPO="key=value,...": a GGPO session in a running game. Only the synctest session for now:
+// ZDXSV_GGPO="key=value,...": a GGPO session in a running game. Synctest by default:
 // every frame is saved, and every `check` frames GGPO loads the frame `check` back, reruns the
 // frames with the same inputs and compares the state checksums (EE RAM + delta state).
+// With p2p= a 2-player P2P session instead: this instance plays one pad (random input, seeded per
+// player), the peer the other. Both must start from the same state (-statefile). At the end the
+// final checksum of every frame goes to logs/zdxsv_sync.txt: diff the two peers' files.
+//   p2p=1        local player 1 or 2
+//   port=7001    local UDP port
+//   peer=7002    peer UDP port, on host= (default 127.0.0.1)
+//   delay=0      GGPO frame delay of the local input
+//   dump=F       write the final delta state of frame F (scratch masked) to logs/zdxsv_dump.bin
 //   start=1500   vsync (counted from boot) the session starts at
 //   frames=3000  frames the session runs, then it is closed and reported
 //   check=6      synctest check distance (1..6)
@@ -31,6 +39,7 @@
 #include "common/Path.h"
 #include "common/Console.h"
 #include "common/StringUtil.h"
+#include "common/Threading.h"
 #include "common/Timer.h"
 
 #include "fmt/format.h"
@@ -93,6 +102,15 @@ namespace ZdxsvGgpo
 		bool s_iop_flush = false;
 		int s_trace_frame = 0; // trace= probe
 		std::FILE* s_trace_file = nullptr;
+		int s_p2p = 0; // local player 1/2, 0 = synctest
+		int s_port = 7001, s_peer_port = 7002, s_delay = 0, s_dump_frame = -1;
+		std::string s_ref; // p2p: the peer's zdxsv_dump.bin, diffed against ours at the end
+		std::string s_peer_host = "127.0.0.1";
+		bool s_running = false; // p2p: GGPO_EVENTCODE_RUNNING seen
+		bool s_disconnected = false;
+		int s_frames_ahead = 0; // p2p: last GGPO_EVENTCODE_TIMESYNC
+		int s_waits = 0; // p2p: frames that waited for the peer
+		std::map<int, std::pair<u64, u64>> s_sums; // p2p: frame -> (EE RAM hash, delta state hash), last save wins
 
 		GGPOSession* s_session = nullptr;
 		GGPOPlayerHandle s_handles[PLAYERS] = {};
@@ -138,6 +156,20 @@ namespace ZdxsvGgpo
 					s_iop_flush = (n != 0);
 				else if (key == "trace")
 					s_trace_frame = n;
+				else if (key == "p2p")
+					s_p2p = std::clamp(n, 0, PLAYERS);
+				else if (key == "port")
+					s_port = n;
+				else if (key == "peer")
+					s_peer_port = n;
+				else if (key == "host")
+					s_peer_host = std::string(value);
+				else if (key == "delay")
+					s_delay = n;
+				else if (key == "ref")
+					s_ref = std::string(value);
+				else if (key == "dump")
+					s_dump_frame = n;
 				else
 					Console.Warning("ZdxsvGgpo: unknown key '%.*s'", static_cast<int>(key.size()), key.data());
 			}
@@ -219,8 +251,22 @@ namespace ZdxsvGgpo
 			}
 			for (int p = 0; p < PLAYERS; p++)
 			{
+				if (s_p2p && p != s_p2p - 1)
+					continue;
 				Input in = (p == 0 && s_host_input) ? HostInput() : s_random[p];
-				const GGPOErrorCode rc = ggpo_add_local_input(s_session, s_handles[p], &in, sizeof(in));
+				GGPOErrorCode rc = ggpo_add_local_input(s_session, s_handles[p], &in, sizeof(in));
+				// p2p: too far ahead of the peer's confirmed input, wait for it.
+				if (rc == GGPO_ERRORCODE_PREDICTION_THRESHOLD)
+				{
+					s_waits++;
+					Common::Timer wait;
+					while (rc == GGPO_ERRORCODE_PREDICTION_THRESHOLD && !s_disconnected && wait.GetTimeSeconds() < 10)
+					{
+						ggpo_idle(s_session, 0);
+						Threading::Sleep(1);
+						rc = ggpo_add_local_input(s_session, s_handles[p], &in, sizeof(in));
+					}
+				}
 				if (rc != GGPO_OK)
 				{
 					Console.Error("ZdxsvGgpo: add_local_input %d", rc);
@@ -251,6 +297,7 @@ namespace ZdxsvGgpo
 		};
 		constexpr u32 PAGE_SIZE = 4096;
 		std::map<int, Sample> s_first;
+		Sample s_dump; // p2p: final save of frame dump=
 		bool s_rerun = false; // the save is of a rerun frame
 		int s_diff_logged = 0;
 
@@ -299,7 +346,29 @@ namespace ZdxsvGgpo
 		}
 
 		bool __cdecl BeginGame(const char*) { return true; }
-		bool __cdecl OnEvent(GGPOEvent*) { return true; }
+		bool __cdecl OnEvent(GGPOEvent* ev)
+		{
+			switch (ev->code)
+			{
+				case GGPO_EVENTCODE_RUNNING:
+					s_running = true;
+					Console.WriteLn("ZdxsvGgpo: p2p running");
+					break;
+				case GGPO_EVENTCODE_TIMESYNC:
+					s_frames_ahead = ev->u.timesync.frames_ahead;
+					break;
+				case GGPO_EVENTCODE_DISCONNECTED_FROM_PEER:
+					s_disconnected = true;
+					Console.Warning("ZdxsvGgpo: p2p peer disconnected");
+					break;
+				case GGPO_EVENTCODE_CONNECTION_INTERRUPTED:
+					Console.Warning("ZdxsvGgpo: p2p connection interrupted");
+					break;
+				default:
+					break;
+			}
+			return true;
+		}
 
 		// trace= probe: the next frame to run is `frame`.
 		void TraceFrame(const char* what, int frame)
@@ -340,7 +409,23 @@ namespace ZdxsvGgpo
 			*checksum = static_cast<int>(hash ^ (hash >> 32));
 			std::vector<u8> masked = *state;
 			ZdxsvDeltaState::MaskScratch(masked);
-			if (s_rerun)
+			if (s_p2p)
+			{
+				// A rerun after a misprediction legitimately differs: keep the last save of each frame.
+				s_sums[frame] = {XXH3_64bits(sample.pages.data(), sample.pages.size() * sizeof(u64)), ZdxsvDeltaState::HashState(*state)};
+				if (frame == s_dump_frame)
+				{
+					if (std::FILE* f = FileSystem::OpenCFile(Path::Combine(EmuFolders::Logs, "zdxsv_dump.bin").c_str(), "wb"))
+					{
+						std::fwrite(sample.pages.data(), sizeof(u64), sample.pages.size(), f);
+						std::fwrite(masked.data(), 1, masked.size(), f);
+						std::fclose(f);
+					}
+					s_dump.pages = sample.pages;
+					s_dump.state = masked;
+				}
+			}
+			else if (s_rerun)
 			{
 				const auto first = s_first.find(frame);
 				if (first != s_first.end())
@@ -418,6 +503,44 @@ namespace ZdxsvGgpo
 			if (s_session)
 				ggpo_close_session(s_session);
 			s_session = nullptr;
+			if (s_p2p)
+			{
+				// Frames near the end may still be unconfirmed: leave out the last prediction window.
+				int written = 0;
+				if (std::FILE* f = FileSystem::OpenCFile(Path::Combine(EmuFolders::Logs, "zdxsv_sync.txt").c_str(), "w"))
+				{
+					for (const auto& [frame, sums] : s_sums)
+					{
+						if (frame >= s_session_frames - GGPO_MAX_PREDICTION_FRAMES - 2)
+							break;
+						std::fprintf(f, "%d %016llx %016llx\n", frame, static_cast<unsigned long long>(sums.first),
+							static_cast<unsigned long long>(sums.second));
+						written++;
+					}
+					std::fclose(f);
+				}
+				Console.WriteLn("ZdxsvGgpo: p2p sync file %d frames, waits %d", written, s_waits);
+				// DIFF lines: "first" = the peer, "rerun" = this instance.
+				if (!s_ref.empty() && !s_dump.pages.empty())
+				{
+					if (std::optional<std::vector<u8>> data = FileSystem::ReadBinaryFile(s_ref.c_str()))
+					{
+						const size_t page_bytes = s_dump.pages.size() * sizeof(u64);
+						if (data->size() >= page_bytes)
+						{
+							Sample peer;
+							peer.pages.resize(s_dump.pages.size());
+							std::memcpy(peer.pages.data(), data->data(), page_bytes);
+							peer.state.assign(data->data() + page_bytes, data->data() + data->size());
+							s_diff_logged = 0;
+							Diff(s_dump_frame, peer, s_dump.pages, s_dump.state);
+							Console.WriteLn("ZdxsvGgpo: p2p dump diff vs %s done", s_ref.c_str());
+						}
+					}
+					else
+						Console.Warning("ZdxsvGgpo: p2p no peer dump %s", s_ref.c_str());
+				}
+			}
 			ggpo_set_log_function(nullptr);
 			g_active = false;
 			ZdxsvDeltaState::Clear();
@@ -435,6 +558,48 @@ namespace ZdxsvGgpo
 			cb.free_buffer = FreeBuffer;
 			cb.advance_frame = AdvanceFrame;
 			cb.on_event = OnEvent;
+			if (s_p2p)
+			{
+				if (ggpo_start_session(&s_session, &cb, "zdxsv", PLAYERS, sizeof(Input), static_cast<unsigned short>(s_port), nullptr, 0) != GGPO_OK)
+				{
+					s_session = nullptr;
+					return false;
+				}
+				ggpo_set_disconnect_timeout(s_session, 5000);
+				ggpo_set_disconnect_notify_start(s_session, 1000);
+				for (int p = 0; p < PLAYERS; p++)
+				{
+					GGPOPlayer player{};
+					player.size = sizeof(GGPOPlayer);
+					player.player_num = p + 1;
+					player.type = (p == s_p2p - 1) ? GGPO_PLAYERTYPE_LOCAL : GGPO_PLAYERTYPE_REMOTE;
+					if (player.type == GGPO_PLAYERTYPE_REMOTE)
+					{
+						StringUtil::Strlcpy(player.u.remote.ip_address, s_peer_host.c_str(), sizeof(player.u.remote.ip_address));
+						player.u.remote.port = static_cast<unsigned short>(s_peer_port);
+					}
+					if (ggpo_add_player(s_session, &player, &s_handles[p]) != GGPO_OK)
+						return false;
+					if (player.type == GGPO_PLAYERTYPE_LOCAL)
+						ggpo_set_frame_delay(s_session, s_handles[p], s_delay);
+				}
+				// Block until the peer is synchronized (both instances wait here at the same vsync).
+				Common::Timer wait;
+				while (!s_running && wait.GetTimeSeconds() < 60)
+				{
+					ggpo_idle(s_session, 0);
+					Threading::Sleep(1);
+				}
+				if (!s_running)
+				{
+					Console.Error("ZdxsvGgpo: p2p peer not synchronized in 60 s");
+					return false;
+				}
+				s_rng.seed(s_seed);
+				Console.WriteLn("ZdxsvGgpo: p2p player %d port %d peer %s:%d delay %d start=%d frames=%d seed=%u mask=%04x",
+					s_p2p, s_port, s_peer_host.c_str(), s_peer_port, s_delay, s_start, s_frames, s_seed, s_mask);
+				return true;
+			}
 			if (ggpo_start_synctest(&s_session, &cb, "zdxsv", PLAYERS, sizeof(Input), s_check) != GGPO_OK)
 			{
 				s_session = nullptr;
@@ -493,6 +658,21 @@ namespace ZdxsvGgpo
 			return;
 		}
 		s_session_frames++;
+		if (s_disconnected)
+		{
+			Stop("disconnected");
+			return;
+		}
+		// p2p: ahead of the peer, give it time to catch up (GGPO's suggested frames, at 60 fps).
+		if (const int ahead = std::exchange(s_frames_ahead, 0); ahead > 0)
+		{
+			Common::Timer wait;
+			while (wait.GetTimeMilliseconds() < ahead * 1000.0 / 60.0)
+			{
+				ggpo_idle(s_session, 0);
+				Threading::Sleep(1);
+			}
+		}
 		if (s_session_frames >= s_frames)
 		{
 			Stop("done");
