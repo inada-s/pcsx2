@@ -93,6 +93,7 @@ namespace Sessions
 		// zdxsv: tell the lobby server this peer is an emulator (see TCP_Session_In.cpp)
 		bool zdxsvChecked = false;
 		void ZdxsvSendPlatformInfo(const u8* data, int len);
+		void ZdxsvAdopted();
 		// zdxsv: strips the lobby's battle info notice (DEV9/Zdxsv), set with udp=1
 		std::unique_ptr<Zdxsv::LobbyFilter> zdxsvLobbyFilter;
 
@@ -103,6 +104,8 @@ namespace Sessions
 		bool ShouldWaitForAck();
 		std::tuple<u32, std::vector<u32>> GetAllMyNumbers();
 		void ResetMyNumbers();
+		// zdxsv: continue at the PS2's ack (connection adopted after a state load)
+		void AdoptMyNumbers(u32 ack);
 
 		NumCheckResult CheckRepeatSYNNumbers(PacketReader::IP::TCP::TCP_Packet* tcp);
 		NumCheckResult CheckNumbers(PacketReader::IP::TCP::TCP_Packet* tcp, bool rejectOldSeq = false);

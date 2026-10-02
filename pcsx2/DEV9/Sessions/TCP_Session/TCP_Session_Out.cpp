@@ -101,19 +101,28 @@ namespace Sessions
 		destPort = tcp->destinationPort;
 		srcPort = tcp->sourcePort;
 
-		if (tcp->GetSYN() == false)
+		// zdxsv: after a state load the PS2 keeps using connections this process
+		// never saw; adopt them (new host connection to the same address,
+		// sequence numbers continue the PS2's) instead of resetting them.
+		const bool adopt = tcp->GetSYN() == false && Zdxsv::AdoptConnections();
+		if (tcp->GetSYN() == false && !adopt)
 		{
 			CloseByRemoteRST();
 			Console.Error("DEV9: TCP: Attempt to send data to a non connected connection");
 			return true;
 		}
-		expectedSeqNumber = tcp->sequenceNumber + 1;
+		expectedSeqNumber = tcp->sequenceNumber + (adopt ? 0 : 1);
 		// Reset last received numbers
 		receivedPS2SeqNumbers.clear();
 		for (int i = 0; i < receivedPS2SeqNumberCount; i++)
 			receivedPS2SeqNumbers.push_back(tcp->sequenceNumber);
 
 		ResetMyNumbers();
+		if (adopt)
+		{
+			AdoptMyNumbers(tcp->acknowledgementNumber);
+			timeStampStart = std::chrono::steady_clock::now();
+		}
 
 		for (size_t i = 0; i < tcp->options.size(); i++)
 		{
@@ -237,6 +246,26 @@ namespace Sessions
 				return false;
 			}
 			// Compleation of socket connection checked in recv
+		}
+
+		if (adopt)
+		{
+			fd_set writeSet;
+			FD_ZERO(&writeSet);
+			FD_SET(client, &writeSet);
+			timeval wait{3, 0};
+			if (select(client + 1, nullptr, &writeSet, nullptr, &wait) != 1)
+			{
+				CloseByRemoteRST();
+				Console.Error("DEV9: TCP: zdxsv adopt to port %u failed (no connect in 3 s)", destPort);
+				return true;
+			}
+			Console.WriteLn("DEV9: TCP: zdxsv adopted connection %d.%d.%d.%d:%u after state load (seq %u ack %u)",
+				destIP.bytes[0], destIP.bytes[1], destIP.bytes[2], destIP.bytes[3], destPort,
+				tcp->sequenceNumber, tcp->acknowledgementNumber);
+			state = TCP_State::Connected;
+			ZdxsvAdopted();
+			return SendData(tcp);
 		}
 
 		state = TCP_State::SendingSYN_ACK;
