@@ -2,7 +2,7 @@ name: zdxsv release
 
 # Push a tag zdxsv-X.Y.Z -> Windows build -> GitHub release with
 # pcsx2-zdxsv-windows-x64.7z (auto updater) and .zip (first install).
-# A tag with a suffix (zdxsv-1.0.0-rc1) becomes a prerelease, which the updater skips.
+# A tag with a suffix (zdxsv-0.0.1-rc1) becomes a prerelease, which the updater skips.
 on:
   push:
     tags:
