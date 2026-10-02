@@ -6,7 +6,8 @@
 // announce "udp=1" in their platform info. LobbyFilter strips it from the
 // game's stream; the game's next TCP connect to the battle server is
 // redirected to a loopback listener whose thread speaks zdxsv's UDP protocol
-// (HelloServer, then Battle packets with seq/ack) to the battle server.
+// (HelloServer, then Battle packets with seq/ack) to the battle server, and
+// straight to the peers that answer its pings (zproxy's P2P).
 // Self-contained (sockets + std only) so it builds outside pcsx2 for tests.
 
 #pragma once
@@ -15,6 +16,7 @@
 #include <cstdint>
 #include <functional>
 #include <string>
+#include <utility>
 #include <vector>
 
 namespace Zdxsv
@@ -26,7 +28,23 @@ namespace Zdxsv
 		uint32_t serverIP = 0; // network byte order
 		uint16_t serverPort = 0;
 		std::vector<std::string> users; // every player, self included
+		// "p2p_<user>=ip:port,ip:port": UDP candidates of peers that reported them
+		// (public, then local). Battle data also goes straight to a peer once it
+		// answers a ping; the server relay stays on for every message.
+		struct Peer
+		{
+			std::string userId;
+			std::vector<std::pair<uint32_t, uint16_t>> addrs; // network byte order ip, host order port
+		};
+		std::vector<Peer> p2p;
 	};
+	// Opens the UDP socket the bridge uses (kept across battles, so the lobby
+	// can hand its address to peers) on bindPort (0 = any), asks the lobby's UDP
+	// STUN (zdxsv ServeUDPStunServer) at stunIP:stunPort for the public address
+	// and keeps that mapping alive (a ping every 10 s).
+	// Returns platform info lines "udp_addr=..\nudp_local=..\n" (udp_addr only if
+	// STUN answered); "" if the socket can't be opened.
+	std::string OpenUdp(uint32_t stunIP, uint16_t stunPort, uint16_t bindPort = 0);
 
 	// Log sink (pcsx2: Console). Default: none.
 	void SetLogger(std::function<void(const std::string&)> log);
@@ -88,6 +106,10 @@ namespace Zdxsv
 			std::string helloSessionId;
 			bool helloOk = false;
 			std::vector<BattleMessage> battle;
+			// Ping: timestamp + user_id; Pong: + public_addr (STUN answer).
+			int64_t timestamp = 0;
+			std::string pingUserId;
+			std::string publicAddr;
 		};
 
 		std::vector<uint8_t> Encode(const Packet& p);

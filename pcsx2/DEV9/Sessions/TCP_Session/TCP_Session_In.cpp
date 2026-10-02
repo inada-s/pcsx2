@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0+
 
 #include <algorithm>
+#include <bit>
 #include <cstdlib>
 #include <string>
 #include <thread>
@@ -254,6 +255,10 @@ namespace Sessions
 		{
 			body += "udp=1\n";
 			Zdxsv::SetLogger([](const std::string& s) { Console.WriteLn("DEV9: %s", s.c_str()); });
+			// udp_addr/udp_local: where peers reach this emulator (P2P). The lobby's
+			// UDP STUN is on its host at 8201 (zdxsv docker-compose); ZDXSV_STUN_PORT overrides.
+			const char* stunPort = std::getenv("ZDXSV_STUN_PORT");
+			body += Zdxsv::OpenUdp(std::bit_cast<u32>(destIP), stunPort ? static_cast<u16>(std::atoi(stunPort)) : 8201);
 			zdxsvLobbyFilter = std::make_unique<Zdxsv::LobbyFilter>();
 		}
 
