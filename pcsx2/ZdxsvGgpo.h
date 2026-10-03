@@ -23,4 +23,11 @@ namespace ZdxsvGgpo
 	void OnExecuteReturned();
 	// In Pad::SetControllerState: true when the host input was taken (session running).
 	bool CaptureHostInput(u32 controller, u32 bind, float value);
+
+	// Z battle net HLE (#31 step 4). The EE recompiler calls OnNetRpc when the game enters its
+	// net RPC wrapper (NET_RPC_PC: fno in a0, request header + data at 0xc22c9c).
+	// ZDXSV_NET_TRACE=<file>: log every battle send (fno 0x10, sock 0) and its parsed key slots.
+	constexpr u32 NET_RPC_PC = 0x30e380;
+	extern bool g_net_hook; // the recompiler emits the OnNetRpc call at NET_RPC_PC
+	void OnNetRpc();
 } // namespace ZdxsvGgpo

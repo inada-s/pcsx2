@@ -6,6 +6,7 @@
 #include "Counters.h"
 #include "DebugTools/Breakpoints.h"
 #include "ZdxsvDeltaState.h"
+#include "ZdxsvGgpo.h"
 #include "Elfheader.h"
 #include "GS.h"
 #include "Host.h"
@@ -1750,6 +1751,11 @@ void recompileNextInstruction(bool delayslot, bool swapped_delay_slot)
 			xFastCall((void*)CBreakPoints::CommitClearSkipFirst, BREAKPOINT_EE);
 		if (!s_zdxsv_probe_pcs.empty())
 			encodeZdxsvProbe();
+		if (ZdxsvGgpo::g_net_hook && pc == ZdxsvGgpo::NET_RPC_PC)
+		{
+			iFlushCall(FLUSH_EVERYTHING | FLUSH_PC);
+			xFastCall((void*)ZdxsvGgpo::OnNetRpc);
+		}
 	}
 	else
 	{

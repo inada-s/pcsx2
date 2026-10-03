@@ -29,6 +29,7 @@
 #include "ZdxsvGgpo.h"
 #include "ZdxsvDeltaState.h"
 #include "Config.h"
+#include "Counters.h"
 #include "Memory.h"
 #include "R3000A.h"
 #include "R5900.h"
@@ -770,5 +771,84 @@ namespace ZdxsvGgpo
 		if (controller == 0 && bind < s_host.size())
 			s_host[bind] = value;
 		return controller < PLAYERS;
+	}
+
+	namespace
+	{
+		// Z net RPC request header (EE RAM): sock s16, len s16, then data. Result length s16 at 0xc22c98.
+		constexpr u32 NET_REQ_SOCK = 0xc22c9c;
+		constexpr u32 NET_REQ_LEN = 0xc22c9e;
+		constexpr u32 NET_REQ_DATA = 0xc22ca0;
+		constexpr u32 NET_FNO_SEND = 0x10;
+		constexpr u32 NET_BATTLE_SOCK = 0;
+		std::FILE* s_net_trace = [] {
+			const char* p = std::getenv("ZDXSV_NET_TRACE");
+			return p ? std::fopen(p, "w") : nullptr;
+		}();
+	} // namespace
+
+	bool g_net_hook = s_net_trace != nullptr;
+
+	// One key slot per frame: counter c (6 bits), game-wide k and X (X only in records), and for an
+	// input record its A/B words. Key msg (kind 2) = 2 slots: `(0x80|c, k)` or `00 c A0 A1 X k B0 B1`.
+	struct KeySlot
+	{
+		u8 c, x, k;
+		bool rec;
+		u16 a, b;
+	};
+
+	static bool ParseKeySlots(const u8* m, u32 n, std::vector<KeySlot>& out)
+	{
+		for (u32 i = 2; i < n;)
+		{
+			if (m[i] & 0x80)
+			{
+				if (i + 2 > n)
+					return false;
+				out.push_back({static_cast<u8>(m[i] & 0x3f), 0, m[i + 1], false, 0, 0});
+				i += 2;
+			}
+			else
+			{
+				if (i + 8 > n)
+					return false;
+				out.push_back({static_cast<u8>(m[i + 1] & 0x3f), m[i + 4], m[i + 5], true,
+					static_cast<u16>(m[i + 2] << 8 | m[i + 3]), static_cast<u16>(m[i + 6] << 8 | m[i + 7])});
+				i += 8;
+			}
+		}
+		return true;
+	}
+
+	void OnNetRpc()
+	{
+		const u32 fno = cpuRegs.GPR.n.a0.UL[0];
+		const u8* ram = eeMem->Main;
+		const s16 sock = *reinterpret_cast<const s16*>(ram + NET_REQ_SOCK);
+		const s16 len = *reinterpret_cast<const s16*>(ram + NET_REQ_LEN);
+		if (fno != NET_FNO_SEND || sock != NET_BATTLE_SOCK || len <= 0 || len > 0x3ca || !s_net_trace)
+			return;
+		const u8* d = ram + NET_REQ_DATA;
+		std::string hex;
+		for (int i = 0; i < len; i++)
+			hex += fmt::format("{:02x}", d[i]);
+		std::fprintf(s_net_trace, "%u S %s", g_FrameCount, hex.c_str());
+		// McsMessage framing: byte 0 = length, byte 1 = kind << 4 | sender.
+		for (int i = 0; i + 1 < len && d[i] >= 2; i += d[i])
+		{
+			if ((d[i + 1] >> 4) != 2 || i + d[i] > len)
+				continue;
+			std::vector<KeySlot> slots;
+			if (!ParseKeySlots(d + i, d[i], slots))
+			{
+				std::fputs(" bad", s_net_trace);
+				continue;
+			}
+			for (const KeySlot& s : slots)
+				std::fprintf(s_net_trace, s.rec ? " %02x:%02x:%02x:%04x/%04x" : " %02x:%02x", s.c, s.k, s.x, s.a, s.b);
+		}
+		std::fputc('\n', s_net_trace);
+		std::fflush(s_net_trace);
 	}
 } // namespace ZdxsvGgpo
