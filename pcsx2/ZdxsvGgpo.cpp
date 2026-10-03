@@ -110,6 +110,18 @@ namespace ZdxsvGgpo
 		bool s_net = false; // net=1 parsed
 		int s_players = 4; // players= (net)
 		int s_relay = 0; // relay=R (net): remote p is at port R + 8 * me + p (zdxsv/udprelay.py per pair), not port + p
+		// zd=1 (net, @inada-s: game-side input delay 0, all delay from GGPO): the own pad goes to the
+		// game undelayed; NetInput.pad carries the game's own last record (A, B) instead, and the
+		// lockstep step reads every position's (A, B) of the running GGPO frame (OnStepCopy), not
+		// its ring entry that the msgs filled 3 counters ahead.
+		const bool s_zd_env = [] {
+			const char* e = std::getenv("ZDXSV_GGPO");
+			return e && s_net_env && std::strstr(e, "zd=1");
+		}();
+		u16 s_zd_a = 0, s_zd_b = 0; // own last record
+		Input s_zd_pad[128] = {}; // own host pad per frame & 127 (reruns reapply it)
+		u16 s_zd_ab[GGPO_MAX_PLAYERS][2] = {}; // synced (A, B) of frame s_net_frame
+		u32 s_zd_steps = 0, s_zd_changed = 0;
 		bool s_net_armed = false, s_net_over = false;
 		int s_net_me = -1; // local battle position
 		std::vector<std::vector<u8>> s_net_sent; // every msg the game sent since armed, in order
@@ -881,6 +893,33 @@ namespace ZdxsvGgpo
 	} // namespace
 
 	bool g_net_hook = s_net_trace != nullptr || s_net_env;
+	bool g_zd_hook = s_zd_env;
+
+	// zd: rec hook at the lockstep step's ring read (0x312bf4, per active position: s0 = position,
+	// a1 = ring entry: +2 A, +6 B as u16; bit 0 of B is game-wide state, kept). Trace `Z frame p slot A B`.
+	void OnStepCopy()
+	{
+		if (!g_active || !s_net_armed)
+			return;
+		const int p = static_cast<s8>(cpuRegs.GPR.n.s0.UL[0]);
+		const u32 e = cpuRegs.GPR.n.a1.UL[0] & 0x1ffffff;
+		if (p < 0 || p >= s_players || e + 8 > Ps2MemSize::MainRam)
+			return;
+		u8* ram = eeMem->Main;
+		u16 a, b;
+		std::memcpy(&a, ram + e + 2, 2);
+		std::memcpy(&b, ram + e + 6, 2);
+		const u16 na = s_zd_ab[p][0];
+		const u16 nb = static_cast<u16>((s_zd_ab[p][1] & ~1u) | (b & 1u));
+		s_zd_steps++;
+		if (a != na || b != nb)
+			s_zd_changed++;
+		std::memcpy(ram + e + 2, &na, 2);
+		std::memcpy(ram + e + 6, &nb, 2);
+		if (s_net_trace)
+			std::fprintf(s_net_trace, "%u Z%s %d %d %02x %04x %04x %04x %04x\n", g_FrameCount, g_in_rollback ? "r" : "",
+				s_net_frame, p, ((e - 0xc61f40) / 8) & 63, na, nb, a, b);
+	}
 
 	// One key slot per frame: counter c (6 bits), game-wide k and X (X only in records), and for an
 	// input record its A/B words. Key msg (kind 2) = 2 slots: `(0x80|c, k)` or `00 c A0 A1 X k B0 B1`.
@@ -914,6 +953,19 @@ namespace ZdxsvGgpo
 		return true;
 	}
 
+	// zd: the game's own last record A/B (= its input, lag 0 from the pad edge).
+	static void NoteOwnRecords(const u8* d, s32 len)
+	{
+		for (s32 i = 0; i + 1 < len && d[i] >= 2 && i + d[i] <= len; i += d[i])
+		{
+			std::vector<KeySlot> slots;
+			if ((d[i + 1] >> 4) == 2 && ParseKeySlots(d + i, d[i], slots))
+				for (const KeySlot& s : slots)
+					if (s.rec)
+						s_zd_a = s.a, s_zd_b = s.b;
+		}
+	}
+
 	void NoteOwnSend(const KeySlot& s);
 
 	// NET_TRACE: per frame, the pad in EE RAM when it changed: `P` raw SIO buffer (8 B, buttons
@@ -922,6 +974,19 @@ namespace ZdxsvGgpo
 	{
 		constexpr u32 PAD_RAW = 0x6f2460;
 		constexpr u32 PAD_GAME = 0x117f4d9;
+		// `A vsync frame A0..A3`: pad module A cur per position (0x6f2500 + 16p, the applied input, s614)
+		if (s_net_trace && !g_in_rollback)
+		{
+			static u16 last_a[4];
+			u16 a[4];
+			for (int p = 0; p < 4; p++)
+				std::memcpy(&a[p], eeMem->Main + 0x6f2500 + 16 * p, 2);
+			if (std::memcmp(a, last_a, sizeof(a)) != 0)
+			{
+				std::memcpy(last_a, a, sizeof(a));
+				std::fprintf(s_net_trace, "%u A %d %04x %04x %04x %04x\n", g_FrameCount, s_net_frame, a[0], a[1], a[2], a[3]);
+			}
+		}
 		static u8 last[9];
 		u8 cur[9];
 		std::memcpy(cur, eeMem->Main + PAD_RAW, 8);
@@ -985,9 +1050,12 @@ namespace ZdxsvGgpo
 		const u8* ram = eeMem->Main;
 		const s16 sock = *reinterpret_cast<const s16*>(ram + NET_REQ_SOCK);
 		const s16 len = *reinterpret_cast<const s16*>(ram + NET_REQ_LEN);
-		if (fno != NET_FNO_SEND || sock != NET_BATTLE_SOCK || len <= 0 || len > 0x3ca || !s_net_trace)
+		if (fno != NET_FNO_SEND || sock != NET_BATTLE_SOCK || len <= 0 || len > 0x3ca)
 			return;
 		const u8* d = ram + NET_REQ_DATA;
+		NoteOwnRecords(d, len);
+		if (!s_net_trace)
+			return;
 		std::string hex;
 		for (int i = 0; i < len; i++)
 			hex += fmt::format("{:02x}", d[i]);
@@ -1308,6 +1376,13 @@ namespace ZdxsvGgpo
 		{
 			NetInput in = s_net_local;
 			in.pad = HostInput();
+			if (s_zd_env)
+			{
+				s_zd_pad[s_net_frame & 127] = in.pad;
+				const u16 ab[2] = {s_zd_a, s_zd_b};
+				in.pad = {};
+				std::memcpy(&in.pad, ab, sizeof(ab));
+			}
 			std::vector<u8> data;
 			while (!s_net_out.empty())
 			{
@@ -1363,8 +1438,11 @@ namespace ZdxsvGgpo
 				Console.Error("ZdxsvGgpo: net synchronize_input %d", rc);
 				return false;
 			}
-			ApplyPad(0, in[s_net_me].pad);
 			const int f = s_net_frame;
+			ApplyPad(0, s_zd_env ? s_zd_pad[f & 127] : in[s_net_me].pad);
+			if (s_zd_env)
+				for (int p = 0; p < s_players; p++)
+					std::memcpy(s_zd_ab[p], &in[p].pad, sizeof(s_zd_ab[p]));
 			for (int p = 0; p < s_players; p++)
 			{
 				if (p != s_net_me && in[p].seq != s_net_seq_at[(f - 1) & 63][p])
@@ -1386,6 +1464,8 @@ namespace ZdxsvGgpo
 			Console.WriteLn("ZdxsvGgpo: net sends %u msgs %u (sent %zu, unsent %zu) recvs %u rxmsgs %u rxbytes %u polls %u other %u nowait %u senddiff %u toolong %u maxq %u waits %d",
 				s_ns.sends, s_ns.msgs, s_net_sent.size(), s_net_out.size(), s_ns.recvs, s_ns.rxmsgs, s_ns.rxbytes, s_ns.polls,
 				s_ns.other, s_ns.nowait, s_ns.senddiff, s_ns.toolong, s_ns.maxq, s_waits);
+			if (s_zd_env)
+				Console.WriteLn("ZdxsvGgpo: zd steps %u changed %u", s_zd_steps, s_zd_changed);
 		}
 	} // namespace
 

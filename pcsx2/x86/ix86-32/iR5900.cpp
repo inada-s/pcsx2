@@ -15,6 +15,10 @@ namespace ZdxsvGgpo
 	void OnNetRecv();
 	// At NET_RPC_PC: true = the RPC was answered here (v0 set, pc = ra), skip the wrapper.
 	bool OnNetCall();
+	// zd=1: lockstep step's ring read (0x312bf4: a1 = ring entry, s0 = position) gets the GGPO input.
+	constexpr u32 STEP_COPY_PC = 0x312bf4;
+	extern bool g_zd_hook;
+	void OnStepCopy();
 }
 #include "Elfheader.h"
 #include "GS.h"
@@ -1774,6 +1778,11 @@ void recompileNextInstruction(bool delayslot, bool swapped_delay_slot)
 		{
 			iFlushCall(FLUSH_EVERYTHING | FLUSH_PC);
 			xFastCall((void*)ZdxsvGgpo::OnNetRecv);
+		}
+		if (ZdxsvGgpo::g_zd_hook && pc == ZdxsvGgpo::STEP_COPY_PC)
+		{
+			iFlushCall(FLUSH_EVERYTHING | FLUSH_PC);
+			xFastCall((void*)ZdxsvGgpo::OnStepCopy);
 		}
 	}
 	else
