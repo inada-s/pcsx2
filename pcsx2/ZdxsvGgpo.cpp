@@ -49,6 +49,8 @@
 #include "ggpo_log.h"
 #include "ggponet.h"
 
+#include <climits>
+
 #define XXH_STATIC_LINKING_ONLY 1
 #define XXH_INLINE_ALL 1
 #include "xxhash.h"
@@ -121,7 +123,12 @@ namespace ZdxsvGgpo
 		u16 s_zd_a = 0, s_zd_b = 0; // own last record
 		Input s_zd_pad[128] = {}; // own host pad per frame & 127 (reruns reapply it)
 		u16 s_zd_ab[GGPO_MAX_PLAYERS][2] = {}; // synced (A, B) of frame s_net_frame
-		u32 s_zd_steps = 0, s_zd_changed = 0;
+		u16 s_zd_hist[128][GGPO_MAX_PLAYERS][2] = {}; // synced (A, B) per frame & 127
+		// GGPO frame where sender p's key slot c entered the synced input stream. Peers step slot c at
+		// different frames (own msg is local, s616 run1), so the step applies (A, B) of a frame all
+		// peers agree on: K(c) = 2nd latest entry frame, the earliest frame any peer can step c.
+		int s_zd_fin[64][GGPO_MAX_PLAYERS];
+		u32 s_zd_steps = 0, s_zd_changed = 0, s_zd_nok = 0;
 		bool s_net_armed = false, s_net_over = false;
 		int s_net_me = -1; // local battle position
 		std::vector<std::vector<u8>> s_net_sent; // every msg the game sent since armed, in order
@@ -895,6 +902,27 @@ namespace ZdxsvGgpo
 	bool g_net_hook = s_net_trace != nullptr || s_net_env;
 	bool g_zd_hook = s_zd_env;
 
+	// K(c) (s_zd_fin) or -1 if unusable. An entry > 32 frames older than the newest is the previous
+	// use of the slot (64 counters ago) = not yet in the stream (own msg, sent < delay frames ago).
+	static int ZdKeyFrame(int c)
+	{
+		int newest = INT_MIN;
+		for (int p = 0; p < s_players; p++)
+			newest = std::max(newest, s_zd_fin[c][p]);
+		int first = INT_MIN, second = INT_MIN;
+		for (int p = 0; p < s_players; p++)
+		{
+			const int v = s_zd_fin[c][p] < newest - 32 ? INT_MAX : s_zd_fin[c][p];
+			if (v > first)
+				second = first, first = v;
+			else if (v > second)
+				second = v;
+		}
+		if (second == INT_MAX || second > s_net_frame || second < s_net_frame - 100)
+			return -1;
+		return second;
+	}
+
 	// zd: rec hook at the lockstep step's ring read (0x312bf4, per active position: s0 = position,
 	// a1 = ring entry: +2 A, +6 B as u16; bit 0 of B is game-wide state, kept). Trace `Z frame p slot A B`.
 	void OnStepCopy()
@@ -909,16 +937,21 @@ namespace ZdxsvGgpo
 		u16 a, b;
 		std::memcpy(&a, ram + e + 2, 2);
 		std::memcpy(&b, ram + e + 6, 2);
-		const u16 na = s_zd_ab[p][0];
-		const u16 nb = static_cast<u16>((s_zd_ab[p][1] & ~1u) | (b & 1u));
+		const int c = ram[e] & 63;
+		const int k = ZdKeyFrame(c);
+		const u16* ab = k >= 0 ? s_zd_hist[k & 127][p] : s_zd_ab[p];
+		const u16 na = ab[0];
+		const u16 nb = static_cast<u16>((ab[1] & ~1u) | (b & 1u));
 		s_zd_steps++;
+		if (k < 0)
+			s_zd_nok++;
 		if (a != na || b != nb)
 			s_zd_changed++;
 		std::memcpy(ram + e + 2, &na, 2);
 		std::memcpy(ram + e + 6, &nb, 2);
 		if (s_net_trace)
-			std::fprintf(s_net_trace, "%u Z%s %d %d %02x %04x %04x %04x %04x\n", g_FrameCount, g_in_rollback ? "r" : "",
-				s_net_frame, p, ((e - 0xc61f40) / 8) & 63, na, nb, a, b);
+			std::fprintf(s_net_trace, "%u Z%s %d %d %02x %04x %04x %04x %04x %02x %d\n", g_FrameCount, g_in_rollback ? "r" : "",
+				s_net_frame, p, ((e - 0xc61f40) / 8) & 63, na, nb, a, b, c, k);
 	}
 
 	// One key slot per frame: counter c (6 bits), game-wide k and X (X only in records), and for an
@@ -1327,6 +1360,7 @@ namespace ZdxsvGgpo
 
 		bool NetStart(GGPOSessionCallbacks& cb)
 		{
+			std::fill(&s_zd_fin[0][0], &s_zd_fin[0][0] + 64 * GGPO_MAX_PLAYERS, -100000);
 			if (s_net_me < 0 || s_net_me >= s_players)
 			{
 				Console.Error("ZdxsvGgpo: net position %d not below players=%d", s_net_me, s_players);
@@ -1442,13 +1476,26 @@ namespace ZdxsvGgpo
 			ApplyPad(0, s_zd_env ? s_zd_pad[f & 127] : in[s_net_me].pad);
 			if (s_zd_env)
 				for (int p = 0; p < s_players; p++)
+				{
 					std::memcpy(s_zd_ab[p], &in[p].pad, sizeof(s_zd_ab[p]));
+					std::memcpy(s_zd_hist[f & 127][p], &in[p].pad, sizeof(s_zd_ab[p]));
+				}
 			for (int p = 0; p < s_players; p++)
 			{
-				if (p != s_net_me && in[p].seq != s_net_seq_at[(f - 1) & 63][p])
+				const bool fresh = in[p].seq != s_net_seq_at[(f - 1) & 63][p];
+				const u8* d = in[p].data;
+				const u32 len = std::min<u32>(in[p].len, sizeof(in[p].data));
+				// a predicted input repeats its seq, so entries come only from real inputs: no rollback state
+				if (s_zd_env && fresh)
+					for (u32 i = 0; i + 1 < len && d[i] >= 2 && i + d[i] <= len; i += d[i])
+					{
+						std::vector<KeySlot> slots;
+						if ((d[i + 1] >> 4) == 2 && ParseKeySlots(d + i, d[i], slots))
+							for (const KeySlot& s : slots)
+								s_zd_fin[s.c][p] = f;
+					}
+				if (p != s_net_me && fresh)
 				{
-					const u8* d = in[p].data;
-					const u32 len = std::min<u32>(in[p].len, sizeof(in[p].data));
 					for (u32 i = 0; i + 1 < len && d[i] >= 2 && i + d[i] <= len; i += d[i])
 						if ((d[i + 1] >> 4) == 0xf && s_net_end < 0)
 							s_net_end = 0;
@@ -1465,7 +1512,7 @@ namespace ZdxsvGgpo
 				s_ns.sends, s_ns.msgs, s_net_sent.size(), s_net_out.size(), s_ns.recvs, s_ns.rxmsgs, s_ns.rxbytes, s_ns.polls,
 				s_ns.other, s_ns.nowait, s_ns.senddiff, s_ns.toolong, s_ns.maxq, s_waits);
 			if (s_zd_env)
-				Console.WriteLn("ZdxsvGgpo: zd steps %u changed %u", s_zd_steps, s_zd_changed);
+				Console.WriteLn("ZdxsvGgpo: zd steps %u changed %u nok %u", s_zd_steps, s_zd_changed, s_zd_nok);
 		}
 	} // namespace
 
