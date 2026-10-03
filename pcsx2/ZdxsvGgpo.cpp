@@ -738,10 +738,12 @@ namespace ZdxsvGgpo
 	} // namespace
 
 	void TracePad();
+	void TraceInputs();
 
 	void OnVsync()
 	{
 		TracePad();
+		TraceInputs();
 		if (!g_enabled)
 			return;
 		if (!g_active)
@@ -871,6 +873,7 @@ namespace ZdxsvGgpo
 		constexpr u32 NET_REQ_DATA = 0xc22ca0;
 		constexpr u32 NET_FNO_SEND = 0x10;
 		constexpr u32 NET_BATTLE_SOCK = 0;
+		u32 s_game_gp = 0; // game gp, latched in OnNetRpc
 		std::FILE* s_net_trace = [] {
 			const char* p = std::getenv("ZDXSV_NET_TRACE");
 			return p ? std::fopen(p, "w") : nullptr;
@@ -930,8 +933,54 @@ namespace ZdxsvGgpo
 			cur[0], cur[1], cur[2], cur[3], cur[4], cur[5], cur[6], cur[7], cur[8]);
 	}
 
+	// NET_TRACE `I`: the game's per-position input array (16 B entries at *(gp-0x5b28) + 0x4d8,
+	// reader 0x2ba63c, s614), bytes 0-7 of each + the base, when changed.
+	void TraceInputs()
+	{
+		// ZDXSV_RAM_DUMP=dir,start,step,count: EE RAM (32 MB) to dir/<frame>.bin.
+		static const auto dump = [] {
+			std::tuple<std::string, u32, u32, u32> d{"", 0, 1, 0};
+			if (const char* e = std::getenv("ZDXSV_RAM_DUMP"))
+			{
+				char dir[512];
+				u32 a, b, c;
+				if (std::sscanf(e, "%511[^,],%u,%u,%u", dir, &a, &b, &c) == 4)
+					d = {dir, a, b ? b : 1, c};
+			}
+			return d;
+		}();
+		const auto& [ddir, dstart, dstep, dcount] = dump;
+		if (!g_in_rollback && dcount && g_FrameCount >= dstart && g_FrameCount < dstart + dstep * dcount &&
+			(g_FrameCount - dstart) % dstep == 0)
+		{
+			if (std::FILE* fp = std::fopen(fmt::format("{}/{}.bin", ddir, g_FrameCount).c_str(), "wb"))
+			{
+				std::fwrite(eeMem->Main, 1, Ps2MemSize::MainRam, fp);
+				std::fclose(fp);
+			}
+		}
+		if (!s_net_trace || g_in_rollback || !s_game_gp)
+			return;
+		const u32 base = *reinterpret_cast<const u32*>(eeMem->Main + ((s_game_gp - 0x5b28) & 0x1fffffc)) & 0x1ffffff;
+		if (base == 0 || base + 0x4d8 + 64 > Ps2MemSize::MainRam)
+			return;
+		static u8 last[36];
+		u8 cur[36];
+		for (int p = 0; p < 4; p++)
+			std::memcpy(cur + 8 * p, eeMem->Main + base + 0x4d8 + 16 * p, 8);
+		std::memcpy(cur + 32, &base, 4);
+		if (std::memcmp(cur, last, 36) == 0)
+			return;
+		std::memcpy(last, cur, 36);
+		std::string hex;
+		for (int i = 0; i < 32; i++)
+			hex += (i % 8 == 0 ? " " : "") + fmt::format("{:02x}", cur[i]);
+		std::fprintf(s_net_trace, "%u I%s %x\n", g_FrameCount, hex.c_str(), base);
+	}
+
 	void OnNetRpc()
 	{
+		s_game_gp = cpuRegs.GPR.n.gp.UL[0];
 		const u32 fno = cpuRegs.GPR.n.a0.UL[0];
 		const u8* ram = eeMem->Main;
 		const s16 sock = *reinterpret_cast<const s16*>(ram + NET_REQ_SOCK);
