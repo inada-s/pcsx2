@@ -794,9 +794,16 @@ namespace ZdxsvGgpo
 	{
 		static int want[3] = {-2, 0, 0};
 		static int slots6 = 0;
+		static int cap6 = 0;
+		static bool shook = false; // tick state 8 (round start handshake) seen
 		if (want[0] == -2)
 		{
 			want[0] = -1;
+			if (const char* e = std::getenv("ZDXSV_NET_CAP6"))
+			{
+				cap6 = std::atoi(e);
+				Console.WriteLn("ZdxsvGgpo: lead cap %d in battle state 6 after the first handshake", cap6);
+			}
 			if (const char* e = std::getenv("ZDXSV_NET_TABLE"))
 			{
 				int n = std::sscanf(e, "%d,%d,%d", &want[0], &want[1], &want[2]);
@@ -820,6 +827,19 @@ namespace ZdxsvGgpo
 				slots = slots6;
 			else if ((st == 5 || st == 7 || st == 8) && slots == slots6) // battle states seen in s617
 				slots = 2;
+		}
+		// ZDXSV_NET_CAP6=N: live lead cap byte 0xc62be1 = N in state 6, stock 5 in 5/7/8. Not in the
+		// pre-start state 6 (frames 0-5 before the first state 8): a lead > 5 there sends key msgs the
+		// stock game does not, and the handshake's kind 3 becomes a GGPO senddiff (s618 run5/6 hang).
+		if (cap6 > 0)
+		{
+			u8& cap = eeMem->Main[0xc62be1];
+			const u8 st = eeMem->Main[0xc627b4];
+			shook = shook || st == 8;
+			if (shook && st == 6 && cap == 5)
+				cap = static_cast<u8>(cap6);
+			else if ((st == 5 || st == 7 || st == 8) && cap == cap6)
+				cap = 5;
 		}
 		if (want[0] < 0)
 			return;
