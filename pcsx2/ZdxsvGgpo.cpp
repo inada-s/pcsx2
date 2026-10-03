@@ -759,8 +759,61 @@ namespace ZdxsvGgpo
 	void TracePad();
 	void TraceInputs();
 
+	// ZDXSV_NET_TABLE=slots[,maxlead[,leadcap]]: game patch of the battle net table 0x5ffba0 (6 x
+	// {slots per key msg, max lockstep lead, lead cap} as s32, read by the battle init 0x331ec0; stock
+	// 2,5,5 for every player count). Slots 1 = one key msg per frame (stock: 1 msg per 2 frames).
+	// Written at every vsync while the table holds the stock values (any scene, before the init).
+	// ZDXSV_NET_SLOTS6=N instead: the live slots byte 0xc62bdf = N only in tick state 6 (battle
+	// running), 2 in the other states (round start handshake, s617: slots 1 there diverged GGPO).
+	// A function of RAM at the vsync, so GGPO reruns repeat it.
+	void PatchNetTable()
+	{
+		static int want[3] = {-2, 0, 0};
+		static int slots6 = 0;
+		if (want[0] == -2)
+		{
+			want[0] = -1;
+			if (const char* e = std::getenv("ZDXSV_NET_TABLE"))
+			{
+				int n = std::sscanf(e, "%d,%d,%d", &want[0], &want[1], &want[2]);
+				if (n < 2)
+					want[1] = 5;
+				if (n < 3)
+					want[2] = want[1];
+				Console.WriteLn("ZdxsvGgpo: net table slots %d maxlead %d leadcap %d", want[0], want[1], want[2]);
+			}
+			if (const char* e = std::getenv("ZDXSV_NET_SLOTS6"))
+			{
+				slots6 = std::atoi(e);
+				Console.WriteLn("ZdxsvGgpo: slots %d in battle state 6", slots6);
+			}
+		}
+		if (slots6 > 0)
+		{
+			u8& slots = eeMem->Main[0xc62bdf];
+			const u8 st = eeMem->Main[0xc627b4];
+			if (st == 6 && slots == 2)
+				slots = slots6;
+			else if ((st == 5 || st == 7 || st == 8) && slots == slots6) // battle states seen in s617
+				slots = 2;
+		}
+		if (want[0] < 0)
+			return;
+		constexpr u32 TABLE = 0x5ffba0;
+		s32 cur[18];
+		std::memcpy(cur, eeMem->Main + TABLE, sizeof(cur));
+		for (int i = 0; i < 18; i++)
+			if (cur[i] != (i % 3 == 0 ? 2 : 5))
+				return;
+		for (int i = 0; i < 18; i++)
+			cur[i] = want[i % 3];
+		std::memcpy(eeMem->Main + TABLE, cur, sizeof(cur));
+		Console.WriteLn("ZdxsvGgpo: net table patched at vsync %u", g_FrameCount);
+	}
+
 	void OnVsync()
 	{
+		PatchNetTable();
 		TracePad();
 		TraceInputs();
 		if (!g_enabled)
@@ -1019,6 +1072,16 @@ namespace ZdxsvGgpo
 				std::memcpy(last_a, a, sizeof(a));
 				std::fprintf(s_net_trace, "%u A %d %04x %04x %04x %04x\n", g_FrameCount, s_net_frame, a[0], a[1], a[2], a[3]);
 			}
+			// `L vsync frame lead maxlead slots state`: lockstep lead 0xc62be0 (queued - executed
+			// counters), its cap 0xc62be1, slots per key msg 0xc62bdf, tick state 0xc627b4, when changed
+			static u8 last_l[4];
+			const u8* l = eeMem->Main + 0xc62bdf;
+			const u8 cl[4] = {l[1], l[2], l[0], eeMem->Main[0xc627b4]};
+			if (std::memcmp(cl, last_l, 4) != 0)
+			{
+				std::memcpy(last_l, cl, 4);
+				std::fprintf(s_net_trace, "%u L %d %d %d %d %d\n", g_FrameCount, s_net_frame, cl[0], cl[1], cl[2], cl[3]);
+			}
 		}
 		static u8 last[9];
 		u8 cur[9];
@@ -1237,6 +1300,8 @@ namespace ZdxsvGgpo
 		u8* ram = eeMem->Main;
 		const s32 sock = cpuRegs.GPR.n.s4.SL[0];
 		const s32 len = *reinterpret_cast<const s32*>(ram + NET_RES_LEN);
+		if (sock == NET_BATTLE_SOCK && s_net_trace && (cpuRegs.GPR.n.v0.SL[0] < 0 || len < 0 || len > 0x3ca))
+			std::fprintf(s_net_trace, "%u E recv v0 %d len %d\n", g_FrameCount, cpuRegs.GPR.n.v0.SL[0], len);
 		if (sock != NET_BATTLE_SOCK || cpuRegs.GPR.n.v0.SL[0] < 0 || len < 0 || len > 0x3ca || !s_net_trace)
 			return;
 		u8* d = ram + NET_REQ_DATA;
