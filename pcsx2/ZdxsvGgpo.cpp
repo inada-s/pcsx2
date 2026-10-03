@@ -57,6 +57,7 @@
 #include <array>
 #include <cstdlib>
 #include <cstring>
+#include <deque>
 #include <map>
 #include <random>
 #include <string>
@@ -821,6 +822,8 @@ namespace ZdxsvGgpo
 		return true;
 	}
 
+	void NoteOwnSend(const KeySlot& s);
+
 	void OnNetRpc()
 	{
 		const u32 fno = cpuRegs.GPR.n.a0.UL[0];
@@ -846,9 +849,186 @@ namespace ZdxsvGgpo
 				continue;
 			}
 			for (const KeySlot& s : slots)
-				std::fprintf(s_net_trace, s.rec ? " %02x:%02x:%02x:%04x/%04x" : " %02x:%02x", s.c, s.k, s.x, s.a, s.b);
+				NoteOwnSend(s), std::fprintf(s_net_trace, s.rec ? " %02x:%02x:%02x:%04x/%04x" : " %02x:%02x", s.c, s.k, s.x, s.a, s.b);
 		}
 		std::fputc('\n', s_net_trace);
+		std::fflush(s_net_trace);
+	}
+
+	namespace
+	{
+		constexpr u32 NET_RES_LEN = 0xc22c98;
+		// Own key table (from the game's sends): k per counter, frame it was sent, last record X.
+		u8 s_own_k[64];
+		u32 s_own_frame[64];
+		int s_own_x = -1;
+		struct RecvStats
+		{
+			u32 msgs, keymsgs, slots, recs, unknown, kbad, xbad, rebuilt_bad, held, forced, maxhold;
+		} s_rs;
+
+		// ZDXSV_NET_SYNTH=1: the game gets rebuilt key msgs instead of the received ones: input
+		// fields (record flag, A, X, B) from the remote msg, k from the local game's own send of that
+		// counter; a msg is held until the local game sent all its counters (zero-latency lockstep).
+		// Value = frames a msg may be held before it goes out with its received k (0 = never).
+		const char* s_synth_env = std::getenv("ZDXSV_NET_SYNTH");
+		const bool s_synth = s_synth_env != nullptr;
+		const u32 s_synth_force = s_synth ? static_cast<u32>(std::atoi(s_synth_env)) : 0;
+		struct HeldMsg
+		{
+			u32 frame, sender;
+			std::vector<KeySlot> slots;
+		};
+		std::deque<HeldMsg> s_held;
+
+		// Key msg bytes from its slots (inverse of ParseKeySlots), sender p.
+		std::vector<u8> BuildKeyMsg(u32 p, const std::vector<KeySlot>& slots)
+		{
+			std::vector<u8> m{0, static_cast<u8>(0x20 | p)};
+			for (const KeySlot& s : slots)
+			{
+				if (s.rec)
+					m.insert(m.end(), {0, s.c, static_cast<u8>(s.a >> 8), static_cast<u8>(s.a), s.x, s.k,
+										  static_cast<u8>(s.b >> 8), static_cast<u8>(s.b)});
+				else
+					m.insert(m.end(), {static_cast<u8>(0x80 | s.c), s.k});
+			}
+			m[0] = static_cast<u8>(m.size());
+			return m;
+		}
+	} // namespace
+
+	void NoteOwnSend(const KeySlot& s)
+	{
+		s_own_k[s.c] = s.k;
+		s_own_frame[s.c] = g_FrameCount;
+		if (s.rec)
+			s_own_x = s.x;
+	}
+
+	static bool OwnKnown(u8 c)
+	{
+		return s_own_frame[c] != 0 && g_FrameCount - s_own_frame[c] < 32;
+	}
+
+	// Replaces the recv result (d, len) by: non-key msgs as received, then every held key msg whose
+	// counters the local game has sent (per sender in order), rebuilt with the local k. A msg held
+	// > ZDXSV_NET_SYNTH frames (if nonzero) goes out with its received k (forced).
+	static void SynthRecv(u8* d, s32 len)
+	{
+		std::vector<u8> out;
+		for (s32 i = 0; i + 1 < len && d[i] >= 2 && i + d[i] <= len; i += d[i])
+		{
+			std::vector<KeySlot> slots;
+			if ((d[i + 1] >> 4) == 2 && ParseKeySlots(d + i, d[i], slots))
+				s_held.push_back({g_FrameCount, d[i + 1] & 0xfu, std::move(slots)}), s_rs.held++;
+			else
+				out.insert(out.end(), d + i, d + i + d[i]);
+		}
+		const u32 max = std::min<u32>(cpuRegs.GPR.n.s2.UL[0], 0x3ca);
+		bool blocked[16] = {};
+		for (auto it = s_held.begin(); it != s_held.end();)
+		{
+			bool ready = !blocked[it->sender];
+			for (const KeySlot& s : it->slots)
+				ready = ready && OwnKnown(s.c);
+			const u32 age = g_FrameCount - it->frame;
+			const bool force = !blocked[it->sender] && !ready && s_synth_force && age > s_synth_force;
+			if (!(ready || force))
+			{
+				blocked[it->sender] = true;
+				++it;
+				continue;
+			}
+			std::vector<KeySlot> slots = it->slots;
+			if (ready)
+				for (KeySlot& s : slots)
+					s.k = s_own_k[s.c];
+			const std::vector<u8> m = BuildKeyMsg(it->sender, slots);
+			if (out.size() + m.size() > max)
+				break;
+			out.insert(out.end(), m.begin(), m.end());
+			s_rs.forced += force;
+			s_rs.maxhold = std::max(s_rs.maxhold, age);
+			it = s_held.erase(it);
+		}
+		if (len == 0 && out.empty())
+			return;
+		std::memcpy(d, out.data(), out.size());
+		*reinterpret_cast<s32*>(eeMem->Main + NET_RES_LEN) = static_cast<s32>(out.size());
+		std::string hex;
+		for (u8 b : out)
+			hex += fmt::format("{:02x}", b);
+		std::fprintf(s_net_trace, "%u Y %s\n", g_FrameCount, hex.c_str());
+	}
+
+	// EE rec hook at NET_RECV_RET_PC (fno 0x14 recv, after the wait RPC returned): s4 = sock,
+	// result length at 0xc22c98, data at 0xc22ca0. Logs R lines and checks that every remote key
+	// msg = BuildKeyMsg(its input fields + the local game's own k for that counter).
+	void OnNetRecv()
+	{
+		u8* ram = eeMem->Main;
+		const s32 sock = cpuRegs.GPR.n.s4.SL[0];
+		const s32 len = *reinterpret_cast<const s32*>(ram + NET_RES_LEN);
+		if (sock != NET_BATTLE_SOCK || cpuRegs.GPR.n.v0.SL[0] < 0 || len < 0 || len > 0x3ca || !s_net_trace)
+			return;
+		u8* d = ram + NET_REQ_DATA;
+		if (len == 0)
+		{
+			// nothing received: still release held msgs the local game has caught up with
+			if (s_synth && !s_held.empty())
+				SynthRecv(d, 0);
+			return;
+		}
+		std::string hex;
+		for (int i = 0; i < len; i++)
+			hex += fmt::format("{:02x}", d[i]);
+		std::fprintf(s_net_trace, "%u R %s", g_FrameCount, hex.c_str());
+		for (int i = 0; i + 1 < len && d[i] >= 2; i += d[i])
+		{
+			s_rs.msgs++;
+			if ((d[i + 1] >> 4) != 2 || i + d[i] > len)
+				continue;
+			s_rs.keymsgs++;
+			std::vector<KeySlot> slots;
+			if (!ParseKeySlots(d + i, d[i], slots))
+			{
+				std::fputs(" bad", s_net_trace);
+				continue;
+			}
+			for (KeySlot& s : slots)
+			{
+				s_rs.slots++;
+				s_rs.recs += s.rec;
+				// local k for c must be from a send within the last 32 frames (the counter wraps at 64)
+				const bool known = s_own_frame[s.c] != 0 && g_FrameCount - s_own_frame[s.c] < 32;
+				char flag = ' ';
+				if (!known)
+					s_rs.unknown++, flag = '?';
+				else if (s_own_k[s.c] != s.k)
+					s_rs.kbad++, flag = '!';
+				if (s.rec && s.x != s_own_x)
+					s_rs.xbad++, flag = flag == ' ' ? 'x' : flag;
+				if (s.rec)
+					std::fprintf(s_net_trace, " %02x:%02x:%02x:%04x/%04x%c", s.c, s.k, s.x, s.a, s.b, flag);
+				else
+					std::fprintf(s_net_trace, " %02x:%02x%c", s.c, s.k, flag);
+				if (known)
+					s.k = s_own_k[s.c];
+				if (s.rec && s_own_x >= 0)
+					s.x = static_cast<u8>(s_own_x);
+			}
+			const std::vector<u8> m = BuildKeyMsg(d[i + 1] & 0xf, slots);
+			if (m.size() != d[i] || std::memcmp(m.data(), d + i, m.size()) != 0)
+				s_rs.rebuilt_bad++, std::fputs(" REBUILT_DIFF", s_net_trace);
+		}
+		std::fputc('\n', s_net_trace);
+		if (s_synth)
+			SynthRecv(d, len);
+		if (s_rs.keymsgs % 2000 == 1)
+			std::fprintf(s_net_trace, "STATS msgs=%u keymsgs=%u slots=%u recs=%u unknown=%u kbad=%u xbad=%u rebuilt_bad=%u held=%u forced=%u maxhold=%u\n",
+				s_rs.msgs, s_rs.keymsgs, s_rs.slots, s_rs.recs, s_rs.unknown, s_rs.kbad, s_rs.xbad, s_rs.rebuilt_bad,
+				s_rs.held, s_rs.forced, s_rs.maxhold);
 		std::fflush(s_net_trace);
 	}
 } // namespace ZdxsvGgpo

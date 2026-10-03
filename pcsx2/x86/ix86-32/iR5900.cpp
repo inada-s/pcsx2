@@ -7,6 +7,13 @@
 #include "DebugTools/Breakpoints.h"
 #include "ZdxsvDeltaState.h"
 #include "ZdxsvGgpo.h"
+
+namespace ZdxsvGgpo
+{
+	// fno 0x14 recv (0x30ec70), return of its wait RPC; kept out of ZdxsvGgpo.h (27 min rebuild)
+	constexpr u32 NET_RECV_RET_PC = 0x30ecf0;
+	void OnNetRecv();
+}
 #include "Elfheader.h"
 #include "GS.h"
 #include "Host.h"
@@ -1755,6 +1762,11 @@ void recompileNextInstruction(bool delayslot, bool swapped_delay_slot)
 		{
 			iFlushCall(FLUSH_EVERYTHING | FLUSH_PC);
 			xFastCall((void*)ZdxsvGgpo::OnNetRpc);
+		}
+		if (ZdxsvGgpo::g_net_hook && pc == ZdxsvGgpo::NET_RECV_RET_PC)
+		{
+			iFlushCall(FLUSH_EVERYTHING | FLUSH_PC);
+			xFastCall((void*)ZdxsvGgpo::OnNetRecv);
 		}
 	}
 	else
