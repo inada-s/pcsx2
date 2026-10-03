@@ -133,6 +133,13 @@ namespace ZdxsvGgpo
 			const char* e = std::getenv("ZDXSV_GGPO");
 			return e && s_zd_env && std::strstr(e, "zdp=1");
 		}();
+		// zdk=1 (with zdh=1): the step applies (A, B) of its own frame, not of K(c). Under zdh the
+		// final step frames agree on every peer (s620 run1: 20283/20283), and K lags them by 1 after
+		// a kind-7 ring shift (the 20% at delay + 1); a late remote input is a plain rollback.
+		const bool s_zdk_env = [] {
+			const char* e = std::getenv("ZDXSV_GGPO");
+			return e && s_zdh_env && std::strstr(e, "zdk=1");
+		}();
 		struct ZdHeld
 		{
 			std::vector<u8> m;
@@ -1094,7 +1101,7 @@ namespace ZdxsvGgpo
 		std::memcpy(&a, ram + e + 2, 2);
 		std::memcpy(&b, ram + e + 6, 2);
 		const int c = ram[e] & 63;
-		const int k = ZdKeyFrame(c);
+		const int k = s_zdk_env ? s_net_frame : ZdKeyFrame(c);
 		const u16* ab = k >= 0 ? s_zd_hist[k & 127][p] : s_zd_ab[p];
 		const u16 na = ab[0];
 		const u16 nb = static_cast<u16>((ab[1] & ~1u) | (b & 1u));
