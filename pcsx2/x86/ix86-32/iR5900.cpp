@@ -3,6 +3,7 @@
 
 #include "Common.h"
 #include "CDVD/CDVD.h"
+#include "Counters.h"
 #include "DebugTools/Breakpoints.h"
 #include "ZdxsvDeltaState.h"
 #include "Elfheader.h"
@@ -22,6 +23,7 @@
 #include "common/FastJmp.h"
 #include "common/HeapArray.h"
 #include "common/Perf.h"
+#include "common/Timer.h"
 
 // Only for MOVQ workaround.
 #include "common/emitter/internal.h"
@@ -1659,6 +1661,52 @@ bool encodeBreakpoint()
 	return false;
 }
 
+// zdxsv probe: ZDXSV_EE_PROBE=pc,pc,... logs regs + 48 bytes at ZDXSV_EE_PROBE_MEM (default 0xc22c98)
+// to ZDXSV_EE_PROBE_OUT-<pid>.txt each time the EE reaches one of the PCs.
+static std::vector<u32> s_zdxsv_probe_pcs = [] {
+	std::vector<u32> v;
+	if (const char* e = std::getenv("ZDXSV_EE_PROBE"))
+		for (const char* p = e; *p;)
+		{
+			char* end;
+			v.push_back(static_cast<u32>(std::strtoul(p, &end, 16)));
+			p = (*end == ',') ? end + 1 : end;
+			if (end == p && *p) break;
+		}
+	return v;
+}();
+
+static void zdxsvProbeHit()
+{
+	static FILE* f = [] {
+		const char* o = std::getenv("ZDXSV_EE_PROBE_OUT");
+		std::string path = std::string(o ? o : "eeprobe") + "-" + std::to_string(Common::Timer::GetCurrentValue() % 100000) + ".txt";
+		return std::fopen(path.c_str(), "w");
+	}();
+	static const u32 mem = [] {
+		const char* m = std::getenv("ZDXSV_EE_PROBE_MEM");
+		return m ? static_cast<u32>(std::strtoul(m, nullptr, 16)) : 0xc22c98u;
+	}();
+	if (!f)
+		return;
+	const auto& r = cpuRegs.GPR.n;
+	std::fprintf(f, "%u %08x a0=%x a1=%x a2=%x a3=%x v0=%x ra=%08x m=", g_FrameCount, cpuRegs.pc,
+		r.a0.UL[0], r.a1.UL[0], r.a2.UL[0], r.a3.UL[0], r.v0.UL[0], r.ra.UL[0]);
+	const u8* p = eeMem->Main + (mem & (Ps2MemSize::MainRam - 1));
+	for (int i = 0; i < 48; i++)
+		std::fprintf(f, "%02x", p[i]);
+	std::fputc('\n', f);
+}
+
+static bool encodeZdxsvProbe()
+{
+	if (std::find(s_zdxsv_probe_pcs.begin(), s_zdxsv_probe_pcs.end(), pc) == s_zdxsv_probe_pcs.end())
+		return false;
+	iFlushCall(FLUSH_EVERYTHING | FLUSH_PC);
+	xFastCall((void*)zdxsvProbeHit);
+	return true;
+}
+
 bool encodeMemcheck()
 {
 	const int needed = isMemcheckNeeded(pc);
@@ -1700,6 +1748,8 @@ void recompileNextInstruction(bool delayslot, bool swapped_delay_slot)
 	{
 		if(encodeBreakpoint() || encodeMemcheck())
 			xFastCall((void*)CBreakPoints::CommitClearSkipFirst, BREAKPOINT_EE);
+		if (!s_zdxsv_probe_pcs.empty())
+			encodeZdxsvProbe();
 	}
 	else
 	{
