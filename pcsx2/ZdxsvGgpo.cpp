@@ -864,7 +864,7 @@ namespace ZdxsvGgpo
 		int s_own_x = -1;
 		struct RecvStats
 		{
-			u32 msgs, keymsgs, slots, recs, unknown, kbad, xbad, rebuilt_bad, held, forced, maxhold;
+			u32 msgs, keymsgs, slots, recs, unknown, kbad, xbad, rebuilt_bad, held, forced, maxhold, dropped;
 		} s_rs;
 
 		// ZDXSV_NET_SYNTH=1: the game gets rebuilt key msgs instead of the received ones: input
@@ -920,10 +920,21 @@ namespace ZdxsvGgpo
 		for (s32 i = 0; i + 1 < len && d[i] >= 2 && i + d[i] <= len; i += d[i])
 		{
 			std::vector<KeySlot> slots;
+			const u32 sender = d[i + 1] & 0xfu;
 			if ((d[i + 1] >> 4) == 2 && ParseKeySlots(d + i, d[i], slots))
-				s_held.push_back({g_FrameCount, d[i + 1] & 0xfu, std::move(slots)}), s_rs.held++;
-			else
-				out.insert(out.end(), d + i, d + i + d[i]);
+			{
+				s_held.push_back({g_FrameCount, sender, std::move(slots)}), s_rs.held++;
+				continue;
+			}
+			// kind 3 (`04 3P 00 00`) = the sender's counter restarts at 0 (s610 run3): its held key
+			// msgs are for counters this game never reaches; holding them blocked its new ones.
+			if ((d[i + 1] >> 4) == 3)
+			{
+				const size_t before = s_held.size();
+				s_held.erase(std::remove_if(s_held.begin(), s_held.end(), [sender](const HeldMsg& h) { return h.sender == sender; }), s_held.end());
+				s_rs.dropped += static_cast<u32>(before - s_held.size());
+			}
+			out.insert(out.end(), d + i, d + i + d[i]);
 		}
 		const u32 max = std::min<u32>(cpuRegs.GPR.n.s2.UL[0], 0x3ca);
 		bool blocked[16] = {};
@@ -1026,9 +1037,9 @@ namespace ZdxsvGgpo
 		if (s_synth)
 			SynthRecv(d, len);
 		if (s_rs.keymsgs % 2000 == 1)
-			std::fprintf(s_net_trace, "STATS msgs=%u keymsgs=%u slots=%u recs=%u unknown=%u kbad=%u xbad=%u rebuilt_bad=%u held=%u forced=%u maxhold=%u\n",
+			std::fprintf(s_net_trace, "STATS msgs=%u keymsgs=%u slots=%u recs=%u unknown=%u kbad=%u xbad=%u rebuilt_bad=%u held=%u forced=%u maxhold=%u dropped=%u\n",
 				s_rs.msgs, s_rs.keymsgs, s_rs.slots, s_rs.recs, s_rs.unknown, s_rs.kbad, s_rs.xbad, s_rs.rebuilt_bad,
-				s_rs.held, s_rs.forced, s_rs.maxhold);
+				s_rs.held, s_rs.forced, s_rs.maxhold, s_rs.dropped);
 		std::fflush(s_net_trace);
 	}
 } // namespace ZdxsvGgpo
