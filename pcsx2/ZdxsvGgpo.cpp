@@ -149,6 +149,20 @@ namespace ZdxsvGgpo
 			return e && s_zd_env && std::strstr(e, "zds=1");
 		}();
 		u32 s_zds_echo = 0, s_zds_skip = 0;
+		// ZDXSV_ZDS_K3ECHO=1: control, kind 3 echoed like the rest (no barrier; s621 run1 diverged by side).
+		const bool s_zds_k3echo = [] {
+			const char* e = std::getenv("ZDXSV_ZDS_K3ECHO");
+			return e && e[0] == '1';
+		}();
+		// ZDXSV_PW_HASH=1: per GGPO frame (last save wins) XXH3 of each player work 0x8395d8 + 0x2200*p,
+		// written as `H frame h0 h1 h2 h3` to NET_TRACE at the report: the 4 machines simulate every
+		// player, so in sync these agree across peers (own-position RAM elsewhere does not, sync=0).
+		const bool s_pw_hash = [] {
+			const char* e = std::getenv("ZDXSV_PW_HASH");
+			return e && e[0] == '1';
+		}();
+		constexpr u32 PW_BASE = 0x8395d8, PW_SIZE = 0x2200;
+		std::map<int, std::array<u64, 4>> s_pw;
 		// zds: kind 3 (round handshake) is the one barrier: each machine reaches it at its own frame
 		// (scene/load timing, s621 run1: side 2 one frame later), so it goes through the GGPO input
 		// and the n-th kind 3 of every remote goes to recv once all peers' n-th is in the synced stream.
@@ -1503,9 +1517,9 @@ namespace ZdxsvGgpo
 			if (s_zds_env)
 			{
 				const int kind = m.size() >= 2 && m[0] == m.size() ? m[1] >> 4 : -1;
-				if (kind == 3)
+				if (kind == 3 && !s_zds_k3echo)
 					; // GGPO input (below), released by NetSyncAndApply
-				else if (kind == 2 || kind == 7 || kind == 9 || kind == 0xf)
+				else if (kind == 2 || kind == 3 || kind == 7 || kind == 9 || kind == 0xf)
 				{
 					for (int q = 0; q < s_players; q++)
 						if (q != s_net_me)
@@ -1538,7 +1552,7 @@ namespace ZdxsvGgpo
 				if (m.size() >= 2 && (m[1] >> 4) == 0xf && s_net_end < 0)
 					s_net_end = 0;
 				s_net_sent.push_back(m);
-				if (!s_zds_env || (m.size() >= 2 && (m[1] >> 4) == 3))
+				if (!s_zds_env || (m.size() >= 2 && (m[1] >> 4) == 3 && !s_zds_k3echo))
 					s_net_out.push_back(std::move(m));
 				s_ns.maxq = std::max<u32>(s_ns.maxq, static_cast<u32>(s_net_out.size()));
 			}
@@ -1565,6 +1579,12 @@ namespace ZdxsvGgpo
 					at.held[p] = s_zd_held[p];
 			std::memcpy(at.k3seen, s_zds_seen, sizeof(at.k3seen));
 			at.k3rel = s_zds_rel;
+			if (s_pw_hash)
+			{
+				std::array<u64, 4>& h = s_pw[frame];
+				for (u32 p = 0; p < 4; p++)
+					h[p] = XXH3_64bits(&eeMem->Main[PW_BASE + PW_SIZE * p], PW_SIZE);
+			}
 		}
 
 		void NetLoaded(int frame)
@@ -1810,6 +1830,15 @@ namespace ZdxsvGgpo
 			if (s_zd_env)
 				Console.WriteLn("ZdxsvGgpo: zd steps %u changed %u nok %u zdh %d forced %u heldmax %u ahead %u zdp %d zds %d echo %u skip %u k3 %d/%d/%d/%d rel %d (fwd %u)", s_zd_steps, s_zd_changed, s_zd_nok, s_zdh_env, s_zd_forced, s_zd_held_max, s_zd_ahead, s_zdp_env, s_zds_env, s_zds_echo, s_zds_skip,
 					s_zds_seen[0], s_zds_seen[1], s_zds_seen[2], s_zds_seen[3], s_zds_rel, s_zds_k3rel);
+			if (s_pw_hash && s_net_trace)
+			{
+				for (const auto& [f, h] : s_pw)
+					std::fprintf(s_net_trace, "0 H %d %016llx %016llx %016llx %016llx\n", f, static_cast<unsigned long long>(h[0]),
+						static_cast<unsigned long long>(h[1]), static_cast<unsigned long long>(h[2]), static_cast<unsigned long long>(h[3]));
+				std::fflush(s_net_trace);
+				Console.WriteLn("ZdxsvGgpo: pw hashes %zu frames", s_pw.size());
+				s_pw.clear();
+			}
 		}
 	} // namespace
 
