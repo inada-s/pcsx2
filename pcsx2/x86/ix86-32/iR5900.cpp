@@ -13,6 +13,8 @@ namespace ZdxsvGgpo
 	// fno 0x14 recv (0x30ec70), return of its wait RPC; kept out of ZdxsvGgpo.h (27 min rebuild)
 	constexpr u32 NET_RECV_RET_PC = 0x30ecf0;
 	void OnNetRecv();
+	// At NET_RPC_PC: true = the RPC was answered here (v0 set, pc = ra), skip the wrapper.
+	bool OnNetCall();
 }
 #include "Elfheader.h"
 #include "GS.h"
@@ -1761,7 +1763,12 @@ void recompileNextInstruction(bool delayslot, bool swapped_delay_slot)
 		if (ZdxsvGgpo::g_net_hook && pc == ZdxsvGgpo::NET_RPC_PC)
 		{
 			iFlushCall(FLUSH_EVERYTHING | FLUSH_PC);
-			xFastCall((void*)ZdxsvGgpo::OnNetRpc);
+			xFastCall((void*)ZdxsvGgpo::OnNetCall);
+			// Everything is flushed: on true leave the block, the dispatcher continues at cpuRegs.pc.
+			xTEST(al, al);
+			xForwardJZ32 run_wrapper;
+			xJMP(DispatcherReg);
+			run_wrapper.SetTarget();
 		}
 		if (ZdxsvGgpo::g_net_hook && pc == ZdxsvGgpo::NET_RECV_RET_PC)
 		{

@@ -64,6 +64,7 @@
 #include <tuple>
 #include <utility>
 #include <vector>
+#include <limits>
 
 extern u64 g_zdxsv_rec_counts[6]; // x86/ix86-32/iR5900.cpp
 
@@ -86,6 +87,54 @@ namespace ZdxsvGgpo
 			u8 unused[2];
 		};
 		static_assert(sizeof(Input) == 8);
+
+		// net=1 (ai-automation#31 step 4): the Z battle msgs travel in GGPO inputs instead of DEV9.
+		// Armed by the game's first key msg send on the battle sock: from then on that sock's send /
+		// recv / poll RPCs are answered on the EE side (OnNetCall) and never reach the IOP.
+		// Input of frame f = the pad + whole msgs the game sent before f (the rest waits for the next
+		// frame); a player's msgs go to the game's recv in the first frame its seq changed.
+		// The game's sends are a stream: a rollback rerun re-sends its prefix (compared: senddiff),
+		// only msgs past the committed end are new. GGPO player = battle position + 1.
+		struct NetInput
+		{
+			Input pad; // that player's pad 0
+			u8 seq; // +1 per input with new msgs; unchanged input = nothing new (GGPO predicts this)
+			u8 len;
+			u8 data[22];
+		};
+		static_assert(sizeof(NetInput) == 32);
+		const bool s_net_env = [] {
+			const char* e = std::getenv("ZDXSV_GGPO");
+			return e && std::strstr(e, "net=1");
+		}();
+		bool s_net = false; // net=1 parsed
+		int s_players = 4; // players= (net)
+		bool s_net_armed = false, s_net_over = false;
+		int s_net_me = -1; // local battle position
+		std::vector<std::vector<u8>> s_net_sent; // every msg the game sent since armed, in order
+		size_t s_net_pos = 0; // msgs sent so far in the current timeline
+		std::deque<std::vector<u8>> s_net_out; // committed, not yet in a local input
+		NetInput s_net_local = {};
+		u8 s_net_seq_at[64][GGPO_MAX_PLAYERS] = {}; // per frame & 63: each player's synced seq
+		std::vector<u8> s_net_rx; // remote msgs not yet given to the game's recv
+		int s_net_frame = 0; // GGPO frame being run (last save or load)
+		struct NetFrame
+		{
+			size_t pos;
+			std::vector<u8> rx;
+		};
+		NetFrame s_net_at[128]; // per frame & 127, at its save
+		int s_net_end = -1; // frames since the end msg (kind f) was sent or received, -1 = not yet
+		struct NetStats
+		{
+			u32 sends, msgs, recvs, rxmsgs, rxbytes, polls, other, nowait, senddiff, toolong, maxq;
+		} s_ns = {};
+		bool NetStart(GGPOSessionCallbacks& cb);
+		bool NetNextInputs();
+		bool NetSyncAndApply();
+		void NetSaved(int frame);
+		void NetLoaded(int frame);
+		void NetReport();
 
 		struct Stat
 		{
@@ -120,7 +169,7 @@ namespace ZdxsvGgpo
 		std::map<int, std::pair<u64, u64>> s_sums; // p2p: frame -> (EE RAM hash, delta state hash), last save wins
 
 		GGPOSession* s_session = nullptr;
-		GGPOPlayerHandle s_handles[PLAYERS] = {};
+		GGPOPlayerHandle s_handles[GGPO_MAX_PLAYERS] = {};
 		bool s_started = false; // the session was opened once (it is not reopened)
 		bool s_frame_ended = false; // the CPU left Execute() at a vsync
 		int s_vsyncs = 0;
@@ -184,8 +233,17 @@ namespace ZdxsvGgpo
 					s_dump_frame = n;
 				else if (key == "sync")
 					s_sync = (n != 0);
+				else if (key == "net")
+					s_net = (n != 0);
+				else if (key == "players")
+					s_players = std::clamp(n, 2, GGPO_MAX_PLAYERS);
 				else
 					Console.Warning("ZdxsvGgpo: unknown key '%.*s'", static_cast<int>(key.size()), key.data());
+			}
+			if (s_net)
+			{
+				s_sync = false; // the peers run different games (own position): no common hash
+				s_frames = std::numeric_limits<int>::max(); // ends with the battle (end msg)
 			}
 		}
 
@@ -223,25 +281,29 @@ namespace ZdxsvGgpo
 			return in;
 		}
 
+		void ApplyPad(int p, const Input& in)
+		{
+			PadBase* pad = Pad::GetPad(static_cast<u8>(p));
+			if (!pad)
+				return;
+			for (u32 i = 0; i < BUTTONS; i++)
+			{
+				const bool held = (in.buttons >> i) & 1;
+				pad->SetRawPressureButton(i, std::make_tuple(held, static_cast<u8>(held ? 255 : 0)));
+			}
+			pad->SetRawAnalogs({in.lx, in.ly}, {in.rx, in.ry});
+		}
+
 		void ApplyInputs(const Input* inputs)
 		{
 			for (int p = 0; p < PLAYERS; p++)
-			{
-				PadBase* pad = Pad::GetPad(static_cast<u8>(p));
-				if (!pad)
-					continue;
-				const Input& in = inputs[p];
-				for (u32 i = 0; i < BUTTONS; i++)
-				{
-					const bool held = (in.buttons >> i) & 1;
-					pad->SetRawPressureButton(i, std::make_tuple(held, static_cast<u8>(held ? 255 : 0)));
-				}
-				pad->SetRawAnalogs({in.lx, in.ly}, {in.rx, in.ry});
-			}
+				ApplyPad(p, inputs[p]);
 		}
 
 		bool SyncAndApply(bool rerun)
 		{
+			if (s_net)
+				return NetSyncAndApply();
 			Input inputs[PLAYERS] = {};
 			int disconnect_flags = 0;
 			const GGPOErrorCode rc = ggpo_synchronize_input(s_session, inputs, sizeof(inputs), &disconnect_flags);
@@ -259,6 +321,8 @@ namespace ZdxsvGgpo
 		// Local inputs of the next frame, then the synced inputs go to the pads.
 		bool NextInputs()
 		{
+			if (s_net)
+				return NetNextInputs();
 			if (s_session_frames % 5 == 0)
 			{
 				for (Input& in : s_random)
@@ -422,6 +486,8 @@ namespace ZdxsvGgpo
 				psxCpu->Reset();
 			if (!ZdxsvDeltaState::Save(frame))
 				return false;
+			if (s_net)
+				NetSaved(frame);
 			s_save_ms.Add(timer.GetTimeMilliseconds());
 			timer.Reset();
 			*checksum = 0;
@@ -490,6 +556,8 @@ namespace ZdxsvGgpo
 				return false;
 			Common::Timer timer;
 			const bool ok = ZdxsvDeltaState::Load(*reinterpret_cast<int*>(buffer));
+			if (s_net)
+				NetLoaded(*reinterpret_cast<int*>(buffer));
 			if (s_iop_flush)
 				psxCpu->Reset();
 			TraceFrame("load", *reinterpret_cast<int*>(buffer));
@@ -585,6 +653,11 @@ namespace ZdxsvGgpo
 			g_active = false;
 			ZdxsvDeltaState::Clear();
 			Report(what);
+			if (s_net)
+			{
+				s_net_over = true; // the battle sock goes back to the IOP
+				NetReport();
+			}
 		}
 
 		bool Start()
@@ -598,6 +671,8 @@ namespace ZdxsvGgpo
 			cb.free_buffer = FreeBuffer;
 			cb.advance_frame = AdvanceFrame;
 			cb.on_event = OnEvent;
+			if (s_net)
+				return NetStart(cb);
 			if (s_p2p)
 			{
 				if (ggpo_start_session(&s_session, &cb, "zdxsv", PLAYERS, sizeof(Input), static_cast<unsigned short>(s_port), nullptr, 0) != GGPO_OK)
@@ -667,7 +742,7 @@ namespace ZdxsvGgpo
 				return;
 			if (s_vsyncs++ == 0)
 				Parse();
-			if (s_vsyncs < s_start)
+			if (s_net ? !s_net_armed : s_vsyncs < s_start)
 				return;
 			s_started = true;
 			g_active = true;
@@ -738,6 +813,12 @@ namespace ZdxsvGgpo
 			return;
 		}
 		s_session_frames++;
+		// net: the battle ended (end msg sent or received); 300 frames for the peers to get it too.
+		if (s_net && s_net_end >= 0 && ++s_net_end > 300)
+		{
+			Stop("net battle end");
+			return;
+		}
 		if (s_disconnected)
 		{
 			Stop("disconnected");
@@ -788,7 +869,7 @@ namespace ZdxsvGgpo
 		}();
 	} // namespace
 
-	bool g_net_hook = s_net_trace != nullptr;
+	bool g_net_hook = s_net_trace != nullptr || s_net_env;
 
 	// One key slot per frame: counter c (6 bits), game-wide k and X (X only in records), and for an
 	// input record its A/B words. Key msg (kind 2) = 2 slots: `(0x80|c, k)` or `00 c A0 A1 X k B0 B1`.
@@ -1041,5 +1122,259 @@ namespace ZdxsvGgpo
 				s_rs.msgs, s_rs.keymsgs, s_rs.slots, s_rs.recs, s_rs.unknown, s_rs.kbad, s_rs.xbad, s_rs.rebuilt_bad,
 				s_rs.held, s_rs.forced, s_rs.maxhold, s_rs.dropped);
 		std::fflush(s_net_trace);
+	}
+
+	namespace
+	{
+		constexpr u32 NET_FNO_POLL = 0xf;
+		constexpr u32 NET_FNO_RECV = 0x14;
+		constexpr u32 NET_NOWAIT = 0xc22c10; // s16: the wrapper takes the nowait RPC path if nonzero
+		constexpr u32 NET_RX_MAX = 0x384; // the battle recv's max
+
+		void NetSend(std::vector<u8> m)
+		{
+			s_ns.msgs++;
+			if (s_net_pos < s_net_sent.size())
+			{
+				if (s_net_sent[s_net_pos] != m && s_ns.senddiff++ < 20)
+					Console.Warning("ZdxsvGgpo: net rerun send %zu differs (frame %d)", s_net_pos, s_net_frame);
+			}
+			else
+			{
+				if (m.size() >= 2 && (m[1] >> 4) == 0xf && s_net_end < 0)
+					s_net_end = 0;
+				s_net_sent.push_back(m);
+				s_net_out.push_back(std::move(m));
+				s_ns.maxq = std::max<u32>(s_ns.maxq, static_cast<u32>(s_net_out.size()));
+			}
+			s_net_pos++;
+		}
+
+		// McsMessage framing: byte 0 = length (>= 2), byte 1 = kind << 4 | sender.
+		bool HasKeyMsg(const u8* d, s32 len)
+		{
+			for (s32 i = 0; i + 1 < len && d[i] >= 2 && i + d[i] <= len; i += d[i])
+				if ((d[i + 1] >> 4) == 2)
+					return true;
+			return false;
+		}
+
+		void NetSaved(int frame)
+		{
+			s_net_frame = frame;
+			NetFrame& at = s_net_at[frame & 127];
+			at.pos = s_net_pos;
+			at.rx = s_net_rx;
+		}
+
+		void NetLoaded(int frame)
+		{
+			s_net_frame = frame;
+			const NetFrame& at = s_net_at[frame & 127];
+			s_net_pos = at.pos;
+			s_net_rx = at.rx;
+		}
+
+		bool NetStart(GGPOSessionCallbacks& cb)
+		{
+			if (s_net_me < 0 || s_net_me >= s_players)
+			{
+				Console.Error("ZdxsvGgpo: net position %d not below players=%d", s_net_me, s_players);
+				return false;
+			}
+			if (ggpo_start_session(&s_session, &cb, "zdxsv", s_players, sizeof(NetInput), static_cast<unsigned short>(s_port + s_net_me), nullptr, 0) != GGPO_OK)
+			{
+				s_session = nullptr;
+				return false;
+			}
+			ggpo_set_disconnect_timeout(s_session, 5000);
+			ggpo_set_disconnect_notify_start(s_session, 1000);
+			for (int p = 0; p < s_players; p++)
+			{
+				GGPOPlayer player{};
+				player.size = sizeof(GGPOPlayer);
+				player.player_num = p + 1;
+				player.type = (p == s_net_me) ? GGPO_PLAYERTYPE_LOCAL : GGPO_PLAYERTYPE_REMOTE;
+				if (player.type == GGPO_PLAYERTYPE_REMOTE)
+				{
+					StringUtil::Strlcpy(player.u.remote.ip_address, s_peer_host.c_str(), sizeof(player.u.remote.ip_address));
+					player.u.remote.port = static_cast<unsigned short>(s_port + p);
+				}
+				if (ggpo_add_player(s_session, &player, &s_handles[p]) != GGPO_OK)
+					return false;
+				if (player.type == GGPO_PLAYERTYPE_LOCAL)
+					ggpo_set_frame_delay(s_session, s_handles[p], s_delay);
+			}
+			// Every peer arms at its own first key msg: block until all are synchronized.
+			Common::Timer wait;
+			while (!s_running && wait.GetTimeSeconds() < 60)
+			{
+				ggpo_idle(s_session, 0);
+				Threading::Sleep(1);
+			}
+			if (!s_running)
+			{
+				Console.Error("ZdxsvGgpo: net peers not synchronized in 60 s");
+				return false;
+			}
+			Console.WriteLn("ZdxsvGgpo: net player %d of %d port %d delay %d, %zu msgs sent before the start, waited %.1f s",
+				s_net_me + 1, s_players, s_port + s_net_me, s_delay, s_net_sent.size(), wait.GetTimeSeconds());
+			return true;
+		}
+
+		bool NetNextInputs()
+		{
+			NetInput in = s_net_local;
+			in.pad = HostInput();
+			std::vector<u8> data;
+			while (!s_net_out.empty())
+			{
+				const std::vector<u8>& m = s_net_out.front();
+				if (m.size() > sizeof(in.data))
+				{
+					if (s_ns.toolong++ < 20)
+						Console.Error("ZdxsvGgpo: net msg of %zu bytes dropped", m.size());
+				}
+				else if (data.size() + m.size() > sizeof(in.data))
+					break;
+				else
+					data.insert(data.end(), m.begin(), m.end());
+				s_net_out.pop_front();
+			}
+			if (!data.empty())
+			{
+				in.seq++;
+				in.len = static_cast<u8>(data.size());
+				std::memset(in.data, 0, sizeof(in.data));
+				std::memcpy(in.data, data.data(), data.size());
+			}
+			s_net_local = in;
+			GGPOErrorCode rc = ggpo_add_local_input(s_session, s_handles[s_net_me], &in, sizeof(in));
+			if (rc == GGPO_ERRORCODE_PREDICTION_THRESHOLD)
+			{
+				s_waits++;
+				Common::Timer wait;
+				while (rc == GGPO_ERRORCODE_PREDICTION_THRESHOLD && !s_disconnected && wait.GetTimeSeconds() < 10)
+				{
+					ggpo_idle(s_session, 0);
+					Threading::Sleep(1);
+					rc = ggpo_add_local_input(s_session, s_handles[s_net_me], &in, sizeof(in));
+				}
+				s_wait_ms.Add(wait.GetTimeMilliseconds());
+			}
+			if (rc != GGPO_OK)
+			{
+				Console.Error("ZdxsvGgpo: net add_local_input %d", rc);
+				return false;
+			}
+			return NetSyncAndApply();
+		}
+
+		// Inputs of frame s_net_frame: own pad to pad 0, remote msgs with a new seq to the recv queue.
+		bool NetSyncAndApply()
+		{
+			NetInput in[GGPO_MAX_PLAYERS] = {};
+			int disconnect_flags = 0;
+			const GGPOErrorCode rc = ggpo_synchronize_input(s_session, in, sizeof(NetInput) * s_players, &disconnect_flags);
+			if (rc != GGPO_OK)
+			{
+				Console.Error("ZdxsvGgpo: net synchronize_input %d", rc);
+				return false;
+			}
+			ApplyPad(0, in[s_net_me].pad);
+			const int f = s_net_frame;
+			for (int p = 0; p < s_players; p++)
+			{
+				if (p != s_net_me && in[p].seq != s_net_seq_at[(f - 1) & 63][p])
+				{
+					const u8* d = in[p].data;
+					const u32 len = std::min<u32>(in[p].len, sizeof(in[p].data));
+					for (u32 i = 0; i + 1 < len && d[i] >= 2 && i + d[i] <= len; i += d[i])
+						if ((d[i + 1] >> 4) == 0xf && s_net_end < 0)
+							s_net_end = 0;
+					s_net_rx.insert(s_net_rx.end(), d, d + len);
+				}
+				s_net_seq_at[f & 63][p] = in[p].seq;
+			}
+			return true;
+		}
+
+		void NetReport()
+		{
+			Console.WriteLn("ZdxsvGgpo: net sends %u msgs %u (sent %zu, unsent %zu) recvs %u rxmsgs %u rxbytes %u polls %u other %u nowait %u senddiff %u toolong %u maxq %u waits %d",
+				s_ns.sends, s_ns.msgs, s_net_sent.size(), s_net_out.size(), s_ns.recvs, s_ns.rxmsgs, s_ns.rxbytes, s_ns.polls,
+				s_ns.other, s_ns.nowait, s_ns.senddiff, s_ns.toolong, s_ns.maxq, s_waits);
+		}
+	} // namespace
+
+	// EE rec hook at NET_RPC_PC (the net RPC wrapper's entry): trace, and in net mode answer the
+	// battle sock's RPCs here. Returns true when answered (v0 = result, pc = ra).
+	bool OnNetCall()
+	{
+		OnNetRpc();
+		if (!s_net_env || s_net_over)
+			return false;
+		const u32 fno = cpuRegs.GPR.n.a0.UL[0];
+		u8* ram = eeMem->Main;
+		const s16 sock = *reinterpret_cast<const s16*>(ram + NET_REQ_SOCK);
+		const s16 len = *reinterpret_cast<const s16*>(ram + NET_REQ_LEN);
+		u8* d = ram + NET_REQ_DATA;
+		if (sock != NET_BATTLE_SOCK)
+			return false;
+		if (!s_net_armed)
+		{
+			// sock 0 is the lobby TCP too: arm at the battle's first key msg
+			if (fno != NET_FNO_SEND || len <= 0 || len > 0x3ca || !HasKeyMsg(d, len))
+				return false;
+			s_net_armed = true;
+			for (s32 i = 0; i + 1 < len && d[i] >= 2 && i + d[i] <= len; i += d[i])
+				if ((d[i + 1] >> 4) == 2)
+					s_net_me = d[i + 1] & 0xf;
+			Console.WriteLn("ZdxsvGgpo: net armed at vsync %u, position %d", g_FrameCount, s_net_me);
+		}
+		if (*reinterpret_cast<const s16*>(ram + NET_NOWAIT) != 0)
+			s_ns.nowait++;
+		s32 result = 0;
+		if (fno == NET_FNO_SEND)
+		{
+			s_ns.sends++;
+			const s32 n = std::clamp<s32>(len, 0, 0x3ca);
+			s32 i = 0;
+			for (; i + 1 < n && d[i] >= 2 && i + d[i] <= n; i += d[i])
+				NetSend(std::vector<u8>(d + i, d + i + d[i]));
+			if (i < n) // not McsMessage framed: one msg
+				NetSend(std::vector<u8>(d + i, d + n));
+			result = n;
+		}
+		else if (fno == NET_FNO_RECV)
+		{
+			s_ns.recvs++;
+			u32 n = 0;
+			while (n + 1 < s_net_rx.size() && s_net_rx[n] >= 2 && n + s_net_rx[n] <= s_net_rx.size() && n + s_net_rx[n] <= NET_RX_MAX)
+				n += s_net_rx[n], s_ns.rxmsgs++;
+			if (n == 0 && !s_net_rx.empty() && s_net_rx.size() <= NET_RX_MAX) // unframed rest
+				n = static_cast<u32>(s_net_rx.size());
+			std::memcpy(d, s_net_rx.data(), n);
+			s_net_rx.erase(s_net_rx.begin(), s_net_rx.begin() + n);
+			s_ns.rxbytes += n;
+			result = static_cast<s32>(n);
+		}
+		else if (fno == NET_FNO_POLL)
+		{
+			// s609 battle polls: state 4, 0x2000 send space, readable bytes
+			s_ns.polls++;
+			*reinterpret_cast<u16*>(ram + NET_REQ_LEN) = 4;
+			*reinterpret_cast<u16*>(ram + NET_REQ_DATA + 2) = 0x2000;
+			*reinterpret_cast<u16*>(ram + NET_REQ_DATA + 4) = static_cast<u16>(std::min<size_t>(s_net_rx.size(), NET_RX_MAX));
+		}
+		else
+		{
+			s_ns.other++;
+			return false;
+		}
+		*reinterpret_cast<s32*>(ram + NET_RES_LEN) = result;
+		cpuRegs.GPR.n.v0.SD[0] = result;
+		cpuRegs.pc = cpuRegs.GPR.n.ra.UL[0];
+		return true;
 	}
 } // namespace ZdxsvGgpo

@@ -8,7 +8,7 @@
 #ifndef _UDP_MSG_H
 #define _UDP_MSG_H
 
-#define MAX_COMPRESSED_BITS       4096
+#define MAX_COMPRESSED_BITS       32768 // zdxsv: 18 bits per changed input bit
 #define UDP_MSG_MAX_PLAYERS          4
 #define MAX_VERIFICATION_SIZE      256
 #define MAX_APPDATA_SIZE           512
