@@ -1004,17 +1004,30 @@ namespace ZdxsvGgpo
 	static int ZdKeyFrame1(int c);
 
 	// zdh: the game steps at most 1 counter per frame (s618 run2: the 2nd slot of a msg steps 1
-	// frame after its release), so step(c) >= K(c - j) + j on every peer: take the max over the lead.
+	// frame after its release), so step(c) >= K(c') + d on every peer, d = steps from c' to c: take the
+	// max over the lead. The game sometimes skips a counter (s618 run7: 05 -> 07, 3e -> 00, 2e -> 30,
+	// on all peers): its row is the previous use (stale) and is no step, so it is not counted in d.
 	static int ZdKeyFrame(int c)
 	{
 		int k = ZdKeyFrame1(c);
 		if (!s_zdh_env || k < 0)
 			return k;
-		for (int j = 1; j <= 4; j++)
+		const int* row = s_zd_rel[c];
+		int newest = INT_MIN;
+		for (int p = 0; p < s_players; p++)
+			newest = std::max(newest, row[p]);
+		for (int j = 1, d = 0; j <= 4; j++)
 		{
+			const int* rj = s_zd_rel[(c - j) & 63];
+			int nj = INT_MIN;
+			for (int p = 0; p < s_players; p++)
+				nj = std::max(nj, rj[p]);
+			if (nj < newest - 32)
+				continue; // skipped counter
+			d++;
 			const int kj = ZdKeyFrame1((c - j) & 63);
 			if (kj >= 0)
-				k = std::max(k, kj + j);
+				k = std::max(k, kj + d);
 		}
 		if (k > s_net_frame && !g_in_rollback)
 			s_zd_ahead++; // the bound is wrong: a peer stepped 2 counters in 1 frame
