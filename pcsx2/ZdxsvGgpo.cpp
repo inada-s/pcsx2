@@ -162,7 +162,17 @@ namespace ZdxsvGgpo
 			return e && e[0] == '1';
 		}();
 		constexpr u32 PW_BASE = 0x8395d8, PW_SIZE = 0x2200;
+		// Left out of the hash: machine-local 1-frame scratch (s623 pwdiff, in-sync 60 ms run):
+		// +0x274/+0x2b4 go 1.0 -> a different float per machine -> 0 at one frame on all machines;
+		// +0x1e64..+0x1e94 (stride 0x10) set on one machine for one frame. Player work agrees after.
+		constexpr u32 PW_MASK[] = {0x274, 0x2b4, 0x1e64, 0x1e74, 0x1e84, 0x1e94};
 		std::map<int, std::array<u64, 4>> s_pw;
+		// ZDXSV_PW_DUMP=file: every save appends (s32 frame, 4 * PW_SIZE bytes of player work); rollback
+		// re-saves a frame, the last record wins (`zdxsv/pwdiff.py` finds the fields behind H mismatches).
+		std::FILE* s_pw_dump = [] {
+			const char* p = std::getenv("ZDXSV_PW_DUMP");
+			return p ? std::fopen(p, "wb") : nullptr;
+		}();
 		// zds: kind 3 (round handshake) is the one barrier: each machine reaches it at its own frame
 		// (scene/load timing, s621 run1: side 2 one frame later), so it goes through the GGPO input
 		// and the n-th kind 3 of every remote goes to recv once all peers' n-th is in the synced stream.
@@ -1583,7 +1593,19 @@ namespace ZdxsvGgpo
 			{
 				std::array<u64, 4>& h = s_pw[frame];
 				for (u32 p = 0; p < 4; p++)
-					h[p] = XXH3_64bits(&eeMem->Main[PW_BASE + PW_SIZE * p], PW_SIZE);
+				{
+					std::array<u8, PW_SIZE> w;
+					std::memcpy(w.data(), &eeMem->Main[PW_BASE + PW_SIZE * p], PW_SIZE);
+					for (u32 o : PW_MASK)
+						std::memset(&w[o], 0, 4);
+					h[p] = XXH3_64bits(w.data(), PW_SIZE);
+				}
+			}
+			if (s_pw_dump)
+			{
+				const s32 f = frame;
+				std::fwrite(&f, sizeof(f), 1, s_pw_dump);
+				std::fwrite(&eeMem->Main[PW_BASE], PW_SIZE * 4, 1, s_pw_dump);
 			}
 		}
 
@@ -1839,6 +1861,8 @@ namespace ZdxsvGgpo
 				Console.WriteLn("ZdxsvGgpo: pw hashes %zu frames", s_pw.size());
 				s_pw.clear();
 			}
+			if (s_pw_dump)
+				std::fflush(s_pw_dump);
 		}
 	} // namespace
 
