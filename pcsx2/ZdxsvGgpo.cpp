@@ -140,6 +140,21 @@ namespace ZdxsvGgpo
 			const char* e = std::getenv("ZDXSV_GGPO");
 			return e && s_zdh_env && std::strstr(e, "zdk=1");
 		}();
+		// zds=1 (with zd=1, instead of zdh): no msgs in the GGPO input. Each own battle msg goes back
+		// to the game's recv once per remote position (sender nibble rewritten): k, X, B bit 0 and the
+		// kind 3/7/9/f msgs are game-wide, and the step applies the synced (A, B) of its own frame. A
+		// rerun's sends are re-echoed, never transmitted, so a rollback cannot desync a send (s620 run3).
+		const bool s_zds_env = [] {
+			const char* e = std::getenv("ZDXSV_GGPO");
+			return e && s_zd_env && std::strstr(e, "zds=1");
+		}();
+		u32 s_zds_echo = 0, s_zds_skip = 0;
+		// zds: kind 3 (round handshake) is the one barrier: each machine reaches it at its own frame
+		// (scene/load timing, s621 run1: side 2 one frame later), so it goes through the GGPO input
+		// and the n-th kind 3 of every remote goes to recv once all peers' n-th is in the synced stream.
+		std::vector<std::vector<u8>> s_zds_k3[GGPO_MAX_PLAYERS]; // per sender, by index
+		int s_zds_seen[GGPO_MAX_PLAYERS] = {}, s_zds_rel = 0; // rollback state (NetFrame)
+		u32 s_zds_k3rel = 0;
 		struct ZdHeld
 		{
 			std::vector<u8> m;
@@ -173,6 +188,7 @@ namespace ZdxsvGgpo
 			size_t pos;
 			std::vector<u8> rx;
 			std::deque<ZdHeld> held[GGPO_MAX_PLAYERS];
+			int k3seen[GGPO_MAX_PLAYERS], k3rel;
 		};
 		NetFrame s_net_at[128]; // per frame & 127, at its save
 		int s_net_end = -1; // frames since the end msg (kind f) was sent or received, -1 = not yet
@@ -1101,7 +1117,7 @@ namespace ZdxsvGgpo
 		std::memcpy(&a, ram + e + 2, 2);
 		std::memcpy(&b, ram + e + 6, 2);
 		const int c = ram[e] & 63;
-		const int k = s_zdk_env ? s_net_frame : ZdKeyFrame(c);
+		const int k = (s_zdk_env || s_zds_env) ? s_net_frame : ZdKeyFrame(c);
 		const u16* ab = k >= 0 ? s_zd_hist[k & 127][p] : s_zd_ab[p];
 		const u16 na = ab[0];
 		const u16 nb = static_cast<u16>((ab[1] & ~1u) | (b & 1u));
@@ -1484,6 +1500,26 @@ namespace ZdxsvGgpo
 		void NetSend(std::vector<u8> m)
 		{
 			s_ns.msgs++;
+			if (s_zds_env)
+			{
+				const int kind = m.size() >= 2 && m[0] == m.size() ? m[1] >> 4 : -1;
+				if (kind == 3)
+					; // GGPO input (below), released by NetSyncAndApply
+				else if (kind == 2 || kind == 7 || kind == 9 || kind == 0xf)
+				{
+					for (int q = 0; q < s_players; q++)
+						if (q != s_net_me)
+						{
+							s_net_rx.push_back(m[0]);
+							s_net_rx.push_back(static_cast<u8>((m[1] & 0xf0) | q));
+							s_net_rx.insert(s_net_rx.end(), m.begin() + 2, m.end());
+						}
+					if (!g_in_rollback)
+						s_zds_echo++;
+				}
+				else if (!g_in_rollback && s_zds_skip++ < 20)
+					Console.Warning("ZdxsvGgpo: zds msg kind %d (%zu bytes) not echoed", kind, m.size());
+			}
 			if (s_net_pos < s_net_sent.size())
 			{
 				if (s_net_sent[s_net_pos] != m && s_ns.senddiff++ < 40)
@@ -1502,7 +1538,8 @@ namespace ZdxsvGgpo
 				if (m.size() >= 2 && (m[1] >> 4) == 0xf && s_net_end < 0)
 					s_net_end = 0;
 				s_net_sent.push_back(m);
-				s_net_out.push_back(std::move(m));
+				if (!s_zds_env || (m.size() >= 2 && (m[1] >> 4) == 3))
+					s_net_out.push_back(std::move(m));
 				s_ns.maxq = std::max<u32>(s_ns.maxq, static_cast<u32>(s_net_out.size()));
 			}
 			s_net_pos++;
@@ -1526,6 +1563,8 @@ namespace ZdxsvGgpo
 			if (s_zdh_env)
 				for (int p = 0; p < s_players; p++)
 					at.held[p] = s_zd_held[p];
+			std::memcpy(at.k3seen, s_zds_seen, sizeof(at.k3seen));
+			at.k3rel = s_zds_rel;
 		}
 
 		void NetLoaded(int frame)
@@ -1537,6 +1576,8 @@ namespace ZdxsvGgpo
 			if (s_zdh_env)
 				for (int p = 0; p < s_players; p++)
 					s_zd_held[p] = at.held[p];
+			std::memcpy(s_zds_seen, at.k3seen, sizeof(s_zds_seen));
+			s_zds_rel = at.k3rel;
 		}
 
 		bool NetStart(GGPOSessionCallbacks& cb)
@@ -1682,7 +1723,16 @@ namespace ZdxsvGgpo
 							for (const KeySlot& s : slots)
 								s_zd_fin[s.c][p] = f;
 					}
-				if (p != s_net_me && fresh)
+				if (s_zds_env && fresh)
+					for (u32 i = 0; i + 1 < len && d[i] >= 2 && i + d[i] <= len; i += d[i])
+						if ((d[i + 1] >> 4) == 3)
+						{
+							std::vector<std::vector<u8>>& v = s_zds_k3[p];
+							if (v.size() <= static_cast<size_t>(s_zds_seen[p]))
+								v.resize(s_zds_seen[p] + 1);
+							v[s_zds_seen[p]++].assign(d + i, d + i + d[i]);
+						}
+				if (p != s_net_me && fresh && !s_zds_env)
 				{
 					for (u32 i = 0; i + 1 < len && d[i] >= 2 && i + d[i] <= len; i += d[i])
 						if ((d[i + 1] >> 4) == 0xf && s_net_end < 0)
@@ -1700,6 +1750,21 @@ namespace ZdxsvGgpo
 						s_zd_held[p].push_back({std::vector<u8>(d + i, d + len), f});
 				}
 				s_net_seq_at[f & 63][p] = in[p].seq;
+			}
+			for (bool all = s_zds_env; all;)
+			{
+				for (int p = 0; p < s_players; p++)
+					all = all && s_zds_seen[p] > s_zds_rel;
+				if (!all)
+					break;
+				for (int p = 0; p < s_players; p++)
+					if (p != s_net_me)
+						s_net_rx.insert(s_net_rx.end(), s_zds_k3[p][s_zds_rel].begin(), s_zds_k3[p][s_zds_rel].end());
+				if (s_net_trace)
+					std::fprintf(s_net_trace, "%u K3%s %d %d\n", g_FrameCount, g_in_rollback ? "r" : "", f, s_zds_rel);
+				if (!g_in_rollback)
+					s_zds_k3rel++;
+				s_zds_rel++;
 			}
 			// zdh release: a key msg once all its counters are complete; other msgs at once (in order).
 			// A blocked key msg goes anyway when its sender's kind-3 resync is queued behind it
@@ -1743,7 +1808,8 @@ namespace ZdxsvGgpo
 				s_ns.sends, s_ns.msgs, s_net_sent.size(), s_net_out.size(), s_ns.recvs, s_ns.rxmsgs, s_ns.rxbytes, s_ns.polls,
 				s_ns.other, s_ns.nowait, s_ns.senddiff, s_ns.toolong, s_ns.maxq, s_waits);
 			if (s_zd_env)
-				Console.WriteLn("ZdxsvGgpo: zd steps %u changed %u nok %u zdh %d forced %u heldmax %u ahead %u zdp %d", s_zd_steps, s_zd_changed, s_zd_nok, s_zdh_env, s_zd_forced, s_zd_held_max, s_zd_ahead, s_zdp_env);
+				Console.WriteLn("ZdxsvGgpo: zd steps %u changed %u nok %u zdh %d forced %u heldmax %u ahead %u zdp %d zds %d echo %u skip %u k3 %d/%d/%d/%d rel %d (fwd %u)", s_zd_steps, s_zd_changed, s_zd_nok, s_zdh_env, s_zd_forced, s_zd_held_max, s_zd_ahead, s_zdp_env, s_zds_env, s_zds_echo, s_zds_skip,
+					s_zds_seen[0], s_zds_seen[1], s_zds_seen[2], s_zds_seen[3], s_zds_rel, s_zds_k3rel);
 		}
 	} // namespace
 
