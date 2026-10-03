@@ -505,7 +505,7 @@ static __fi void VSyncStart(u64 sCycle)
 		ZdxsvInputLatency::OnFrameEnd();
 	if (ZdxsvDeltaState::g_test_enabled)
 		ZdxsvDeltaState::OnVsync();
-	if (ZdxsvGgpo::g_enabled)
+	if (ZdxsvGgpo::g_enabled || ZdxsvGgpo::g_net_hook)
 		ZdxsvGgpo::OnVsync();
 
 	if (EmuConfig.EmulationSpeed.LowLatencyVsync)

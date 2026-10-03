@@ -737,8 +737,13 @@ namespace ZdxsvGgpo
 		}
 	} // namespace
 
+	void TracePad();
+
 	void OnVsync()
 	{
+		TracePad();
+		if (!g_enabled)
+			return;
 		if (!g_active)
 		{
 			if (!g_enabled || s_started)
@@ -907,6 +912,23 @@ namespace ZdxsvGgpo
 	}
 
 	void NoteOwnSend(const KeySlot& s);
+
+	// NET_TRACE: per frame, the pad in EE RAM when it changed: `P` raw SIO buffer (8 B, buttons
+	// active-low at +2) and the game's copy byte.
+	void TracePad()
+	{
+		constexpr u32 PAD_RAW = 0x6f2460;
+		constexpr u32 PAD_GAME = 0x117f4d9;
+		static u8 last[9];
+		u8 cur[9];
+		std::memcpy(cur, eeMem->Main + PAD_RAW, 8);
+		cur[8] = eeMem->Main[PAD_GAME];
+		if (!s_net_trace || g_in_rollback || std::memcmp(cur, last, 9) == 0)
+			return;
+		std::memcpy(last, cur, 9);
+		std::fprintf(s_net_trace, "%u P %02x%02x%02x%02x%02x%02x%02x%02x %02x\n", g_FrameCount,
+			cur[0], cur[1], cur[2], cur[3], cur[4], cur[5], cur[6], cur[7], cur[8]);
+	}
 
 	void OnNetRpc()
 	{
