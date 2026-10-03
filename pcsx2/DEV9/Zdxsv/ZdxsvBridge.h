@@ -49,6 +49,9 @@ namespace Zdxsv
 	// Log sink (pcsx2: Console). Default: none.
 	void SetLogger(std::function<void(const std::string&)> log);
 
+	// Emulator frame counter for ZDXSV_UDP_DUMP lines (pcsx2: g_FrameCount). Default: none (0).
+	void SetFrameCounter(const volatile unsigned* counter);
+
 	// ZDXSV_UDP=0 turns the bridge off (the game talks TCP to the battle server).
 	bool Enabled();
 
