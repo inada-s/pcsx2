@@ -109,6 +109,7 @@ namespace ZdxsvGgpo
 		}();
 		bool s_net = false; // net=1 parsed
 		int s_players = 4; // players= (net)
+		int s_relay = 0; // relay=R (net): remote p is at port R + 8 * me + p (zdxsv/udprelay.py per pair), not port + p
 		bool s_net_armed = false, s_net_over = false;
 		int s_net_me = -1; // local battle position
 		std::vector<std::vector<u8>> s_net_sent; // every msg the game sent since armed, in order
@@ -237,6 +238,8 @@ namespace ZdxsvGgpo
 					s_net = (n != 0);
 				else if (key == "players")
 					s_players = std::clamp(n, 2, GGPO_MAX_PLAYERS);
+				else if (key == "relay")
+					s_relay = n;
 				else
 					Console.Warning("ZdxsvGgpo: unknown key '%.*s'", static_cast<int>(key.size()), key.data());
 			}
@@ -1136,8 +1139,16 @@ namespace ZdxsvGgpo
 			s_ns.msgs++;
 			if (s_net_pos < s_net_sent.size())
 			{
-				if (s_net_sent[s_net_pos] != m && s_ns.senddiff++ < 20)
-					Console.Warning("ZdxsvGgpo: net rerun send %zu differs (frame %d)", s_net_pos, s_net_frame);
+				if (s_net_sent[s_net_pos] != m && s_ns.senddiff++ < 40)
+				{
+					std::string a, b;
+					char h[4];
+					for (u8 v : s_net_sent[s_net_pos])
+						std::snprintf(h, sizeof(h), "%02x", v), a += h;
+					for (u8 v : m)
+						std::snprintf(h, sizeof(h), "%02x", v), b += h;
+					Console.Warning("ZdxsvGgpo: net rerun send %zu differs (frame %d) sent %s rerun %s", s_net_pos, s_net_frame, a.c_str(), b.c_str());
+				}
 			}
 			else
 			{
@@ -1198,7 +1209,7 @@ namespace ZdxsvGgpo
 				if (player.type == GGPO_PLAYERTYPE_REMOTE)
 				{
 					StringUtil::Strlcpy(player.u.remote.ip_address, s_peer_host.c_str(), sizeof(player.u.remote.ip_address));
-					player.u.remote.port = static_cast<unsigned short>(s_port + p);
+					player.u.remote.port = static_cast<unsigned short>(s_relay ? s_relay + 8 * s_net_me + p : s_port + p);
 				}
 				if (ggpo_add_player(s_session, &player, &s_handles[p]) != GGPO_OK)
 					return false;

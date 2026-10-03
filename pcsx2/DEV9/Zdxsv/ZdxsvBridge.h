@@ -88,6 +88,10 @@ namespace Zdxsv
 	// opened before the save (only if LobbyStateEnabled()).
 	void OnStateLoaded();
 	bool AdoptConnections();
+	// ip:port is the battle server of the last battle info. Its connection (the bridge)
+	// is never adopted: once the bridge ended (game idle during a GGPO battle), the
+	// PS2's late packets get a RST instead of a new connection to a closed room (s612).
+	bool IsBattleServer(uint32_t ip, uint16_t port);
 
 	// Stops a running bridge (emulator shutdown).
 	void Shutdown();

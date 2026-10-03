@@ -1024,6 +1024,12 @@ namespace Zdxsv
 		return g_stateLoaded && LobbyStateEnabled();
 	}
 
+	bool IsBattleServer(uint32_t ip, uint16_t port)
+	{
+		std::lock_guard lock(g_mtx);
+		return ip == g_info.serverIP && port == g_info.serverPort;
+	}
+
 	void Shutdown()
 	{
 		g_bridge.reset();
