@@ -38,6 +38,7 @@
 #include "SaveState.h"
 #include "Host.h"
 #include "VMManager.h"
+#include "GS/GS.h"
 
 #include "common/FileSystem.h"
 #include "common/Path.h"
@@ -191,8 +192,8 @@ namespace ZdxsvGgpo
 		constexpr u32 PW_MASK[] = {0x274, 0x2b4, 0x1e64, 0x1e74, 0x1e84, 0x1e94, 0x214c};
 		// Viewer-team bits (s628 rbk N=4, pwdiff --own): equal on the machines of one side, set for the
 		// other side's players: +0x68 0x300 (119 frames mid-battle), and from time-up on +0x58 0x100,
-		// +0x9c 0x10000, +0x2068 bit 0, +0x2004 (pointer). No other field follows them.
-		constexpr std::pair<u32, u32> PW_MASK_BITS[] = {{0x58, 0x100}, {0x68, 0x300}, {0x9c, 0x10000}, {0x2004, ~0u}, {0x2068, 1}};
+		// +0x9c 0x10000, +0x2068 bit 0, +0x2004 (pointer); +0x2074 0x100 on the time-up frame (s630). No other field follows them.
+		constexpr std::pair<u32, u32> PW_MASK_BITS[] = {{0x58, 0x100}, {0x68, 0x300}, {0x9c, 0x10000}, {0x2004, ~0u}, {0x2068, 1}, {0x2074, 0x100}};
 		std::map<int, std::array<u64, 4>> s_pw;
 		// ZDXSV_PW_DUMP=file: every save appends (s32 frame, 4 * PW_SIZE bytes of player work); rollback
 		// re-saves a frame, the last record wins (`zdxsv/pwdiff.py` finds the fields behind H mismatches).
@@ -941,6 +942,11 @@ namespace ZdxsvGgpo
 			VMManager::SetLimiterMode(LimiterModeType::Turbo);
 		TracePad();
 		TraceInputs();
+		// ZDXSV_SNAP=dir,n: GS screenshot dir/v<vsync>.png every n vsyncs (needs a real renderer, not -Headless)
+		static const char* snap = std::getenv("ZDXSV_SNAP");
+		static const int snap_n = snap && std::strchr(snap, ',') ? std::atoi(std::strchr(snap, ',') + 1) : 0;
+		if (snap_n > 0 && !g_in_rollback && g_FrameCount % snap_n == 0)
+			GSQueueSnapshot(fmt::format("{}\\v{}.png", std::string(snap, std::strchr(snap, ',')), g_FrameCount));
 		if (!g_enabled)
 			return;
 		if (!g_active)
@@ -1302,6 +1308,30 @@ namespace ZdxsvGgpo
 			{
 				std::fwrite(eeMem->Main, 1, Ps2MemSize::MainRam, fp);
 				std::fclose(fp);
+			}
+		}
+		// ZDXSV_EE_CLAMP=addr,max[,lo,hi]: u16 at addr set to max whenever above it (and in lo..hi);
+		// a function of state, so rollback-safe. 0x117f566 = 出撃準備 frames left (3599 at
+		// entry; 1800 and 0xffff in earlier phases, s630 ramcount.py).
+		static const auto clamp = [] {
+			std::tuple<u32, u32, u32, u32> c{0, 0, 0, 0};
+			if (const char* e = std::getenv("ZDXSV_EE_CLAMP"))
+			{
+				u32 a, m, lo = 0, hi = 0xffff;
+				if (std::sscanf(e, "%x,%u,%u,%u", &a, &m, &lo, &hi) >= 2 && a + 2 <= Ps2MemSize::MainRam)
+					c = {a, m, lo, hi};
+			}
+			return c;
+		}();
+		if (const auto& [caddr, cmax, clo, chi] = clamp; caddr)
+		{
+			u16& v = *reinterpret_cast<u16*>(eeMem->Main + (caddr & ~1u));
+			if (v > cmax && v >= clo && v <= chi)
+			{
+				static int logged = 0;
+				if (!g_in_rollback && logged++ < 3)
+					Console.WriteLn("ZdxsvGgpo: EE clamp %x %u -> %u at vsync %u", caddr, v, cmax, g_FrameCount);
+				v = static_cast<u16>(cmax);
 			}
 		}
 		if (!s_net_trace || g_in_rollback || !s_game_gp)
