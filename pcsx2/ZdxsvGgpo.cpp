@@ -154,6 +154,13 @@ namespace ZdxsvGgpo
 			const char* e = std::getenv("ZDXSV_ZDS_K3ECHO");
 			return e && e[0] == '1';
 		}();
+		// ZDXSV_ZDS_ECHOAB=1: the echo of an own key msg as remote q carries q's synced (A, B) of the
+		// running frame in its records, not the own input: the game holds a remote's ring entry from
+		// the echo until the step (s624: ring A/B of a remote = the local pad one frame earlier).
+		const bool s_zds_echoab = [] {
+			const char* e = std::getenv("ZDXSV_ZDS_ECHOAB");
+			return e && e[0] == '1';
+		}();
 		// ZDXSV_PW_HASH=1: per GGPO frame (last save wins) XXH3 of each player work 0x8395d8 + 0x2200*p,
 		// written as `H frame h0 h1 h2 h3` to NET_TRACE at the report: the 4 machines simulate every
 		// player, so in sync these agree across peers (own-position RAM elsewhere does not, sync=0).
@@ -1531,8 +1538,18 @@ namespace ZdxsvGgpo
 					; // GGPO input (below), released by NetSyncAndApply
 				else if (kind == 2 || kind == 3 || kind == 7 || kind == 9 || kind == 0xf)
 				{
+					std::vector<KeySlot> slots;
+					const bool ab = s_zds_echoab && kind == 2 && ParseKeySlots(m.data(), static_cast<u32>(m.size()), slots);
 					for (int q = 0; q < s_players; q++)
-						if (q != s_net_me)
+						if (q != s_net_me && ab)
+						{
+							for (KeySlot& s : slots)
+								if (s.rec)
+									s.a = s_zd_ab[q][0], s.b = static_cast<u16>((s_zd_ab[q][1] & ~1u) | (s.b & 1u));
+							const std::vector<u8> r = BuildKeyMsg(q, slots);
+							s_net_rx.insert(s_net_rx.end(), r.begin(), r.end());
+						}
+						else if (q != s_net_me)
 						{
 							s_net_rx.push_back(m[0]);
 							s_net_rx.push_back(static_cast<u8>((m[1] & 0xf0) | q));
