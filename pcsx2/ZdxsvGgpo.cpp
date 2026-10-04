@@ -115,7 +115,8 @@ namespace ZdxsvGgpo
 		// as battle position i (0-based) of N. Until GGPO arms, every lobby / battle connect RPC is
 		// answered here (RbkCall: built-in battle start, recorded connect results, own battle msgs
 		// echoed per remote position) and the limiter runs turbo; the process exits at the session end.
-		// ZDXSV_RBK_TIME=s: rule time limit (recorded 210). ZDXSV_RAND_INPUT=seed: seeded pad input.
+		// ZDXSV_RBK_TIME=s: rule time limit (recorded 210). ZDXSV_RBK_COUNT=n: battles (recorded 0 =
+		// rematch by input). ZDXSV_RBK_GAUGE=v: 戦力ゲージ (recorded 600). ZDXSV_RAND_INPUT=seed: pad input.
 		int s_rbk_me = -1, s_rbk_n = 0;
 		const bool s_rbk = [] {
 			const char* e = std::getenv("ZDXSV_RBK");
@@ -188,6 +189,10 @@ namespace ZdxsvGgpo
 		// +0x214c = player struct (0x839330 + 0x2200*q) +0x1f4 of q = p + 1: HUD gauge display value, moved 1/frame
 		// toward +0x1f2 by 0x14d860 for the own position only (s625 ZDXSV_EE_WATCH: writer 0x14d910).
 		constexpr u32 PW_MASK[] = {0x274, 0x2b4, 0x1e64, 0x1e74, 0x1e84, 0x1e94, 0x214c};
+		// Viewer-team bits (s628 rbk N=4, pwdiff --own): equal on the machines of one side, set for the
+		// other side's players: +0x68 0x300 (119 frames mid-battle), and from time-up on +0x58 0x100,
+		// +0x9c 0x10000, +0x2068 bit 0, +0x2004 (pointer). No other field follows them.
+		constexpr std::pair<u32, u32> PW_MASK_BITS[] = {{0x58, 0x100}, {0x68, 0x300}, {0x9c, 0x10000}, {0x2004, ~0u}, {0x2068, 1}};
 		std::map<int, std::array<u64, 4>> s_pw;
 		// ZDXSV_PW_DUMP=file: every save appends (s32 frame, 4 * PW_SIZE bytes of player work); rollback
 		// re-saves a frame, the last record wins (`zdxsv/pwdiff.py` finds the fields behind H mismatches).
@@ -1637,7 +1642,14 @@ namespace ZdxsvGgpo
 					std::memcpy(w.data(), &eeMem->Main[PW_BASE + PW_SIZE * p], PW_SIZE);
 					for (u32 o : PW_MASK)
 						std::memset(&w[o], 0, 4);
-					h[p] = XXH3_64bits(w.data(), PW_SIZE);
+					for (const auto& [o, bits] : PW_MASK_BITS)
+					{
+						u32 v;
+						std::memcpy(&v, &w[o], 4);
+						v &= ~bits;
+						std::memcpy(&w[o], &v, 4);
+					}
+					h[p] =XXH3_64bits(w.data(), PW_SIZE);
 				}
 			}
 			if (s_pw_dump)
@@ -1950,6 +1962,8 @@ namespace ZdxsvGgpo
 		};
 		const char* const RBK_RULE = "006400000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000025802580064006400d20000000002000000000000000000000000000001";
 		constexpr size_t RBK_RULE_TIME = 80; // u16 BE seconds (0x00d2 = 210)
+		constexpr size_t RBK_RULE_GAUGE = 72; // u16 BE x2 (72, 74), 戦力ゲージ (0x0258 = 600)
+		constexpr size_t RBK_RULE_COUNT = 87; // u8 連続対戦数, 0 = 任意 (rematch picked by input)
 
 		std::vector<u8> Unhex(std::string_view s)
 		{
@@ -1998,6 +2012,17 @@ namespace ZdxsvGgpo
 						b[RBK_RULE_TIME] = static_cast<u8>(s >> 8);
 						b[RBK_RULE_TIME + 1] = static_cast<u8>(s);
 					}
+					if (const char* g = std::getenv("ZDXSV_RBK_GAUGE"))
+					{
+						const int v = std::atoi(g);
+						for (size_t o : {RBK_RULE_GAUGE, RBK_RULE_GAUGE + 2})
+						{
+							b[o] = static_cast<u8>(v >> 8);
+							b[o + 1] = static_cast<u8>(v);
+						}
+					}
+					if (const char* c = std::getenv("ZDXSV_RBK_COUNT"))
+						b[RBK_RULE_COUNT] = static_cast<u8>(std::atoi(c));
 					return b;
 				}
 				case 0x6916: return Unhex("0004c0a8010800022012");
@@ -2131,7 +2156,9 @@ namespace ZdxsvGgpo
 			{
 				s_net_rx.insert(s_net_rx.end(), s_rbk_rx.begin(), s_rbk_rx.end());
 				s_rbk_rx.clear();
-				VMManager::SetLimiterMode(LimiterModeType::Nominal);
+				// ZDXSV_RBK_TURBO=1: the battle runs turbo too (GGPO paces the peers by frame)
+				if (!std::getenv("ZDXSV_RBK_TURBO"))
+					VMManager::SetLimiterMode(LimiterModeType::Nominal);
 			}
 			for (s32 i = 0; i + 1 < len && d[i] >= 2 && i + d[i] <= len; i += d[i])
 				if ((d[i + 1] >> 4) == 2)
