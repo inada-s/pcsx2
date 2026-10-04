@@ -195,7 +195,10 @@ namespace ZdxsvGgpo
 		// +0x9c 0x10000, +0x2068 bit 0, +0x2004 (pointer); +0x2074 0x100 on the time-up frame (s630). No other field follows them.
 		// +0x2088 byte (struct +0x130): effect flag, set each frame by 0xe0a1b4, cleared by the MS-kind handler
 		// (0x2a7560 cases 4/6) of the model update 0x1e4340, run for the own player + players in view only (s631).
-		constexpr std::pair<u32, u32> PW_MASK_BITS[] = {{0x58, 0x100}, {0x68, 0x300}, {0x9c, 0x10000}, {0x2004, ~0u}, {0x2068, 1}, {0x2074, 0x100}, {0x2088, 0xff}};
+		// Own player only (s634 rbk N=2 pwdiff --own): u16 +0xcc set on the own machine, 0 on others;
+		// u16 +0x92 follows u16 +0x90 (gauge 4000, equal on all) on the own machine, stays 4000 on others.
+		constexpr std::pair<u32, u32> PW_MASK_BITS[] = {{0x58, 0x100}, {0x68, 0x300}, {0x9c, 0x10000}, {0x2004, ~0u}, {0x2068, 1}, {0x2074, 0x100}, {0x2088, 0xff},
+			{0xcc, 0xffff}, {0x90, 0xffff0000}};
 		std::map<int, std::array<u64, 4>> s_pw;
 		// ZDXSV_PW_DUMP=file: every save appends (s32 frame, 4 * PW_SIZE bytes of player work); rollback
 		// re-saves a frame, the last record wins (`zdxsv/pwdiff.py` finds the fields behind H mismatches).
