@@ -172,7 +172,9 @@ namespace ZdxsvGgpo
 		// Left out of the hash: machine-local 1-frame scratch (s623 pwdiff, in-sync 60 ms run):
 		// +0x274/+0x2b4 go 1.0 -> a different float per machine -> 0 at one frame on all machines;
 		// +0x1e64..+0x1e94 (stride 0x10) set on one machine for one frame. Player work agrees after.
-		constexpr u32 PW_MASK[] = {0x274, 0x2b4, 0x1e64, 0x1e74, 0x1e84, 0x1e94};
+		// +0x214c = player struct (0x839330 + 0x2200*q) +0x1f4 of q = p + 1: HUD gauge display value, moved 1/frame
+		// toward +0x1f2 by 0x14d860 for the own position only (s625 ZDXSV_EE_WATCH: writer 0x14d910).
+		constexpr u32 PW_MASK[] = {0x274, 0x2b4, 0x1e64, 0x1e74, 0x1e84, 0x1e94, 0x214c};
 		std::map<int, std::array<u64, 4>> s_pw;
 		// ZDXSV_PW_DUMP=file: every save appends (s32 frame, 4 * PW_SIZE bytes of player work); rollback
 		// re-saves a frame, the last record wins (`zdxsv/pwdiff.py` finds the fields behind H mismatches).
@@ -1953,4 +1955,10 @@ namespace ZdxsvGgpo
 		cpuRegs.pc = cpuRegs.GPR.n.ra.UL[0];
 		return true;
 	}
+} // namespace ZdxsvGgpo
+
+namespace ZdxsvGgpo
+{
+	// EE probe (iR5900.cpp): GGPO frame being run, the frame numbers of NET_TRACE H lines and PW dumps.
+	int ProbeFrame() { return s_net_frame; }
 } // namespace ZdxsvGgpo
