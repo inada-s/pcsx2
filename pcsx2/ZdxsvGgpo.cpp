@@ -193,7 +193,9 @@ namespace ZdxsvGgpo
 		// Viewer-team bits (s628 rbk N=4, pwdiff --own): equal on the machines of one side, set for the
 		// other side's players: +0x68 0x300 (119 frames mid-battle), and from time-up on +0x58 0x100,
 		// +0x9c 0x10000, +0x2068 bit 0, +0x2004 (pointer); +0x2074 0x100 on the time-up frame (s630). No other field follows them.
-		constexpr std::pair<u32, u32> PW_MASK_BITS[] = {{0x58, 0x100}, {0x68, 0x300}, {0x9c, 0x10000}, {0x2004, ~0u}, {0x2068, 1}, {0x2074, 0x100}};
+		// +0x2088 byte (struct +0x130): effect flag, set each frame by 0xe0a1b4, cleared by the MS-kind handler
+		// (0x2a7560 cases 4/6) of the model update 0x1e4340, run for the own player + players in view only (s631).
+		constexpr std::pair<u32, u32> PW_MASK_BITS[] = {{0x58, 0x100}, {0x68, 0x300}, {0x9c, 0x10000}, {0x2004, ~0u}, {0x2068, 1}, {0x2074, 0x100}, {0x2088, 0xff}};
 		std::map<int, std::array<u64, 4>> s_pw;
 		// ZDXSV_PW_DUMP=file: every save appends (s32 frame, 4 * PW_SIZE bytes of player work); rollback
 		// re-saves a frame, the last record wins (`zdxsv/pwdiff.py` finds the fields behind H mismatches).
@@ -218,6 +220,17 @@ namespace ZdxsvGgpo
 			u8 n, rel, prev;
 			bool hold;
 		} s_l8 = {};
+		// ZDXSV_ZDS_PS=1: play start. The battle load step 0x2b1d60 (scene step: waits for the load-busy
+		// flag via 0x214260, then inits the per-battle work and sets tick state 8) passes 0x2b1d80 when this
+		// machine's load is done: local timing (s630: player work initialized 1 frame apart). The rec hook
+		// there counts the wish, returns 0 (step retried next frame) until every peer's synced count in
+		// Input::unused[1] reaches n, then lets the n-th pass. Rollback state (NetFrame).
+		const bool s_zds_ps = std::getenv("ZDXSV_ZDS_PS") != nullptr;
+		struct PS
+		{
+			u8 n, rel;
+			bool hold, go;
+		} s_ps = {};
 		struct ZdHeld
 		{
 			std::vector<u8> m;
@@ -253,6 +266,7 @@ namespace ZdxsvGgpo
 			std::deque<ZdHeld> held[GGPO_MAX_PLAYERS];
 			int k3seen[GGPO_MAX_PLAYERS], k3rel;
 			L8 l8;
+			PS ps;
 		};
 		NetFrame s_net_at[128]; // per frame & 127, at its save
 		int s_net_end = -1; // frames since the end msg (kind f) was sent or received, -1 = not yet
@@ -1097,6 +1111,7 @@ namespace ZdxsvGgpo
 
 	bool g_net_hook = s_net_trace != nullptr || s_net_env;
 	bool g_zd_hook = s_zd_env;
+	bool g_ps_hook = s_zds_ps;
 
 	// K(c) (s_zd_fin) or -1 if unusable. An entry > 32 frames older than the newest is the previous
 	// use of the slot (64 counters ago) = not yet in the stream (own msg, sent < delay frames ago).
@@ -1176,6 +1191,29 @@ namespace ZdxsvGgpo
 		for (const auto& e : bind)
 			if ((in.buttons >> e.i) & 1)
 				a |= e.a, b |= e.b;
+	}
+
+	// ps: rec hook at LOAD_STEP_PC (0x2b1d80, battle load step past its load-busy check). true = held:
+	// v0 = 0 (step not done, the scene retries it next frame), pc = the epilogue 0x2b1fa8. Trace `P frame n`.
+	bool OnLoadStep()
+	{
+		if (!g_active || !s_net_armed || s_net_over)
+			return false;
+		if (!s_ps.hold)
+		{
+			s_ps.hold = true;
+			s_ps.n++;
+			if (s_net_trace)
+				std::fprintf(s_net_trace, "%u P%s %d %d\n", g_FrameCount, g_in_rollback ? "r" : "", s_net_frame, s_ps.n);
+		}
+		if (s_ps.go)
+		{
+			s_ps.hold = s_ps.go = false;
+			return false;
+		}
+		cpuRegs.GPR.n.v0.UD[0] = 0;
+		cpuRegs.pc = 0x2b1fa8;
+		return true;
 	}
 
 	// zd: rec hook at the lockstep step's ring read (0x312bf4, per active position: s0 = position,
@@ -1676,6 +1714,7 @@ namespace ZdxsvGgpo
 			std::memcpy(at.k3seen, s_zds_seen, sizeof(at.k3seen));
 			at.k3rel = s_zds_rel;
 			at.l8 = s_l8;
+			at.ps = s_ps;
 			if (s_pw_hash)
 			{
 				std::array<u64, 4>& h = s_pw[frame];
@@ -1715,6 +1754,7 @@ namespace ZdxsvGgpo
 			std::memcpy(s_zds_seen, at.k3seen, sizeof(s_zds_seen));
 			s_zds_rel = at.k3rel;
 			s_l8 = at.l8;
+			s_ps = at.ps;
 		}
 
 		bool NetStart(GGPOSessionCallbacks& cb)
@@ -1807,6 +1847,7 @@ namespace ZdxsvGgpo
 				std::memcpy(&in.pad, ab, sizeof(ab));
 			}
 			in.pad.unused[0] = s_l8.n;
+			in.pad.unused[1] = s_ps.n;
 			std::vector<u8> data;
 			while (!s_net_out.empty())
 			{
@@ -1949,6 +1990,19 @@ namespace ZdxsvGgpo
 						std::fprintf(s_net_trace, "%u L8%s %d %d\n", g_FrameCount, g_in_rollback ? "r" : "", f, s_l8.rel);
 				}
 				s_l8.prev = st;
+			}
+			if (s_zds_ps && s_ps.hold && !s_ps.go)
+			{
+				bool all = true;
+				for (int p = 0; p < s_players; p++)
+					all = all && static_cast<u8>(in[p].pad.unused[1] - s_ps.rel) >= 1 && static_cast<u8>(in[p].pad.unused[1] - s_ps.rel) < 128;
+				if (all)
+				{
+					s_ps.go = true;
+					s_ps.rel++;
+					if (s_net_trace)
+						std::fprintf(s_net_trace, "%u PS%s %d %d\n", g_FrameCount, g_in_rollback ? "r" : "", f, s_ps.rel);
+				}
 			}
 			// zdh release: a key msg once all its counters are complete; other msgs at once (in order).
 			// A blocked key msg goes anyway when its sender's kind-3 resync is queued behind it

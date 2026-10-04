@@ -18,6 +18,10 @@ namespace ZdxsvGgpo
 	// zd=1: lockstep step's ring read (0x312bf4: a1 = ring entry, s0 = position) gets the GGPO input.
 	constexpr u32 STEP_COPY_PC = 0x312bf4;
 	extern bool g_zd_hook;
+	// ZDXSV_ZDS_PS=1: battle load step past its load-busy check; true = held (v0 = 0, pc = epilogue).
+	constexpr u32 LOAD_STEP_PC = 0x2b1d80;
+	extern bool g_ps_hook;
+	bool OnLoadStep();
 	void OnStepCopy();
 	int ProbeFrame(); // GGPO frame being run (EE probe lines)
 }
@@ -1867,6 +1871,15 @@ void recompileNextInstruction(bool delayslot, bool swapped_delay_slot)
 		{
 			iFlushCall(FLUSH_EVERYTHING | FLUSH_PC);
 			xFastCall((void*)ZdxsvGgpo::OnStepCopy);
+		}
+		if (ZdxsvGgpo::g_ps_hook && pc == ZdxsvGgpo::LOAD_STEP_PC)
+		{
+			iFlushCall(FLUSH_EVERYTHING | FLUSH_PC);
+			xFastCall((void*)ZdxsvGgpo::OnLoadStep);
+			xTEST(al, al);
+			xForwardJZ32 run_step;
+			xJMP(DispatcherReg);
+			run_step.SetTarget();
 		}
 	}
 	else
