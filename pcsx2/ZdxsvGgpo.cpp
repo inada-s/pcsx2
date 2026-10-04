@@ -36,6 +36,8 @@
 #include "SIO/Pad/Pad.h"
 #include "SIO/Pad/PadDualshock2.h"
 #include "SaveState.h"
+#include "Host.h"
+#include "VMManager.h"
 
 #include "common/FileSystem.h"
 #include "common/Path.h"
@@ -109,6 +111,17 @@ namespace ZdxsvGgpo
 			const char* e = std::getenv("ZDXSV_GGPO");
 			return e && std::strstr(e, "net=1");
 		}();
+		// ZDXSV_RBK=i/N (net=1; flycast rbk_test): started from a post-entry state (zdxsv/rbkprep.sh)
+		// as battle position i (0-based) of N. Until GGPO arms, every lobby / battle connect RPC is
+		// answered here (RbkCall: built-in battle start, recorded connect results, own battle msgs
+		// echoed per remote position) and the limiter runs turbo; the process exits at the session end.
+		// ZDXSV_RBK_TIME=s: rule time limit (recorded 210). ZDXSV_RAND_INPUT=seed: seeded pad input.
+		int s_rbk_me = -1, s_rbk_n = 0;
+		const bool s_rbk = [] {
+			const char* e = std::getenv("ZDXSV_RBK");
+			return e && std::sscanf(e, "%d/%d", &s_rbk_me, &s_rbk_n) == 2 && s_rbk_me >= 0 && s_rbk_me < s_rbk_n && s_rbk_n <= 4;
+		}();
+		const char* s_rand_env = std::getenv("ZDXSV_RAND_INPUT");
 		bool s_net = false; // net=1 parsed
 		int s_players = 4; // players= (net)
 		int s_relay = 0; // relay=R (net): remote p is at port R + 8 * me + p (zdxsv/udprelay.py per pair), not port + p
@@ -760,6 +773,11 @@ namespace ZdxsvGgpo
 				s_net_over = true; // the battle sock goes back to the IOP
 				NetReport();
 			}
+			if (s_rbk)
+			{
+				Console.WriteLn("ZdxsvGgpo: rbk exit (%s) at vsync %u", what, g_FrameCount);
+				Host::RunOnCPUThread([] { Host::RequestVMShutdown(false, false, false); });
+			}
 		}
 
 		bool Start()
@@ -914,6 +932,8 @@ namespace ZdxsvGgpo
 	void OnVsync()
 	{
 		PatchNetTable();
+		if (s_rbk && s_net_env && !s_net_armed)
+			VMManager::SetLimiterMode(LimiterModeType::Turbo);
 		TracePad();
 		TraceInputs();
 		if (!g_enabled)
@@ -1690,10 +1710,33 @@ namespace ZdxsvGgpo
 			return true;
 		}
 
+		// ZDXSV_RAND_INPUT=seed: every 5 frames new buttons (each 1/4, never START / SELECT) and left
+		// stick, from a generator seeded by (seed, position).
+		Input RandInput()
+		{
+			static std::mt19937 rng;
+			static Input in = {};
+			static int calls = 0;
+			if (calls == 0)
+			{
+				std::seed_seq seq{static_cast<u32>(std::atoi(s_rand_env)), static_cast<u32>(s_net_me)};
+				rng.seed(seq);
+			}
+			if (calls++ % 5 == 0)
+			{
+				using I = PadDualshock2::Inputs;
+				in.buttons = static_cast<u16>(rng() & rng() & ~((1u << I::PAD_START) | (1u << I::PAD_SELECT)));
+				in.lx = static_cast<u8>(rng());
+				in.ly = static_cast<u8>(rng());
+				in.rx = in.ry = Pad::ANALOG_NEUTRAL_POSITION;
+			}
+			return in;
+		}
+
 		bool NetNextInputs()
 		{
 			NetInput in = s_net_local;
-			in.pad = HostInput();
+			in.pad = s_rand_env ? RandInput() : HostInput();
 			if (s_zd_env)
 			{
 				s_zd_pad[s_net_frame & 127] = in.pad;
@@ -1885,6 +1928,182 @@ namespace ZdxsvGgpo
 		}
 	} // namespace
 
+	namespace
+	{
+		// ZDXSV_RBK: answers of a real start (s626 trace, 4 players, fake_lobby.py): lobby frames are
+		// `18 cat cmd size seq 00ffffff body` (BE, 12-byte header), the game's `81 01 ..`.
+		std::vector<u8> s_rbk_rx; // what recv 0x13 / 0x14 and the poll's readable count see
+		bool s_rbk_started = false; // 0x6910 (battle start) queued
+		u32 s_rbk_calls[0x50] = {};
+		constexpr u32 RBK_FNO_RECV_LOBBY = 0x13;
+		const char* const RBK_USERS[4] = {
+			"010100064a3953584e4d000682a082a082a000000064834a837e815b838681458372835f839300000000000097b989f081490000000000000000000000000000000082bb82bf82e782cc94ed8a518ff38bb582cd8148000093478b408c82946a814900000000000000000000000089b482c9944382b982eb814901",
+			"02010006554a4239414d000682a282a282a200000064834a837e815b838681458372835f839300000000000097b989f081490000000000000000000000000000000082bb82bf82e782cc94ed8a518ff38bb582cd8148000093478b408c82946a814900000000000000000000000089b482c9944382b982eb814902",
+			"030200063856514b5043000682a482a482a400000064834a837e815b838681458372835f839300000000000097b989f081490000000000000000000000000000000082bb82bf82e782cc94ed8a518ff38bb582cd8148000093478b408c82946a814900000000000000000000000089b482c9944382b982eb814903",
+			"040200065a3537434e32000682a682a682a600000064834a837e815b838681458372835f839300000000000097b989f081490000000000000000000000000000000082bb82bf82e782cc94ed8a518ff38bb582cd8148000093478b408c82946a814900000000000000000000000089b482c9944382b982eb814904",
+		};
+		const char* const RBK_6917[4] = {
+			"0100000000000000000010000000020000000d00000000",
+			"0200000000000000000010000000020000000d00000000",
+			"0300000000000000000010000000000000000f00000000",
+			"0400000000000000000010000000000000000f00000000",
+		};
+		const char* const RBK_RULE = "006400000000ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000025802580064006400d20000000002000000000000000000000000000001";
+		constexpr size_t RBK_RULE_TIME = 80; // u16 BE seconds (0x00d2 = 210)
+
+		std::vector<u8> Unhex(std::string_view s)
+		{
+			std::vector<u8> b;
+			for (size_t i = 0; i + 1 < s.size(); i += 2)
+				b.push_back(static_cast<u8>(std::stoi(std::string(s.substr(i, 2)), nullptr, 16)));
+			return b;
+		}
+
+		void RbkQueue(u8 cat, u16 cmd, u16 seq, const std::vector<u8>& body)
+		{
+			const u8 h[12] = {0x18, cat, static_cast<u8>(cmd >> 8), static_cast<u8>(cmd), static_cast<u8>(body.size() >> 8),
+				static_cast<u8>(body.size()), static_cast<u8>(seq >> 8), static_cast<u8>(seq), 0, 0xff, 0xff, 0xff};
+			s_rbk_rx.insert(s_rbk_rx.end(), h, h + 12);
+			s_rbk_rx.insert(s_rbk_rx.end(), body.begin(), body.end());
+		}
+
+		// Answer body of lobby Q cmd (body q). Position p (1-based) of N plays the recorded 4-player
+		// position of its side: p <= ceil(N/2) side 1 (recorded 1, 2), else side 2 (recorded 3, 4).
+		std::vector<u8> RbkBody(u16 cmd, const u8* q, u32 qn)
+		{
+			const int p = qn ? q[0] : 0;
+			const int half = (s_rbk_n + 1) / 2;
+			switch (cmd)
+			{
+				case 0x6911: return {static_cast<u8>(s_rbk_n)};
+				case 0x6912: return {static_cast<u8>(s_rbk_me + 1)};
+				case 0x6913:
+				case 0x6917:
+				{
+					if (p < 1 || p > s_rbk_n)
+						break;
+					std::vector<u8> b = Unhex((cmd == 0x6913 ? RBK_USERS : RBK_6917)[p <= half ? p - 1 : 2 + p - 1 - half]);
+					b.front() = static_cast<u8>(p);
+					if (cmd == 0x6913)
+						b.back() = static_cast<u8>(p);
+					return b;
+				}
+				case 0x6915: return Unhex("000d31373931303831323634393138");
+				case 0x6914:
+				{
+					std::vector<u8> b = Unhex(RBK_RULE);
+					if (const char* t = std::getenv("ZDXSV_RBK_TIME"))
+					{
+						const int s = std::atoi(t);
+						b[RBK_RULE_TIME] = static_cast<u8>(s >> 8);
+						b[RBK_RULE_TIME + 1] = static_cast<u8>(s);
+					}
+					return b;
+				}
+				case 0x6916: return Unhex("0004c0a8010800022012");
+			}
+			return {};
+		}
+
+		// Sock-0 RPC fno before GGPO arms. Results as recorded (s626 pr1): send 0, poll as the battle
+		// poll, getopt 4 (0x2008 -> 0, 0x2001 -> 1 at data+2), 0x38 3, close / socket / connect /
+		// setopt 0. Other fnos go to the IOP.
+		bool RbkCall(u32 fno, s16 len, u8* d)
+		{
+			u8* ram = eeMem->Main;
+			if (fno < std::size(s_rbk_calls) && s_rbk_calls[fno]++ < 3)
+				Console.WriteLn("ZdxsvGgpo: rbk fno %x len %d at vsync %u", fno, len, g_FrameCount);
+			s32 result = 0;
+			switch (fno)
+			{
+				case NET_FNO_POLL:
+					if (!std::exchange(s_rbk_started, true))
+					{
+						RbkQueue(0x10, 0x6910, 0x1000, {});
+						Console.WriteLn("ZdxsvGgpo: rbk position %d of %d, battle start at vsync %u", s_rbk_me + 1, s_rbk_n, g_FrameCount);
+					}
+					*reinterpret_cast<u16*>(ram + NET_REQ_LEN) = 4;
+					*reinterpret_cast<u16*>(ram + NET_REQ_DATA + 2) = 0x2000;
+					*reinterpret_cast<u16*>(ram + NET_REQ_DATA + 4) = static_cast<u16>(std::min<size_t>(s_rbk_rx.size(), NET_RX_MAX));
+					break;
+				case RBK_FNO_RECV_LOBBY: // header, then body
+				case NET_FNO_RECV:
+				{
+					const u32 max = static_cast<u32>(std::clamp<s32>(len, 0, NET_RX_MAX));
+					u32 n = 0;
+					if (fno == NET_FNO_RECV) // whole McsMessages
+						while (n + 1 < s_rbk_rx.size() && s_rbk_rx[n] >= 2 && n + s_rbk_rx[n] <= std::min<size_t>(s_rbk_rx.size(), max))
+							n += s_rbk_rx[n];
+					else
+						n = std::min<u32>(max, static_cast<u32>(s_rbk_rx.size()));
+					std::memcpy(d, s_rbk_rx.data(), n);
+					s_rbk_rx.erase(s_rbk_rx.begin(), s_rbk_rx.begin() + n);
+					result = static_cast<s32>(n);
+					break;
+				}
+				case NET_FNO_SEND:
+				{
+					const s32 n = std::clamp<s32>(len, 0, 0x3ca);
+					if (n >= 12 && d[0] == 0x81) // lobby Qs
+					{
+						for (s32 o = 0; o + 12 <= n;)
+						{
+							const u16 cmd = static_cast<u16>(d[o + 2] << 8 | d[o + 3]);
+							const u32 size = std::min<u32>(d[o + 4] << 8 | d[o + 5], n - o - 12);
+							const u16 seq = static_cast<u16>(d[o + 6] << 8 | d[o + 7]);
+							const std::vector<u8> body = RbkBody(cmd, d + o + 12, size);
+							RbkQueue(0x02, cmd, seq, body);
+							Console.WriteLn("ZdxsvGgpo: rbk Q %04x -> %zu B", cmd, body.size());
+							o += 12 + size;
+						}
+					}
+					else if (n >= 12 && d[0] == 0x82) // battle conn msg: the greet needs no answer
+						;
+					else // battle McsMessages: back once per remote position, sender nibble rewritten
+					{
+						for (s32 i = 0; i + 1 < n && d[i] >= 2 && i + d[i] <= n; i += d[i])
+							for (int q = 0; q < s_rbk_n; q++)
+								if (q != s_rbk_me)
+								{
+									const size_t at = s_rbk_rx.size();
+									s_rbk_rx.insert(s_rbk_rx.end(), d + i, d + i + d[i]);
+									s_rbk_rx[at + 1] = static_cast<u8>((d[i + 1] & 0xf0) | q);
+								}
+					}
+					break;
+				}
+				case 7: // battle server connect: its greet
+				{
+					static constexpr u8 greet[12] = {0x28, 0x01, 0x10, 0x31, 0, 0, 0, 1, 0, 0xff, 0xff, 0xff};
+					s_rbk_rx.insert(s_rbk_rx.end(), greet, greet + 12);
+					break;
+				}
+				case 4:
+				{
+					const u32 v = *reinterpret_cast<const u16*>(ram + NET_REQ_LEN) == 0x2001;
+					std::memcpy(ram + NET_REQ_DATA + 2, &v, 4);
+					result = 4;
+					break;
+				}
+				case 0x38:
+					result = 3;
+					break;
+				case 0xd: // lobby close
+					s_rbk_rx.clear();
+					break;
+				case 3:
+				case 0x16:
+					break;
+				default:
+					return false;
+			}
+			*reinterpret_cast<s32*>(ram + NET_RES_LEN) = result;
+			cpuRegs.GPR.n.v0.SD[0] = result;
+			cpuRegs.pc = cpuRegs.GPR.n.ra.UL[0];
+			return true;
+		}
+	} // namespace
+
 	// EE rec hook at NET_RPC_PC (the net RPC wrapper's entry): trace, and in net mode answer the
 	// battle sock's RPCs here. Returns true when answered (v0 = result, pc = ra).
 	bool OnNetCall()
@@ -1897,14 +2116,23 @@ namespace ZdxsvGgpo
 		const s16 sock = *reinterpret_cast<const s16*>(ram + NET_REQ_SOCK);
 		const s16 len = *reinterpret_cast<const s16*>(ram + NET_REQ_LEN);
 		u8* d = ram + NET_REQ_DATA;
+		const bool key = fno == NET_FNO_SEND && sock == NET_BATTLE_SOCK && len > 0 && len <= 0x3ca && HasKeyMsg(d, len);
+		if (s_rbk && !s_net_armed && !key) // connect (fno 7) has the address in the sock field
+			return RbkCall(fno, len, d);
 		if (sock != NET_BATTLE_SOCK)
 			return false;
 		if (!s_net_armed)
 		{
 			// sock 0 is the lobby TCP too: arm at the battle's first key msg
-			if (fno != NET_FNO_SEND || len <= 0 || len > 0x3ca || !HasKeyMsg(d, len))
+			if (!key)
 				return false;
 			s_net_armed = true;
+			if (s_rbk)
+			{
+				s_net_rx.insert(s_net_rx.end(), s_rbk_rx.begin(), s_rbk_rx.end());
+				s_rbk_rx.clear();
+				VMManager::SetLimiterMode(LimiterModeType::Nominal);
+			}
 			for (s32 i = 0; i + 1 < len && d[i] >= 2 && i + d[i] <= len; i += d[i])
 				if ((d[i + 1] >> 4) == 2)
 					s_net_me = d[i + 1] & 0xf;
