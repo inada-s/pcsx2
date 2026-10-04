@@ -709,6 +709,15 @@ namespace ZdxsvGgpo
 	{
 		if (s_rbk && s_net_env && !s_net_armed)
 			VMManager::SetLimiterMode(LimiterModeType::Turbo);
+		// Once: the rbk knobs as received; zdxsv/rbk.sh compares this line to what it meant to pass
+		static bool rbk_env_logged = false;
+		if (s_rbk && !rbk_env_logged)
+		{
+			rbk_env_logged = true;
+			const auto env = [](const char* k) { const char* v = std::getenv(k); return v && *v ? v : "-"; };
+			Console.WriteLn("ZdxsvGgpo: rbk env pos=%d/%d rand=%s turbo=%s ps=%s clamp=%s ggpo=%s", s_rbk_me, s_rbk_n,
+				env("ZDXSV_RAND_INPUT"), env("ZDXSV_RBK_TURBO"), env("ZDXSV_ZDS_PS"), env("ZDXSV_EE_CLAMP"), env("ZDXSV_GGPO"));
+		}
 		TracePad();
 		TraceInputs();
 		// ZDXSV_SNAP=dir,n: GS screenshot dir/v<vsync>.png every n vsyncs (needs a real renderer, not -Headless)
