@@ -267,6 +267,15 @@ GGPOErrorCode ggpo_get_current_frame(
 	return ggpo->GetCurrentFrame(frame);
 }
 
+GGPOErrorCode ggpo_get_last_confirmed_frame(
+    GGPOSession *ggpo, int *frame)
+{
+	if (ggpo == nullptr)
+		return GGPO_ERRORCODE_INVALID_SESSION;
+
+	return ggpo->GetLastConfirmedFrame(frame);
+}
+
 GGPOErrorCode ggpo_set_disconnect_without_rollback(
     GGPOSession *ggpo, bool allow)
 {

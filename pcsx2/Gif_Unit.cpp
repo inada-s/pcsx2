@@ -203,13 +203,16 @@ bool SaveStateBase::gifPathFreeze(u32 path)
 	}
 	u8* bufferPtr = gifPath.buffer; // Backup current buffer ptr
 	Freeze(gifPath.mtvu.fakePackets);
+	SaveState_DeltaMarkScratch(GetCurrentPos() + offsetof(Gif_Path, readAmount), sizeof(gifPath.readAmount));
+	SaveState_DeltaMarkScratch(GetCurrentPos() + offsetof(Gif_Path, buffer), sizeof(gifPath.buffer)); // host pointer, restored below
 	FreezeMem(&gifPath, sizeof(gifPath) - sizeof(gifPath.mtvu));
 	FreezeMem(bufferPtr, gifPath.curSize);
 	gifPath.buffer = bufferPtr;
 	if (!IsSaving())
 	{
 		gifPath.readAmount = 0;
-		gifPath.gsPack.readAmount = 0;
+		if (!g_SaveStateDeltaLoad) // EE side bookkeeping of RealignPacket, kept as saved
+			gifPath.gsPack.readAmount = 0;
 	}
 
 	return IsOkay();

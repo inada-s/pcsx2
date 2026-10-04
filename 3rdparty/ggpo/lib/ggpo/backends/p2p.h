@@ -37,6 +37,7 @@ public:
    GGPOErrorCode AddRelayServer(const char *ip, unsigned short port, const char *alt_ip) override;
    GGPOErrorCode SendMessage(const void *msg, int len, bool spectators) override;
    GGPOErrorCode GetCurrentFrame(int* frame) override { *frame = _sync.GetFrameCount(); return GGPO_OK; }
+   GGPOErrorCode GetLastConfirmedFrame(int* frame) override { *frame = _sync.GetLastConfirmedFrame(); return GGPO_OK; }
 
 public:
    void OnMsg(sockaddr_storage &from, UdpMsg *msg, int len) override;

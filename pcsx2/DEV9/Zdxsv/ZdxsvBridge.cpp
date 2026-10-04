@@ -7,6 +7,7 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <deque>
@@ -43,6 +44,7 @@ namespace Zdxsv
 		std::function<void(const std::string&)> g_log;
 		BattleInfo g_info;
 		bool g_armed = false;
+		std::atomic<const volatile unsigned*> g_frame{nullptr};
 
 		void Log(const std::string& s)
 		{
@@ -67,6 +69,11 @@ namespace Zdxsv
 	{
 		std::lock_guard lock(g_mtx);
 		g_log = std::move(log);
+	}
+
+	void SetFrameCounter(const volatile unsigned* counter)
+	{
+		g_frame = counter;
 	}
 
 	bool Enabled()
@@ -698,6 +705,7 @@ namespace Zdxsv
 					it->second = m.seq;
 					recvMsgs++;
 					l.firstMsgs++;
+					Dump('R', m.userId, m.seq, m.body.data(), m.body.size());
 					if (!WriteTCP(m.body.data(), m.body.size()))
 						stop = true;
 				}
@@ -713,6 +721,15 @@ namespace Zdxsv
 					p2pBlock = std::string(env) == "1";
 				if (const char* env = std::getenv("ZDXSV_UDP_TEST_P2P_DELAY"))
 					p2pDelayMs = std::atoi(env);
+				if (const char* env = std::getenv("ZDXSV_UDP_DUMP"))
+				{
+					const std::string path = std::string(env) + "/bridge-" + info.userId + ".txt";
+					dump = std::fopen(path.c_str(), "w");
+					if (dump) // unbuffered: the rig kills pcsx2 (zdxsv/probelint.py)
+						std::setvbuf(dump, nullptr, _IONBF, 0);
+					dumpStart = Clock::now();
+					Log("bridge dump " + path + (dump ? "" : " failed"));
+				}
 				if (p2pBlock || p2pDelayMs > 0)
 					Log("bridge test: p2p block " + std::to_string(p2pBlock) + ", p2p delay " + std::to_string(p2pDelayMs) + " ms");
 				const auto acceptUntil = Clock::now() + std::chrono::seconds(10);
@@ -777,9 +794,26 @@ namespace Zdxsv
 					", server first " + std::to_string(links[0].firstMsgs) + " msgs" + peers +
 					(dropEvery > 0 ? ", test-dropped " + std::to_string(dropped) + " pkts" : "") +
 					(p2pBlock ? ", test-blocked " + std::to_string(blocked) + " pkts" : ""));
+				if (dump)
+					std::fclose(dump);
 				if (ownUdp)
 					closesocket(udp);
 				closesocket(tcp);
+			}
+			// ZDXSV_UDP_DUMP=dir: every battle message the game sends (S) or gets (R) to
+			// dir/bridge-<userId>.txt: "frame ms S|R user seq len hex" (TCP read chunks, not split).
+			FILE* dump = nullptr;
+			Clock::time_point dumpStart;
+			void Dump(char dir, const std::string& user, uint32_t seq, const uint8_t* p, size_t n)
+			{
+				if (!dump)
+					return;
+				const volatile unsigned* frame = g_frame;
+				const long long ms = std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - dumpStart).count();
+				std::fprintf(dump, "%u %lld %c %s %u %zu ", frame ? *frame : 0u, ms, dir, user.c_str(), seq, n);
+				for (size_t i = 0; i < n; i++)
+					std::fprintf(dump, "%02x", p[i]);
+				std::fputc('\n', dump);
 			}
 			void Serve()
 			{
@@ -813,6 +847,7 @@ namespace Zdxsv
 						m.userId = info.userId;
 						m.seq = msgSeq++;
 						m.body.assign(buf, buf + n);
+						Dump('S', m.userId, m.seq, buf, n);
 						fin = n == 4 && buf[0] == 0x04 && buf[1] == 0xF0 && buf[2] == 0x00 && buf[3] == 0x00;
 						// Every link gets every message (a peer that comes up late
 						// catches up from its queue); peers that never answer are
@@ -989,6 +1024,12 @@ namespace Zdxsv
 	bool AdoptConnections()
 	{
 		return g_stateLoaded && LobbyStateEnabled();
+	}
+
+	bool IsBattleServer(uint32_t ip, uint16_t port)
+	{
+		std::lock_guard lock(g_mtx);
+		return ip == g_info.serverIP && port == g_info.serverPort;
 	}
 
 	void Shutdown()

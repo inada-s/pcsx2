@@ -865,6 +865,8 @@ static bool vtlb_IsHostCoalesced(u32 page)
 	}
 }
 
+static bool mmap_DeltaIsWatched(u32 page);
+
 static bool vtlb_GetMainMemoryOffsetFromPtr(uptr ptr, u32* mainmem_offset, u32* mainmem_size, PageProtectionMode* prot)
 {
 	const uptr page_end = ptr + VTLB_PAGE_SIZE;
@@ -873,7 +875,8 @@ static bool vtlb_GetMainMemoryOffsetFromPtr(uptr ptr, u32* mainmem_offset, u32* 
 	if (ptr >= (uptr)eeMem->Main && page_end <= (uptr)eeMem->ZeroRead)
 	{
 		const u32 eemem_offset = static_cast<u32>(ptr - (uptr)eeMem->Main);
-		const bool writeable = ((eemem_offset < Ps2MemSize::ExposedRam) ? (mmap_GetRamPageInfo(eemem_offset) != ProtMode_Write) : true);
+		const bool writeable = ((eemem_offset < Ps2MemSize::ExposedRam) ?
+			(mmap_GetRamPageInfo(eemem_offset) != ProtMode_Write && !mmap_DeltaIsWatched(eemem_offset >> __pageshift)) : true);
 		*mainmem_offset = (eemem_offset + HostMemoryMap::EEmemOffset);
 		*mainmem_size = (offsetof(EEVM_MemoryAllocMess, ZeroRead) - eemem_offset);
 		*prot = PageProtectionMode().Read().Write(writeable);
@@ -1495,6 +1498,117 @@ static __fi void mmap_ClearCpuBlock(uint offset)
 	Cpu->Clear(m_PageProtectInfo[rampage].ReverseRamMap, __pagesize);
 }
 
+// zdxsv delta state: see mmap_DeltaSetHook in vtlb.h.
+static mmap_DeltaWriteHook s_delta_hook = nullptr;
+static bool s_delta_watched[Ps2MemSize::TotalRam >> __pageshift];
+
+static bool mmap_DeltaIsWatched(u32 page)
+{
+	return s_delta_watched[page];
+}
+
+static void mmap_DeltaProtect(u32 page, bool read_only)
+{
+	const PageProtectionMode mode = read_only ? PageAccess_ReadOnly() : PageAccess_ReadWrite();
+	HostSys::MemProtect(&eeMem->Main[page << __pageshift], __pagesize, mode);
+	vtlb_UpdateFastmemProtection(page << __pageshift, __pagesize, mode);
+}
+
+// Fault on a watched page: hand the old data to the hook, then unwatch. A code page stays
+// read-only, so the caller still clears its blocks. Returns true if the page was watched.
+static bool mmap_DeltaHit(u32 page)
+{
+	if (!s_delta_watched[page])
+		return false;
+	s_delta_hook(page);
+	s_delta_watched[page] = false;
+	if (m_PageProtectInfo[page].Mode != ProtMode_Write)
+		mmap_DeltaProtect(page, false);
+	return true;
+}
+
+void mmap_DeltaSetHook(mmap_DeltaWriteHook hook)
+{
+	if (!hook)
+	{
+		for (u32 page = 0; page < (Ps2MemSize::ExposedRam >> __pageshift); page++)
+		{
+			if (s_delta_watched[page])
+			{
+				s_delta_watched[page] = false;
+				if (m_PageProtectInfo[page].Mode != ProtMode_Write)
+					mmap_DeltaProtect(page, false);
+			}
+		}
+	}
+	s_delta_hook = hook;
+}
+
+void mmap_DeltaWatchAll()
+{
+	pxAssert(s_delta_hook);
+	const u32 pages = Ps2MemSize::ExposedRam >> __pageshift;
+	std::fill_n(s_delta_watched, pages, true);
+	HostSys::MemProtect(eeMem->Main, Ps2MemSize::ExposedRam, PageAccess_ReadOnly());
+	vtlb_UpdateFastmemProtection(0, Ps2MemSize::ExposedRam, PageAccess_ReadOnly());
+}
+
+void mmap_DeltaWatchPage(u32 page)
+{
+	pxAssert(s_delta_hook);
+	if (s_delta_watched[page])
+		return;
+	s_delta_watched[page] = true;
+	if (m_PageProtectInfo[page].Mode != ProtMode_Write)
+		mmap_DeltaProtect(page, true);
+}
+
+// Protects each run of adjacent addresses with one call. Only within one allocation: each fastmem
+// alias is its own mapped view, and a protect across views fails (pages left writable, #31).
+static void mmap_DeltaProtectRuns(std::vector<uptr>& addrs, PageProtectionMode mode)
+{
+	std::sort(addrs.begin(), addrs.end());
+	for (size_t i = 0; i < addrs.size();)
+	{
+		size_t j = i + 1;
+		while (j < addrs.size() && addrs[j] == addrs[j - 1] + __pagesize)
+			j++;
+		HostSys::MemProtect(reinterpret_cast<void*>(addrs[i]), (j - i) * __pagesize, mode);
+		i = j;
+	}
+}
+
+void mmap_DeltaWatchPages(const std::vector<u32>& pages)
+{
+	pxAssert(s_delta_hook);
+	std::vector<uptr> host;
+	for (u32 page : pages)
+	{
+		if (s_delta_watched[page])
+			continue;
+		s_delta_watched[page] = true;
+		if (m_PageProtectInfo[page].Mode == ProtMode_Write)
+			continue;
+		host.push_back(reinterpret_cast<uptr>(&eeMem->Main[page << __pageshift]));
+		vtlb_UpdateFastmemProtection(page << __pageshift, __pagesize, PageAccess_ReadOnly());
+	}
+	mmap_DeltaProtectRuns(host, PageAccess_ReadOnly());
+}
+
+void mmap_DeltaRestorePage(u32 page, const u8* data)
+{
+	if (m_PageProtectInfo[page].Mode == ProtMode_Write)
+	{
+		s_delta_watched[page] = false;
+		mmap_ClearCpuBlock(page << __pageshift);
+	}
+	else if (std::exchange(s_delta_watched[page], false))
+	{
+		mmap_DeltaProtect(page, false);
+	}
+	std::memcpy(&eeMem->Main[page << __pageshift], data, __pagesize);
+}
+
 PageFaultHandler::HandlerResult PageFaultHandler::HandlePageFault(void* exception_pc, void* fault_address, bool is_write)
 {
 	pxAssert(eeMem);
@@ -1507,6 +1621,9 @@ PageFaultHandler::HandlerResult PageFaultHandler::HandlePageFault(void* exceptio
 
 		uptr ptr = (uptr)PSM(vaddr);
 		uptr offset = (ptr - (uptr)eeMem->Main);
+		if (ptr && offset < Ps2MemSize::ExposedRam && mmap_DeltaHit(offset >> __pageshift) &&
+			m_PageProtectInfo[offset >> __pageshift].Mode != ProtMode_Write)
+			return HandlerResult::ContinueExecution;
 		if (ptr && m_PageProtectInfo[offset >> __pageshift].Mode == ProtMode_Write)
 		{
 			// fprintf(stderr, "Not backpatching code write at %08X\n", vaddr);
@@ -1529,6 +1646,13 @@ PageFaultHandler::HandlerResult PageFaultHandler::HandlePageFault(void* exceptio
 		if (offset >= Ps2MemSize::ExposedRam)
 			return HandlerResult::ExecuteNextHandler;
 
+		if (m_PageProtectInfo[offset >> __pageshift].Mode != ProtMode_Write)
+		{
+			// zdxsv delta state watch (or a page another fault just unwatched).
+			mmap_DeltaHit(offset >> __pageshift);
+			return HandlerResult::ContinueExecution;
+		}
+		mmap_DeltaHit(offset >> __pageshift);
 		mmap_ClearCpuBlock(offset);
 		return HandlerResult::ContinueExecution;
 	}
@@ -1545,4 +1669,14 @@ void mmap_ResetBlockTracking()
 	if (eeMem)
 		HostSys::MemProtect(eeMem->Main, Ps2MemSize::ExposedRam, PageAccess_ReadWrite());
 	vtlb_UpdateFastmemProtection(0, Ps2MemSize::ExposedRam, PageAccess_ReadWrite());
+
+	// zdxsv delta state: watched pages stay read-only.
+	if (s_delta_hook)
+	{
+		for (u32 page = 0; page < (Ps2MemSize::ExposedRam >> __pageshift); page++)
+		{
+			if (s_delta_watched[page])
+				mmap_DeltaProtect(page, true);
+		}
+	}
 }

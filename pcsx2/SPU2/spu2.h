@@ -70,6 +70,10 @@ u16 SPU2read(u32 mem);
 
 void SPU2async();
 s32 SPU2freeze(FreezeAction mode, freezeData* data);
+// zdxsv delta state: the cache lines the voices decode from (see spu2freeze.cpp).
+size_t SPU2DeltaVoicesSize();
+void SPU2DeltaSaveVoices(u8* out);
+void SPU2DeltaLoadVoices(const u8* in);
 
 void SPU2readDMA4Mem(u16* pMem, u32 size);
 void SPU2writeDMA4Mem(u16* pMem, u32 size);

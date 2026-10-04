@@ -57,6 +57,7 @@ public:
    void IncrementFrame(void);
 
    int GetFrameCount() { return _framecount; }
+   int GetLastConfirmedFrame() { return _last_confirmed_frame; }
    bool InRollback() { return _rollingback; }
    int GetPredictedFrames(int queue) { return _framecount - _last_confirmed_frame; }
 
