@@ -5,6 +5,7 @@
 #include "Gif_Unit.h"
 #include "MTGS.h"
 #include "MTVU.h"
+#include "ZdxsvInputLatency.h"
 #include "Host.h"
 #include "IconsFontAwesome.h"
 #include "VMManager.h"
@@ -500,7 +501,11 @@ void MTGS::MainLoop()
 							((GSRegSIGBLID&)RingBuffer.Regs[0x1080]) = (GSRegSIGBLID&)remainder[2];
 
 							// CSR & 0x2000; is the pageflip id.
+							if (ZdxsvInputLatency::g_enabled)
+								ZdxsvInputLatency::OnPresentStart();
 							GSvsync((((u32&)RingBuffer.Regs[0x1000]) & 0x2000) ? 0 : 1, remainder[4] != 0);
+							if (ZdxsvInputLatency::g_enabled)
+								ZdxsvInputLatency::OnPresent();
 
 							s_QueuedFrameCount.fetch_sub(1);
 							if (s_VsyncSignalListener.exchange(false))

@@ -6,6 +6,8 @@
 #include "CDVD/CDVD.h"
 #include "CDVD/IsoReader.h"
 #include "Counters.h"
+#include "ZdxsvInputLatency.h"
+#include "ZdxsvGgpo.h"
 #include "DEV9/DEV9.h"
 #include "DebugTools/DebugInterface.h"
 #include "DebugTools/SymbolImporter.h"
@@ -2759,6 +2761,8 @@ void VMManager::Execute()
 
 	// Execute until we're asked to stop.
 	Cpu->Execute();
+	if (ZdxsvGgpo::g_active)
+		ZdxsvGgpo::OnExecuteReturned();
 }
 
 void VMManager::IdlePollUpdate()
@@ -2926,6 +2930,8 @@ void VMManager::Internal::PollInputOnCPUThread()
 {
 	Host::PumpMessagesOnCPUThread();
 	InputManager::PollSources();
+	if (ZdxsvInputLatency::g_enabled)
+		ZdxsvInputLatency::OnVsync();
 
 	if (EmuConfig.EnableRecordingTools)
 	{

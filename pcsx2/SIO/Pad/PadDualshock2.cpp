@@ -5,6 +5,7 @@
 #include "SIO/Pad/Pad.h"
 #include "SIO/Sio.h"
 #include "SIO/Sio0.h"
+#include "ZdxsvInputLatency.h"
 
 #include "Common.h"
 #include "Input/InputManager.h"
@@ -203,6 +204,8 @@ u8 PadDualshock2::ButtonQuery(u8 commandByte)
 u8 PadDualshock2::Poll(u8 commandByte)
 {
 	const u32 buttons = GetButtons();
+	if (ZdxsvInputLatency::g_enabled && commandBytesReceived == 3)
+		ZdxsvInputLatency::OnPadPoll(unifiedSlot, buttons);
 	u8 largeMotor = 0x00;
 	u8 smallMotor = 0x00;
 

@@ -25,6 +25,8 @@
 #include "DEV9.h"
 #include "Config.h"
 #include "smap.h"
+#include "Zdxsv/ZdxsvBridge.h"
+#include "StateWrapper.h"
 
 #ifdef _WIN32
 #pragma warning(disable : 4244)
@@ -205,6 +207,7 @@ void DEV9close()
 	dev9.dma_iop_ptr = nullptr;
 	dev9.ata->Close();
 	TermNet();
+	Zdxsv::Shutdown();
 	isRunning = false;
 }
 
@@ -1125,6 +1128,34 @@ void DEV9async(u32 cycles)
 {
 	smap_async(cycles);
 	dev9.ata->Async(cycles);
+}
+
+// zdxsv: registers, SMAP buffers and FIFO, so a state saved while the game is
+// online keeps its network adapter (without it SMAP TX stalls after a load).
+// Host pointers (ata, dma_iop_ptr) and the HDD image are not saved.
+bool DEV9DoState(StateWrapper& sw)
+{
+	constexpr size_t begin = offsetof(dev9Struct, dev9R);
+	constexpr size_t end = offsetof(dev9Struct, dma_iop_ptr);
+	if (sw.IsReading() && !sw.DoMarker("DEV9"))
+	{
+		Console.Warning("DEV9: no DEV9 state in this save state, keeping the current one.");
+		return true;
+	}
+	if (sw.IsWriting())
+		sw.DoMarker("DEV9");
+	sw.DoBytes(reinterpret_cast<u8*>(&dev9) + begin, end - begin);
+	sw.Do(&dev9.dma_iop_transfered);
+	sw.Do(&dev9.dma_iop_size);
+	if (sw.IsReading())
+	{
+		// Host connections of this process no longer match the PS2's sequence
+		// numbers: drop them (no RST to the PS2) so the next packet adopts anew.
+		Zdxsv::OnStateLoaded();
+		if (Zdxsv::AdoptConnections())
+			ad_reset();
+	}
+	return !sw.HasError();
 }
 
 void DEV9CheckChanges(const Pcsx2Config& old_config)

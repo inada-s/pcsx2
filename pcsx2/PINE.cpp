@@ -6,6 +6,9 @@
 #include "Host.h"
 #include "Elfheader.h"
 #include "SaveState.h"
+#include "SIO/Pad/Pad.h"
+#include "GS/GS.h"
+#include "Counters.h"
 #include "PINE.h"
 #include "VMManager.h"
 #include "vtlb.h"
@@ -159,6 +162,9 @@ namespace PINEServer
 		MsgUUID = 0xD, /**< Returns the game UUID. */
 		MsgGameVersion = 0xE, /**< Returns the game verion. */
 		MsgStatus = 0xF, /**< Returns the emulator status. */
+		MsgPadSet = 0x30, /**< zdxsv: set pad input (pad u8, bind u8, value u8 0-255). */
+		MsgSnapshot = 0x31, /**< zdxsv: queue a GS screenshot (path len u16, path bytes). */
+		MsgFrameCount = 0x32, /**< zdxsv: returns g_FrameCount (u32). */
 		MsgUnimplemented = 0xFF /**< Unimplemented IPC message. */
 	};
 
@@ -743,6 +749,41 @@ PINEServer::IPCBuffer PINEServer::ParseCommand(std::span<u8> buf, std::vector<u8
 				}
 
 				ToResultVector(ret_buffer, status, ret_cnt);
+				ret_cnt += 4;
+				break;
+			}
+			case MsgPadSet:
+			{
+				if (!VMManager::HasValidVM())
+					goto error;
+				if (!SafetyChecks(buf_cnt, 3, ret_cnt, 0, buf_size)) [[unlikely]]
+					goto error;
+				const u32 pad = FromSpan<u8>(buf, buf_cnt);
+				const u32 bind = FromSpan<u8>(buf, buf_cnt + 1);
+				const float value = FromSpan<u8>(buf, buf_cnt + 2) / 255.0f;
+				Host::RunOnCPUThread([pad, bind, value] { Pad::SetControllerState(pad, bind, value); });
+				buf_cnt += 3;
+				break;
+			}
+			case MsgSnapshot:
+			{
+				if (!VMManager::HasValidVM())
+					goto error;
+				if (!SafetyChecks(buf_cnt, 2, ret_cnt, 0, buf_size)) [[unlikely]]
+					goto error;
+				const u16 len = FromSpan<u16>(buf, buf_cnt);
+				if (!SafetyChecks(buf_cnt, 2 + len, ret_cnt, 0, buf_size)) [[unlikely]]
+					goto error;
+				std::string path(reinterpret_cast<const char*>(&buf[buf_cnt + 2]), len);
+				Host::RunOnCPUThread([path = std::move(path)] { GSQueueSnapshot(path); });
+				buf_cnt += 2 + len;
+				break;
+			}
+			case MsgFrameCount:
+			{
+				if (!SafetyChecks(buf_cnt, 0, ret_cnt, 4, buf_size)) [[unlikely]]
+					goto error;
+				ToResultVector(ret_buffer, static_cast<u32>(g_FrameCount), ret_cnt);
 				ret_cnt += 4;
 				break;
 			}

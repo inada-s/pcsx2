@@ -1,0 +1,43 @@
+name: zdxsv release
+
+# Push a tag zdxsv-X.Y.Z -> Windows build -> GitHub release with
+# pcsx2-zdxsv-windows-x64.7z (auto updater) and .zip (first install).
+# A tag with a suffix (zdxsv-0.0.1-rc1) becomes a prerelease, which the updater skips.
+on:
+  push:
+    tags:
+      - "zdxsv-*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: "Windows"
+    uses: ./.github/workflows/windows_build_qt.yml
+    with:
+      jobName: "CMake Clang"
+      artifactPrefixName: "PCSX2-windows-Qt-x64-cmake-clang"
+      configuration: CMake
+      buildSystem: cmake
+      cmakeFlags: -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl
+      fetchTags: true
+
+  release:
+    name: "Release"
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: zdxsv-release-windows-x64
+          path: zdxsv-release
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          PRE=""
+          if ! [[ "$TAG" =~ ^zdxsv-[0-9]+\.[0-9]+\.[0-9]+$ ]]; then PRE="--prerelease"; fi
+          gh release create "$TAG" zdxsv-release/* --repo "$GITHUB_REPOSITORY" --title "$TAG" --generate-notes $PRE

@@ -1047,13 +1047,13 @@ struct Pcsx2Config
 			bool operator!=(const HostEntry& right) const;
 		};
 
-		bool EthEnable{false};
-		NetApi EthApi{NetApi::Unset};
-		std::string EthDevice;
+		bool EthEnable{true};
+		NetApi EthApi{NetApi::Sockets};
+		std::string EthDevice{"Auto"};
 		bool EthLogDHCP{false};
 		bool EthLogDNS{false};
 
-		bool InterceptDHCP{false};
+		bool InterceptDHCP{true};
 		u8 PS2IP[4]{};
 		u8 Mask[4]{};
 		u8 Gateway[4]{};
@@ -1061,8 +1061,8 @@ struct Pcsx2Config
 		u8 DNS2[4]{};
 		bool AutoMask{true};
 		bool AutoGateway{true};
-		DnsMode ModeDNS1{DnsMode::Auto};
-		DnsMode ModeDNS2{DnsMode::Auto};
+		DnsMode ModeDNS1{DnsMode::Internal};
+		DnsMode ModeDNS2{DnsMode::Internal};
 
 		std::vector<HostEntry> EthHosts;
 
@@ -1191,6 +1191,8 @@ struct Pcsx2Config
 		BITFIELD32()
 		bool SyncToHostRefreshRate : 1;
 		bool UseVSyncForTiming : 1;
+		// zdxsv: present a frame before the frame limiter sleep, poll input after it.
+		bool LowLatencyVsync : 1;
 		BITFIELD_END
 
 		float NominalScalar{1.0f};

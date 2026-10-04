@@ -19,6 +19,9 @@
 #include "SPU2/spu2.h"
 #include "Recording/InputRecording.h"
 #include "VMManager.h"
+#include "ZdxsvInputLatency.h"
+#include "ZdxsvDeltaState.h"
+#include "ZdxsvGgpo.h"
 #include "VUmicro.h"
 
 static const uint EECNT_FUTURE_TARGET = 0x10000000;
@@ -484,17 +487,43 @@ static __fi void DoFMVSwitch()
 	}
 }
 
+static __fi void ZdxsvPostVsyncStart()
+{
+	if (ZdxsvInputLatency::g_enabled)
+		ZdxsvInputLatency::OnPush(false);
+	gsPostVsyncStart();
+	if (ZdxsvInputLatency::g_enabled)
+		ZdxsvInputLatency::OnPush(true);
+}
+
 static __fi void VSyncStart(u64 sCycle)
 {
 	// End-of-frame tasks.
 	DoFMVSwitch();
 	VMManager::Internal::VSyncOnCPUThread();
+	if (ZdxsvInputLatency::g_enabled)
+		ZdxsvInputLatency::OnFrameEnd();
+	if (ZdxsvDeltaState::g_test_enabled)
+		ZdxsvDeltaState::OnVsync();
+	if (ZdxsvGgpo::g_enabled || ZdxsvGgpo::g_net_hook)
+		ZdxsvGgpo::OnVsync();
 
-	// Don't bother throttling if we're going to pause.
-	if (!VMManager::Internal::IsExecutionInterrupted())
-		VMManager::Internal::Throttle();
+	if (EmuConfig.EmulationSpeed.LowLatencyVsync)
+	{
+		// zdxsv: present the finished frame now, sleep, then poll input right before the next
+		// frame is emulated. Press -> present loses the limiter sleep (#29).
+		ZdxsvPostVsyncStart();
+		if (!VMManager::Internal::IsExecutionInterrupted() && !ZdxsvGgpo::g_in_rollback)
+			VMManager::Internal::Throttle();
+	}
+	else
+	{
+		// Don't bother throttling if we're going to pause.
+		if (!VMManager::Internal::IsExecutionInterrupted() && !ZdxsvGgpo::g_in_rollback)
+			VMManager::Internal::Throttle();
 
-	gsPostVsyncStart(); // MUST be after framelimit; doing so before causes funk with frame times!
+		ZdxsvPostVsyncStart(); // MUST be after framelimit; doing so before causes funk with frame times!
+	}
 
 	// Poll input after MTGS frame push, just in case it has to stall to catch up.
 	VMManager::Internal::PollInputOnCPUThread();
@@ -1046,7 +1075,7 @@ bool SaveStateBase::rcntFreeze()
 	Freeze(gsVideoMode);
 	Freeze(gsIsInterlaced);
 
-	if (IsLoading())
+	if (IsLoading() && !g_SaveStateDeltaLoad)
 		cpuRcntSet();
 
 	return IsOkay();

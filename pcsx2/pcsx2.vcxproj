@@ -53,6 +53,7 @@
       <AdditionalIncludeDirectories Condition="'$(Platform)'=='x64'">%(AdditionalIncludeDirectories);$(SolutionDir)3rdparty\vulkan\include</AdditionalIncludeDirectories>
       <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(SolutionDir)3rdparty\d3d12memalloc\include</AdditionalIncludeDirectories>
       <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(SolutionDir)3rdparty\lzma\include</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(SolutionDir)3rdparty\ggpo\include</AdditionalIncludeDirectories>
       <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(SolutionDir)3rdparty\freesurround\include</AdditionalIncludeDirectories>
       <AdditionalIncludeDirectories Condition="'$(Platform)'=='x64'">%(AdditionalIncludeDirectories);$(SolutionDir)3rdparty\xbyak</AdditionalIncludeDirectories>
       <AdditionalIncludeDirectories Condition="'$(Platform)'=='x64'">%(AdditionalIncludeDirectories);$(SolutionDir)3rdparty\zydis\include;$(SolutionDir)3rdparty\zydis\dependencies\zycore\include</AdditionalIncludeDirectories>
@@ -194,6 +195,7 @@
     <ClCompile Include="DEV9\Sessions\TCP_Session\TCP_Session.cpp" />
     <ClCompile Include="DEV9\Sessions\TCP_Session\TCP_Session_In.cpp" />
     <ClCompile Include="DEV9\Sessions\TCP_Session\TCP_Session_Out.cpp" />
+    <ClCompile Include="DEV9\Zdxsv\ZdxsvBridge.cpp" />
     <ClCompile Include="DEV9\Win32\pcap_io_win32.cpp" />
     <ClCompile Include="DEV9\Sessions\BaseSession.cpp" />
     <ClCompile Include="DEV9\Sessions\UDP_Session\UDP_Common.cpp" />
@@ -440,6 +442,9 @@
     <ClCompile Include="vtlb.cpp" />
     <ClCompile Include="MTVU.cpp" />
     <ClCompile Include="VUmicro.cpp" />
+    <ClCompile Include="ZdxsvInputLatency.cpp" />
+    <ClCompile Include="ZdxsvDeltaState.cpp" />
+    <ClCompile Include="ZdxsvGgpo.cpp" />
     <ClCompile Include="VUmicroMem.cpp" />
     <ClCompile Include="x86\microVU.cpp">
       <ExcludedFromBuild Condition="'$(Platform)'!='x64'">true</ExcludedFromBuild>
@@ -640,6 +645,7 @@
     <ClInclude Include="DEV9\Sessions\BaseSession.h" />
     <ClInclude Include="DEV9\Sessions\ICMP_Session\ICMP_Session.h" />
     <ClInclude Include="DEV9\Sessions\TCP_Session\TCP_Session.h" />
+    <ClInclude Include="DEV9\Zdxsv\ZdxsvBridge.h" />
     <ClInclude Include="DEV9\Sessions\UDP_Session\UDP_Common.h" />
     <ClInclude Include="DEV9\Sessions\UDP_Session\UDP_FixedPort.h" />
     <ClInclude Include="DEV9\Sessions\UDP_Session\UDP_BaseSession.h" />
@@ -891,6 +897,9 @@
     <ClInclude Include="MTVU.h" />
     <ClInclude Include="VU.h" />
     <ClInclude Include="VUmicro.h" />
+    <ClInclude Include="ZdxsvInputLatency.h" />
+    <ClInclude Include="ZdxsvDeltaState.h" />
+    <ClInclude Include="ZdxsvGgpo.h" />
     <ClInclude Include="x86\iR5900Analysis.h" />
     <ClInclude Include="x86\microVU.h" />
     <ClInclude Include="x86\microVU_IR.h" />

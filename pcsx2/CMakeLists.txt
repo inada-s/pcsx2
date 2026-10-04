@@ -129,6 +129,9 @@ set(pcsx2Sources
 	vtlb.cpp
 	VU0.cpp
 	VUmicro.cpp
+	ZdxsvInputLatency.cpp
+	ZdxsvDeltaState.cpp
+	ZdxsvGgpo.cpp
 	VU0micro.cpp
 	VU0microInterp.cpp
 	VU1micro.cpp
@@ -201,6 +204,9 @@ set(pcsx2Headers
 	vtlb.h
 	VUflags.h
 	VUmicro.h
+	ZdxsvInputLatency.h
+	ZdxsvDeltaState.h
+	ZdxsvGgpo.h
 	VUops.h)
 
 # CDVD sources
@@ -312,6 +318,7 @@ set(pcsx2DEV9Sources
 	DEV9/Sessions/UDP_Session/UDP_Common.cpp
 	DEV9/Sessions/UDP_Session/UDP_FixedPort.cpp
 	DEV9/Sessions/UDP_Session/UDP_Session.cpp
+	DEV9/Zdxsv/ZdxsvBridge.cpp
 	DEV9/smap.cpp
 	DEV9/sockets.cpp
 	DEV9/DEV9.cpp
@@ -355,6 +362,7 @@ set(pcsx2DEV9Headers
 	DEV9/Sessions/BaseSession.h
 	DEV9/Sessions/ICMP_Session/ICMP_Session.h
 	DEV9/Sessions/TCP_Session/TCP_Session.h
+	DEV9/Zdxsv/ZdxsvBridge.h
 	DEV9/Sessions/UDP_Session/UDP_Common.h
 	DEV9/Sessions/UDP_Session/UDP_FixedPort.h
 	DEV9/Sessions/UDP_Session/UDP_BaseSession.h
@@ -1075,6 +1083,7 @@ set(pcsx2LTOSources
 if(ARCH_X86)
 	list(APPEND pcsx2LTOSources ${pcsx2x86Sources} ${pcsx2x86Headers})
 	target_link_libraries(PCSX2_FLAGS INTERFACE zydis)
+	target_link_libraries(PCSX2_FLAGS INTERFACE pcsx2-ggpo)
 elseif(ARCH_ARM64)
 	list(APPEND pcsx2LTOSources ${pcsx2arm64Sources} ${pcsx2arm64Headers})
 	target_link_libraries(PCSX2_FLAGS INTERFACE vixl)
@@ -1165,6 +1174,7 @@ target_link_libraries(PCSX2_FLAGS INTERFACE
 	SoundTouch::SoundTouch
 	PNG::PNG
 	LZMA::LZMA
+	GGPO::GGPO
 	Zstd::Zstd
 	demanglegnu
 	ccc

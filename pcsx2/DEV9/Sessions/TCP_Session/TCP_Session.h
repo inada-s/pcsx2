@@ -4,6 +4,7 @@
 #pragma once
 #include <atomic>
 #include <chrono>
+#include <memory>
 #include <mutex>
 #include <tuple>
 #include <vector>
@@ -16,6 +17,7 @@
 #include "DEV9/SimpleQueue.h"
 #include "DEV9/Sessions/BaseSession.h"
 #include "DEV9/PacketReader/IP/TCP/TCP_Packet.h"
+#include "DEV9/Zdxsv/ZdxsvBridge.h"
 
 namespace Sessions
 {
@@ -88,6 +90,13 @@ namespace Sessions
 		void PushRecvBuff(ReceivedPayload tcp);
 		std::optional<ReceivedPayload> PopRecvBuff();
 
+		// zdxsv: tell the lobby server this peer is an emulator (see TCP_Session_In.cpp)
+		bool zdxsvChecked = false;
+		void ZdxsvSendPlatformInfo(const u8* data, int len);
+		void ZdxsvAdopted();
+		// zdxsv: strips the lobby's battle info notice (DEV9/Zdxsv), set with udp=1
+		std::unique_ptr<Zdxsv::LobbyFilter> zdxsvLobbyFilter;
+
 		void IncrementMyNumber(u32 amount);
 		void UpdateReceivedAckNumber(u32 ack);
 		u32 GetMyNumber();
@@ -95,6 +104,8 @@ namespace Sessions
 		bool ShouldWaitForAck();
 		std::tuple<u32, std::vector<u32>> GetAllMyNumbers();
 		void ResetMyNumbers();
+		// zdxsv: continue at the PS2's ack (connection adopted after a state load)
+		void AdoptMyNumbers(u32 ack);
 
 		NumCheckResult CheckRepeatSYNNumbers(PacketReader::IP::TCP::TCP_Packet* tcp);
 		NumCheckResult CheckNumbers(PacketReader::IP::TCP::TCP_Packet* tcp, bool rejectOldSeq = false);

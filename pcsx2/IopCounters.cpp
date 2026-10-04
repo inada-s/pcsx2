@@ -804,7 +804,7 @@ bool SaveStateBase::psxRcntFreeze()
 	if (!IsOkay())
 		return false;
 
-	if (IsLoading())
+	if (IsLoading() && !g_SaveStateDeltaLoad)
 		psxRcntUpdate();
 
 	return true;
