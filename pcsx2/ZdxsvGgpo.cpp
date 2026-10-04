@@ -1360,26 +1360,28 @@ namespace ZdxsvGgpo
 				std::fclose(fp);
 			}
 		}
-		// ZDXSV_EE_CLAMP=addr,max[,lo,hi]: u16 at addr set to max whenever above it (and in lo..hi);
+		// ZDXSV_EE_CLAMP=addr,max[,lo,hi][;addr,...]: u16 at addr set to max whenever above it (and in lo..hi);
 		// a function of state, so rollback-safe. 0x117f566 = 出撃準備 frames left (3599 at
 		// entry; 1800 and 0xffff in earlier phases, s630 ramcount.py).
-		static const auto clamp = [] {
-			std::tuple<u32, u32, u32, u32> c{0, 0, 0, 0};
-			if (const char* e = std::getenv("ZDXSV_EE_CLAMP"))
+		static const auto clamps = [] {
+			std::vector<std::tuple<u32, u32, u32, u32>> v;
+			for (const char* e = std::getenv("ZDXSV_EE_CLAMP"); e && *e;)
 			{
 				u32 a, m, lo = 0, hi = 0xffff;
 				if (std::sscanf(e, "%x,%u,%u,%u", &a, &m, &lo, &hi) >= 2 && a + 2 <= Ps2MemSize::MainRam)
-					c = {a, m, lo, hi};
+					v.emplace_back(a, m, lo, hi);
+				e = std::strchr(e, ';');
+				e = e ? e + 1 : nullptr;
 			}
-			return c;
+			return v;
 		}();
-		if (const auto& [caddr, cmax, clo, chi] = clamp; caddr)
+		for (const auto& [caddr, cmax, clo, chi] : clamps)
 		{
 			u16& v = *reinterpret_cast<u16*>(eeMem->Main + (caddr & ~1u));
 			if (v > cmax && v >= clo && v <= chi)
 			{
 				static int logged = 0;
-				if (!g_in_rollback && logged++ < 3)
+				if (!g_in_rollback && logged++ < 6)
 					Console.WriteLn("ZdxsvGgpo: EE clamp %x %u -> %u at vsync %u", caddr, v, cmax, g_FrameCount);
 				v = static_cast<u16>(cmax);
 			}
