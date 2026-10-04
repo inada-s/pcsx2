@@ -104,7 +104,8 @@ namespace Sessions
 		// zdxsv: after a state load the PS2 keeps using connections this process
 		// never saw; adopt them (new host connection to the same address,
 		// sequence numbers continue the PS2's) instead of resetting them.
-		const bool adopt = tcp->GetSYN() == false && Zdxsv::AdoptConnections();
+		const bool adopt = tcp->GetSYN() == false && Zdxsv::AdoptConnections() &&
+			!Zdxsv::IsBattleServer(std::bit_cast<u32>(destIP), tcp->destinationPort);
 		if (tcp->GetSYN() == false && !adopt)
 		{
 			CloseByRemoteRST();

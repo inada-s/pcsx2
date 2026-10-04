@@ -21,6 +21,7 @@
 #include "iCore.h"
 
 #include "Config.h"
+#include "ZdxsvDeltaState.h"
 
 #include "common/AlignedMalloc.h"
 #include "common/FileSystem.h"
@@ -1695,7 +1696,7 @@ static void iopRecRecompile(const u32 startpc)
 	while (1)
 	{
 		BASEBLOCK* pblock = PSX_GETBLOCK(i);
-		if (i != startpc && pblock->GetFnptr() != (uptr)iopJITCompile)
+		if (i != startpc && !ZdxsvDeltaState::g_fixed_blocks_iop && pblock->GetFnptr() != (uptr)iopJITCompile)
 		{
 			// The next instruction is already compiled, end here and link to it.
 			link_next_block = 1;

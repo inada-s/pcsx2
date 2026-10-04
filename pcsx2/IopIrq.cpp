@@ -7,6 +7,7 @@
 #include "IopDma.h"
 #include "Common.h"
 #include "R3000A.h"
+#include "ZdxsvGgpo.h"
 
 using namespace R3000A;
 
@@ -47,6 +48,8 @@ void spu2Irq()
 
 void iopIntcIrq(uint irqType)
 {
+	if (ZdxsvGgpo::g_trace)
+		std::fprintf(ZdxsvGgpo::g_trace, "irq %08x %u pc %08x\n", psxRegs.cycle, irqType, psxRegs.pc);
 	psxHu32(HW_ISTAT) |= 1 << irqType;
 	iopTestIntc();
 }

@@ -11,6 +11,7 @@
 #include "DEV9/DEV9.h"
 #include "USB/USB.h"
 #include "IopCounters.h"
+#include "ZdxsvGgpo.h"
 #include "IopDma.h"
 #include "R3000A.h"
 
