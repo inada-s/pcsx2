@@ -36,8 +36,6 @@
 #include <unordered_set>
 #include <unordered_map>
 
-extern u64 g_zdxsv_rec_counts[6]; // zdxsv probe, x86/ix86-32/iR5900.cpp
-
 #define FASTMEM_LOG(...)
 //#define FASTMEM_LOG(...) Console.WriteLn(__VA_ARGS__)
 
@@ -1135,7 +1133,6 @@ bool vtlb_BackpatchLoadStore(uptr code_address, uptr fault_address)
 		info.size_in_bits, info.is_signed, info.is_load, info.is_fpr);
 
 	// queue block for recompilation later
-	g_zdxsv_rec_counts[5] += 1000000;
 	Cpu->Clear(info.guest_pc, 1);
 
 	// and store the pc in the faulting list, so that we don't emit another fastmem loadstore
@@ -1498,7 +1495,6 @@ static __fi void mmap_ClearCpuBlock(uint offset)
 	HostSys::MemProtect(&eeMem->Main[rampage << __pageshift], __pagesize, PageAccess_ReadWrite());
 	vtlb_UpdateFastmemProtection(rampage << __pageshift, __pagesize, PageAccess_ReadWrite());
 	m_PageProtectInfo[rampage].Mode = ProtMode_Manual;
-	g_zdxsv_rec_counts[5]++;
 	Cpu->Clear(m_PageProtectInfo[rampage].ReverseRamMap, __pagesize);
 }
 

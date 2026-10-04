@@ -15,7 +15,6 @@ namespace ZdxsvGgpo
 	extern bool g_enabled; // ZDXSV_GGPO is set
 	extern bool g_active; // a session runs
 	extern bool g_in_rollback; // rerunning frames: no throttle
-	extern std::FILE* g_trace; // trace= probe: open while frames near the traced one run
 
 	// In VSyncStart.
 	void OnVsync();

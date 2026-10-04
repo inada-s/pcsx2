@@ -12,7 +12,6 @@
 #include "IopBios.h"
 #include "IopHw.h"
 #include "IopDma.h"
-#include "ZdxsvGgpo.h"
 #include "CDVD/Ps1CD.h"
 #include "CDVD/CDVD.h"
 
@@ -207,20 +206,6 @@ static __fi void _psxTestInterrupts()
 
 __ri void iopEventTest()
 {
-	if (ZdxsvGgpo::g_trace)
-	{
-		// trace= probe: report changes of the IOP RAM words that diverged in a battle (s603).
-		static u32 watch[64];
-		const u32* now = reinterpret_cast<const u32*>(iopMem->Main + 0x1dff00);
-		for (int i = 0; i < 64; i++)
-		{
-			if (watch[i] != now[i])
-			{
-				std::fprintf(ZdxsvGgpo::g_trace, "mem %08x pc %08x %06x %08x -> %08x\n", psxRegs.cycle, psxRegs.pc, 0x1dff00 + i * 4, watch[i], now[i]);
-				watch[i] = now[i];
-			}
-		}
-	}
 	psxRegs.iopNextEventCycle = psxRegs.cycle + iopWaitCycles;
 
 	if (psxTestCycle(psxNextStartCounter, psxNextDeltaCounter))

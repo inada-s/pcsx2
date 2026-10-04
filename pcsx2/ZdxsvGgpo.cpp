@@ -20,9 +20,6 @@
 //   input=none   no buttons, sticks centered
 //   mask=fcff    random buttons limited to these bits (hex, PadDualshock2::Inputs; fcff = no Select/Start)
 //   control=input  control run: reruns get other inputs (must report mismatches)
-//   iopflush=1   probe: reset the IOP recompiler at every save and load (empty IOP code cache per frame)
-//   trace=F      probe: log SPU2 register access and IOP interrupts (with psxRegs.cycle) of frames F-7..F
-//                to logs/zdxsv_trace.txt, for the first run and every rerun
 // Results go to the log, lines start with "ZdxsvGgpo".
 
 #include "ZdxsvGgpo.h"
@@ -70,14 +67,11 @@
 #include <vector>
 #include <limits>
 
-extern u64 g_zdxsv_rec_counts[6]; // x86/ix86-32/iR5900.cpp
-
 namespace ZdxsvGgpo
 {
 	bool g_enabled = std::getenv("ZDXSV_GGPO") != nullptr;
 	bool g_active = false;
 	bool g_in_rollback = false;
-	std::FILE* g_trace = nullptr;
 
 	namespace
 	{
@@ -246,10 +240,7 @@ namespace ZdxsvGgpo
 		u32 s_seed = 1;
 		bool s_host_input = false, s_no_input = false, s_control_input = false;
 		u16 s_mask = 0xffff;
-		bool s_iop_flush = false;
 		bool s_sync = true; // sync=0: no state hashes (checksum 0)
-		int s_trace_frame = 0; // trace= probe
-		std::FILE* s_trace_file = nullptr;
 		int s_port = 7001, s_delay = 0;
 		std::string s_peer_host = "127.0.0.1";
 		bool s_running = false; // net: GGPO_EVENTCODE_RUNNING seen
@@ -307,10 +298,6 @@ namespace ZdxsvGgpo
 					s_mask = StringUtil::FromChars<u16>(value, 16).value_or(0xffff);
 				else if (key == "control")
 					s_control_input = (value == "input");
-				else if (key == "iopflush")
-					s_iop_flush = (n != 0);
-				else if (key == "trace")
-					s_trace_frame = n;
 				else if (key == "port")
 					s_port = n;
 				else if (key == "host")
@@ -347,9 +334,6 @@ namespace ZdxsvGgpo
 			Console.WriteLn("ZdxsvGgpo: %s between frames ms per frame %.2f: save %.2f hash %.2f load %.2f rerun %.2f wait %.2f rest (ggpo) %.2f | sync=%d",
 				what, ours, s_save_ms.sum / n, s_hash_ms.sum / n, s_load_ms.sum / n, s_rerun_ms.sum / n, s_wait_ms.sum / n, ours - split, s_sync);
 			Console.WriteLn("ZdxsvGgpo: %s delta %s | %s", what, ZdxsvDeltaState::Times().c_str(), SaveState_DeltaTimes().c_str());
-			Console.WriteLn("ZdxsvGgpo: %s EE rec per frame: recompiles %.1f manual discards %.1f recClear %.1f page resets %.1f overlap clears %.1f vtlb protect clears %.1f backpatch clears %.1f",
-				what, g_zdxsv_rec_counts[0] / n, g_zdxsv_rec_counts[1] / n, g_zdxsv_rec_counts[2] / n,
-				g_zdxsv_rec_counts[3] / n, g_zdxsv_rec_counts[4] / n, (g_zdxsv_rec_counts[5] % 1000000) / n, (g_zdxsv_rec_counts[5] / 1000000) / n);
 		}
 
 		Input HostInput()
@@ -531,33 +515,11 @@ namespace ZdxsvGgpo
 			return true;
 		}
 
-		// trace= probe: the next frame to run is `frame`.
-		void TraceFrame(const char* what, int frame)
-		{
-			if (s_trace_frame <= 0)
-				return;
-			g_trace = nullptr;
-			if (s_trace_file)
-				std::fflush(s_trace_file);
-			if (frame < s_trace_frame - 7 || frame >= s_trace_frame)
-				return;
-			if (!s_trace_file)
-				s_trace_file = FileSystem::OpenCFile(Path::Combine(EmuFolders::Logs, "zdxsv_trace.txt").c_str(), "w");
-			if (!s_trace_file)
-				return;
-			// probelint: per-instruction trace, flushed at the next frame's call (unbuffered is too slow)
-			std::fprintf(s_trace_file, "== %s %d cycle %08x\n", what, frame, psxRegs.cycle);
-			g_trace = s_trace_file;
-		}
-
 		void HashSave(int frame, int* checksum);
 
 		bool __cdecl SaveGameState(unsigned char** buffer, int* len, int* checksum, int frame)
 		{
-			TraceFrame("save", frame);
 			Common::Timer timer;
-			if (s_iop_flush)
-				psxCpu->Reset();
 			int confirmed = -1;
 			if (!s_save_all && !s_sync && ggpo_get_last_confirmed_frame(s_session, &confirmed) == GGPO_OK && frame <= confirmed)
 				s_save_skipped++;
@@ -616,9 +578,6 @@ namespace ZdxsvGgpo
 			const bool ok = ZdxsvDeltaState::Load(*reinterpret_cast<int*>(buffer));
 			if (s_net)
 				NetLoaded(*reinterpret_cast<int*>(buffer));
-			if (s_iop_flush)
-				psxCpu->Reset();
-			TraceFrame("load", *reinterpret_cast<int*>(buffer));
 			s_load_ms.Add(timer.GetTimeMilliseconds());
 			s_loads++;
 			return ok;
@@ -711,8 +670,8 @@ namespace ZdxsvGgpo
 					return false;
 			}
 			s_rng.seed(s_seed);
-			Console.WriteLn("ZdxsvGgpo: synctest start=%d frames=%d check=%d seed=%u input=%s mask=%04x control=%d iopflush=%d",
-				s_start, s_frames, s_check, s_seed, s_host_input ? "host" : s_no_input ? "none" : "random", s_mask, s_control_input, s_iop_flush);
+			Console.WriteLn("ZdxsvGgpo: synctest start=%d frames=%d check=%d seed=%u input=%s mask=%04x control=%d",
+				s_start, s_frames, s_check, s_seed, s_host_input ? "host" : s_no_input ? "none" : "random", s_mask, s_control_input);
 			return true;
 		}
 	} // namespace
@@ -752,7 +711,6 @@ namespace ZdxsvGgpo
 				return;
 			s_started = true;
 			g_active = true;
-			std::fill_n(g_zdxsv_rec_counts, 6, 0);
 		}
 		s_frame_ended = true;
 		if (!g_in_rollback)

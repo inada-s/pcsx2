@@ -169,17 +169,10 @@ enum IOPCountRegs
 	IOP_T5_TARGET = 0x1f8014a8
 };
 
-// zdxsv trace= probe (ZdxsvGgpo.cpp): IOP DMA starts.
-#define ZDXSV_TRACE_DMA(n) \
-	if (ZdxsvGgpo::g_trace) \
-		std::fprintf(ZdxsvGgpo::g_trace, "dma%d %08x madr %08x bcr %08x chcr %08x\n", n, psxRegs.cycle, \
-			HW_DMA##n##_MADR, HW_DMA##n##_BCR, HW_DMA##n##_CHCR)
-
 // fixme: I'm sure there's a better way to do this. --arcum42
 #define DmaExec(n) { \
 	if (HW_DMA##n##_CHCR & 0x01000000 && \
 		HW_DMA_PCR & (8 << (n * 4))) { \
-		ZDXSV_TRACE_DMA(n); \
 		psxDma##n(HW_DMA##n##_MADR, HW_DMA##n##_BCR, HW_DMA##n##_CHCR); \
 	} \
 }
@@ -187,7 +180,6 @@ enum IOPCountRegs
 #define DmaExec2(n) { \
 	if (HW_DMA##n##_CHCR & 0x01000000 && \
 		HW_DMA_PCR2 & (8 << ((n-7) * 4))) { \
-		ZDXSV_TRACE_DMA(n); \
 		psxDma##n(HW_DMA##n##_MADR, HW_DMA##n##_BCR, HW_DMA##n##_CHCR); \
 	} \
 }

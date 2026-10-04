@@ -5,8 +5,6 @@
 #include "SPU2/defs.h"
 #include "SPU2/Debug.h"
 #include "SPU2/Dma.h"
-#include "ZdxsvGgpo.h"
-#include "R3000A.h"
 #include "Host/AudioStream.h"
 #include "Host.h"
 #include "GS/GSCapture.h"
@@ -53,8 +51,6 @@ u32 SPU2::GetConsoleSampleRate()
 void SPU2readDMA4Mem(u16* pMem, u32 size) // size now in 16bit units
 {
 	TimeUpdate(psxRegs.cycle);
-	if (ZdxsvGgpo::g_trace)
-		std::fprintf(ZdxsvGgpo::g_trace, "readDMA4Mem %08x tsa %06x size %x\n", psxRegs.cycle, Cores[0].TSA, size);
 
 	SPU2::FileLog("[%10d] SPU2 readDMA4Mem size %x\n", Cycles, size << 1);
 	Cores[0].DoDMAread(pMem, size);
@@ -63,8 +59,6 @@ void SPU2readDMA4Mem(u16* pMem, u32 size) // size now in 16bit units
 void SPU2writeDMA4Mem(u16* pMem, u32 size) // size now in 16bit units
 {
 	TimeUpdate(psxRegs.cycle);
-	if (ZdxsvGgpo::g_trace)
-		std::fprintf(ZdxsvGgpo::g_trace, "writeDMA4Mem %08x tsa %06x size %x\n", psxRegs.cycle, Cores[0].TSA, size);
 
 	SPU2::FileLog("[%10d] SPU2 writeDMA4Mem size %x at address %x\n", Cycles, size << 1, Cores[0].TSA);
 
@@ -92,8 +86,6 @@ void SPU2interruptDMA7()
 void SPU2readDMA7Mem(u16* pMem, u32 size)
 {
 	TimeUpdate(psxRegs.cycle);
-	if (ZdxsvGgpo::g_trace)
-		std::fprintf(ZdxsvGgpo::g_trace, "readDMA7Mem %08x tsa %06x size %x\n", psxRegs.cycle, Cores[1].TSA, size);
 
 	SPU2::FileLog("[%10d] SPU2 readDMA7Mem size %x\n", Cycles, size << 1);
 	Cores[1].DoDMAread(pMem, size);
@@ -102,8 +94,6 @@ void SPU2readDMA7Mem(u16* pMem, u32 size)
 void SPU2writeDMA7Mem(u16* pMem, u32 size)
 {
 	TimeUpdate(psxRegs.cycle);
-	if (ZdxsvGgpo::g_trace)
-		std::fprintf(ZdxsvGgpo::g_trace, "writeDMA7Mem %08x tsa %06x size %x\n", psxRegs.cycle, Cores[1].TSA, size);
 
 	SPU2::FileLog("[%10d] SPU2 writeDMA7Mem size %x at address %x\n", Cycles, size << 1, Cores[1].TSA);
 
@@ -444,8 +434,6 @@ u16 SPU2read(u32 rmem)
 		}
 	}
 
-	if (ZdxsvGgpo::g_trace)
-		std::fprintf(ZdxsvGgpo::g_trace, "r %08x %08x %04x\n", psxRegs.cycle, rmem, ret);
 	return ret;
 }
 
@@ -456,8 +444,6 @@ void SPU2write(u32 rmem, u16 value)
 	// incorrect pitches and loop lengths.
 
 	TimeUpdate(psxRegs.cycle);
-	if (ZdxsvGgpo::g_trace)
-		std::fprintf(ZdxsvGgpo::g_trace, "w %08x %08x %04x\n", psxRegs.cycle, rmem, value);
 
 	if (rmem >> 16 == 0x1f80)
 		Cores[0].WriteRegPS1(rmem, value);
