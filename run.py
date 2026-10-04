@@ -13,6 +13,7 @@ Settings are environment variables (see the block below), e.g.
     N=2 python run.py rom
     N=4 SEED=7 python run.py rbk_test_random
     GDXSV=192.168.1.8 python run.py rom    # point the game's server hosts at a local zdxsv
+    FRAME_LATENCY=0 python run.py rom      # maximum frame latency 0 (optimal frame pacing)
 
 Each instance gets its own data dir work/pcsx2-<i> (-datapath), so inis, memory cards, save states
 and logs never mix with your normal PCSX2 setup. Instance 1's log is echoed to this terminal.
@@ -46,6 +47,9 @@ MEMCARD = os.getenv("MEMCARD", "")
 # Server address for the game's zdxsv hosts. Empty = keep the fork's default (zdxsv.net).
 GDXSV = os.getenv("GDXSV", "")
 STATE = os.getenv("STATE", "")
+# Maximum frame latency ([EmuCore/GS] VsyncQueueSize): frames the emulation may run ahead of the
+# display. 2 = PCSX2 default; 0 = optimal frame pacing (waits for the display every frame, least lag).
+FRAME_LATENCY = int(os.getenv("FRAME_LATENCY", 2))
 VOLUME = int(os.getenv("VOLUME", 6))  # % of the game's volume (PCSX2 default 100); also used for fast forward
 # Instances whose pad 1 is bound to the first game controller (SDL-0, mapping below): "all" (default),
 # one 1-based instance number, or 0 (none: PCSX2's keyboard defaults). PCSX2 reads the pad even when
@@ -120,6 +124,7 @@ def prepare_instance(idx: int):
     # PINE slot per instance, as zdxsv/launch.ps1 (28010 + instance number).
     put("EmuCore", "EnablePINE", True)
     put("EmuCore", "PINESlot", 28011 + idx)
+    put("EmuCore/GS", "VsyncQueueSize", FRAME_LATENCY)
     put("SPU2/Output", "StandardVolume", VOLUME)
     put("SPU2/Output", "FastForwardVolume", VOLUME)
     if PAD == "all" or PAD == str(idx + 1):
