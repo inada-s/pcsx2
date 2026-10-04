@@ -634,6 +634,7 @@ namespace ZdxsvGgpo
 				s_trace_file = FileSystem::OpenCFile(Path::Combine(EmuFolders::Logs, "zdxsv_trace.txt").c_str(), "w");
 			if (!s_trace_file)
 				return;
+			// probelint: per-instruction trace, flushed at the next frame's call (unbuffered is too slow)
 			std::fprintf(s_trace_file, "== %s %d cycle %08x\n", what, frame, psxRegs.cycle);
 			g_trace = s_trace_file;
 		}
@@ -1123,7 +1124,10 @@ namespace ZdxsvGgpo
 		u32 s_game_gp = 0; // game gp, latched in OnNetRpc
 		std::FILE* s_net_trace = [] {
 			const char* p = std::getenv("ZDXSV_NET_TRACE");
-			return p ? std::fopen(p, "w") : nullptr;
+			std::FILE* f = p ? std::fopen(p, "w") : nullptr;
+			if (f) // unbuffered: the rig kills pcsx2, buffered lines would be lost (zdxsv/probelint.py)
+				std::setvbuf(f, nullptr, _IONBF, 0);
+			return f;
 		}();
 	} // namespace
 
@@ -1222,7 +1226,7 @@ namespace ZdxsvGgpo
 			s_ps.hold = true;
 			s_ps.n++;
 			if (s_net_trace)
-				std::fprintf(s_net_trace, "%u P%s %d %d\n", g_FrameCount, g_in_rollback ? "r" : "", s_net_frame, s_ps.n);
+				std::fprintf(s_net_trace, "%u PH%s %d %d\n", g_FrameCount, g_in_rollback ? "r" : "", s_net_frame, s_ps.n);
 		}
 		if (s_ps.go)
 		{

@@ -725,6 +725,8 @@ namespace Zdxsv
 				{
 					const std::string path = std::string(env) + "/bridge-" + info.userId + ".txt";
 					dump = std::fopen(path.c_str(), "w");
+					if (dump) // unbuffered: the rig kills pcsx2 (zdxsv/probelint.py)
+						std::setvbuf(dump, nullptr, _IONBF, 0);
 					dumpStart = Clock::now();
 					Log("bridge dump " + path + (dump ? "" : " failed"));
 				}
