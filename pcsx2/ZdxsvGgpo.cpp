@@ -4,15 +4,14 @@
 // ZDXSV_GGPO="key=value,...": a GGPO session in a running game. Synctest by default:
 // every frame is saved, and every `check` frames GGPO loads the frame `check` back, reruns the
 // frames with the same inputs and compares the state checksums (EE RAM + delta state).
-// With p2p= a 2-player P2P session instead: this instance plays one pad (random input, seeded per
-// player), the peer the other. Both must start from the same state (-statefile). At the end the
-// final checksum of every frame goes to logs/zdxsv_sync.txt: diff the two peers' files.
-//   p2p=1        local player 1 or 2
-//   port=7001    local UDP port
-//   peer=7002    peer UDP port, on host= (default 127.0.0.1)
+// With net=1 a battle of players= peers instead (see NetInput): the session starts when the game
+// arms its battle sock, every peer runs its own position, no state hashes.
+//   net=1        GGPO battle session (zdxsv/rbk.sh, m4relay.sh)
+//   players=4    peers (2..4); GGPO player = battle position + 1
+//   port=7001    UDP port of position 0; position p listens on port + p, peers on host= (default 127.0.0.1)
+//   relay=R      remote p is at R + 8 * me + p (zdxsv/udprelay.py per pair)
 //   delay=0      GGPO frame delay of the local input
-//   sync=0       no state hashes: checksum 0, no zdxsv_sync.txt, no dump= (play, not test)
-//   dump=F       write the final delta state of frame F (scratch masked) to logs/zdxsv_dump.bin
+//   sync=0       no state hashes: checksum 0 (net: always)
 //   start=1500   vsync (counted from boot) the session starts at
 //   frames=3000  frames the session runs, then it is closed and reported
 //   check=6      synctest check distance (1..6)
@@ -93,13 +92,16 @@ namespace ZdxsvGgpo
 		};
 		static_assert(sizeof(Input) == 8);
 
-		// net=1 (ai-automation#31 step 4): the Z battle msgs travel in GGPO inputs instead of DEV9.
+		// net=1 (ai-automation#31 step 4): the Z battle runs over GGPO, game-side input delay 0.
 		// Armed by the game's first key msg send on the battle sock: from then on that sock's send /
 		// recv / poll RPCs are answered on the EE side (OnNetCall) and never reach the IOP.
-		// Input of frame f = the pad + whole msgs the game sent before f (the rest waits for the next
-		// frame); a player's msgs go to the game's recv in the first frame its seq changed.
-		// The game's sends are a stream: a rollback rerun re-sends its prefix (compared: senddiff),
-		// only msgs past the committed end are new. GGPO player = battle position + 1.
+		// Input of frame f = (A, B) of the host pad (ZdPadAB) + the kind-3 msgs the game sent before f.
+		// The own pad goes to the game undelayed; the lockstep step reads every position's synced (A, B)
+		// of the running GGPO frame (OnStepCopy). Every other own battle msg goes back to the game's recv
+		// once per remote position (sender nibble rewritten): k, X, B bit 0 and the kind 7/9/f msgs are
+		// game-wide. Kind 3 (round handshake) is the barrier: its n-th of each remote goes to recv once
+		// all peers' n-th is in the synced stream. A rerun's sends are re-echoed, never transmitted
+		// (compared: senddiff). GGPO player = battle position + 1.
 		struct NetInput
 		{
 			Input pad; // that player's pad 0
@@ -127,55 +129,7 @@ namespace ZdxsvGgpo
 		bool s_net = false; // net=1 parsed
 		int s_players = 4; // players= (net)
 		int s_relay = 0; // relay=R (net): remote p is at port R + 8 * me + p (zdxsv/udprelay.py per pair), not port + p
-		// zd=1 (net, @inada-s: game-side input delay 0, all delay from GGPO): the own pad goes to the
-		// game undelayed; NetInput.pad carries the game's own last record (A, B) instead, and the
-		// lockstep step reads every position's (A, B) of the running GGPO frame (OnStepCopy), not
-		// its ring entry that the msgs filled 3 counters ahead.
-		const bool s_zd_env = [] {
-			const char* e = std::getenv("ZDXSV_GGPO");
-			return e && s_net_env && std::strstr(e, "zd=1");
-		}();
-		// zdh=1 (with zd=1): a remote key msg reaches the game's recv only once every sender's slot of
-		// each of its counters is in the synced stream; K(c) from those release frames (s_zd_rel,
-		// ZdKeyFrame) = a frame no peer steps c before, the same on every peer (own msg included).
-		const bool s_zdh_env = [] {
-			const char* e = std::getenv("ZDXSV_GGPO");
-			return e && s_zd_env && std::strstr(e, "zdh=1");
-		}();
-		// zdp=1 (with zd=1): NetInput.pad = (A, B) derived from the host pad of that frame (s613 bind
-		// table, default button config) instead of the game's last record (1 frame later).
-		const bool s_zdp_env = [] {
-			const char* e = std::getenv("ZDXSV_GGPO");
-			return e && s_zd_env && std::strstr(e, "zdp=1");
-		}();
-		// zdk=1 (with zdh=1): the step applies (A, B) of its own frame, not of K(c). Under zdh the
-		// final step frames agree on every peer (s620 run1: 20283/20283), and K lags them by 1 after
-		// a kind-7 ring shift (the 20% at delay + 1); a late remote input is a plain rollback.
-		const bool s_zdk_env = [] {
-			const char* e = std::getenv("ZDXSV_GGPO");
-			return e && s_zdh_env && std::strstr(e, "zdk=1");
-		}();
-		// zds=1 (with zd=1, instead of zdh): no msgs in the GGPO input. Each own battle msg goes back
-		// to the game's recv once per remote position (sender nibble rewritten): k, X, B bit 0 and the
-		// kind 3/7/9/f msgs are game-wide, and the step applies the synced (A, B) of its own frame. A
-		// rerun's sends are re-echoed, never transmitted, so a rollback cannot desync a send (s620 run3).
-		const bool s_zds_env = [] {
-			const char* e = std::getenv("ZDXSV_GGPO");
-			return e && s_zd_env && std::strstr(e, "zds=1");
-		}();
 		u32 s_zds_echo = 0, s_zds_skip = 0;
-		// ZDXSV_ZDS_K3ECHO=1: control, kind 3 echoed like the rest (no barrier; s621 run1 diverged by side).
-		const bool s_zds_k3echo = [] {
-			const char* e = std::getenv("ZDXSV_ZDS_K3ECHO");
-			return e && e[0] == '1';
-		}();
-		// ZDXSV_ZDS_ECHOAB=1: the echo of an own key msg as remote q carries q's synced (A, B) of the
-		// running frame in its records, not the own input: the game holds a remote's ring entry from
-		// the echo until the step (s624: ring A/B of a remote = the local pad one frame earlier).
-		const bool s_zds_echoab = [] {
-			const char* e = std::getenv("ZDXSV_ZDS_ECHOAB");
-			return e && e[0] == '1';
-		}();
 		// ZDXSV_PW_HASH=1: per GGPO frame (last save wins) XXH3 of each player work 0x8395d8 + 0x2200*p,
 		// written as `H frame h0 h1 h2 h3` to NET_TRACE at the report: the 4 machines simulate every
 		// player, so in sync these agree across peers (own-position RAM elsewhere does not, sync=0).
@@ -212,17 +166,6 @@ namespace ZdxsvGgpo
 		std::vector<std::vector<u8>> s_zds_k3[GGPO_MAX_PLAYERS]; // per sender, by index
 		int s_zds_seen[GGPO_MAX_PLAYERS] = {}, s_zds_rel = 0; // rollback state (NetFrame)
 		u32 s_zds_k3rel = 0;
-		// ZDXSV_ZDS_L8=1: the lockstep tick state 0xc627b4 x->8 (7->8, play start 6->8) is local load
-		// timing too (s630: 1 frame apart -> player work initialized 1 frame apart). The game's x->8 is
-		// undone (state 7 meanwhile) and counted; the count rides in Input::unused[0]; the n-th
-		// x->8 is set on the frame every peer's synced count reaches n. Rollback state (NetFrame).
-		const bool s_zds_l8 = std::getenv("ZDXSV_ZDS_L8") != nullptr;
-		constexpr u32 TICK_STATE = 0xc627b4;
-		struct L8
-		{
-			u8 n, rel, prev;
-			bool hold;
-		} s_l8 = {};
 		// ZDXSV_ZDS_PS=1: play start. The battle load step 0x2b1d60 (scene step: waits for the load-busy
 		// flag via 0x214260, then inits the per-battle work and sets tick state 8) passes 0x2b1d80 when this
 		// machine's load is done: local timing (s630: player work initialized 1 frame apart). The rec hook
@@ -234,25 +177,9 @@ namespace ZdxsvGgpo
 			u8 n, rel;
 			bool hold, go;
 		} s_ps = {};
-		struct ZdHeld
-		{
-			std::vector<u8> m;
-			int f; // entry frame
-		};
-		std::deque<ZdHeld> s_zd_held[GGPO_MAX_PLAYERS]; // zdh: per sender, in order
-		u32 s_zd_forced = 0, s_zd_held_max = 0, s_zd_ahead = 0;
-		u16 s_zd_a = 0, s_zd_b = 0; // own last record
 		Input s_zd_pad[128] = {}; // own host pad per frame & 127 (reruns reapply it)
-		u16 s_zd_ab[GGPO_MAX_PLAYERS][2] = {}; // synced (A, B) of frame s_net_frame
 		u16 s_zd_hist[128][GGPO_MAX_PLAYERS][2] = {}; // synced (A, B) per frame & 127
-		// GGPO frame where sender p's key slot c entered the synced input stream. Peers step slot c at
-		// different frames (own msg is local, s616 run1), so the step applies (A, B) of a frame all
-		// peers agree on: K(c) = 2nd latest entry frame, the earliest frame any peer can step c.
-		int s_zd_fin[64][GGPO_MAX_PLAYERS];
-		// zdh: frame sender p's msg holding slot c was released (own: would be, as the others see it).
-		// Peer p can step c from max over q != p of rel[c][q], so K(c) = 2nd latest rel (s616 rule).
-		int s_zd_rel[64][GGPO_MAX_PLAYERS];
-		u32 s_zd_steps = 0, s_zd_changed = 0, s_zd_nok = 0;
+		u32 s_zd_steps = 0, s_zd_changed = 0;
 		bool s_net_armed = false, s_net_over = false;
 		int s_net_me = -1; // local battle position
 		std::vector<std::vector<u8>> s_net_sent; // every msg the game sent since armed, in order
@@ -266,9 +193,7 @@ namespace ZdxsvGgpo
 		{
 			size_t pos;
 			std::vector<u8> rx;
-			std::deque<ZdHeld> held[GGPO_MAX_PLAYERS];
 			int k3seen[GGPO_MAX_PLAYERS], k3rel;
-			L8 l8;
 			PS ps;
 		};
 		NetFrame s_net_at[128]; // per frame & 127, at its save
@@ -307,22 +232,18 @@ namespace ZdxsvGgpo
 		bool s_host_input = false, s_no_input = false, s_control_input = false;
 		u16 s_mask = 0xffff;
 		bool s_iop_flush = false;
-		bool s_sync = true; // sync=0: no state hashes (checksum 0, no zdxsv_sync.txt)
+		bool s_sync = true; // sync=0: no state hashes (checksum 0)
 		int s_trace_frame = 0; // trace= probe
 		std::FILE* s_trace_file = nullptr;
-		int s_p2p = 0; // local player 1/2, 0 = synctest
-		int s_probe = 0; // probe= (no session)
-		int s_port = 7001, s_peer_port = 7002, s_delay = 0, s_dump_frame = -1;
-		std::string s_ref; // p2p: the peer's zdxsv_dump.bin, diffed against ours at the end
+		int s_port = 7001, s_delay = 0;
 		std::string s_peer_host = "127.0.0.1";
-		bool s_running = false; // p2p: GGPO_EVENTCODE_RUNNING seen
+		bool s_running = false; // net: GGPO_EVENTCODE_RUNNING seen
 		bool s_disconnected = false;
-		int s_frames_ahead = 0; // p2p: last GGPO_EVENTCODE_TIMESYNC
-		int s_waits = 0; // p2p: frames that waited for the peer
-		std::map<int, std::pair<u64, u64>> s_sums; // p2p: frame -> (EE RAM hash, delta state hash), last save wins
+		int s_frames_ahead = 0; // net: last GGPO_EVENTCODE_TIMESYNC
+		int s_waits = 0; // net: frames that waited for a peer
 
 		GGPOSession* s_session = nullptr;
-		// ZDXSV_SAVE_ALL=1: delta-save every GGPO frame. Default (p2p, sync=0): skip the save of a frame at or
+		// ZDXSV_SAVE_ALL=1: delta-save every GGPO frame. Default (net, sync=0): skip the save of a frame at or
 		// below GGPO's last confirmed frame (all inputs received: never a rollback target).
 		const bool s_save_all = [] {
 			const char* e = std::getenv("ZDXSV_SAVE_ALL");
@@ -340,7 +261,7 @@ namespace ZdxsvGgpo
 
 		int s_rollback_frames = 0, s_loads = 0, s_mismatches = 0, s_errors = 0;
 		Stat s_save_ms, s_hash_ms, s_load_ms;
-		Stat s_rerun_ms, s_wait_ms; // between frames: rollback rerun emulation, p2p wait for the peer
+		Stat s_rerun_ms, s_wait_ms; // between frames: rollback rerun emulation, net wait for a peer
 		Stat s_emu_ms, s_exit_ms, s_ours_ms; // wall: last OnExecuteReturned end -> OnVsync -> OnExecuteReturned start -> its end
 		Common::Timer::Value s_t_vsync = 0, s_t_returned = 0;
 
@@ -375,22 +296,12 @@ namespace ZdxsvGgpo
 					s_iop_flush = (n != 0);
 				else if (key == "trace")
 					s_trace_frame = n;
-				else if (key == "p2p")
-					s_p2p = std::clamp(n, 0, PLAYERS);
 				else if (key == "port")
 					s_port = n;
-				else if (key == "peer")
-					s_peer_port = n;
 				else if (key == "host")
 					s_peer_host = std::string(value);
 				else if (key == "delay")
 					s_delay = n;
-				else if (key == "probe")
-					s_probe = n;
-				else if (key == "ref")
-					s_ref = std::string(value);
-				else if (key == "dump")
-					s_dump_frame = n;
 				else if (key == "sync")
 					s_sync = (n != 0);
 				else if (key == "net")
@@ -501,22 +412,8 @@ namespace ZdxsvGgpo
 			}
 			for (int p = 0; p < PLAYERS; p++)
 			{
-				if (s_p2p && p != s_p2p - 1)
-					continue;
 				Input in = (p == 0 && s_host_input) ? HostInput() : s_random[p];
-				GGPOErrorCode rc = ggpo_add_local_input(s_session, s_handles[p], &in, sizeof(in));
-				// p2p: too far ahead of the peer's confirmed input, wait for it.
-				if (rc == GGPO_ERRORCODE_PREDICTION_THRESHOLD)
-				{
-					s_waits++;
-					Common::Timer wait;
-					while (rc == GGPO_ERRORCODE_PREDICTION_THRESHOLD && !s_disconnected && wait.GetTimeSeconds() < 10)
-					{
-						ggpo_idle(s_session, 0);
-						Threading::Sleep(1);
-						rc = ggpo_add_local_input(s_session, s_handles[p], &in, sizeof(in));
-					}
-				}
+				const GGPOErrorCode rc = ggpo_add_local_input(s_session, s_handles[p], &in, sizeof(in));
 				if (rc != GGPO_OK)
 				{
 					Console.Error("ZdxsvGgpo: add_local_input %d", rc);
@@ -547,7 +444,6 @@ namespace ZdxsvGgpo
 		};
 		constexpr u32 PAGE_SIZE = 4096;
 		std::map<int, Sample> s_first;
-		Sample s_dump; // p2p: final save of frame dump=
 		bool s_rerun = false; // the save is of a rerun frame
 		int s_diff_logged = 0;
 
@@ -602,17 +498,17 @@ namespace ZdxsvGgpo
 			{
 				case GGPO_EVENTCODE_RUNNING:
 					s_running = true;
-					Console.WriteLn("ZdxsvGgpo: p2p running");
+					Console.WriteLn("ZdxsvGgpo: running");
 					break;
 				case GGPO_EVENTCODE_TIMESYNC:
 					s_frames_ahead = ev->u.timesync.frames_ahead;
 					break;
 				case GGPO_EVENTCODE_DISCONNECTED_FROM_PEER:
 					s_disconnected = true;
-					Console.Warning("ZdxsvGgpo: p2p peer disconnected");
+					Console.Warning("ZdxsvGgpo: peer disconnected");
 					break;
 				case GGPO_EVENTCODE_CONNECTION_INTERRUPTED:
-					Console.Warning("ZdxsvGgpo: p2p connection interrupted");
+					Console.Warning("ZdxsvGgpo: connection interrupted");
 					break;
 				default:
 					break;
@@ -668,7 +564,7 @@ namespace ZdxsvGgpo
 			return true;
 		}
 
-		// sync=1 part of SaveGameState: checksum, p2p per-frame sums and dump, synctest diff samples.
+		// sync=1 part of SaveGameState: checksum, synctest diff samples.
 		void HashSave(int frame, int* checksum)
 		{
 			const std::vector<u8>* state = ZdxsvDeltaState::GetState(frame);
@@ -680,25 +576,6 @@ namespace ZdxsvGgpo
 			const u64 state_hash = ZdxsvDeltaState::HashState(*state);
 			const u64 hash = ram_hash ^ state_hash;
 			*checksum = static_cast<int>(hash ^ (hash >> 32));
-			if (s_p2p)
-			{
-				// A rerun after a misprediction legitimately differs: keep the last save of each frame.
-				s_sums[frame] = {ram_hash, state_hash};
-				if (frame == s_dump_frame)
-				{
-					std::vector<u8> masked = *state;
-					ZdxsvDeltaState::MaskScratch(masked);
-					if (std::FILE* f = FileSystem::OpenCFile(Path::Combine(EmuFolders::Logs, "zdxsv_dump.bin").c_str(), "wb"))
-					{
-						std::fwrite(sample.pages.data(), sizeof(u64), sample.pages.size(), f);
-						std::fwrite(masked.data(), 1, masked.size(), f);
-						std::fclose(f);
-					}
-					s_dump.pages = sample.pages;
-					s_dump.state = masked;
-				}
-				return;
-			}
 			std::vector<u8> masked = *state;
 			ZdxsvDeltaState::MaskScratch(masked);
 			if (s_rerun)
@@ -777,44 +654,6 @@ namespace ZdxsvGgpo
 			if (s_session)
 				ggpo_close_session(s_session);
 			s_session = nullptr;
-			if (s_p2p && s_sync)
-			{
-				// Frames near the end may still be unconfirmed: leave out the last prediction window.
-				int written = 0;
-				if (std::FILE* f = FileSystem::OpenCFile(Path::Combine(EmuFolders::Logs, "zdxsv_sync.txt").c_str(), "w"))
-				{
-					for (const auto& [frame, sums] : s_sums)
-					{
-						if (frame >= s_session_frames - GGPO_MAX_PREDICTION_FRAMES - 2)
-							break;
-						std::fprintf(f, "%d %016llx %016llx\n", frame, static_cast<unsigned long long>(sums.first),
-							static_cast<unsigned long long>(sums.second));
-						written++;
-					}
-					std::fclose(f);
-				}
-				Console.WriteLn("ZdxsvGgpo: p2p sync file %d frames, waits %d", written, s_waits);
-				// DIFF lines: "first" = the peer, "rerun" = this instance.
-				if (!s_ref.empty() && !s_dump.pages.empty())
-				{
-					if (std::optional<std::vector<u8>> data = FileSystem::ReadBinaryFile(s_ref.c_str()))
-					{
-						const size_t page_bytes = s_dump.pages.size() * sizeof(u64);
-						if (data->size() >= page_bytes)
-						{
-							Sample peer;
-							peer.pages.resize(s_dump.pages.size());
-							std::memcpy(peer.pages.data(), data->data(), page_bytes);
-							peer.state.assign(data->data() + page_bytes, data->data() + data->size());
-							s_diff_logged = 0;
-							Diff(s_dump_frame, peer, s_dump.pages, s_dump.state);
-							Console.WriteLn("ZdxsvGgpo: p2p dump diff vs %s done", s_ref.c_str());
-						}
-					}
-					else
-						Console.Warning("ZdxsvGgpo: p2p no peer dump %s", s_ref.c_str());
-				}
-			}
 			ggpo_set_log_function(nullptr);
 			g_active = false;
 			ZdxsvDeltaState::Clear();
@@ -844,48 +683,6 @@ namespace ZdxsvGgpo
 			cb.on_event = OnEvent;
 			if (s_net)
 				return NetStart(cb);
-			if (s_p2p)
-			{
-				if (ggpo_start_session(&s_session, &cb, "zdxsv", PLAYERS, sizeof(Input), static_cast<unsigned short>(s_port), nullptr, 0) != GGPO_OK)
-				{
-					s_session = nullptr;
-					return false;
-				}
-				ggpo_set_disconnect_timeout(s_session, 5000);
-				ggpo_set_disconnect_notify_start(s_session, 1000);
-				for (int p = 0; p < PLAYERS; p++)
-				{
-					GGPOPlayer player{};
-					player.size = sizeof(GGPOPlayer);
-					player.player_num = p + 1;
-					player.type = (p == s_p2p - 1) ? GGPO_PLAYERTYPE_LOCAL : GGPO_PLAYERTYPE_REMOTE;
-					if (player.type == GGPO_PLAYERTYPE_REMOTE)
-					{
-						StringUtil::Strlcpy(player.u.remote.ip_address, s_peer_host.c_str(), sizeof(player.u.remote.ip_address));
-						player.u.remote.port = static_cast<unsigned short>(s_peer_port);
-					}
-					if (ggpo_add_player(s_session, &player, &s_handles[p]) != GGPO_OK)
-						return false;
-					if (player.type == GGPO_PLAYERTYPE_LOCAL)
-						ggpo_set_frame_delay(s_session, s_handles[p], s_delay);
-				}
-				// Block until the peer is synchronized (both instances wait here at the same vsync).
-				Common::Timer wait;
-				while (!s_running && wait.GetTimeSeconds() < 60)
-				{
-					ggpo_idle(s_session, 0);
-					Threading::Sleep(1);
-				}
-				if (!s_running)
-				{
-					Console.Error("ZdxsvGgpo: p2p peer not synchronized in 60 s");
-					return false;
-				}
-				s_rng.seed(s_seed);
-				Console.WriteLn("ZdxsvGgpo: p2p player %d port %d peer %s:%d delay %d start=%d frames=%d seed=%u mask=%04x",
-					s_p2p, s_port, s_peer_host.c_str(), s_peer_port, s_delay, s_start, s_frames, s_seed, s_mask);
-				return true;
-			}
 			if (ggpo_start_synctest(&s_session, &cb, "zdxsv", PLAYERS, sizeof(Input), s_check) != GGPO_OK)
 			{
 				s_session = nullptr;
@@ -908,81 +705,8 @@ namespace ZdxsvGgpo
 	void TracePad();
 	void TraceInputs();
 
-	// ZDXSV_NET_TABLE=slots[,maxlead[,leadcap]]: game patch of the battle net table 0x5ffba0 (6 x
-	// {slots per key msg, max lockstep lead, lead cap} as s32, read by the battle init 0x331ec0; stock
-	// 2,5,5 for every player count). Slots 1 = one key msg per frame (stock: 1 msg per 2 frames).
-	// Written at every vsync while the table holds the stock values (any scene, before the init).
-	// ZDXSV_NET_SLOTS6=N instead: the live slots byte 0xc62bdf = N only in tick state 6 (battle
-	// running), 2 in the other states (round start handshake, s617: slots 1 there diverged GGPO).
-	// A function of RAM at the vsync, so GGPO reruns repeat it.
-	void PatchNetTable()
-	{
-		static int want[3] = {-2, 0, 0};
-		static int slots6 = 0;
-		static int cap6 = 0;
-		static bool shook = false; // tick state 8 (round start handshake) seen
-		if (want[0] == -2)
-		{
-			want[0] = -1;
-			if (const char* e = std::getenv("ZDXSV_NET_CAP6"))
-			{
-				cap6 = std::atoi(e);
-				Console.WriteLn("ZdxsvGgpo: lead cap %d in battle state 6 after the first handshake", cap6);
-			}
-			if (const char* e = std::getenv("ZDXSV_NET_TABLE"))
-			{
-				int n = std::sscanf(e, "%d,%d,%d", &want[0], &want[1], &want[2]);
-				if (n < 2)
-					want[1] = 5;
-				if (n < 3)
-					want[2] = want[1];
-				Console.WriteLn("ZdxsvGgpo: net table slots %d maxlead %d leadcap %d", want[0], want[1], want[2]);
-			}
-			if (const char* e = std::getenv("ZDXSV_NET_SLOTS6"))
-			{
-				slots6 = std::atoi(e);
-				Console.WriteLn("ZdxsvGgpo: slots %d in battle state 6", slots6);
-			}
-		}
-		if (slots6 > 0)
-		{
-			u8& slots = eeMem->Main[0xc62bdf];
-			const u8 st = eeMem->Main[0xc627b4];
-			if (st == 6 && slots == 2)
-				slots = slots6;
-			else if ((st == 5 || st == 7 || st == 8) && slots == slots6) // battle states seen in s617
-				slots = 2;
-		}
-		// ZDXSV_NET_CAP6=N: live lead cap byte 0xc62be1 = N in state 6, stock 5 in 5/7/8. Not in the
-		// pre-start state 6 (frames 0-5 before the first state 8): a lead > 5 there sends key msgs the
-		// stock game does not, and the handshake's kind 3 becomes a GGPO senddiff (s618 run5/6 hang).
-		if (cap6 > 0)
-		{
-			u8& cap = eeMem->Main[0xc62be1];
-			const u8 st = eeMem->Main[0xc627b4];
-			shook = shook || st == 8;
-			if (shook && st == 6 && cap == 5)
-				cap = static_cast<u8>(cap6);
-			else if ((st == 5 || st == 7 || st == 8) && cap == cap6)
-				cap = 5;
-		}
-		if (want[0] < 0)
-			return;
-		constexpr u32 TABLE = 0x5ffba0;
-		s32 cur[18];
-		std::memcpy(cur, eeMem->Main + TABLE, sizeof(cur));
-		for (int i = 0; i < 18; i++)
-			if (cur[i] != (i % 3 == 0 ? 2 : 5))
-				return;
-		for (int i = 0; i < 18; i++)
-			cur[i] = want[i % 3];
-		std::memcpy(eeMem->Main + TABLE, cur, sizeof(cur));
-		Console.WriteLn("ZdxsvGgpo: net table patched at vsync %u", g_FrameCount);
-	}
-
 	void OnVsync()
 	{
-		PatchNetTable();
 		if (s_rbk && s_net_env && !s_net_armed)
 			VMManager::SetLimiterMode(LimiterModeType::Turbo);
 		TracePad();
@@ -1032,27 +756,6 @@ namespace ZdxsvGgpo
 
 	static void Returned()
 	{
-		// probe=: no session, frame cost of 1 exit per vsync, 2 + delta save, 3 + hashes as in SaveGameState.
-		if (s_probe)
-		{
-			if (s_probe == 2)
-			{
-				Common::Timer timer;
-				ZdxsvDeltaState::Save(s_session_frames);
-				s_save_ms.Add(timer.GetTimeMilliseconds());
-				ZdxsvDeltaState::DiscardBefore(s_session_frames - 12);
-			}
-			else if (s_probe >= 3)
-			{
-				unsigned char* buffer;
-				int len, checksum;
-				SaveGameState(&buffer, &len, &checksum, s_session_frames);
-				FreeBuffer(buffer);
-			}
-			if (++s_session_frames >= s_frames)
-				Stop("probe done");
-			return;
-		}
 		if (!s_session)
 		{
 			if (!Start())
@@ -1082,7 +785,7 @@ namespace ZdxsvGgpo
 			Stop("disconnected");
 			return;
 		}
-		// p2p: ahead of the peer, give it time to catch up (GGPO's suggested frames, at 60 fps).
+		// net: ahead of the peer, give it time to catch up (GGPO's suggested frames, at 60 fps).
 		if (const int ahead = std::exchange(s_frames_ahead, 0); ahead > 0)
 		{
 			Common::Timer wait;
@@ -1132,72 +835,8 @@ namespace ZdxsvGgpo
 	} // namespace
 
 	bool g_net_hook = s_net_trace != nullptr || s_net_env;
-	bool g_zd_hook = s_zd_env;
+	bool g_zd_hook = s_net_env;
 	bool g_ps_hook = s_zds_ps;
-
-	// K(c) (s_zd_fin) or -1 if unusable. An entry > 32 frames older than the newest is the previous
-	// use of the slot (64 counters ago) = not yet in the stream (own msg, sent < delay frames ago).
-	static int ZdKeyFrame1(int c);
-
-	// zdh: the game steps at most 1 counter per frame (s618 run2: the 2nd slot of a msg steps 1
-	// frame after its release), so step(c) >= K(c') + d on every peer, d = steps from c' to c: take the
-	// max over the lead. The game sometimes skips a counter (s618 run7: 05 -> 07, 3e -> 00, 2e -> 30,
-	// on all peers): its row is the previous use (stale) and is no step, so it is not counted in d.
-	static int ZdKeyFrame(int c)
-	{
-		int k = ZdKeyFrame1(c);
-		if (!s_zdh_env || k < 0)
-			return k;
-		const int* row = s_zd_rel[c];
-		int newest = INT_MIN;
-		for (int p = 0; p < s_players; p++)
-			newest = std::max(newest, row[p]);
-		for (int j = 1, d = 0; j <= 4; j++)
-		{
-			const int* rj = s_zd_rel[(c - j) & 63];
-			int nj = INT_MIN;
-			for (int p = 0; p < s_players; p++)
-				nj = std::max(nj, rj[p]);
-			if (nj < newest - 32)
-				continue; // skipped counter
-			d++;
-			const int kj = ZdKeyFrame1((c - j) & 63);
-			if (kj >= 0)
-				k = std::max(k, kj + d);
-		}
-		if (k > s_net_frame && !g_in_rollback)
-			s_zd_ahead++; // the bound is wrong: a peer stepped 2 counters in 1 frame
-		return k > s_net_frame ? -1 : k;
-	}
-
-	static int ZdKeyFrame1(int c)
-	{
-		const int* row = s_zdh_env ? s_zd_rel[c] : s_zd_fin[c]; // zdh: release frames
-		int newest = INT_MIN;
-		for (int p = 0; p < s_players; p++)
-			newest = std::max(newest, row[p]);
-		int first = INT_MIN, second = INT_MIN;
-		for (int p = 0; p < s_players; p++)
-		{
-			const int v = row[p] < newest - 32 ? INT_MAX : row[p];
-			if (v > first)
-				second = first, first = v;
-			else if (v > second)
-				second = v;
-		}
-		if (second == INT_MAX || second > s_net_frame || second < s_net_frame - 100)
-			return -1;
-		return second;
-	}
-
-	// zdh: every sender's slot c entered the stream by frame f (the sender's own entry at fe).
-	static bool ZdComplete(int c, int fe, int f)
-	{
-		for (int p = 0; p < s_players; p++)
-			if (s_zd_fin[c][p] < fe - 32 || s_zd_fin[c][p] > f)
-				return false;
-		return true;
-	}
 
 	// zdp: record (A, B) of a host pad, s613 bind table (OR-linear; B bit 0 = game state, left 0).
 	static void ZdPadAB(const Input& in, u16& a, u16& b)
@@ -1253,13 +892,11 @@ namespace ZdxsvGgpo
 		std::memcpy(&a, ram + e + 2, 2);
 		std::memcpy(&b, ram + e + 6, 2);
 		const int c = ram[e] & 63;
-		const int k = (s_zdk_env || s_zds_env) ? s_net_frame : ZdKeyFrame(c);
-		const u16* ab = k >= 0 ? s_zd_hist[k & 127][p] : s_zd_ab[p];
+		const int k = s_net_frame;
+		const u16* ab = s_zd_hist[k & 127][p];
 		const u16 na = ab[0];
 		const u16 nb = static_cast<u16>((ab[1] & ~1u) | (b & 1u));
 		s_zd_steps++;
-		if (k < 0)
-			s_zd_nok++;
 		if (a != na || b != nb)
 			s_zd_changed++;
 		std::memcpy(ram + e + 2, &na, 2);
@@ -1299,19 +936,6 @@ namespace ZdxsvGgpo
 			}
 		}
 		return true;
-	}
-
-	// zd: the game's own last record A/B (= its input, lag 0 from the pad edge).
-	static void NoteOwnRecords(const u8* d, s32 len)
-	{
-		for (s32 i = 0; i + 1 < len && d[i] >= 2 && i + d[i] <= len; i += d[i])
-		{
-			std::vector<KeySlot> slots;
-			if ((d[i + 1] >> 4) == 2 && ParseKeySlots(d + i, d[i], slots))
-				for (const KeySlot& s : slots)
-					if (s.rec)
-						s_zd_a = s.a, s_zd_b = s.b;
-		}
 	}
 
 	void NoteOwnSend(const KeySlot& s);
@@ -1437,7 +1061,6 @@ namespace ZdxsvGgpo
 		if (fno != NET_FNO_SEND || sock != NET_BATTLE_SOCK || len <= 0 || len > 0x3ca)
 			return;
 		const u8* d = ram + NET_REQ_DATA;
-		NoteOwnRecords(d, len);
 		if (!s_net_trace)
 			return;
 		std::string hex;
@@ -1471,22 +1094,8 @@ namespace ZdxsvGgpo
 		int s_own_x = -1;
 		struct RecvStats
 		{
-			u32 msgs, keymsgs, slots, recs, unknown, kbad, xbad, rebuilt_bad, held, forced, maxhold, dropped;
+			u32 msgs, keymsgs, slots, recs, unknown, kbad, xbad, rebuilt_bad;
 		} s_rs;
-
-		// ZDXSV_NET_SYNTH=1: the game gets rebuilt key msgs instead of the received ones: input
-		// fields (record flag, A, X, B) from the remote msg, k from the local game's own send of that
-		// counter; a msg is held until the local game sent all its counters (zero-latency lockstep).
-		// Value = frames a msg may be held before it goes out with its received k (0 = never).
-		const char* s_synth_env = std::getenv("ZDXSV_NET_SYNTH");
-		const bool s_synth = s_synth_env != nullptr;
-		const u32 s_synth_force = s_synth ? static_cast<u32>(std::atoi(s_synth_env)) : 0;
-		struct HeldMsg
-		{
-			u32 frame, sender;
-			std::vector<KeySlot> slots;
-		};
-		std::deque<HeldMsg> s_held;
 
 		// Key msg bytes from its slots (inverse of ParseKeySlots), sender p.
 		std::vector<u8> BuildKeyMsg(u32 p, const std::vector<KeySlot>& slots)
@@ -1513,73 +1122,6 @@ namespace ZdxsvGgpo
 			s_own_x = s.x;
 	}
 
-	static bool OwnKnown(u8 c)
-	{
-		return s_own_frame[c] != 0 && g_FrameCount - s_own_frame[c] < 32;
-	}
-
-	// Replaces the recv result (d, len) by: non-key msgs as received, then every held key msg whose
-	// counters the local game has sent (per sender in order), rebuilt with the local k. A msg held
-	// > ZDXSV_NET_SYNTH frames (if nonzero) goes out with its received k (forced).
-	static void SynthRecv(u8* d, s32 len)
-	{
-		std::vector<u8> out;
-		for (s32 i = 0; i + 1 < len && d[i] >= 2 && i + d[i] <= len; i += d[i])
-		{
-			std::vector<KeySlot> slots;
-			const u32 sender = d[i + 1] & 0xfu;
-			if ((d[i + 1] >> 4) == 2 && ParseKeySlots(d + i, d[i], slots))
-			{
-				s_held.push_back({g_FrameCount, sender, std::move(slots)}), s_rs.held++;
-				continue;
-			}
-			// kind 3 (`04 3P 00 00`) = the sender's counter restarts at 0 (s610 run3): its held key
-			// msgs are for counters this game never reaches; holding them blocked its new ones.
-			if ((d[i + 1] >> 4) == 3)
-			{
-				const size_t before = s_held.size();
-				s_held.erase(std::remove_if(s_held.begin(), s_held.end(), [sender](const HeldMsg& h) { return h.sender == sender; }), s_held.end());
-				s_rs.dropped += static_cast<u32>(before - s_held.size());
-			}
-			out.insert(out.end(), d + i, d + i + d[i]);
-		}
-		const u32 max = std::min<u32>(cpuRegs.GPR.n.s2.UL[0], 0x3ca);
-		bool blocked[16] = {};
-		for (auto it = s_held.begin(); it != s_held.end();)
-		{
-			bool ready = !blocked[it->sender];
-			for (const KeySlot& s : it->slots)
-				ready = ready && OwnKnown(s.c);
-			const u32 age = g_FrameCount - it->frame;
-			const bool force = !blocked[it->sender] && !ready && s_synth_force && age > s_synth_force;
-			if (!(ready || force))
-			{
-				blocked[it->sender] = true;
-				++it;
-				continue;
-			}
-			std::vector<KeySlot> slots = it->slots;
-			if (ready)
-				for (KeySlot& s : slots)
-					s.k = s_own_k[s.c];
-			const std::vector<u8> m = BuildKeyMsg(it->sender, slots);
-			if (out.size() + m.size() > max)
-				break;
-			out.insert(out.end(), m.begin(), m.end());
-			s_rs.forced += force;
-			s_rs.maxhold = std::max(s_rs.maxhold, age);
-			it = s_held.erase(it);
-		}
-		if (len == 0 && out.empty())
-			return;
-		std::memcpy(d, out.data(), out.size());
-		*reinterpret_cast<s32*>(eeMem->Main + NET_RES_LEN) = static_cast<s32>(out.size());
-		std::string hex;
-		for (u8 b : out)
-			hex += fmt::format("{:02x}", b);
-		std::fprintf(s_net_trace, "%u Y %s\n", g_FrameCount, hex.c_str());
-	}
-
 	// EE rec hook at NET_RECV_RET_PC (fno 0x14 recv, after the wait RPC returned): s4 = sock,
 	// result length at 0xc22c98, data at 0xc22ca0. Logs R lines and checks that every remote key
 	// msg = BuildKeyMsg(its input fields + the local game's own k for that counter).
@@ -1594,12 +1136,7 @@ namespace ZdxsvGgpo
 			return;
 		u8* d = ram + NET_REQ_DATA;
 		if (len == 0)
-		{
-			// nothing received: still release held msgs the local game has caught up with
-			if (s_synth && !s_held.empty())
-				SynthRecv(d, 0);
 			return;
-		}
 		std::string hex;
 		for (int i = 0; i < len; i++)
 			hex += fmt::format("{:02x}", d[i]);
@@ -1643,12 +1180,9 @@ namespace ZdxsvGgpo
 				s_rs.rebuilt_bad++, std::fputs(" REBUILT_DIFF", s_net_trace);
 		}
 		std::fputc('\n', s_net_trace);
-		if (s_synth)
-			SynthRecv(d, len);
 		if (s_rs.keymsgs % 2000 == 1)
-			std::fprintf(s_net_trace, "STATS msgs=%u keymsgs=%u slots=%u recs=%u unknown=%u kbad=%u xbad=%u rebuilt_bad=%u held=%u forced=%u maxhold=%u dropped=%u\n",
-				s_rs.msgs, s_rs.keymsgs, s_rs.slots, s_rs.recs, s_rs.unknown, s_rs.kbad, s_rs.xbad, s_rs.rebuilt_bad,
-				s_rs.held, s_rs.forced, s_rs.maxhold, s_rs.dropped);
+			std::fprintf(s_net_trace, "STATS msgs=%u keymsgs=%u slots=%u recs=%u unknown=%u kbad=%u xbad=%u rebuilt_bad=%u\n",
+				s_rs.msgs, s_rs.keymsgs, s_rs.slots, s_rs.recs, s_rs.unknown, s_rs.kbad, s_rs.xbad, s_rs.rebuilt_bad);
 		std::fflush(s_net_trace);
 	}
 
@@ -1662,36 +1196,23 @@ namespace ZdxsvGgpo
 		void NetSend(std::vector<u8> m)
 		{
 			s_ns.msgs++;
-			if (s_zds_env)
+			const int kind = m.size() >= 2 && m[0] == m.size() ? m[1] >> 4 : -1;
+			if (kind == 3)
+				; // GGPO input (below), released by NetSyncAndApply
+			else if (kind == 2 || kind == 7 || kind == 9 || kind == 0xf)
 			{
-				const int kind = m.size() >= 2 && m[0] == m.size() ? m[1] >> 4 : -1;
-				if (kind == 3 && !s_zds_k3echo)
-					; // GGPO input (below), released by NetSyncAndApply
-				else if (kind == 2 || kind == 3 || kind == 7 || kind == 9 || kind == 0xf)
-				{
-					std::vector<KeySlot> slots;
-					const bool ab = s_zds_echoab && kind == 2 && ParseKeySlots(m.data(), static_cast<u32>(m.size()), slots);
-					for (int q = 0; q < s_players; q++)
-						if (q != s_net_me && ab)
-						{
-							for (KeySlot& s : slots)
-								if (s.rec)
-									s.a = s_zd_ab[q][0], s.b = static_cast<u16>((s_zd_ab[q][1] & ~1u) | (s.b & 1u));
-							const std::vector<u8> r = BuildKeyMsg(q, slots);
-							s_net_rx.insert(s_net_rx.end(), r.begin(), r.end());
-						}
-						else if (q != s_net_me)
-						{
-							s_net_rx.push_back(m[0]);
-							s_net_rx.push_back(static_cast<u8>((m[1] & 0xf0) | q));
-							s_net_rx.insert(s_net_rx.end(), m.begin() + 2, m.end());
-						}
-					if (!g_in_rollback)
-						s_zds_echo++;
-				}
-				else if (!g_in_rollback && s_zds_skip++ < 20)
-					Console.Warning("ZdxsvGgpo: zds msg kind %d (%zu bytes) not echoed", kind, m.size());
+				for (int q = 0; q < s_players; q++)
+					if (q != s_net_me)
+					{
+						s_net_rx.push_back(m[0]);
+						s_net_rx.push_back(static_cast<u8>((m[1] & 0xf0) | q));
+						s_net_rx.insert(s_net_rx.end(), m.begin() + 2, m.end());
+					}
+				if (!g_in_rollback)
+					s_zds_echo++;
 			}
+			else if (!g_in_rollback && s_zds_skip++ < 20)
+				Console.Warning("ZdxsvGgpo: zds msg kind %d (%zu bytes) not echoed", kind, m.size());
 			if (s_net_pos < s_net_sent.size())
 			{
 				if (s_net_sent[s_net_pos] != m && s_ns.senddiff++ < 40)
@@ -1710,7 +1231,7 @@ namespace ZdxsvGgpo
 				if (m.size() >= 2 && (m[1] >> 4) == 0xf && s_net_end < 0)
 					s_net_end = 0;
 				s_net_sent.push_back(m);
-				if (!s_zds_env || (m.size() >= 2 && (m[1] >> 4) == 3 && !s_zds_k3echo))
+				if (m.size() >= 2 && (m[1] >> 4) == 3)
 					s_net_out.push_back(std::move(m));
 				s_ns.maxq = std::max<u32>(s_ns.maxq, static_cast<u32>(s_net_out.size()));
 			}
@@ -1732,12 +1253,8 @@ namespace ZdxsvGgpo
 			NetFrame& at = s_net_at[frame & 127];
 			at.pos = s_net_pos;
 			at.rx = s_net_rx;
-			if (s_zdh_env)
-				for (int p = 0; p < s_players; p++)
-					at.held[p] = s_zd_held[p];
 			std::memcpy(at.k3seen, s_zds_seen, sizeof(at.k3seen));
 			at.k3rel = s_zds_rel;
-			at.l8 = s_l8;
 			at.ps = s_ps;
 			if (s_pw_hash)
 			{
@@ -1772,19 +1289,13 @@ namespace ZdxsvGgpo
 			const NetFrame& at = s_net_at[frame & 127];
 			s_net_pos = at.pos;
 			s_net_rx = at.rx;
-			if (s_zdh_env)
-				for (int p = 0; p < s_players; p++)
-					s_zd_held[p] = at.held[p];
 			std::memcpy(s_zds_seen, at.k3seen, sizeof(s_zds_seen));
 			s_zds_rel = at.k3rel;
-			s_l8 = at.l8;
 			s_ps = at.ps;
 		}
 
 		bool NetStart(GGPOSessionCallbacks& cb)
 		{
-			std::fill(&s_zd_fin[0][0], &s_zd_fin[0][0] + 64 * GGPO_MAX_PLAYERS, -100000);
-			std::fill(&s_zd_rel[0][0], &s_zd_rel[0][0] + 64 * GGPO_MAX_PLAYERS, -100000);
 			if (s_net_me < 0 || s_net_me >= s_players)
 			{
 				Console.Error("ZdxsvGgpo: net position %d not below players=%d", s_net_me, s_players);
@@ -1859,20 +1370,13 @@ namespace ZdxsvGgpo
 		{
 			NetInput in = s_net_local;
 			in.pad = s_rand_env ? RandInput() : HostInput();
-			if (s_zd_env)
-			{
-				s_zd_pad[s_net_frame & 127] = in.pad;
-				u16 ab[2] = {s_zd_a, s_zd_b};
-				if (s_zdp_env)
-				{
-					ZdPadAB(in.pad, ab[0], ab[1]);
-					if (s_net_trace)
-						std::fprintf(s_net_trace, "%u Q %d %04x %04x\n", g_FrameCount, s_net_frame, ab[0], ab[1]);
-				}
-				in.pad = {};
-				std::memcpy(&in.pad, ab, sizeof(ab));
-			}
-			in.pad.unused[0] = s_l8.n;
+			s_zd_pad[s_net_frame & 127] = in.pad;
+			u16 ab[2];
+			ZdPadAB(in.pad, ab[0], ab[1]);
+			if (s_net_trace)
+				std::fprintf(s_net_trace, "%u Q %d %04x %04x\n", g_FrameCount, s_net_frame, ab[0], ab[1]);
+			in.pad = {};
+			std::memcpy(&in.pad, ab, sizeof(ab));
 			in.pad.unused[1] = s_ps.n;
 			std::vector<u8> data;
 			while (!s_net_out.empty())
@@ -1918,7 +1422,8 @@ namespace ZdxsvGgpo
 			return NetSyncAndApply();
 		}
 
-		// Inputs of frame s_net_frame: own pad to pad 0, remote msgs with a new seq to the recv queue.
+		// Inputs of frame s_net_frame: own host pad to pad 0, every position's (A, B) to s_zd_hist, kind-3
+		// msgs with a new seq to the barrier (the n-th of each remote to recv once all peers' n-th arrived).
 		bool NetSyncAndApply()
 		{
 			NetInput in[GGPO_MAX_PLAYERS] = {};
@@ -1930,28 +1435,16 @@ namespace ZdxsvGgpo
 				return false;
 			}
 			const int f = s_net_frame;
-			ApplyPad(0, s_zd_env ? s_zd_pad[f & 127] : in[s_net_me].pad);
-			if (s_zd_env)
-				for (int p = 0; p < s_players; p++)
-				{
-					std::memcpy(s_zd_ab[p], &in[p].pad, sizeof(s_zd_ab[p]));
-					std::memcpy(s_zd_hist[f & 127][p], &in[p].pad, sizeof(s_zd_ab[p]));
-				}
+			ApplyPad(0, s_zd_pad[f & 127]);
+			for (int p = 0; p < s_players; p++)
+				std::memcpy(s_zd_hist[f & 127][p], &in[p].pad, sizeof(s_zd_hist[f & 127][p]));
+			// a predicted input repeats its seq, so entries come only from real inputs: no rollback state
 			for (int p = 0; p < s_players; p++)
 			{
 				const bool fresh = in[p].seq != s_net_seq_at[(f - 1) & 63][p];
 				const u8* d = in[p].data;
 				const u32 len = std::min<u32>(in[p].len, sizeof(in[p].data));
-				// a predicted input repeats its seq, so entries come only from real inputs: no rollback state
-				if (s_zd_env && fresh)
-					for (u32 i = 0; i + 1 < len && d[i] >= 2 && i + d[i] <= len; i += d[i])
-					{
-						std::vector<KeySlot> slots;
-						if ((d[i + 1] >> 4) == 2 && ParseKeySlots(d + i, d[i], slots))
-							for (const KeySlot& s : slots)
-								s_zd_fin[s.c][p] = f;
-					}
-				if (s_zds_env && fresh)
+				if (fresh)
 					for (u32 i = 0; i + 1 < len && d[i] >= 2 && i + d[i] <= len; i += d[i])
 						if ((d[i + 1] >> 4) == 3)
 						{
@@ -1960,27 +1453,11 @@ namespace ZdxsvGgpo
 								v.resize(s_zds_seen[p] + 1);
 							v[s_zds_seen[p]++].assign(d + i, d + i + d[i]);
 						}
-				if (p != s_net_me && fresh && !s_zds_env)
-				{
-					for (u32 i = 0; i + 1 < len && d[i] >= 2 && i + d[i] <= len; i += d[i])
-						if ((d[i + 1] >> 4) == 0xf && s_net_end < 0)
-							s_net_end = 0;
-					if (!s_zdh_env)
-						s_net_rx.insert(s_net_rx.end(), d, d + len);
-				}
-				// own msgs are held too (never given to the game): their release frames feed K
-				if (s_zdh_env && fresh)
-				{
-					u32 i = 0;
-					for (; i + 1 < len && d[i] >= 2 && i + d[i] <= len; i += d[i])
-						s_zd_held[p].push_back({std::vector<u8>(d + i, d + i + d[i]), f});
-					if (i < len)
-						s_zd_held[p].push_back({std::vector<u8>(d + i, d + len), f});
-				}
 				s_net_seq_at[f & 63][p] = in[p].seq;
 			}
-			for (bool all = s_zds_env; all;)
+			for (;;)
 			{
+				bool all = true;
 				for (int p = 0; p < s_players; p++)
 					all = all && s_zds_seen[p] > s_zds_rel;
 				if (!all)
@@ -1993,29 +1470,6 @@ namespace ZdxsvGgpo
 				if (!g_in_rollback)
 					s_zds_k3rel++;
 				s_zds_rel++;
-			}
-			if (s_zds_l8)
-			{
-				u8& st = eeMem->Main[TICK_STATE];
-				if (st == 8 && s_l8.prev != 8 && s_l8.prev != 0)
-				{
-					if (!s_l8.hold)
-						s_l8.n++;
-					s_l8.hold = true;
-					st = 7; // no-op handler (held at 6: the step handler runs on, state 9 hang, s630 r15)
-				}
-				bool all = s_l8.hold;
-				for (int p = 0; p < s_players; p++)
-					all = all && static_cast<u8>(in[p].pad.unused[0] - s_l8.rel) >= 1 && static_cast<u8>(in[p].pad.unused[0] - s_l8.rel) < 128;
-				if (all)
-				{
-					st = 8;
-					s_l8.hold = false;
-					s_l8.rel++;
-					if (s_net_trace)
-						std::fprintf(s_net_trace, "%u L8%s %d %d\n", g_FrameCount, g_in_rollback ? "r" : "", f, s_l8.rel);
-				}
-				s_l8.prev = st;
 			}
 			if (s_zds_ps && s_ps.hold && !s_ps.go)
 			{
@@ -2030,39 +1484,6 @@ namespace ZdxsvGgpo
 						std::fprintf(s_net_trace, "%u PS%s %d %d\n", g_FrameCount, g_in_rollback ? "r" : "", f, s_ps.rel);
 				}
 			}
-			// zdh release: a key msg once all its counters are complete; other msgs at once (in order).
-			// A blocked key msg goes anyway when its sender's kind-3 resync is queued behind it
-			// (pre-restart counters the others never send, s610 run3) or after 120 frames.
-			for (int p = 0; s_zdh_env && p < s_players; p++)
-			{
-				std::deque<ZdHeld>& q = s_zd_held[p];
-				s_zd_held_max = std::max<u32>(s_zd_held_max, static_cast<u32>(q.size()));
-				while (!q.empty())
-				{
-					const ZdHeld& h = q.front();
-					bool go = true;
-					std::vector<KeySlot> slots;
-					if (h.m.size() >= 2 && (h.m[1] >> 4) == 2 && ParseKeySlots(h.m.data(), static_cast<u32>(h.m.size()), slots))
-						for (const KeySlot& s : slots)
-							go = go && ZdComplete(s.c, h.f, f);
-					if (!go)
-					{
-						bool resync = false;
-						for (const ZdHeld& o : q)
-							resync = resync || (o.m.size() >= 2 && (o.m[1] >> 4) == 3);
-						go = resync || f - h.f > 120;
-						if (go && !g_in_rollback)
-							s_zd_forced++;
-					}
-					if (!go)
-						break;
-					for (const KeySlot& s : slots)
-						s_zd_rel[s.c][p] = f;
-					if (p != s_net_me)
-						s_net_rx.insert(s_net_rx.end(), h.m.begin(), h.m.end());
-					q.pop_front();
-				}
-			}
 			return true;
 		}
 
@@ -2071,9 +1492,8 @@ namespace ZdxsvGgpo
 			Console.WriteLn("ZdxsvGgpo: net sends %u msgs %u (sent %zu, unsent %zu) recvs %u rxmsgs %u rxbytes %u polls %u other %u nowait %u senddiff %u toolong %u maxq %u waits %d",
 				s_ns.sends, s_ns.msgs, s_net_sent.size(), s_net_out.size(), s_ns.recvs, s_ns.rxmsgs, s_ns.rxbytes, s_ns.polls,
 				s_ns.other, s_ns.nowait, s_ns.senddiff, s_ns.toolong, s_ns.maxq, s_waits);
-			if (s_zd_env)
-				Console.WriteLn("ZdxsvGgpo: zd steps %u changed %u nok %u zdh %d forced %u heldmax %u ahead %u zdp %d zds %d echo %u skip %u k3 %d/%d/%d/%d rel %d (fwd %u)", s_zd_steps, s_zd_changed, s_zd_nok, s_zdh_env, s_zd_forced, s_zd_held_max, s_zd_ahead, s_zdp_env, s_zds_env, s_zds_echo, s_zds_skip,
-					s_zds_seen[0], s_zds_seen[1], s_zds_seen[2], s_zds_seen[3], s_zds_rel, s_zds_k3rel);
+			Console.WriteLn("ZdxsvGgpo: zd steps %u changed %u echo %u skip %u k3 %d/%d/%d/%d rel %d (fwd %u)", s_zd_steps, s_zd_changed, s_zds_echo, s_zds_skip,
+				s_zds_seen[0], s_zds_seen[1], s_zds_seen[2], s_zds_seen[3], s_zds_rel, s_zds_k3rel);
 			if (s_pw_hash && s_net_trace)
 			{
 				for (const auto& [f, h] : s_pw)
