@@ -322,6 +322,13 @@ namespace ZdxsvGgpo
 		std::map<int, std::pair<u64, u64>> s_sums; // p2p: frame -> (EE RAM hash, delta state hash), last save wins
 
 		GGPOSession* s_session = nullptr;
+		// ZDXSV_SAVE_ALL=1: delta-save every GGPO frame. Default (p2p, sync=0): skip the save of a frame at or
+		// below GGPO's last confirmed frame (all inputs received: never a rollback target).
+		const bool s_save_all = [] {
+			const char* e = std::getenv("ZDXSV_SAVE_ALL");
+			return e && e[0] == '1';
+		}();
+		int s_save_skipped = 0;
 		GGPOPlayerHandle s_handles[GGPO_MAX_PLAYERS] = {};
 		bool s_started = false; // the session was opened once (it is not reopened)
 		bool s_frame_ended = false; // the CPU left Execute() at a vsync
@@ -404,8 +411,8 @@ namespace ZdxsvGgpo
 
 		void Report(const char* what)
 		{
-			Console.WriteLn("ZdxsvGgpo: %s frames %d rollback frames %d loads %d mismatches %d errors %d | save ms mean %.3f max %.3f | hash ms mean %.3f | load ms mean %.3f max %.3f",
-				what, s_session_frames, s_rollback_frames, s_loads, s_mismatches, s_errors, s_save_ms.Mean(), s_save_ms.max,
+			Console.WriteLn("ZdxsvGgpo: %s frames %d rollback frames %d loads %d mismatches %d errors %d | save ms mean %.3f max %.3f skipped %d | hash ms mean %.3f | load ms mean %.3f max %.3f",
+				what, s_session_frames, s_rollback_frames, s_loads, s_mismatches, s_errors, s_save_ms.Mean(), s_save_ms.max, s_save_skipped,
 				s_hash_ms.Mean(), s_load_ms.Mean(), s_load_ms.max);
 			Console.WriteLn("ZdxsvGgpo: %s wall ms per frame: emulate mean %.2f max %.1f | exit %.2f | between frames (save, ggpo, rollbacks) mean %.2f max %.1f",
 				what, s_emu_ms.Mean(), s_emu_ms.max, s_exit_ms.Mean(), s_ours_ms.Mean(), s_ours_ms.max);
@@ -639,7 +646,10 @@ namespace ZdxsvGgpo
 			Common::Timer timer;
 			if (s_iop_flush)
 				psxCpu->Reset();
-			if (!ZdxsvDeltaState::Save(frame))
+			int confirmed = -1;
+			if (!s_save_all && !s_sync && ggpo_get_last_confirmed_frame(s_session, &confirmed) == GGPO_OK && frame <= confirmed)
+				s_save_skipped++;
+			else if (!ZdxsvDeltaState::Save(frame))
 				return false;
 			if (s_net)
 				NetSaved(frame);

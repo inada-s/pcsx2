@@ -604,6 +604,14 @@ GGPO_API GGPOErrorCode __cdecl ggpo_send_message(GGPOSession *,
 GGPO_API GGPOErrorCode __cdecl ggpo_get_current_frame(GGPOSession*, int *frame);
 
 /*
+ * ggpo_get_last_confirmed_frame --
+ *
+ * Last frame with every player's input received (p2p only). A frame at or
+ * below it when saved can never be a rollback target.
+ */
+GGPO_API GGPOErrorCode __cdecl ggpo_get_last_confirmed_frame(GGPOSession*, int *frame);
+
+/*
  * ggpo_set_disconnect_without_rollback --
  *
  * Disable rollback when player disconnects.
