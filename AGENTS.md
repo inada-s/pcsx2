@@ -71,6 +71,9 @@ on macOS.
 
 ## Contributing, Issue and PR Guidelines
 
+These rules are for the upstream repository (PCSX2/pcsx2) only: commits, issues, PRs and comments
+that go there. Work within this fork (inada-s/pcsx2) is not bound by them.
+
 - Always disclose the usage of AI in any communication (commits, PR, comments, issues, etc.) by adding an `(AI-assisted)` text to all messages.
 - Never create an issue.
 - Never create a PR.
