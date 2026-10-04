@@ -207,6 +207,17 @@ namespace ZdxsvGgpo
 		std::vector<std::vector<u8>> s_zds_k3[GGPO_MAX_PLAYERS]; // per sender, by index
 		int s_zds_seen[GGPO_MAX_PLAYERS] = {}, s_zds_rel = 0; // rollback state (NetFrame)
 		u32 s_zds_k3rel = 0;
+		// ZDXSV_ZDS_L8=1: the lockstep tick state 0xc627b4 x->8 (7->8, play start 6->8) is local load
+		// timing too (s630: 1 frame apart -> player work initialized 1 frame apart). The game's x->8 is
+		// undone (state 7 meanwhile) and counted; the count rides in Input::unused[0]; the n-th
+		// x->8 is set on the frame every peer's synced count reaches n. Rollback state (NetFrame).
+		const bool s_zds_l8 = std::getenv("ZDXSV_ZDS_L8") != nullptr;
+		constexpr u32 TICK_STATE = 0xc627b4;
+		struct L8
+		{
+			u8 n, rel, prev;
+			bool hold;
+		} s_l8 = {};
 		struct ZdHeld
 		{
 			std::vector<u8> m;
@@ -241,6 +252,7 @@ namespace ZdxsvGgpo
 			std::vector<u8> rx;
 			std::deque<ZdHeld> held[GGPO_MAX_PLAYERS];
 			int k3seen[GGPO_MAX_PLAYERS], k3rel;
+			L8 l8;
 		};
 		NetFrame s_net_at[128]; // per frame & 127, at its save
 		int s_net_end = -1; // frames since the end msg (kind f) was sent or received, -1 = not yet
@@ -1663,6 +1675,7 @@ namespace ZdxsvGgpo
 					at.held[p] = s_zd_held[p];
 			std::memcpy(at.k3seen, s_zds_seen, sizeof(at.k3seen));
 			at.k3rel = s_zds_rel;
+			at.l8 = s_l8;
 			if (s_pw_hash)
 			{
 				std::array<u64, 4>& h = s_pw[frame];
@@ -1701,6 +1714,7 @@ namespace ZdxsvGgpo
 					s_zd_held[p] = at.held[p];
 			std::memcpy(s_zds_seen, at.k3seen, sizeof(s_zds_seen));
 			s_zds_rel = at.k3rel;
+			s_l8 = at.l8;
 		}
 
 		bool NetStart(GGPOSessionCallbacks& cb)
@@ -1792,6 +1806,7 @@ namespace ZdxsvGgpo
 				in.pad = {};
 				std::memcpy(&in.pad, ab, sizeof(ab));
 			}
+			in.pad.unused[0] = s_l8.n;
 			std::vector<u8> data;
 			while (!s_net_out.empty())
 			{
@@ -1911,6 +1926,29 @@ namespace ZdxsvGgpo
 				if (!g_in_rollback)
 					s_zds_k3rel++;
 				s_zds_rel++;
+			}
+			if (s_zds_l8)
+			{
+				u8& st = eeMem->Main[TICK_STATE];
+				if (st == 8 && s_l8.prev != 8 && s_l8.prev != 0)
+				{
+					if (!s_l8.hold)
+						s_l8.n++;
+					s_l8.hold = true;
+					st = 7; // no-op handler (held at 6: the step handler runs on, state 9 hang, s630 r15)
+				}
+				bool all = s_l8.hold;
+				for (int p = 0; p < s_players; p++)
+					all = all && static_cast<u8>(in[p].pad.unused[0] - s_l8.rel) >= 1 && static_cast<u8>(in[p].pad.unused[0] - s_l8.rel) < 128;
+				if (all)
+				{
+					st = 8;
+					s_l8.hold = false;
+					s_l8.rel++;
+					if (s_net_trace)
+						std::fprintf(s_net_trace, "%u L8%s %d %d\n", g_FrameCount, g_in_rollback ? "r" : "", f, s_l8.rel);
+				}
+				s_l8.prev = st;
 			}
 			// zdh release: a key msg once all its counters are complete; other msgs at once (in order).
 			// A blocked key msg goes anyway when its sender's kind-3 resync is queued behind it
