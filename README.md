@@ -3,7 +3,7 @@
 A fork of [PCSX2](https://github.com/PCSX2/pcsx2) for playing Mobile Suit Gundam: Federation vs. Zeon DX (PS2) online
 on [zdxsv](https://github.com/inada-s/zdxsv). Player setup: [ZDXSV.md](ZDXSV.md).
 
-- Upstream base: PCSX2 `fd9d310c` (branch `zdxsv-master`). Fork work: branch `ai/zdxsv`.
+- Upstream base: PCSX2 `fd9d310c`. Main branch: `zdxsv-master`. Work branch: `ai/zdxsv`.
 - License, BIOS requirement, and everything not listed here: same as upstream PCSX2.
 
 ## Changes from upstream PCSX2
@@ -45,8 +45,8 @@ on [zdxsv](https://github.com/inada-s/zdxsv). Player setup: [ZDXSV.md](ZDXSV.md)
 - PINE commands for test rigs: `0x30` set pad input (pad u8, bind u8, value u8), `0x31` queue a GS screenshot
   (path len u16, path), `0x32` read the frame count (u32).
 - Unit tests: `tests/ctest/core/ggpo_tests.cpp` (GGPO synctest), `dev9_config_tests.cpp` (network defaults).
-- CI: one Windows build (CMake + clang-cl) on pushes to and PRs into `ai/zdxsv`. The Linux and macOS workflows only run
-  by hand (`workflow_dispatch`).
+- CI: one Windows build (CMake + clang-cl) on pushes to and PRs into `zdxsv-master` and `ai/zdxsv`. The Linux and
+  macOS workflows only run by hand (`workflow_dispatch`).
 
 ## Options
 
