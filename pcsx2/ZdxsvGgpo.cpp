@@ -270,6 +270,11 @@ namespace ZdxsvGgpo
 		};
 		NetFrame s_net_at[128]; // per frame & 127, at its save
 		int s_net_end = -1; // frames since the end msg (kind f) was sent or received, -1 = not yet
+		// ZDXSV_NET_TAIL=n: frames run after the end msg before the session stops (default 300).
+		const int s_net_tail = [] {
+			const char* e = std::getenv("ZDXSV_NET_TAIL");
+			return e ? std::atoi(e) : 300;
+		}();
 		struct NetStats
 		{
 			u32 sends, msgs, recvs, rxmsgs, rxbytes, polls, other, nowait, senddiff, toolong, maxq;
@@ -1052,8 +1057,8 @@ namespace ZdxsvGgpo
 			return;
 		}
 		s_session_frames++;
-		// net: the battle ended (end msg sent or received); 300 frames for the peers to get it too.
-		if (s_net && s_net_end >= 0 && ++s_net_end > 300)
+		// net: the battle ended (end msg sent or received); s_net_tail frames for the peers to get it too.
+		if (s_net && s_net_end >= 0 && ++s_net_end > s_net_tail)
 		{
 			Stop("net battle end");
 			return;
@@ -1773,7 +1778,9 @@ namespace ZdxsvGgpo
 				s_session = nullptr;
 				return false;
 			}
-			ggpo_set_disconnect_timeout(s_session, 5000);
+			// ZDXSV_NET_DISCONNECT_MS=ms (default 5000): longer lets a peer stall (ZDXSV_RAM_DUMP) without a disconnect.
+			const char* dms = std::getenv("ZDXSV_NET_DISCONNECT_MS");
+			ggpo_set_disconnect_timeout(s_session, dms ? std::atoi(dms) : 5000);
 			ggpo_set_disconnect_notify_start(s_session, 1000);
 			for (int p = 0; p < s_players; p++)
 			{
