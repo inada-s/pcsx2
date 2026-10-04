@@ -95,7 +95,7 @@ namespace ZdxsvGgpo
 		// net=1 (ai-automation#31 step 4): the Z battle runs over GGPO, game-side input delay 0.
 		// Armed by the game's first key msg send on the battle sock: from then on that sock's send /
 		// recv / poll RPCs are answered on the EE side (OnNetCall) and never reach the IOP.
-		// Input of frame f = (A, B) of the host pad (ZdPadAB) + the kind-3 msgs the game sent before f.
+		// Input of frame f = (A, B) of the host pad (ZdPadAB) + the kind-3 msgs the game sent at frame f - K3_LAG.
 		// The own pad goes to the game undelayed; the lockstep step reads every position's synced (A, B)
 		// of the running GGPO frame (OnStepCopy). Every other own battle msg goes back to the game's recv
 		// once per remote position (sender nibble rewritten): k, X, B bit 0 and the kind 7/9/f msgs are
@@ -184,7 +184,22 @@ namespace ZdxsvGgpo
 		int s_net_me = -1; // local battle position
 		std::vector<std::vector<u8>> s_net_sent; // every msg the game sent since armed, in order
 		size_t s_net_pos = 0; // msgs sent so far in the current timeline
-		std::deque<std::vector<u8>> s_net_out; // committed, not yet in a local input
+		// ZDXSV_K3_LAG (default 8): a msg sent at GGPO frame s goes into the local input of frame s + lag. A send
+		// first seen in a rollback rerun (s645 r1: K3 #4 released in a rerun, the reply sent there) used to go
+		// into the next forward frame's input, so the handshake frame depended on input arrival timing. With
+		// lag > GGPO's 6 prediction frames, frame s is final when s + lag is added. 0 = the old behaviour.
+		const int s_k3_lag = [] {
+			const char* e = std::getenv("ZDXSV_K3_LAG");
+			return e ? std::max(0, std::atoi(e)) : 8;
+		}();
+		struct NetOut
+		{
+			int frame; // GGPO frame of the send
+			size_t idx; // index in s_net_sent
+			std::vector<u8> m;
+		};
+		std::deque<NetOut> s_net_out; // committed, not yet in a local input
+		std::vector<int> s_net_sent_at; // GGPO frame of each s_net_sent entry (latest timeline)
 		NetInput s_net_local = {};
 		u8 s_net_seq_at[64][GGPO_MAX_PLAYERS] = {}; // per frame & 63: each player's synced seq
 		std::vector<u8> s_net_rx; // remote msgs not yet given to the game's recv
@@ -205,7 +220,7 @@ namespace ZdxsvGgpo
 		}();
 		struct NetStats
 		{
-			u32 sends, msgs, recvs, rxmsgs, rxbytes, polls, other, nowait, senddiff, toolong, maxq;
+			u32 sends, msgs, recvs, rxmsgs, rxbytes, polls, other, nowait, senddiff, toolong, maxq, restamp, late;
 		} s_ns = {};
 		bool NetStart(GGPOSessionCallbacks& cb);
 		bool NetNextInputs();
@@ -1234,14 +1249,26 @@ namespace ZdxsvGgpo
 						std::snprintf(h, sizeof(h), "%02x", v), b += h;
 					Console.Warning("ZdxsvGgpo: net rerun send %zu differs (frame %d) sent %s rerun %s", s_net_pos, s_net_frame, a.c_str(), b.c_str());
 				}
+				if (s_net_sent_at[s_net_pos] != s_net_frame && m.size() >= 2 && (m[1] >> 4) == 3)
+				{
+					auto it = std::find_if(s_net_out.begin(), s_net_out.end(), [](const NetOut& o) { return o.idx == s_net_pos; });
+					if (it != s_net_out.end())
+						it->frame = s_net_frame, s_ns.restamp++;
+					else if (s_ns.late++ < 20)
+						Console.Warning("ZdxsvGgpo: net rerun send %zu moved %d -> %d after it went into an input", s_net_pos, s_net_sent_at[s_net_pos], s_net_frame);
+					if (s_net_trace)
+						std::fprintf(s_net_trace, "%u OM %zu %d %d\n", g_FrameCount, s_net_pos, s_net_sent_at[s_net_pos], s_net_frame);
+				}
+				s_net_sent_at[s_net_pos] = s_net_frame;
 			}
 			else
 			{
 				if (m.size() >= 2 && (m[1] >> 4) == 0xf && s_net_end < 0)
 					s_net_end = 0;
 				s_net_sent.push_back(m);
+				s_net_sent_at.push_back(s_net_frame);
 				if (m.size() >= 2 && (m[1] >> 4) == 3)
-					s_net_out.push_back(std::move(m));
+					s_net_out.push_back({s_net_frame, s_net_pos, std::move(m)});
 				s_ns.maxq = std::max<u32>(s_ns.maxq, static_cast<u32>(s_net_out.size()));
 			}
 			s_net_pos++;
@@ -1388,9 +1415,11 @@ namespace ZdxsvGgpo
 			std::memcpy(&in.pad, ab, sizeof(ab));
 			in.pad.unused[1] = s_ps.n;
 			std::vector<u8> data;
-			while (!s_net_out.empty())
+			while (!s_net_out.empty() && (s_k3_lag == 0 || s_net_out.front().frame + s_k3_lag <= s_net_frame))
 			{
-				const std::vector<u8>& m = s_net_out.front();
+				const std::vector<u8>& m = s_net_out.front().m;
+				if (s_net_trace)
+					std::fprintf(s_net_trace, "%u O %d %zu %d\n", g_FrameCount, s_net_frame, s_net_out.front().idx, s_net_out.front().frame);
 				if (m.size() > sizeof(in.data))
 				{
 					if (s_ns.toolong++ < 20)
@@ -1498,9 +1527,9 @@ namespace ZdxsvGgpo
 
 		void NetReport()
 		{
-			Console.WriteLn("ZdxsvGgpo: net sends %u msgs %u (sent %zu, unsent %zu) recvs %u rxmsgs %u rxbytes %u polls %u other %u nowait %u senddiff %u toolong %u maxq %u waits %d",
+			Console.WriteLn("ZdxsvGgpo: net sends %u msgs %u (sent %zu, unsent %zu) recvs %u rxmsgs %u rxbytes %u polls %u other %u nowait %u senddiff %u toolong %u maxq %u waits %d k3lag %d restamp %u late %u",
 				s_ns.sends, s_ns.msgs, s_net_sent.size(), s_net_out.size(), s_ns.recvs, s_ns.rxmsgs, s_ns.rxbytes, s_ns.polls,
-				s_ns.other, s_ns.nowait, s_ns.senddiff, s_ns.toolong, s_ns.maxq, s_waits);
+				s_ns.other, s_ns.nowait, s_ns.senddiff, s_ns.toolong, s_ns.maxq, s_waits, s_k3_lag, s_ns.restamp, s_ns.late);
 			Console.WriteLn("ZdxsvGgpo: zd steps %u changed %u echo %u skip %u k3 %d/%d/%d/%d rel %d (fwd %u)", s_zd_steps, s_zd_changed, s_zds_echo, s_zds_skip,
 				s_zds_seen[0], s_zds_seen[1], s_zds_seen[2], s_zds_seen[3], s_zds_rel, s_zds_k3rel);
 			if (s_pw_hash && s_net_trace)
