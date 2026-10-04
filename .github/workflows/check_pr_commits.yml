@@ -1,6 +1,9 @@
 name: 'Commit Message Check'
+# zdxsv fork: upstream's prefix rule only for PRs into master (fork PRs into ai/zdxsv use "zdxsv: ...").
 on:
   pull_request_target:
+    branches:
+      - master
     types:
       - opened
       - edited
