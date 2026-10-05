@@ -53,6 +53,14 @@ namespace Zdxsv
 		// "ggpo_ping_ms=": ping test length (zdxsv sends 7500, gdxsv's P2PMatching value).
 		uint32_t ggpoSession = 0;
 		int ggpoPingMs = 0;
+		// "relay_<k>=<token hex>,<ip:port>[,<[ip6]:port>]" (k = 0..3, zdxsv since ai/ggpo-relay): relay servers
+		// of the battle (gdxsv P2PMatching.relays), in the lobby's order.
+		struct Relay
+		{
+			uint64_t token = 0;
+			PeerAddr addr, addr6; // addr6 empty when none
+		};
+		std::vector<Relay> relays;
 	};
 	// Asks the lobby's UDP STUN (zdxsv ServeUDPStunServer) at stunIP:stunPort for
 	// our public address, from a UDP socket on bindPort (0 = any) that is closed after.
@@ -91,17 +99,31 @@ namespace Zdxsv
 	// IPv4 and IPv6, pings every candidate of every peer of byPosition (own position empty) every
 	// 100 ms and answers its pings, for durationMs (pings stop 500 ms before the end). Packets with
 	// another magic or session, not to us, or not from one of that position's candidates are dropped.
-	void StartPingTest(uint32_t session, const std::vector<std::vector<PeerAddr>>& byPosition, uint16_t port, int durationMs);
-	// Per battle position: the candidate picked as flycast's UdpPingPong::GetAvailableAddress
-	// (lowest rtt; loopback, private, IPv6 get a bonus) and its mean rtt in ms; rtt -1 = no
-	// candidate answered (and own position), addr empty.
+	// Every player shares its rtts to the others (and to the relays) in the packets' rtt matrix, as
+	// flycast. relays (the battle info's): each is pinged over IPv4 and IPv6 (gdxsv relay.go ping:
+	// session, position, token), which also joins us to its session.
+	void StartPingTest(uint32_t session, const std::vector<std::vector<PeerAddr>>& byPosition, uint16_t port, int durationMs,
+		const std::vector<BattleInfo::Relay>& relays = {});
+	// Per battle position, the path picked as flycast's rollback backend: the direct candidate of
+	// UdpPingPong::GetAvailableAddress (lowest rtt; loopback, private, IPv6 get a bonus), unless a
+	// relaying peer is 32 ms faster or a relay server 16 ms faster (or direct got no answer); of those
+	// two the lower rtt wins. rtt in ms (the whole path), -1 = unreachable (and own position), addr empty.
 	struct PingResult
 	{
 		int rtt = -1;
-		PeerAddr addr;
+		PeerAddr addr; // where GGPO sends: the peer, the relaying peer or the relay server
+		int via = 0; // 0 direct, 1 through the peer at position relay, 2 through relay server relay
+		int relay = -1;
+	};
+	// Relay server k as GGPO registers it (ggpo_add_relay_server): addr = the faster family that
+	// answered (IPv4 if none did), alt = the other family's address, empty if none.
+	struct RelayServerAddr
+	{
+		PeerAddr addr, alt;
 	};
 	// Waits for the running test to end (the GGPO port is free after); empty if no test ran.
-	std::vector<PingResult> FinishPingTest();
+	// servers (optional): every relay of the test, in order.
+	std::vector<PingResult> FinishPingTest(std::vector<RelayServerAddr>* servers = nullptr);
 
 	// Our public IPv4 from the lobby's STUN (OpenUdp); "" if unknown.
 	std::string PublicIP();
