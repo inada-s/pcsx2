@@ -41,7 +41,8 @@ on [zdxsv](https://github.com/inada-s/zdxsv). Player setup: [ZDXSV.md](ZDXSV.md)
   peers come from the lobby's battle info (`pcsx2/DEV9/Zdxsv/ZdxsvLobby`); a battle with a player without GGPO stays
   on the battle server (TCP). The GGPO
   input delay follows the slowest peer's RTT from a ping test on the GGPO port (flycast's packet format, floor
-  `mindelay`). Dual-stack: peers get every IPv4 and IPv6 address, the ping test picks one per peer.
+  `mindelay`). Dual-stack: peers get every IPv4 and IPv6 address, the ping test picks one per peer;
+  a peer that never answers it (other session, position or address) keeps the battle on the battle server.
 
 ### Releases and updates
 - The auto-updater checks this fork's GitHub releases (`zdxsv-X.Y.Z` tags) instead of pcsx2.net.
@@ -106,8 +107,10 @@ Test scripts that use them: `zdxsv/` in inada-s/ai-automation (named in brackets
     Input delay: without `delay=`, the battle info starts a ping test on UDP P for `ggpo_ping_ms` (zdxsv: 7500),
     with flycast's `UdpPingPong` packet (magic, session id, from / to battle position, candidate, timestamps) to
     every candidate of every peer, from an IPv4 and an IPv6 socket; packets with another session, position or
-    source address are dropped. When GGPO arms (after the test ended), each peer is at the candidate with the best
-    flycast score (lowest RTT; +100 loopback, +50 private, +20 IPv6; the first candidate if none answered) and the
+    source address are dropped. If a peer answered on no candidate, the battle stays on the battle server
+    (`lobby battle stays on the battle server: K of N peers answered the ping test`; flycast: `Peer unreachable`).
+    Else, when GGPO arms (after the test ended), each peer is at the candidate with the best
+    flycast score (lowest RTT; +100 loopback, +50 private, +20 IPv6) and the
     delay is max(`mindelay=2`, ceil(slowest peer's mean RTT / 2 / 16 ms)), as flycast's rollback backend; log lines
     `zdxsv: ping test: ...` (RTT per peer) and `ZdxsvGgpo: lobby delay D`. `delay=` keeps it fixed and skips the
     test (local tests).
