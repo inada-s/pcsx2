@@ -37,7 +37,8 @@ on [zdxsv](https://github.com/inada-s/zdxsv). Player setup: [ZDXSV.md](ZDXSV.md)
 - GGPO session in a running game (`ZdxsvGgpo`): the Gundam battle runs over GGPO with GGPO input delay 2 and game
   input delay 0. Off unless `ZDXSV_GGPO` is set. Not yet used by the zdxsv release.
 - GGPO battles from the lobby (`ZDXSV_GGPO` `lobby=1`): the GGPO port goes to the lobby in the platform info, the
-  peers come from the lobby's battle info; a battle with a player without GGPO stays on the UDP bridge.
+  peers come from the lobby's battle info; a battle with a player without GGPO stays on the UDP bridge. The GGPO
+  input delay follows the slowest peer's RTT (floor `mindelay`).
 
 ### Releases and updates
 - The auto-updater checks this fork's GitHub releases (`zdxsv-X.Y.Z` tags) instead of pcsx2.net.
@@ -105,6 +106,9 @@ Test scripts that use them: `zdxsv/` in inada-s/ai-automation (named in brackets
     on UDP P) when every other player has a GGPO port; otherwise it stays on the UDP bridge. The GGPO peer IP is
     the peer's public one, or its local one behind the same public IP. One GGPO battle per emulator run; later
     battles use the bridge. Local test: `zdxsv/m4ggpo.sh` in inada-s/ai-automation.
+    Input delay: without `delay=`, a lobby battle sets it when GGPO arms to max(`mindelay=2`, ceil(slowest peer's
+    bridge ping RTT / 2 / 16 ms)), as flycast's rollback backend; log line `ZdxsvGgpo: lobby delay D`. `delay=`
+    keeps it fixed (local tests).
 - `ZDXSV_RBK=i/N`: rollback test (`rbk.sh`, `rbkprep.sh`). Start from a post-entry save state as battle position i of
   N. The emulator answers the lobby itself, runs turbo until the battle, and exits when the GGPO session ends.
   - `ZDXSV_RBK_TIME=s` (time limit), `ZDXSV_RBK_COUNT=n` (battles), `ZDXSV_RBK_GAUGE=v` (戦力ゲージ),

@@ -684,6 +684,7 @@ namespace Zdxsv
 								g_peersUp++;
 								for (int m = g_peerRttMax.load(); m < l.rttMs && !g_peerRttMax.compare_exchange_weak(m, static_cast<int>(l.rttMs));)
 									;
+								break; // one box: the LAN and public candidates are the same address (s677: counted twice)
 							}
 					}
 				}
