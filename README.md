@@ -13,9 +13,10 @@ on [zdxsv](https://github.com/inada-s/zdxsv). Player setup: [ZDXSV.md](ZDXSV.md)
   The game's server hosts (`www01.kddi-mmbb.jp`, `gate1.jp.dnas.playstation.org`, `ca1202.mmcp6`, `ca1203.mmcp6`)
   resolve to the zdxsv server.
 - Platform info: on the lobby's first key question, the emulator sends the lobby a custom message (`0x9950`) with
-  `key=value` lines (emulator, UDP addresses), so the server can tell emulators from real PS2s. The game never sees it.
-- UDP battle bridge (`pcsx2/DEV9/Zdxsv`): zdxsv's `zproxy` built in. Battle traffic goes over zdxsv's UDP protocol to
-  the battle server, and straight to peers that answer a ping (P2P). The public address comes from the lobby's STUN.
+  `key=value` lines (emulator, version, OS; with GGPO lobby battles also `udp=1`, the UDP addresses from the lobby's
+  STUN and the GGPO port), so the server can tell emulators from real PS2s. The game never sees it.
+- The game always talks TCP to the battle server, as on a PS2. (The zproxy-compatible UDP bridge to the battle server
+  was removed after the GGPO experiment, inada-s/ai-automation#45.)
 - Lobby save states (opt-in, debugging, see `ZDXSV_LOBBY_STATE`): save states also keep the network adapter (DEV9
   registers, SMAP buffers), and after a load the emulator takes over the TCP connections the PS2 had opened.
 
@@ -37,7 +38,8 @@ on [zdxsv](https://github.com/inada-s/zdxsv). Player setup: [ZDXSV.md](ZDXSV.md)
 - GGPO session in a running game (`ZdxsvGgpo`): the Gundam battle runs over GGPO with GGPO input delay 2 and game
   input delay 0. Off unless `ZDXSV_GGPO` is set. Not yet used by the zdxsv release.
 - GGPO battles from the lobby (`ZDXSV_GGPO` `lobby=1`): the GGPO port goes to the lobby in the platform info, the
-  peers come from the lobby's battle info; a battle with a player without GGPO stays on the UDP bridge. The GGPO
+  peers come from the lobby's battle info (`pcsx2/DEV9/Zdxsv/ZdxsvLobby`); a battle with a player without GGPO stays
+  on the battle server (TCP). The GGPO
   input delay follows the slowest peer's RTT from a ping test on the GGPO port (flycast's packet format, floor
   `mindelay`).
 
@@ -61,18 +63,10 @@ All options are environment variables, read at startup. None is needed to play.
 Test scripts that use them: `zdxsv/` in inada-s/ai-automation (named in brackets).
 
 ### Network
-- `ZDXSV_UDP=0`: UDP bridge off; the game talks TCP to the battle server.
-- `ZDXSV_STUN_PORT=port`: the lobby's STUN port (default 8201).
+- `ZDXSV_STUN_PORT=port`: the lobby's STUN port (default 8201; asked only with `ZDXSV_GGPO` `lobby=1`).
 - `ZDXSV_PLATFORM_INFO=0`: send no platform info; the server sees a real PS2.
 - `ZDXSV_LOBBY_STATE=1`: save states made online keep working after a load (`launch.ps1`).
 - `ZDXSV_UPDATE_URL=url`: the updater reads its release list from this URL (testing updates).
-- `ZDXSV_UDP_DUMP=dir`: write every battle message the game sends (`S`) or gets (`R`) to `dir/bridge-<user>.txt`,
-  one line each: `frame ms S|R user seq len hex` (`msgdump.py`, `cmptrace.py`).
-- Bridge fault injection (`m4.sh`, `bridge_test/e2e.sh`):
-  - `ZDXSV_UDP_TEST_DROP=n`: drop every n-th UDP packet.
-  - `ZDXSV_UDP_TEST_P2P_ONLY=1`: battle data only over P2P, not the server relay.
-  - `ZDXSV_UDP_TEST_P2P_BLOCK=1`: no P2P; server relay only.
-  - `ZDXSV_UDP_TEST_P2P_DELAY=ms`: delay P2P packets.
 
 ### Input latency measurement
 - `ZDXSV_INPUT_LATENCY="key=value,..."` (any value turns it on): presses a button on pad 1 and logs the time of each
@@ -104,9 +98,9 @@ Test scripts that use them: `zdxsv/` in inada-s/ai-automation (named in brackets
   - `net=1,lobby=1,port=P`: battles from the zdxsv lobby. Platform info sends `ggpo=P`; the lobby's battle info
     (`0x9951`) lists every player's GGPO port (`ggpo_<user>`) next to its UDP addresses (`p2p_<user>`). At the
     battle's first key message the battle runs over GGPO (players and peer addresses from the battle info, listen
-    on UDP P) when every other player has a GGPO port; otherwise it stays on the UDP bridge. The GGPO peer IP is
+    on UDP P) when every other player has a GGPO port; otherwise it stays on the battle server. The GGPO peer IP is
     the peer's public one, or its local one behind the same public IP. One GGPO battle per emulator run; later
-    battles use the bridge. Local test: `zdxsv/m4ggpo.sh` in inada-s/ai-automation.
+    battles use the battle server. Local test: `zdxsv/m4ggpo.sh` in inada-s/ai-automation.
     GGPO needs `ggpo_session=` in the battle info (the battle's id; zdxsv: FNV-1 32 of the battle code, as gdxsv).
     Input delay: without `delay=`, the battle info starts a ping test on UDP P for `ggpo_ping_ms` (zdxsv: 7500),
     with flycast's `UdpPingPong` packet (magic, session id, from / to battle position, timestamps); packets with
