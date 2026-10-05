@@ -256,7 +256,7 @@ namespace ZdxsvGgpo
 		bool s_lobby = false; // lobby=1
 		// lobby=1: peers of the last battle info (SetLobbyPeers, DEV9 thread)
 		std::mutex s_lobby_mtx;
-		bool s_lobby_info = false, s_lobby_ok = false, s_lobby_logged = false;
+		bool s_lobby_info = false, s_lobby_ok = false, s_lobby_logged = false, s_lobby_unreachable = false;
 		std::vector<std::vector<Zdxsv::PeerAddr>> s_lobby_peers; // candidates per position
 		std::vector<Zdxsv::PeerAddr> s_net_peers; // per position, picked when armed
 		u32 s_lobby_session = 0; // ggpo_session
@@ -1731,6 +1731,7 @@ namespace ZdxsvGgpo
 			const int n = static_cast<int>(s_lobby_peers.size());
 			const char* why = !s_lobby_info ? "no battle info" :
 			                  !s_lobby_ok ? "a peer has no GGPO address" :
+			                  s_lobby_unreachable ? "a peer did not answer the ping test" :
 			                  !s_lobby_session ? "no ggpo_session" :
 			                  (n < 2 || n > GGPO_MAX_PLAYERS) ? "player count" :
 			                  (me < 0 || me >= n || !s_lobby_peers[me].empty()) ? "own position not in the battle info" :
@@ -1742,28 +1743,38 @@ namespace ZdxsvGgpo
 				s_lobby_logged = true;
 				return false;
 			}
-			s_players = n;
-			s_net_peers.assign(n, {});
+			std::vector<Zdxsv::PeerAddr> peers(n);
 			for (int p = 0; p < n; p++)
 				if (!s_lobby_peers[p].empty())
-					s_net_peers[p] = s_lobby_peers[p].front();
+					peers[p] = s_lobby_peers[p].front();
 			if (!s_delay_set)
 			{
 				// as flycast's rollback backend: one-way time to the slowest peer in 16 ms frames, rounded up
 				Common::Timer wait;
 				const std::vector<Zdxsv::PingResult> pings = Zdxsv::FinishPingTest();
 				int rtt = -1, up = 0;
-				for (size_t p = 0; p < pings.size() && p < s_net_peers.size(); p++)
+				for (size_t p = 0; p < pings.size() && p < peers.size(); p++)
 				{
 					if (pings[p].rtt <= 0)
 						continue;
 					rtt = std::max(rtt, pings[p].rtt), up++;
-					s_net_peers[p] = pings[p].addr; // the address the ping test picked (IPv4 or IPv6)
+					peers[p] = pings[p].addr; // the address the ping test picked (IPv4 or IPv6)
+				}
+				// as flycast ("Peer%d unreachable"): no GGPO unless every peer answered the ping test (same
+				// session, position and address); a peer from another battle never gets our inputs
+				if (up < n - 1)
+				{
+					Console.WriteLn("ZdxsvGgpo: lobby battle stays on the battle server: %d of %d peers answered the ping test (position %d, waited %.1f s)",
+						up, n - 1, me, wait.GetTimeSeconds());
+					s_lobby_unreachable = s_lobby_logged = true;
+					return false;
 				}
 				s_delay = std::max(s_min_delay, rtt > 0 ? (rtt + 31) / 32 : 0);
 				Console.WriteLn("ZdxsvGgpo: lobby delay %d: slowest peer rtt %d ms (%d of %d peers measured), min %d, waited %.1f s for the ping test",
 					s_delay, rtt, up, n - 1, s_min_delay, wait.GetTimeSeconds());
 			}
+			s_players = n;
+			s_net_peers = std::move(peers);
 			return true;
 		}
 	} // namespace
@@ -1788,7 +1799,7 @@ namespace ZdxsvGgpo
 		std::lock_guard lock(s_lobby_mtx);
 		s_lobby_info = true;
 		s_lobby_ok = ok;
-		s_lobby_logged = false;
+		s_lobby_logged = s_lobby_unreachable = false;
 		s_lobby_session = session;
 		s_lobby_peers = std::move(byPosition);
 		if (ok && session && !s_delay_set && pingMs > 0)
