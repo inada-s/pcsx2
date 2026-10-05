@@ -20,6 +20,7 @@
 #include "TCP_Session.h"
 #include "BuildVersion.h"
 #include "Counters.h"
+#include "ZdxsvGgpo.h"
 
 using namespace PacketReader;
 using namespace PacketReader::IP;
@@ -213,6 +214,19 @@ namespace Sessions
 		return std::nullopt;
 	}
 
+	// ZDXSV_GGPO net=1,lobby=1: battle infos go to ZdxsvGgpo as GGPO peers. Returns our GGPO port, 0 = off.
+	static int ZdxsvListenGgpo()
+	{
+		const int port = ZdxsvGgpo::LobbyPort();
+		if (port > 0)
+			Zdxsv::SetBattleInfoListener([](const Zdxsv::BattleInfo& info) {
+				std::vector<std::pair<uint32_t, uint16_t>> byPosition;
+				const bool ok = Zdxsv::GgpoPeers(info, Zdxsv::PublicIP(), byPosition);
+				ZdxsvGgpo::SetLobbyPeers(ok, std::move(byPosition));
+			});
+		return port;
+	}
+
 	// Adopted after a state load: the server side starts mid-session (no key
 	// pair question, no platform info), but battle info and the UDP socket
 	// still work as on a fresh lobby connection.
@@ -226,6 +240,7 @@ namespace Sessions
 		const char* stunPort = std::getenv("ZDXSV_STUN_PORT");
 		Zdxsv::OpenUdp(std::bit_cast<u32>(destIP), stunPort ? static_cast<u16>(std::atoi(stunPort)) : 8201);
 		zdxsvLobbyFilter = std::make_unique<Zdxsv::LobbyFilter>();
+		ZdxsvListenGgpo(); // the lobby cannot know the port (no platform info): fake_lobby.py --ggpo
 	}
 
 	// The zdxsv lobby server opens every connection with a key pair question
@@ -277,6 +292,10 @@ namespace Sessions
 			const char* stunPort = std::getenv("ZDXSV_STUN_PORT");
 			body += Zdxsv::OpenUdp(std::bit_cast<u32>(destIP), stunPort ? static_cast<u16>(std::atoi(stunPort)) : 8201);
 			zdxsvLobbyFilter = std::make_unique<Zdxsv::LobbyFilter>();
+			// ggpo=port (ZDXSV_GGPO net=1,lobby=1): the lobby lists it in the battle info, and when
+			// every other player has one the battle runs over GGPO (ZdxsvGgpo) instead of the bridge.
+			if (const int ggpoPort = ZdxsvListenGgpo(); ggpoPort > 0)
+				body += "ggpo=" + std::to_string(ggpoPort) + "\n";
 		}
 
 		std::vector<u8> msg = {0x81, 0xFF, 0x99, 0x50,

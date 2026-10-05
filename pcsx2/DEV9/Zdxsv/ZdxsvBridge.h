@@ -15,6 +15,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <map>
 #include <string>
 #include <utility>
 #include <vector>
@@ -37,6 +38,8 @@ namespace Zdxsv
 			std::vector<std::pair<uint32_t, uint16_t>> addrs; // network byte order ip, host order port
 		};
 		std::vector<Peer> p2p;
+		// "ggpo_<user>=port": GGPO UDP port of peers that announced one (platform info ggpo=).
+		std::map<std::string, uint16_t> ggpo;
 	};
 	// Opens the UDP socket the bridge uses (kept across battles, so the lobby
 	// can hand its address to peers) on bindPort (0 = any), asks the lobby's UDP
@@ -60,6 +63,18 @@ namespace Zdxsv
 
 	// Arms the bridge for the next connect to info.serverIP:serverPort.
 	void SetBattleInfo(const BattleInfo& info);
+
+	// Called by SetBattleInfo (DEV9 thread) with every battle info (pcsx2: GGPO lobby peers).
+	void SetBattleInfoListener(std::function<void(const BattleInfo&)> listener);
+
+	// GGPO address of every player by battle position (users order): the IP of the peer's first
+	// p2p address (public), or of its last (local) when that IP is our own public one (same NAT),
+	// with its ggpo_ port; own position {0, 0}. ownPublicIP 0 = unknown. False when another player
+	// has no GGPO port or no p2p address: the battle stays on the bridge.
+	bool GgpoPeers(const BattleInfo& info, uint32_t ownPublicIP, std::vector<std::pair<uint32_t, uint16_t>>& byPosition);
+
+	// Our public IP from the lobby's STUN (OpenUdp), network byte order; 0 if unknown.
+	uint32_t PublicIP();
 
 	// Server-to-game lobby stream: passes whole frames through, keeps partial
 	// ones until complete, consumes notice 0x9951 (and arms the bridge).

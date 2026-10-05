@@ -10,6 +10,9 @@
 //   players=4    peers (2..4); GGPO player = battle position + 1
 //   port=7001    UDP port of position 0; position p listens on port + p, peers on host= (default 127.0.0.1)
 //   relay=R      remote p is at R + 8 * me + p (zdxsv/udprelay.py per pair)
+//   lobby=1      battles from the zdxsv lobby: platform info announces ggpo=port, the lobby's battle
+//                info gives players and peer addresses; listen on port itself. A peer without GGPO:
+//                the battle stays on the UDP bridge (DEV9/Zdxsv). One GGPO battle per process.
 //   delay=0      GGPO frame delay of the local input
 //   sync=0       no state hashes: checksum 0 (net: always)
 //   start=1500   vsync (counted from boot) the session starts at
@@ -60,6 +63,7 @@
 #include <cstring>
 #include <deque>
 #include <map>
+#include <mutex>
 #include <random>
 #include <string>
 #include <tuple>
@@ -243,6 +247,11 @@ namespace ZdxsvGgpo
 		bool s_sync = true; // sync=0: no state hashes (checksum 0)
 		int s_port = 7001, s_delay = 0;
 		std::string s_peer_host = "127.0.0.1";
+		bool s_lobby = false; // lobby=1
+		// lobby=1: peers of the last battle info (SetLobbyPeers, DEV9 thread)
+		std::mutex s_lobby_mtx;
+		bool s_lobby_info = false, s_lobby_ok = false, s_lobby_logged = false;
+		std::vector<std::pair<u32, u16>> s_lobby_peers, s_net_peers; // s_net_peers: copy taken when armed
 		bool s_running = false; // net: GGPO_EVENTCODE_RUNNING seen
 		bool s_disconnected = false;
 		int s_frames_ahead = 0; // net: last GGPO_EVENTCODE_TIMESYNC
@@ -312,6 +321,8 @@ namespace ZdxsvGgpo
 					s_players = std::clamp(n, 2, GGPO_MAX_PLAYERS);
 				else if (key == "relay")
 					s_relay = n;
+				else if (key == "lobby")
+					s_lobby = (n != 0);
 				else
 					Console.Warning("ZdxsvGgpo: unknown key '%.*s'", static_cast<int>(key.size()), key.data());
 			}
@@ -1295,7 +1306,8 @@ namespace ZdxsvGgpo
 				Console.Error("ZdxsvGgpo: net position %d not below players=%d", s_net_me, s_players);
 				return false;
 			}
-			if (ggpo_start_session(&s_session, &cb, "zdxsv", s_players, sizeof(NetInput), static_cast<unsigned short>(s_port + s_net_me), nullptr, 0) != GGPO_OK)
+			const int local_port = s_lobby ? s_port : s_port + s_net_me;
+			if (ggpo_start_session(&s_session, &cb, "zdxsv", s_players, sizeof(NetInput), static_cast<unsigned short>(local_port), nullptr, 0) != GGPO_OK)
 			{
 				s_session = nullptr;
 				return false;
@@ -1310,7 +1322,15 @@ namespace ZdxsvGgpo
 				player.size = sizeof(GGPOPlayer);
 				player.player_num = p + 1;
 				player.type = (p == s_net_me) ? GGPO_PLAYERTYPE_LOCAL : GGPO_PLAYERTYPE_REMOTE;
-				if (player.type == GGPO_PLAYERTYPE_REMOTE)
+				if (player.type == GGPO_PLAYERTYPE_REMOTE && s_lobby)
+				{
+					const auto [ip, port] = s_net_peers[p];
+					const u8* b = reinterpret_cast<const u8*>(&ip);
+					std::snprintf(player.u.remote.ip_address, sizeof(player.u.remote.ip_address), "%u.%u.%u.%u", b[0], b[1], b[2], b[3]);
+					player.u.remote.port = port;
+					Console.WriteLn("ZdxsvGgpo: lobby peer position %d at %s:%u", p, player.u.remote.ip_address, port);
+				}
+				else if (player.type == GGPO_PLAYERTYPE_REMOTE)
 				{
 					StringUtil::Strlcpy(player.u.remote.ip_address, s_peer_host.c_str(), sizeof(player.u.remote.ip_address));
 					player.u.remote.port = static_cast<unsigned short>(s_relay ? s_relay + 8 * s_net_me + p : s_port + p);
@@ -1333,7 +1353,7 @@ namespace ZdxsvGgpo
 				return false;
 			}
 			Console.WriteLn("ZdxsvGgpo: net player %d of %d port %d delay %d, %zu msgs sent before the start, waited %.1f s",
-				s_net_me + 1, s_players, s_port + s_net_me, s_delay, s_net_sent.size(), wait.GetTimeSeconds());
+				s_net_me + 1, s_players, local_port, s_delay, s_net_sent.size(), wait.GetTimeSeconds());
 			return true;
 		}
 
@@ -1691,7 +1711,53 @@ namespace ZdxsvGgpo
 			cpuRegs.pc = cpuRegs.GPR.n.ra.UL[0];
 			return true;
 		}
+		// lobby=1, at the battle's first key msg: GGPO only when the battle info has every peer and our
+		// position; else the battle stays on the bridge (logged once per battle info).
+		bool LobbyArm(int me)
+		{
+			std::lock_guard lock(s_lobby_mtx);
+			const int n = static_cast<int>(s_lobby_peers.size());
+			const char* why = !s_lobby_info ? "no battle info" :
+			                  !s_lobby_ok ? "a peer has no GGPO address" :
+			                  (n < 2 || n > GGPO_MAX_PLAYERS) ? "player count" :
+			                  (me < 0 || me >= n || s_lobby_peers[me].second != 0) ? "own position not in the battle info" :
+			                                                                         nullptr;
+			if (why)
+			{
+				if (!s_lobby_logged)
+					Console.WriteLn("ZdxsvGgpo: lobby battle stays on the bridge: %s (position %d, %d players)", why, me, n);
+				s_lobby_logged = true;
+				return false;
+			}
+			s_players = n;
+			s_net_peers = s_lobby_peers;
+			return true;
+		}
 	} // namespace
+
+	int LobbyPort()
+	{
+		static const int port = [] {
+			const char* e = std::getenv("ZDXSV_GGPO");
+			if (!e || !std::strstr(e, "net=1") || !std::strstr(e, "lobby=1"))
+				return 0;
+			int p = 7001;
+			for (const std::string_view item : StringUtil::SplitString(e, ','))
+				if (item.starts_with("port="))
+					p = StringUtil::FromChars<int>(item.substr(5)).value_or(0);
+			return (p > 0 && p <= 0xFFFF) ? p : 0;
+		}();
+		return port;
+	}
+
+	void SetLobbyPeers(bool ok, std::vector<std::pair<u32, u16>> byPosition)
+	{
+		std::lock_guard lock(s_lobby_mtx);
+		s_lobby_info = true;
+		s_lobby_ok = ok;
+		s_lobby_logged = false;
+		s_lobby_peers = std::move(byPosition);
+	}
 
 	// EE rec hook at NET_RPC_PC (the net RPC wrapper's entry): trace, and in net mode answer the
 	// battle sock's RPCs here. Returns true when answered (v0 = result, pc = ra).
@@ -1715,6 +1781,12 @@ namespace ZdxsvGgpo
 			// sock 0 is the lobby TCP too: arm at the battle's first key msg
 			if (!key)
 				return false;
+			int me = -1;
+			for (s32 i = 0; i + 1 < len && d[i] >= 2 && i + d[i] <= len; i += d[i])
+				if ((d[i + 1] >> 4) == 2)
+					me = d[i + 1] & 0xf;
+			if (s_lobby && !LobbyArm(me))
+				return false;
 			s_net_armed = true;
 			if (s_rbk)
 			{
@@ -1724,9 +1796,8 @@ namespace ZdxsvGgpo
 				if (!std::getenv("ZDXSV_RBK_TURBO"))
 					VMManager::SetLimiterMode(LimiterModeType::Nominal);
 			}
-			for (s32 i = 0; i + 1 < len && d[i] >= 2 && i + d[i] <= len; i += d[i])
-				if ((d[i + 1] >> 4) == 2)
-					s_net_me = d[i + 1] & 0xf;
+			if (me >= 0)
+				s_net_me = me;
 			Console.WriteLn("ZdxsvGgpo: net armed at vsync %u, position %d", g_FrameCount, s_net_me);
 		}
 		if (*reinterpret_cast<const s16*>(ram + NET_NOWAIT) != 0)
