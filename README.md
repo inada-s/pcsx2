@@ -117,7 +117,8 @@ Test scripts that use them: `zdxsv/` in inada-s/ai-automation (named in brackets
     flycast score (lowest RTT; +100 loopback, +50 private, +20 IPv6) and the
     delay is max(`mindelay=2`, ceil(slowest peer's mean RTT / 2 / 16 ms)), as flycast's rollback backend; log lines
     `zdxsv: ping test: ...` (RTT per peer) and `ZdxsvGgpo: lobby delay D`. `delay=` keeps it fixed and skips the
-    test (local tests).
+    test (local tests). `badsession=1` (test): this client's ping test uses another session id, so no peer
+    answers it and every client cuts the battle connection (`zdxsv/m4z.sh` `BAD_SESSION=K`).
 - `ZDXSV_RBK=i/N`: rollback test (`rbk.sh`, `rbkprep.sh`). Start from a post-entry save state as battle position i of
   N. The emulator answers the lobby itself, runs turbo until the battle, and exits when the GGPO session ends.
   - `ZDXSV_RBK_TIME=s` (time limit), `ZDXSV_RBK_COUNT=n` (battles), `ZDXSV_RBK_GAUGE=v` (戦力ゲージ),

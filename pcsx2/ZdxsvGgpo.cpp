@@ -18,6 +18,7 @@
 //                max(mindelay, ceil(slowest peer's rtt / 2 / 16 ms)) when GGPO arms; rtt from a ping
 //                test on the GGPO port (flycast UdpPingPong packets, Zdxsv::StartPingTest)
 //   mindelay=2   lower bound of that pick
+//   badsession=1 test: this client's ping test uses another session id, so no peer answers it (the cut)
 //   sync=0       no state hashes: checksum 0 (net: always)
 //   start=1500   vsync (counted from boot) the session starts at
 //   frames=3000  frames the session runs, then it is closed and reported
@@ -257,6 +258,7 @@ namespace ZdxsvGgpo
 		int s_min_delay = 2; // mindelay=
 		std::string s_peer_host = "127.0.0.1";
 		bool s_lobby = false; // lobby=1
+		bool s_bad_session = false; // badsession=1 (test): the ping test uses another session id
 		// lobby=1: peers of the last battle info (SetLobbyPeers, DEV9 thread)
 		std::mutex s_lobby_mtx;
 		bool s_lobby_info = false, s_lobby_ok = false, s_lobby_logged = false, s_lobby_unreachable = false;
@@ -339,6 +341,8 @@ namespace ZdxsvGgpo
 					s_relay = n;
 				else if (key == "lobby")
 					s_lobby = (n != 0);
+				else if (key == "badsession")
+					s_bad_session = (n != 0);
 				else
 					Console.Warning("ZdxsvGgpo: unknown key '%.*s'", static_cast<int>(key.size()), key.data());
 			}
@@ -1834,6 +1838,11 @@ namespace ZdxsvGgpo
 		s_lobby_info = true;
 		s_lobby_ok = ok;
 		s_lobby_logged = s_lobby_unreachable = false;
+		if (s_bad_session && session)
+		{
+			session ^= 0x5a5a5a5a;
+			Console.WriteLn("ZdxsvGgpo: badsession=1: ping test session %08x", session);
+		}
 		s_lobby_session = session;
 		s_lobby_peers = std::move(byPosition);
 		if (ok && session && !s_delay_set && pingMs > 0)
