@@ -119,6 +119,7 @@ namespace Zdxsv
 		BattleInfo info;
 		info.sessionId = kv["session_id"];
 		info.userId = kv["user_id"];
+		info.battleCode = kv["battle_code"];
 		if (info.sessionId.empty() || info.userId.empty() ||
 			!ParseAddr(kv["battle_server"], info.serverIP, info.serverPort))
 			return false;

@@ -39,5 +39,10 @@ namespace ZdxsvGgpo
 	// position empty; session = ggpo_session (0 = none: stays on the battle server), pingMs = ggpo_ping_ms.
 	// Without delay=, starts the ping test (Zdxsv::StartPingTest) on our GGPO port; GGPO arms after it
 	// ended, at the candidate it picked per peer; else (or nothing answered) at the first candidate.
-	void SetLobbyPeers(bool ok, std::vector<std::vector<Zdxsv::PeerAddr>> byPosition, u32 session, int pingMs);
+	// ids = report lines naming the battle ("battle_code=..\nuser_id=..\n").
+	void SetLobbyPeers(bool ok, std::vector<std::vector<Zdxsv::PeerAddr>> byPosition, u32 session, int pingMs, std::string ids);
+	// The last lobby battle's P2PMatchingReport body ("key=value" lines: result=ggpo/cut/server, ping test
+	// rtt and address per peer, delay, frames, close reason), then cleared; "" if none. The lobby connection
+	// sends it (0x9952) after the next platform info, as flycast after its next login.
+	std::string TakeLobbyReport();
 } // namespace ZdxsvGgpo
