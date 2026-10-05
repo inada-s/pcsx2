@@ -5,6 +5,7 @@
 
 #include "common/Pcsx2Defs.h"
 #include <cstdio>
+#include <functional>
 #include <utility>
 #include <vector>
 
@@ -36,4 +37,7 @@ namespace ZdxsvGgpo
 	// The lobby's battle info (DEV9 thread): ok = every other player has a GGPO address;
 	// byPosition = (IPv4 network byte order, port) per battle position, own position {0, 0}.
 	void SetLobbyPeers(bool ok, std::vector<std::pair<u32, u16>> byPosition);
+	// Slowest peer rtt in ms (-1 = unknown) for the lobby battle's auto delay (no delay= key):
+	// max(mindelay, ceil(rtt / 2 / 16 ms)), read when GGPO arms.
+	void SetLobbyRttSource(std::function<int(int& up, int& total)> source);
 } // namespace ZdxsvGgpo

@@ -73,6 +73,10 @@ namespace Zdxsv
 	// has no GGPO port or no p2p address: the battle stays on the bridge.
 	bool GgpoPeers(const BattleInfo& info, uint32_t ownPublicIP, std::vector<std::pair<uint32_t, uint16_t>>& byPosition);
 
+	// The current battle bridge's p2p peers: slowest ping rtt in ms of those up (-1 = none up yet),
+	// up = peers that answered a ping, total = peers in the battle info.
+	int PeerRtt(int& up, int& total);
+
 	// Our public IP from the lobby's STUN (OpenUdp), network byte order; 0 if unknown.
 	uint32_t PublicIP();
 

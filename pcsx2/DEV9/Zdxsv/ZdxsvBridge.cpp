@@ -46,6 +46,8 @@ namespace Zdxsv
 		bool g_armed = false;
 		std::function<void(const BattleInfo&)> g_listener;
 		std::atomic<const volatile unsigned*> g_frame{nullptr};
+		// PeerRtt: the current bridge's peers (set before its thread starts), up ones, slowest rtt
+		std::atomic<int> g_peersTotal{0}, g_peersUp{0}, g_peerRttMax{-1};
 
 		void Log(const std::string& s)
 		{
@@ -679,6 +681,9 @@ namespace Zdxsv
 								l.addr = from;
 								l.rttMs = (NowNanos() - pkt.timestamp) / 1000000;
 								Log("p2p " + l.userId + " up at " + AddrString(from) + ", rtt " + std::to_string(l.rttMs) + " ms");
+								g_peersUp++;
+								for (int m = g_peerRttMax.load(); m < l.rttMs && !g_peerRttMax.compare_exchange_weak(m, static_cast<int>(l.rttMs));)
+									;
 							}
 					}
 				}
@@ -974,8 +979,18 @@ namespace Zdxsv
 		}
 		bridgePort = ntohs(addr.sin_port);
 		g_bridge.reset(); // a previous battle's bridge, if still running
+		g_peersTotal = static_cast<int>(info.p2p.size());
+		g_peersUp = 0;
+		g_peerRttMax = -1;
 		g_bridge = std::make_unique<Bridge>(listener, std::move(info), g_udp ? g_udp->s : INVALID_SOCKET);
 		return true;
+	}
+
+	int PeerRtt(int& up, int& total)
+	{
+		up = g_peersUp;
+		total = g_peersTotal;
+		return g_peerRttMax;
 	}
 
 	uint32_t PublicIP()

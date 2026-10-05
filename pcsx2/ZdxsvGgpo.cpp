@@ -13,7 +13,9 @@
 //   lobby=1      battles from the zdxsv lobby: platform info announces ggpo=port, the lobby's battle
 //                info gives players and peer addresses; listen on port itself. A peer without GGPO:
 //                the battle stays on the UDP bridge (DEV9/Zdxsv). One GGPO battle per process.
-//   delay=0      GGPO frame delay of the local input
+//   delay=0      GGPO frame delay of the local input (fixed). Without it a lobby battle picks
+//                max(mindelay, ceil(slowest peer's bridge ping rtt / 2 / 16 ms)) when GGPO arms
+//   mindelay=2   lower bound of that pick
 //   sync=0       no state hashes: checksum 0 (net: always)
 //   start=1500   vsync (counted from boot) the session starts at
 //   frames=3000  frames the session runs, then it is closed and reported
@@ -246,12 +248,15 @@ namespace ZdxsvGgpo
 		u16 s_mask = 0xffff;
 		bool s_sync = true; // sync=0: no state hashes (checksum 0)
 		int s_port = 7001, s_delay = 0;
+		bool s_delay_set = false; // delay= given: fixed; else a lobby battle picks it from the peers' rtt
+		int s_min_delay = 2; // mindelay=
 		std::string s_peer_host = "127.0.0.1";
 		bool s_lobby = false; // lobby=1
 		// lobby=1: peers of the last battle info (SetLobbyPeers, DEV9 thread)
 		std::mutex s_lobby_mtx;
 		bool s_lobby_info = false, s_lobby_ok = false, s_lobby_logged = false;
 		std::vector<std::pair<u32, u16>> s_lobby_peers, s_net_peers; // s_net_peers: copy taken when armed
+		std::function<int(int&, int&)> s_lobby_rtt; // SetLobbyRttSource
 		bool s_running = false; // net: GGPO_EVENTCODE_RUNNING seen
 		bool s_disconnected = false;
 		int s_frames_ahead = 0; // net: last GGPO_EVENTCODE_TIMESYNC
@@ -312,7 +317,12 @@ namespace ZdxsvGgpo
 				else if (key == "host")
 					s_peer_host = std::string(value);
 				else if (key == "delay")
+				{
 					s_delay = n;
+					s_delay_set = true;
+				}
+				else if (key == "mindelay")
+					s_min_delay = n;
 				else if (key == "sync")
 					s_sync = (n != 0);
 				else if (key == "net")
@@ -1731,6 +1741,15 @@ namespace ZdxsvGgpo
 			}
 			s_players = n;
 			s_net_peers = s_lobby_peers;
+			if (!s_delay_set)
+			{
+				// as flycast's rollback backend: one-way time to the slowest peer in 16 ms frames, rounded up
+				int up = 0, total = 0;
+				const int rtt = s_lobby_rtt ? s_lobby_rtt(up, total) : -1;
+				s_delay = std::max(s_min_delay, rtt > 0 ? (rtt + 31) / 32 : 0);
+				Console.WriteLn("ZdxsvGgpo: lobby delay %d: slowest peer rtt %d ms (%d of %d peers measured), min %d",
+					s_delay, rtt, up, total, s_min_delay);
+			}
 			return true;
 		}
 	} // namespace
@@ -1757,6 +1776,12 @@ namespace ZdxsvGgpo
 		s_lobby_ok = ok;
 		s_lobby_logged = false;
 		s_lobby_peers = std::move(byPosition);
+	}
+
+	void SetLobbyRttSource(std::function<int(int& up, int& total)> source)
+	{
+		std::lock_guard lock(s_lobby_mtx);
+		s_lobby_rtt = std::move(source);
 	}
 
 	// EE rec hook at NET_RPC_PC (the net RPC wrapper's entry): trace, and in net mode answer the
