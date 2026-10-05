@@ -12,7 +12,7 @@
 //   relay=R      remote p is at R + 8 * me + p (zdxsv/udprelay.py per pair)
 //   lobby=1      battles from the zdxsv lobby: platform info announces ggpo=port, the lobby's battle
 //                info gives players and peer addresses; listen on port itself. A peer without GGPO:
-//                the battle stays on the UDP bridge (DEV9/Zdxsv). One GGPO battle per process.
+//                the battle stays on the battle server (TCP). One GGPO battle per process.
 //   delay=0      GGPO frame delay of the local input (fixed). Without it a lobby battle picks
 //                max(mindelay, ceil(slowest peer's rtt / 2 / 16 ms)) when GGPO arms; rtt from a ping
 //                test on the GGPO port (flycast UdpPingPong packets, Zdxsv::StartPingTest)
@@ -30,7 +30,7 @@
 
 #include "ZdxsvGgpo.h"
 #include "ZdxsvDeltaState.h"
-#include "DEV9/Zdxsv/ZdxsvBridge.h"
+#include "DEV9/Zdxsv/ZdxsvLobby.h"
 #include "Config.h"
 #include "Counters.h"
 #include "Memory.h"
@@ -1724,7 +1724,7 @@ namespace ZdxsvGgpo
 			return true;
 		}
 		// lobby=1, at the battle's first key msg: GGPO only when the battle info has every peer and our
-		// position; else the battle stays on the bridge (logged once per battle info).
+		// position; else the battle stays on the battle server (logged once per battle info).
 		bool LobbyArm(int me)
 		{
 			std::lock_guard lock(s_lobby_mtx);
@@ -1738,7 +1738,7 @@ namespace ZdxsvGgpo
 			if (why)
 			{
 				if (!s_lobby_logged)
-					Console.WriteLn("ZdxsvGgpo: lobby battle stays on the bridge: %s (position %d, %d players)", why, me, n);
+					Console.WriteLn("ZdxsvGgpo: lobby battle stays on the battle server: %s (position %d, %d players)", why, me, n);
 				s_lobby_logged = true;
 				return false;
 			}

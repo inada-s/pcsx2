@@ -35,7 +35,7 @@ namespace ZdxsvGgpo
 	int LobbyPort();
 	// The lobby's battle info (DEV9 thread): ok = every other player has a GGPO address;
 	// byPosition = (IPv4 network byte order, port) per battle position, own position {0, 0};
-	// session = ggpo_session (0 = none: stays on the bridge), pingMs = ggpo_ping_ms. Without delay=,
+	// session = ggpo_session (0 = none: stays on the battle server), pingMs = ggpo_ping_ms. Without delay=,
 	// starts the ping test (Zdxsv::StartPingTest) on our GGPO port; GGPO arms after it ended.
 	void SetLobbyPeers(bool ok, std::vector<std::pair<u32, u16>> byPosition, u32 session, int pingMs);
 } // namespace ZdxsvGgpo
