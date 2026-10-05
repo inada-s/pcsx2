@@ -10,6 +10,8 @@
 //   depth=8      frames rolled back
 //   every=20     frames from one rollback to the next
 //   break=ee     control: a load does not restore EE RAM (must report mismatches)
+//   gap=0        frames before each rollback window that are not saved, older saves still
+//                discarded (GGPO's confirmed-frame save skip; gap > depth drops all of them)
 // Results go to the log, lines start with "ZdxsvDelta".
 
 #include "ZdxsvDeltaState.h"
@@ -196,6 +198,9 @@ namespace ZdxsvDeltaState
 		}
 		else
 		{
+			// Never with DiscardBefore keeping the newest frame (a load of this frame would restore them).
+			if (!s_open.empty())
+				Console.Error("ZdxsvDelta: save of frame %d with no saved frame left, %zu stale open pages", frame, s_open.size());
 			mmap_DeltaSetHook(&OnWrite);
 			mmap_DeltaWatchAll();
 		}
@@ -279,7 +284,10 @@ namespace ZdxsvDeltaState
 
 	void DiscardBefore(int frame)
 	{
-		while (!s_states.empty() && s_states.begin()->first < frame)
+		// The newest saved frame stays: s_open holds the pages written since it. Without it the next
+		// save starts over with s_open still holding that older interval, and a load of that save puts
+		// those pages back to their old data (GGPO's confirmed-frame save skip, 0 ms + loss froze the game, s663).
+		while (s_states.size() > 1 && s_states.begin()->first < frame)
 		{
 			s_buffer_pool.push_back(std::move(s_states.begin()->second));
 			s_states.erase(s_states.begin());
@@ -295,6 +303,9 @@ namespace ZdxsvDeltaState
 	{
 		mmap_DeltaSetHook(nullptr);
 		DiscardBefore(INT_MAX);
+		for (auto& [frame, state] : s_states)
+			s_buffer_pool.push_back(std::move(state));
+		s_states.clear();
 		ReleaseDelta(s_open);
 		s_hot.clear();
 		std::fill_n(s_is_hot, EE_PAGES, false);
@@ -339,6 +350,7 @@ namespace ZdxsvDeltaState
 		int s_mismatched_pass[2] = {};
 		bool s_done = false;
 		std::map<int, Sample> s_samples;
+		int s_gap = 0, s_gap_skipped = 0;
 		int s_rollbacks = 0, s_compared = 0, s_mismatched = 0;
 		Stat s_save_ms, s_load_ms, s_pages, s_state_kb;
 
@@ -365,6 +377,8 @@ namespace ZdxsvDeltaState
 					s_preload = n != 0;
 				else if (key == "replays")
 					s_replays = std::max(n, 1);
+				else if (key == "gap")
+					s_gap = std::max(n, 0);
 				else if (key == "break")
 					s_break_ee = (value == "ee");
 				else if (key == "blocks")
@@ -373,8 +387,13 @@ namespace ZdxsvDeltaState
 					Console.Warning("ZdxsvDelta: unknown key '%.*s'", static_cast<int>(key.size()), key.data());
 			}
 			s_next_rollback = s_start + s_depth;
-			Console.WriteLn("ZdxsvDelta: test start=%d frames=%d depth=%d every=%d break_ee=%d",
-				s_start, s_frames, s_depth, s_every, s_break_ee);
+			if (s_gap > s_every - s_depth - 1)
+			{
+				Console.Warning("ZdxsvDelta: gap %d cut to every - depth - 1", s_gap);
+				s_gap = std::max(s_every - s_depth - 1, 0);
+			}
+			Console.WriteLn("ZdxsvDelta: test start=%d frames=%d depth=%d every=%d gap=%d break_ee=%d",
+				s_start, s_frames, s_depth, s_every, s_gap, s_break_ee);
 		}
 
 		Sample TakeSample(int frame)
@@ -436,9 +455,9 @@ namespace ZdxsvDeltaState
 
 		void Report(const char* what)
 		{
-			Console.WriteLn("ZdxsvDelta: %s frame %d rollbacks %d compared %d mismatched %d | save ms mean %.3f max %.3f | load ms mean %.3f max %.3f | ee pages/frame mean %.1f max %.0f | state KB %.0f | mismatched pass 1 %d pass 2+ %d",
+			Console.WriteLn("ZdxsvDelta: %s frame %d rollbacks %d compared %d mismatched %d | save ms mean %.3f max %.3f | load ms mean %.3f max %.3f | ee pages/frame mean %.1f max %.0f | state KB %.0f | mismatched pass 1 %d pass 2+ %d | gap skipped %d",
 				what, s_frame, s_rollbacks, s_compared, s_mismatched, s_save_ms.Mean(), s_save_ms.max, s_load_ms.Mean(), s_load_ms.max,
-				s_pages.Mean(), s_pages.max, s_state_kb.Mean(), s_mismatched_pass[0], s_mismatched_pass[1]);
+				s_pages.Mean(), s_pages.max, s_state_kb.Mean(), s_mismatched_pass[0], s_mismatched_pass[1], s_gap_skipped);
 		}
 	} // namespace
 
@@ -458,6 +477,13 @@ namespace ZdxsvDeltaState
 			return;
 		}
 
+		const int window_start = s_next_rollback - s_depth;
+		if (s_pass == 0 && frame > s_start && frame < window_start && frame >= window_start - s_gap)
+		{
+			s_gap_skipped++;
+			DiscardBefore(frame - s_depth);
+			return;
+		}
 		const size_t open_pages = s_open.size();
 		Common::Timer timer;
 		if (!Save(frame))
