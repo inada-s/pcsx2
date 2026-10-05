@@ -3,6 +3,7 @@
 
 #include "ZdxsvLobby.h"
 
+#include <array>
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -556,7 +557,7 @@ namespace Zdxsv
 			uint64_t timestamp;
 		};
 #pragma pack(pop)
-		static_assert(sizeof(PingPacket) == 40 && sizeof(PingPacketRelays) == 56 && sizeof(RelayPacket) == 28);
+		static_assert(sizeof(PingPacket) == 44 && sizeof(PingPacketRelays) == 60 && sizeof(RelayPacket) == 28);
 		constexpr uint32_t PING_MAGIC = 2205246188u;
 		constexpr uint8_t PING_TYPE = 1, PONG_TYPE = 2;
 		constexpr uint32_t RELAY_MAGIC = 0x594c4552;
