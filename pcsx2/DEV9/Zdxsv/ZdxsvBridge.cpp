@@ -44,6 +44,7 @@ namespace Zdxsv
 		std::function<void(const std::string&)> g_log;
 		BattleInfo g_info;
 		bool g_armed = false;
+		std::function<void(const BattleInfo&)> g_listener;
 		std::atomic<const volatile unsigned*> g_frame{nullptr};
 
 		void Log(const std::string& s)
@@ -139,19 +140,55 @@ namespace Zdxsv
 			if (!peer.addrs.empty())
 				info.p2p.push_back(std::move(peer));
 		}
+		for (const std::string& u : info.users)
+		{
+			auto it = kv.find("ggpo_" + u);
+			const int port = it == kv.end() ? 0 : std::atoi(it->second.c_str());
+			if (u != info.userId && port > 0 && port <= 0xFFFF)
+				info.ggpo[u] = static_cast<uint16_t>(port);
+		}
 		out = std::move(info);
 		return true;
 	}
 
 	void SetBattleInfo(const BattleInfo& info)
 	{
+		std::function<void(const BattleInfo&)> listener;
 		{
 			std::lock_guard lock(g_mtx);
 			g_info = info;
 			g_armed = true;
+			listener = g_listener;
 		}
 		Log("battle info: user " + info.userId + ", " + std::to_string(info.users.size()) + " players, server " +
-			AddrString(info.serverIP, info.serverPort) + ", " + std::to_string(info.p2p.size()) + " p2p peers");
+			AddrString(info.serverIP, info.serverPort) + ", " + std::to_string(info.p2p.size()) + " p2p peers, " +
+			std::to_string(info.ggpo.size()) + " ggpo peers");
+		if (listener)
+			listener(info);
+	}
+
+	void SetBattleInfoListener(std::function<void(const BattleInfo&)> listener)
+	{
+		std::lock_guard lock(g_mtx);
+		g_listener = std::move(listener);
+	}
+
+	bool GgpoPeers(const BattleInfo& info, uint32_t ownPublicIP, std::vector<std::pair<uint32_t, uint16_t>>& byPosition)
+	{
+		byPosition.assign(info.users.size(), {0, 0});
+		for (size_t i = 0; i < info.users.size(); i++)
+		{
+			const std::string& u = info.users[i];
+			if (u == info.userId)
+				continue;
+			const auto port = info.ggpo.find(u);
+			const auto peer = std::find_if(info.p2p.begin(), info.p2p.end(), [&u](const BattleInfo::Peer& p) { return p.userId == u; });
+			if (port == info.ggpo.end() || peer == info.p2p.end())
+				return false;
+			const uint32_t ip = peer->addrs.front().first == ownPublicIP ? peer->addrs.back().first : peer->addrs.front().first;
+			byPosition[i] = {ip, port->second};
+		}
+		return true;
 	}
 
 	size_t LobbyFilter::Take(uint8_t* dst, size_t max)
@@ -939,6 +976,19 @@ namespace Zdxsv
 		g_bridge.reset(); // a previous battle's bridge, if still running
 		g_bridge = std::make_unique<Bridge>(listener, std::move(info), g_udp ? g_udp->s : INVALID_SOCKET);
 		return true;
+	}
+
+	uint32_t PublicIP()
+	{
+		if (!g_udp)
+			return 0;
+		const std::string& lines = g_udp->lines;
+		const size_t at = lines.find("udp_addr=");
+		uint32_t ip = 0;
+		uint16_t port = 0;
+		if (at == std::string::npos || !ParseAddr(lines.substr(at + 9, lines.find('\n', at) - at - 9), ip, port))
+			return 0;
+		return ip;
 	}
 
 	std::string OpenUdp(uint32_t stunIP, uint16_t stunPort, uint16_t bindPort)
