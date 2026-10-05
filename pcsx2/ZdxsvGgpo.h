@@ -5,6 +5,8 @@
 
 #include "common/Pcsx2Defs.h"
 #include <cstdio>
+#include <utility>
+#include <vector>
 
 // zdxsv GGPO (#31 step 3): while a session runs, the CPU leaves Execute() at every vsync, so a
 // frame is the unit GGPO works in (like flycast's emu.run()). Between frames: save (delta state),
@@ -29,4 +31,9 @@ namespace ZdxsvGgpo
 	constexpr u32 NET_RPC_PC = 0x30e380;
 	extern bool g_net_hook; // the recompiler emits the OnNetRpc call at NET_RPC_PC
 	void OnNetRpc();
+	// Lobby battles (net=1,lobby=1): our GGPO UDP port for the lobby's platform info, 0 = off.
+	int LobbyPort();
+	// The lobby's battle info (DEV9 thread): ok = every other player has a GGPO address;
+	// byPosition = (IPv4 network byte order, port) per battle position, own position {0, 0}.
+	void SetLobbyPeers(bool ok, std::vector<std::pair<u32, u16>> byPosition);
 } // namespace ZdxsvGgpo
