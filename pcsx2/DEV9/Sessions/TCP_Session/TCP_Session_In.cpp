@@ -219,7 +219,7 @@ namespace Sessions
 		const int port = ZdxsvGgpo::LobbyPort();
 		if (port > 0)
 			Zdxsv::SetBattleInfoListener([](const Zdxsv::BattleInfo& info) {
-				std::vector<std::pair<uint32_t, uint16_t>> byPosition;
+				std::vector<std::vector<Zdxsv::PeerAddr>> byPosition;
 				const bool ok = Zdxsv::GgpoPeers(info, Zdxsv::PublicIP(), byPosition);
 				ZdxsvGgpo::SetLobbyPeers(ok, std::move(byPosition), info.ggpoSession, info.ggpoPingMs);
 			});
@@ -228,7 +228,7 @@ namespace Sessions
 
 	// ZDXSV_GGPO net=1,lobby=1 on a lobby connection: battle infos go to GGPO (ZdxsvListenGgpo), the
 	// lobby's UDP STUN gives our public address. Returns platform info lines "udp_addr=..\nudp_local=..\n"
-	// and our GGPO port (0 = off: nothing done, the connection is plain TCP).
+	// (+ "udp_addr6=[..]:..\n" with a global IPv6 address) and our GGPO port (0 = off: nothing done, the connection is plain TCP).
 	std::string TCP_Session::ZdxsvOpenLobby(int& ggpoPort)
 	{
 		ggpoPort = ZdxsvListenGgpo();
@@ -289,7 +289,7 @@ namespace Sessions
 		body += "cpu=unknown\n";
 #endif
 		// ZDXSV_GGPO net=1,lobby=1: udp=1 makes the lobby send battle info (0x9951) with every player's
-		// address (udp_addr/udp_local) and ggpo=port; when every other player has one the battle runs over
+		// address (udp_addr/udp_local/udp_addr6) and ggpo=port; when every other player has one the battle runs over
 		// GGPO (ZdxsvGgpo), else on the battle server. The game always connects to the battle server by TCP.
 		int ggpoPort;
 		const std::string udpLines = ZdxsvOpenLobby(ggpoPort);

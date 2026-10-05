@@ -41,7 +41,7 @@ on [zdxsv](https://github.com/inada-s/zdxsv). Player setup: [ZDXSV.md](ZDXSV.md)
   peers come from the lobby's battle info (`pcsx2/DEV9/Zdxsv/ZdxsvLobby`); a battle with a player without GGPO stays
   on the battle server (TCP). The GGPO
   input delay follows the slowest peer's RTT from a ping test on the GGPO port (flycast's packet format, floor
-  `mindelay`).
+  `mindelay`). Dual-stack: peers get every IPv4 and IPv6 address, the ping test picks one per peer.
 
 ### Releases and updates
 - The auto-updater checks this fork's GitHub releases (`zdxsv-X.Y.Z` tags) instead of pcsx2.net.
@@ -98,14 +98,17 @@ Test scripts that use them: `zdxsv/` in inada-s/ai-automation (named in brackets
   - `net=1,lobby=1,port=P`: battles from the zdxsv lobby. Platform info sends `ggpo=P`; the lobby's battle info
     (`0x9951`) lists every player's GGPO port (`ggpo_<user>`) next to its UDP addresses (`p2p_<user>`). At the
     battle's first key message the battle runs over GGPO (players and peer addresses from the battle info, listen
-    on UDP P) when every other player has a GGPO port; otherwise it stays on the battle server. The GGPO peer IP is
-    the peer's public one, or its local one behind the same public IP. One GGPO battle per emulator run; later
-    battles use the battle server. Local test: `zdxsv/m4ggpo.sh` in inada-s/ai-automation.
+    on UDP P, IPv4 and IPv6) when every other player has a GGPO port; otherwise it stays on the battle server.
+    Peer address candidates: its public IPv4 (or local IPv4 behind the same public IP) first, its other IPv4, its
+    IPv6 (`udp_addr6`: our global IPv6 address, sent in the platform info when we have one). One GGPO battle per
+    emulator run; later battles use the battle server. Local test: `zdxsv/m4ggpo.sh` in inada-s/ai-automation.
     GGPO needs `ggpo_session=` in the battle info (the battle's id; zdxsv: FNV-1 32 of the battle code, as gdxsv).
     Input delay: without `delay=`, the battle info starts a ping test on UDP P for `ggpo_ping_ms` (zdxsv: 7500),
-    with flycast's `UdpPingPong` packet (magic, session id, from / to battle position, timestamps); packets with
-    another session, position or source address are dropped. When GGPO arms (after the test ended), the delay is
-    max(`mindelay=2`, ceil(slowest peer's mean RTT / 2 / 16 ms)), as flycast's rollback backend; log lines
+    with flycast's `UdpPingPong` packet (magic, session id, from / to battle position, candidate, timestamps) to
+    every candidate of every peer, from an IPv4 and an IPv6 socket; packets with another session, position or
+    source address are dropped. When GGPO arms (after the test ended), each peer is at the candidate with the best
+    flycast score (lowest RTT; +100 loopback, +50 private, +20 IPv6; the first candidate if none answered) and the
+    delay is max(`mindelay=2`, ceil(slowest peer's mean RTT / 2 / 16 ms)), as flycast's rollback backend; log lines
     `zdxsv: ping test: ...` (RTT per peer) and `ZdxsvGgpo: lobby delay D`. `delay=` keeps it fixed and skips the
     test (local tests).
 - `ZDXSV_RBK=i/N`: rollback test (`rbk.sh`, `rbkprep.sh`). Start from a post-entry save state as battle position i of
