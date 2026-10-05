@@ -20,6 +20,16 @@
 
 namespace Zdxsv
 {
+	// A peer's UDP address: numeric IPv4 ("1.2.3.4") or IPv6 ("2001:db8::1") ip, host order port.
+	struct PeerAddr
+	{
+		std::string ip;
+		uint16_t port = 0;
+		bool V6() const { return ip.find(':') != std::string::npos; }
+		std::string String() const { return V6() ? "[" + ip + "]:" + std::to_string(port) : ip + ":" + std::to_string(port); }
+		bool operator==(const PeerAddr& o) const { return ip == o.ip && port == o.port; }
+	};
+
 	struct BattleInfo
 	{
 		std::string sessionId;
@@ -27,12 +37,12 @@ namespace Zdxsv
 		uint32_t serverIP = 0; // network byte order
 		uint16_t serverPort = 0;
 		std::vector<std::string> users; // every player, self included
-		// "p2p_<user>=ip:port,ip:port": UDP addresses of peers that reported them
-		// (public, then local); GgpoPeers takes the IP.
+		// "p2p_<user>=ip:port,ip:port,[ip6]:port": UDP addresses of peers that reported them
+		// (udp_addr public, udp_local, udp_addr6); GgpoPeers takes the IPs.
 		struct Peer
 		{
 			std::string userId;
-			std::vector<std::pair<uint32_t, uint16_t>> addrs; // network byte order ip, host order port
+			std::vector<PeerAddr> addrs;
 		};
 		std::vector<Peer> p2p;
 		// "ggpo_<user>=port": GGPO UDP port of peers that announced one (platform info ggpo=).
@@ -45,8 +55,9 @@ namespace Zdxsv
 	// Asks the lobby's UDP STUN (zdxsv ServeUDPStunServer) at stunIP:stunPort for
 	// our public address, from a UDP socket on bindPort (0 = any) that is closed after.
 	// Once per process: later calls return the first answer (same address after a battle).
-	// Returns platform info lines "udp_addr=..\nudp_local=..\n" (udp_addr only if
-	// STUN answered); "" if the socket can't be opened.
+	// Returns platform info lines "udp_addr=..\nudp_local=..\nudp_addr6=[..]:..\n" (udp_addr only if
+	// STUN answered; udp_addr6 = our global IPv6 address, only if we have one: IPv6 has no NAT, so
+	// the source address of a route to the internet is the public one); "" if the socket can't be opened.
 	std::string OpenUdp(uint32_t stunIP, uint16_t stunPort, uint16_t bindPort = 0);
 
 	// Log sink (pcsx2: Console). Default: none.
@@ -61,24 +72,32 @@ namespace Zdxsv
 	// Called by SetBattleInfo (DEV9 thread) with every battle info (pcsx2: GGPO lobby peers).
 	void SetBattleInfoListener(std::function<void(const BattleInfo&)> listener);
 
-	// GGPO address of every player by battle position (users order): the IP of the peer's first
-	// p2p address (public), or of its last (local) when that IP is our own public one (same NAT),
-	// with its ggpo_ port; own position {0, 0}. ownPublicIP 0 = unknown. False when another player
-	// has no GGPO port or no p2p address: the battle stays on the battle server (TCP).
-	bool GgpoPeers(const BattleInfo& info, uint32_t ownPublicIP, std::vector<std::pair<uint32_t, uint16_t>>& byPosition);
+	// GGPO address candidates of every player by battle position (users order), every IP of the
+	// peer's p2p addresses (IPv4 and IPv6) with its ggpo_ port; own position empty. The first one is
+	// the default (no ping test): the public IPv4, or the local one when that IP is our own public
+	// one (same NAT), or the IPv6 one when the peer has no IPv4. ownPublicIP "" = unknown. False when
+	// another player has no GGPO port or no p2p address: the battle stays on the battle server (TCP).
+	bool GgpoPeers(const BattleInfo& info, const std::string& ownPublicIP, std::vector<std::vector<PeerAddr>>& byPosition);
 
 	// GGPO ping test before a lobby GGPO battle, as flycast's UdpPingPong (same packet: magic,
-	// session id, from / to peer = battle position, timestamps): binds the GGPO port, pings every
-	// peer of byPosition (own position {0, 0}) every 100 ms and answers its pings, for durationMs
-	// (pings stop 500 ms before the end). Packets with another magic or session, not to us, or not
-	// from that position's address are dropped.
-	void StartPingTest(uint32_t session, const std::vector<std::pair<uint32_t, uint16_t>>& byPosition, uint16_t port, int durationMs);
-	// Waits for the running test to end (the GGPO port is free after). Mean rtt in ms per battle
-	// position, -1 = no pong (and own position); empty if no test ran.
-	std::vector<int> FinishPingTest();
+	// session id, from / to peer = battle position, candidate, timestamps): binds the GGPO port on
+	// IPv4 and IPv6, pings every candidate of every peer of byPosition (own position empty) every
+	// 100 ms and answers its pings, for durationMs (pings stop 500 ms before the end). Packets with
+	// another magic or session, not to us, or not from one of that position's candidates are dropped.
+	void StartPingTest(uint32_t session, const std::vector<std::vector<PeerAddr>>& byPosition, uint16_t port, int durationMs);
+	// Per battle position: the candidate picked as flycast's UdpPingPong::GetAvailableAddress
+	// (lowest rtt; loopback, private, IPv6 get a bonus) and its mean rtt in ms; rtt -1 = no
+	// candidate answered (and own position), addr empty.
+	struct PingResult
+	{
+		int rtt = -1;
+		PeerAddr addr;
+	};
+	// Waits for the running test to end (the GGPO port is free after); empty if no test ran.
+	std::vector<PingResult> FinishPingTest();
 
-	// Our public IP from the lobby's STUN (OpenUdp), network byte order; 0 if unknown.
-	uint32_t PublicIP();
+	// Our public IPv4 from the lobby's STUN (OpenUdp); "" if unknown.
+	std::string PublicIP();
 
 	// Server-to-game lobby stream: passes whole frames through, keeps partial
 	// ones until complete, consumes notice 0x9951 (SetBattleInfo).

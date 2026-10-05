@@ -4,6 +4,7 @@
 #pragma once
 
 #include "common/Pcsx2Defs.h"
+#include "DEV9/Zdxsv/ZdxsvLobby.h"
 #include <cstdio>
 #include <utility>
 #include <vector>
@@ -34,8 +35,9 @@ namespace ZdxsvGgpo
 	// Lobby battles (net=1,lobby=1): our GGPO UDP port for the lobby's platform info, 0 = off.
 	int LobbyPort();
 	// The lobby's battle info (DEV9 thread): ok = every other player has a GGPO address;
-	// byPosition = (IPv4 network byte order, port) per battle position, own position {0, 0};
-	// session = ggpo_session (0 = none: stays on the battle server), pingMs = ggpo_ping_ms. Without delay=,
-	// starts the ping test (Zdxsv::StartPingTest) on our GGPO port; GGPO arms after it ended.
-	void SetLobbyPeers(bool ok, std::vector<std::pair<u32, u16>> byPosition, u32 session, int pingMs);
+	// byPosition = GGPO address candidates (IPv4 / IPv6, Zdxsv::GgpoPeers) per battle position, own
+	// position empty; session = ggpo_session (0 = none: stays on the battle server), pingMs = ggpo_ping_ms.
+	// Without delay=, starts the ping test (Zdxsv::StartPingTest) on our GGPO port; GGPO arms after it
+	// ended, at the candidate it picked per peer; else (or nothing answered) at the first candidate.
+	void SetLobbyPeers(bool ok, std::vector<std::vector<Zdxsv::PeerAddr>> byPosition, u32 session, int pingMs);
 } // namespace ZdxsvGgpo
