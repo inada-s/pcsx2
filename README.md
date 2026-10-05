@@ -83,6 +83,8 @@ Test scripts that use them: `zdxsv/` in inada-s/ai-automation (named in brackets
   frames load the frame `depth` back and rerun. Each rerun frame must hash like its first run. Log lines `ZdxsvDelta`
   (`deltatest.ps1`).
   - `start=3000`, `frames=1800`, `depth=8`, `every=20`.
+  - `gap=0`: the `gap` frames before each rollback window are not saved, older saves are still discarded (GGPO's
+    confirmed-frame save skip). `gap` > `depth` drops every save before the window; at most `every - depth - 1`.
   - Controls (must report mismatches): `break=ee` (a load does not restore EE RAM), `blocks=linked` (recompiler blocks
     end as upstream).
 - `ZDXSV_DELTA_HOT=0`: control; every written page is write-protected each frame (no hot-page copy).
