@@ -806,6 +806,85 @@ namespace Zdxsv
 		return g_udpLines;
 	}
 
+	std::string UdpTest(uint32_t stunIP, uint16_t stunPort, uint16_t bindPort, std::string& summary)
+	{
+		// zdxsv's STUN test socket is at stunPort + 1. On bindPort (the GGPO port, as flycast tests
+		// GdxLocalPort): a "udptest" Ping makes the server answer from both sockets; the test socket's
+		// Pong arrives only if the port takes packets from a source it never sent to (open). Then a
+		// Ping to the test socket: the same mapped port as the main one = cone NAT, another = symmetric.
+		summary = "unknown";
+		sock_t s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+		sockaddr_in addr = MakeAddr(0, bindPort);
+		if (s == INVALID_SOCKET || bind(s, reinterpret_cast<const sockaddr*>(&addr), sizeof(addr)) != 0)
+		{
+			if (s != INVALID_SOCKET)
+				closesocket(s);
+			summary = "unknown (port " + std::to_string(bindPort) + " busy)";
+			Log("udp test: " + summary);
+			return "nat=unknown\n";
+		}
+		const sockaddr_in stun = MakeAddr(stunIP, stunPort);
+		const sockaddr_in test = MakeAddr(stunIP, static_cast<uint16_t>(stunPort + 1));
+		std::string mapped, mappedTest;
+		bool open = false;
+		// sends ping to `to` (3 tries, 300 ms each) until `done`; Pongs from stun/test fill mapped/mappedTest/open
+		const auto ask = [&](const sockaddr_in& to, const std::string& userId, const std::function<bool()>& done) {
+			Proto::Packet ping;
+			ping.type = Proto::Ping;
+			ping.pingUserId = userId;
+			for (int i = 0; i < 3 && !done(); i++)
+			{
+				ping.timestamp = NowNanos();
+				const std::vector<uint8_t> data = Proto::Encode(ping);
+				sendto(s, reinterpret_cast<const char*>(data.data()), static_cast<int>(data.size()), 0,
+					reinterpret_cast<const sockaddr*>(&to), sizeof(to));
+				const auto until = Clock::now() + std::chrono::milliseconds(300);
+				while (!done() && Clock::now() < until)
+				{
+					if (!WaitReadable(s, 50))
+						continue;
+					uint8_t buf[512];
+					sockaddr_in from{};
+					socklen_t fromLen = sizeof(from);
+					const int n = recvfrom(s, reinterpret_cast<char*>(buf), sizeof(buf), 0, reinterpret_cast<sockaddr*>(&from), &fromLen);
+					Proto::Packet pong;
+					if (n <= 0 || !Proto::Decode(buf, n, pong) || pong.type != Proto::Pong)
+						continue;
+					if (SameAddr(from, stun))
+						mapped = pong.publicAddr;
+					else if (SameAddr(from, test))
+					{
+						mappedTest = pong.publicAddr;
+						if (userId == "udptest")
+							open = true;
+					}
+				}
+			}
+		};
+		// the test socket's Pong may come a little after the main one
+		const auto start = Clock::now();
+		ask(stun, "udptest", [&] { return open || (!mapped.empty() && Clock::now() - start > std::chrono::milliseconds(500)); });
+		if (!mapped.empty() && !open)
+			ask(test, "", [&] { return !mappedTest.empty(); });
+		closesocket(s);
+
+		uint32_t ip1 = 0, ip2 = 0;
+		uint16_t port1 = 0, port2 = 0;
+		std::string nat;
+		if (mapped.empty())
+			nat = "unknown", summary = "unknown (no STUN answer from " + AddrString(stun) + ")";
+		else if (open)
+			nat = "open", summary = "open (port " + std::to_string(bindPort) + " reachable from any source, public " + mapped + ")";
+		else if (mappedTest.empty() || !ParseAddr(mapped, ip1, port1) || !ParseAddr(mappedTest, ip2, port2))
+			nat = "unknown", summary = "unknown (no answer from the STUN test socket " + AddrString(test) + ")";
+		else if (port1 == port2 && ip1 == ip2)
+			nat = "cone", summary = "cone NAT (port " + std::to_string(bindPort) + " closed, same public " + mapped + " for both servers)";
+		else
+			nat = "symmetric", summary = "symmetric NAT (port " + std::to_string(bindPort) + " closed, public " + mapped + " / " + mappedTest + ")";
+		Log("udp test: nat=" + nat + ": " + summary);
+		return "nat=" + nat + "\n";
+	}
+
 	static std::atomic<bool> g_stateLoaded{false};
 
 	void OnStateLoaded()

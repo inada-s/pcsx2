@@ -20,6 +20,8 @@
 #include "TCP_Session.h"
 #include "BuildVersion.h"
 #include "ZdxsvGgpo.h"
+#include "Host.h"
+#include "IconsFontAwesome.h"
 #include "common/StringUtil.h"
 
 using namespace PacketReader;
@@ -245,8 +247,18 @@ namespace Sessions
 		Zdxsv::SetLogger([](const std::string& s) { Console.WriteLn("DEV9: %s", s.c_str()); });
 		zdxsvLobbyFilter = std::make_unique<Zdxsv::LobbyFilter>();
 		// The lobby's UDP STUN is on its host at 8201 (zdxsv docker-compose); ZDXSV_STUN_PORT overrides.
-		const char* stunPort = std::getenv("ZDXSV_STUN_PORT");
-		return Zdxsv::OpenUdp(std::bit_cast<u32>(destIP), stunPort ? static_cast<u16>(std::atoi(stunPort)) : 8201);
+		const char* stunPortEnv = std::getenv("ZDXSV_STUN_PORT");
+		const u16 stunPort = stunPortEnv ? static_cast<u16>(std::atoi(stunPortEnv)) : 8201;
+		std::string lines = Zdxsv::OpenUdp(std::bit_cast<u32>(destIP), stunPort);
+		// Connectivity test of the GGPO port (flycast's P2P feasibility test), once per run: the lobby
+		// reconnects after every battle and the result does not change in between.
+		static std::string natLine, natSummary;
+		if (natLine.empty())
+		{
+			natLine = Zdxsv::UdpTest(std::bit_cast<u32>(destIP), stunPort, static_cast<u16>(ggpoPort), natSummary);
+			Host::AddIconOSDMessage("ZdxsvUdpTest", ICON_FA_NETWORK_WIRED, "P2P connectivity: " + natSummary, 10.0f);
+		}
+		return lines + natLine;
 	}
 
 	// Adopted after a state load: the server side starts mid-session (no key

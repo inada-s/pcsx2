@@ -62,6 +62,11 @@ namespace Zdxsv
 	// the source address of a route to the internet is the public one); "" if the socket can't be opened.
 	std::string OpenUdp(uint32_t stunIP, uint16_t stunPort, uint16_t bindPort = 0);
 
+	// Connectivity test of bindPort against zdxsv's STUN (stunPort) and its test socket (stunPort + 1), as
+	// flycast's P2P feasibility test: returns the platform info line "nat=open|cone|symmetric|unknown\n";
+	// summary = the result for people (OSD, log).
+	std::string UdpTest(uint32_t stunIP, uint16_t stunPort, uint16_t bindPort, std::string& summary);
+
 	// Log sink (pcsx2: Console). Default: none.
 	void SetLogger(std::function<void(const std::string&)> log);
 
