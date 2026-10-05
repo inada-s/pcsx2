@@ -24,6 +24,15 @@ CreateSocket(uint16 bind_port, bool v6)
 #else
 	u_long iMode = 1;
 	ioctlsocket(s, FIONBIO, &iMode);
+	// zdxsv: Windows turns the ICMP port unreachable of an earlier sendto (peer not started yet or
+	// already gone) into WSAECONNRESET (10054) on the next recvfrom, which ends that poll's reads.
+	// Off, as on other platforms. (needs proper testing on a real WAN)
+#ifndef SIO_UDP_CONNRESET
+#define SIO_UDP_CONNRESET _WSAIOW(IOC_VENDOR, 12)
+#endif
+	BOOL connreset = FALSE;
+	DWORD unused = 0;
+	WSAIoctl(s, SIO_UDP_CONNRESET, &connreset, sizeof connreset, nullptr, 0, &unused, nullptr, nullptr);
 #endif
 
 #if defined(__APPLE__)

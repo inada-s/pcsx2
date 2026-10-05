@@ -265,7 +265,7 @@ namespace ZdxsvGgpo
 		Input s_random[PLAYERS] = {};
 		std::array<float, PadDualshock2::Inputs::LENGTH> s_host = {};
 
-		int s_rollback_frames = 0, s_loads = 0, s_mismatches = 0, s_errors = 0;
+		int s_rollback_frames = 0, s_loads = 0, s_mismatches = 0, s_ggpo_warnings = 0;
 		Stat s_save_ms, s_hash_ms, s_load_ms;
 		Stat s_rerun_ms, s_wait_ms; // between frames: rollback rerun emulation, net wait for a peer
 		Stat s_emu_ms, s_exit_ms, s_ours_ms; // wall: last OnExecuteReturned end -> OnVsync -> OnExecuteReturned start -> its end
@@ -324,8 +324,8 @@ namespace ZdxsvGgpo
 
 		void Report(const char* what)
 		{
-			Console.WriteLn("ZdxsvGgpo: %s frames %d rollback frames %d loads %d mismatches %d errors %d | save ms mean %.3f max %.3f skipped %d | hash ms mean %.3f | load ms mean %.3f max %.3f",
-				what, s_session_frames, s_rollback_frames, s_loads, s_mismatches, s_errors, s_save_ms.Mean(), s_save_ms.max, s_save_skipped,
+			Console.WriteLn("ZdxsvGgpo: %s frames %d rollback frames %d loads %d mismatches %d ggpo warnings %d | save ms mean %.3f max %.3f skipped %d | hash ms mean %.3f | load ms mean %.3f max %.3f",
+				what, s_session_frames, s_rollback_frames, s_loads, s_mismatches, s_ggpo_warnings, s_save_ms.Mean(), s_save_ms.max, s_save_skipped,
 				s_hash_ms.Mean(), s_load_ms.Mean(), s_load_ms.max);
 			Console.WriteLn("ZdxsvGgpo: %s wall ms per frame: emulate mean %.2f max %.1f | exit %.2f | between frames (save, ggpo, rollbacks) mean %.2f max %.1f",
 				what, s_emu_ms.Mean(), s_emu_ms.max, s_exit_ms.Mean(), s_ours_ms.Mean(), s_ours_ms.max);
@@ -619,7 +619,7 @@ namespace ZdxsvGgpo
 		{
 			if (level > GGPO_LOG_WARNING)
 				return;
-			if (s_errors++ < 20)
+			if (s_ggpo_warnings++ < 20)
 				Console.Warning("ZdxsvGgpo: ggpo: %s", msg);
 		}
 

@@ -14,6 +14,9 @@ Settings are environment variables (see the block below), e.g.
     N=4 SEED=7 python run.py rbk_test_random
     GDXSV=192.168.1.8 python run.py rom    # point the game's server hosts at a local zdxsv
     FRAME_LATENCY=0 python run.py rom      # maximum frame latency 0 (optimal frame pacing)
+    LAT=100 JITTER=20 LOSS=0.05 N=4 python run.py rbk_test_random   # 100 ms one-way +-20 ms, 5 % loss
+
+rbk_test ends with a sync check (tools/zdxsv/pwcheck.py on the players' work RAM hashes): IN SYNC or DESYNC.
 
 Each instance gets its own data dir work/pcsx2-<i> (-datapath), so inis, memory cards, save states
 and logs never mix with your normal PCSX2 setup. Instance 1's log is echoed to this terminal.
@@ -73,6 +76,15 @@ WORK = ROOT / "work"
 RBKSTATES = Path(os.getenv("RBKSTATES", WORK / "rbkstates"))
 SEED = int(os.getenv("SEED", 1))  # rbk_test_random: instance i gets seed SEED + i
 DELAY = int(os.getenv("DELAY", 2))  # GGPO input delay (frames)
+# Network between the rbk_test instances: set LAT (one-way ms) to send each pair's GGPO packets through
+# tools/zdxsv/udprelay.py with that delay, +-JITTER ms (uniform, reorders packets) and LOSS (0..1) per packet.
+LAT = os.getenv("LAT", "")
+JITTER = float(os.getenv("JITTER", 0))
+LOSS = float(os.getenv("LOSS", 0))
+RELAY_PORT = 7200  # remote position p of instance me at RELAY_PORT + 8 * me + p (ZDXSV_GGPO relay=)
+# rbk_test sync check (default on): every instance hashes the players' work RAM per GGPO frame into
+# work/pcsx2-<i>/trace.txt; tools/zdxsv/pwcheck.py compares them after the battle. SYNC_CHECK=0: off.
+SYNC_CHECK = os.getenv("SYNC_CHECK", "1") == "1"
 
 X_OFFSET = 0
 Y_OFFSET = 50
@@ -206,14 +218,53 @@ def rbk_env(idx: int, random_input: bool) -> dict:
     # No rule overrides (ZDXSV_RBK_TIME/COUNT/GAUGE, ZDXSV_EE_CLAMP): the battle keeps the rules saved
     # in the state. ZDXSV_ZDS_PS makes every peer start the battle on the same GGPO frame.
     env = {
-        "ZDXSV_GGPO": f"net=1,players={N},delay={DELAY}",
+        "ZDXSV_GGPO": f"net=1,players={N},delay={DELAY}" + (f",relay={RELAY_PORT}" if LAT else ""),
         "ZDXSV_RBK": f"{idx}/{N}",
         "ZDXSV_ZDS_PS": "1",
         "ZDXSV_LOBBY_STATE": "1",
     }
     if random_input:
         env["ZDXSV_RAND_INPUT"] = str(SEED + idx)
+    if SYNC_CHECK:
+        env["ZDXSV_PW_HASH"] = "1"
+        env["ZDXSV_NET_TRACE"] = str(trace_path(idx))
     return env
+
+
+def trace_path(idx: int) -> Path:
+    return WORK / f"pcsx2-{idx + 1}" / "trace.txt"
+
+
+def start_relays() -> List[subprocess.Popen]:
+    """One udprelay.py per pair of instances (LAT set): i's packets to j go out through it and back."""
+    relays = []
+    for i in range(N):
+        for j in range(i + 1, N):
+            cmd = [sys.executable, "-u", str(ROOT / "tools" / "zdxsv" / "udprelay.py"),
+                   "--a", str(RELAY_PORT + 8 * i + j), "--b", str(RELAY_PORT + 8 * j + i),
+                   "--p1", str(7001 + i), "--p2", str(7001 + j), "--delay", LAT, "--jitter", str(JITTER),
+                   "--loss", str(LOSS), "--seed", str(10 * i + j + SEED), "--seconds", "3600", "--idle", "10"]
+            out = open(WORK / f"relay-{i + 1}{j + 1}.txt", "w")
+            relays.append(subprocess.Popen(cmd, stdout=out, stderr=subprocess.STDOUT))
+    print(f"relays: {len(relays)} (one-way {LAT} ms, jitter {JITTER} ms, loss {LOSS})")
+    return relays
+
+
+def report_sync():
+    """pwcheck over the instances' traces: in sync = 0 mismatches for every player."""
+    traces = [str(trace_path(i)) for i in range(N)]
+    missing = [t for t in traces if not Path(t).is_file()]
+    if missing:
+        print(f"sync check: no trace {missing}")
+        return
+    r = subprocess.run([sys.executable, str(ROOT / "tools" / "zdxsv" / "pwcheck.py"), "--own", *traces],
+                       capture_output=True, text=True)
+    lines = [l for l in r.stdout.splitlines() if l.startswith(("common", "player"))]
+    print("\n".join(lines))
+    common = next((int(l.split()[2]) for l in lines if l.startswith("common")), 0)
+    bad = sum(int(l.split()[3]) for l in lines if l.startswith("player") and int(l.split()[1][:-1]) < N)
+    print(f"sync check: {'IN SYNC' if common and not bad else 'DESYNC' if bad else 'no common frames'}"
+          f" ({common} frames, {bad} mismatching player-frames)")
 
 
 MODES = ("rom", "state", "rbk_test", "rbk_test_random")
@@ -310,12 +361,17 @@ def report_rbk():
 def exec_mode(mode: str):
     procs: List[subprocess.Popen] = []
     rbk = mode.startswith("rbk_test")
+    relays: List[subprocess.Popen] = []
     try:
+        if rbk and LAT:
+            WORK.mkdir(parents=True, exist_ok=True)
+            relays = start_relays()
         for i in range(N):
             prepare_instance(i)
             args, extra_env = mode_args(mode, i)
             log = log_path(i)
             log.unlink(missing_ok=True)
+            trace_path(i).unlink(missing_ok=True)
             cmd = [str(PCSX2), "-datapath", str(data_root(i).parent), "-batch", "-nogui",
                    "-logfile", str(log), *args, "--", ROM]
             print(" ".join(f"{k}={v}" for k, v in extra_env.items()), subprocess.list2cmdline(cmd))
@@ -331,12 +387,14 @@ def exec_mode(mode: str):
     except KeyboardInterrupt:
         print("interrupted")
     finally:
-        for p in procs:
+        for p in procs + relays:
             kill(p)
         for i, p in enumerate(procs):
             print(f"instance {i + 1} exit {p.poll()}  log: {log_path(i)}")
     if rbk:
         report_rbk()
+        if SYNC_CHECK:
+            report_sync()
 
 
 def main():

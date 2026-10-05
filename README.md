@@ -26,7 +26,8 @@ on [zdxsv](https://github.com/inada-s/zdxsv). Player setup: [ZDXSV.md](ZDXSV.md)
 
 ### Rollback netcode (GGPO, in progress)
 - [GGPO](https://github.com/pond3r/ggpo) in `3rdparty/ggpo` (MIT), imported from inada-s/flycast, with
-  `ggpo_get_last_confirmed_frame` added.
+  `ggpo_get_last_confirmed_frame` added. On Windows its UDP sockets ignore ICMP port unreachable (`SIO_UDP_CONNRESET`
+  off): a send to a peer that has not started yet or has exited no longer fails the next receive with 10054.
 - Delta save states (`ZdxsvDeltaState`): a save copies only the EE RAM pages written since the last save (found with
   page write protection), plus the rest of the state. Fast enough to save every frame.
   - Supporting changes in the core: saved scratch fields are skipped in the comparison, counters and the GIF path keep
@@ -45,6 +46,8 @@ on [zdxsv](https://github.com/inada-s/zdxsv). Player setup: [ZDXSV.md](ZDXSV.md)
 - PINE commands for test rigs: `0x30` set pad input (pad u8, bind u8, value u8), `0x31` queue a GS screenshot
   (path len u16, path), `0x32` read the frame count (u32).
 - Unit tests: `tests/ctest/core/ggpo_tests.cpp` (GGPO synctest), `dev9_config_tests.cpp` (network defaults).
+- `run.py rbk_test` network: `LAT=ms JITTER=ms LOSS=0..1` send each pair of instances through `tools/zdxsv/udprelay.py`;
+  the run ends with a sync check (`tools/zdxsv/pwcheck.py` on per-frame player work hashes, `SYNC_CHECK=0` off).
 - CI: one Windows build (CMake + clang-cl) on pushes to and PRs into `zdxsv-master` and `ai/zdxsv`. The Linux and
   macOS workflows only run by hand (`workflow_dispatch`).
 
