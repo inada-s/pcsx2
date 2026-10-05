@@ -25,7 +25,7 @@
 #include "DEV9.h"
 #include "Config.h"
 #include "smap.h"
-#include "Zdxsv/ZdxsvBridge.h"
+#include "Zdxsv/ZdxsvLobby.h"
 #include "StateWrapper.h"
 
 #ifdef _WIN32
@@ -207,7 +207,6 @@ void DEV9close()
 	dev9.dma_iop_ptr = nullptr;
 	dev9.ata->Close();
 	TermNet();
-	Zdxsv::Shutdown();
 	isRunning = false;
 }
 

@@ -17,6 +17,11 @@ CreateSocket(uint16 bind_port, bool v6)
    setsockopt(s, SOL_SOCKET, SO_REUSEADDR, (const char *)&optval, sizeof optval);
    optval = 0;
    setsockopt(s, SOL_SOCKET, SO_LINGER, (const char *)&optval, sizeof optval);
+   if (v6) {
+      // zdxsv: IPv6 only, the IPv4 socket has the same port (Linux makes AF_INET6 dual-stack by default)
+      optval = 1;
+      setsockopt(s, IPPROTO_IPV6, IPV6_V6ONLY, (const char *)&optval, sizeof optval);
+   }
 
    // non-blocking...
 #ifndef _WIN32

@@ -25,7 +25,7 @@
 #include "SIO/Sio2.h"
 #include "SPU2/spu2.h"
 #include "SaveState.h"
-#include "DEV9/Zdxsv/ZdxsvBridge.h"
+#include "DEV9/Zdxsv/ZdxsvLobby.h"
 #include "StateWrapper.h"
 #include "USB/USB.h"
 #include "VMManager.h"

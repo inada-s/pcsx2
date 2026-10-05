@@ -12,8 +12,11 @@
 //   relay=R      remote p is at R + 8 * me + p (zdxsv/udprelay.py per pair)
 //   lobby=1      battles from the zdxsv lobby: platform info announces ggpo=port, the lobby's battle
 //                info gives players and peer addresses; listen on port itself. A peer without GGPO:
-//                the battle stays on the UDP bridge (DEV9/Zdxsv). One GGPO battle per process.
-//   delay=0      GGPO frame delay of the local input
+//                the battle stays on the battle server (TCP). One GGPO battle per process.
+//   delay=0      GGPO frame delay of the local input (fixed). Without it a lobby battle picks
+//                max(mindelay, ceil(slowest peer's rtt / 2 / 16 ms)) when GGPO arms; rtt from a ping
+//                test on the GGPO port (flycast UdpPingPong packets, Zdxsv::StartPingTest)
+//   mindelay=2   lower bound of that pick
 //   sync=0       no state hashes: checksum 0 (net: always)
 //   start=1500   vsync (counted from boot) the session starts at
 //   frames=3000  frames the session runs, then it is closed and reported
@@ -27,6 +30,7 @@
 
 #include "ZdxsvGgpo.h"
 #include "ZdxsvDeltaState.h"
+#include "DEV9/Zdxsv/ZdxsvLobby.h"
 #include "Config.h"
 #include "Counters.h"
 #include "Memory.h"
@@ -246,12 +250,16 @@ namespace ZdxsvGgpo
 		u16 s_mask = 0xffff;
 		bool s_sync = true; // sync=0: no state hashes (checksum 0)
 		int s_port = 7001, s_delay = 0;
+		bool s_delay_set = false; // delay= given: fixed; else a lobby battle picks it from the peers' rtt
+		int s_min_delay = 2; // mindelay=
 		std::string s_peer_host = "127.0.0.1";
 		bool s_lobby = false; // lobby=1
 		// lobby=1: peers of the last battle info (SetLobbyPeers, DEV9 thread)
 		std::mutex s_lobby_mtx;
 		bool s_lobby_info = false, s_lobby_ok = false, s_lobby_logged = false;
-		std::vector<std::pair<u32, u16>> s_lobby_peers, s_net_peers; // s_net_peers: copy taken when armed
+		std::vector<std::vector<Zdxsv::PeerAddr>> s_lobby_peers; // candidates per position
+		std::vector<Zdxsv::PeerAddr> s_net_peers; // per position, picked when armed
+		u32 s_lobby_session = 0; // ggpo_session
 		bool s_running = false; // net: GGPO_EVENTCODE_RUNNING seen
 		bool s_disconnected = false;
 		int s_frames_ahead = 0; // net: last GGPO_EVENTCODE_TIMESYNC
@@ -312,7 +320,12 @@ namespace ZdxsvGgpo
 				else if (key == "host")
 					s_peer_host = std::string(value);
 				else if (key == "delay")
+				{
 					s_delay = n;
+					s_delay_set = true;
+				}
+				else if (key == "mindelay")
+					s_min_delay = n;
 				else if (key == "sync")
 					s_sync = (n != 0);
 				else if (key == "net")
@@ -1324,11 +1337,10 @@ namespace ZdxsvGgpo
 				player.type = (p == s_net_me) ? GGPO_PLAYERTYPE_LOCAL : GGPO_PLAYERTYPE_REMOTE;
 				if (player.type == GGPO_PLAYERTYPE_REMOTE && s_lobby)
 				{
-					const auto [ip, port] = s_net_peers[p];
-					const u8* b = reinterpret_cast<const u8*>(&ip);
-					std::snprintf(player.u.remote.ip_address, sizeof(player.u.remote.ip_address), "%u.%u.%u.%u", b[0], b[1], b[2], b[3]);
-					player.u.remote.port = port;
-					Console.WriteLn("ZdxsvGgpo: lobby peer position %d at %s:%u", p, player.u.remote.ip_address, port);
+					const Zdxsv::PeerAddr& a = s_net_peers[p];
+					StringUtil::Strlcpy(player.u.remote.ip_address, a.ip.c_str(), sizeof(player.u.remote.ip_address));
+					player.u.remote.port = a.port;
+					Console.WriteLn("ZdxsvGgpo: lobby peer position %d at %s", p, a.String().c_str());
 				}
 				else if (player.type == GGPO_PLAYERTYPE_REMOTE)
 				{
@@ -1712,25 +1724,46 @@ namespace ZdxsvGgpo
 			return true;
 		}
 		// lobby=1, at the battle's first key msg: GGPO only when the battle info has every peer and our
-		// position; else the battle stays on the bridge (logged once per battle info).
+		// position; else the battle stays on the battle server (logged once per battle info).
 		bool LobbyArm(int me)
 		{
 			std::lock_guard lock(s_lobby_mtx);
 			const int n = static_cast<int>(s_lobby_peers.size());
 			const char* why = !s_lobby_info ? "no battle info" :
 			                  !s_lobby_ok ? "a peer has no GGPO address" :
+			                  !s_lobby_session ? "no ggpo_session" :
 			                  (n < 2 || n > GGPO_MAX_PLAYERS) ? "player count" :
-			                  (me < 0 || me >= n || s_lobby_peers[me].second != 0) ? "own position not in the battle info" :
+			                  (me < 0 || me >= n || !s_lobby_peers[me].empty()) ? "own position not in the battle info" :
 			                                                                         nullptr;
 			if (why)
 			{
 				if (!s_lobby_logged)
-					Console.WriteLn("ZdxsvGgpo: lobby battle stays on the bridge: %s (position %d, %d players)", why, me, n);
+					Console.WriteLn("ZdxsvGgpo: lobby battle stays on the battle server: %s (position %d, %d players)", why, me, n);
 				s_lobby_logged = true;
 				return false;
 			}
 			s_players = n;
-			s_net_peers = s_lobby_peers;
+			s_net_peers.assign(n, {});
+			for (int p = 0; p < n; p++)
+				if (!s_lobby_peers[p].empty())
+					s_net_peers[p] = s_lobby_peers[p].front();
+			if (!s_delay_set)
+			{
+				// as flycast's rollback backend: one-way time to the slowest peer in 16 ms frames, rounded up
+				Common::Timer wait;
+				const std::vector<Zdxsv::PingResult> pings = Zdxsv::FinishPingTest();
+				int rtt = -1, up = 0;
+				for (size_t p = 0; p < pings.size() && p < s_net_peers.size(); p++)
+				{
+					if (pings[p].rtt <= 0)
+						continue;
+					rtt = std::max(rtt, pings[p].rtt), up++;
+					s_net_peers[p] = pings[p].addr; // the address the ping test picked (IPv4 or IPv6)
+				}
+				s_delay = std::max(s_min_delay, rtt > 0 ? (rtt + 31) / 32 : 0);
+				Console.WriteLn("ZdxsvGgpo: lobby delay %d: slowest peer rtt %d ms (%d of %d peers measured), min %d, waited %.1f s for the ping test",
+					s_delay, rtt, up, n - 1, s_min_delay, wait.GetTimeSeconds());
+			}
 			return true;
 		}
 	} // namespace
@@ -1750,13 +1783,16 @@ namespace ZdxsvGgpo
 		return port;
 	}
 
-	void SetLobbyPeers(bool ok, std::vector<std::pair<u32, u16>> byPosition)
+	void SetLobbyPeers(bool ok, std::vector<std::vector<Zdxsv::PeerAddr>> byPosition, u32 session, int pingMs)
 	{
 		std::lock_guard lock(s_lobby_mtx);
 		s_lobby_info = true;
 		s_lobby_ok = ok;
 		s_lobby_logged = false;
+		s_lobby_session = session;
 		s_lobby_peers = std::move(byPosition);
+		if (ok && session && !s_delay_set && pingMs > 0)
+			Zdxsv::StartPingTest(session, s_lobby_peers, static_cast<u16>(LobbyPort()), pingMs);
 	}
 
 	// EE rec hook at NET_RPC_PC (the net RPC wrapper's entry): trace, and in net mode answer the

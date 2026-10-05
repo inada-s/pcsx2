@@ -19,7 +19,6 @@
 
 #include "TCP_Session.h"
 #include "BuildVersion.h"
-#include "Counters.h"
 #include "ZdxsvGgpo.h"
 
 using namespace PacketReader;
@@ -220,27 +219,36 @@ namespace Sessions
 		const int port = ZdxsvGgpo::LobbyPort();
 		if (port > 0)
 			Zdxsv::SetBattleInfoListener([](const Zdxsv::BattleInfo& info) {
-				std::vector<std::pair<uint32_t, uint16_t>> byPosition;
+				std::vector<std::vector<Zdxsv::PeerAddr>> byPosition;
 				const bool ok = Zdxsv::GgpoPeers(info, Zdxsv::PublicIP(), byPosition);
-				ZdxsvGgpo::SetLobbyPeers(ok, std::move(byPosition));
+				ZdxsvGgpo::SetLobbyPeers(ok, std::move(byPosition), info.ggpoSession, info.ggpoPingMs);
 			});
 		return port;
 	}
 
+	// ZDXSV_GGPO net=1,lobby=1 on a lobby connection: battle infos go to GGPO (ZdxsvListenGgpo), the
+	// lobby's UDP STUN gives our public address. Returns platform info lines "udp_addr=..\nudp_local=..\n"
+	// (+ "udp_addr6=[..]:..\n" with a global IPv6 address) and our GGPO port (0 = off: nothing done, the connection is plain TCP).
+	std::string TCP_Session::ZdxsvOpenLobby(int& ggpoPort)
+	{
+		ggpoPort = ZdxsvListenGgpo();
+		if (ggpoPort <= 0)
+			return "";
+		Zdxsv::SetLogger([](const std::string& s) { Console.WriteLn("DEV9: %s", s.c_str()); });
+		zdxsvLobbyFilter = std::make_unique<Zdxsv::LobbyFilter>();
+		// The lobby's UDP STUN is on its host at 8201 (zdxsv docker-compose); ZDXSV_STUN_PORT overrides.
+		const char* stunPort = std::getenv("ZDXSV_STUN_PORT");
+		return Zdxsv::OpenUdp(std::bit_cast<u32>(destIP), stunPort ? static_cast<u16>(std::atoi(stunPort)) : 8201);
+	}
+
 	// Adopted after a state load: the server side starts mid-session (no key
-	// pair question, no platform info), but battle info and the UDP socket
-	// still work as on a fresh lobby connection.
+	// pair question, no platform info), but battle info and STUN still work as
+	// on a fresh lobby connection.
 	void TCP_Session::ZdxsvAdopted()
 	{
 		zdxsvChecked = true;
-		if (!Zdxsv::Enabled())
-			return;
-		Zdxsv::SetLogger([](const std::string& s) { Console.WriteLn("DEV9: %s", s.c_str()); });
-		Zdxsv::SetFrameCounter(&g_FrameCount);
-		const char* stunPort = std::getenv("ZDXSV_STUN_PORT");
-		Zdxsv::OpenUdp(std::bit_cast<u32>(destIP), stunPort ? static_cast<u16>(std::atoi(stunPort)) : 8201);
-		zdxsvLobbyFilter = std::make_unique<Zdxsv::LobbyFilter>();
-		ZdxsvListenGgpo(); // the lobby cannot know the port (no platform info): fake_lobby.py --ggpo
+		int ggpoPort;
+		ZdxsvOpenLobby(ggpoPort); // the lobby cannot know the port (no platform info): fake_lobby.py --ggpo
 	}
 
 	// The zdxsv lobby server opens every connection with a key pair question
@@ -280,23 +288,13 @@ namespace Sessions
 #else
 		body += "cpu=unknown\n";
 #endif
-		// udp=1: this emulator bridges the game's battle TCP to the battle server
-		// over UDP (DEV9/Zdxsv), so the lobby sends it battle info (0x9951).
-		if (Zdxsv::Enabled())
-		{
-			body += "udp=1\n";
-			Zdxsv::SetLogger([](const std::string& s) { Console.WriteLn("DEV9: %s", s.c_str()); });
-			Zdxsv::SetFrameCounter(&g_FrameCount);
-			// udp_addr/udp_local: where peers reach this emulator (P2P). The lobby's
-			// UDP STUN is on its host at 8201 (zdxsv docker-compose); ZDXSV_STUN_PORT overrides.
-			const char* stunPort = std::getenv("ZDXSV_STUN_PORT");
-			body += Zdxsv::OpenUdp(std::bit_cast<u32>(destIP), stunPort ? static_cast<u16>(std::atoi(stunPort)) : 8201);
-			zdxsvLobbyFilter = std::make_unique<Zdxsv::LobbyFilter>();
-			// ggpo=port (ZDXSV_GGPO net=1,lobby=1): the lobby lists it in the battle info, and when
-			// every other player has one the battle runs over GGPO (ZdxsvGgpo) instead of the bridge.
-			if (const int ggpoPort = ZdxsvListenGgpo(); ggpoPort > 0)
-				body += "ggpo=" + std::to_string(ggpoPort) + "\n";
-		}
+		// ZDXSV_GGPO net=1,lobby=1: udp=1 makes the lobby send battle info (0x9951) with every player's
+		// address (udp_addr/udp_local/udp_addr6) and ggpo=port; when every other player has one the battle runs over
+		// GGPO (ZdxsvGgpo), else on the battle server. The game always connects to the battle server by TCP.
+		int ggpoPort;
+		const std::string udpLines = ZdxsvOpenLobby(ggpoPort);
+		if (ggpoPort > 0)
+			body += "udp=1\n" + udpLines + "ggpo=" + std::to_string(ggpoPort) + "\n";
 
 		std::vector<u8> msg = {0x81, 0xFF, 0x99, 0x50,
 			static_cast<u8>(body.size() >> 8), static_cast<u8>(body.size()),
