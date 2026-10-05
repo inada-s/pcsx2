@@ -18,7 +18,7 @@ namespace ZdxsvDeltaState
 	bool Save(int frame);
 	// frame must be saved; saved frames after it are dropped.
 	bool Load(int frame);
-	// Drops the saved frames before frame.
+	// Drops the saved frames before frame, except the newest.
 	void DiscardBefore(int frame);
 	// The state of a saved frame without EE RAM, or nullptr.
 	const std::vector<u8>* GetState(int frame);

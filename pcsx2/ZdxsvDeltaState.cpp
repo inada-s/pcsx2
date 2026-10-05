@@ -196,6 +196,9 @@ namespace ZdxsvDeltaState
 		}
 		else
 		{
+			// Never with DiscardBefore keeping the newest frame (a load of this frame would restore them).
+			if (!s_open.empty())
+				Console.Error("ZdxsvDelta: save of frame %d with no saved frame left, %zu stale open pages", frame, s_open.size());
 			mmap_DeltaSetHook(&OnWrite);
 			mmap_DeltaWatchAll();
 		}
@@ -279,7 +282,10 @@ namespace ZdxsvDeltaState
 
 	void DiscardBefore(int frame)
 	{
-		while (!s_states.empty() && s_states.begin()->first < frame)
+		// The newest saved frame stays: s_open holds the pages written since it. Without it the next
+		// save starts over with s_open still holding that older interval, and a load of that save puts
+		// those pages back to their old data (GGPO's confirmed-frame save skip, 0 ms + loss froze the game, s663).
+		while (s_states.size() > 1 && s_states.begin()->first < frame)
 		{
 			s_buffer_pool.push_back(std::move(s_states.begin()->second));
 			s_states.erase(s_states.begin());
@@ -295,6 +301,9 @@ namespace ZdxsvDeltaState
 	{
 		mmap_DeltaSetHook(nullptr);
 		DiscardBefore(INT_MAX);
+		for (auto& [frame, state] : s_states)
+			s_buffer_pool.push_back(std::move(state));
+		s_states.clear();
 		ReleaseDelta(s_open);
 		s_hot.clear();
 		std::fill_n(s_is_hot, EE_PAGES, false);
