@@ -12,7 +12,8 @@
 //   relay=R      remote p is at R + 8 * me + p (zdxsv/udprelay.py per pair)
 //   lobby=1      battles from the zdxsv lobby: platform info announces ggpo=port, the lobby's battle
 //                info gives players and peer addresses; listen on port itself. A peer without GGPO:
-//                the battle stays on the battle server (TCP). One GGPO battle per process.
+//                the battle stays on the battle server (TCP). A peer that did not answer the ping test:
+//                connection failure, no fallback (LobbyCutCall). One GGPO battle per process.
 //   delay=0      GGPO frame delay of the local input (fixed). Without it a lobby battle picks
 //                max(mindelay, ceil(slowest peer's rtt / 2 / 16 ms)) when GGPO arms; rtt from a ping
 //                test on the GGPO port (flycast UdpPingPong packets, Zdxsv::StartPingTest)
@@ -183,6 +184,8 @@ namespace ZdxsvGgpo
 		u16 s_zd_hist[128][GGPO_MAX_PLAYERS][2] = {}; // synced (A, B) per frame & 127
 		u32 s_zd_steps = 0, s_zd_changed = 0;
 		bool s_net_armed = false, s_net_over = false;
+		bool s_lobby_cut = false; // lobby=1 ping test failed: the battle connection is silent (LobbyCutCall)
+		u32 s_cut_sends = 0;
 		int s_net_me = -1; // local battle position
 		std::vector<std::vector<u8>> s_net_sent; // every msg the game sent since armed, in order
 		size_t s_net_pos = 0; // msgs sent so far in the current timeline
@@ -1764,9 +1767,10 @@ namespace ZdxsvGgpo
 				// session, position and address); a peer from another battle never gets our inputs
 				if (up < n - 1)
 				{
-					Console.WriteLn("ZdxsvGgpo: lobby battle stays on the battle server: %d of %d peers answered the ping test (position %d, waited %.1f s)",
+					Console.WriteLn("ZdxsvGgpo: lobby battle connection cut: %d of %d peers answered the ping test (position %d, waited %.1f s)",
 						up, n - 1, me, wait.GetTimeSeconds());
-					s_lobby_unreachable = s_lobby_logged = true;
+					s_lobby_unreachable = s_lobby_logged = s_lobby_cut = true;
+					s_cut_sends = 0;
 					return false;
 				}
 				s_delay = std::max(s_min_delay, rtt > 0 ? (rtt + 31) / 32 : 0);
@@ -1775,6 +1779,36 @@ namespace ZdxsvGgpo
 			}
 			s_players = n;
 			s_net_peers = std::move(peers);
+			return true;
+		}
+		// lobby=1, the ping test failed (LobbyArm): a connection failure, no fallback to the battle server.
+		// The battle sock goes silent: sends are dropped, nothing to recv. The game gets no response, gives up
+		// and reconnects to the lobby; its next connect or close goes to the IOP and ends the cut.
+		bool LobbyCutCall(u32 fno, s16 sock, s16 len)
+		{
+			u8* ram = eeMem->Main;
+			s32 result = 0;
+			if (sock == NET_BATTLE_SOCK && fno == NET_FNO_SEND)
+				result = std::clamp<s32>(len, 0, 0x3ca), s_cut_sends++;
+			else if (sock == NET_BATTLE_SOCK && fno == NET_FNO_POLL)
+			{
+				*reinterpret_cast<u16*>(ram + NET_REQ_LEN) = 4;
+				*reinterpret_cast<u16*>(ram + NET_REQ_DATA + 2) = 0x2000;
+				*reinterpret_cast<u16*>(ram + NET_REQ_DATA + 4) = 0;
+			}
+			else if (!(sock == NET_BATTLE_SOCK && fno == NET_FNO_RECV))
+			{
+				if (fno == 7 || fno == 0xd)
+				{
+					Console.WriteLn("ZdxsvGgpo: lobby battle connection cut ended at vsync %u: game RPC 0x%x after %u dropped sends",
+						g_FrameCount, fno, s_cut_sends);
+					s_lobby_cut = false;
+				}
+				return false;
+			}
+			*reinterpret_cast<s32*>(ram + NET_RES_LEN) = result;
+			cpuRegs.GPR.n.v0.SD[0] = result;
+			cpuRegs.pc = cpuRegs.GPR.n.ra.UL[0];
 			return true;
 		}
 	} // namespace
@@ -1821,6 +1855,8 @@ namespace ZdxsvGgpo
 		const bool key = fno == NET_FNO_SEND && sock == NET_BATTLE_SOCK && len > 0 && len <= 0x3ca && HasKeyMsg(d, len);
 		if (s_rbk && !s_net_armed && !key) // connect (fno 7) has the address in the sock field
 			return RbkCall(fno, len, d);
+		if (s_lobby_cut)
+			return LobbyCutCall(fno, sock, len);
 		if (sock != NET_BATTLE_SOCK)
 			return false;
 		if (!s_net_armed)
@@ -1833,7 +1869,7 @@ namespace ZdxsvGgpo
 				if ((d[i + 1] >> 4) == 2)
 					me = d[i + 1] & 0xf;
 			if (s_lobby && !LobbyArm(me))
-				return false;
+				return s_lobby_cut && LobbyCutCall(fno, sock, len);
 			s_net_armed = true;
 			if (s_rbk)
 			{
