@@ -30,6 +30,7 @@
 #include "SIO/Pad/PadBase.h"
 #include "USB/USB.h"
 #include "VMManager.h"
+#include "ZdxsvGgpo.h"
 
 #include "common/BitUtils.h"
 #include "common/Error.h"
@@ -152,6 +153,7 @@ namespace ImGuiManager
 	static void DrawVideoCaptureOverlay(float& position_y, float scale, float margin, float spacing);
 	static void DrawTextureReplacementsOverlay(float& position_y, float scale, float margin, float spacing);
 	static void DrawIndicatorsOverlay(float& position_y, float scale, float margin, float spacing);
+	static void DrawZdxsvGgpoOverlay(float scale, float margin, float spacing);
 } // namespace ImGuiManager
 
 static std::tuple<float, float> GetMinMax(std::span<const float> values)
@@ -1807,6 +1809,35 @@ void SaveStateSelectorUI::ShowSlotOSDMessage()
 		Host::OSD_QUICK_DURATION);
 }
 
+// zdxsv network status (ZdxsvGgpo::OsdLines) during a GGPO battle: left edge, below the game's top HUD.
+__ri void ImGuiManager::DrawZdxsvGgpoOverlay(float scale, float margin, float spacing)
+{
+	if (!ZdxsvGgpo::g_enabled || FullscreenUI::HasActiveWindow())
+		return;
+	const std::vector<ZdxsvGgpo::OsdLine> lines = ZdxsvGgpo::OsdLines();
+	if (lines.empty())
+		return;
+
+	ImFont* const font = ImGuiManager::GetStandardFont();
+	const float font_size = ImGuiManager::GetFontSizeStandard();
+	const float line_height = ImGuiFullscreen::GetLineHeight({font, font_size});
+	const float pad = std::ceil(4.0f * scale);
+	float width = 0.0f;
+	for (const ZdxsvGgpo::OsdLine& l : lines)
+		width = std::max(width, font->CalcTextSizeA(font_size, std::numeric_limits<float>::max(), -1.0f, l.text.c_str()).x);
+
+	ImDrawList* dl = ImGui::GetBackgroundDrawList();
+	const float x = margin;
+	float y = std::floor(GetWindowHeight() * 0.22f);
+	dl->AddRectFilled(ImVec2(x, y), ImVec2(x + width + pad * 2.0f, y + line_height * lines.size() + pad * 2.0f), IM_COL32(0, 0, 0, 128));
+	y += pad;
+	for (const ZdxsvGgpo::OsdLine& l : lines)
+	{
+		dl->AddText(font, font_size, ImVec2(x + pad, y), l.color, l.text.c_str());
+		y += line_height;
+	}
+}
+
 void ImGuiManager::RenderOverlays()
 {
 	const float scale = ImGuiManager::GetGlobalScale();
@@ -1823,6 +1854,7 @@ void ImGuiManager::RenderOverlays()
 	DrawSettingsOverlay(scale, margin, spacing);
 	DrawShaderCompileIndicator(scale, margin, spacing);
 	DrawInputsOverlay(scale, margin, spacing);
+	DrawZdxsvGgpoOverlay(scale, margin, spacing);
 	if (SaveStateSelectorUI::s_open)
 		SaveStateSelectorUI::Draw();
 }

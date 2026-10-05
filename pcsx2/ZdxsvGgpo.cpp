@@ -19,6 +19,7 @@
 //                test on the GGPO port (flycast UdpPingPong packets, Zdxsv::StartPingTest)
 //   mindelay=2   lower bound of that pick
 //   badsession=1 test: this client's ping test uses another session id, so no peer answers it (the cut)
+//   osd=1        net: network status OSD (OsdLines; 0 = off); its text is also logged every 600 frames
 //   sync=0       no state hashes: checksum 0 (net: always)
 //   start=1500   vsync (counted from boot) the session starts at
 //   frames=3000  frames the session runs, then it is closed and reported
@@ -259,6 +260,11 @@ namespace ZdxsvGgpo
 		std::string s_peer_host = "127.0.0.1";
 		bool s_lobby = false; // lobby=1
 		bool s_bad_session = false; // badsession=1 (test): the ping test uses another session id
+		bool s_osd = true; // osd=
+		// network status OSD: user id + name per position (lobby battle info), lines of the last frame
+		std::vector<std::pair<std::string, std::string>> s_lobby_players, s_net_players;
+		std::mutex s_osd_mtx;
+		std::vector<OsdLine> s_osd_lines;
 		// lobby=1: peers of the last battle info (SetLobbyPeers, DEV9 thread)
 		std::mutex s_lobby_mtx;
 		bool s_lobby_info = false, s_lobby_ok = false, s_lobby_logged = false, s_lobby_unreachable = false;
@@ -345,6 +351,8 @@ namespace ZdxsvGgpo
 					s_lobby = (n != 0);
 				else if (key == "badsession")
 					s_bad_session = (n != 0);
+				else if (key == "osd")
+					s_osd = (n != 0);
 				else
 					Console.Warning("ZdxsvGgpo: unknown key '%.*s'", static_cast<int>(key.size()), key.data());
 			}
@@ -523,6 +531,61 @@ namespace ZdxsvGgpo
 				Console.WriteLn("ZdxsvGgpo: DIFF frame %d state size %zu -> %zu", frame, first.state.size(), state.size());
 		}
 
+		// per position: 0 connected, 1 interrupted, 2 disconnected (GGPO events, for the OSD)
+		int s_peer_state[GGPO_MAX_PLAYERS] = {};
+		void SetPeerState(GGPOPlayerHandle h, int state)
+		{
+			for (int p = 0; p < GGPO_MAX_PLAYERS; p++)
+				if (s_handles[p] == h)
+					s_peer_state[p] = state;
+		}
+
+		constexpr u32 OsdColor(u32 r, u32 g, u32 b) { return 0xff000000u | (b << 16) | (g << 8) | r; } // IM_COL32
+		constexpr u32 OSD_TEXT = OsdColor(255, 255, 255);
+		// flycast msColor
+		u32 OsdPingColor(int ms)
+		{
+			return ms <= 0 ? OsdColor(64, 64, 64) : ms <= 30 ? OsdColor(87, 213, 213) : ms <= 60 ? OsdColor(0, 255, 149) :
+			       ms <= 90 ? OsdColor(255, 255, 0) : ms <= 120 ? OsdColor(255, 170, 0) : OsdColor(255, 0, 0);
+		}
+
+		// net, once per frame: the OSD lines (OsdLines). log: also to the log, one line.
+		void UpdateOsd(bool log)
+		{
+			if (!s_osd || !s_net || !s_session)
+				return;
+			std::vector<OsdLine> lines;
+			// flycast's delay colors
+			lines.push_back({fmt::format("Delay {}fr", s_delay), s_delay >= 13 ? OsdColor(255, 38, 31) : s_delay >= 10 ? OsdColor(255, 128, 0) :
+			                                                      s_delay >= 5   ? OsdColor(255, 217, 0) : OSD_TEXT});
+			lines.push_back({fmt::format("Roll {}  Wait {}", s_rollback_frames, s_waits), OSD_TEXT});
+			for (int p = 0; p < s_players; p++)
+			{
+				if (p == s_net_me)
+					continue;
+				const auto& who = p < static_cast<int>(s_net_players.size()) ? s_net_players[p] : std::pair<std::string, std::string>{};
+				lines.push_back({fmt::format("{}P {}", p + 1, who.first), OSD_TEXT});
+				if (!who.second.empty())
+					lines.push_back({" " + who.second, OSD_TEXT});
+				GGPONetworkStats st{};
+				if (s_peer_state[p] == 2)
+					lines.push_back({" Disconnected", OsdPingColor(999)});
+				else if (ggpo_get_network_stats(s_session, s_handles[p], &st) == GGPO_OK)
+					lines.push_back({fmt::format(" Ping {}ms  P {}{}", st.network.ping, st.sync.predicted_frames,
+					                     s_peer_state[p] == 1 ? "  Interrupted" : ""),
+						s_peer_state[p] == 1 ? OsdPingColor(999) : OsdPingColor(st.network.ping)});
+			}
+			if (log)
+			{
+				std::string all;
+				for (const OsdLine& l : lines)
+					all += (all.empty() ? "" : " |") + l.text;
+				Console.WriteLn("ZdxsvGgpo: osd frame %d: %s", s_session_frames, all.c_str());
+			}
+			std::lock_guard lock(s_osd_mtx);
+			s_osd_lines = std::move(lines);
+		}
+
 		bool __cdecl BeginGame(const char*) { return true; }
 		bool __cdecl OnEvent(GGPOEvent* ev)
 		{
@@ -537,10 +600,15 @@ namespace ZdxsvGgpo
 					break;
 				case GGPO_EVENTCODE_DISCONNECTED_FROM_PEER:
 					s_disconnected = true;
+					SetPeerState(ev->u.disconnected.player, 2);
 					Console.Warning("ZdxsvGgpo: peer disconnected");
 					break;
 				case GGPO_EVENTCODE_CONNECTION_INTERRUPTED:
+					SetPeerState(ev->u.connection_interrupted.player, 1);
 					Console.Warning("ZdxsvGgpo: connection interrupted");
+					break;
+				case GGPO_EVENTCODE_CONNECTION_RESUMED:
+					SetPeerState(ev->u.connection_resumed.player, 0);
 					break;
 				default:
 					break;
@@ -665,6 +733,10 @@ namespace ZdxsvGgpo
 			g_active = false;
 			ZdxsvDeltaState::Clear();
 			Report(what);
+			{
+				std::lock_guard lock(s_osd_mtx);
+				s_osd_lines.clear();
+			}
 			if (s_lobby)
 			{
 				std::lock_guard lock(s_lobby_mtx);
@@ -826,6 +898,7 @@ namespace ZdxsvGgpo
 		}
 		if (s_session_frames % 600 == 0)
 			Report("progress");
+		UpdateOsd(s_session_frames % 600 == 0);
 		if (!NextInputs())
 			Stop("failed");
 	}
@@ -1818,6 +1891,7 @@ namespace ZdxsvGgpo
 			}
 			s_players = n;
 			s_net_peers = std::move(peers);
+			s_net_players = s_lobby_players;
 			return true;
 		}
 		// lobby=1, the ping test failed (LobbyArm): a connection failure, no fallback to the battle server.
@@ -1870,10 +1944,12 @@ namespace ZdxsvGgpo
 		return port;
 	}
 
-	void SetLobbyPeers(bool ok, std::vector<std::vector<Zdxsv::PeerAddr>> byPosition, u32 session, int pingMs, std::string ids)
+	void SetLobbyPeers(bool ok, std::vector<std::vector<Zdxsv::PeerAddr>> byPosition, u32 session, int pingMs, std::string ids,
+		std::vector<std::pair<std::string, std::string>> players)
 	{
 		std::lock_guard lock(s_lobby_mtx);
 		s_report_ids = std::move(ids);
+		s_lobby_players = std::move(players);
 		s_lobby_info = true;
 		s_lobby_ok = ok;
 		s_lobby_logged = s_lobby_unreachable = false;
@@ -1892,6 +1968,12 @@ namespace ZdxsvGgpo
 	{
 		std::lock_guard lock(s_lobby_mtx);
 		return std::exchange(s_report, {});
+	}
+
+	std::vector<OsdLine> OsdLines()
+	{
+		std::lock_guard lock(s_osd_mtx);
+		return s_osd_lines;
 	}
 
 	// EE rec hook at NET_RPC_PC (the net RPC wrapper's entry): trace, and in net mode answer the

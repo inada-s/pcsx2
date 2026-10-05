@@ -156,6 +156,9 @@ namespace Zdxsv
 		}
 		info.ggpoSession = static_cast<uint32_t>(std::strtoul(kv["ggpo_session"].c_str(), nullptr, 10));
 		info.ggpoPingMs = std::atoi(kv["ggpo_ping_ms"].c_str());
+		for (const std::string& u : info.users)
+			if (auto it = kv.find("name_" + u); it != kv.end())
+				info.names[u] = it->second;
 		out = std::move(info);
 		return true;
 	}

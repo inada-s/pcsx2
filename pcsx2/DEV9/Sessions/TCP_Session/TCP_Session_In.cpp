@@ -222,8 +222,14 @@ namespace Sessions
 			Zdxsv::SetBattleInfoListener([](const Zdxsv::BattleInfo& info) {
 				std::vector<std::vector<Zdxsv::PeerAddr>> byPosition;
 				const bool ok = Zdxsv::GgpoPeers(info, Zdxsv::PublicIP(), byPosition);
+				std::vector<std::pair<std::string, std::string>> players;
+				for (const std::string& u : info.users)
+				{
+					const auto name = info.names.find(u);
+					players.emplace_back(u, name == info.names.end() ? std::string() : name->second);
+				}
 				ZdxsvGgpo::SetLobbyPeers(ok, std::move(byPosition), info.ggpoSession, info.ggpoPingMs,
-					"battle_code=" + info.battleCode + "\nuser_id=" + info.userId + "\n");
+					"battle_code=" + info.battleCode + "\nuser_id=" + info.userId + "\n", std::move(players));
 			});
 		return port;
 	}

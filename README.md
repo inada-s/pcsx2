@@ -45,6 +45,7 @@ on [zdxsv](https://github.com/inada-s/zdxsv). Player setup: [ZDXSV.md](ZDXSV.md)
   a peer that never answers it (other session, position or address) fails the battle as a connection failure: no
   GGPO and no fallback to the battle server; the game gets no response, gives up and reconnects to the lobby.
   After each lobby battle the emulator reports to the lobby how it ran (match report `0x9952`).
+  During a GGPO battle an OSD shows the input delay, rollbacks and each opponent's ID, name and ping.
 
 ### Releases and updates
 - The auto-updater checks this fork's GitHub releases (`zdxsv-X.Y.Z` tags) instead of pcsx2.net.
@@ -126,6 +127,11 @@ Test scripts that use them: `zdxsv/` in inada-s/ai-automation (named in brackets
     answer) and `addr_<pos>` (the picked address), `ping_wait_ms`, `delay`; GGPO battles add `close` (why the session
     ended), `frames`, `rollback_frames`, `mismatches`, `disconnected`; cuts add `answered`, `cut_sends`. Logged as
     `DEV9: TCP: zdxsv matching report: ...`; the zdxsv lobby logs it (`p2p matching report: ...`).
+    Network status OSD (as flycast's `drawNetworkStat`; any `net=1` session, on by default, `osd=0` hides it): at
+    the left edge during the battle, `Delay Nfr` (yellow from 5, orange from 10, red from 13), `Roll` (rollback
+    frames) and `Wait` (frames that waited for a peer), then per opponent its position + user id, name (zdxsv
+    battle info `name_<user id>`) and `Ping` (GGPO RTT, flycast's colors) + `P` (frames predicted for it), or
+    `Interrupted` / `Disconnected`. Logged every 600 frames as `ZdxsvGgpo: osd frame F: ...` (lines joined by `|`).
 - `ZDXSV_RBK=i/N`: rollback test (`rbk.sh`, `rbkprep.sh`). Start from a post-entry save state as battle position i of
   N. The emulator answers the lobby itself, runs turbo until the battle, and exits when the GGPO session ends.
   - `ZDXSV_RBK_TIME=s` (time limit), `ZDXSV_RBK_COUNT=n` (battles), `ZDXSV_RBK_GAUGE=v` (戦力ゲージ),
