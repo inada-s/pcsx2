@@ -46,8 +46,6 @@ namespace Zdxsv
 		bool g_armed = false;
 		std::function<void(const BattleInfo&)> g_listener;
 		std::atomic<const volatile unsigned*> g_frame{nullptr};
-		// PeerRtt: the current bridge's peers (set before its thread starts), up ones, slowest rtt
-		std::atomic<int> g_peersTotal{0}, g_peersUp{0}, g_peerRttMax{-1};
 
 		void Log(const std::string& s)
 		{
@@ -149,6 +147,8 @@ namespace Zdxsv
 			if (u != info.userId && port > 0 && port <= 0xFFFF)
 				info.ggpo[u] = static_cast<uint16_t>(port);
 		}
+		info.ggpoSession = static_cast<uint32_t>(std::strtoul(kv["ggpo_session"].c_str(), nullptr, 10));
+		info.ggpoPingMs = std::atoi(kv["ggpo_ping_ms"].c_str());
 		out = std::move(info);
 		return true;
 	}
@@ -681,10 +681,6 @@ namespace Zdxsv
 								l.addr = from;
 								l.rttMs = (NowNanos() - pkt.timestamp) / 1000000;
 								Log("p2p " + l.userId + " up at " + AddrString(from) + ", rtt " + std::to_string(l.rttMs) + " ms");
-								g_peersUp++;
-								for (int m = g_peerRttMax.load(); m < l.rttMs && !g_peerRttMax.compare_exchange_weak(m, static_cast<int>(l.rttMs));)
-									;
-								break; // one box: the LAN and public candidates are the same address (s677: counted twice)
 							}
 					}
 				}
@@ -980,18 +976,161 @@ namespace Zdxsv
 		}
 		bridgePort = ntohs(addr.sin_port);
 		g_bridge.reset(); // a previous battle's bridge, if still running
-		g_peersTotal = static_cast<int>(info.p2p.size());
-		g_peersUp = 0;
-		g_peerRttMax = -1;
 		g_bridge = std::make_unique<Bridge>(listener, std::move(info), g_udp ? g_udp->s : INVALID_SOCKET);
 		return true;
 	}
 
-	int PeerRtt(int& up, int& total)
+	// ---- GGPO ping test ----
+	namespace
 	{
-		up = g_peersUp;
-		total = g_peersTotal;
-		return g_peerRttMax;
+		// flycast core/gdxsv/gdxsv_network.h UdpPingPong::Packet, byte for byte
+#pragma pack(push, 1)
+		struct PingPacket
+		{
+			uint32_t magic;
+			uint32_t sessionId;
+			uint8_t type;
+			uint8_t fromPeer;
+			uint8_t toPeer;
+			uint8_t candidate;
+			uint64_t sendTimestamp;
+			uint64_t pingTimestamp; // pong: the ping's sendTimestamp
+			uint8_t rttMatrix[4][4];
+		};
+#pragma pack(pop)
+		constexpr uint32_t PING_MAGIC = 2205246188u;
+		constexpr uint8_t PING_TYPE = 1, PONG_TYPE = 2;
+
+		struct PingTest
+		{
+			std::thread thread;
+			std::atomic<bool> stop{false};
+			std::vector<int> rtt;
+			~PingTest()
+			{
+				stop = true;
+				if (thread.joinable())
+					thread.join();
+			}
+		};
+		std::unique_ptr<PingTest> g_ping;
+
+		uint64_t NowMs()
+		{
+			return std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now().time_since_epoch()).count();
+		}
+	} // namespace
+
+	void StartPingTest(uint32_t session, const std::vector<std::pair<uint32_t, uint16_t>>& byPosition, uint16_t port, int durationMs)
+	{
+		FinishPingTest();
+		const int n = static_cast<int>(byPosition.size());
+		int me = -1;
+		for (int p = 0; p < n; p++)
+			if (byPosition[p].second == 0)
+				me = p;
+		if (me < 0 || n > 4)
+			return;
+		sock_t s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+		const sockaddr_in any = MakeAddr(0, port);
+		if (s == INVALID_SOCKET || bind(s, reinterpret_cast<const sockaddr*>(&any), sizeof(any)) != 0)
+		{
+			if (s != INVALID_SOCKET)
+				closesocket(s);
+			Log("ping test: bind :" + std::to_string(port) + " failed");
+			return;
+		}
+		g_ping = std::make_unique<PingTest>();
+		g_ping->rtt.assign(n, -1);
+		PingTest* t = g_ping.get();
+		t->thread = std::thread([t, s, session, byPosition, me, n, durationMs] {
+			std::vector<sockaddr_in> peer(n);
+			for (int p = 0; p < n; p++)
+				peer[p] = MakeAddr(byPosition[p].first, byPosition[p].second);
+			std::vector<int64_t> sum(n, 0), pongs(n, 0), pongsIn(n, 0);
+			int dropped = 0;
+			const auto start = Clock::now();
+			auto next = start;
+			for (;;)
+			{
+				const auto now = Clock::now();
+				const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count();
+				if (t->stop || elapsed >= durationMs)
+					break;
+				if (now >= next && elapsed + 500 < durationMs)
+				{
+					next = now + std::chrono::milliseconds(100);
+					for (int p = 0; p < n; p++)
+					{
+						if (p == me)
+							continue;
+						PingPacket pk{};
+						pk.magic = PING_MAGIC;
+						pk.sessionId = session;
+						pk.type = PING_TYPE;
+						pk.fromPeer = static_cast<uint8_t>(me);
+						pk.toPeer = static_cast<uint8_t>(p);
+						pk.sendTimestamp = NowMs();
+						sendto(s, reinterpret_cast<const char*>(&pk), sizeof(pk), 0, reinterpret_cast<const sockaddr*>(&peer[p]), sizeof(peer[p]));
+					}
+				}
+				if (!WaitReadable(s, 10))
+					continue;
+				PingPacket pk;
+				sockaddr_in from{};
+				socklen_t len = sizeof(from);
+				// Windows: an ICMP port unreachable (peer not bound yet) fails this recv, nothing to read
+				if (recvfrom(s, reinterpret_cast<char*>(&pk), sizeof(pk), 0, reinterpret_cast<sockaddr*>(&from), &len) != sizeof(pk))
+					continue;
+				if (pk.magic != PING_MAGIC || pk.sessionId != session || pk.toPeer != me || pk.fromPeer >= n ||
+					pk.fromPeer == me || !SameAddr(from, peer[pk.fromPeer]))
+				{
+					dropped++;
+					continue;
+				}
+				if (pk.type == PING_TYPE)
+				{
+					PingPacket pong{};
+					pong.magic = PING_MAGIC;
+					pong.sessionId = session;
+					pong.type = PONG_TYPE;
+					pong.fromPeer = static_cast<uint8_t>(me);
+					pong.toPeer = pk.fromPeer;
+					pong.candidate = pk.candidate;
+					pong.sendTimestamp = NowMs();
+					pong.pingTimestamp = pk.sendTimestamp;
+					sendto(s, reinterpret_cast<const char*>(&pong), sizeof(pong), 0, reinterpret_cast<const sockaddr*>(&from), sizeof(from));
+					pongsIn[pk.fromPeer]++;
+				}
+				else if (pk.type == PONG_TYPE)
+				{
+					sum[pk.fromPeer] += std::max<int64_t>(1, static_cast<int64_t>(NowMs() - pk.pingTimestamp));
+					pongs[pk.fromPeer]++;
+				}
+			}
+			closesocket(s);
+			std::string line = "ping test: session " + std::to_string(session) + ", position " + std::to_string(me);
+			for (int p = 0; p < n; p++)
+			{
+				if (p == me)
+					continue;
+				t->rtt[p] = pongs[p] ? static_cast<int>((sum[p] + pongs[p] - 1) / pongs[p]) : -1;
+				line += "; peer " + std::to_string(p) + " " + AddrString(peer[p]) + " rtt " + std::to_string(t->rtt[p]) + " ms (" +
+						std::to_string(pongs[p]) + " pongs, " + std::to_string(pongsIn[p]) + " pings answered)";
+			}
+			Log(line + ", " + std::to_string(dropped) + " dropped");
+		});
+	}
+
+	std::vector<int> FinishPingTest()
+	{
+		if (!g_ping)
+			return {};
+		if (g_ping->thread.joinable())
+			g_ping->thread.join();
+		std::vector<int> rtt = std::move(g_ping->rtt);
+		g_ping.reset();
+		return rtt;
 	}
 
 	uint32_t PublicIP()

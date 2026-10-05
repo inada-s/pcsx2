@@ -38,7 +38,8 @@ on [zdxsv](https://github.com/inada-s/zdxsv). Player setup: [ZDXSV.md](ZDXSV.md)
   input delay 0. Off unless `ZDXSV_GGPO` is set. Not yet used by the zdxsv release.
 - GGPO battles from the lobby (`ZDXSV_GGPO` `lobby=1`): the GGPO port goes to the lobby in the platform info, the
   peers come from the lobby's battle info; a battle with a player without GGPO stays on the UDP bridge. The GGPO
-  input delay follows the slowest peer's RTT (floor `mindelay`).
+  input delay follows the slowest peer's RTT from a ping test on the GGPO port (flycast's packet format, floor
+  `mindelay`).
 
 ### Releases and updates
 - The auto-updater checks this fork's GitHub releases (`zdxsv-X.Y.Z` tags) instead of pcsx2.net.
@@ -106,9 +107,13 @@ Test scripts that use them: `zdxsv/` in inada-s/ai-automation (named in brackets
     on UDP P) when every other player has a GGPO port; otherwise it stays on the UDP bridge. The GGPO peer IP is
     the peer's public one, or its local one behind the same public IP. One GGPO battle per emulator run; later
     battles use the bridge. Local test: `zdxsv/m4ggpo.sh` in inada-s/ai-automation.
-    Input delay: without `delay=`, a lobby battle sets it when GGPO arms to max(`mindelay=2`, ceil(slowest peer's
-    bridge ping RTT / 2 / 16 ms)), as flycast's rollback backend; log line `ZdxsvGgpo: lobby delay D`. `delay=`
-    keeps it fixed (local tests).
+    GGPO needs `ggpo_session=` in the battle info (the battle's id; zdxsv: FNV-1 32 of the battle code, as gdxsv).
+    Input delay: without `delay=`, the battle info starts a ping test on UDP P for `ggpo_ping_ms` (zdxsv: 7500),
+    with flycast's `UdpPingPong` packet (magic, session id, from / to battle position, timestamps); packets with
+    another session, position or source address are dropped. When GGPO arms (after the test ended), the delay is
+    max(`mindelay=2`, ceil(slowest peer's mean RTT / 2 / 16 ms)), as flycast's rollback backend; log lines
+    `zdxsv: ping test: ...` (RTT per peer) and `ZdxsvGgpo: lobby delay D`. `delay=` keeps it fixed and skips the
+    test (local tests).
 - `ZDXSV_RBK=i/N`: rollback test (`rbk.sh`, `rbkprep.sh`). Start from a post-entry save state as battle position i of
   N. The emulator answers the lobby itself, runs turbo until the battle, and exits when the GGPO session ends.
   - `ZDXSV_RBK_TIME=s` (time limit), `ZDXSV_RBK_COUNT=n` (battles), `ZDXSV_RBK_GAUGE=v` (戦力ゲージ),

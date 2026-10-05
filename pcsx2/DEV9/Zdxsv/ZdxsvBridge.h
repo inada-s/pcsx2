@@ -40,6 +40,10 @@ namespace Zdxsv
 		std::vector<Peer> p2p;
 		// "ggpo_<user>=port": GGPO UDP port of peers that announced one (platform info ggpo=).
 		std::map<std::string, uint16_t> ggpo;
+		// "ggpo_session=": the battle's id in GGPO ping test packets (0 = none: no GGPO);
+		// "ggpo_ping_ms=": ping test length (zdxsv sends 7500, gdxsv's P2PMatching value).
+		uint32_t ggpoSession = 0;
+		int ggpoPingMs = 0;
 	};
 	// Opens the UDP socket the bridge uses (kept across battles, so the lobby
 	// can hand its address to peers) on bindPort (0 = any), asks the lobby's UDP
@@ -73,9 +77,15 @@ namespace Zdxsv
 	// has no GGPO port or no p2p address: the battle stays on the bridge.
 	bool GgpoPeers(const BattleInfo& info, uint32_t ownPublicIP, std::vector<std::pair<uint32_t, uint16_t>>& byPosition);
 
-	// The current battle bridge's p2p peers: slowest ping rtt in ms of those up (-1 = none up yet),
-	// up = peers that answered a ping, total = peers in the battle info.
-	int PeerRtt(int& up, int& total);
+	// GGPO ping test before a lobby GGPO battle, as flycast's UdpPingPong (same packet: magic,
+	// session id, from / to peer = battle position, timestamps): binds the GGPO port, pings every
+	// peer of byPosition (own position {0, 0}) every 100 ms and answers its pings, for durationMs
+	// (pings stop 500 ms before the end). Packets with another magic or session, not to us, or not
+	// from that position's address are dropped.
+	void StartPingTest(uint32_t session, const std::vector<std::pair<uint32_t, uint16_t>>& byPosition, uint16_t port, int durationMs);
+	// Waits for the running test to end (the GGPO port is free after). Mean rtt in ms per battle
+	// position, -1 = no pong (and own position); empty if no test ran.
+	std::vector<int> FinishPingTest();
 
 	// Our public IP from the lobby's STUN (OpenUdp), network byte order; 0 if unknown.
 	uint32_t PublicIP();

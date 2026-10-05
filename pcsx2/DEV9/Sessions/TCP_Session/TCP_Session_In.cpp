@@ -219,12 +219,10 @@ namespace Sessions
 	{
 		const int port = ZdxsvGgpo::LobbyPort();
 		if (port > 0)
-			ZdxsvGgpo::SetLobbyRttSource(Zdxsv::PeerRtt);
-		if (port > 0)
 			Zdxsv::SetBattleInfoListener([](const Zdxsv::BattleInfo& info) {
 				std::vector<std::pair<uint32_t, uint16_t>> byPosition;
 				const bool ok = Zdxsv::GgpoPeers(info, Zdxsv::PublicIP(), byPosition);
-				ZdxsvGgpo::SetLobbyPeers(ok, std::move(byPosition));
+				ZdxsvGgpo::SetLobbyPeers(ok, std::move(byPosition), info.ggpoSession, info.ggpoPingMs);
 			});
 		return port;
 	}
