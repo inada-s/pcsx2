@@ -36,6 +36,8 @@ on [zdxsv](https://github.com/inada-s/zdxsv). Player setup: [ZDXSV.md](ZDXSV.md)
     rollback times events the same way as the first run.
 - GGPO session in a running game (`ZdxsvGgpo`): the Gundam battle runs over GGPO with GGPO input delay 2 and game
   input delay 0. Off unless `ZDXSV_GGPO` is set. Not yet used by the zdxsv release.
+- GGPO battles from the lobby (`ZDXSV_GGPO` `lobby=1`): the GGPO port goes to the lobby in the platform info, the
+  peers come from the lobby's battle info; a battle with a player without GGPO stays on the UDP bridge.
 
 ### Releases and updates
 - The auto-updater checks this fork's GitHub releases (`zdxsv-X.Y.Z` tags) instead of pcsx2.net.
@@ -97,6 +99,12 @@ Test scripts that use them: `zdxsv/` in inada-s/ai-automation (named in brackets
   - `net=1`: a battle between `players=4` peers, started when the game opens its battle socket. Peer at position p
     listens on UDP `port=7001` + p on `host=127.0.0.1`; `relay=R`: remote p at R + 8 * me + p (`udprelay.py`).
     `delay=0`: GGPO input delay. `sync=0`: no state hashes (always with `net=1`).
+  - `net=1,lobby=1,port=P`: battles from the zdxsv lobby. Platform info sends `ggpo=P`; the lobby's battle info
+    (`0x9951`) lists every player's GGPO port (`ggpo_<user>`) next to its UDP addresses (`p2p_<user>`). At the
+    battle's first key message the battle runs over GGPO (players and peer addresses from the battle info, listen
+    on UDP P) when every other player has a GGPO port; otherwise it stays on the UDP bridge. The GGPO peer IP is
+    the peer's public one, or its local one behind the same public IP. One GGPO battle per emulator run; later
+    battles use the bridge. Local test: `zdxsv/m4ggpo.sh` in inada-s/ai-automation.
 - `ZDXSV_RBK=i/N`: rollback test (`rbk.sh`, `rbkprep.sh`). Start from a post-entry save state as battle position i of
   N. The emulator answers the lobby itself, runs turbo until the battle, and exits when the GGPO session ends.
   - `ZDXSV_RBK_TIME=s` (time limit), `ZDXSV_RBK_COUNT=n` (battles), `ZDXSV_RBK_GAUGE=v` (戦力ゲージ),
