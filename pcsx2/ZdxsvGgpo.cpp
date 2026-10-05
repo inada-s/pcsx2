@@ -270,6 +270,9 @@ namespace ZdxsvGgpo
 		bool s_lobby_info = false, s_lobby_ok = false, s_lobby_logged = false, s_lobby_unreachable = false;
 		std::vector<std::vector<Zdxsv::PeerAddr>> s_lobby_peers; // candidates per position
 		std::vector<Zdxsv::PeerAddr> s_net_peers; // per position, picked when armed
+		std::vector<int> s_net_via; // per position: PingResult.via (0 direct, 1 peer relay, 2 relay server)
+		std::vector<Zdxsv::RelayServerAddr> s_net_servers; // relay servers, registered with GGPO in order
+		std::vector<Zdxsv::BattleInfo::Relay> s_lobby_relays; // relay servers of the last battle info
 		u32 s_lobby_session = 0; // ggpo_session
 		std::string s_report_ids; // battle info lines naming the battle (SetLobbyPeers)
 		std::string s_report; // P2PMatchingReport of the last lobby battle (TakeLobbyReport)
@@ -571,7 +574,8 @@ namespace ZdxsvGgpo
 				if (s_peer_state[p] == 2)
 					lines.push_back({" Disconnected", OsdPingColor(999)});
 				else if (ggpo_get_network_stats(s_session, s_handles[p], &st) == GGPO_OK)
-					lines.push_back({fmt::format(" Ping {}ms  P {}{}", st.network.ping, st.sync.predicted_frames,
+					lines.push_back({fmt::format(" Ping {}ms{}  P {}{}", st.network.ping,
+					                     p < static_cast<int>(s_net_via.size()) && s_net_via[p] ? " (R)" : "", st.sync.predicted_frames,
 					                     s_peer_state[p] == 1 ? "  Interrupted" : ""),
 						s_peer_state[p] == 1 ? OsdPingColor(999) : OsdPingColor(st.network.ping)});
 			}
@@ -1419,6 +1423,15 @@ namespace ZdxsvGgpo
 			const char* dms = std::getenv("ZDXSV_NET_DISCONNECT_MS");
 			ggpo_set_disconnect_timeout(s_session, dms ? std::atoi(dms) : 5000);
 			ggpo_set_disconnect_notify_start(s_session, 1000);
+			// relay servers before the players, in the battle info's order on every peer (ggpo_add_relay_server)
+			if (s_lobby)
+				for (const Zdxsv::RelayServerAddr& r : s_net_servers)
+				{
+					if (ggpo_add_relay_server(s_session, r.addr.ip.c_str(), r.addr.port, r.alt.ip.empty() ? nullptr : r.alt.ip.c_str()) != GGPO_OK)
+						return false;
+					Console.WriteLn("ZdxsvGgpo: relay server %s%s%s", r.addr.String().c_str(), r.alt.ip.empty() ? "" : " alt ",
+						r.alt.ip.empty() ? "" : r.alt.String().c_str());
+				}
 			for (int p = 0; p < s_players; p++)
 			{
 				GGPOPlayer player{};
@@ -1430,7 +1443,8 @@ namespace ZdxsvGgpo
 					const Zdxsv::PeerAddr& a = s_net_peers[p];
 					StringUtil::Strlcpy(player.u.remote.ip_address, a.ip.c_str(), sizeof(player.u.remote.ip_address));
 					player.u.remote.port = a.port;
-					Console.WriteLn("ZdxsvGgpo: lobby peer position %d at %s", p, a.String().c_str());
+					player.u.remote.relay = p < static_cast<int>(s_net_via.size()) && s_net_via[p] != 0;
+					Console.WriteLn("ZdxsvGgpo: lobby peer position %d at %s%s", p, a.String().c_str(), player.u.remote.relay ? " (relay)" : "");
 				}
 				else if (player.type == GGPO_PLAYERTYPE_REMOTE)
 				{
@@ -1851,20 +1865,34 @@ namespace ZdxsvGgpo
 			{
 				// as flycast's rollback backend: one-way time to the slowest peer in 16 ms frames, rounded up
 				Common::Timer wait;
-				const std::vector<Zdxsv::PingResult> pings = Zdxsv::FinishPingTest();
+				std::vector<Zdxsv::RelayServerAddr> servers;
+				const std::vector<Zdxsv::PingResult> pings = Zdxsv::FinishPingTest(&servers);
+				std::vector<int> via(n);
 				int rtt = -1, up = 0;
 				for (size_t p = 0; p < pings.size() && p < peers.size(); p++)
 				{
 					if (pings[p].rtt <= 0)
 						continue;
 					rtt = std::max(rtt, pings[p].rtt), up++;
-					peers[p] = pings[p].addr; // the address the ping test picked (IPv4 or IPv6)
+					peers[p] = pings[p].addr; // the address the ping test picked (IPv4 or IPv6), or the relay's
+					via[p] = pings[p].via;
 				}
 				std::string rtts;
 				for (size_t p = 0; p < pings.size(); p++)
 					if (static_cast<int>(p) != me)
+					{
+						const std::string path = pings[p].via == 1 ? "peer " + std::to_string(pings[p].relay) :
+						                         pings[p].via == 2 ? "relay " + std::to_string(pings[p].relay) : "direct";
 						rtts += "rtt_" + std::to_string(p) + "=" + std::to_string(pings[p].rtt) +
-						        (pings[p].rtt > 0 ? "\naddr_" + std::to_string(p) + "=" + pings[p].addr.String() : "") + "\n";
+						        (pings[p].rtt > 0 ? "\naddr_" + std::to_string(p) + "=" + pings[p].addr.String() + "\npath_" +
+						                                std::to_string(p) + "=" + path : "") + "\n";
+						if (pings[p].rtt > 0)
+							Console.WriteLn("ZdxsvGgpo: lobby path to position %zu: %s, rtt %d ms, at %s", p, path.c_str(),
+								pings[p].rtt, pings[p].addr.String().c_str());
+					}
+				rtts += "relays=" + std::to_string(servers.size()) + "\n";
+				s_net_via = std::move(via);
+				s_net_servers = std::move(servers);
 				rtts += "ping_wait_ms=" + std::to_string(static_cast<int>(wait.GetTimeMilliseconds())) + "\n";
 				// as flycast ("Peer%d unreachable"): no GGPO unless every peer answered the ping test (same
 				// session, position and address); a peer from another battle never gets our inputs
@@ -1888,6 +1916,8 @@ namespace ZdxsvGgpo
 			{
 				report("ggpo");
 				s_report += "delay=" + std::to_string(s_delay) + "\nfixed_delay=1\n";
+				s_net_via.clear();
+				s_net_servers.clear();
 			}
 			s_players = n;
 			s_net_peers = std::move(peers);
@@ -1945,7 +1975,7 @@ namespace ZdxsvGgpo
 	}
 
 	void SetLobbyPeers(bool ok, std::vector<std::vector<Zdxsv::PeerAddr>> byPosition, u32 session, int pingMs, std::string ids,
-		std::vector<std::pair<std::string, std::string>> players)
+		std::vector<std::pair<std::string, std::string>> players, std::vector<Zdxsv::BattleInfo::Relay> relays)
 	{
 		std::lock_guard lock(s_lobby_mtx);
 		s_report_ids = std::move(ids);
@@ -1960,8 +1990,9 @@ namespace ZdxsvGgpo
 		}
 		s_lobby_session = session;
 		s_lobby_peers = std::move(byPosition);
+		s_lobby_relays = std::move(relays);
 		if (ok && session && !s_delay_set && pingMs > 0)
-			Zdxsv::StartPingTest(session, s_lobby_peers, static_cast<u16>(LobbyPort()), pingMs);
+			Zdxsv::StartPingTest(session, s_lobby_peers, static_cast<u16>(LobbyPort()), pingMs, s_lobby_relays);
 	}
 
 	std::string TakeLobbyReport()
