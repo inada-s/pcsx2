@@ -17,6 +17,7 @@
 // Results go to the log, lines start with "ZdxsvLatency".
 
 #include "Zdxsv/InputLatency.h"
+#include "Zdxsv/TestOptions.h"
 
 #include "Config.h"
 #include "Memory.h"
@@ -41,7 +42,7 @@
 
 namespace Zdxsv
 {
-	bool g_input_latency_enabled = std::getenv("ZDXSV_INPUT_LATENCY") != nullptr;
+	bool g_input_latency_enabled = Zdxsv::TestEnv("ZDXSV_INPUT_LATENCY") != nullptr;
 
 	namespace
 	{
@@ -175,7 +176,7 @@ namespace Zdxsv
 		{
 			s_parsed = true;
 			s_t0 = Common::Timer::GetCurrentValue();
-			std::string spec = std::getenv("ZDXSV_INPUT_LATENCY");
+			std::string spec = Zdxsv::TestEnv("ZDXSV_INPUT_LATENCY");
 			size_t pos = 0;
 			while (pos < spec.size())
 			{

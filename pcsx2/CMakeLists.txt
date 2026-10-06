@@ -12,6 +12,9 @@ target_link_libraries(PCSX2 PRIVATE PCSX2_FLAGS)
 target_compile_features(PCSX2_FLAGS INTERFACE cxx_std_17)
 target_compile_definitions(PCSX2_FLAGS INTERFACE "${PCSX2_DEFS}")
 target_compile_options(PCSX2_FLAGS INTERFACE "${PCSX2_WARNINGS}")
+if(ZDXSV_TEST_OPTIONS)
+	target_compile_definitions(PCSX2_FLAGS INTERFACE ZDXSV_TEST_OPTIONS)
+endif()
 
 # Check that people use the good file
 if(NOT TOP_CMAKE_WAS_SOURCED)
@@ -211,6 +214,7 @@ set(pcsx2Headers
 	Zdxsv/InputHooks.h
 	Zdxsv/SaveStateHooks.h
 	Zdxsv/UiHooks.h
+	Zdxsv/TestOptions.h
 	VUops.h)
 
 # CDVD sources

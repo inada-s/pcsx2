@@ -44,6 +44,9 @@ with a peer without GGPO still goes through the battle server. The release will 
 - The auto-updater follows the GitHub releases of this fork.
 - A `zdxsv-X.Y.Z` tag builds and publishes a release.
 - Scripts for local builds and for running several instances side by side.
+- Test options that can be abused (inputs, game memory, other players' battles, the updater URL, file paths)
+  work only in a test build (`build-local.sh --test-options`, CMake `-DZDXSV_TEST_OPTIONS=ON`); releases leave
+  it off. List: [docs/zdxsv/options.md](docs/zdxsv/options.md), Test build.
 - Options for tests, traces and game investigation.
 
 ## Documentation

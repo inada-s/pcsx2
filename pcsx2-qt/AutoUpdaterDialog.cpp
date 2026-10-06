@@ -9,6 +9,7 @@
 
 #include "pcsx2/BuildVersion.h"
 #include "pcsx2/Host.h"
+#include "pcsx2/Zdxsv/TestOptions.h"
 
 #include "updater/UpdaterExtractor.h"
 
@@ -203,7 +204,7 @@ void AutoUpdaterDialog::queueUpdateCheck(bool display_message)
 			return;
 		}
 
-		const char* url_override = std::getenv("ZDXSV_UPDATE_URL");
+		const char* url_override = Zdxsv::TestEnv("ZDXSV_UPDATE_URL");
 		m_http->CreateRequest(url_override ? std::string(url_override) : std::string(LATEST_RELEASE_URL),
 			std::bind(&AutoUpdaterDialog::getLatestReleaseComplete, this, std::placeholders::_1, std::placeholders::_3));
 	}

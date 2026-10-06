@@ -40,6 +40,7 @@
 #include "Zdxsv/Ggpo.h"
 #include "Zdxsv/DeltaState.h"
 #include "Zdxsv/Lobby.h"
+#include "Zdxsv/TestOptions.h"
 #include "Config.h"
 #include "Counters.h"
 #include "Memory.h"
@@ -146,10 +147,10 @@ namespace Zdxsv
 		// rematch by input). ZDXSV_RBK_GAUGE=v: 戦力ゲージ (recorded 600). ZDXSV_RAND_INPUT=seed: pad input.
 		int s_rbk_me = -1, s_rbk_n = 0;
 		const bool s_rbk = [] {
-			const char* e = std::getenv("ZDXSV_RBK");
+			const char* e = Zdxsv::TestEnv("ZDXSV_RBK");
 			return e && std::sscanf(e, "%d/%d", &s_rbk_me, &s_rbk_n) == 2 && s_rbk_me >= 0 && s_rbk_me < s_rbk_n && s_rbk_n <= 4;
 		}();
-		const char* s_rand_env = std::getenv("ZDXSV_RAND_INPUT");
+		const char* s_rand_env = Zdxsv::TestEnv("ZDXSV_RAND_INPUT");
 		bool s_net = false; // net=1 parsed
 		int s_players = 4; // players= (net)
 		int s_relay = 0; // relay=R (net): remote p is at port R + 8 * me + p (zdxsv/udprelay.py per pair), not port + p
@@ -158,7 +159,7 @@ namespace Zdxsv
 		// written as `H frame h0 h1 h2 h3` to NET_TRACE at the report: the 4 machines simulate every
 		// player, so in sync these agree across peers (own-position RAM elsewhere does not, sync=0).
 		const bool s_pw_hash = [] {
-			const char* e = std::getenv("ZDXSV_PW_HASH");
+			const char* e = Zdxsv::TestEnv("ZDXSV_PW_HASH");
 			return e && e[0] == '1';
 		}();
 		constexpr u32 PW_BASE = 0x8395d8, PW_SIZE = 0x2200;
@@ -181,7 +182,7 @@ namespace Zdxsv
 		// ZDXSV_PW_DUMP=file: every save appends (s32 frame, 4 * PW_SIZE bytes of player work); rollback
 		// re-saves a frame, the last record wins (`zdxsv/pwdiff.py` finds the fields behind H mismatches).
 		std::FILE* s_pw_dump = [] {
-			const char* p = std::getenv("ZDXSV_PW_DUMP");
+			const char* p = Zdxsv::TestEnv("ZDXSV_PW_DUMP");
 			return p ? std::fopen(p, "wb") : nullptr;
 		}();
 		// zds: kind 3 (round handshake) is the one barrier: each machine reaches it at its own frame
@@ -195,7 +196,7 @@ namespace Zdxsv
 		// machine's load is done: local timing (s630: player work initialized 1 frame apart). The rec hook
 		// there counts the wish, returns 0 (step retried next frame) until every peer's synced count in
 		// Input::unused[1] reaches n, then lets the n-th pass. Rollback state (NetFrame).
-		bool s_zds_ps = std::getenv("ZDXSV_ZDS_PS") != nullptr; // replay: the file's zds_ps
+		bool s_zds_ps = Zdxsv::TestEnv("ZDXSV_ZDS_PS") != nullptr; // replay: the file's zds_ps
 		struct PS
 		{
 			u8 n, rel;
@@ -215,7 +216,7 @@ namespace Zdxsv
 		// into the next forward frame's input, so the handshake frame depended on input arrival timing. With
 		// lag > GGPO's 6 prediction frames, frame s is final when s + lag is added. 0 = the old behaviour.
 		const int s_k3_lag = [] {
-			const char* e = std::getenv("ZDXSV_K3_LAG");
+			const char* e = Zdxsv::TestEnv("ZDXSV_K3_LAG");
 			return e ? std::max(0, std::atoi(e)) : 8;
 		}();
 		struct NetOut
@@ -241,7 +242,7 @@ namespace Zdxsv
 		int s_net_end = -1; // frames since the end msg (kind f) was sent or received, -1 = not yet
 		// ZDXSV_NET_TAIL=n: frames run after the end msg before the session stops (default 300).
 		const int s_net_tail = [] {
-			const char* e = std::getenv("ZDXSV_NET_TAIL");
+			const char* e = Zdxsv::TestEnv("ZDXSV_NET_TAIL");
 			return e ? std::atoi(e) : 300;
 		}();
 		struct NetStats
@@ -1022,7 +1023,7 @@ namespace Zdxsv
 		TracePad();
 		TraceInputs();
 		// ZDXSV_SNAP=dir,n: GS screenshot dir/v<vsync>.png every n vsyncs (needs a real renderer, not -Headless)
-		static const char* snap = std::getenv("ZDXSV_SNAP");
+		static const char* snap = Zdxsv::TestEnv("ZDXSV_SNAP");
 		static const int snap_n = snap && std::strchr(snap, ',') ? std::atoi(std::strchr(snap, ',') + 1) : 0;
 		if (snap_n > 0 && !g_ggpo_in_rollback && g_FrameCount % snap_n == 0)
 			GSQueueSnapshot(fmt::format("{}\\v{}.png", std::string(snap, std::strchr(snap, ',')), g_FrameCount));
@@ -1149,7 +1150,7 @@ namespace Zdxsv
 		constexpr u32 NET_BATTLE_SOCK = 0;
 		u32 s_game_gp = 0; // game gp, latched in OnNetRpc
 		std::FILE* s_net_trace = [] {
-			const char* p = std::getenv("ZDXSV_NET_TRACE");
+			const char* p = Zdxsv::TestEnv("ZDXSV_NET_TRACE");
 			std::FILE* f = p ? std::fopen(p, "w") : nullptr;
 			if (f) // unbuffered: the rig kills pcsx2, buffered lines would be lost (zdxsv/probelint.py)
 				std::setvbuf(f, nullptr, _IONBF, 0);
@@ -1161,15 +1162,36 @@ namespace Zdxsv
 	bool g_zd_hook = false;
 	bool g_ps_hook = s_zds_ps;
 
+	// Release build: of ZDXSV_GGPO only the keys that change nothing for the other players (osd=, port=, replay=0;
+	// net=1 and lobby=1 repeat DEFAULT_OPTIONS) are kept, as ",k=v,..." for DEFAULT_OPTIONS. delay=/mindelay= are
+	// test options too: the ping test picks the delay.
+	static std::string PlayerOptions(const char* e)
+	{
+		std::string kept;
+		for (const std::string_view item : StringUtil::SplitString(e ? e : "", ','))
+		{
+			if (item.starts_with("osd=") || item.starts_with("port=") || item == "replay=0" || item == "net=1" ||
+				item == "lobby=1")
+				kept += fmt::format(",{}", item);
+			else
+				Console.Warning("ZdxsvGgpo: '%.*s' ignored: a test option, needs a ZDXSV_TEST_OPTIONS build",
+					static_cast<int>(item.size()), item.data());
+		}
+		return kept;
+	}
+
 	void GgpoOnVmInitialize(const char* serial)
 	{
 		const char* e = std::getenv("ZDXSV_GGPO");
 		// Read here only, so not a config field: a change takes effect at the next VM start.
 		const bool setting = Host::GetBoolSettingValue("DEV9/Eth", "ZdxsvGgpo", true);
+		const bool lobby_default = std::strcmp(serial, GAME_SERIAL) == 0 && setting && !s_play_env;
 		if (e && std::strcmp(e, "0") == 0) // off whatever the setting (rigs without GGPO)
 			s_options.clear();
-		else
-			s_options = e ? e : (std::strcmp(serial, GAME_SERIAL) == 0 && setting && !s_play_env) ? DEFAULT_OPTIONS : "";
+		else if (TEST_OPTIONS)
+			s_options = e ? e : lobby_default ? DEFAULT_OPTIONS : "";
+		else // release build: the lobby session only, plus the player's own choices
+			s_options = lobby_default ? DEFAULT_OPTIONS + PlayerOptions(e) : "";
 		g_ggpo_enabled = !s_options.empty() || s_play_env;
 		s_net_env = s_options.find("net=1") != std::string::npos || s_play_env;
 		g_net_hook = s_net_trace != nullptr || s_net_env;
@@ -1330,7 +1352,7 @@ namespace Zdxsv
 		// ZDXSV_RAM_DUMP=dir,start,step,count: EE RAM (32 MB) to dir/<frame>.bin.
 		static const auto dump = [] {
 			std::tuple<std::string, u32, u32, u32> d{"", 0, 1, 0};
-			if (const char* e = std::getenv("ZDXSV_RAM_DUMP"))
+			if (const char* e = Zdxsv::TestEnv("ZDXSV_RAM_DUMP"))
 			{
 				char dir[512];
 				u32 a, b, c;
@@ -1354,7 +1376,7 @@ namespace Zdxsv
 		// entry; 1800 and 0xffff in earlier phases, s630 ramcount.py).
 		static const auto clamps = [] {
 			std::vector<std::tuple<u32, u32, u32, u32>> v;
-			for (const char* e = std::getenv("ZDXSV_EE_CLAMP"); e && *e;)
+			for (const char* e = Zdxsv::TestEnv("ZDXSV_EE_CLAMP"); e && *e;)
 			{
 				u32 a, m, lo = 0, hi = 0xffff;
 				if (std::sscanf(e, "%x,%u,%u,%u", &a, &m, &lo, &hi) >= 2 && a + 2 <= Ps2MemSize::MainRam)
@@ -1663,7 +1685,7 @@ namespace Zdxsv
 				return false;
 			}
 			// ZDXSV_NET_DISCONNECT_MS=ms (default 5000): longer lets a peer stall (ZDXSV_RAM_DUMP) without a disconnect.
-			const char* dms = std::getenv("ZDXSV_NET_DISCONNECT_MS");
+			const char* dms = Zdxsv::TestEnv("ZDXSV_NET_DISCONNECT_MS");
 			ggpo_set_disconnect_timeout(s_session, dms ? std::atoi(dms) : 5000);
 			ggpo_set_disconnect_notify_start(s_session, 1000);
 			// relay servers before the players, in the battle info's order on every peer (ggpo_add_relay_server)
@@ -2540,13 +2562,13 @@ namespace Zdxsv
 				case 0x6914:
 				{
 					std::vector<u8> b = Unhex(RBK_RULE);
-					if (const char* t = std::getenv("ZDXSV_RBK_TIME"))
+					if (const char* t = Zdxsv::TestEnv("ZDXSV_RBK_TIME"))
 					{
 						const int s = std::atoi(t);
 						b[RBK_RULE_TIME] = static_cast<u8>(s >> 8);
 						b[RBK_RULE_TIME + 1] = static_cast<u8>(s);
 					}
-					if (const char* g = std::getenv("ZDXSV_RBK_GAUGE"))
+					if (const char* g = Zdxsv::TestEnv("ZDXSV_RBK_GAUGE"))
 					{
 						const int v = std::atoi(g);
 						for (size_t o : {RBK_RULE_GAUGE, RBK_RULE_GAUGE + 2})
@@ -2555,7 +2577,7 @@ namespace Zdxsv
 							b[o + 1] = static_cast<u8>(v);
 						}
 					}
-					if (const char* c = std::getenv("ZDXSV_RBK_COUNT"))
+					if (const char* c = Zdxsv::TestEnv("ZDXSV_RBK_COUNT"))
 						b[RBK_RULE_COUNT] = static_cast<u8>(std::atoi(c));
 					return b;
 				}
@@ -3005,7 +3027,7 @@ namespace Zdxsv
 				s_net_rx.insert(s_net_rx.end(), s_rbk_rx.begin(), s_rbk_rx.end());
 				s_rbk_rx.clear();
 				// ZDXSV_RBK_TURBO=1: the battle runs turbo too (GGPO paces the peers by frame)
-				if (!std::getenv("ZDXSV_RBK_TURBO"))
+				if (!Zdxsv::TestEnv("ZDXSV_RBK_TURBO"))
 					VMManager::SetLimiterMode(LimiterModeType::Nominal);
 			}
 			if (me >= 0)
