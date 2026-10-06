@@ -19,10 +19,9 @@ The rules for keeping this file up to date are in [AGENTS.md](../../AGENTS.md).
 | Location | Scripts |
 |---|---|
 | This repository | `run.py`, `tools/zdxsv/pwcheck.py`, `tools/zdxsv/udprelay.py` |
-| inada-s/ai-automation, `zdxsv/` (private) | all other scripts named below |
+| Not yet in this repository | all other scripts named below |
 
-The scripts in ai-automation are to be moved to `tests/zdxsv/` in this
-repository. Until then the commands below are run from that checkout.
+Those scripts are to be moved to `tests/zdxsv/` in this repository.
 
 ## Online play
 

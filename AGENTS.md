@@ -214,6 +214,8 @@ the agent's working context.
   separate PRs.
 - The description says what was tested, how, and what was not tested. Results
   from a private test rig are stated as such.
+- Do not name a repository that is not public, or its issues, in code,
+  documents, commit messages or PR text.
 
 ## Contributing, Issue and PR Guidelines
 
