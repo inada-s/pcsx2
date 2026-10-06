@@ -31,11 +31,21 @@ builds leave it off, and these options are then ignored:
 - `ZDXSV_PLATFORM_INFO`, `ZDXSV_UPDATE_URL`, `ZDXSV_ZDS_PS`, `ZDXSV_K3_LAG`,
   `ZDXSV_NET_TAIL`, `ZDXSV_NET_DISCONNECT_MS`.
 - Rollback tests: `ZDXSV_RBK*`, `ZDXSV_RAND_INPUT`, `ZDXSV_EE_CLAMP`.
-- `ZDXSV_DELTA_TEST`, `ZDXSV_INPUT_LATENCY`.
+- `ZDXSV_DELTA_TEST`, `ZDXSV_INPUT_LATENCY`, `ZDXSV_GAME_CRC`.
 - Traces and dumps: `ZDXSV_NET_TRACE`, `ZDXSV_PW_HASH`, `ZDXSV_PW_DUMP`,
   `ZDXSV_RAM_DUMP`, `ZDXSV_SNAP`, `ZDXSV_EE_PROBE*`, `ZDXSV_EE_WATCH`.
 
 The rigs in `tests/zdxsv` need a test build.
+
+## Game check
+
+The fork's hooks patch fixed addresses of one game build: serial `SLPS-25419`
+with ELF CRC `435D8236`. With any other disc (another game, or a patched or
+other build of this one) everything is off in every build: GGPO, replays, the
+recompiler hooks and the platform info. `ZDXSV_GGPO` or `ZDXSV_REPLAY` then
+only log `ZdxsvGgpo: off: not the Z game (serial .. CRC ..)`. A lobby-style
+server of another game gets no platform info
+(`DEV9: TCP: zdxsv lobby question, but not the Z game`).
 
 ## Setting in PCSX2.ini
 
@@ -49,6 +59,7 @@ The rigs in `tests/zdxsv` need a test build.
 | Option | Default | Use | Meaning |
 |---|---|---|---|
 | `ZDXSV_PLATFORM_INFO=0` | on | test | Send no platform info. The server sees a real PS2. |
+| `ZDXSV_GAME_CRC=hex` | `435D8236` | control | The CRC taken as the Z game's (Game check). Another value runs the Z game as a foreign game: everything off. |
 | `ZDXSV_STUN_PORT=port` | 8201 | tuning | STUN port of the lobby. Asked only with `ZDXSV_GGPO` `lobby=1`. The connectivity test also uses port + 1; a server without that socket gives `nat=unknown`. |
 | `ZDXSV_LOBBY_STATE=1` | off | feature | Save states made online keep working after a load. See [lobby.md](lobby.md). |
 | `ZDXSV_UPDATE_URL=url` | GitHub releases of this fork | test | The updater reads its release list from this URL. |

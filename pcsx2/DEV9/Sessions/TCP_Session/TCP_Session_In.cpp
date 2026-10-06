@@ -292,6 +292,13 @@ namespace Sessions
 		zdxsvChecked = true;
 		if (len < 12 || data[0] != 0x18 || data[1] != 0x01 || data[2] != 0x61 || data[3] != 0x01)
 			return;
+		// Only the Z game talks to the zdxsv lobby: any other game's server that happens to open the same way
+		// gets nothing (the platform info carries our addresses).
+		if (!Zdxsv::g_z_game)
+		{
+			Console.WriteLn("DEV9: TCP: zdxsv lobby question, but not the Z game: no platform info");
+			return;
+		}
 		// ZDXSV_PLATFORM_INFO=0: behave like a real PS2 (for testing the console side)
 		const char* env = Zdxsv::TestEnv("ZDXSV_PLATFORM_INFO");
 		if (env && std::string(env) == "0")

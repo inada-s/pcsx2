@@ -14,9 +14,12 @@ namespace Zdxsv
 	extern bool g_ggpo_active; // a session runs
 	extern bool g_ggpo_in_rollback; // rerunning frames: no throttle
 
-	// In VMManager::Initialize, once the disc serial is known and before the CPU runs: the GGPO options of
-	// this VM (ZDXSV_GGPO, else the ZdxsvGgpo setting for the Z game) and the flags above that follow them.
-	void GgpoOnVmInitialize(const char* serial);
+	extern bool g_z_game; // the disc is the Z game: serial SLPS-25419 and its ELF CRC (GgpoOnVmInitialize)
+
+	// In VMManager::Initialize, once the disc serial and CRC are known and before the CPU runs: the GGPO options
+	// of this VM (ZDXSV_GGPO, else the ZdxsvGgpo setting) and the flags above that follow them. Any other
+	// game (or another build of it): all off, the hooks too, whatever ZDXSV_GGPO / ZDXSV_REPLAY say.
+	void GgpoOnVmInitialize(const char* serial, u32 crc);
 	// In VMManager::Shutdown and VMManager::Reset, CPU thread, before the VM state goes: a running session ends
 	// (Stop: peers see a disconnect, the replay is saved), the replay key files are deleted, the per-battle state
 	// goes back to start values. what = "vm shutdown" / "vm reset".
