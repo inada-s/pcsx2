@@ -178,3 +178,9 @@ cases keep it:
   keys of a replay. Without it the network driver of the PS2 and the adapter
   disagree on the next send buffer after a load, and the network calls of the
   game hang.
+
+The adapter state holds no host pointer: an IOP DMA in progress is saved as an
+offset in IOP RAM, and the EEPROM (MAC address) stays the one of the loading
+process. A load checks the buffer and descriptor indices and fails on a damaged
+state. States written before this format (marker `DEV9`) still load; an IOP DMA
+in progress in them is dropped.

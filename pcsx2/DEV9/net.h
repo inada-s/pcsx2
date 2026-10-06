@@ -142,6 +142,9 @@ private:
 void tx_put(NetPacket* ptr);
 void ad_reset();
 
+// Held by the rx thread while it writes a packet into the SMAP RX FIFO.
+extern std::mutex rx_mutex;
+
 void InitNet();
 void ReconfigureLiveNet(const Pcsx2Config& old_config);
 void TermNet();
