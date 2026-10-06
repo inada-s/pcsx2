@@ -219,9 +219,15 @@ the agent's working context.
 ### Pull Requests In This Fork
 
 - Open a PR as a draft while the work is in progress. CI does not build a
-  draft. Mark the PR ready for review when the work is complete; CI then
-  builds its head commit.
-- A PR is merged only when the CI build of its head commit is green. Never
+  draft.
+- Build locally before you mark a PR ready for review. CI then builds the head
+  commit as a confirmation; it is not the first compile.
+- Do not wait for CI or for a merge. After marking a PR ready, go on to the
+  next task. Look at the CI result when you next come back to the PR or start
+  another task, and fix a failed build before starting new work.
+- When the next task builds on a PR that is not merged yet, branch from the
+  branch of that PR and say so in the new PR.
+- The owner merges, when the CI build of the head commit is green. Never
   propose merging on top of a red `zdxsv-master`; fix the build first.
 - Every commit on the branch builds. Squash "WIP" and "unbuilt" commits.
 - One purpose per PR. Moves and renames, behavior changes, and fixes are
