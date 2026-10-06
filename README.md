@@ -160,10 +160,18 @@ Test scripts that use them: `zdxsv/` in inada-s/ai-automation (named in brackets
   the replay's frame 0 state and its battle-socket state (`zds_ps`, `rx0`, `hle0`; files saved before these keys
   play with an empty one and may drift), then every frame gets the recorded inputs of all players through the same
   battle-socket emulation as a live GGPO battle, without GGPO. Shown from the recording player's side. At the end the
-  emulator pauses; `ZDXSV_REPLAY_EXIT=1` exits instead, `ZDXSV_REPLAY_TURBO=1` plays turbo. Log
-  `ZdxsvGgpo: replay <file>: position P of N, F frames ...`, `ZdxsvGgpo: replay end at frame ...`. A replay of a
-  `ZDXSV_RBK` battle needs the recording's `ZDXSV_EE_CLAMP`. Test: ai-automation `zdxsv/rplay.sh` (player-work
-  hashes against the live battle's).
+  emulator pauses (a seek then plays on; resuming without one ends the replay); `ZDXSV_REPLAY_EXIT=1` exits
+  instead, `ZDXSV_REPLAY_TURBO=1` plays turbo. Log `ZdxsvGgpo: replay <file>: position P of N, F frames ...`,
+  `ZdxsvGgpo: replay end at frame ...`. A replay of a `ZDXSV_RBK` battle needs the recording's `ZDXSV_EE_CLAMP`.
+  Test: ai-automation `zdxsv/rplay.sh` (player-work hashes against the live battle's).
+  - Seek: hotkeys "Zdxsv Replay: Seek Back 10 s" / "Seek Forward 10 s" (Settings > Hotkeys; defaults PageUp /
+    PageDown, applied when hotkeys are reset to defaults). Every 600 played frames a key is kept (the full state
+    as `cache/zdxsv-replay-key-<frame>.p2s`, ~11 ms on the CPU thread, zipped on a thread, plus the battle-socket
+    state). A seek loads the newest key at or before the target (~150 ms) unless running on from the current
+    frame is as close, then runs to the target unlimited. Forward seeks past the played part run every frame.
+  - `ZDXSV_REPLAY_KEY=n`: key interval in frames (default 600, 0 = none: no backward seek).
+  - `ZDXSV_REPLAY_SEEK=at:to[,at:to...]` (test): seek to frame `to` when frame `at` is reached.
+  - `ZDXSV_REPLAY_KEY_NOHLE=1` (test control): keys restore no battle-socket state (the replay then drifts).
 - `ZDXSV_RBK=i/N`: rollback test (`rbk.sh`, `rbkprep.sh`). Start from a post-entry save state as battle position i of
   N. The emulator answers the lobby itself, runs turbo until the battle, and exits when the GGPO session ends.
   - `ZDXSV_RBK_TIME=s` (time limit), `ZDXSV_RBK_COUNT=n` (battles), `ZDXSV_RBK_GAUGE=v` (戦力ゲージ),
