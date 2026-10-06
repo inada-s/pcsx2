@@ -94,7 +94,7 @@ namespace Sessions
 		bool zdxsvChecked = false;
 		void ZdxsvSendPlatformInfo(const u8* data, int len);
 		void ZdxsvAdopted();
-		std::string ZdxsvOpenLobby(int& ggpoPort);
+		std::string ZdxsvOpenLobby(int& ggpoPort, bool natTest = true);
 		// zdxsv: strips the lobby's battle info notice (DEV9/Zdxsv), set with udp=1 (GGPO lobby=1)
 		std::unique_ptr<Zdxsv::LobbyFilter> zdxsvLobbyFilter;
 
