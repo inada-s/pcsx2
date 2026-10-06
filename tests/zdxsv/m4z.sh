@@ -13,6 +13,8 @@
 # EMU=1: the 4 clients are emulators instead (platform info, TCP to the battle server, no zproxy by default);
 #   GGPO=7101: with ZDXSV_GGPO net=1,lobby=1,port=GGPO+i-1 on GGPO_CLIENTS (default "1 2 3 4"; a lobby with
 #   the GGPO battle info, ZBIN): the battle runs over GGPO (checks below).
+#   GGPO_DEFAULT=K: client K gets no ZDXSV_GGPO (launch.ps1 ZDXSV_GGPO=default), so the ZdxsvGgpo setting
+#   gives its options (port 7001); check: its log names the default options.
 #   BAD_SESSION=K (GDELAY=auto): client K gets badsession=1: every ping test fails,
 #   every client cuts the battle connection; no mash; waits for each cut to end + 2 lobby tcp conns per client;
 #   checks: cut + cut ended per client, no GGPO session, no result with frames.
@@ -54,6 +56,8 @@ cenv() {
   [ -z "${EMU:-}" ] && { echo ZDXSV_PLATFORM_INFO=0; return; }
   # PWTRACE=1: player-work hashes + net trace per client (OUT/trace-p<i>.txt; rplay.sh compares a replay to them)
   [ -n "${PWTRACE:-}" ] && echo "ZDXSV_PW_HASH=1 ZDXSV_NET_TRACE=$OUT/trace-p$1.txt"
+  # GGPO_DEFAULT=K (GGPO, GDELAY=auto): client K has no ZDXSV_GGPO, its GGPO options come from the setting
+  [ -n "${GGPO:-}" ] && [ "$1" = "${GGPO_DEFAULT:-}" ] && { echo ZDXSV_GGPO=default; return; }
   case " ${GGPO_CLIENTS:-$CLIENTS} " in *" $1 "*) [ -n "${GGPO:-}" ] && echo "ZDXSV_GGPO=net=1,lobby=1,port=$((GGPO + $1 - 1))$([ "${GDELAY:-1}" = auto ] || echo ",delay=${GDELAY:-1}")${GMIN:+,mindelay=$GMIN}$([ "$1" = "${BAD_SESSION:-}" ] && echo ,badsession=1)$([ -n "${GGPO_LAT:-}" ] && echo ",advertise=$((7300 + ($1 == 1)))")";; esac  # GDELAY=auto: no delay= (rtt pick, floor GMIN)
 }
 mkdir -p "$OUT"
@@ -187,6 +191,7 @@ if [ -n "${EMU:-}" ] && [ -n "${GGPO:-}" ]; then
     f="$RUN/p$i/PCSX2/logs/emulog.txt"
     check "p$i ggpo session, $((nc - 1)) lobby peers" "grep -a -q 'ZdxsvGgpo: net player' '$f' && [ \$(grep -a -c 'ZdxsvGgpo: lobby peer position' '$f') -eq $((nc - 1)) ]"
   done
+  [ -n "${GGPO_DEFAULT:-}" ] && check "p$GGPO_DEFAULT GGPO from the setting" "grep -a -q \"ZdxsvGgpo: options 'net=1,lobby=1' (serial SLPS-25419, setting 1)\" '$RUN/p$GGPO_DEFAULT/PCSX2/logs/emulog.txt'"
   # every GGPO client: same end frame, 0 mismatches
   ends=$(for i in ${GGPO_CLIENTS:-$CLIENTS}; do grep -a -o 'net battle end frames [0-9]* rollback frames [0-9]* loads [0-9]* mismatches [0-9]*' "$RUN/p$i/PCSX2/logs/emulog.txt" | tail -1; done)
   echo "$ends" | awk '{print "ggpo end frames", $5, "mismatches", $NF}'

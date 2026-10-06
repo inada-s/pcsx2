@@ -1,8 +1,10 @@
 # Rollback netcode (GGPO)
 
-How a battle runs over GGPO inside the emulator. In development: for now it is
-off unless `ZDXSV_GGPO` is set, and battles go through the battle server. The
-release will run battles over GGPO only. Option names and
+How a battle runs over GGPO inside the emulator. In development. Lobby battles
+of the game (serial SLPS-25419) run over GGPO by default: setting `ZdxsvGgpo`,
+read when the game starts; `ZDXSV_GGPO` replaces it. A battle with a peer
+without GGPO still goes through the battle server. The release will run
+battles over GGPO only. Option names and
 defaults are in [options.md](options.md). Battles matched by the lobby are in
 [lobby.md](lobby.md).
 

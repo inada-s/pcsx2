@@ -10,7 +10,7 @@
 
 namespace Zdxsv
 {
-	extern bool g_ggpo_enabled; // ZDXSV_GGPO is set
+	extern bool g_ggpo_enabled; // GGPO options (ZDXSV_GGPO or the ZdxsvGgpo setting) or a replay
 
 	// Replay play (ZDXSV_REPLAY): seek by `frames` from the current frame (hotkeys "Zdxsv Replay: Seek
 	// Back / Forward 10 s"), done at the next frame start; at the end (paused) it plays on. No-op otherwise.

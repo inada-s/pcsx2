@@ -10,6 +10,9 @@ param([int[]]$N = @(1), [string]$Memcard = "", [string]$StateFile = "", [switch]
 if ($LobbyState) { $env:ZDXSV_LOBBY_STATE = '1' }
 . "$PSScriptRoot\env.ps1"  # RUN, PCSX2_EXE, ISO, ZDXSV_PY
 if ($envFail) { $envFail; exit 2 }
+# pcsx2 runs lobby battles over GGPO by default (setting ZdxsvGgpo): a client without ZDXSV_GGPO gets
+# ZDXSV_GGPO=0 (battle server); ZDXSV_GGPO=default leaves it to the setting.
+if (-not $env:ZDXSV_GGPO) { $env:ZDXSV_GGPO = '0' } elseif ($env:ZDXSV_GGPO -eq 'default') { Remove-Item env:ZDXSV_GGPO }
 # pcsx2 refuses a game path with / (local.env may use /)
 $root = $env:RUN -replace '/', '\'
 $exe = if ($env:PCSX2_EXE) { $env:PCSX2_EXE -replace '/', '\' } else { Join-Path $PSScriptRoot '..\..\bin\pcsx2-qtx64.exe' }

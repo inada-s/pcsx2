@@ -10,10 +10,13 @@
 
 namespace Zdxsv
 {
-	extern bool g_ggpo_enabled; // ZDXSV_GGPO is set
+	extern bool g_ggpo_enabled; // GGPO options (ZDXSV_GGPO or the ZdxsvGgpo setting) or a replay
 	extern bool g_ggpo_active; // a session runs
 	extern bool g_ggpo_in_rollback; // rerunning frames: no throttle
 
+	// In VMManager::Initialize, once the disc serial is known and before the CPU runs: the GGPO options of
+	// this VM (ZDXSV_GGPO, else the ZdxsvGgpo setting for the Z game) and the flags above that follow them.
+	void GgpoOnVmInitialize(const char* serial);
 	// In VSyncStart.
 	void GgpoOnVsync();
 	// In VMManager::Execute, after the CPU returned.

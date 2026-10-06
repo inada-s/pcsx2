@@ -1467,6 +1467,7 @@ VMBootResult VMManager::Initialize(const VMBootParameters& boot_params, Error* e
 
 	// Figure out which game we're running! This also loads game settings.
 	UpdateDiscDetails(true);
+	Zdxsv::GgpoOnVmInitialize(s_disc_serial.c_str());
 
 	ScopedGuard close_memcards(&FileMcd_EmuClose);
 

@@ -20,6 +20,7 @@ The **Use** column says what an option is for:
 
 | Setting | Default | Use | Meaning |
 |---|---|---|---|
+| `[DEV9/Eth] ZdxsvGgpo` | `true` | feature | Lobby battles of the game run over GGPO (`ZDXSV_GGPO` options `net=1,lobby=1`). Read when the game starts; Settings → Network & HDD. Other games are never affected. |
 | `[EmuCore/GS] ZdxsvLowLatencyVsync` | `true` | feature | Present the finished frame before the frame limiter sleeps, and poll input right before the next frame runs. |
 
 ## Network
@@ -33,8 +34,9 @@ The **Use** column says what an option is for:
 
 ## ZDXSV_GGPO
 
-`ZDXSV_GGPO="key=value,..."` starts a GGPO session in a running game. Any value
-turns it on. Without `net=1` the session is a synctest. Log lines start with
+`ZDXSV_GGPO="key=value,..."` starts a GGPO session in a running game. It
+replaces the options of the `ZdxsvGgpo` setting; `ZDXSV_GGPO=0` turns GGPO
+off. Any other value turns it on. Without `net=1` the session is a synctest. Log lines start with
 `ZdxsvGgpo`. See [rollback.md](rollback.md) and [lobby.md](lobby.md).
 
 ### Synctest keys

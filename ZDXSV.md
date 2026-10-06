@@ -30,6 +30,7 @@ A new setup already has these settings, under Settings → Network & HDD:
 | Intercept DHCP | on |
 | DNS1 / DNS2 | Internal |
 | Hosts | `www01.kddi-mmbb.jp`, `gate1.jp.dnas.playstation.org`, `ca1202.mmcp6`, `ca1203.mmcp6` → `153.121.44.150` (zdxsv.net) |
+| zdxsv: Rollback netcode (GGPO) for online battles | on (takes effect at the next game start) |
 
 Do not change them. If you copy a `PCSX2.ini` from another PCSX2 installation, it
 replaces these settings. In that case, enter the values from the table yourself, or
