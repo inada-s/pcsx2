@@ -1,0 +1,86 @@
+; Instance ini settings for the rig clients: merge into $RUN/p1/PCSX2/inis/PCSX2.ini.
+; @IP@ = the address of the host that runs the zdxsv servers (IP in env.sh).
+[InputSources]
+Keyboard = true
+SDL = false
+XInput = false
+
+
+[Pad1]
+Type = DualShock2
+Up = Keyboard/Up
+Down = Keyboard/Down
+Left = Keyboard/Left
+Right = Keyboard/Right
+Cross = Keyboard/X
+Circle = Keyboard/C
+Square = Keyboard/Z
+Triangle = Keyboard/S
+L1 = Keyboard/Q
+R1 = Keyboard/E
+L2 = Keyboard/1
+R2 = Keyboard/3
+Select = Keyboard/Backspace
+Start = Keyboard/Return
+
+
+[Hotkeys]
+Screenshot = Keyboard/F8
+ToggleFrameLimit = Keyboard/F4
+SaveStateToSlot = Keyboard/F1
+LoadStateFromSlot = Keyboard/F3
+
+
+[MemoryCards]
+Slot1_Enable = true
+Slot1_Filename = Mcd001.ps2
+
+
+[DEV9/Eth]
+EthEnable = true
+EthApi = Sockets
+EthDevice = Auto
+EthLogDHCP = true
+EthLogDNS = true
+InterceptDHCP = true
+AutoMask = true
+AutoGateway = true
+ModeDNS1 = Internal
+ModeDNS2 = Internal
+
+
+[DEV9/Eth/Hosts]
+Count = 4
+
+
+[DEV9/Eth/Hosts/Host0]
+Url = www01.kddi-mmbb.jp
+Desc = zdxsv login
+Address = @IP@
+Enabled = true
+
+
+[DEV9/Eth/Hosts/Host1]
+Url = gate1.jp.dnas.playstation.org
+Desc = dnas
+Address = @IP@
+Enabled = true
+
+
+[DEV9/Eth/Hosts/Host2]
+Url = ca1202.mmcp6
+Desc = lobby
+Address = @IP@
+Enabled = true
+
+
+[DEV9/Eth/Hosts/Host3]
+Url = ca1203.mmcp6
+Desc = lobby
+Address = @IP@
+Enabled = true
+
+
+[Framerate]
+# turbo cap (pcsx2 default 2); rbk.sh TSCALE rewrites it
+TurboScalar = 4
