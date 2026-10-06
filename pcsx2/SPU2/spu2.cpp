@@ -11,6 +11,7 @@
 #include "MTGS.h"
 #include "R3000A.h"
 #include "VMManager.h"
+#include "Zdxsv/MediaHooks.h"
 
 #include "common/Error.h"
 
@@ -514,6 +515,9 @@ static void DCFilter(float *input)
 
 __forceinline void spu2Output(StereoOut32 out)
 {
+	if (Zdxsv::g_ggpo_active && Zdxsv::SpuOnOutput())
+		return;
+
 	float conv[2];
 
 	conv[0] = static_cast<float>(clamp_mix(out.Left)) / INT16_MAX;
