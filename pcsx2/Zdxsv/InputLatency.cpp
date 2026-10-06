@@ -16,7 +16,7 @@
 //   out=path     also write one CSV line per press there
 // Results go to the log, lines start with "ZdxsvLatency".
 
-#include "ZdxsvInputLatency.h"
+#include "Zdxsv/InputLatency.h"
 
 #include "Config.h"
 #include "Memory.h"

@@ -129,9 +129,9 @@ set(pcsx2Sources
 	vtlb.cpp
 	VU0.cpp
 	VUmicro.cpp
-	ZdxsvInputLatency.cpp
-	ZdxsvDeltaState.cpp
-	ZdxsvGgpo.cpp
+	Zdxsv/InputLatency.cpp
+	Zdxsv/DeltaState.cpp
+	Zdxsv/Ggpo.cpp
 	VU0micro.cpp
 	VU0microInterp.cpp
 	VU1micro.cpp
@@ -204,9 +204,9 @@ set(pcsx2Headers
 	vtlb.h
 	VUflags.h
 	VUmicro.h
-	ZdxsvInputLatency.h
-	ZdxsvDeltaState.h
-	ZdxsvGgpo.h
+	Zdxsv/InputLatency.h
+	Zdxsv/DeltaState.h
+	Zdxsv/Ggpo.h
 	VUops.h)
 
 # CDVD sources
@@ -318,7 +318,7 @@ set(pcsx2DEV9Sources
 	DEV9/Sessions/UDP_Session/UDP_Common.cpp
 	DEV9/Sessions/UDP_Session/UDP_FixedPort.cpp
 	DEV9/Sessions/UDP_Session/UDP_Session.cpp
-	DEV9/Zdxsv/ZdxsvLobby.cpp
+	Zdxsv/Lobby.cpp
 	DEV9/smap.cpp
 	DEV9/sockets.cpp
 	DEV9/DEV9.cpp
@@ -362,7 +362,7 @@ set(pcsx2DEV9Headers
 	DEV9/Sessions/BaseSession.h
 	DEV9/Sessions/ICMP_Session/ICMP_Session.h
 	DEV9/Sessions/TCP_Session/TCP_Session.h
-	DEV9/Zdxsv/ZdxsvLobby.h
+	Zdxsv/Lobby.h
 	DEV9/Sessions/UDP_Session/UDP_Common.h
 	DEV9/Sessions/UDP_Session/UDP_FixedPort.h
 	DEV9/Sessions/UDP_Session/UDP_BaseSession.h

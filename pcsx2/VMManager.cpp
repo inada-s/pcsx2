@@ -6,12 +6,12 @@
 #include "CDVD/CDVD.h"
 #include "CDVD/IsoReader.h"
 #include "Counters.h"
-#include "ZdxsvInputLatency.h"
-#include "ZdxsvGgpo.h"
+#include "Zdxsv/InputLatency.h"
+#include "Zdxsv/Ggpo.h"
 namespace ZdxsvGgpo
 {
 	// Replay control bar state; false when no replay plays. Declared here and in ImGuiOverlays.cpp, not in
-	// ZdxsvGgpo.h (a change there rebuilds most of pcsx2).
+	// Zdxsv/Ggpo.h (a change there rebuilds most of pcsx2).
 	bool ReplayBarInfo(int& frame, int& frames, int& pov, u32& povs, int& target);
 } // namespace ZdxsvGgpo
 #include "DEV9/DEV9.h"

@@ -14,7 +14,7 @@
 //                discarded (GGPO's confirmed-frame save skip; gap > depth drops all of them)
 // Results go to the log, lines start with "ZdxsvDelta".
 
-#include "ZdxsvDeltaState.h"
+#include "Zdxsv/DeltaState.h"
 
 #include "Memory.h"
 #include "SaveState.h"

@@ -36,7 +36,7 @@ namespace ZdxsvDeltaState
 	// rollback does not restore. When set, blocks end only at branches and page splits.
 	extern bool g_fixed_blocks; // EE and IOP
 
-	// ZDXSV_DELTA_TEST: synctest in a running game, see ZdxsvDeltaState.cpp.
+	// ZDXSV_DELTA_TEST: synctest in a running game, see Zdxsv/DeltaState.cpp.
 	extern bool g_test_enabled;
 	void OnVsync();
 } // namespace ZdxsvDeltaState

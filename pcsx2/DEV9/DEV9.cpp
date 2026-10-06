@@ -28,7 +28,7 @@
 #include "DEV9.h"
 #include "Config.h"
 #include "smap.h"
-#include "Zdxsv/ZdxsvLobby.h"
+#include "Zdxsv/Lobby.h"
 #include "StateWrapper.h"
 
 #ifdef _WIN32
