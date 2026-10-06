@@ -26,6 +26,7 @@
 #include "SPU2/spu2.h"
 #include "SaveState.h"
 #include "DEV9/Zdxsv/ZdxsvLobby.h"
+#include "ZdxsvGgpo.h"
 #include "StateWrapper.h"
 #include "USB/USB.h"
 #include "VMManager.h"
@@ -640,8 +641,15 @@ public:
 bool DEV9DoState(StateWrapper& sw);
 
 // zdxsv: optional, so states without it still load (DEV9 then keeps its current state).
-// Only with ZDXSV_LOBBY_STATE=1; otherwise nothing is written (an empty entry is
-// not added to the zip) and a DEV9.bin in a state is ignored, as upstream.
+// Only with ZDXSV_LOBBY_STATE=1, ZDXSV_GGPO or ZDXSV_REPLAY; otherwise nothing is written (an
+// empty entry is not added to the zip) and a DEV9.bin in a state is ignored, as upstream.
+// Replay states need it: without it the IOP's SMAP driver (restored) and DEV9 (not) disagree
+// on the next TX buffer, the IOP spins on TXDNV and the game's net RPCs never return.
+static bool Dev9InState()
+{
+	return Zdxsv::LobbyStateEnabled() || ZdxsvGgpo::g_enabled;
+}
+
 class SavestateEntry_DEV9 final : public BaseSavestateEntry
 {
 public:
@@ -650,11 +658,11 @@ public:
 	const char* GetFilename() const override { return "DEV9.bin"; }
 	bool FreezeIn(zip_file_t* zf) const override
 	{
-		return !Zdxsv::LobbyStateEnabled() || SysState_ComponentFreezeInNew(zf, "DEV9", &DEV9DoState);
+		return !Dev9InState() || SysState_ComponentFreezeInNew(zf, "DEV9", &DEV9DoState);
 	}
 	bool FreezeOut(SaveStateBase& writer) const override
 	{
-		return !Zdxsv::LobbyStateEnabled() || SysState_ComponentFreezeOutNew(writer, "DEV9", 128 * 1024, &DEV9DoState);
+		return !Dev9InState() || SysState_ComponentFreezeOutNew(writer, "DEV9", 128 * 1024, &DEV9DoState);
 	}
 	bool IsRequired() const override { return false; }
 };

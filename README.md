@@ -19,6 +19,9 @@ on [zdxsv](https://github.com/inada-s/zdxsv). Player setup: [ZDXSV.md](ZDXSV.md)
   was removed after the GGPO experiment, inada-s/ai-automation#45.)
 - Lobby save states (opt-in, debugging, see `ZDXSV_LOBBY_STATE`): save states also keep the network adapter (DEV9
   registers, SMAP buffers), and after a load the emulator takes over the TCP connections the PS2 had opened.
+  With `ZDXSV_GGPO` or `ZDXSV_REPLAY` set, save states (replay frame 0 and seek keys included) keep the network
+  adapter too, without taking over connections: otherwise, after a load the PS2's network driver and the adapter
+  disagree on the next send buffer and the game's network calls hang.
 
 ### Input latency
 - Low-latency vsync (on by default): the finished frame is presented before the frame limiter sleeps, and input is
