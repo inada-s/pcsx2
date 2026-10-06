@@ -89,7 +89,9 @@
 
 namespace ZdxsvGgpo
 {
-	bool g_enabled = std::getenv("ZDXSV_GGPO") != nullptr;
+	// ZDXSV_REPLAY=file.zdxr: plays a saved replay (PlayLoad), the net=1 hooks on, no GGPO session
+	const char* const s_play_env = std::getenv("ZDXSV_REPLAY");
+	bool g_enabled = std::getenv("ZDXSV_GGPO") != nullptr || s_play_env;
 	bool g_active = false;
 	bool g_in_rollback = false;
 
@@ -126,7 +128,7 @@ namespace ZdxsvGgpo
 		static_assert(sizeof(NetInput) == 32);
 		const bool s_net_env = [] {
 			const char* e = std::getenv("ZDXSV_GGPO");
-			return e && std::strstr(e, "net=1");
+			return (e && std::strstr(e, "net=1")) || s_play_env;
 		}();
 		// ZDXSV_RBK=i/N (net=1; flycast rbk_test): started from a post-entry state (zdxsv/rbkprep.sh)
 		// as battle position i (0-based) of N. Until GGPO arms, every lobby / battle connect RPC is
@@ -185,7 +187,7 @@ namespace ZdxsvGgpo
 		// machine's load is done: local timing (s630: player work initialized 1 frame apart). The rec hook
 		// there counts the wish, returns 0 (step retried next frame) until every peer's synced count in
 		// Input::unused[1] reaches n, then lets the n-th pass. Rollback state (NetFrame).
-		const bool s_zds_ps = std::getenv("ZDXSV_ZDS_PS") != nullptr;
+		bool s_zds_ps = std::getenv("ZDXSV_ZDS_PS") != nullptr; // replay: the file's zds_ps
 		struct PS
 		{
 			u8 n, rel;
@@ -241,9 +243,12 @@ namespace ZdxsvGgpo
 		bool NetStart(GGPOSessionCallbacks& cb);
 		bool NetNextInputs();
 		bool NetSyncAndApply();
+		void NetApply(const NetInput* in);
 		void NetSaved(int frame);
 		void NetLoaded(int frame);
 		void NetReport();
+		void PlayLoad();
+		void PlayNext();
 
 		struct Stat
 		{
@@ -317,7 +322,8 @@ namespace ZdxsvGgpo
 
 		void Parse()
 		{
-			for (const std::string_view item : StringUtil::SplitString(std::getenv("ZDXSV_GGPO"), ','))
+			const char* env = std::getenv("ZDXSV_GGPO");
+			for (const std::string_view item : StringUtil::SplitString(env ? env : "", ','))
 			{
 				const size_t eq = item.find('=');
 				if (eq == std::string_view::npos)
@@ -762,6 +768,7 @@ namespace ZdxsvGgpo
 		std::vector<NetInput> s_replay_inputs; // [frame * s_players + position]
 		s64 s_replay_start_at = 0; // unix seconds
 		int s_replay_confirmed = -1; // GGPO's last confirmed frame: the frames after it (predicted inputs) are not written
+		std::string s_replay_hle0; // header lines zds_ps, rx0, hle0 (ReplayBegin)
 
 		std::string ReplayDir()
 		{
@@ -795,6 +802,13 @@ namespace ZdxsvGgpo
 			s_replay_state = Path::Combine(dir, fmt::format(".replay-{}-p{}.p2s", s_replay_start_at, s_net_me));
 			s_replay_inputs.clear();
 			s_replay_confirmed = -1;
+			// HLE state outside the save state at frame 0 (PlayLoad restores it): msgs waiting for the game's recv,
+			// play-start barrier, kind-3 barrier
+			std::string rx;
+			for (u8 v : s_net_rx)
+				rx += fmt::format("{:02x}", v);
+			s_replay_hle0 = fmt::format("zds_ps={}\nrx0={}\nhle0={},{},{},{},{},{},{},{},{}\n", s_zds_ps ? 1 : 0, rx, s_ps.n, s_ps.rel,
+				s_ps.hold ? 1 : 0, s_ps.go ? 1 : 0, s_zds_seen[0], s_zds_seen[1], s_zds_seen[2], s_zds_seen[3], s_zds_rel);
 			s_replay_zip.ok = false;
 			s_replay_zip.t = std::thread([list = std::move(list), path = s_replay_state]() mutable {
 				Error error;
@@ -819,7 +833,8 @@ namespace ZdxsvGgpo
 
 		// <dir>/<battle_code>.zdxr (without a battle code: rbk-<start_at>-p<position>.zdxr):
 		//   "ZDXSV-REPLAY 1\n", key=value lines (battle info ids, players, position, delay, start_at, end_at,
-		//   frames, close, user_<p>, name_<p>, input_size, state_size), an empty line,
+		//   frames, close, user_<p>, name_<p>, zds_ps, rx0 (hex), hle0 (ps n,rel,hold,go, k3 seen 0..3,rel), input_size,
+		//   state_size), an empty line,
 		//   state_size bytes: the .p2s at frame 0, then frames * players NetInput (input_size bytes each,
 		//   frame-major, by battle position).
 		void ReplayWrite(const char* what)
@@ -854,6 +869,7 @@ namespace ZdxsvGgpo
 				s_delay, s_replay_start_at, static_cast<s64>(std::time(nullptr)), frames, what);
 			for (size_t p = 0; p < s_net_players.size(); p++)
 				header += fmt::format("user_{}={}\nname_{}={}\n", p, s_net_players[p].first, p, s_net_players[p].second);
+			header += s_replay_hle0;
 			header += fmt::format("input_size={}\nstate_size={}\n\n", sizeof(NetInput), state->size());
 			const std::string path = Path::Combine(Path::GetDirectory(state_path), name + ".zdxr");
 			Error error;
@@ -966,7 +982,13 @@ namespace ZdxsvGgpo
 			if (!g_enabled || s_started)
 				return;
 			if (s_vsyncs++ == 0)
+			{
 				Parse();
+				if (s_play_env)
+					Host::RunOnCPUThread(PlayLoad);
+			}
+			if (s_play_env) // PlayLoad starts it
+				return;
 			if (s_net ? !s_net_armed : s_vsyncs < s_start)
 				return;
 			s_started = true;
@@ -998,6 +1020,11 @@ namespace ZdxsvGgpo
 
 	static void Returned()
 	{
+		if (s_play_env)
+		{
+			PlayNext();
+			return;
+		}
 		if (!s_session)
 		{
 			if (!Start())
@@ -1711,6 +1738,13 @@ namespace ZdxsvGgpo
 				Console.Error("ZdxsvGgpo: net synchronize_input %d", rc);
 				return false;
 			}
+			NetApply(in);
+			return true;
+		}
+
+		// The synced inputs of frame s_net_frame (live: GGPO, replay: the file) to the game.
+		void NetApply(const NetInput* in)
+		{
 			const int f = s_net_frame;
 			ReplayLog(f, in);
 			ApplyPad(0, s_zd_pad[f & 127]);
@@ -1762,7 +1796,6 @@ namespace ZdxsvGgpo
 						std::fprintf(s_net_trace, "%u PS%s %d %d\n", g_FrameCount, g_in_rollback ? "r" : "", f, s_ps.rel);
 				}
 			}
-			return true;
 		}
 
 		void NetReport()
@@ -1783,6 +1816,136 @@ namespace ZdxsvGgpo
 			}
 			if (s_pw_dump)
 				std::fflush(s_pw_dump);
+		}
+
+		// ZDXSV_REPLAY (s_play_env): the .zdxr's frame 0 state is loaded, the HLE state of frame 0 restored
+		// (header rx0 / hle0), then each frame gets the file's synced inputs (NetApply, as a live frame without
+		// rollback): the battle sock HLE, zd step copy and both barriers run as live. Own pad 0 = the own
+		// position's B bits mapped back to buttons (no sticks in the file). ZDXSV_REPLAY_EXIT=1: exit at the
+		// end (else pause); ZDXSV_REPLAY_TURBO=1: turbo limiter. With ZDXSV_PW_HASH + ZDXSV_NET_TRACE the H lines
+		// compare to the live battle's (zdxsv/pwcheck.py).
+		std::vector<NetInput> s_play_inputs;
+		int s_play_frames = 0;
+
+		Input PadFromB(u16 b)
+		{
+			Input in = {};
+			in.lx = in.ly = in.rx = in.ry = Pad::ANALOG_NEUTRAL_POSITION;
+			for (u32 i = 0; i < BUTTONS; i++)
+			{
+				Input one = {};
+				one.buttons = static_cast<u16>(1u << i);
+				u16 a1, b1;
+				ZdPadAB(one, a1, b1);
+				if (b1 && (b & b1) == b1)
+					in.buttons |= one.buttons;
+			}
+			return in;
+		}
+
+		void PlayFrame(int f)
+		{
+			s_net_frame = f;
+			NetSaved(f);
+			const NetInput* in = &s_play_inputs[static_cast<size_t>(f) * s_players];
+			u16 ab[2];
+			std::memcpy(ab, &in[s_net_me].pad, sizeof(ab));
+			s_zd_pad[f & 127] = PadFromB(ab[1]);
+			NetApply(in);
+		}
+
+		void PlayStop(const char* what)
+		{
+			g_active = false;
+			s_net_over = true; // the battle sock goes back to the IOP
+			Console.WriteLn("ZdxsvGgpo: replay %s at frame %d of %d, vsync %u", what, s_net_frame, s_play_frames, g_FrameCount);
+			NetReport();
+			if (const char* e = std::getenv("ZDXSV_REPLAY_EXIT"); e && e[0] == '1')
+				Host::RunOnCPUThread([] { Host::RequestVMShutdown(false, false, false); });
+			else
+				Host::RunOnCPUThread([] { VMManager::SetPaused(true); });
+		}
+
+		// CPU thread, queued at the first vsync.
+		void PlayLoad()
+		{
+			const std::optional<std::vector<u8>> file = FileSystem::ReadBinaryFile(Path::ToNativePath(s_play_env).c_str()); // '/' fails on Windows
+			const std::string_view all = file ? std::string_view(reinterpret_cast<const char*>(file->data()), file->size()) : std::string_view();
+			const size_t end = all.find("\n\n");
+			if (!all.starts_with("ZDXSV-REPLAY 1\n") || end == std::string_view::npos)
+			{
+				Console.Error("ZdxsvGgpo: replay %s: not a replay file", s_play_env);
+				return;
+			}
+			std::map<std::string, std::string, std::less<>> kv;
+			for (const std::string_view line : StringUtil::SplitString(all.substr(0, end), '\n'))
+				if (const size_t eq = line.find('='); eq != std::string_view::npos)
+					kv.emplace(line.substr(0, eq), line.substr(eq + 1));
+			const auto num = [&kv](std::string_view k) -> s64 {
+				const auto it = kv.find(k);
+				return it == kv.end() ? -1 : StringUtil::FromChars<s64>(it->second).value_or(-1);
+			};
+			const s64 players = num("players"), me = num("position"), frames = num("frames"), state_size = num("state_size");
+			const size_t data = end + 2;
+			if (players < 1 || players > GGPO_MAX_PLAYERS || me < 0 || me >= players || frames < 1 || state_size <= 0 ||
+				num("input_size") != static_cast<s64>(sizeof(NetInput)) ||
+				data + state_size + frames * players * sizeof(NetInput) > all.size())
+			{
+				Console.Error("ZdxsvGgpo: replay %s: bad header or short file (players %lld position %lld frames %lld)", s_play_env,
+					players, me, frames);
+				return;
+			}
+			const std::string state_path = Path::Combine(EmuFolders::Cache, "zdxsv-replay.p2s");
+			Error error;
+			if (!FileSystem::WriteBinaryFile(state_path.c_str(), all.data() + data, state_size))
+			{
+				Console.Error("ZdxsvGgpo: replay: cannot write %s", state_path.c_str());
+				return;
+			}
+			s_zds_ps = num("zds_ps") == 1;
+			g_ps_hook = s_zds_ps; // before the load: the recompiler cache is rebuilt from it
+			if (!VMManager::LoadState(state_path.c_str(), &error))
+			{
+				Console.Error("ZdxsvGgpo: replay: state load failed: %s", error.GetDescription().c_str());
+				return;
+			}
+			const u8* in = reinterpret_cast<const u8*>(all.data() + data + state_size);
+			s_play_inputs.assign(reinterpret_cast<const NetInput*>(in), reinterpret_cast<const NetInput*>(in) + frames * players);
+			s_play_frames = static_cast<int>(frames);
+			s_net = true;
+			s_players = static_cast<int>(players);
+			s_net_me = static_cast<int>(me);
+			s_net_rx.clear();
+			const auto rx0 = kv.find("rx0");
+			if (rx0 != kv.end())
+				for (size_t i = 0; i + 1 < rx0->second.size(); i += 2)
+					s_net_rx.push_back(static_cast<u8>(std::strtoul(rx0->second.substr(i, 2).c_str(), nullptr, 16)));
+			int h[9] = {};
+			const auto hle0 = kv.find("hle0");
+			if (rx0 == kv.end() || hle0 == kv.end() ||
+				std::sscanf(hle0->second.c_str(), "%d,%d,%d,%d,%d,%d,%d,%d,%d", &h[0], &h[1], &h[2], &h[3], &h[4], &h[5], &h[6], &h[7], &h[8]) != 9)
+				Console.Warning("ZdxsvGgpo: replay: no rx0 / hle0 (file from before replay play): frame 0 HLE state empty");
+			s_ps = {static_cast<u8>(h[0]), static_cast<u8>(h[1]), h[2] != 0, h[3] != 0};
+			for (int p = 0; p < 4; p++)
+				s_zds_seen[p] = h[4 + p];
+			s_zds_rel = h[8];
+			s_net_armed = true;
+			s_started = true;
+			g_active = true;
+			if (const char* e = std::getenv("ZDXSV_REPLAY_TURBO"); e && e[0] == '1')
+				VMManager::SetLimiterMode(LimiterModeType::Turbo);
+			Console.WriteLn("ZdxsvGgpo: replay %s: position %d of %d, %d frames, zds_ps %d, rx0 %zu bytes, state %lld bytes", s_play_env,
+				s_net_me, s_players, s_play_frames, s_zds_ps ? 1 : 0, s_net_rx.size(), state_size);
+			PlayFrame(0);
+		}
+
+		void PlayNext()
+		{
+			s_session_frames++;
+			if (s_net_frame + 1 >= s_play_frames)
+				PlayStop("end");
+			else
+				PlayFrame(s_net_frame + 1);
 		}
 	} // namespace
 
