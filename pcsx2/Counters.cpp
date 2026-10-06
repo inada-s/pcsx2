@@ -19,9 +19,7 @@
 #include "SPU2/spu2.h"
 #include "Recording/InputRecording.h"
 #include "VMManager.h"
-#include "Zdxsv/InputLatency.h"
-#include "Zdxsv/DeltaState.h"
-#include "Zdxsv/Ggpo.h"
+#include "Zdxsv/CpuHooks.h"
 #include "VUmicro.h"
 
 static const uint EECNT_FUTURE_TARGET = 0x10000000;

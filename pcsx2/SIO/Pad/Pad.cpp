@@ -17,7 +17,7 @@
 #include "IconsFontAwesome.h"
 
 #include "VMManager.h"
-#include "Zdxsv/Ggpo.h"
+#include "Zdxsv/InputHooks.h"
 #include "common/Assertions.h"
 #include "common/Console.h"
 #include "common/FileSystem.h"

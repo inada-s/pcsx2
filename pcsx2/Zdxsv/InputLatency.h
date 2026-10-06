@@ -11,22 +11,6 @@
 
 #pragma once
 
-#include "common/Pcsx2Types.h"
-
-namespace Zdxsv::InputLatency
-{
-	extern bool g_enabled;
-
-	// CPU thread, every vsync, when the emulated frame ends (before limiter sleep and push).
-	void OnFrameEnd();
-	// CPU thread, around the frame push to the GS thread (gsPostVsyncStart).
-	void OnPush(bool after);
-	// CPU thread, every vsync, after the host input poll.
-	void OnVsync();
-	// CPU thread, SIO2 pad poll that returns the button word to the game (active low).
-	void OnPadPoll(u8 unifiedSlot, u32 buttons);
-	// GS thread, before GSvsync (present) of a vsync.
-	void OnPresentStart();
-	// GS thread, after a vsync's frame was presented.
-	void OnPresent();
-} // namespace Zdxsv::InputLatency
+// g_enabled and the hook entry points: Zdxsv/CpuHooks.h, Zdxsv/InputHooks.h.
+#include "Zdxsv/CpuHooks.h"
+#include "Zdxsv/InputHooks.h"

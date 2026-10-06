@@ -1,0 +1,68 @@
+// SPDX-FileCopyrightText: 2002-2026 PCSX2 Dev Team
+// SPDX-License-Identifier: GPL-3.0+
+
+#pragma once
+
+// zdxsv hooks of the CPU and timing code: recompilers (iR5900.cpp, iR3000A.cpp), Counters.cpp,
+// MTGS.cpp, VMManager.cpp. Only flags and declarations (AGENTS.md, Seams With Upstream Code).
+
+#include "common/Pcsx2Defs.h"
+
+namespace Zdxsv::Ggpo
+{
+	extern bool g_enabled; // ZDXSV_GGPO is set
+	extern bool g_active; // a session runs
+	extern bool g_in_rollback; // rerunning frames: no throttle
+
+	// In VSyncStart.
+	void OnVsync();
+	// In VMManager::Execute, after the CPU returned.
+	void OnExecuteReturned();
+
+	// Z battle net HLE (#31 step 4). The EE recompiler calls OnNetCall when the game enters its
+	// net RPC wrapper (NET_RPC_PC: fno in a0, request header + data at 0xc22c9c).
+	constexpr u32 NET_RPC_PC = 0x30e380;
+	extern bool g_net_hook; // the recompiler emits the OnNetCall call at NET_RPC_PC
+	// At NET_RPC_PC: true = the RPC was answered here (v0 set, pc = ra), skip the wrapper.
+	bool OnNetCall();
+	// fno 0x14 recv (0x30ec70), return of its wait RPC.
+	constexpr u32 NET_RECV_RET_PC = 0x30ecf0;
+	void OnNetRecv();
+	// zd=1: lockstep step's ring read (0x312bf4: a1 = ring entry, s0 = position) gets the GGPO input.
+	constexpr u32 STEP_COPY_PC = 0x312bf4;
+	extern bool g_zd_hook;
+	void OnStepCopy();
+	// ZDXSV_ZDS_PS=1: battle load step past its load-busy check; true = held (v0 = 0, pc = epilogue).
+	constexpr u32 LOAD_STEP_PC = 0x2b1d80;
+	extern bool g_ps_hook;
+	bool OnLoadStep();
+	int ProbeFrame(); // GGPO frame being run (EE probe lines)
+} // namespace Zdxsv::Ggpo
+
+namespace Zdxsv::DeltaState
+{
+	// The EE/IOP recompilers end a block where the next PC is already compiled, so block ends
+	// (and the cycles at which events are tested) depend on the code cache history, which a
+	// rollback does not restore. When set, blocks end only at branches and page splits.
+	extern bool g_fixed_blocks; // EE and IOP
+
+	// ZDXSV_DELTA_TEST: synctest in a running game, see Zdxsv/DeltaState.cpp.
+	extern bool g_test_enabled;
+	void OnVsync();
+} // namespace Zdxsv::DeltaState
+
+namespace Zdxsv::InputLatency
+{
+	extern bool g_enabled; // ZDXSV_INPUT_LATENCY is set (debug, Zdxsv/InputLatency.h)
+
+	// CPU thread, every vsync, when the emulated frame ends (before limiter sleep and push).
+	void OnFrameEnd();
+	// CPU thread, around the frame push to the GS thread (gsPostVsyncStart).
+	void OnPush(bool after);
+	// CPU thread, every vsync, after the host input poll.
+	void OnVsync();
+	// GS thread, before GSvsync (present) of a vsync.
+	void OnPresentStart();
+	// GS thread, after a vsync's frame was presented.
+	void OnPresent();
+} // namespace Zdxsv::InputLatency

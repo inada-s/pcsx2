@@ -31,18 +31,6 @@
 #include "USB/USB.h"
 #include "VMManager.h"
 #include "Zdxsv/Ggpo.h"
-namespace Zdxsv::Ggpo
-{
-	// Replay control bar. Declared here (and ReplayBarInfo in VMManager.cpp), not in Zdxsv/Ggpo.h: that header
-	// is included widely (a change rebuilds most of pcsx2). The actions run on the CPU thread.
-	bool ReplayBarInfo(int& frame, int& frames, int& pov, u32& povs, int& target);
-	void ReplaySeekTo(int frame);
-	void ReplayTogglePause();
-	void ReplayNextPov();
-	void ReplayJumpRound(int delta);
-	std::vector<int> ReplayRoundStarts(); // start frames of the rounds played so far
-	bool ReplayKeys(std::vector<std::pair<u16, int>>& runs);
-} // namespace Zdxsv::Ggpo
 
 #include "common/BitUtils.h"
 #include "common/Error.h"

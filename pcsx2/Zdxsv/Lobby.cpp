@@ -230,6 +230,11 @@ namespace Zdxsv::Lobby
 		return true;
 	}
 
+	void LobbyFilterDeleter::operator()(LobbyFilter* filter) const
+	{
+		delete filter;
+	}
+
 	size_t LobbyFilter::Take(uint8_t* dst, size_t max)
 	{
 		const size_t n = std::min(max, ready.size());

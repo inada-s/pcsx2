@@ -11,3 +11,11 @@ options: `docs/zdxsv/`.
 | `DeltaState.cpp`, `DeltaState.h` | Fast per-frame save and load of the VM for rollback (copy-on-write EE RAM pages) |
 | `Lobby.cpp`, `Lobby.h` | Lobby side of a GGPO battle: platform info, battle info notice, STUN, ping test, relay, match report |
 | `InputLatency.cpp`, `InputLatency.h` | Debug: pad input latency measurement |
+| `CpuHooks.h` | Hook header: recompilers, counters, MTGS, VMManager |
+| `InputHooks.h` | Hook header: pad code |
+| `SaveStateHooks.h` | Hook header: save state code |
+| `Dev9Hooks.h` | Hook header: DEV9 network code |
+| `UiHooks.h` | Hook header: hotkeys, replay control bar |
+
+Upstream files include only the hook headers, except `ImGuiOverlays.cpp` and `TCP_Session_In.cpp`,
+which still hold zdxsv logic (overlays, lobby hook) and include `Ggpo.h` until that logic moves here.

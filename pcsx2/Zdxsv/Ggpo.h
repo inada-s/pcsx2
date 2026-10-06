@@ -4,7 +4,10 @@
 #pragma once
 
 #include "common/Pcsx2Defs.h"
+#include "Zdxsv/CpuHooks.h"
+#include "Zdxsv/InputHooks.h"
 #include "Zdxsv/Lobby.h"
+#include "Zdxsv/UiHooks.h"
 #include <cstdio>
 #include <string>
 #include <utility>
@@ -16,23 +19,9 @@
 // inputs of the next frame are written to both pads. Host pad input is held back meanwhile.
 namespace Zdxsv::Ggpo
 {
-	extern bool g_enabled; // ZDXSV_GGPO is set
-	extern bool g_active; // a session runs
-	extern bool g_in_rollback; // rerunning frames: no throttle
+	// Flags and hook entry points: Zdxsv/CpuHooks.h, InputHooks.h, UiHooks.h.
 
-	// In VSyncStart.
-	void OnVsync();
-	// In VMManager::Execute, after the CPU returned.
-	void OnExecuteReturned();
-	// In Pad::SetControllerState: true when the host input was taken (session running).
-	bool CaptureHostInput(u32 controller, u32 bind, float value);
-
-	// Z battle net HLE (#31 step 4). The EE recompiler calls OnNetRpc when the game enters its
-	// net RPC wrapper (NET_RPC_PC: fno in a0, request header + data at 0xc22c9c).
 	// ZDXSV_NET_TRACE=<file>: log every battle send (fno 0x10, sock 0) and its parsed key slots.
-	constexpr u32 NET_RPC_PC = 0x30e380;
-	extern bool g_net_hook; // the recompiler emits the OnNetRpc call at NET_RPC_PC
-	void OnNetRpc();
 	// Lobby battles (net=1,lobby=1): our GGPO UDP port for the lobby's platform info, 0 = off.
 	int LobbyPort();
 	// advertise=P (test): the port the platform info announces instead, at 127.0.0.1; 0 = off.
@@ -51,9 +40,10 @@ namespace Zdxsv::Ggpo
 	// rtt and address per peer, delay, frames, close reason), then cleared; "" if none. The lobby connection
 	// sends it (0x9952) after the next platform info, as flycast after its next login.
 	std::string TakeLobbyReport();
-	// Replay play (ZDXSV_REPLAY): seek by `frames` from the current frame (hotkeys "Zdxsv Replay: Seek
-	// Back / Forward 10 s"), done at the next frame start; at the end (paused) it plays on. No-op otherwise.
-	void ReplaySeekBy(int frames);
+	// Replay play (ZDXSV_REPLAY): start frames of the rounds played so far (control bar marks).
+	std::vector<int> ReplayRoundStarts();
+	// Replay play: the key display's input runs of the shown position (buttons, held frames); false when off.
+	bool ReplayKeys(std::vector<std::pair<u16, int>>& runs);
 
 	// Network status OSD (as flycast's drawNetworkStat) while a net session runs: input delay, rollback
 	// frames, frames waited for a peer, predicted frames; per opponent: position, user id, name, GGPO

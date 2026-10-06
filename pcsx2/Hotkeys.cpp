@@ -11,18 +11,8 @@
 #include "Recording/InputRecording.h"
 #include "SPU2/spu2.h"
 #include "VMManager.h"
-#include "Zdxsv/Ggpo.h"
+#include "Zdxsv/UiHooks.h"
 
-namespace Zdxsv::Ggpo
-{
-	// Replay play: switch to the next position that has a file (ZDXSV_REPLAY=a.zdxr;b.zdxr) at the current frame.
-	// Declared here, not in Zdxsv/Ggpo.h: that header is included widely (a change rebuilds most of pcsx2).
-	void ReplayNextPov();
-	// Replay play: show / hide the key display (also ZDXSV_REPLAY_KEY_DISPLAY=1).
-	void ReplayToggleKeys();
-	// Replay play: jump to the start of the round `delta` rounds from the current one (round 0 = the briefing).
-	void ReplayJumpRound(int delta);
-} // namespace Zdxsv::Ggpo
 #include "SIO/Memcard/MemoryCardFile.h"
 
 #include "common/Assertions.h"

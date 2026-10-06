@@ -250,7 +250,7 @@ namespace Sessions
 		if (ggpoPort <= 0)
 			return "";
 		Zdxsv::Lobby::SetLogger([](const std::string& s) { Console.WriteLn("DEV9: %s", s.c_str()); });
-		zdxsvLobbyFilter = std::make_unique<Zdxsv::Lobby::LobbyFilter>();
+		zdxsvLobbyFilter.reset(new Zdxsv::Lobby::LobbyFilter());
 		// The lobby's UDP STUN is on its host at 8201 (zdxsv docker-compose); ZDXSV_STUN_PORT overrides.
 		const char* stunPortEnv = std::getenv("ZDXSV_STUN_PORT");
 		const u16 stunPort = stunPortEnv ? static_cast<u16>(std::atoi(stunPortEnv)) : 8201;

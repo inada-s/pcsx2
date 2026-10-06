@@ -4,6 +4,7 @@
 #pragma once
 
 #include "common/Pcsx2Defs.h"
+#include "Zdxsv/CpuHooks.h"
 
 #include <string>
 #include <vector>
@@ -31,12 +32,5 @@ namespace Zdxsv::DeltaState
 	// Drops everything and stops EE RAM tracking.
 	void Clear();
 
-	// The EE/IOP recompilers end a block where the next PC is already compiled, so block ends
-	// (and the cycles at which events are tested) depend on the code cache history, which a
-	// rollback does not restore. When set, blocks end only at branches and page splits.
-	extern bool g_fixed_blocks; // EE and IOP
-
-	// ZDXSV_DELTA_TEST: synctest in a running game, see Zdxsv/DeltaState.cpp.
-	extern bool g_test_enabled;
-	void OnVsync();
+	// g_fixed_blocks, g_test_enabled, OnVsync: Zdxsv/CpuHooks.h.
 } // namespace Zdxsv::DeltaState
