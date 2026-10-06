@@ -13,7 +13,7 @@
 #include "VMManager.h"
 #include "Zdxsv/Ggpo.h"
 
-namespace ZdxsvGgpo
+namespace Zdxsv
 {
 	// Replay play: switch to the next position that has a file (ZDXSV_REPLAY=a.zdxr;b.zdxr) at the current frame.
 	// Declared here, not in Zdxsv/Ggpo.h: that header is included widely (a change rebuilds most of pcsx2).
@@ -22,7 +22,7 @@ namespace ZdxsvGgpo
 	void ReplayToggleKeys();
 	// Replay play: jump to the start of the round `delta` rounds from the current one (round 0 = the briefing).
 	void ReplayJumpRound(int delta);
-} // namespace ZdxsvGgpo
+} // namespace Zdxsv
 #include "SIO/Memcard/MemoryCardFile.h"
 
 #include "common/Assertions.h"
@@ -370,31 +370,31 @@ DEFINE_HOTKEY("ToggleMouseLock", TRANSLATE_NOOP("Hotkeys", "System"), TRANSLATE_
 DEFINE_HOTKEY("ZdxsvReplaySeekBack", TRANSLATE_NOOP("Hotkeys", "Zdxsv Replay"), TRANSLATE_NOOP("Hotkeys", "Seek Back 10 s"),
 	[](s32 pressed) {
 		if (!pressed && VMManager::HasValidVM())
-			ZdxsvGgpo::ReplaySeekBy(-600);
+			Zdxsv::ReplaySeekBy(-600);
 	})
 DEFINE_HOTKEY("ZdxsvReplaySeekForward", TRANSLATE_NOOP("Hotkeys", "Zdxsv Replay"), TRANSLATE_NOOP("Hotkeys", "Seek Forward 10 s"),
 	[](s32 pressed) {
 		if (!pressed && VMManager::HasValidVM())
-			ZdxsvGgpo::ReplaySeekBy(600);
+			Zdxsv::ReplaySeekBy(600);
 	})
 DEFINE_HOTKEY("ZdxsvReplayNextPov", TRANSLATE_NOOP("Hotkeys", "Zdxsv Replay"), TRANSLATE_NOOP("Hotkeys", "Switch Point of View"),
 	[](s32 pressed) {
 		if (!pressed && VMManager::HasValidVM())
-			ZdxsvGgpo::ReplayNextPov();
+			Zdxsv::ReplayNextPov();
 	})
 DEFINE_HOTKEY("ZdxsvReplayToggleKeys", TRANSLATE_NOOP("Hotkeys", "Zdxsv Replay"), TRANSLATE_NOOP("Hotkeys", "Toggle Key Display"),
 	[](s32 pressed) {
 		if (!pressed && VMManager::HasValidVM())
-			ZdxsvGgpo::ReplayToggleKeys();
+			Zdxsv::ReplayToggleKeys();
 	})
 DEFINE_HOTKEY("ZdxsvReplayPrevRound", TRANSLATE_NOOP("Hotkeys", "Zdxsv Replay"), TRANSLATE_NOOP("Hotkeys", "Previous Round"),
 	[](s32 pressed) {
 		if (!pressed && VMManager::HasValidVM())
-			ZdxsvGgpo::ReplayJumpRound(-1);
+			Zdxsv::ReplayJumpRound(-1);
 	})
 DEFINE_HOTKEY("ZdxsvReplayNextRound", TRANSLATE_NOOP("Hotkeys", "Zdxsv Replay"), TRANSLATE_NOOP("Hotkeys", "Next Round"),
 	[](s32 pressed) {
 		if (!pressed && VMManager::HasValidVM())
-			ZdxsvGgpo::ReplayJumpRound(1);
+			Zdxsv::ReplayJumpRound(1);
 	})
 END_HOTKEY_LIST()

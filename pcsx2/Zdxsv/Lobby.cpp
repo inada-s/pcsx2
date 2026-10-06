@@ -62,7 +62,7 @@ namespace Zdxsv
 		}
 	} // namespace
 
-	void SetLogger(std::function<void(const std::string&)> log)
+	void LobbySetLogger(std::function<void(const std::string&)> log)
 	{
 		std::lock_guard lock(g_mtx);
 		g_log = std::move(log);
@@ -266,140 +266,137 @@ namespace Zdxsv
 	}
 
 	// ---- protobuf (proto2) codec for zdxsv.proto: Ping / Pong only (the lobby's STUN) ----
-	namespace Proto
+	namespace
 	{
-		namespace
+		void PutVarint(std::vector<uint8_t>& o, uint64_t v)
 		{
-			void PutVarint(std::vector<uint8_t>& o, uint64_t v)
+			while (v >= 0x80)
 			{
-				while (v >= 0x80)
-				{
-					o.push_back(static_cast<uint8_t>(v | 0x80));
-					v >>= 7;
-				}
-				o.push_back(static_cast<uint8_t>(v));
+				o.push_back(static_cast<uint8_t>(v | 0x80));
+				v >>= 7;
 			}
-
-			void PutBytes(std::vector<uint8_t>& o, uint32_t field, const uint8_t* p, size_t n)
-			{
-				PutVarint(o, (field << 3) | 2);
-				PutVarint(o, n);
-				o.insert(o.end(), p, p + n);
-			}
-
-			void PutString(std::vector<uint8_t>& o, uint32_t field, const std::string& s)
-			{
-				PutBytes(o, field, reinterpret_cast<const uint8_t*>(s.data()), s.size());
-			}
-
-			void PutUint(std::vector<uint8_t>& o, uint32_t field, uint64_t v)
-			{
-				PutVarint(o, field << 3);
-				PutVarint(o, v);
-			}
-
-			struct Reader
-			{
-				const uint8_t* p;
-				const uint8_t* end;
-
-				bool Varint(uint64_t& v)
-				{
-					v = 0;
-					for (int shift = 0; shift < 64 && p < end; shift += 7)
-					{
-						const uint8_t b = *p++;
-						v |= uint64_t{b & 0x7Fu} << shift;
-						if (!(b & 0x80))
-							return true;
-					}
-					return false;
-				}
-
-				// Calls f(field, wiretype, varint, bytes, len) per field; skips fixed32/64.
-				template <typename F>
-				bool Fields(F f)
-				{
-					while (p < end)
-					{
-						uint64_t tag, v = 0;
-						if (!Varint(tag))
-							return false;
-						const uint32_t wt = tag & 7;
-						const uint8_t* bytes = nullptr;
-						size_t n = 0;
-						if (wt == 0)
-						{
-							if (!Varint(v))
-								return false;
-						}
-						else if (wt == 2)
-						{
-							if (!Varint(v) || v > static_cast<uint64_t>(end - p))
-								return false;
-							bytes = p;
-							n = static_cast<size_t>(v);
-							p += n;
-						}
-						else if (wt == 1 || wt == 5)
-						{
-							const size_t skip = wt == 1 ? 8 : 4;
-							if (static_cast<size_t>(end - p) < skip)
-								return false;
-							p += skip;
-							continue;
-						}
-						else
-							return false;
-						if (!f(static_cast<uint32_t>(tag >> 3), wt, v, bytes, n))
-							return false;
-					}
-					return true;
-				}
-			};
-		} // namespace
-
-		std::vector<uint8_t> Encode(const Packet& pkt)
-		{
-			std::vector<uint8_t> o;
-			PutUint(o, 1, pkt.type);
-			if (pkt.type == Ping || pkt.type == Pong)
-			{
-				std::vector<uint8_t> m;
-				PutUint(m, 1, static_cast<uint64_t>(pkt.timestamp));
-				if (!pkt.pingUserId.empty())
-					PutString(m, 2, pkt.pingUserId);
-				if (pkt.type == Pong && !pkt.publicAddr.empty())
-					PutString(m, 3, pkt.publicAddr);
-				PutBytes(o, pkt.type == Ping ? 11 : 12, m.data(), m.size());
-			}
-			return o;
+			o.push_back(static_cast<uint8_t>(v));
 		}
 
-		bool Decode(const uint8_t* data, size_t len, Packet& pkt)
+		void PutBytes(std::vector<uint8_t>& o, uint32_t field, const uint8_t* p, size_t n)
 		{
-			pkt = Packet{};
-			Reader r{data, data + len};
-			return r.Fields([&](uint32_t field, uint32_t wt, uint64_t v, const uint8_t* bytes, size_t n) {
-				if (wt == 0 && field == 1)
-					pkt.type = static_cast<uint32_t>(v);
-				else if (wt == 2 && (field == 11 || field == 12))
+			PutVarint(o, (field << 3) | 2);
+			PutVarint(o, n);
+			o.insert(o.end(), p, p + n);
+		}
+
+		void PutString(std::vector<uint8_t>& o, uint32_t field, const std::string& s)
+		{
+			PutBytes(o, field, reinterpret_cast<const uint8_t*>(s.data()), s.size());
+		}
+
+		void PutUint(std::vector<uint8_t>& o, uint32_t field, uint64_t v)
+		{
+			PutVarint(o, field << 3);
+			PutVarint(o, v);
+		}
+
+		struct Reader
+		{
+			const uint8_t* p;
+			const uint8_t* end;
+
+			bool Varint(uint64_t& v)
+			{
+				v = 0;
+				for (int shift = 0; shift < 64 && p < end; shift += 7)
 				{
-					Reader m{bytes, bytes + n};
-					return m.Fields([&](uint32_t f, uint32_t w, uint64_t mv, const uint8_t* mb, size_t mn) {
-						if (w == 0 && f == 1)
-							pkt.timestamp = static_cast<int64_t>(mv);
-						else if (w == 2 && f == 2)
-							pkt.pingUserId.assign(reinterpret_cast<const char*>(mb), mn);
-						else if (w == 2 && f == 3)
-							pkt.publicAddr.assign(reinterpret_cast<const char*>(mb), mn);
+					const uint8_t b = *p++;
+					v |= uint64_t{b & 0x7Fu} << shift;
+					if (!(b & 0x80))
 						return true;
-					});
+				}
+				return false;
+			}
+
+			// Calls f(field, wiretype, varint, bytes, len) per field; skips fixed32/64.
+			template <typename F>
+			bool Fields(F f)
+			{
+				while (p < end)
+				{
+					uint64_t tag, v = 0;
+					if (!Varint(tag))
+						return false;
+					const uint32_t wt = tag & 7;
+					const uint8_t* bytes = nullptr;
+					size_t n = 0;
+					if (wt == 0)
+					{
+						if (!Varint(v))
+							return false;
+					}
+					else if (wt == 2)
+					{
+						if (!Varint(v) || v > static_cast<uint64_t>(end - p))
+							return false;
+						bytes = p;
+						n = static_cast<size_t>(v);
+						p += n;
+					}
+					else if (wt == 1 || wt == 5)
+					{
+						const size_t skip = wt == 1 ? 8 : 4;
+						if (static_cast<size_t>(end - p) < skip)
+							return false;
+						p += skip;
+						continue;
+					}
+					else
+						return false;
+					if (!f(static_cast<uint32_t>(tag >> 3), wt, v, bytes, n))
+						return false;
 				}
 				return true;
-			});
+			}
+		};
+	} // namespace
+
+	std::vector<uint8_t> ProtoEncode(const ProtoPacket& pkt)
+	{
+		std::vector<uint8_t> o;
+		PutUint(o, 1, pkt.type);
+		if (pkt.type == ProtoPing || pkt.type == ProtoPong)
+		{
+			std::vector<uint8_t> m;
+			PutUint(m, 1, static_cast<uint64_t>(pkt.timestamp));
+			if (!pkt.pingUserId.empty())
+				PutString(m, 2, pkt.pingUserId);
+			if (pkt.type == ProtoPong && !pkt.publicAddr.empty())
+				PutString(m, 3, pkt.publicAddr);
+			PutBytes(o, pkt.type == ProtoPing ? 11 : 12, m.data(), m.size());
 		}
-	} // namespace Proto
+		return o;
+	}
+
+	bool ProtoDecode(const uint8_t* data, size_t len, ProtoPacket& pkt)
+	{
+		pkt = ProtoPacket{};
+		Reader r{data, data + len};
+		return r.Fields([&](uint32_t field, uint32_t wt, uint64_t v, const uint8_t* bytes, size_t n) {
+			if (wt == 0 && field == 1)
+				pkt.type = static_cast<uint32_t>(v);
+			else if (wt == 2 && (field == 11 || field == 12))
+			{
+				Reader m{bytes, bytes + n};
+				return m.Fields([&](uint32_t f, uint32_t w, uint64_t mv, const uint8_t* mb, size_t mn) {
+					if (w == 0 && f == 1)
+						pkt.timestamp = static_cast<int64_t>(mv);
+					else if (w == 2 && f == 2)
+						pkt.pingUserId.assign(reinterpret_cast<const char*>(mb), mn);
+					else if (w == 2 && f == 3)
+						pkt.publicAddr.assign(reinterpret_cast<const char*>(mb), mn);
+					return true;
+				});
+			}
+			return true;
+		});
+	}
 
 	// ---- socket helpers, STUN ----
 	namespace
@@ -968,12 +965,12 @@ namespace Zdxsv
 			closesocket(probe6);
 		// zproxy's STUN: Ping -> Pong{public_addr}. 3 tries, 200 ms each.
 		std::string pub;
-		Proto::Packet ping;
-		ping.type = Proto::Ping;
+		ProtoPacket ping;
+		ping.type = ProtoPing;
 		for (int i = 0; i < 3 && pub.empty(); i++)
 		{
 			ping.timestamp = NowNanos();
-			const std::vector<uint8_t> data = Proto::Encode(ping);
+			const std::vector<uint8_t> data = ProtoEncode(ping);
 			sendto(s, reinterpret_cast<const char*>(data.data()), static_cast<int>(data.size()), 0,
 				reinterpret_cast<const sockaddr*>(&stun), sizeof(stun));
 			const auto until = Clock::now() + std::chrono::milliseconds(200);
@@ -983,8 +980,8 @@ namespace Zdxsv
 				sockaddr_in from{};
 				socklen_t fromLen = sizeof(from);
 				const int n = recvfrom(s, reinterpret_cast<char*>(buf), sizeof(buf), 0, reinterpret_cast<sockaddr*>(&from), &fromLen);
-				Proto::Packet pong;
-				if (n > 0 && SameAddr(from, stun) && Proto::Decode(buf, n, pong) && pong.type == Proto::Pong)
+				ProtoPacket pong;
+				if (n > 0 && SameAddr(from, stun) && ProtoDecode(buf, n, pong) && pong.type == ProtoPong)
 					pub = pong.publicAddr;
 			}
 		}
@@ -1023,13 +1020,13 @@ namespace Zdxsv
 		bool open = false;
 		// sends ping to `to` (3 tries, 300 ms each) until `done`; Pongs from stun/test fill mapped/mappedTest/open
 		const auto ask = [&](const sockaddr_in& to, const std::string& userId, const std::function<bool()>& done) {
-			Proto::Packet ping;
-			ping.type = Proto::Ping;
+			ProtoPacket ping;
+			ping.type = ProtoPing;
 			ping.pingUserId = userId;
 			for (int i = 0; i < 3 && !done(); i++)
 			{
 				ping.timestamp = NowNanos();
-				const std::vector<uint8_t> data = Proto::Encode(ping);
+				const std::vector<uint8_t> data = ProtoEncode(ping);
 				sendto(s, reinterpret_cast<const char*>(data.data()), static_cast<int>(data.size()), 0,
 					reinterpret_cast<const sockaddr*>(&to), sizeof(to));
 				const auto until = Clock::now() + std::chrono::milliseconds(300);
@@ -1041,8 +1038,8 @@ namespace Zdxsv
 					sockaddr_in from{};
 					socklen_t fromLen = sizeof(from);
 					const int n = recvfrom(s, reinterpret_cast<char*>(buf), sizeof(buf), 0, reinterpret_cast<sockaddr*>(&from), &fromLen);
-					Proto::Packet pong;
-					if (n <= 0 || !Proto::Decode(buf, n, pong) || pong.type != Proto::Pong)
+					ProtoPacket pong;
+					if (n <= 0 || !ProtoDecode(buf, n, pong) || pong.type != ProtoPong)
 						continue;
 					if (SameAddr(from, stun))
 						mapped = pong.publicAddr;
@@ -1081,7 +1078,7 @@ namespace Zdxsv
 
 	static std::atomic<bool> g_stateLoaded{false};
 
-	void OnStateLoaded()
+	void LobbyOnStateLoaded()
 	{
 		g_stateLoaded = true;
 	}

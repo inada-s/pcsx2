@@ -8,12 +8,12 @@
 #include "Counters.h"
 #include "Zdxsv/InputLatency.h"
 #include "Zdxsv/Ggpo.h"
-namespace ZdxsvGgpo
+namespace Zdxsv
 {
 	// Replay control bar state; false when no replay plays. Declared here and in ImGuiOverlays.cpp, not in
 	// Zdxsv/Ggpo.h (a change there rebuilds most of pcsx2).
 	bool ReplayBarInfo(int& frame, int& frames, int& pov, u32& povs, int& target);
-} // namespace ZdxsvGgpo
+} // namespace Zdxsv
 #include "DEV9/DEV9.h"
 #include "DebugTools/DebugInterface.h"
 #include "DebugTools/SymbolImporter.h"
@@ -2767,8 +2767,8 @@ void VMManager::Execute()
 
 	// Execute until we're asked to stop.
 	Cpu->Execute();
-	if (ZdxsvGgpo::g_active)
-		ZdxsvGgpo::OnExecuteReturned();
+	if (Zdxsv::g_ggpo_active)
+		Zdxsv::GgpoOnExecuteReturned();
 }
 
 void VMManager::IdlePollUpdate()
@@ -2782,7 +2782,7 @@ void VMManager::IdlePollUpdate()
 	// a paused replay keeps redrawing (10 Hz poll) so its control bar sees the mouse and the Play click
 	int frame, frames, pov, target;
 	u32 povs;
-	if (GetState() == VMState::Paused && ZdxsvGgpo::ReplayBarInfo(frame, frames, pov, povs, target))
+	if (GetState() == VMState::Paused && Zdxsv::ReplayBarInfo(frame, frames, pov, povs, target))
 		MTGS::PresentCurrentFrame();
 }
 
@@ -2942,8 +2942,8 @@ void VMManager::Internal::PollInputOnCPUThread()
 {
 	Host::PumpMessagesOnCPUThread();
 	InputManager::PollSources();
-	if (ZdxsvInputLatency::g_enabled)
-		ZdxsvInputLatency::OnVsync();
+	if (Zdxsv::g_input_latency_enabled)
+		Zdxsv::InputLatencyOnVsync();
 
 	if (EmuConfig.EnableRecordingTools)
 	{

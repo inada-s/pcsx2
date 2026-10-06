@@ -14,18 +14,18 @@
 // frame is the unit GGPO works in (like flycast's emu.run()). Between frames: save (delta state),
 // maybe roll back (load + rerun frames inside the advance_frame callback), then the synced pad
 // inputs of the next frame are written to both pads. Host pad input is held back meanwhile.
-namespace ZdxsvGgpo
+namespace Zdxsv
 {
-	extern bool g_enabled; // ZDXSV_GGPO is set
-	extern bool g_active; // a session runs
-	extern bool g_in_rollback; // rerunning frames: no throttle
+	extern bool g_ggpo_enabled; // ZDXSV_GGPO is set
+	extern bool g_ggpo_active; // a session runs
+	extern bool g_ggpo_in_rollback; // rerunning frames: no throttle
 
 	// In VSyncStart.
-	void OnVsync();
+	void GgpoOnVsync();
 	// In VMManager::Execute, after the CPU returned.
-	void OnExecuteReturned();
+	void GgpoOnExecuteReturned();
 	// In Pad::SetControllerState: true when the host input was taken (session running).
-	bool CaptureHostInput(u32 controller, u32 bind, float value);
+	bool GgpoCaptureHostInput(u32 controller, u32 bind, float value);
 
 	// Z battle net HLE (#31 step 4). The EE recompiler calls OnNetRpc when the game enters its
 	// net RPC wrapper (NET_RPC_PC: fno in a0, request header + data at 0xc22c9c).
@@ -34,9 +34,9 @@ namespace ZdxsvGgpo
 	extern bool g_net_hook; // the recompiler emits the OnNetRpc call at NET_RPC_PC
 	void OnNetRpc();
 	// Lobby battles (net=1,lobby=1): our GGPO UDP port for the lobby's platform info, 0 = off.
-	int LobbyPort();
+	int GgpoLobbyPort();
 	// advertise=P (test): the port the platform info announces instead, at 127.0.0.1; 0 = off.
-	int LobbyAdvertisePort();
+	int GgpoLobbyAdvertisePort();
 	// The lobby's battle info (DEV9 thread): ok = every other player has a GGPO address;
 	// byPosition = GGPO address candidates (IPv4 / IPv6, Zdxsv::GgpoPeers) per battle position, own
 	// position empty; session = ggpo_session (0 = none: stays on the battle server), pingMs = ggpo_ping_ms.
@@ -59,10 +59,10 @@ namespace ZdxsvGgpo
 	// frames, frames waited for a peer, predicted frames; per opponent: position, user id, name, GGPO
 	// ping or "disconnected". Built once per frame on the CPU thread; read by the GS thread's ImGui
 	// overlay. Empty when no session runs or with ZDXSV_GGPO osd=0. color = IM_COL32 value.
-	struct OsdLine
+	struct GgpoOsdLine
 	{
 		std::string text;
 		u32 color;
 	};
-	std::vector<OsdLine> OsdLines();
-} // namespace ZdxsvGgpo
+	std::vector<GgpoOsdLine> GgpoOsdLines();
+} // namespace Zdxsv
