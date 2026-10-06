@@ -1870,9 +1870,20 @@ namespace ZdxsvGgpo
 			const char* e = std::getenv("ZDXSV_REPLAY_SKIP_MS");
 			return !e || e[0] != '0';
 		}();
-		bool s_skip_on = false; // running unlimited to the briefing
-		int s_skip_loads = 0, s_play_briefing = -1;
-		u8 s_skip_state = 0;
+		// Battle loads: the frames where the tick state leaves 8, in order. Load 0 ends at MS select, load 1 at the
+		// briefing, load 1 + N at the start of round N (s712 lobby 1v1: 216, 4184, 4945, 16103; the same frames for
+		// both positions). Frames are played in order up to s_play_hi (a forward seek runs every frame between), so
+		// the list is complete up to it. Round jump (ZDXSV_REPLAY_ROUND_AT, hotkeys, control bar): a known round
+		// start is a seek; an unknown one runs unlimited from s_play_hi until that load ends.
+		static constexpr u32 TICK_STATE = 0xc627b4; // u8 game phase; 8 = battle load
+		static constexpr u8 TICK_LOAD = 8;
+		std::mutex s_battle_loads_mtx;
+		std::vector<int> s_battle_loads; // written on the CPU thread; the GS thread reads it under s_battle_loads_mtx
+		int s_play_hi = -1, s_tick_f = -1;
+		u8 s_tick_st = 0;
+		int s_run_load = -1; // running unlimited until this load has ended, -1 = none (skip MS selection = 1)
+		std::atomic<int> s_play_round_req{INT_MIN}; // requested round, 0 = briefing, INT_MIN = none
+		std::deque<std::pair<int, int>> s_play_round_at; // ZDXSV_REPLAY_ROUND_AT=frame:round,...
 		bool s_play_pov_ok[GGPO_MAX_PLAYERS] = {};
 		// control bar (ReplayBarInfo): written per played frame on the CPU thread, read by the GS thread's ImGui
 		std::atomic<int> s_bar_frame{-1}; // -1 = no replay playing
@@ -2063,43 +2074,60 @@ namespace ZdxsvGgpo
 			return in;
 		}
 
-		void PlaySkipBegin()
+		// Runs unlimited until load `load` has ended (after a seek to s_play_hi, if one was started).
+		void PlayRunBegin(int load)
 		{
-			s_skip_on = true;
-			s_skip_loads = 0;
-			s_skip_state = 0;
-			s_play_limiter = VMManager::GetLimiterMode();
+			if (s_play_target < 0) // else the seek saved it
+				s_play_limiter = VMManager::GetLimiterMode();
+			s_run_load = load;
 			VMManager::SetLimiterMode(LimiterModeType::Unlimited);
-			Console.WriteLn("ZdxsvGgpo: replay skip MS selection: running to the briefing");
+			if (load == 1)
+				Console.WriteLn("ZdxsvGgpo: replay skip MS selection: running to the briefing");
+			else
+				Console.WriteLn("ZdxsvGgpo: replay round %d: running to load %d", load - 1, load);
 		}
 
-		void PlaySkipEnd(const char* why, int f)
+		void PlayRunEnd(const char* why, int f)
 		{
-			if (!s_skip_on)
+			if (s_run_load < 0)
 				return;
-			s_skip_on = false;
-			VMManager::SetLimiterMode(s_play_limiter);
-			Console.WriteLn("ZdxsvGgpo: replay skip MS selection: %s at frame %d, vsync %u", why, f, g_FrameCount);
+			const int load = s_run_load;
+			s_run_load = -1;
+			if (s_play_target < 0)
+				VMManager::SetLimiterMode(s_play_limiter);
+			if (load == 1)
+				Console.WriteLn("ZdxsvGgpo: replay skip MS selection: %s at frame %d, vsync %u", why, f, g_FrameCount);
+			else
+				Console.WriteLn("ZdxsvGgpo: replay round %d: %s at frame %d, vsync %u", load - 1, why, f, g_FrameCount);
+		}
+
+		void PlayTrackLoads(int f)
+		{
+			const u8 st = eeMem->Main[TICK_STATE];
+			if (f > s_play_hi)
+			{
+				if (f == s_tick_f + 1 && s_tick_st == TICK_LOAD && st != TICK_LOAD)
+				{
+					std::lock_guard lock(s_battle_loads_mtx);
+					s_battle_loads.push_back(f);
+					Console.WriteLn("ZdxsvGgpo: replay: load %zu ends at frame %d, vsync %u", s_battle_loads.size() - 1, f, g_FrameCount);
+				}
+				s_play_hi = f;
+			}
+			s_tick_f = f;
+			s_tick_st = st;
+			if (s_run_load >= 0 && s_run_load < static_cast<int>(s_battle_loads.size()) && s_battle_loads[s_run_load] == f)
+				PlayRunEnd(s_run_load == 1 ? "briefing" : "start", f);
 		}
 
 		void PlayFrame(int f)
 		{
-			if (s_skip_on)
-			{
-				const u8 st = eeMem->Main[0xc627b4];
-				if (st == 8 && s_skip_state != 8)
-					s_skip_loads++;
-				s_skip_state = st;
-				if (s_skip_loads >= 2 && st != 8)
-				{
-					s_play_briefing = f;
-					PlaySkipEnd("briefing", f);
-				}
-			}
+			PlayTrackLoads(f);
 			if (f == s_play_target)
 			{
 				s_play_target = -1;
-				VMManager::SetLimiterMode(s_play_limiter);
+				if (s_run_load < 0)
+					VMManager::SetLimiterMode(s_play_limiter);
 				Console.WriteLn("ZdxsvGgpo: replay seek done at frame %d, vsync %u", f, g_FrameCount);
 			}
 			PlayKeySave(f);
@@ -2258,7 +2286,12 @@ namespace ZdxsvGgpo
 			if (const char* e = std::getenv("ZDXSV_REPLAY_TURBO"); e && e[0] == '1')
 				VMManager::SetLimiterMode(LimiterModeType::Turbo);
 			if (s_play_skip_ms)
-				PlaySkipBegin();
+				PlayRunBegin(1);
+			if (const char* e = std::getenv("ZDXSV_REPLAY_ROUND_AT"))
+				for (const std::string_view one : StringUtil::SplitString(e, ','))
+					if (const size_t c = one.find(':'); c != std::string_view::npos)
+						s_play_round_at.emplace_back(StringUtil::FromChars<int>(one.substr(0, c)).value_or(-1),
+							StringUtil::FromChars<int>(one.substr(c + 1)).value_or(-1));
 			if (const char* e = std::getenv("ZDXSV_REPLAY_SEEK"))
 				for (const std::string_view one : StringUtil::SplitString(e, ','))
 					if (const size_t c = one.find(':'); c != std::string_view::npos)
@@ -2318,20 +2351,42 @@ namespace ZdxsvGgpo
 				s_play_pov_req = s_play_pov_at.front().second;
 				s_play_pov_at.pop_front();
 			}
+			if (!s_play_round_at.empty() && s_play_round_at.front().first == next)
+			{
+				s_play_round_req = s_play_round_at.front().second;
+				s_play_round_at.pop_front();
+			}
 			int req = s_play_req.exchange(INT_MIN);
 			const int pov = s_play_pov_req.exchange(-1);
-			if (req != INT_MIN || (pov >= 0 && pov != s_net_me))
-				PlaySkipEnd("cancelled by a seek", s_net_frame);
-			if (req == 0 && s_play_briefing > 0)
-				req = s_play_briefing; // from the start = from the briefing
+			int run = -1; // load to run to after the seek
+			if (const int round = s_play_round_req.exchange(INT_MIN); round != INT_MIN)
+			{
+				const int load = 1 + std::max(0, round);
+				if (load < static_cast<int>(s_battle_loads.size()))
+				{
+					req = s_battle_loads[load];
+					Console.WriteLn("ZdxsvGgpo: replay round %d: starts at frame %d", load - 1, req);
+				}
+				else
+				{
+					req = s_play_hi > s_net_frame ? s_play_hi : INT_MIN;
+					run = load;
+				}
+			}
+			if (req != INT_MIN || run >= 0 || (pov >= 0 && pov != s_net_me))
+				PlayRunEnd("cancelled by a seek", s_net_frame);
+			if (req == 0 && s_battle_loads.size() > 1)
+				req = s_battle_loads[1]; // from the start = from the briefing
 			if (pov >= 0 && pov != s_net_me)
 				next = PlaySwitch(pov, req != INT_MIN ? req : next);
 			else if (req != INT_MIN)
 				next = PlaySeek(req);
 			if (req == 0 && next == 0 && s_play_skip_ms)
-				PlaySkipBegin(); // briefing not reached yet
+				run = 1; // briefing not reached yet
+			if (run >= 0)
+				PlayRunBegin(run);
 			if (next >= s_play_frames)
-				PlaySkipEnd("replay ended before the briefing", s_net_frame);
+				PlayRunEnd("replay ended first", s_net_frame);
 			if (next < s_play_frames)
 			{
 				s_play_at_end = false;
@@ -2766,6 +2821,30 @@ namespace ZdxsvGgpo
 			s_keys_f = -1; // rebuilt now: a paused replay plays no frame
 		}
 		PlayKeysPublish(s_net_frame);
+	}
+
+	void ReplayJumpRound(int delta)
+	{
+		if (!s_play_env || s_play_frames <= 0 || !g_active)
+			return;
+		int round = s_play_round_req.load();
+		if (round == INT_MIN)
+		{
+			round = 0; // rounds started at or before the shown frame
+			const int f = s_play_target >= 0 ? s_play_target : s_net_frame;
+			for (size_t k = 2; k < s_battle_loads.size() && s_battle_loads[k] <= f; k++)
+				round++;
+		}
+		s_play_round_req = std::max(0, round + delta);
+		Console.WriteLn("ZdxsvGgpo: replay round requested: %d", s_play_round_req.load());
+		if (VMManager::GetState() == VMState::Paused)
+			VMManager::SetPaused(false);
+	}
+
+	std::vector<int> ReplayRoundStarts()
+	{
+		std::lock_guard lock(s_battle_loads_mtx);
+		return s_battle_loads.size() > 2 ? std::vector<int>(s_battle_loads.begin() + 2, s_battle_loads.end()) : std::vector<int>();
 	}
 
 	int LobbyAdvertisePort()

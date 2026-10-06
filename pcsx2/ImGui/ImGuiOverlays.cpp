@@ -39,6 +39,8 @@ namespace ZdxsvGgpo
 	void ReplaySeekTo(int frame);
 	void ReplayTogglePause();
 	void ReplayNextPov();
+	void ReplayJumpRound(int delta);
+	std::vector<int> ReplayRoundStarts(); // start frames of the rounds played so far
 	bool ReplayKeys(std::vector<std::pair<u16, int>>& runs);
 } // namespace ZdxsvGgpo
 
@@ -2001,6 +2003,24 @@ __ri void ImGuiManager::DrawZdxsvReplayBar(float scale, float margin)
 			Console.WriteLn("ZdxsvGgpo: replay bar: seek +600 at frame %d", frame);
 			Host::RunOnCPUThread([f = shown + 600] { ZdxsvGgpo::ReplaySeekTo(f); });
 		}
+		// round jump: R0 = before round 1 (MS select, briefing)
+		const std::vector<int> rounds = ZdxsvGgpo::ReplayRoundStarts();
+		const int round = static_cast<int>(std::upper_bound(rounds.begin(), rounds.end(), shown) - rounds.begin());
+		if (button("##prevround", ICON_FA_BACKWARD_STEP, true))
+		{
+			Console.WriteLn("ZdxsvGgpo: replay bar: round -1 at frame %d", frame);
+			Host::RunOnCPUThread([] { ZdxsvGgpo::ReplayJumpRound(-1); });
+		}
+		const std::string round_label = fmt::format("R{}", round);
+		const float round_w = font->CalcTextSizeA(font_size, std::numeric_limits<float>::max(), -1.0f, "R00").x;
+		text_at(x + (round_w - font->CalcTextSizeA(font_size, std::numeric_limits<float>::max(), -1.0f, round_label.c_str()).x) * 0.5f,
+			round_label.c_str(), text_col);
+		x += round_w;
+		if (button("##nextround", ICON_FA_FORWARD_STEP, true))
+		{
+			Console.WriteLn("ZdxsvGgpo: replay bar: round +1 at frame %d", frame);
+			Host::RunOnCPUThread([] { ZdxsvGgpo::ReplayJumpRound(1); });
+		}
 		x += pad;
 		text_at(x, time.c_str(), text_col);
 		// fixed width (the longest time text + a margin), so the timeline does not move as digits change
@@ -2017,6 +2037,11 @@ __ri void ImGuiManager::DrawZdxsvReplayBar(float scale, float margin)
 			dl->AddRectFilled(ImVec2(track_x0, cy - track_h * 0.5f), ImVec2(track_x1, cy + track_h * 0.5f), IM_COL32(255, 255, 255, 60));
 			dl->AddRectFilled(ImVec2(track_x0, cy - track_h * 0.5f), ImVec2(track_x0 + (track_x1 - track_x0) * frac, cy + track_h * 0.5f),
 				IM_COL32(255, 80, 80, 255));
+			for (const int r : rounds) // round start marks
+			{
+				const float rx = track_x0 + (track_x1 - track_x0) * std::clamp(static_cast<float>(r) / static_cast<float>(frames), 0.0f, 1.0f);
+				dl->AddRectFilled(ImVec2(rx - scale, cy - track_h * 2.0f), ImVec2(rx + scale, cy + track_h * 2.0f), IM_COL32(255, 220, 80, 255));
+			}
 			ImGui::SetCursorScreenPos(ImVec2(track_x0, y0));
 			ImGui::InvisibleButton("##timeline", ImVec2(track_x1 - track_x0, bar_h));
 			layout += fmt::format(" timeline {:.0f}-{:.0f}", track_x0, track_x1);

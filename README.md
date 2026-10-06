@@ -200,7 +200,13 @@ Test scripts that use them: `zdxsv/` in inada-s/ai-automation (named in brackets
     the battle load the 2nd time), then plays at the normal speed. A seek or switch during the skip ends it; playing
     from frame 0 again (Space at the end, timeline start) jumps to the briefing. Logs
     `ZdxsvGgpo: replay skip MS selection: briefing at frame F` (or `cancelled by a seek` /
-    `replay ended before the briefing`).
+    `replay ended first`).
+  - Round jump: hotkeys "Zdxsv Replay: Previous Round" / "Next Round" (default Shift+PageUp / Shift+PageDown),
+    the bar's step buttons around the round number (R0 = before round 1), or `ZDXSV_REPLAY_ROUND_AT=frame:round,...`
+    (round 0 = the briefing). A round starts at the frame the game's battle load ends (load 1 = briefing, load 1 + N
+    = round N). Loads are recorded as frames are played (`ZdxsvGgpo: replay: load K ends at frame F`); a known
+    round start is a seek, an unknown one runs unlimited from the furthest played frame until its load ends
+    (`replay round N: start at frame F`, or `replay ended first`). The timeline marks known round starts.
 - `ZDXSV_RBK=i/N`: rollback test (`rbk.sh`, `rbkprep.sh`). Start from a post-entry save state as battle position i of
   N. The emulator answers the lobby itself, runs turbo until the battle, and exits when the GGPO session ends.
   - `ZDXSV_RBK_TIME=s` (time limit), `ZDXSV_RBK_COUNT=n` (battles), `ZDXSV_RBK_GAUGE=v` (戦力ゲージ),
