@@ -18,6 +18,8 @@ namespace ZdxsvGgpo
 	// Replay play: switch to the next position that has a file (ZDXSV_REPLAY=a.zdxr;b.zdxr) at the current frame.
 	// Declared here, not in ZdxsvGgpo.h: that header is included widely (a change rebuilds most of pcsx2).
 	void ReplayNextPov();
+	// Replay play: show / hide the key display (also ZDXSV_REPLAY_KEY_DISPLAY=1).
+	void ReplayToggleKeys();
 } // namespace ZdxsvGgpo
 #include "SIO/Memcard/MemoryCardFile.h"
 
@@ -377,5 +379,10 @@ DEFINE_HOTKEY("ZdxsvReplayNextPov", TRANSLATE_NOOP("Hotkeys", "Zdxsv Replay"), T
 	[](s32 pressed) {
 		if (!pressed && VMManager::HasValidVM())
 			ZdxsvGgpo::ReplayNextPov();
+	})
+DEFINE_HOTKEY("ZdxsvReplayToggleKeys", TRANSLATE_NOOP("Hotkeys", "Zdxsv Replay"), TRANSLATE_NOOP("Hotkeys", "Toggle Key Display"),
+	[](s32 pressed) {
+		if (!pressed && VMManager::HasValidVM())
+			ZdxsvGgpo::ReplayToggleKeys();
 	})
 END_HOTKEY_LIST()

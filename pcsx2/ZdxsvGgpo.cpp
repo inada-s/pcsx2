@@ -1880,6 +1880,66 @@ namespace ZdxsvGgpo
 			s_bar_frame = s_net_frame;
 		}
 
+		// key display (ReplayKeys): runs of the shown position's B word (ZdPadAB) up to the played frame, newest
+		// first, with their frame counts. Per frame one more frame; after a seek or a switch, rebuilt from the file.
+		static constexpr size_t KEY_RUNS = 14;
+		std::atomic<bool> s_keys_on{[] {
+			const char* e = std::getenv("ZDXSV_REPLAY_KEY_DISPLAY");
+			return e && e[0] == '1';
+		}()};
+		std::mutex s_keys_mtx;
+		std::deque<std::pair<u16, int>> s_keys; // guarded by s_keys_mtx (the GS thread draws it)
+		int s_keys_f = -1, s_keys_me = -1; // frame and position s_keys ends at
+
+		u16 PlayB(int f, int p)
+		{
+			u16 ab[2];
+			std::memcpy(ab, &s_play_inputs[static_cast<size_t>(f) * s_players + p].pad, sizeof(ab));
+			return ab[1] & ~1u; // bit 0 = game state, not a key
+		}
+
+		void PlayKeysPublish(int f)
+		{
+			if (!s_keys_on || f < 0 || f >= s_play_frames)
+				return;
+			std::lock_guard lock(s_keys_mtx);
+			if (f == s_keys_f + 1 && s_net_me == s_keys_me)
+			{
+				const u16 b = PlayB(f, s_net_me);
+				if (!s_keys.empty() && s_keys.front().first == b)
+					s_keys.front().second++;
+				else
+				{
+					s_keys.emplace_front(b, 1);
+					if (s_keys.size() > KEY_RUNS)
+						s_keys.pop_back();
+				}
+			}
+			else if (f != s_keys_f || s_net_me != s_keys_me)
+			{
+				s_keys.clear();
+				for (int g = f; g >= 0; g--)
+				{
+					const u16 b = PlayB(g, s_net_me);
+					if (!s_keys.empty() && s_keys.back().first == b)
+						s_keys.back().second++;
+					else if (s_keys.size() == KEY_RUNS)
+						break;
+					else
+						s_keys.emplace_back(b, 1);
+				}
+			}
+			s_keys_f = f;
+			s_keys_me = s_net_me;
+			if (f % 600 == 0) // test drivers (zdxsv keycheck.py) compare these with the file
+			{
+				std::string s;
+				for (const auto& [b, n] : s_keys)
+					s += fmt::format(" {:04x}*{}", b, n);
+				Console.WriteLn("ZdxsvGgpo: replay keys frame %d pos %d:%s", f, s_net_me, s.c_str());
+			}
+		}
+
 		// At the start of frame f, before its inputs (the point of the frame 0 state).
 		void PlayKeySave(int f)
 		{
@@ -2003,6 +2063,7 @@ namespace ZdxsvGgpo
 			PlayKeySave(f);
 			s_net_frame = f;
 			PlayBarPublish();
+			PlayKeysPublish(f);
 			NetSaved(f);
 			const NetInput* in = &s_play_inputs[static_cast<size_t>(f) * s_players];
 			u16 ab[2];
@@ -2630,6 +2691,28 @@ namespace ZdxsvGgpo
 		povs = s_bar_povs;
 		target = s_bar_target;
 		return true;
+	}
+
+	bool ReplayKeys(std::vector<std::pair<u16, int>>& runs)
+	{
+		if (!s_keys_on || s_bar_frame < 0)
+			return false;
+		std::lock_guard lock(s_keys_mtx);
+		runs.assign(s_keys.begin(), s_keys.end());
+		return true;
+	}
+
+	void ReplayToggleKeys()
+	{
+		if (!s_play_env || s_play_frames <= 0 || !g_active)
+			return;
+		s_keys_on = !s_keys_on;
+		Console.WriteLn("ZdxsvGgpo: replay key display %s", s_keys_on ? "on" : "off");
+		{
+			std::lock_guard lock(s_keys_mtx);
+			s_keys_f = -1; // rebuilt now: a paused replay plays no frame
+		}
+		PlayKeysPublish(s_net_frame);
 	}
 
 	int LobbyAdvertisePort()
