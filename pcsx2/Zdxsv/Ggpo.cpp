@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2002-2026 PCSX2 Dev Team
 // SPDX-License-Identifier: GPL-3.0+
 
+// GGPO for lobby battles of the Z game (DEFAULT_OPTIONS) is on by default: setting DEV9/Eth ZdxsvGgpo.
+// ZDXSV_GGPO replaces it (GgpoOnVmInitialize); ZDXSV_GGPO=0 = off.
 // ZDXSV_GGPO="key=value,...": a GGPO session in a running game. Synctest by default:
 // every frame is saved, and every `check` frames GGPO loads the frame `check` back, reruns the
 // frames with the same inputs and compares the state checksums (EE RAM + delta state).
@@ -92,7 +94,15 @@ namespace Zdxsv
 {
 	// ZDXSV_REPLAY=file.zdxr: plays a saved replay (PlayLoad), the net=1 hooks on, no GGPO session
 	const char* const s_play_env = std::getenv("ZDXSV_REPLAY");
-	bool g_ggpo_enabled = std::getenv("ZDXSV_GGPO") != nullptr || s_play_env;
+	bool g_ggpo_enabled = false; // GgpoOnVmInitialize
+	namespace
+	{
+		// The ZDXSV_GGPO options of this VM: the variable, else DEFAULT_OPTIONS for the Z game with the
+		// ZdxsvGgpo setting on, else empty = off. Set by GgpoOnVmInitialize before the CPU runs.
+		std::string s_options;
+		constexpr const char* GAME_SERIAL = "SLPS-25419";
+		constexpr const char* DEFAULT_OPTIONS = "net=1,lobby=1";
+	} // namespace
 	bool g_ggpo_active = false;
 	bool g_ggpo_in_rollback = false;
 
@@ -127,10 +137,7 @@ namespace Zdxsv
 			u8 data[22];
 		};
 		static_assert(sizeof(NetInput) == 32);
-		const bool s_net_env = [] {
-			const char* e = std::getenv("ZDXSV_GGPO");
-			return (e && std::strstr(e, "net=1")) || s_play_env;
-		}();
+		bool s_net_env = false; // net=1 in s_options, or a replay plays (GgpoOnVmInitialize)
 		// ZDXSV_RBK=i/N (net=1; flycast rbk_test): started from a post-entry state (zdxsv/rbkprep.sh)
 		// as battle position i (0-based) of N. Until GGPO arms, every lobby / battle connect RPC is
 		// answered here (RbkCall: built-in battle start, recorded connect results, own battle msgs
@@ -323,8 +330,7 @@ namespace Zdxsv
 
 		void Parse()
 		{
-			const char* env = std::getenv("ZDXSV_GGPO");
-			for (const std::string_view item : StringUtil::SplitString(env ? env : "", ','))
+			for (const std::string_view item : StringUtil::SplitString(s_options, ','))
 			{
 				const size_t eq = item.find('=');
 				if (eq == std::string_view::npos)
@@ -1107,9 +1113,29 @@ namespace Zdxsv
 		}();
 	} // namespace
 
-	bool g_net_hook = s_net_trace != nullptr || s_net_env;
-	bool g_zd_hook = s_net_env;
+	bool g_net_hook = false; // GgpoOnVmInitialize
+	bool g_zd_hook = false;
 	bool g_ps_hook = s_zds_ps;
+
+	void GgpoOnVmInitialize(const char* serial)
+	{
+		const char* e = std::getenv("ZDXSV_GGPO");
+		// Read here only, so not a config field: a change takes effect at the next VM start.
+		const bool setting = Host::GetBoolSettingValue("DEV9/Eth", "ZdxsvGgpo", true);
+		if (e && std::strcmp(e, "0") == 0) // off whatever the setting (rigs without GGPO)
+			s_options.clear();
+		else
+			s_options = e ? e : (std::strcmp(serial, GAME_SERIAL) == 0 && setting && !s_play_env) ? DEFAULT_OPTIONS : "";
+		g_ggpo_enabled = !s_options.empty() || s_play_env;
+		s_net_env = s_options.find("net=1") != std::string::npos || s_play_env;
+		g_net_hook = s_net_trace != nullptr || s_net_env;
+		g_zd_hook = s_net_env;
+		// DeltaState.cpp sets it for ZDXSV_DELTA_TEST at startup; the recompilers read it from the first block on
+		static const bool fixed_for_test = g_fixed_blocks;
+		g_fixed_blocks = fixed_for_test || !s_options.empty();
+		if (!s_options.empty() || std::strcmp(serial, GAME_SERIAL) == 0)
+			Console.WriteLn("ZdxsvGgpo: options '%s' (serial %s, setting %d)", s_options.c_str(), serial, setting ? 1 : 0);
+	}
 
 	// zdp: record (A, B) of a host pad, s613 bind table (OR-linear; B bit 0 = game state, left 0).
 	static void ZdPadAB(const Input& in, u16& a, u16& b)
@@ -2725,17 +2751,14 @@ namespace Zdxsv
 
 	int GgpoLobbyPort()
 	{
-		static const int port = [] {
-			const char* e = std::getenv("ZDXSV_GGPO");
-			if (!e || !std::strstr(e, "net=1") || !std::strstr(e, "lobby=1"))
-				return 0;
-			int p = 7001;
-			for (const std::string_view item : StringUtil::SplitString(e, ','))
-				if (item.starts_with("port="))
-					p = StringUtil::FromChars<int>(item.substr(5)).value_or(0);
-			return (p > 0 && p <= 0xFFFF) ? p : 0;
-		}();
-		return port;
+		// s_options only changes in GgpoOnVmInitialize, before the DEV9 thread that calls this runs
+		if (s_options.find("net=1") == std::string::npos || s_options.find("lobby=1") == std::string::npos)
+			return 0;
+		int p = 7001;
+		for (const std::string_view item : StringUtil::SplitString(s_options, ','))
+			if (item.starts_with("port="))
+				p = StringUtil::FromChars<int>(item.substr(5)).value_or(0);
+		return (p > 0 && p <= 0xFFFF) ? p : 0;
 	}
 
 	void ReplaySeekBy(int frames)
@@ -2849,15 +2872,13 @@ namespace Zdxsv
 
 	int GgpoLobbyAdvertisePort()
 	{
-		static const int port = [] {
-			const char* e = GgpoLobbyPort() > 0 ? std::getenv("ZDXSV_GGPO") : nullptr;
-			int p = 0;
-			for (const std::string_view item : StringUtil::SplitString(e ? e : "", ','))
-				if (item.starts_with("advertise="))
-					p = StringUtil::FromChars<int>(item.substr(10)).value_or(0);
-			return (p > 0 && p <= 0xFFFF) ? p : 0;
-		}();
-		return port;
+		if (GgpoLobbyPort() <= 0)
+			return 0;
+		int p = 0;
+		for (const std::string_view item : StringUtil::SplitString(s_options, ','))
+			if (item.starts_with("advertise="))
+				p = StringUtil::FromChars<int>(item.substr(10)).value_or(0);
+		return (p > 0 && p <= 0xFFFF) ? p : 0;
 	}
 
 	void SetLobbyPeers(bool ok, std::vector<std::vector<Zdxsv::PeerAddr>> byPosition, u32 session, int pingMs, std::string ids,

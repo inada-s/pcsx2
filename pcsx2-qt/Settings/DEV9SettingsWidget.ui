@@ -296,6 +296,22 @@
     </widget>
    </item>
    <item>
+    <widget class="QGroupBox" name="zdxsvGroupBox">
+     <property name="title">
+      <string>zdxsv</string>
+     </property>
+     <layout class="QVBoxLayout" name="zdxsvLayout">
+      <item>
+       <widget class="QCheckBox" name="zdxsvGgpo">
+        <property name="text">
+         <string>Rollback netcode (GGPO) for online battles. Takes effect at the next game start.</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
     <widget class="QGroupBox" name="groupBox_2">
      <property name="title">
       <string>Hard Disk Drive</string>
