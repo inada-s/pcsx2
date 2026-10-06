@@ -7,3 +7,5 @@ PCSX2-side additions (the flycast sources are otherwise unchanged):
 - `include/ggpo_log.h`, `lib/ggpo/log/`: log sink replacing flycast's `log/Log.h`.
 - `lib/ggpo/sleep.h`: `sleep_us` replacing flycast's `sleep.h`.
 - `backends/synctest.cpp`: sync errors also go to the log sink (error level).
+- `network/udp.cpp` `Udp::OnLoopPoll`: a socket that could not be created
+  (no IPv6) is skipped instead of looping forever.
