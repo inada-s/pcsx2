@@ -298,6 +298,7 @@ namespace Zdxsv
 		std::vector<Zdxsv::RelayServerAddr> s_net_servers; // relay servers, registered with GGPO in order
 		std::vector<Zdxsv::BattleInfo::Relay> s_lobby_relays; // relay servers of the last battle info
 		u32 s_lobby_session = 0; // ggpo_session
+		u32 s_lobby_gen = 0, s_armed_gen = 0; // battle infos received; the one the last GGPO battle armed with
 		std::string s_report_ids; // battle info lines naming the battle (SetLobbyPeers)
 		std::string s_report; // P2PMatchingReport of the last lobby battle (TakeLobbyReport)
 		bool s_running = false; // net: GGPO_EVENTCODE_RUNNING seen
@@ -314,7 +315,7 @@ namespace Zdxsv
 		}();
 		int s_save_skipped = 0;
 		GGPOPlayerHandle s_handles[GGPO_MAX_PLAYERS] = {};
-		bool s_started = false; // the session was opened once (it is not reopened)
+		bool s_started = false; // the session was opened (lobby=1: until the next battle's NetReset)
 		bool s_frame_ended = false; // the CPU left Execute() at a vsync
 		int s_vsyncs = 0;
 		int s_session_frames = 0;
@@ -925,6 +926,49 @@ namespace Zdxsv
 				Console.WriteLn("ZdxsvGgpo: rbk exit (%s) at vsync %u", what, g_FrameCount);
 				Host::RunOnCPUThread([] { Host::RequestVMShutdown(false, false, false); });
 			}
+		}
+
+		// lobby=1: the next lobby battle in this process starts from the state the first one started from
+		// (Stop closed the session; its stats are reported).
+		void NetReset()
+		{
+			s_started = s_net_armed = s_net_over = s_lobby_cut = false;
+			s_frame_ended = s_running = s_disconnected = s_rerun = false;
+			s_net_me = -1;
+			s_cut_sends = 0;
+			s_net_sent.clear();
+			s_net_sent_at.clear();
+			s_net_pos = 0;
+			s_net_out.clear();
+			s_net_local = {};
+			std::memset(s_net_seq_at, 0, sizeof(s_net_seq_at));
+			s_net_rx.clear();
+			s_net_frame = 0;
+			std::fill(std::begin(s_net_at), std::end(s_net_at), NetFrame{});
+			s_net_end = -1;
+			s_ns = {};
+			s_ps = {};
+			std::fill(std::begin(s_zd_pad), std::end(s_zd_pad), Input{});
+			std::memset(s_zd_hist, 0, sizeof(s_zd_hist));
+			s_zd_steps = s_zd_changed = s_zds_echo = s_zds_skip = s_zds_k3rel = 0;
+			for (auto& k3 : s_zds_k3)
+				k3.clear();
+			std::fill(std::begin(s_zds_seen), std::end(s_zds_seen), 0);
+			s_zds_rel = 0;
+			s_pw.clear();
+			std::fill(std::begin(s_peer_state), std::end(s_peer_state), 0);
+			std::fill(std::begin(s_handles), std::end(s_handles), GGPOPlayerHandle{});
+			s_frames_ahead = s_waits = s_save_skipped = s_session_frames = 0;
+			s_rollback_frames = s_loads = s_mismatches = s_ggpo_warnings = s_diff_logged = 0;
+			s_save_ms = s_hash_ms = s_load_ms = s_rerun_ms = s_wait_ms = s_emu_ms = s_exit_ms = s_ours_ms = {};
+			s_t_vsync = s_t_returned = 0;
+		}
+
+		// lobby=1: a battle info came after the one the last GGPO battle armed with
+		bool LobbyNewBattle()
+		{
+			std::lock_guard lock(s_lobby_mtx);
+			return s_lobby_gen != s_armed_gen;
 		}
 
 		bool Start()
@@ -2712,6 +2756,7 @@ namespace Zdxsv
 			s_players = n;
 			s_net_peers = std::move(peers);
 			s_net_players = s_lobby_players;
+			s_armed_gen = s_lobby_gen;
 			return true;
 		}
 		// lobby=1, the ping test failed (LobbyArm): a connection failure, no fallback to the battle server.
@@ -2888,6 +2933,7 @@ namespace Zdxsv
 		s_report_ids = std::move(ids);
 		s_lobby_players = std::move(players);
 		s_lobby_info = true;
+		s_lobby_gen++;
 		s_lobby_ok = ok;
 		s_lobby_logged = s_lobby_unreachable = false;
 		if (s_bad_session && session)
@@ -2919,7 +2965,7 @@ namespace Zdxsv
 	bool OnNetCall()
 	{
 		OnNetRpc();
-		if (!s_net_env || s_net_over)
+		if (!s_net_env)
 			return false;
 		const u32 fno = cpuRegs.GPR.n.a0.UL[0];
 		u8* ram = eeMem->Main;
@@ -2927,6 +2973,15 @@ namespace Zdxsv
 		const s16 len = *reinterpret_cast<const s16*>(ram + NET_REQ_LEN);
 		u8* d = ram + NET_REQ_DATA;
 		const bool key = fno == NET_FNO_SEND && sock == NET_BATTLE_SOCK && len > 0 && len <= 0x3ca && HasKeyMsg(d, len);
+		if (s_net_over)
+		{
+			// lobby=1: the first key msg of a battle with a new battle info starts the next GGPO battle; the
+			// sends of the ended battle (same battle info) stay with the IOP
+			if (!s_lobby || s_play_env || s_rbk || !key || !LobbyNewBattle())
+				return false;
+			NetReset();
+			Console.WriteLn("ZdxsvGgpo: next lobby battle at vsync %u", g_FrameCount);
+		}
 		if (s_rbk && !s_net_armed && !key) // connect (fno 7) has the address in the sock field
 			return RbkCall(fno, len, d);
 		if (s_lobby_cut)
