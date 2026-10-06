@@ -12,6 +12,13 @@
 #include "SPU2/spu2.h"
 #include "VMManager.h"
 #include "ZdxsvGgpo.h"
+
+namespace ZdxsvGgpo
+{
+	// Replay play: switch to the next position that has a file (ZDXSV_REPLAY=a.zdxr;b.zdxr) at the current frame.
+	// Declared here, not in ZdxsvGgpo.h: that header is included widely (a change rebuilds most of pcsx2).
+	void ReplayNextPov();
+} // namespace ZdxsvGgpo
 #include "SIO/Memcard/MemoryCardFile.h"
 
 #include "common/Assertions.h"
@@ -365,5 +372,10 @@ DEFINE_HOTKEY("ZdxsvReplaySeekForward", TRANSLATE_NOOP("Hotkeys", "Zdxsv Replay"
 	[](s32 pressed) {
 		if (!pressed && VMManager::HasValidVM())
 			ZdxsvGgpo::ReplaySeekBy(600);
+	})
+DEFINE_HOTKEY("ZdxsvReplayNextPov", TRANSLATE_NOOP("Hotkeys", "Zdxsv Replay"), TRANSLATE_NOOP("Hotkeys", "Switch Point of View"),
+	[](s32 pressed) {
+		if (!pressed && VMManager::HasValidVM())
+			ZdxsvGgpo::ReplayNextPov();
 	})
 END_HOTKEY_LIST()

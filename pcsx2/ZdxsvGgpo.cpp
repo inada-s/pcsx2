@@ -1851,7 +1851,7 @@ namespace ZdxsvGgpo
 					zip.join();
 			}
 		};
-		std::map<int, std::unique_ptr<PlayKey>> s_play_keys;
+		std::map<int, std::unique_ptr<PlayKey>> s_play_keys[GGPO_MAX_PLAYERS]; // by point of view (position)
 		const int s_play_key_every = [] {
 			const char* e = std::getenv("ZDXSV_REPLAY_KEY");
 			return e ? std::atoi(e) : 600;
@@ -1866,7 +1866,7 @@ namespace ZdxsvGgpo
 		// At the start of frame f, before its inputs (the point of the frame 0 state).
 		void PlayKeySave(int f)
 		{
-			if (s_play_key_every <= 0 || f % s_play_key_every != 0 || s_play_keys.contains(f))
+			if (s_play_key_every <= 0 || f % s_play_key_every != 0 || s_play_keys[s_net_me].contains(f))
 				return;
 			Common::Timer timer;
 			Error error;
@@ -1878,7 +1878,7 @@ namespace ZdxsvGgpo
 			}
 			auto key = std::make_unique<PlayKey>();
 			PlayKey* k = key.get();
-			k->path = Path::Combine(EmuFolders::Cache, fmt::format("zdxsv-replay-key-{}.p2s", f));
+			k->path = Path::Combine(EmuFolders::Cache, fmt::format("zdxsv-replay-key-p{}-{}.p2s", s_net_me, f));
 			k->pos = s_net_pos;
 			k->rx = s_net_rx;
 			std::memcpy(k->k3seen, s_zds_seen, sizeof(k->k3seen));
@@ -1893,21 +1893,36 @@ namespace ZdxsvGgpo
 				if (!k->ok)
 					Console.Error("ZdxsvGgpo: replay key: state zip failed: %s", error.GetDescription().c_str());
 			});
-			s_play_keys.emplace(f, std::move(key));
+			s_play_keys[s_net_me].emplace(f, std::move(key));
 			Console.WriteLn("ZdxsvGgpo: replay key %d (download %.1f ms)", f, timer.GetTimeMilliseconds());
 		}
 
-		// Returns the frame to run next.
-		int PlaySeek(int target)
+		void PlayKeyApply(const PlayKey& k)
+		{
+			s_net_pos = k.pos;
+			s_net_rx = k.rx;
+			std::memcpy(s_zds_seen, k.k3seen, sizeof(s_zds_seen));
+			s_zds_rel = k.k3rel;
+			s_ps = k.ps;
+			std::memcpy(s_zd_pad, k.zd_pad, sizeof(s_zd_pad));
+			std::memcpy(s_zd_hist, k.zd_hist, sizeof(s_zd_hist));
+			std::memcpy(s_net_seq_at, k.seq_at, sizeof(s_net_seq_at));
+		}
+
+		// Returns the frame to run next. pov_switch: s_net_me just changed, so a key of it is always loaded (the
+		// running state is the old point of view's).
+		int PlaySeek(int target, bool pov_switch = false)
 		{
 			target = std::clamp(target, 0, s_play_frames - 1);
 			const int next = s_net_frame + 1;
 			int from = next;
-			auto it = s_play_keys.upper_bound(target);
-			while (it != s_play_keys.begin())
+			bool loaded = false;
+			auto& keys = s_play_keys[s_net_me];
+			auto it = keys.upper_bound(target);
+			while (it != keys.begin())
 			{
 				--it;
-				if (target >= next && it->first <= next)
+				if (!pov_switch && target >= next && it->first <= next)
 					break; // running on is as close
 				PlayKey& k = *it->second;
 				if (k.zip.joinable())
@@ -1919,27 +1934,19 @@ namespace ZdxsvGgpo
 				if (!VMManager::LoadState(k.path.c_str(), &error))
 				{
 					Console.Error("ZdxsvGgpo: replay seek: key %d load failed: %s", it->first, error.GetDescription().c_str());
-					return next;
+					return pov_switch ? -1 : next;
 				}
 				if (!s_play_key_nohle)
-				{
-					s_net_pos = k.pos;
-					s_net_rx = k.rx;
-					std::memcpy(s_zds_seen, k.k3seen, sizeof(s_zds_seen));
-					s_zds_rel = k.k3rel;
-					s_ps = k.ps;
-					std::memcpy(s_zd_pad, k.zd_pad, sizeof(s_zd_pad));
-					std::memcpy(s_zd_hist, k.zd_hist, sizeof(s_zd_hist));
-					std::memcpy(s_net_seq_at, k.seq_at, sizeof(s_net_seq_at));
-				}
+					PlayKeyApply(k);
 				from = it->first;
+				loaded = true;
 				Console.WriteLn("ZdxsvGgpo: replay seek: key %d loaded (%.1f ms)", from, timer.GetTimeMilliseconds());
 				break;
 			}
-			if (from > target)
+			if (from > target || (pov_switch && !loaded))
 			{
 				Console.Error("ZdxsvGgpo: replay seek %d -> %d: no key at or before it", s_net_frame, target);
-				return next;
+				return pov_switch ? -1 : next;
 			}
 			Console.WriteLn("ZdxsvGgpo: replay seek %d -> %d: from %d, %d frames to run", s_net_frame, target, from, target - from);
 			if (from < target)
@@ -1998,16 +2005,31 @@ namespace ZdxsvGgpo
 				Host::RunOnCPUThread([] { VMManager::SetPaused(true); });
 		}
 
-		// CPU thread, queued at the first vsync.
-		void PlayLoad()
+		// Point of view: ZDXSV_REPLAY=a.zdxr;b.zdxr... = files of one battle saved by different players. Their inputs
+		// are the same (checked on the common frames); each brings its own position's frame 0 state + battle-socket
+		// state, kept as key 0 of that position. A switch at frame f loads the new position's newest key <= f and
+		// runs to f unlimited (PlaySeek pov_switch); keys and sent msgs are kept per position.
+		bool s_play_pov_ok[GGPO_MAX_PLAYERS] = {};
+		std::atomic<int> s_play_pov_req{-1}; // requested position, -1 = none
+		std::deque<std::pair<int, int>> s_play_pov_at; // ZDXSV_REPLAY_POV_AT=frame:position,...
+		struct PlaySent
 		{
-			const std::optional<std::vector<u8>> file = FileSystem::ReadBinaryFile(Path::ToNativePath(s_play_env).c_str()); // '/' fails on Windows
+			std::vector<std::vector<u8>> sent;
+			std::vector<int> at;
+			std::deque<NetOut> out;
+		};
+		PlaySent s_play_sent[GGPO_MAX_PLAYERS];
+
+		// Reads one file; returns its position, -1 = not used.
+		int PlayLoadFile(const std::string& path)
+		{
+			const std::optional<std::vector<u8>> file = FileSystem::ReadBinaryFile(Path::ToNativePath(path).c_str()); // '/' fails on Windows
 			const std::string_view all = file ? std::string_view(reinterpret_cast<const char*>(file->data()), file->size()) : std::string_view();
 			const size_t end = all.find("\n\n");
 			if (!all.starts_with("ZDXSV-REPLAY 1\n") || end == std::string_view::npos)
 			{
-				Console.Error("ZdxsvGgpo: replay %s: not a replay file", s_play_env);
-				return;
+				Console.Error("ZdxsvGgpo: replay %s: not a replay file", path.c_str());
+				return -1;
 			}
 			std::map<std::string, std::string, std::less<>> kv;
 			for (const std::string_view line : StringUtil::SplitString(all.substr(0, end), '\n'))
@@ -2023,44 +2045,92 @@ namespace ZdxsvGgpo
 				num("input_size") != static_cast<s64>(sizeof(NetInput)) ||
 				data + state_size + frames * players * sizeof(NetInput) > all.size())
 			{
-				Console.Error("ZdxsvGgpo: replay %s: bad header or short file (players %lld position %lld frames %lld)", s_play_env,
+				Console.Error("ZdxsvGgpo: replay %s: bad header or short file (players %lld position %lld frames %lld)", path.c_str(),
 					players, me, frames);
-				return;
+				return -1;
 			}
-			const std::string state_path = Path::Combine(EmuFolders::Cache, "zdxsv-replay.p2s");
-			Error error;
+			const bool zds_ps = num("zds_ps") == 1;
+			const NetInput* in = reinterpret_cast<const NetInput*>(all.data() + data + state_size);
+			if (s_play_frames > 0)
+			{
+				// a later file: same battle, another position
+				const size_t common = static_cast<size_t>(std::min<s64>(frames, s_play_frames)) * players;
+				const auto diff = std::mismatch(in, in + common, s_play_inputs.begin(), [](const NetInput& a, const NetInput& b) {
+					return std::memcmp(&a, &b, sizeof(a)) == 0;
+				});
+				if (players != s_players || zds_ps != s_zds_ps || s_play_pov_ok[me] || diff.first != in + common)
+				{
+					Console.Error("ZdxsvGgpo: replay %s: not another position of the first file's battle (players %lld/%d, zds_ps %d/%d, "
+								  "position %lld %s, inputs differ from frame %lld)",
+						path.c_str(), players, s_players, zds_ps ? 1 : 0, s_zds_ps ? 1 : 0, me, s_play_pov_ok[me] ? "taken" : "new",
+						diff.first != in + common ? static_cast<s64>((diff.first - in) / players) : -1);
+					return -1;
+				}
+			}
+			const std::string state_path = Path::Combine(EmuFolders::Cache, fmt::format("zdxsv-replay-p{}.p2s", me));
 			if (!FileSystem::WriteBinaryFile(state_path.c_str(), all.data() + data, state_size))
 			{
 				Console.Error("ZdxsvGgpo: replay: cannot write %s", state_path.c_str());
-				return;
+				return -1;
 			}
-			s_zds_ps = num("zds_ps") == 1;
-			g_ps_hook = s_zds_ps; // before the load: the recompiler cache is rebuilt from it
-			if (!VMManager::LoadState(state_path.c_str(), &error))
+			if (frames > s_play_frames)
 			{
-				Console.Error("ZdxsvGgpo: replay: state load failed: %s", error.GetDescription().c_str());
-				return;
+				s_play_inputs.assign(in, in + frames * players);
+				s_play_frames = static_cast<int>(frames);
 			}
-			const u8* in = reinterpret_cast<const u8*>(all.data() + data + state_size);
-			s_play_inputs.assign(reinterpret_cast<const NetInput*>(in), reinterpret_cast<const NetInput*>(in) + frames * players);
-			s_play_frames = static_cast<int>(frames);
-			s_net = true;
 			s_players = static_cast<int>(players);
-			s_net_me = static_cast<int>(me);
-			s_net_rx.clear();
+			s_zds_ps = zds_ps;
+			auto key = std::make_unique<PlayKey>();
+			key->path = state_path;
 			const auto rx0 = kv.find("rx0");
 			if (rx0 != kv.end())
 				for (size_t i = 0; i + 1 < rx0->second.size(); i += 2)
-					s_net_rx.push_back(static_cast<u8>(std::strtoul(rx0->second.substr(i, 2).c_str(), nullptr, 16)));
+					key->rx.push_back(static_cast<u8>(std::strtoul(rx0->second.substr(i, 2).c_str(), nullptr, 16)));
 			int h[9] = {};
 			const auto hle0 = kv.find("hle0");
 			if (rx0 == kv.end() || hle0 == kv.end() ||
 				std::sscanf(hle0->second.c_str(), "%d,%d,%d,%d,%d,%d,%d,%d,%d", &h[0], &h[1], &h[2], &h[3], &h[4], &h[5], &h[6], &h[7], &h[8]) != 9)
 				Console.Warning("ZdxsvGgpo: replay: no rx0 / hle0 (file from before replay play): frame 0 HLE state empty");
-			s_ps = {static_cast<u8>(h[0]), static_cast<u8>(h[1]), h[2] != 0, h[3] != 0};
+			key->ps = {static_cast<u8>(h[0]), static_cast<u8>(h[1]), h[2] != 0, h[3] != 0};
 			for (int p = 0; p < 4; p++)
-				s_zds_seen[p] = h[4 + p];
-			s_zds_rel = h[8];
+				key->k3seen[p] = h[4 + p];
+			key->k3rel = h[8];
+			key->ok = true;
+			Console.WriteLn("ZdxsvGgpo: replay %s: position %lld of %d, %lld frames, zds_ps %d, rx0 %zu bytes, state %lld bytes", path.c_str(),
+				me, s_players, frames, s_zds_ps ? 1 : 0, key->rx.size(), state_size);
+			s_play_keys[me].emplace(0, std::move(key));
+			s_play_pov_ok[me] = true;
+			return static_cast<int>(me);
+		}
+
+		// CPU thread, queued at the first vsync.
+		void PlayLoad()
+		{
+			int me = -1;
+			for (const std::string_view path : StringUtil::SplitString(s_play_env, ';'))
+				if (const int p = PlayLoadFile(std::string(path)); me < 0)
+					me = p;
+			if (me < 0)
+				return;
+			if (const char* e = std::getenv("ZDXSV_REPLAY_POV"))
+			{
+				const int p = std::atoi(e);
+				if (p >= 0 && p < s_players && s_play_pov_ok[p])
+					me = p;
+				else
+					Console.Error("ZdxsvGgpo: replay: ZDXSV_REPLAY_POV=%s has no file, playing position %d", e, me);
+			}
+			const PlayKey& k0 = *s_play_keys[me].at(0);
+			Error error;
+			g_ps_hook = s_zds_ps; // before the load: the recompiler cache is rebuilt from it
+			if (!VMManager::LoadState(k0.path.c_str(), &error))
+			{
+				Console.Error("ZdxsvGgpo: replay: state load failed: %s", error.GetDescription().c_str());
+				return;
+			}
+			s_net = true;
+			s_net_me = me;
+			PlayKeyApply(k0);
 			s_net_armed = true;
 			s_started = true;
 			g_active = true;
@@ -2071,9 +2141,44 @@ namespace ZdxsvGgpo
 					if (const size_t c = one.find(':'); c != std::string_view::npos)
 						s_play_seeks.emplace_back(StringUtil::FromChars<int>(one.substr(0, c)).value_or(-1),
 							StringUtil::FromChars<int>(one.substr(c + 1)).value_or(0));
-			Console.WriteLn("ZdxsvGgpo: replay %s: position %d of %d, %d frames, zds_ps %d, rx0 %zu bytes, state %lld bytes", s_play_env,
-				s_net_me, s_players, s_play_frames, s_zds_ps ? 1 : 0, s_net_rx.size(), state_size);
+			if (const char* e = std::getenv("ZDXSV_REPLAY_POV_AT"))
+				for (const std::string_view one : StringUtil::SplitString(e, ','))
+					if (const size_t c = one.find(':'); c != std::string_view::npos)
+						s_play_pov_at.emplace_back(StringUtil::FromChars<int>(one.substr(0, c)).value_or(-1),
+							StringUtil::FromChars<int>(one.substr(c + 1)).value_or(-1));
+			std::string povs;
+			for (int p = 0; p < s_players; p++)
+				if (s_play_pov_ok[p])
+					povs += fmt::format("{}{}", povs.empty() ? "" : ",", p);
+			Console.WriteLn("ZdxsvGgpo: replay: point of view %d (positions with a file: %s), %d frames", s_net_me, povs.c_str(), s_play_frames);
 			PlayFrame(0);
+		}
+
+		// Returns the frame to run next.
+		int PlaySwitch(int pov, int target)
+		{
+			if (pov < 0 || pov >= s_players || !s_play_pov_ok[pov])
+			{
+				Console.Error("ZdxsvGgpo: replay: no file for point of view %d", pov);
+				return s_net_frame + 1;
+			}
+			const int old = s_net_me;
+			const auto swap_sent = [](int p) {
+				std::swap(s_net_sent, s_play_sent[p].sent);
+				std::swap(s_net_sent_at, s_play_sent[p].at);
+				std::swap(s_net_out, s_play_sent[p].out);
+			};
+			swap_sent(old); // park the old position's sent msgs
+			swap_sent(pov);
+			s_net_me = pov;
+			Console.WriteLn("ZdxsvGgpo: replay: point of view %d -> %d at frame %d, vsync %u", old, pov, target, g_FrameCount);
+			const int next = PlaySeek(target, true);
+			if (next >= 0)
+				return next;
+			swap_sent(pov);
+			swap_sent(old);
+			s_net_me = old;
+			return s_net_frame + 1;
 		}
 
 		void PlayNext()
@@ -2085,7 +2190,15 @@ namespace ZdxsvGgpo
 				s_play_req = s_play_seeks.front().second;
 				s_play_seeks.pop_front();
 			}
-			if (const int req = s_play_req.exchange(INT_MIN); req != INT_MIN)
+			if (!s_play_pov_at.empty() && s_play_pov_at.front().first == next)
+			{
+				s_play_pov_req = s_play_pov_at.front().second;
+				s_play_pov_at.pop_front();
+			}
+			const int req = s_play_req.exchange(INT_MIN);
+			if (const int pov = s_play_pov_req.exchange(-1); pov >= 0 && pov != s_net_me)
+				next = PlaySwitch(pov, req != INT_MIN ? req : next);
+			else if (req != INT_MIN)
 				next = PlaySeek(req);
 			if (next < s_play_frames)
 			{
@@ -2445,6 +2558,26 @@ namespace ZdxsvGgpo
 		const int req = s_play_req.load();
 		s_play_req = (req != INT_MIN ? req : s_net_frame + 1) + frames;
 		Console.WriteLn("ZdxsvGgpo: replay seek requested: frame %d", s_play_req.load());
+		if (s_play_at_end && VMManager::GetState() == VMState::Paused)
+			VMManager::SetPaused(false);
+	}
+
+	void ReplayNextPov()
+	{
+		if (!s_play_env || s_play_frames <= 0 || !g_active)
+			return;
+		const int req = s_play_pov_req.load();
+		int p = req >= 0 ? req : s_net_me;
+		for (int i = 0; i < s_players; i++)
+			if (p = (p + 1) % s_players; s_play_pov_ok[p])
+				break;
+		if (p == s_net_me)
+		{
+			Console.WriteLn("ZdxsvGgpo: replay: no other point of view (one file per position: ZDXSV_REPLAY=a.zdxr;b.zdxr)");
+			return;
+		}
+		s_play_pov_req = p;
+		Console.WriteLn("ZdxsvGgpo: replay point of view requested: %d", p);
 		if (s_play_at_end && VMManager::GetState() == VMState::Paused)
 			VMManager::SetPaused(false);
 	}

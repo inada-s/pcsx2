@@ -263,6 +263,7 @@ void Pad::SetDefaultHotkeyConfig(SettingsInterface& si)
 	si.SetStringValue("Hotkeys", "HoldTurbo", "Keyboard/Period");
 	si.SetStringValue("Hotkeys", "ZdxsvReplaySeekBack", "Keyboard/PageUp");
 	si.SetStringValue("Hotkeys", "ZdxsvReplaySeekForward", "Keyboard/PageDown");
+	si.SetStringValue("Hotkeys", "ZdxsvReplayNextPov", "Keyboard/Home");
 }
 
 static const Pad::ControllerInfo* s_controller_info[] = {
