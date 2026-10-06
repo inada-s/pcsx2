@@ -144,7 +144,9 @@ Udp::OnLoopPoll(void *cookie)
    for (int s = 0; s < 2; s++) for (;;) {
       SOCKET sock = s == 0 ? _socket_v4 : _socket_v6;
       if (sock == INVALID_SOCKET) {
-         continue;
+         // zdxsv: no socket (e.g. no IPv6 on this host): nothing to read, go to the
+         // next socket. A continue here would spin in the inner loop forever.
+         break;
       }
       sockaddr_storage recv_addr{};
       socklen_t recv_addr_len = sizeof(recv_addr);
