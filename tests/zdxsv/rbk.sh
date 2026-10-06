@@ -3,13 +3,16 @@
 # states (rbkprep.sh), no lobby or battle server: pcsx2 ZDXSV_RBK=i/N answers the battle start and
 # connect itself, menus run turbo, the battle runs over GGPO (net=1), each pcsx2 exits at
 # its session end. Exit 0 = every client logged its session end and pwcheck found the peers in sync.
-#   OUT=<dir> bash tests/zdxsv/rbk.sh [N=4] [seed]   (no seed: host pad = no input)
+#   OUT=<dir> bash tests/zdxsv/rbk.sh [N] [seed]   (N 2|4, default 4: arguments, not env; no seed: host pad = no input)
 # Env: RBKSTATES (dir of rbk-p1..p4.p2s), TIME (rule 作戦時間 s, menu 90..270, 30 works too; default 90),
 # COUNT (連続対戦数, default 1; 0 = rematch picked by input), GAUGE (戦力ゲージ, default 1: first shoot-down ends the battle, recorded 600), MAXS (default 900),
 # SELECT (出撃準備 timer frames via ZDXSV_EE_CLAMP, default 300; SELECT= off: N=2 seed 1 5381 -> 7781 frames, 71 -> 99 s), BATTLE (battle timer frames, u16 0x838f66, default off = TIME; 600 frames saves 1200 frames), BRIEF (pre-play 600-frame countdown, u32 0x6f2b50 from select end, default 1: play start frame 1581 -> 1299, BRIEF= off), TAIL (frames run after the end msg, ZDXSV_NET_TAIL, default 60; pcsx2 300), PS (default 1: ZDXSV_ZDS_PS play-start barrier, needed with SELECT; PS= off), TURBO (default 1: battle turbo too, frame-identical; TURBO= nominal), PWDUMP=1 (player-work dumps $OUT/pw-p*.bin for pwdiff.py), PCSX2_ENV (extra env for all), ENV0 (extra env for position 0 only: controls), DELAY (GGPO input delay, default 2 as flycast's local rbk test: 85 s vs 133 s at 0, rollback frames ~100 vs ~1300 per peer), GGPO (ZDXSV_GGPO value, default net=1,players=N,zd=1,zdp=1,zds=1,delay=DELAY).
 # TSCALE (turbo cap, default 4; TSCALE= = pcsx2 default 2). N=4 plays p1..p4 (CPU-bound on a 4-core host: ~67 fps). N=2 plays p1 (position 0) + p3 (position 1).
 # OWN (default 1): pwcheck --own also compares each machine's own player (pcsx2 7b1b1945 masks the own-only
 # words; else N=2 sees each player on one machine only). OWN= = old check (own player left out).
+# s724: `N=2 bash rbk.sh` ran the default N=4 for 149 s: an env N/SEED the arguments do not match is refused
+[ -n "${N+x}" ] && [ "$N" != "${1:-}" ] && { echo "rbk.sh: N=$N in the env is ignored: N is the 1st argument (rbk.sh $N [seed])"; exit 2; }
+[ -n "${SEED+x}" ] && [ "$SEED" != "${2:-}" ] && { echo "rbk.sh: SEED=$SEED in the env is ignored: seed is the 2nd argument (rbk.sh <N> $SEED)"; exit 2; }
 here=$(cd "$(dirname "$0")" && pwd -W)
 . "$here/riglock.sh"  # one rig at a time
 zdxsv_need RBKSTATES
