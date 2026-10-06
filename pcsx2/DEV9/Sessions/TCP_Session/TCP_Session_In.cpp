@@ -17,6 +17,11 @@
 #define SD_RECEIVE SHUT_RD
 #endif
 
+// NOMINMAX before TCP_Session.h's <winsock2.h>: Host.h (SmallString) uses std::numeric_limits<>::max()
+// (CMake builds do not define NOMINMAX; the vcxproj does)
+#ifdef _WIN32
+#include "common/RedtapeWindows.h"
+#endif
 #include "TCP_Session.h"
 #include "BuildVersion.h"
 #include "ZdxsvGgpo.h"
