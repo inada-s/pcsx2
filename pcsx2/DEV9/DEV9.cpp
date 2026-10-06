@@ -6,6 +6,9 @@
 #include "common/StringUtil.h"
 
 #include "IopDma.h"
+#include "IopMem.h"
+
+#include <memory>
 
 #ifdef _WIN32
 #include "common/RedtapeWindows.h"
@@ -1131,30 +1134,110 @@ void DEV9async(u32 cycles)
 
 // zdxsv: registers, SMAP buffers and FIFO, so a state saved while the game is
 // online keeps its network adapter (without it SMAP TX stalls after a load).
-// Host pointers (ata, dma_iop_ptr) and the HDD image are not saved.
+// Host pointers are not saved: ata and eeprom keep the ones of this process, and
+// an IOP DMA in progress is saved as its offset in IOP RAM. The HDD image is not
+// saved. States from other builds and other players (replays) are untrusted: the
+// FIFO and descriptor indices are checked before the state is used.
+// Needs proper testing with a state saved during an IOP DMA to DEV9.
+namespace
+{
+	// Fields from dev9R up to eeprom_dir, and from rxbdi up to dma_iop_ptr.
+	constexpr size_t kDev9RegsBegin = offsetof(dev9Struct, dev9R);
+	constexpr size_t kDev9RegsEnd = offsetof(dev9Struct, eeprom_dir) + sizeof(dev9Struct::eeprom_dir);
+	constexpr size_t kDev9BufsBegin = offsetof(dev9Struct, rxbdi);
+	constexpr size_t kDev9BufsEnd = offsetof(dev9Struct, dma_iop_ptr);
+	constexpr u32 kNoIopDma = 0xffffffffu;
+
+	bool Dev9StateValid(const dev9Struct& d, u32 dma_offset)
+	{
+		constexpr u32 bd_count = SMAP_BD_SIZE / 8;
+		constexpr int fifo_size = SPD_DBUF_AVAIL_MAX * 512;
+		if (d.rxbdi >= bd_count || d.txbdi >= bd_count)
+			return false;
+		if (d.rxfifo_wr_ptr >= sizeof(d.rxfifo) || d.txfifo_rd_ptr >= sizeof(d.txfifo))
+			return false;
+		if (d.fifo_bytes_read < 0 || d.fifo_bytes_write < d.fifo_bytes_read ||
+			d.fifo_bytes_write - d.fifo_bytes_read > fifo_size)
+			return false;
+		if (dma_offset == kNoIopDma)
+			return true;
+		return dma_offset < Ps2MemSize::ExposedIopRam && d.dma_iop_size >= 0 &&
+			   d.dma_iop_size <= fifo_size && d.dma_iop_transfered >= 0 &&
+			   d.dma_iop_transfered <= d.dma_iop_size &&
+			   static_cast<size_t>(dma_offset) + d.dma_iop_size <= sizeof(iopMem->Main);
+	}
+} // namespace
+
 bool DEV9DoState(StateWrapper& sw)
 {
-	constexpr size_t begin = offsetof(dev9Struct, dev9R);
-	constexpr size_t end = offsetof(dev9Struct, dma_iop_ptr);
-	if (sw.IsReading() && !sw.DoMarker("DEV9"))
+	// "DEV9" states (no longer written) hold the struct from dev9R to
+	// dma_iop_ptr including the eeprom host pointer, then transfered and size.
+	std::string marker("DEV9v2");
+	sw.Do(&marker);
+	if (sw.HasError() || (marker != "DEV9v2" && marker != "DEV9"))
 	{
 		Console.Warning("DEV9: no DEV9 state in this save state, keeping the current one.");
 		return true;
 	}
+
+	// The rx thread writes the RX FIFO and descriptors.
+	std::unique_lock rx_lock(rx_mutex);
 	if (sw.IsWriting())
-		sw.DoMarker("DEV9");
-	sw.DoBytes(reinterpret_cast<u8*>(&dev9) + begin, end - begin);
-	sw.Do(&dev9.dma_iop_transfered);
-	sw.Do(&dev9.dma_iop_size);
-	if (sw.IsReading())
 	{
-		// Host connections of this process no longer match the PS2's sequence
-		// numbers: drop them (no RST to the PS2) so the next packet adopts anew.
-		Zdxsv::OnStateLoaded();
-		if (Zdxsv::AdoptConnections())
-			ad_reset();
+		u32 dma_offset = kNoIopDma;
+		if (dev9.dma_iop_ptr != nullptr)
+			dma_offset = static_cast<u32>(dev9.dma_iop_ptr - iopMem->Main);
+		sw.DoBytes(reinterpret_cast<u8*>(&dev9) + kDev9RegsBegin, kDev9RegsEnd - kDev9RegsBegin);
+		sw.DoBytes(reinterpret_cast<u8*>(&dev9) + kDev9BufsBegin, kDev9BufsEnd - kDev9BufsBegin);
+		sw.Do(&dma_offset);
+		sw.Do(&dev9.dma_iop_transfered);
+		sw.Do(&dev9.dma_iop_size);
+		return !sw.HasError();
 	}
-	return !sw.HasError();
+
+	// Read into a copy so a damaged state leaves the current one untouched.
+	const std::unique_ptr<dev9Struct> loaded = std::make_unique<dev9Struct>(dev9);
+	u32 dma_offset = kNoIopDma;
+	if (marker == "DEV9v2")
+	{
+		sw.DoBytes(reinterpret_cast<u8*>(loaded.get()) + kDev9RegsBegin, kDev9RegsEnd - kDev9RegsBegin);
+		sw.DoBytes(reinterpret_cast<u8*>(loaded.get()) + kDev9BufsBegin, kDev9BufsEnd - kDev9BufsBegin);
+		sw.Do(&dma_offset);
+		sw.Do(&loaded->dma_iop_transfered);
+		sw.Do(&loaded->dma_iop_size);
+	}
+	else
+	{
+		// The saved eeprom pointer is overwritten with ours below. Such a state
+		// has no DMA address, so an IOP DMA in progress is dropped.
+		sw.DoBytes(reinterpret_cast<u8*>(loaded.get()) + kDev9RegsBegin, kDev9BufsEnd - kDev9RegsBegin);
+		sw.Do(&loaded->dma_iop_transfered);
+		sw.Do(&loaded->dma_iop_size);
+	}
+	loaded->ata = dev9.ata;
+	loaded->eeprom = dev9.eeprom;
+	loaded->dma_iop_ptr = (dma_offset == kNoIopDma) ? nullptr : iopMem->Main + dma_offset;
+	if (dma_offset == kNoIopDma)
+	{
+		loaded->dma_iop_transfered = 0;
+		loaded->dma_iop_size = 0;
+	}
+	const bool valid = !sw.HasError() && Dev9StateValid(*loaded, dma_offset);
+	if (valid)
+		std::memcpy(&dev9, loaded.get(), sizeof(dev9));
+	rx_lock.unlock();
+	if (!valid)
+	{
+		Console.Error("DEV9: the DEV9 state in this save state is damaged or from an unknown build.");
+		return false;
+	}
+
+	// Host connections of this process no longer match the PS2's sequence
+	// numbers: drop them (no RST to the PS2) so the next packet adopts anew.
+	Zdxsv::OnStateLoaded();
+	if (Zdxsv::AdoptConnections())
+		ad_reset();
+	return true;
 }
 
 void DEV9CheckChanges(const Pcsx2Config& old_config)
