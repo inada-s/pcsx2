@@ -48,6 +48,7 @@ ANSWERS = {
 lock = threading.Lock()
 seq_next = [1000]
 log_lock = threading.Lock()
+UDPRELAY = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "tools", "zdxsv", "udprelay.py"))
 
 
 def log(s):
@@ -174,13 +175,12 @@ class Battle:
     def start_relays(self, order):
         # --ggpo-delay D: one udprelay.py per pair of GGPO clients; X is told ggpo_Y = the relay socket
         # that stands in for Y (p2p_Y IP 127.0.0.1): the ping test and the GGPO battle see 2*D ms rtt
-        here = os.path.dirname(os.path.abspath(__file__))
         relays, port = {}, self.args.ggpo_relay_port
         gg = [c for c in order if c.udp and self.ggpo_port(c)]
         for i, x in enumerate(gg):
             for y in gg[i + 1:]:
                 relays[(x, y)], relays[(y, x)] = port, port + 1
-                cmd = [sys.executable, "-u", os.path.join(here, "udprelay.py"), "--a", str(port), "--b", str(port + 1),
+                cmd = [sys.executable, "-u", UDPRELAY, "--a", str(port), "--b", str(port + 1),
                        "--p1", str(self.ggpo_port(x)), "--p2", str(self.ggpo_port(y)), "--delay", str(self.args.ggpo_delay),
                        "--seconds", "3600", "--idle", "600"]
                 subprocess.Popen(cmd)
@@ -385,6 +385,8 @@ def main():
     a = ap.parse_args()
     if a.p2p != "v4" and a.ggpo_delay:
         sys.exit("--p2p %s: the --ggpo-delay relays are IPv4 only" % a.p2p)
+    if a.ggpo_delay and not os.path.isfile(UDPRELAY):
+        sys.exit("--ggpo-delay: %s not found" % UDPRELAY)
     if a.p2p != "v4" and not a.v6:
         # as pcsx2's udp_addr6: source address of a route to 2001:db8::1 (connect() sends nothing)
         p = socket.socket(socket.AF_INET6, socket.SOCK_DGRAM)
