@@ -17,7 +17,7 @@
 #include "DEV9/SimpleQueue.h"
 #include "DEV9/Sessions/BaseSession.h"
 #include "DEV9/PacketReader/IP/TCP/TCP_Packet.h"
-#include "Zdxsv/Lobby.h"
+#include "Zdxsv/Dev9Hooks.h"
 
 namespace Sessions
 {
@@ -96,7 +96,7 @@ namespace Sessions
 		void ZdxsvAdopted();
 		std::string ZdxsvOpenLobby(int& ggpoPort, bool natTest = true);
 		// zdxsv: strips the lobby's battle info notice (Zdxsv/Lobby.cpp), set with udp=1 (GGPO lobby=1)
-		std::unique_ptr<Zdxsv::LobbyFilter> zdxsvLobbyFilter;
+		std::unique_ptr<Zdxsv::LobbyFilter, Zdxsv::LobbyFilterDeleter> zdxsvLobbyFilter;
 
 		void IncrementMyNumber(u32 amount);
 		void UpdateReceivedAckNumber(u32 ack);

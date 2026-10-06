@@ -21,7 +21,7 @@
 #include "iCore.h"
 
 #include "Config.h"
-#include "Zdxsv/DeltaState.h"
+#include "Zdxsv/CpuHooks.h"
 
 #include "common/AlignedMalloc.h"
 #include "common/FileSystem.h"

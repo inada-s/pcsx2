@@ -10,6 +10,9 @@
 
 #pragma once
 
+#include "Zdxsv/Dev9Hooks.h"
+#include "Zdxsv/SaveStateHooks.h"
+
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -143,18 +146,8 @@ namespace Zdxsv
 		std::vector<uint8_t> ready; // frames for the game
 	};
 
-	// Lobby save states, a debugging feature, off unless ZDXSV_LOBBY_STATE=1:
-	// DEV9 state is saved/loaded with save states, and after a load DEV9 adopts
-	// TCP connections the PS2 opened before the save. Off = upstream behaviour.
-	bool LobbyStateEnabled();
-	// A save state was loaded: from now on DEV9 adopts TCP connections the PS2
-	// opened before the save (only if LobbyStateEnabled()).
-	void LobbyOnStateLoaded();
-	bool AdoptConnections();
-	// ip:port is the battle server of the last battle info. Its connection is never
-	// adopted: the PS2's late packets get a RST instead of a new connection to a
-	// closed room (s612).
-	bool IsBattleServer(uint32_t ip, uint16_t port);
+	// Lobby save states (LobbyStateEnabled, LobbyOnStateLoaded, AdoptConnections, IsBattleServer):
+	// Zdxsv/SaveStateHooks.h, Zdxsv/Dev9Hooks.h.
 
 	// STUN codec (zdxsv/pkg/proto/zdxsv.proto Ping / Pong), exposed for tests.
 	enum ProtoMessageType : uint32_t

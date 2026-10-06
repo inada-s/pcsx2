@@ -5,7 +5,7 @@
 #include "SIO/Pad/Pad.h"
 #include "SIO/Sio.h"
 #include "SIO/Sio0.h"
-#include "Zdxsv/InputLatency.h"
+#include "Zdxsv/InputHooks.h"
 
 #include "Common.h"
 #include "Input/InputManager.h"
