@@ -33,6 +33,7 @@ with a peer without GGPO still goes through the battle server. The release will 
 - GGPO battles: the battle of the game runs over GGPO instead of the battle server.
 - Lobby battles: peers, addresses and input delay come from the lobby and a ping test. Relay servers, a match
   report to the lobby, a P2P connectivity test and a network status OSD.
+- A VM shutdown or reset during a GGPO battle ends it like a disconnect (replay saved, state dropped).
 
 ### Replays
 

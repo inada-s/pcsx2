@@ -85,6 +85,7 @@ off. Any other value turns it on. Without `net=1` the session is a synctest. Log
 | `ZDXSV_SAVE_ALL=1` | off | control | Delta-save every GGPO frame, also frames that can no longer be rolled back. |
 | `ZDXSV_NET_TAIL=n` | 300 | tuning | Frames run after the battle end message before the session stops. |
 | `ZDXSV_NET_DISCONNECT_MS=ms` | 5000 | tuning | GGPO disconnect timeout. |
+| `ZDXSV_VM_TEST=frame:shutdown` or `frame:reset` | off | test | Shut down or reset the VM once a session or replay reaches that GGPO frame. |
 
 ## Replay playback
 

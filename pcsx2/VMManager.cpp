@@ -1663,6 +1663,7 @@ void VMManager::Shutdown(bool save_resume_state)
 	if (THREAD_VU1)
 		vu1Thread.WaitVU();
 	MTGS::WaitGS();
+	Zdxsv::GgpoOnVmShutdown("vm shutdown");
 
 	if (!GSDumpReplayer::IsReplayingDump() && save_resume_state)
 	{
@@ -1789,6 +1790,7 @@ void VMManager::Reset()
 	vu1Thread.WaitVU();
 	vu1Thread.Reset();
 	MTGS::WaitGS();
+	Zdxsv::GgpoOnVmShutdown("vm reset");
 
 	const bool elf_was_changed = (s_current_crc != 0);
 	ClearELFInfo();
