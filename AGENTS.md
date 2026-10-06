@@ -80,9 +80,6 @@ the agent's working context.
 
 - zdxsv code lives in `pcsx2/Zdxsv/` (Qt-only code in `pcsx2-qt/Zdxsv/`).
   Create new zdxsv files there, never next to upstream sources.
-- `pcsx2/Zdxsv*.cpp|h` and `pcsx2/DEV9/Zdxsv/` are the old placement. Move
-  them in PRs that only move and rename (`git mv`, includes, build files), with
-  no behavior change in the same PR.
 - `pcsx2/Zdxsv/README.md` holds the glossary (see Comments) and a map of the
   files. Update it when a file is added, split or renamed.
 - Keep `pcsx2/CMakeLists.txt` and `pcsx2/pcsx2.vcxproj` (+ `.filters`) in sync.
@@ -91,9 +88,9 @@ the agent's working context.
 
 - Directory, file, namespace, type and function names follow upstream:
   `PascalCase`. The directory has the name of the namespace: `pcsx2/Zdxsv/`.
-- All zdxsv code is in one namespace, `Zdxsv`. Do not add nested namespaces
-  (`Zdxsv::Ggpo`, `Zdxsv::Internal`, ...) or other top-level namespaces
-  (`ZdxsvGgpo`, ...). Rename the existing ones in a PR that only renames.
+- All zdxsv code is in one namespace, `Zdxsv`. No nested namespaces
+  (`Zdxsv::Ggpo`, `Zdxsv::Internal`) and no other top-level namespaces
+  (`ZdxsvGgpo`).
 - A name must be clear without a component namespace. Give it the component
   as a prefix when it is generic or exists in more than one component:
   `GgpoOnVsync`, `InputLatencyOnVsync`, `DeltaStateSave`, `g_ggpo_enabled`. A
@@ -170,8 +167,7 @@ the agent's working context.
   per-frame hashes, replay checks, log lines). Unit tests are optional.
 - Rig scripts and their helpers are committed in this repository, under
   `tests/zdxsv/`, in the same PR as the feature they test. Do not keep them in
-  another repository and do not keep a second copy anywhere. A script that
-  still lives elsewhere is moved here, not copied.
+  another repository and do not keep a second copy anywhere.
 - Scripts hold no game image, BIOS, memory card or save state, and no path of
   one machine. They take those from arguments or environment variables.
 - `docs/zdxsv/features.md` lists every feature this fork adds together with its
@@ -204,6 +200,8 @@ the agent's working context.
   numbers of one test run go in the commit message or the PR.
 - A PR that changes behavior updates the documents it makes wrong, in the
   same PR.
+- `AGENTS.md` holds lasting rules only. Steps for bringing existing code in
+  line with a rule go in an issue, not in this file.
 
 ### Comments
 
