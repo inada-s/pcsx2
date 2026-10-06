@@ -36,7 +36,6 @@ replaces these settings. In that case, enter the values from the table yourself,
 delete `inis\PCSX2.ini` to get a new one with these defaults.
 
 If Windows Firewall asks whether PCSX2 can use the network, allow it.
-Battles go through the zdxsv server, as on a PS2.
 
 ## First time in the game
 

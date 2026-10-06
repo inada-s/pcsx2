@@ -25,7 +25,8 @@ One line per feature. Each feature and its tests are listed in
 
 ### Rollback netcode (GGPO)
 
-In progress. Off unless `ZDXSV_GGPO` is set, and not yet used by the zdxsv release.
+In development. For now it is off unless `ZDXSV_GGPO` is set, and battles go through the battle server. The release
+will run battles over GGPO only.
 
 - GGPO library in `3rdparty/ggpo`.
 - Delta save states: fast enough to save the whole machine every frame.
