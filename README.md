@@ -28,7 +28,7 @@ One line per feature. Each feature and its tests are listed in
 In development. On by default for lobby battles of the game (setting under Settings → Network & HDD); a battle
 with a peer without GGPO still goes through the battle server. The release will run battles over GGPO only.
 
-- GGPO library in `3rdparty/ggpo`.
+- GGPO library in `3rdparty/ggpo`; its MIT notice is in `bin/docs/ThirdPartyLicenses.html`.
 - Delta save states: fast enough to save the whole machine every frame.
 - GGPO battles: the battle of the game runs over GGPO instead of the battle server.
 - Lobby battles: peers, addresses and input delay come from the lobby and a ping test. Relay servers, a match
