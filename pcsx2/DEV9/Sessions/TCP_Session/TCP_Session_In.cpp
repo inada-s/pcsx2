@@ -20,6 +20,8 @@
 #include "TCP_Session.h"
 #include "BuildVersion.h"
 #include "ZdxsvGgpo.h"
+#include "Host.h"
+#include "IconsFontAwesome.h"
 #include "common/StringUtil.h"
 
 using namespace PacketReader;
@@ -237,7 +239,7 @@ namespace Sessions
 	// ZDXSV_GGPO net=1,lobby=1 on a lobby connection: battle infos go to GGPO (ZdxsvListenGgpo), the
 	// lobby's UDP STUN gives our public address. Returns platform info lines "udp_addr=..\nudp_local=..\n"
 	// (+ "udp_addr6=[..]:..\n" with a global IPv6 address) and our GGPO port (0 = off: nothing done, the connection is plain TCP).
-	std::string TCP_Session::ZdxsvOpenLobby(int& ggpoPort)
+	std::string TCP_Session::ZdxsvOpenLobby(int& ggpoPort, bool natTest)
 	{
 		ggpoPort = ZdxsvListenGgpo();
 		if (ggpoPort <= 0)
@@ -245,8 +247,20 @@ namespace Sessions
 		Zdxsv::SetLogger([](const std::string& s) { Console.WriteLn("DEV9: %s", s.c_str()); });
 		zdxsvLobbyFilter = std::make_unique<Zdxsv::LobbyFilter>();
 		// The lobby's UDP STUN is on its host at 8201 (zdxsv docker-compose); ZDXSV_STUN_PORT overrides.
-		const char* stunPort = std::getenv("ZDXSV_STUN_PORT");
-		return Zdxsv::OpenUdp(std::bit_cast<u32>(destIP), stunPort ? static_cast<u16>(std::atoi(stunPort)) : 8201);
+		const char* stunPortEnv = std::getenv("ZDXSV_STUN_PORT");
+		const u16 stunPort = stunPortEnv ? static_cast<u16>(std::atoi(stunPortEnv)) : 8201;
+		std::string lines = Zdxsv::OpenUdp(std::bit_cast<u32>(destIP), stunPort);
+		// Connectivity test of the GGPO port (flycast's P2P feasibility test), once per run: the lobby
+		// reconnects after every battle and the result does not change in between. It blocks this thread
+		// up to ~2 s (no answer); not on an adopted connection (s701: 3 of 3 adoptions after a state load
+		// never reached the lobby while it ran there; no platform info goes out there anyway).
+		static std::string natLine, natSummary;
+		if (natTest && natLine.empty())
+		{
+			natLine = Zdxsv::UdpTest(std::bit_cast<u32>(destIP), stunPort, static_cast<u16>(ggpoPort), natSummary);
+			Host::AddIconOSDMessage("ZdxsvUdpTest", ICON_FA_NETWORK_WIRED, "P2P connectivity: " + natSummary, 10.0f);
+		}
+		return lines + natLine;
 	}
 
 	// Adopted after a state load: the server side starts mid-session (no key
@@ -256,7 +270,7 @@ namespace Sessions
 	{
 		zdxsvChecked = true;
 		int ggpoPort;
-		ZdxsvOpenLobby(ggpoPort); // the lobby cannot know the port (no platform info): fake_lobby.py --ggpo
+		ZdxsvOpenLobby(ggpoPort, false); // the lobby cannot know the port (no platform info): fake_lobby.py --ggpo
 	}
 
 	// The zdxsv lobby server opens every connection with a key pair question

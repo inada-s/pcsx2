@@ -46,6 +46,9 @@ on [zdxsv](https://github.com/inada-s/zdxsv). Player setup: [ZDXSV.md](ZDXSV.md)
   GGPO and no fallback to the battle server; the game gets no response, gives up and reconnects to the lobby.
   After each lobby battle the emulator reports to the lobby how it ran (match report `0x9952`).
   During a GGPO battle an OSD shows the input delay, rollbacks and each opponent's ID, name and ping.
+  On the first lobby connection a P2P connectivity test of the GGPO port (as flycast's feasibility test, against
+  the lobby's STUN and its test socket at the STUN port + 1) shows `open` / `cone NAT` / `symmetric NAT` /
+  `unknown` in an OSD message and the log, and sends it in the platform info (`nat=`).
 
 ### Releases and updates
 - The auto-updater checks this fork's GitHub releases (`zdxsv-X.Y.Z` tags) instead of pcsx2.net.
@@ -67,7 +70,8 @@ All options are environment variables, read at startup. None is needed to play.
 Test scripts that use them: `zdxsv/` in inada-s/ai-automation (named in brackets).
 
 ### Network
-- `ZDXSV_STUN_PORT=port`: the lobby's STUN port (default 8201; asked only with `ZDXSV_GGPO` `lobby=1`).
+- `ZDXSV_STUN_PORT=port`: the lobby's STUN port (default 8201; asked only with `ZDXSV_GGPO` `lobby=1`). The
+  connectivity test also uses port + 1 (zdxsv's STUN test socket); a server without it gives `nat=unknown`.
 - `ZDXSV_PLATFORM_INFO=0`: send no platform info; the server sees a real PS2.
 - `ZDXSV_LOBBY_STATE=1`: save states made online keep working after a load (`launch.ps1`).
 - `ZDXSV_UPDATE_URL=url`: the updater reads its release list from this URL (testing updates).
