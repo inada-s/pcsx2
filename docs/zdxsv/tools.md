@@ -1,0 +1,46 @@
+# Releases, CI and tools
+
+## Releases and updates
+
+- The auto-updater checks the GitHub releases of this fork (`zdxsv-X.Y.Z`
+  tags) instead of pcsx2.net.
+- Pushing a tag `zdxsv-X.Y.Z` runs `.github/workflows/zdxsv_release.yml`. It
+  builds Windows x64 and publishes two files with the same content:
+  `pcsx2-zdxsv-windows-x64.7z` for the updater and `.zip` for a first install.
+- A tag with a suffix, such as `zdxsv-0.0.1-rc1`, becomes a prerelease. The
+  updater skips prereleases.
+- The release zip holds `portable.txt` and `ZDXSV.md`.
+
+## CI
+
+- One Windows build (CMake + clang-cl) runs on pushes to and pull requests
+  into `zdxsv-master` and `ai/zdxsv`. It also runs the unit tests.
+- The Linux and macOS workflows only run by hand (`workflow_dispatch`).
+
+## Local build and run
+
+| Script | What it does |
+|---|---|
+| `build-local.sh` | Builds PCSX2 on Windows from Git Bash, as the MSBuild path of the Windows CI. `--run` launches the build. The first run builds the third-party dependencies into `deps/`. |
+| `run.py` | Launches several local instances side by side, each with its own data directory under `work/`. Modes: `rom`, `state`, `rbk_test`, `rbk_test_random`. Settings are environment variables listed at the top of the script. |
+| `tools/zdxsv/udprelay.py` | UDP relay that adds latency, jitter and loss between two GGPO peers. |
+| `tools/zdxsv/pwcheck.py` | Compares the per-frame work RAM hashes of the players across the peers: `IN SYNC` or `DESYNC`. |
+
+`run.py rbk_test` runs a GGPO battle between the instances without a server
+and ends with the sync check. `LAT=ms JITTER=ms LOSS=0..1` send each pair of
+instances through `udprelay.py`. `SYNC_CHECK=0` turns the check off.
+
+## PINE commands for test rigs
+
+| Opcode | Arguments | Action |
+|---|---|---|
+| `0x30` | pad u8, bind u8, value u8 | set a pad input |
+| `0x31` | path length u16, path | queue a GS screenshot to that path |
+| `0x32` | none; returns u32 | read the frame count |
+
+## Unit tests
+
+| File | Covers |
+|---|---|
+| `tests/ctest/core/ggpo_tests.cpp` | GGPO synctest |
+| `tests/ctest/core/dev9_config_tests.cpp` | network defaults |
