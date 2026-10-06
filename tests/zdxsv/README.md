@@ -61,3 +61,5 @@ USERS=AAAAAA BBBBBB CCCCCC DDDDDD
   its sources.
 - Run from the repository root, e.g. `OUT=G:/zdxsv-run/out bash tests/zdxsv/rbk.sh 2 1`.
   Exit 0 = every check passed; a failed check prints `FAIL` and its reason.
+  `rbk.sh` takes N and seed as arguments; an `N=` or `SEED=` in the environment
+  that differs from them is refused (exit 2).
