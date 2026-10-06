@@ -19,6 +19,8 @@
 //                test on the GGPO port (flycast UdpPingPong packets, Zdxsv::StartPingTest)
 //   mindelay=2   lower bound of that pick
 //   badsession=1 test: this client's ping test uses another session id, so no peer answers it (the cut)
+//   advertise=P  lobby test: the platform info announces 127.0.0.1 and GGPO port P only (no STUN /
+//                local / IPv6 address), so peers reach us through a localhost udprelay.py at P
 //   osd=1        net: network status OSD (OsdLines; 0 = off); its text is also logged every 600 frames
 //   sync=0       no state hashes: checksum 0 (net: always)
 //   start=1500   vsync (counted from boot) the session starts at
@@ -356,6 +358,8 @@ namespace ZdxsvGgpo
 					s_bad_session = (n != 0);
 				else if (key == "osd")
 					s_osd = (n != 0);
+				else if (key == "advertise")
+					; // LobbyAdvertisePort
 				else
 					Console.Warning("ZdxsvGgpo: unknown key '%.*s'", static_cast<int>(key.size()), key.data());
 			}
@@ -1969,6 +1973,19 @@ namespace ZdxsvGgpo
 			for (const std::string_view item : StringUtil::SplitString(e, ','))
 				if (item.starts_with("port="))
 					p = StringUtil::FromChars<int>(item.substr(5)).value_or(0);
+			return (p > 0 && p <= 0xFFFF) ? p : 0;
+		}();
+		return port;
+	}
+
+	int LobbyAdvertisePort()
+	{
+		static const int port = [] {
+			const char* e = LobbyPort() > 0 ? std::getenv("ZDXSV_GGPO") : nullptr;
+			int p = 0;
+			for (const std::string_view item : StringUtil::SplitString(e ? e : "", ','))
+				if (item.starts_with("advertise="))
+					p = StringUtil::FromChars<int>(item.substr(10)).value_or(0);
 			return (p > 0 && p <= 0xFFFF) ? p : 0;
 		}();
 		return port;
