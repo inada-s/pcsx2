@@ -9,7 +9,9 @@ its header comment.
 
 - Windows, Git Bash (`bash`), PowerShell 5.1, Python 3 with Pillow (windowed
   snapshots only).
-- A PCSX2 build of this repository (`bin/pcsx2-qtx64.exe`, or `PCSX2_EXE`).
+- A PCSX2 test build of this repository (`bin/pcsx2-qtx64.exe`, or `PCSX2_EXE`):
+  `build-local.sh --test-options` or MSBuild `/p:ZdxsvTestOptions=true`. A
+  release build ignores the test options (`docs/zdxsv/options.md`, Test build).
 - The game image (`ISO`). It is not part of this repository.
 - The lobby tests (`m4*.sh`, `stack.sh`, `rbkprep.sh`) need a zdxsv checkout
   with its binaries built in `$ZDXSV/bin` (`zdxsv.exe`, `zproxy.exe`) and Go to

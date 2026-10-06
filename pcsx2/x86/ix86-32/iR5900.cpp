@@ -6,6 +6,7 @@
 #include "Counters.h"
 #include "DebugTools/Breakpoints.h"
 #include "Zdxsv/CpuHooks.h"
+#include "Zdxsv/TestOptions.h"
 
 #include "Elfheader.h"
 #include "GS.h"
@@ -1664,7 +1665,7 @@ bool encodeBreakpoint()
 // to ZDXSV_EE_PROBE_OUT-<pid>.txt each time the EE reaches one of the PCs.
 static std::vector<u32> s_zdxsv_probe_pcs = [] {
 	std::vector<u32> v;
-	if (const char* e = std::getenv("ZDXSV_EE_PROBE"))
+	if (const char* e = Zdxsv::TestEnv("ZDXSV_EE_PROBE"))
 		for (const char* p = e; *p;)
 		{
 			char* end;
@@ -1678,12 +1679,12 @@ static std::vector<u32> s_zdxsv_probe_pcs = [] {
 static void zdxsvProbeHit()
 {
 	static FILE* f = [] {
-		const char* o = std::getenv("ZDXSV_EE_PROBE_OUT");
+		const char* o = Zdxsv::TestEnv("ZDXSV_EE_PROBE_OUT");
 		std::string path = std::string(o ? o : "eeprobe") + "-" + std::to_string(Common::Timer::GetCurrentValue() % 100000) + ".txt";
 		return std::fopen(path.c_str(), "w");
 	}();
 	// ZDXSV_EE_PROBE_MEM=sp: 128 bytes from sp (callers' saved ra) instead of 48 at a fixed address.
-	static const char* mem_env = std::getenv("ZDXSV_EE_PROBE_MEM");
+	static const char* mem_env = Zdxsv::TestEnv("ZDXSV_EE_PROBE_MEM");
 	static const bool mem_sp = mem_env && std::strcmp(mem_env, "sp") == 0;
 	static const u32 mem = mem_env && !mem_sp ? static_cast<u32>(std::strtoul(mem_env, nullptr, 16)) : 0xc22c98u;
 	if (!f)
@@ -1714,7 +1715,7 @@ static bool encodeZdxsvProbe()
 // ra, 128 stack bytes, GGPO frame) to ZDXSV_EE_PROBE_OUT-w<pid>.txt. Inline range compare per store.
 static std::vector<std::pair<u32, u32>> s_zdxsv_watch = [] {
 	std::vector<std::pair<u32, u32>> v;
-	if (const char* e = std::getenv("ZDXSV_EE_WATCH"))
+	if (const char* e = Zdxsv::TestEnv("ZDXSV_EE_WATCH"))
 		for (const char* p = e; *p;)
 		{
 			char* end;
@@ -1731,7 +1732,7 @@ static std::vector<std::pair<u32, u32>> s_zdxsv_watch = [] {
 static void zdxsvWatchHit(u32 addr, u32 op)
 {
 	static FILE* f = [] {
-		const char* o = std::getenv("ZDXSV_EE_PROBE_OUT");
+		const char* o = Zdxsv::TestEnv("ZDXSV_EE_PROBE_OUT");
 		std::string path = std::string(o ? o : "eeprobe") + "-w" + std::to_string(Common::Timer::GetCurrentValue() % 100000) + ".txt";
 		return std::fopen(path.c_str(), "w");
 	}();

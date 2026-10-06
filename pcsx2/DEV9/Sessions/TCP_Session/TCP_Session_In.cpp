@@ -25,6 +25,7 @@
 #include "TCP_Session.h"
 #include "BuildVersion.h"
 #include "Zdxsv/Ggpo.h"
+#include "Zdxsv/TestOptions.h"
 #include "Host.h"
 #include "IconsFontAwesome.h"
 #include "common/StringUtil.h"
@@ -292,7 +293,7 @@ namespace Sessions
 		if (len < 12 || data[0] != 0x18 || data[1] != 0x01 || data[2] != 0x61 || data[3] != 0x01)
 			return;
 		// ZDXSV_PLATFORM_INFO=0: behave like a real PS2 (for testing the console side)
-		const char* env = std::getenv("ZDXSV_PLATFORM_INFO");
+		const char* env = Zdxsv::TestEnv("ZDXSV_PLATFORM_INFO");
 		if (env && std::string(env) == "0")
 		{
 			Console.WriteLn("DEV9: TCP: zdxsv lobby detected, platform info off (ZDXSV_PLATFORM_INFO=0)");

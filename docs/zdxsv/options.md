@@ -16,6 +16,27 @@ The **Use** column says what an option is for:
 | control | makes a test fail on purpose, to show the test detects the problem |
 | diagnostic | writes traces, dumps or screenshots |
 
+## Test build
+
+Options that can be abused (they change game memory or inputs, disturb the
+battle of other players, redirect the updater or write files to a path given
+from outside) work only in a test build: CMake `-DZDXSV_TEST_OPTIONS=ON`,
+MSBuild `/p:ZdxsvTestOptions=true`, `build-local.sh --test-options`. Release
+builds leave it off, and these options are then ignored:
+
+- `ZDXSV_GGPO`: every value except `0`. A release build runs only the lobby
+  session of the `ZdxsvGgpo` setting; of `ZDXSV_GGPO` it keeps `osd=`,
+  `port=`, `replay=0`, `net=1` and `lobby=1` and logs the other keys as ignored. The input delay is always the
+  one the ping test picked.
+- `ZDXSV_PLATFORM_INFO`, `ZDXSV_UPDATE_URL`, `ZDXSV_ZDS_PS`, `ZDXSV_K3_LAG`,
+  `ZDXSV_NET_TAIL`, `ZDXSV_NET_DISCONNECT_MS`.
+- Rollback tests: `ZDXSV_RBK*`, `ZDXSV_RAND_INPUT`, `ZDXSV_EE_CLAMP`.
+- `ZDXSV_DELTA_TEST`, `ZDXSV_INPUT_LATENCY`.
+- Traces and dumps: `ZDXSV_NET_TRACE`, `ZDXSV_PW_HASH`, `ZDXSV_PW_DUMP`,
+  `ZDXSV_RAM_DUMP`, `ZDXSV_SNAP`, `ZDXSV_EE_PROBE*`, `ZDXSV_EE_WATCH`.
+
+The rigs in `tests/zdxsv` need a test build.
+
 ## Setting in PCSX2.ini
 
 | Setting | Default | Use | Meaning |

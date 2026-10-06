@@ -15,6 +15,7 @@
 // Results go to the log, lines start with "ZdxsvDelta".
 
 #include "Zdxsv/DeltaState.h"
+#include "Zdxsv/TestOptions.h"
 
 #include "Memory.h"
 #include "SaveState.h"
@@ -41,10 +42,10 @@
 
 namespace Zdxsv
 {
-	bool g_delta_state_test_enabled = std::getenv("ZDXSV_DELTA_TEST") != nullptr;
+	bool g_delta_state_test_enabled = Zdxsv::TestEnv("ZDXSV_DELTA_TEST") != nullptr;
 	// A control run: ZDXSV_DELTA_TEST=...,blocks=linked keeps the recompilers' history-dependent block ends.
 	// With GGPO options GgpoOnVmInitialize sets it too.
-	bool g_fixed_blocks = g_delta_state_test_enabled && !std::strstr(std::getenv("ZDXSV_DELTA_TEST"), "blocks=linked");
+	bool g_fixed_blocks = g_delta_state_test_enabled && !std::strstr(Zdxsv::TestEnv("ZDXSV_DELTA_TEST"), "blocks=linked");
 
 	namespace
 	{
@@ -357,7 +358,7 @@ namespace Zdxsv
 		void Parse()
 		{
 			s_parsed = true;
-			for (const std::string_view item : StringUtil::SplitString(std::getenv("ZDXSV_DELTA_TEST"), ','))
+			for (const std::string_view item : StringUtil::SplitString(Zdxsv::TestEnv("ZDXSV_DELTA_TEST"), ','))
 			{
 				const size_t eq = item.find('=');
 				if (eq == std::string_view::npos)
