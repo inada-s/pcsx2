@@ -17,6 +17,10 @@ namespace Zdxsv
 	// In VMManager::Initialize, once the disc serial is known and before the CPU runs: the GGPO options of
 	// this VM (ZDXSV_GGPO, else the ZdxsvGgpo setting for the Z game) and the flags above that follow them.
 	void GgpoOnVmInitialize(const char* serial);
+	// In VMManager::Shutdown and VMManager::Reset, CPU thread, before the VM state goes: a running session ends
+	// (Stop: peers see a disconnect, the replay is saved), the replay key files are deleted, the per-battle state
+	// goes back to start values. what = "vm shutdown" / "vm reset".
+	void GgpoOnVmShutdown(const char* what);
 	// In VSyncStart.
 	void GgpoOnVsync();
 	// In VMManager::Execute, after the CPU returned.

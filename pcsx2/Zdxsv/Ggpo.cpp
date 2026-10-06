@@ -317,6 +317,7 @@ namespace Zdxsv
 		GGPOPlayerHandle s_handles[GGPO_MAX_PLAYERS] = {};
 		bool s_started = false; // the session was opened (lobby=1: until the next battle's NetReset)
 		bool s_frame_ended = false; // the CPU left Execute() at a vsync
+		bool s_vm_closing = false; // in GgpoOnVmShutdown: Stop does not shut the VM down (rbk)
 		int s_vsyncs = 0;
 		int s_session_frames = 0;
 		std::mt19937 s_rng;
@@ -921,7 +922,7 @@ namespace Zdxsv
 				ReplayWrite(what);
 				NetReport();
 			}
-			if (s_rbk)
+			if (s_rbk && !s_vm_closing)
 			{
 				Console.WriteLn("ZdxsvGgpo: rbk exit (%s) at vsync %u", what, g_FrameCount);
 				Host::RunOnCPUThread([] { Host::RequestVMShutdown(false, false, false); });
@@ -1018,6 +1019,17 @@ namespace Zdxsv
 			const auto env = [](const char* k) { const char* v = std::getenv(k); return v && *v ? v : "-"; };
 			Console.WriteLn("ZdxsvGgpo: rbk env pos=%d/%d rand=%s turbo=%s ps=%s clamp=%s ggpo=%s", s_rbk_me, s_rbk_n,
 				env("ZDXSV_RAND_INPUT"), env("ZDXSV_RBK_TURBO"), env("ZDXSV_ZDS_PS"), env("ZDXSV_EE_CLAMP"), env("ZDXSV_GGPO"));
+		}
+		// ZDXSV_VM_TEST=frame:shutdown|reset (tests of GgpoOnVmShutdown): once, when a session or replay reaches GGPO frame `frame`
+		static const char* vm_test = std::getenv("ZDXSV_VM_TEST");
+		if (vm_test && g_ggpo_active && !g_ggpo_in_rollback && s_net_frame == std::atoi(vm_test))
+		{
+			vm_test = nullptr;
+			if (std::strstr(std::getenv("ZDXSV_VM_TEST"), ":reset"))
+				Host::RunOnCPUThread([] { VMManager::Reset(); });
+			else
+				Host::RunOnCPUThread([] { Host::RequestVMShutdown(false, false, false); });
+			Console.WriteLn("ZdxsvGgpo: vm test %s at frame %d", std::getenv("ZDXSV_VM_TEST"), s_net_frame);
 		}
 		TracePad();
 		TraceInputs();
@@ -2239,6 +2251,42 @@ namespace Zdxsv
 		};
 		PlaySent s_play_sent[GGPO_MAX_PLAYERS];
 
+		// GgpoOnVmShutdown: the key files go; a new VM (or the reset one) loads the files again and plays from the start.
+		void PlayReset()
+		{
+			for (auto& keys : s_play_keys)
+			{
+				for (auto& [f, k] : keys)
+				{
+					if (k->zip.joinable())
+						k->zip.join();
+					FileSystem::DeleteFilePath(k->path.c_str());
+				}
+				keys.clear();
+			}
+			s_play_inputs.clear();
+			s_play_frames = 0;
+			s_play_seeks.clear();
+			s_play_req = INT_MIN;
+			s_play_at_end = false;
+			s_play_target = -1;
+			{
+				std::lock_guard lock(s_battle_loads_mtx);
+				s_battle_loads.clear();
+			}
+			s_play_hi = s_tick_f = s_run_load = -1;
+			s_play_round_req = INT_MIN;
+			s_play_round_at.clear();
+			std::fill(std::begin(s_play_pov_ok), std::end(s_play_pov_ok), false);
+			s_play_pov_req = -1;
+			s_play_pov_at.clear();
+			std::fill(std::begin(s_play_sent), std::end(s_play_sent), PlaySent{});
+			s_bar_frame = -1;
+			s_bar_frames = 0;
+			s_bar_pov = s_bar_target = -1;
+			s_bar_povs = 0;
+		}
+
 		// Reads one file; returns its position, -1 = not used.
 		int PlayLoadFile(const std::string& path)
 		{
@@ -3063,4 +3111,30 @@ namespace Zdxsv
 {
 	// EE probe (iR5900.cpp): GGPO frame being run, the frame numbers of NET_TRACE H lines and PW dumps.
 	int ProbeFrame() { return s_net_frame; }
+
+	void GgpoOnVmShutdown(const char* what)
+	{
+		if (!g_ggpo_enabled)
+			return;
+		size_t keys = 0;
+		for (const auto& k : s_play_keys)
+			keys += k.size();
+		Console.WriteLn("ZdxsvGgpo: %s: session %d, replay recording %d, replay keys %zu", what, g_ggpo_active && !s_play_env ? 1 : 0,
+			s_replay_state.empty() ? 0 : 1, keys);
+		if (s_play_env)
+		{
+			g_ggpo_active = false;
+			PlayReset();
+		}
+		else if (g_ggpo_active)
+		{
+			s_vm_closing = true;
+			Stop(what); // peers see a disconnect; the replay is saved up to the last confirmed frame
+			s_vm_closing = false;
+		}
+		Zdxsv::DeltaStateClear();
+		NetReset();
+		g_ggpo_in_rollback = false;
+		s_vsyncs = 0; // the next VM start or the reset VM parses the options again (and loads a replay again)
+	}
 } // namespace Zdxsv

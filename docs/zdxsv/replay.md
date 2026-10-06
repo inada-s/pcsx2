@@ -11,7 +11,8 @@ save to `<data dir>/replays` without it. `replay=0` turns saving off.
 - The file name is `<battle_code>.zdxr`. Without a battle code it is
   `rbk-<start time>-p<position>.zdxr`.
 - The full save state is taken at GGPO frame 0 and zipped on a thread during
-  the battle. The file is written when the session stops.
+  the battle. The file is written when the session stops, also when the VM
+  is shut down or reset during the battle.
 - Only frames GGPO confirmed are written, so the files that the peers save of
   one battle hold the same inputs.
 
@@ -76,6 +77,9 @@ Every 600 played frames a key is kept: the full state as
 battle-socket state. A seek loads the newest key at or before the target,
 unless running on from the current frame is as close, then runs to the target
 unlimited. Forward seeks past the played part run every frame.
+The key files, and `cache/zdxsv-replay-p<P>.p2s` of the frame 0 state, are
+deleted when the VM is shut down or reset; the reset VM plays the replay again
+from the start.
 
 ### Point of view
 

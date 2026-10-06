@@ -73,6 +73,11 @@ local tests, picked from the ping test in lobby battles.
   `udprelay.py`, which adds latency, jitter and loss.
 - The session ends `ZDXSV_NET_TAIL` frames after the battle end message, or
   when a peer disconnects.
+- A VM shutdown or reset during the session closes it at once: the peers see
+  a disconnect, the replay is saved, the delta states and the per-battle state
+  of the old VM are dropped. Without this a reset VM kept the session, and its
+  rollbacks loaded the old VM's states. Log line:
+  `ZdxsvGgpo: vm shutdown|vm reset: session 1, ...`.
 
 Two mechanisms keep the peers on the same frame:
 
