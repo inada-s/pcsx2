@@ -1864,15 +1864,15 @@ namespace ZdxsvGgpo
 		LimiterModeType s_play_limiter = LimiterModeType::Nominal;
 		// skip MS selection (ZDXSV_REPLAY_SKIP_MS, default on as flycast's gdxsv:ReplaySkipMsSelection, 0 = off): from
 		// frame 0 the replay runs unlimited to the briefing = the frame tick state 0xc627b4 leaves 8 (battle load) the
-		// 2nd time (s715 lobby 1v1: loads at frames 204 and 4169, MS select 228-4054, briefing from 4183; round 2
-		// loads again with no MS select). Playing from frame 0 again jumps to the briefing.
+		// 2nd time (load 1 below; round 2 loads again with no MS select). Playing from frame 0 again jumps to the
+		// briefing.
 		const bool s_play_skip_ms = [] {
 			const char* e = std::getenv("ZDXSV_REPLAY_SKIP_MS");
 			return !e || e[0] != '0';
 		}();
 		// Battle loads: the frames where the tick state leaves 8, in order. Load 0 ends at MS select, load 1 at the
-		// briefing, load 1 + N at the start of round N (s712 lobby 1v1: 216, 4184, 4945, 16103; the same frames for
-		// both positions). Frames are played in order up to s_play_hi (a forward seek runs every frame between), so
+		// briefing, load 1 + N at the start of round N (a 2-round 1v1: 216, 4184, 4945, 16103, the same
+		// frames for both positions). Frames are played in order up to s_play_hi (a forward seek runs every frame between), so
 		// the list is complete up to it. Round jump (ZDXSV_REPLAY_ROUND_AT, hotkeys, control bar): a known round
 		// start is a seek; an unknown one runs unlimited from s_play_hi until that load ends.
 		static constexpr u32 TICK_STATE = 0xc627b4; // u8 game phase; 8 = battle load
