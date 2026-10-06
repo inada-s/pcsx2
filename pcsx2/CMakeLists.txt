@@ -207,6 +207,10 @@ set(pcsx2Headers
 	Zdxsv/InputLatency.h
 	Zdxsv/DeltaState.h
 	Zdxsv/Ggpo.h
+	Zdxsv/CpuHooks.h
+	Zdxsv/InputHooks.h
+	Zdxsv/SaveStateHooks.h
+	Zdxsv/UiHooks.h
 	VUops.h)
 
 # CDVD sources
@@ -363,6 +367,7 @@ set(pcsx2DEV9Headers
 	DEV9/Sessions/ICMP_Session/ICMP_Session.h
 	DEV9/Sessions/TCP_Session/TCP_Session.h
 	Zdxsv/Lobby.h
+	Zdxsv/Dev9Hooks.h
 	DEV9/Sessions/UDP_Session/UDP_Common.h
 	DEV9/Sessions/UDP_Session/UDP_FixedPort.h
 	DEV9/Sessions/UDP_Session/UDP_BaseSession.h

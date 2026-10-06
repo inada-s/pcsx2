@@ -5,26 +5,8 @@
 #include "CDVD/CDVD.h"
 #include "Counters.h"
 #include "DebugTools/Breakpoints.h"
-#include "Zdxsv/DeltaState.h"
-#include "Zdxsv/Ggpo.h"
+#include "Zdxsv/CpuHooks.h"
 
-namespace Zdxsv
-{
-	// fno 0x14 recv (0x30ec70), return of its wait RPC; kept out of Zdxsv/Ggpo.h (27 min rebuild)
-	constexpr u32 NET_RECV_RET_PC = 0x30ecf0;
-	void OnNetRecv();
-	// At NET_RPC_PC: true = the RPC was answered here (v0 set, pc = ra), skip the wrapper.
-	bool OnNetCall();
-	// zd=1: lockstep step's ring read (0x312bf4: a1 = ring entry, s0 = position) gets the GGPO input.
-	constexpr u32 STEP_COPY_PC = 0x312bf4;
-	extern bool g_zd_hook;
-	// ZDXSV_ZDS_PS=1: battle load step past its load-busy check; true = held (v0 = 0, pc = epilogue).
-	constexpr u32 LOAD_STEP_PC = 0x2b1d80;
-	extern bool g_ps_hook;
-	bool OnLoadStep();
-	void OnStepCopy();
-	int ProbeFrame(); // GGPO frame being run (EE probe lines)
-}
 #include "Elfheader.h"
 #include "GS.h"
 #include "Host.h"
