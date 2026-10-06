@@ -181,8 +181,14 @@ Test scripts that use them: `zdxsv/` in inada-s/ai-automation (named in brackets
     that position's newest key at or before the frame and runs to it unlimited. `ZDXSV_REPLAY_POV=P` starts at
     position P; `ZDXSV_REPLAY_POV_AT=frame:P[,...]` (test) switches when that frame is reached. Keys are kept per
     position (`cache/zdxsv-replay-key-p<P>-<frame>.p2s`).
-    Known issue: the real-lobby position 1 file of s707 drifts from frame 4028 when played alone too
-    (the battle socket is never used), so a switch to it shows the same drift.
+    Files saved before DEV9 was kept in replay states (bbbe3e9d2) may hang for a position (its IOP SMAP driver
+    and DEV9 on different TX buffers).
+  - Control bar (ImGui, bottom of the window): play/pause, seek -10 s / +10 s, time and frame / length, a timeline
+    (click or drag, seeks on release), point of view (eye button, enabled with a second file). Shown while
+    paused and for 3 s after the mouse moves over the bottom quarter; `ZDXSV_REPLAY_BAR=1` always shows it, `=0`
+    never. A bar seek plays on from a pause; play at the end restarts from frame 0. While paused, the window
+    redraws at 10 Hz (`VMManager::IdlePollUpdate`) so the bar sees the mouse. Logs `ZdxsvGgpo: replay bar:
+    <action>` and its `layout` (element x ranges in window pixels; zdxsv `pcsx2ctl.ps1 bar:NAME` clicks from it).
 - `ZDXSV_RBK=i/N`: rollback test (`rbk.sh`, `rbkprep.sh`). Start from a post-entry save state as battle position i of
   N. The emulator answers the lobby itself, runs turbo until the battle, and exits when the GGPO session ends.
   - `ZDXSV_RBK_TIME=s` (time limit), `ZDXSV_RBK_COUNT=n` (battles), `ZDXSV_RBK_GAUGE=v` (戦力ゲージ),
