@@ -227,6 +227,11 @@ the agent's working context.
   from a private test rig are stated as such.
 - Do not name a repository that is not public, or its issues, in code,
   documents, commit messages or PR text.
+- Do not write an issue or PR number with `#` (`#32`, `owner/repo#32`,
+  `GH-32`) in commit messages, PR titles and bodies, issues or comments.
+  GitHub may link it to the upstream repository, and the reference then shows
+  on the issue or PR there. Write "PR 32" or "issue 32", or the full URL of
+  the item in this fork.
 
 ## Contributing, Issue and PR Guidelines
 
