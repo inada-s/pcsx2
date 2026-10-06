@@ -23,7 +23,7 @@
 //                local / IPv6 address), so peers reach us through a localhost udprelay.py at P
 //   replay=DIR   net: save the battle to DIR/<battle_code>.zdxr (frame 0 state + all inputs, ReplayWrite);
 //                lobby=1 saves to <data dir>/replays by default; replay=0 = off
-//   osd=1        net: network status OSD (OsdLines; 0 = off); its text is also logged every 600 frames
+//   osd=1        net: network status OSD (GgpoOsdLines; 0 = off); its text is also logged every 600 frames
 //   sync=0       no state hashes: checksum 0 (net: always)
 //   start=1500   vsync (counted from boot) the session starts at
 //   frames=3000  frames the session runs, then it is closed and reported
@@ -88,13 +88,13 @@
 #include <vector>
 #include <limits>
 
-namespace ZdxsvGgpo
+namespace Zdxsv
 {
 	// ZDXSV_REPLAY=file.zdxr: plays a saved replay (PlayLoad), the net=1 hooks on, no GGPO session
 	const char* const s_play_env = std::getenv("ZDXSV_REPLAY");
-	bool g_enabled = std::getenv("ZDXSV_GGPO") != nullptr || s_play_env;
-	bool g_active = false;
-	bool g_in_rollback = false;
+	bool g_ggpo_enabled = std::getenv("ZDXSV_GGPO") != nullptr || s_play_env;
+	bool g_ggpo_active = false;
+	bool g_ggpo_in_rollback = false;
 
 	namespace
 	{
@@ -281,7 +281,7 @@ namespace ZdxsvGgpo
 		// network status OSD: user id + name per position (lobby battle info), lines of the last frame
 		std::vector<std::pair<std::string, std::string>> s_lobby_players, s_net_players;
 		std::mutex s_osd_mtx;
-		std::vector<OsdLine> s_osd_lines;
+		std::vector<GgpoOsdLine> s_osd_lines;
 		// lobby=1: peers of the last battle info (SetLobbyPeers, DEV9 thread)
 		std::mutex s_lobby_mtx;
 		bool s_lobby_info = false, s_lobby_ok = false, s_lobby_logged = false, s_lobby_unreachable = false;
@@ -318,7 +318,7 @@ namespace ZdxsvGgpo
 		int s_rollback_frames = 0, s_loads = 0, s_mismatches = 0, s_ggpo_warnings = 0;
 		Stat s_save_ms, s_hash_ms, s_load_ms;
 		Stat s_rerun_ms, s_wait_ms; // between frames: rollback rerun emulation, net wait for a peer
-		Stat s_emu_ms, s_exit_ms, s_ours_ms; // wall: last OnExecuteReturned end -> OnVsync -> OnExecuteReturned start -> its end
+		Stat s_emu_ms, s_exit_ms, s_ours_ms; // wall: last GgpoOnExecuteReturned end -> GgpoOnVsync -> GgpoOnExecuteReturned start -> its end
 		Common::Timer::Value s_t_vsync = 0, s_t_returned = 0;
 
 		void Parse()
@@ -375,7 +375,7 @@ namespace ZdxsvGgpo
 				else if (key == "osd")
 					s_osd = (n != 0);
 				else if (key == "advertise")
-					; // LobbyAdvertisePort
+					; // GgpoLobbyAdvertisePort
 				else if (key == "replay")
 				{
 					s_replay_off = (value == "0");
@@ -402,7 +402,7 @@ namespace ZdxsvGgpo
 			const double ours = s_ours_ms.sum / n, split = (s_save_ms.sum + s_hash_ms.sum + s_load_ms.sum + s_rerun_ms.sum + s_wait_ms.sum) / n;
 			Console.WriteLn("ZdxsvGgpo: %s between frames ms per frame %.2f: save %.2f hash %.2f load %.2f rerun %.2f wait %.2f rest (ggpo) %.2f | sync=%d",
 				what, ours, s_save_ms.sum / n, s_hash_ms.sum / n, s_load_ms.sum / n, s_rerun_ms.sum / n, s_wait_ms.sum / n, ours - split, s_sync);
-			Console.WriteLn("ZdxsvGgpo: %s delta %s | %s", what, ZdxsvDeltaState::Times().c_str(), SaveState_DeltaTimes().c_str());
+			Console.WriteLn("ZdxsvGgpo: %s delta %s | %s", what, Zdxsv::DeltaStateTimes().c_str(), SaveState_DeltaTimes().c_str());
 		}
 
 		Input HostInput()
@@ -577,12 +577,12 @@ namespace ZdxsvGgpo
 			       ms <= 90 ? OsdColor(255, 255, 0) : ms <= 120 ? OsdColor(255, 170, 0) : OsdColor(255, 0, 0);
 		}
 
-		// net, once per frame: the OSD lines (OsdLines). log: also to the log, one line.
+		// net, once per frame: the OSD lines (GgpoOsdLines). log: also to the log, one line.
 		void UpdateOsd(bool log)
 		{
 			if (!s_osd || !s_net || !s_session)
 				return;
-			std::vector<OsdLine> lines;
+			std::vector<GgpoOsdLine> lines;
 			// flycast's delay colors
 			lines.push_back({fmt::format("Delay {}fr", s_delay), s_delay >= 13 ? OsdColor(255, 38, 31) : s_delay >= 10 ? OsdColor(255, 128, 0) :
 			                                                      s_delay >= 5   ? OsdColor(255, 217, 0) : OSD_TEXT});
@@ -607,7 +607,7 @@ namespace ZdxsvGgpo
 			if (log)
 			{
 				std::string all;
-				for (const OsdLine& l : lines)
+				for (const GgpoOsdLine& l : lines)
 					all += (all.empty() ? "" : " |") + l.text;
 				Console.WriteLn("ZdxsvGgpo: osd frame %d: %s", s_session_frames, all.c_str());
 			}
@@ -653,7 +653,7 @@ namespace ZdxsvGgpo
 			int confirmed = -1;
 			if (!s_save_all && !s_sync && ggpo_get_last_confirmed_frame(s_session, &confirmed) == GGPO_OK && frame <= confirmed)
 				s_save_skipped++;
-			else if (!ZdxsvDeltaState::Save(frame))
+			else if (!Zdxsv::DeltaStateSave(frame))
 				return false;
 			if (s_net)
 				NetSaved(frame);
@@ -667,24 +667,24 @@ namespace ZdxsvGgpo
 			*buffer = reinterpret_cast<unsigned char*>(saved);
 			*len = sizeof(int);
 			// GGPO never goes back further than its check distance / prediction window.
-			ZdxsvDeltaState::DiscardBefore(frame - std::max(s_check, 8) - 4);
+			Zdxsv::DeltaStateDiscardBefore(frame - std::max(s_check, 8) - 4);
 			return true;
 		}
 
 		// sync=1 part of SaveGameState: checksum, synctest diff samples.
 		void HashSave(int frame, int* checksum)
 		{
-			const std::vector<u8>* state = ZdxsvDeltaState::GetState(frame);
+			const std::vector<u8>* state = Zdxsv::DeltaStateGetState(frame);
 			Sample sample;
 			sample.pages.resize(Ps2MemSize::ExposedRam / PAGE_SIZE);
 			for (size_t i = 0; i < sample.pages.size(); i++)
 				sample.pages[i] = XXH3_64bits(&eeMem->Main[i * PAGE_SIZE], PAGE_SIZE);
 			const u64 ram_hash = XXH3_64bits(sample.pages.data(), sample.pages.size() * sizeof(u64));
-			const u64 state_hash = ZdxsvDeltaState::HashState(*state);
+			const u64 state_hash = Zdxsv::DeltaStateHash(*state);
 			const u64 hash = ram_hash ^ state_hash;
 			*checksum = static_cast<int>(hash ^ (hash >> 32));
 			std::vector<u8> masked = *state;
-			ZdxsvDeltaState::MaskScratch(masked);
+			Zdxsv::DeltaStateMaskScratch(masked);
 			if (s_rerun)
 			{
 				const auto first = s_first.find(frame);
@@ -705,7 +705,7 @@ namespace ZdxsvGgpo
 			if (len != sizeof(int))
 				return false;
 			Common::Timer timer;
-			const bool ok = ZdxsvDeltaState::Load(*reinterpret_cast<int*>(buffer));
+			const bool ok = Zdxsv::DeltaStateLoad(*reinterpret_cast<int*>(buffer));
 			if (s_net)
 				NetLoaded(*reinterpret_cast<int*>(buffer));
 			s_load_ms.Add(timer.GetTimeMilliseconds());
@@ -733,11 +733,11 @@ namespace ZdxsvGgpo
 		{
 			if (!SyncAndApply(true))
 				return false;
-			g_in_rollback = true;
+			g_ggpo_in_rollback = true;
 			Common::Timer timer;
 			const bool ok = RunFrame();
 			s_rerun_ms.Add(timer.GetTimeMilliseconds());
-			g_in_rollback = false;
+			g_ggpo_in_rollback = false;
 			s_rerun = true;
 			ggpo_advance_frame(s_session);
 			s_rerun = false;
@@ -780,7 +780,7 @@ namespace ZdxsvGgpo
 			return s_lobby ? Path::Combine(EmuFolders::DataRoot, "replays") : std::string();
 		}
 
-		// At GGPO frame 0: the session started, its first input not added yet (ZdxsvDeltaState::Save(0) saves this point).
+		// At GGPO frame 0: the session started, its first input not added yet (Zdxsv::DeltaStateSave(0) saves this point).
 		void ReplayBegin()
 		{
 			const std::string dir = ReplayDir();
@@ -893,8 +893,8 @@ namespace ZdxsvGgpo
 				ggpo_close_session(s_session);
 			s_session = nullptr;
 			ggpo_set_log_function(nullptr);
-			g_active = false;
-			ZdxsvDeltaState::Clear();
+			g_ggpo_active = false;
+			Zdxsv::DeltaStateClear();
 			Report(what);
 			{
 				std::lock_guard lock(s_osd_mtx);
@@ -956,7 +956,7 @@ namespace ZdxsvGgpo
 	void TracePad();
 	void TraceInputs();
 
-	void OnVsync()
+	void GgpoOnVsync()
 	{
 		if (s_rbk && s_net_env && !s_net_armed)
 			VMManager::SetLimiterMode(LimiterModeType::Turbo);
@@ -974,13 +974,13 @@ namespace ZdxsvGgpo
 		// ZDXSV_SNAP=dir,n: GS screenshot dir/v<vsync>.png every n vsyncs (needs a real renderer, not -Headless)
 		static const char* snap = std::getenv("ZDXSV_SNAP");
 		static const int snap_n = snap && std::strchr(snap, ',') ? std::atoi(std::strchr(snap, ',') + 1) : 0;
-		if (snap_n > 0 && !g_in_rollback && g_FrameCount % snap_n == 0)
+		if (snap_n > 0 && !g_ggpo_in_rollback && g_FrameCount % snap_n == 0)
 			GSQueueSnapshot(fmt::format("{}\\v{}.png", std::string(snap, std::strchr(snap, ',')), g_FrameCount));
-		if (!g_enabled)
+		if (!g_ggpo_enabled)
 			return;
-		if (!g_active)
+		if (!g_ggpo_active)
 		{
-			if (!g_enabled || s_started)
+			if (!g_ggpo_enabled || s_started)
 				return;
 			if (s_vsyncs++ == 0)
 			{
@@ -993,10 +993,10 @@ namespace ZdxsvGgpo
 			if (s_net ? !s_net_armed : s_vsyncs < s_start)
 				return;
 			s_started = true;
-			g_active = true;
+			g_ggpo_active = true;
 		}
 		s_frame_ended = true;
-		if (!g_in_rollback)
+		if (!g_ggpo_in_rollback)
 		{
 			s_t_vsync = Common::Timer::GetCurrentValue();
 			if (s_t_returned)
@@ -1007,9 +1007,9 @@ namespace ZdxsvGgpo
 
 	static void Returned();
 
-	void OnExecuteReturned()
+	void GgpoOnExecuteReturned()
 	{
-		if (!g_active || !std::exchange(s_frame_ended, false))
+		if (!g_ggpo_active || !std::exchange(s_frame_ended, false))
 			return;
 		const Common::Timer::Value t0 = Common::Timer::GetCurrentValue();
 		if (s_t_vsync)
@@ -1080,9 +1080,9 @@ namespace ZdxsvGgpo
 			Stop("failed");
 	}
 
-	bool CaptureHostInput(u32 controller, u32 bind, float value)
+	bool GgpoCaptureHostInput(u32 controller, u32 bind, float value)
 	{
-		if (!g_active)
+		if (!g_ggpo_active)
 			return false;
 		if (controller == 0 && bind < s_host.size())
 			s_host[bind] = value;
@@ -1131,14 +1131,14 @@ namespace ZdxsvGgpo
 	// v0 = 0 (step not done, the scene retries it next frame), pc = the epilogue 0x2b1fa8. Trace `P frame n`.
 	bool OnLoadStep()
 	{
-		if (!g_active || !s_net_armed || s_net_over)
+		if (!g_ggpo_active || !s_net_armed || s_net_over)
 			return false;
 		if (!s_ps.hold)
 		{
 			s_ps.hold = true;
 			s_ps.n++;
 			if (s_net_trace)
-				std::fprintf(s_net_trace, "%u PH%s %d %d\n", g_FrameCount, g_in_rollback ? "r" : "", s_net_frame, s_ps.n);
+				std::fprintf(s_net_trace, "%u PH%s %d %d\n", g_FrameCount, g_ggpo_in_rollback ? "r" : "", s_net_frame, s_ps.n);
 		}
 		if (s_ps.go)
 		{
@@ -1154,7 +1154,7 @@ namespace ZdxsvGgpo
 	// a1 = ring entry: +2 A, +6 B as u16; bit 0 of B is game-wide state, kept). Trace `Z frame p slot A B`.
 	void OnStepCopy()
 	{
-		if (!g_active || !s_net_armed)
+		if (!g_ggpo_active || !s_net_armed)
 			return;
 		const int p = static_cast<s8>(cpuRegs.GPR.n.s0.UL[0]);
 		const u32 e = cpuRegs.GPR.n.a1.UL[0] & 0x1ffffff;
@@ -1175,7 +1175,7 @@ namespace ZdxsvGgpo
 		std::memcpy(ram + e + 2, &na, 2);
 		std::memcpy(ram + e + 6, &nb, 2);
 		if (s_net_trace)
-			std::fprintf(s_net_trace, "%u Z%s %d %d %02x %04x %04x %04x %04x %02x %d\n", g_FrameCount, g_in_rollback ? "r" : "",
+			std::fprintf(s_net_trace, "%u Z%s %d %d %02x %04x %04x %04x %04x %02x %d\n", g_FrameCount, g_ggpo_in_rollback ? "r" : "",
 				s_net_frame, p, ((e - 0xc61f40) / 8) & 63, na, nb, a, b, c, k);
 	}
 
@@ -1220,7 +1220,7 @@ namespace ZdxsvGgpo
 		constexpr u32 PAD_RAW = 0x6f2460;
 		constexpr u32 PAD_GAME = 0x117f4d9;
 		// `A vsync frame A0..A3`: pad module A cur per position (0x6f2500 + 16p, the applied input, s614)
-		if (s_net_trace && !g_in_rollback)
+		if (s_net_trace && !g_ggpo_in_rollback)
 		{
 			static u16 last_a[4];
 			u16 a[4];
@@ -1246,7 +1246,7 @@ namespace ZdxsvGgpo
 		u8 cur[9];
 		std::memcpy(cur, eeMem->Main + PAD_RAW, 8);
 		cur[8] = eeMem->Main[PAD_GAME];
-		if (!s_net_trace || g_in_rollback || std::memcmp(cur, last, 9) == 0)
+		if (!s_net_trace || g_ggpo_in_rollback || std::memcmp(cur, last, 9) == 0)
 			return;
 		std::memcpy(last, cur, 9);
 		std::fprintf(s_net_trace, "%u P %02x%02x%02x%02x%02x%02x%02x%02x %02x\n", g_FrameCount,
@@ -1270,7 +1270,7 @@ namespace ZdxsvGgpo
 			return d;
 		}();
 		const auto& [ddir, dstart, dstep, dcount] = dump;
-		if (!g_in_rollback && dcount && g_FrameCount >= dstart && g_FrameCount < dstart + dstep * dcount &&
+		if (!g_ggpo_in_rollback && dcount && g_FrameCount >= dstart && g_FrameCount < dstart + dstep * dcount &&
 			(g_FrameCount - dstart) % dstep == 0)
 		{
 			if (std::FILE* fp = std::fopen(fmt::format("{}/{}.bin", ddir, g_FrameCount).c_str(), "wb"))
@@ -1300,12 +1300,12 @@ namespace ZdxsvGgpo
 			if (v > cmax && v >= clo && v <= chi)
 			{
 				static int logged = 0;
-				if (!g_in_rollback && logged++ < 6)
+				if (!g_ggpo_in_rollback && logged++ < 6)
 					Console.WriteLn("ZdxsvGgpo: EE clamp %x %u -> %u at vsync %u", caddr, v, cmax, g_FrameCount);
 				v = static_cast<u16>(cmax);
 			}
 		}
-		if (!s_net_trace || g_in_rollback || !s_game_gp)
+		if (!s_net_trace || g_ggpo_in_rollback || !s_game_gp)
 			return;
 		const u32 base = *reinterpret_cast<const u32*>(eeMem->Main + ((s_game_gp - 0x5b28) & 0x1fffffc)) & 0x1ffffff;
 		if (base == 0 || base + 0x4d8 + 64 > Ps2MemSize::MainRam)
@@ -1481,10 +1481,10 @@ namespace ZdxsvGgpo
 						s_net_rx.push_back(static_cast<u8>((m[1] & 0xf0) | q));
 						s_net_rx.insert(s_net_rx.end(), m.begin() + 2, m.end());
 					}
-				if (!g_in_rollback)
+				if (!g_ggpo_in_rollback)
 					s_zds_echo++;
 			}
-			else if (!g_in_rollback && s_zds_skip++ < 20)
+			else if (!g_ggpo_in_rollback && s_zds_skip++ < 20)
 				Console.Warning("ZdxsvGgpo: zds msg kind %d (%zu bytes) not echoed", kind, m.size());
 			if (s_net_pos < s_net_sent.size())
 			{
@@ -1779,8 +1779,8 @@ namespace ZdxsvGgpo
 					if (p != s_net_me)
 						s_net_rx.insert(s_net_rx.end(), s_zds_k3[p][s_zds_rel].begin(), s_zds_k3[p][s_zds_rel].end());
 				if (s_net_trace)
-					std::fprintf(s_net_trace, "%u K3%s %d %d\n", g_FrameCount, g_in_rollback ? "r" : "", f, s_zds_rel);
-				if (!g_in_rollback)
+					std::fprintf(s_net_trace, "%u K3%s %d %d\n", g_FrameCount, g_ggpo_in_rollback ? "r" : "", f, s_zds_rel);
+				if (!g_ggpo_in_rollback)
 					s_zds_k3rel++;
 				s_zds_rel++;
 			}
@@ -1794,7 +1794,7 @@ namespace ZdxsvGgpo
 					s_ps.go = true;
 					s_ps.rel++;
 					if (s_net_trace)
-						std::fprintf(s_net_trace, "%u PS%s %d %d\n", g_FrameCount, g_in_rollback ? "r" : "", f, s_ps.rel);
+						std::fprintf(s_net_trace, "%u PS%s %d %d\n", g_FrameCount, g_ggpo_in_rollback ? "r" : "", f, s_ps.rel);
 				}
 			}
 		}
@@ -2144,7 +2144,7 @@ namespace ZdxsvGgpo
 
 		void PlayStop(const char* what)
 		{
-			g_active = false;
+			g_ggpo_active = false;
 			s_bar_frame = -1;
 			s_net_over = true; // the battle sock goes back to the IOP
 			Console.WriteLn("ZdxsvGgpo: replay %s at frame %d of %d, vsync %u", what, s_net_frame, s_play_frames, g_FrameCount);
@@ -2282,7 +2282,7 @@ namespace ZdxsvGgpo
 			PlayKeyApply(k0);
 			s_net_armed = true;
 			s_started = true;
-			g_active = true;
+			g_ggpo_active = true;
 			if (const char* e = std::getenv("ZDXSV_REPLAY_TURBO"); e && e[0] == '1')
 				VMManager::SetLimiterMode(LimiterModeType::Turbo);
 			if (s_play_skip_ms)
@@ -2723,7 +2723,7 @@ namespace ZdxsvGgpo
 		}
 	} // namespace
 
-	int LobbyPort()
+	int GgpoLobbyPort()
 	{
 		static const int port = [] {
 			const char* e = std::getenv("ZDXSV_GGPO");
@@ -2740,7 +2740,7 @@ namespace ZdxsvGgpo
 
 	void ReplaySeekBy(int frames)
 	{
-		if (!s_play_env || s_play_frames <= 0 || !g_active)
+		if (!s_play_env || s_play_frames <= 0 || !g_ggpo_active)
 			return;
 		const int req = s_play_req.load();
 		s_play_req = (req != INT_MIN ? req : s_net_frame + 1) + frames;
@@ -2751,7 +2751,7 @@ namespace ZdxsvGgpo
 
 	void ReplayNextPov()
 	{
-		if (!s_play_env || s_play_frames <= 0 || !g_active)
+		if (!s_play_env || s_play_frames <= 0 || !g_ggpo_active)
 			return;
 		const int req = s_play_pov_req.load();
 		int p = req >= 0 ? req : s_net_me;
@@ -2771,7 +2771,7 @@ namespace ZdxsvGgpo
 
 	void ReplaySeekTo(int frame)
 	{
-		if (!s_play_env || s_play_frames <= 0 || !g_active)
+		if (!s_play_env || s_play_frames <= 0 || !g_ggpo_active)
 			return;
 		s_play_req = std::clamp(frame, 0, s_play_frames - 1);
 		Console.WriteLn("ZdxsvGgpo: replay seek requested: frame %d", s_play_req.load());
@@ -2781,7 +2781,7 @@ namespace ZdxsvGgpo
 
 	void ReplayTogglePause()
 	{
-		if (!s_play_env || s_play_frames <= 0 || !g_active)
+		if (!s_play_env || s_play_frames <= 0 || !g_ggpo_active)
 			return;
 		if (s_play_at_end)
 			ReplaySeekTo(0); // play at the end = from the start
@@ -2812,7 +2812,7 @@ namespace ZdxsvGgpo
 
 	void ReplayToggleKeys()
 	{
-		if (!s_play_env || s_play_frames <= 0 || !g_active)
+		if (!s_play_env || s_play_frames <= 0 || !g_ggpo_active)
 			return;
 		s_keys_on = !s_keys_on;
 		Console.WriteLn("ZdxsvGgpo: replay key display %s", s_keys_on ? "on" : "off");
@@ -2825,7 +2825,7 @@ namespace ZdxsvGgpo
 
 	void ReplayJumpRound(int delta)
 	{
-		if (!s_play_env || s_play_frames <= 0 || !g_active)
+		if (!s_play_env || s_play_frames <= 0 || !g_ggpo_active)
 			return;
 		int round = s_play_round_req.load();
 		if (round == INT_MIN)
@@ -2847,10 +2847,10 @@ namespace ZdxsvGgpo
 		return s_battle_loads.size() > 2 ? std::vector<int>(s_battle_loads.begin() + 2, s_battle_loads.end()) : std::vector<int>();
 	}
 
-	int LobbyAdvertisePort()
+	int GgpoLobbyAdvertisePort()
 	{
 		static const int port = [] {
-			const char* e = LobbyPort() > 0 ? std::getenv("ZDXSV_GGPO") : nullptr;
+			const char* e = GgpoLobbyPort() > 0 ? std::getenv("ZDXSV_GGPO") : nullptr;
 			int p = 0;
 			for (const std::string_view item : StringUtil::SplitString(e ? e : "", ','))
 				if (item.starts_with("advertise="))
@@ -2878,7 +2878,7 @@ namespace ZdxsvGgpo
 		s_lobby_peers = std::move(byPosition);
 		s_lobby_relays = std::move(relays);
 		if (ok && session && !s_delay_set && pingMs > 0)
-			Zdxsv::StartPingTest(session, s_lobby_peers, static_cast<u16>(LobbyPort()), pingMs, s_lobby_relays);
+			Zdxsv::StartPingTest(session, s_lobby_peers, static_cast<u16>(GgpoLobbyPort()), pingMs, s_lobby_relays);
 	}
 
 	std::string TakeLobbyReport()
@@ -2887,7 +2887,7 @@ namespace ZdxsvGgpo
 		return std::exchange(s_report, {});
 	}
 
-	std::vector<OsdLine> OsdLines()
+	std::vector<GgpoOsdLine> GgpoOsdLines()
 	{
 		std::lock_guard lock(s_osd_mtx);
 		return s_osd_lines;
@@ -2981,10 +2981,10 @@ namespace ZdxsvGgpo
 		cpuRegs.pc = cpuRegs.GPR.n.ra.UL[0];
 		return true;
 	}
-} // namespace ZdxsvGgpo
+} // namespace Zdxsv
 
-namespace ZdxsvGgpo
+namespace Zdxsv
 {
 	// EE probe (iR5900.cpp): GGPO frame being run, the frame numbers of NET_TRACE H lines and PW dumps.
 	int ProbeFrame() { return s_net_frame; }
-} // namespace ZdxsvGgpo
+} // namespace Zdxsv

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2002-2026 PCSX2 Dev Team
 // SPDX-License-Identifier: GPL-3.0+
 
-// zdxsv lobby side of a GGPO battle (ZdxsvGgpo lobby=1).
+// zdxsv lobby side of a GGPO battle (ZDXSV_GGPO lobby=1).
 // The lobby sends the custom notice 0x9951 (battle info) to emulators that
 // announce "udp=1" in their platform info. LobbyFilter strips it from the
 // game's stream and hands it to the listener (GGPO peers). The game itself
@@ -76,7 +76,7 @@ namespace Zdxsv
 	std::string UdpTest(uint32_t stunIP, uint16_t stunPort, uint16_t bindPort, std::string& summary);
 
 	// Log sink (pcsx2: Console). Default: none.
-	void SetLogger(std::function<void(const std::string&)> log);
+	void LobbySetLogger(std::function<void(const std::string&)> log);
 
 	// "key=value" lines of notice 0x9951. False if a key is missing or malformed.
 	bool ParseBattleInfo(const std::string& body, BattleInfo& out);
@@ -149,7 +149,7 @@ namespace Zdxsv
 	bool LobbyStateEnabled();
 	// A save state was loaded: from now on DEV9 adopts TCP connections the PS2
 	// opened before the save (only if LobbyStateEnabled()).
-	void OnStateLoaded();
+	void LobbyOnStateLoaded();
 	bool AdoptConnections();
 	// ip:port is the battle server of the last battle info. Its connection is never
 	// adopted: the PS2's late packets get a RST instead of a new connection to a
@@ -157,24 +157,21 @@ namespace Zdxsv
 	bool IsBattleServer(uint32_t ip, uint16_t port);
 
 	// STUN codec (zdxsv/pkg/proto/zdxsv.proto Ping / Pong), exposed for tests.
-	namespace Proto
+	enum ProtoMessageType : uint32_t
 	{
-		enum MessageType : uint32_t
-		{
-			Ping = 2,
-			Pong = 3,
-		};
+		ProtoPing = 2,
+		ProtoPong = 3,
+	};
 
-		struct Packet
-		{
-			uint32_t type = 0;
-			// Ping: timestamp + user_id; Pong: + public_addr (STUN answer).
-			int64_t timestamp = 0;
-			std::string pingUserId;
-			std::string publicAddr;
-		};
+	struct ProtoPacket
+	{
+		uint32_t type = 0;
+		// ProtoPing: timestamp + user_id; ProtoPong: + public_addr (STUN answer).
+		int64_t timestamp = 0;
+		std::string pingUserId;
+		std::string publicAddr;
+	};
 
-		std::vector<uint8_t> Encode(const Packet& p);
-		bool Decode(const uint8_t* data, size_t len, Packet& p);
-	} // namespace Proto
+	std::vector<uint8_t> ProtoEncode(const ProtoPacket& p);
+	bool ProtoDecode(const uint8_t* data, size_t len, ProtoPacket& p);
 } // namespace Zdxsv

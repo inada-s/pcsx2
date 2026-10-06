@@ -11,8 +11,8 @@ defaults are in [options.md](options.md). Battles matched by the lobby are in
 | Part | Where | What it does |
 |---|---|---|
 | GGPO library | `3rdparty/ggpo` | rollback netcode: input exchange, prediction, the decision to roll back |
-| Delta save states | `ZdxsvDeltaState` | save and load the whole machine fast enough to do it every frame |
-| GGPO session | `ZdxsvGgpo` | runs one frame at a time, feeds GGPO, answers the battle socket of the game |
+| Delta save states | `pcsx2/Zdxsv/DeltaState.cpp` | save and load the whole machine fast enough to do it every frame |
+| GGPO session | `pcsx2/Zdxsv/Ggpo.cpp` | runs one frame at a time, feeds GGPO, answers the battle socket of the game |
 
 ## GGPO library
 

@@ -39,11 +39,11 @@
 #include <string>
 #include <vector>
 
-namespace ZdxsvDeltaState
+namespace Zdxsv
 {
-	bool g_test_enabled = std::getenv("ZDXSV_DELTA_TEST") != nullptr;
+	bool g_delta_state_test_enabled = std::getenv("ZDXSV_DELTA_TEST") != nullptr;
 	// A control run: ZDXSV_DELTA_TEST=...,blocks=linked keeps the recompilers' history-dependent block ends.
-	bool g_fixed_blocks = (g_test_enabled && !std::strstr(std::getenv("ZDXSV_DELTA_TEST"), "blocks=linked")) ||
+	bool g_fixed_blocks = (g_delta_state_test_enabled && !std::strstr(std::getenv("ZDXSV_DELTA_TEST"), "blocks=linked")) ||
 		std::getenv("ZDXSV_GGPO") != nullptr;
 
 	namespace
@@ -66,7 +66,7 @@ namespace ZdxsvDeltaState
 		std::vector<std::vector<u8>> s_buffer_pool;
 		bool s_break_ee = false;
 		int s_save_calls = 0;
-		double s_watch_ms = 0, s_state_ms = 0, s_total_ms = 0; // Times()
+		double s_watch_ms = 0, s_state_ms = 0, s_total_ms = 0; // DeltaStateTimes()
 
 		// Hot pages: written in HOT_AFTER save intervals in a row. They stay writable and get a
 		// copy in s_open at every save and load instead (= their data as of that save, like a
@@ -79,7 +79,7 @@ namespace ZdxsvDeltaState
 		u8 s_run[EE_PAGES] = {}; // cold: save intervals in a row with a write; hot: without a change
 		int s_last_write[EE_PAGES] = {}; // cold: s_save_calls of the last interval with a write
 		std::vector<u32> s_hot;
-		double s_hot_pages = 0; // Times(): mean hot pages per save
+		double s_hot_pages = 0; // DeltaStateTimes(): mean hot pages per save
 
 		std::unique_ptr<u8[]> TakePage()
 		{
@@ -163,14 +163,14 @@ namespace ZdxsvDeltaState
 		}
 	} // namespace
 
-	std::string Times()
+	std::string DeltaStateTimes()
 	{
 		const double n = std::max(s_save_calls, 1);
 		return fmt::format("Save ms: watch {:.3f} state {:.3f} total {:.3f} hot pages {:.1f}", s_watch_ms / n, s_state_ms / n,
 			s_total_ms / n, s_hot_pages / n);
 	}
 
-	bool Save(int frame)
+	bool DeltaStateSave(int frame)
 	{
 		Common::Timer total;
 		ScopedGuard add_total([&total]() { s_total_ms += total.GetTimeMilliseconds(); });
@@ -198,7 +198,7 @@ namespace ZdxsvDeltaState
 		}
 		else
 		{
-			// Never with DiscardBefore keeping the newest frame (a load of this frame would restore them).
+			// Never with DeltaStateDiscardBefore keeping the newest frame (a load of this frame would restore them).
 			if (!s_open.empty())
 				Console.Error("ZdxsvDelta: save of frame %d with no saved frame left, %zu stale open pages", frame, s_open.size());
 			mmap_DeltaSetHook(&OnWrite);
@@ -219,7 +219,7 @@ namespace ZdxsvDeltaState
 		return true;
 	}
 
-	bool Load(int frame)
+	bool DeltaStateLoad(int frame)
 	{
 		const auto state = s_states.find(frame);
 		if (state == s_states.end())
@@ -251,13 +251,13 @@ namespace ZdxsvDeltaState
 		return SaveState_DeltaLoad(state->second);
 	}
 
-	const std::vector<u8>* GetState(int frame)
+	const std::vector<u8>* DeltaStateGetState(int frame)
 	{
 		const auto it = s_states.find(frame);
 		return it == s_states.end() ? nullptr : &it->second;
 	}
 
-	u64 HashState(const std::vector<u8>& state)
+	u64 DeltaStateHash(const std::vector<u8>& state)
 	{
 		XXH3_state_t xs;
 		XXH3_64bits_reset(&xs);
@@ -273,7 +273,7 @@ namespace ZdxsvDeltaState
 		return XXH3_64bits_digest(&xs);
 	}
 
-	void MaskScratch(std::vector<u8>& state)
+	void DeltaStateMaskScratch(std::vector<u8>& state)
 	{
 		for (const auto& [pos, size] : SaveState_DeltaScratch())
 		{
@@ -282,7 +282,7 @@ namespace ZdxsvDeltaState
 		}
 	}
 
-	void DiscardBefore(int frame)
+	void DeltaStateDiscardBefore(int frame)
 	{
 		// The newest saved frame stays: s_open holds the pages written since it. Without it the next
 		// save starts over with s_open still holding that older interval, and a load of that save puts
@@ -299,10 +299,10 @@ namespace ZdxsvDeltaState
 		}
 	}
 
-	void Clear()
+	void DeltaStateClear()
 	{
 		mmap_DeltaSetHook(nullptr);
-		DiscardBefore(INT_MAX);
+		DeltaStateDiscardBefore(INT_MAX);
 		for (auto& [frame, state] : s_states)
 			s_buffer_pool.push_back(std::move(state));
 		s_states.clear();
@@ -404,7 +404,7 @@ namespace ZdxsvDeltaState
 			for (u32 i = 0; i < pages; i++)
 				s.ee_pages[i] = XXH3_64bits(&eeMem->Main[i * PAGE_SIZE], PAGE_SIZE);
 			s.state = s_states[frame];
-			MaskScratch(s.state);
+			DeltaStateMaskScratch(s.state);
 			return s;
 		}
 
@@ -461,7 +461,7 @@ namespace ZdxsvDeltaState
 		}
 	} // namespace
 
-	void OnVsync()
+	void DeltaStateOnVsync()
 	{
 		if (!s_parsed)
 			Parse();
@@ -472,7 +472,7 @@ namespace ZdxsvDeltaState
 		{
 			s_done = true;
 			Report("done");
-			Clear();
+			DeltaStateClear();
 			s_samples.clear();
 			return;
 		}
@@ -481,15 +481,15 @@ namespace ZdxsvDeltaState
 		if (s_pass == 0 && frame > s_start && frame < window_start && frame >= window_start - s_gap)
 		{
 			s_gap_skipped++;
-			DiscardBefore(frame - s_depth);
+			DeltaStateDiscardBefore(frame - s_depth);
 			return;
 		}
 		const size_t open_pages = s_open.size();
 		Common::Timer timer;
-		if (!Save(frame))
+		if (!DeltaStateSave(frame))
 		{
 			s_done = true;
-			Clear();
+			DeltaStateClear();
 			return;
 		}
 		if (frame > s_start)
@@ -499,10 +499,10 @@ namespace ZdxsvDeltaState
 
 		if (s_preload && s_pass == 0 && frame == s_next_rollback - s_depth)
 		{
-			if (!Load(frame))
+			if (!DeltaStateLoad(frame))
 			{
 				s_done = true;
-				Clear();
+				DeltaStateClear();
 				return;
 			}
 			// A load must be a no-op here: the state saved again has to match byte for byte.
@@ -532,7 +532,7 @@ namespace ZdxsvDeltaState
 			Compare(frame, s_samples[frame], sample);
 		s_samples[frame] = std::move(sample);
 
-		DiscardBefore(frame - s_depth);
+		DeltaStateDiscardBefore(frame - s_depth);
 		while (!s_samples.empty() && s_samples.begin()->first < frame - s_depth)
 			s_samples.erase(s_samples.begin());
 
@@ -547,10 +547,10 @@ namespace ZdxsvDeltaState
 		{
 			s_pass++;
 			timer.Reset();
-			if (!Load(frame - s_depth))
+			if (!DeltaStateLoad(frame - s_depth))
 			{
 				s_done = true;
-				Clear();
+				DeltaStateClear();
 				return;
 			}
 			s_load_ms.Add(timer.GetTimeMilliseconds());
@@ -563,4 +563,4 @@ namespace ZdxsvDeltaState
 			s_frame = frame - s_depth;
 		}
 	}
-} // namespace ZdxsvDeltaState
+} // namespace Zdxsv

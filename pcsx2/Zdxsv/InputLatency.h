@@ -13,20 +13,20 @@
 
 #include "common/Pcsx2Types.h"
 
-namespace ZdxsvInputLatency
+namespace Zdxsv
 {
-	extern bool g_enabled;
+	extern bool g_input_latency_enabled;
 
 	// CPU thread, every vsync, when the emulated frame ends (before limiter sleep and push).
-	void OnFrameEnd();
+	void InputLatencyOnFrameEnd();
 	// CPU thread, around the frame push to the GS thread (gsPostVsyncStart).
-	void OnPush(bool after);
+	void InputLatencyOnPush(bool after);
 	// CPU thread, every vsync, after the host input poll.
-	void OnVsync();
+	void InputLatencyOnVsync();
 	// CPU thread, SIO2 pad poll that returns the button word to the game (active low).
-	void OnPadPoll(u8 unifiedSlot, u32 buttons);
+	void InputLatencyOnPadPoll(u8 unifiedSlot, u32 buttons);
 	// GS thread, before GSvsync (present) of a vsync.
-	void OnPresentStart();
+	void InputLatencyOnPresentStart();
 	// GS thread, after a vsync's frame was presented.
-	void OnPresent();
-} // namespace ZdxsvInputLatency
+	void InputLatencyOnPresent();
+} // namespace Zdxsv

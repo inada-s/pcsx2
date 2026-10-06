@@ -221,10 +221,10 @@ namespace Sessions
 		return std::nullopt;
 	}
 
-	// ZDXSV_GGPO net=1,lobby=1: battle infos go to ZdxsvGgpo as GGPO peers. Returns our GGPO port, 0 = off.
+	// ZDXSV_GGPO net=1,lobby=1: battle infos go to Zdxsv/Ggpo.cpp as GGPO peers. Returns our GGPO port, 0 = off.
 	static int ZdxsvListenGgpo()
 	{
-		const int port = ZdxsvGgpo::LobbyPort();
+		const int port = Zdxsv::GgpoLobbyPort();
 		if (port > 0)
 			Zdxsv::SetBattleInfoListener([](const Zdxsv::BattleInfo& info) {
 				std::vector<std::vector<Zdxsv::PeerAddr>> byPosition;
@@ -235,7 +235,7 @@ namespace Sessions
 					const auto name = info.names.find(u);
 					players.emplace_back(u, name == info.names.end() ? std::string() : name->second);
 				}
-				ZdxsvGgpo::SetLobbyPeers(ok, std::move(byPosition), info.ggpoSession, info.ggpoPingMs,
+				Zdxsv::SetLobbyPeers(ok, std::move(byPosition), info.ggpoSession, info.ggpoPingMs,
 					"battle_code=" + info.battleCode + "\nuser_id=" + info.userId + "\n", std::move(players), info.relays);
 			});
 		return port;
@@ -249,7 +249,7 @@ namespace Sessions
 		ggpoPort = ZdxsvListenGgpo();
 		if (ggpoPort <= 0)
 			return "";
-		Zdxsv::SetLogger([](const std::string& s) { Console.WriteLn("DEV9: %s", s.c_str()); });
+		Zdxsv::LobbySetLogger([](const std::string& s) { Console.WriteLn("DEV9: %s", s.c_str()); });
 		zdxsvLobbyFilter = std::make_unique<Zdxsv::LobbyFilter>();
 		// The lobby's UDP STUN is on its host at 8201 (zdxsv docker-compose); ZDXSV_STUN_PORT overrides.
 		const char* stunPortEnv = std::getenv("ZDXSV_STUN_PORT");
@@ -317,11 +317,11 @@ namespace Sessions
 #endif
 		// ZDXSV_GGPO net=1,lobby=1: udp=1 makes the lobby send battle info (0x9951) with every player's
 		// address (udp_addr/udp_local/udp_addr6) and ggpo=port; when every other player has one the battle runs over
-		// GGPO (ZdxsvGgpo), else on the battle server. The game always connects to the battle server by TCP.
+		// GGPO (Zdxsv/Ggpo.cpp), else on the battle server. The game always connects to the battle server by TCP.
 		// relay_server=1: we can route GGPO through the lobby's relay servers (battle info relay_<k>), as flycast.
 		int ggpoPort;
 		const std::string udpLines = ZdxsvOpenLobby(ggpoPort);
-		const int advertise = ZdxsvGgpo::LobbyAdvertisePort();
+		const int advertise = Zdxsv::GgpoLobbyAdvertisePort();
 		if (ggpoPort > 0 && advertise > 0)
 		{
 			const std::string port = std::to_string(advertise);
@@ -340,7 +340,7 @@ namespace Sessions
 		};
 		append(0x50, body);
 		// The last lobby battle's report (0x9952 P2PMatchingReport, as flycast's lbsP2PMatchingReport).
-		const std::string report = ggpoPort > 0 ? ZdxsvGgpo::TakeLobbyReport() : "";
+		const std::string report = ggpoPort > 0 ? Zdxsv::TakeLobbyReport() : "";
 		if (!report.empty() && report.size() < 0x8000)
 		{
 			append(0x52, report);

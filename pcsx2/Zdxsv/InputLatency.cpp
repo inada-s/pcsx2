@@ -39,9 +39,9 @@
 #include <string>
 #include <vector>
 
-namespace ZdxsvInputLatency
+namespace Zdxsv
 {
-	bool g_enabled = std::getenv("ZDXSV_INPUT_LATENCY") != nullptr;
+	bool g_input_latency_enabled = std::getenv("ZDXSV_INPUT_LATENCY") != nullptr;
 
 	namespace
 	{
@@ -451,7 +451,7 @@ namespace ZdxsvInputLatency
 		}
 	} // namespace
 
-	void OnPush(bool after)
+	void InputLatencyOnPush(bool after)
 	{
 		if (!after)
 		{
@@ -462,7 +462,7 @@ namespace ZdxsvInputLatency
 			s_push_ms = Now() - s_t_push0;
 	}
 
-	void OnVsync()
+	void InputLatencyOnVsync()
 	{
 		if (!s_parsed)
 			Parse();
@@ -547,7 +547,7 @@ namespace ZdxsvInputLatency
 		CollectPresents();
 	}
 
-	void OnFrameEnd()
+	void InputLatencyOnFrameEnd()
 	{
 		if (!s_parsed || s_done)
 			return;
@@ -577,7 +577,7 @@ namespace ZdxsvInputLatency
 		}
 	}
 
-	void OnPadPoll(u8 unifiedSlot, u32 buttons)
+	void InputLatencyOnPadPoll(u8 unifiedSlot, u32 buttons)
 	{
 		if (!s_cur || unifiedSlot != 0 || (buttons & (1u << s_cur->btn->bit)))
 			return;
@@ -587,7 +587,7 @@ namespace ZdxsvInputLatency
 		s_cur = nullptr;
 	}
 
-	void OnPresent()
+	void InputLatencyOnPresent()
 	{
 		const u64 n = s_presented.load(std::memory_order_relaxed) + 1;
 		s_present_t[n % RING].store(Common::Timer::GetCurrentValue(), std::memory_order_relaxed);
@@ -607,8 +607,8 @@ namespace ZdxsvInputLatency
 		}
 	}
 
-	void OnPresentStart()
+	void InputLatencyOnPresentStart()
 	{
 		s_vsync_start_t = Common::Timer::GetCurrentValue();
 	}
-} // namespace ZdxsvInputLatency
+} // namespace Zdxsv
