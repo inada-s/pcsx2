@@ -49,6 +49,9 @@ on [zdxsv](https://github.com/inada-s/zdxsv). Player setup: [ZDXSV.md](ZDXSV.md)
   On the first lobby connection a P2P connectivity test of the GGPO port (as flycast's feasibility test, against
   the lobby's STUN and its test socket at the STUN port + 1) shows `open` / `cone NAT` / `symmetric NAT` /
   `unknown` in an OSD message and the log, and sends it in the platform info (`nat=`).
+  Relay servers (as flycast with gdxsv's `relay`): the platform info says `relay_server=1`; the ping test also
+  pings the battle info's relay servers and a peer is reached through a relay server or another peer when that
+  path is faster (by 16 / 32 ms), shown as `(R)` on the OSD.
 
 ### Releases and updates
 - The auto-updater checks this fork's GitHub releases (`zdxsv-X.Y.Z` tags) instead of pcsx2.net.
@@ -125,6 +128,12 @@ Test scripts that use them: `zdxsv/` in inada-s/ai-automation (named in brackets
     `zdxsv: ping test: ...` (RTT per peer) and `ZdxsvGgpo: lobby delay D`. `delay=` keeps it fixed and skips the
     test (local tests). `badsession=1` (test): this client's ping test uses another session id, so no peer
     answers it and every client cuts the battle connection (`zdxsv/m4z.sh` `BAD_SESSION=K`).
+    Relays: battle info `relay_<k>=<hex token>,<ip:port>[,<[ip6]:port>]` (zdxsv `ZDXSV_LOBBY_RELAY_ADDR`). The ping
+    test pings each over IPv4 and IPv6 (gdxsv's 28-byte relay ping) and shares the RTT and relay-RTT matrices
+    (flycast `PacketWithRelays`). A peer goes through relay server k when that path (own + peer's relay RTT) is
+    16 ms faster than direct, or through a peer 32 ms faster (or direct got no answer); the relay servers are
+    registered with GGPO in order before the players. Log `ZdxsvGgpo: lobby path to position P: direct|peer K|relay
+    K`; match report `path_<p>=`, `relays=`. Local test: `zdxsv/m4ggpo.sh` `RELAY=1 GGPO_LAT=100 GDELAY=auto`.
     Match report (as flycast's `lbsP2PMatchingReport`): the next lobby connection after a battle sends, right after
     the platform info, a custom message `0x9952` with `key=value` lines: `battle_code`, `user_id` (from the battle
     info), `result` = `ggpo` / `cut` / `server` (+ `reason`), `position`, `players`, per peer `rtt_<pos>` (-1 = no
