@@ -8,5 +8,6 @@ if (Test-Path $envFile) {
     }
   }
 }
-if (-not $env:RUN) { Write-Output "FAIL: set RUN (environment or tests/zdxsv/local.env, see README.md)"; exit 2 }
+# exit here would only leave this file: each caller ends on $envFail (exit 2)
+$envFail = if (-not $env:RUN) { "FAIL: set RUN (environment or tests/zdxsv/local.env, see README.md)" }
 $py = if ($env:ZDXSV_PY) { $env:ZDXSV_PY } else { 'python' }

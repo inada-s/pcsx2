@@ -8,6 +8,7 @@
 param([string]$Spec = 'addr=0x00b45ac0,count=40', [string]$Out = 'latency.csv', [int]$Seed = 1, [int]$LowLatency = -1)
 $z = $PSScriptRoot
 . "$PSScriptRoot\env.ps1"  # $py, RUN
+if ($envFail) { $envFail; exit 2 }
 if ($LowLatency -ge 0) {
   $ini = "$env:RUN\p1\PCSX2\inis\PCSX2.ini"
   $v = if ($LowLatency) { 'true' } else { 'false' }

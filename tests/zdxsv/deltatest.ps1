@@ -4,6 +4,7 @@ param([string]$Spec = 'start=1500,frames=3000,depth=8,every=20', [string]$Var = 
 if ($routes.ContainsKey($Route)) { $Route = $routes[$Route] }
 $z = $PSScriptRoot
 . "$PSScriptRoot\env.ps1"  # $py, RUN
+if ($envFail) { $envFail; exit 2 }
 $o = $Out -replace '/', '\';New-Item -ItemType Directory -Force $o | Out-Null
 Get-Process pcsx2-qtx64 -ErrorAction SilentlyContinue | Stop-Process -Force
 Set-Item "Env:$Var" $Spec

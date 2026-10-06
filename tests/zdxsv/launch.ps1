@@ -9,9 +9,11 @@
 param([int[]]$N = @(1), [string]$Memcard = "", [string]$StateFile = "", [switch]$NoGui, [switch]$Headless, [switch]$LobbyState, [double]$Speed = 1)
 if ($LobbyState) { $env:ZDXSV_LOBBY_STATE = '1' }
 . "$PSScriptRoot\env.ps1"  # RUN, PCSX2_EXE, ISO, ZDXSV_PY
-$root = $env:RUN
-$exe = if ($env:PCSX2_EXE) { $env:PCSX2_EXE } else { Join-Path $PSScriptRoot '..\..\bin\pcsx2-qtx64.exe' }
-$iso = $env:ISO
+if ($envFail) { $envFail; exit 2 }
+# pcsx2 refuses a game path with / (local.env may use /)
+$root = $env:RUN -replace '/', '\'
+$exe = if ($env:PCSX2_EXE) { $env:PCSX2_EXE -replace '/', '\' } else { Join-Path $PSScriptRoot '..\..\bin\pcsx2-qtx64.exe' }
+$iso = $env:ISO -replace '/', '\'
 if (-not $iso) { 'FAIL: set ISO (the game image; environment or tests/zdxsv/local.env)'; exit 2 }
 # probe writers of the exe's tree: no rig run on a bad or stale probe
 $lint = & $py "$PSScriptRoot\probelint.py" --exe $exe (Split-Path (Split-Path $exe))

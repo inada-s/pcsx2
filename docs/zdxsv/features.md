@@ -18,10 +18,12 @@ The rules for keeping this file up to date are in [AGENTS.md](../../AGENTS.md).
 
 | Location | Scripts |
 |---|---|
-| This repository | `run.py`, `tools/zdxsv/pwcheck.py`, `tools/zdxsv/udprelay.py` |
-| Not yet in this repository | all other scripts named below |
+| Repository root | `run.py` |
+| `tools/zdxsv/` | `pwcheck.py`, `udprelay.py` |
+| `tests/zdxsv/` | all other scripts named below |
 
-Those scripts are to be moved to `tests/zdxsv/` in this repository.
+Setup and the machine settings the scripts need (game image, work root,
+zdxsv checkout, save states): `tests/zdxsv/README.md`.
 
 ## Online play
 

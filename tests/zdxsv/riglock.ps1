@@ -10,6 +10,7 @@
 # -Release <winpid>: remove the lock if <winpid> owns it.
 param([int]$Take = 0, [string]$What = "", [string]$Anc = "", [switch]$Check, [int]$Release = 0)
 . "$PSScriptRoot\env.ps1"
+if ($envFail) { $envFail; exit 2 }
 $lock = Join-Path $env:RUN 'rig.lock'
 $owner = 0; $line = ''
 if (Test-Path $lock) { $line = (Get-Content $lock -TotalCount 1); $owner = [int](($line -split ' ')[0]) }
