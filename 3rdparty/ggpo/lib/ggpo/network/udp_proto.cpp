@@ -351,16 +351,23 @@ UdpProtocol::HandlesMsg(sockaddr_storage &from, UdpMsg *msg)
    }
 
    // FIXME: spectator may not work
-   if (msg->hdr.remote_endpoint == _queue) {
-       if (_peer_addr_len == 0) {
-           _peer_addr = from;
-           _peer_addr_len = sizeof(from); // XXX
-       }
+   if (msg->hdr.remote_endpoint != _queue) {
+       return false;
+   }
 
+   // zdxsv: bind the endpoint to its peer's source address. The remote_endpoint byte is
+   // a small index anyone who knows a player's address can forge, so matching on it alone
+   // let an off-path third party inject inputs or a disconnect. Once the peer address is
+   // known, only that source drives this endpoint. With a relay the peer address is the
+   // relay node (set by UseRelayServer / Init for a relayed player, or when a relayed
+   // packet first arrives below), which is still one fixed source.
+   if (_peer_addr_len == 0) {
+       _peer_addr = from;
+       _peer_addr_len = sizeof(from); // XXX
        return true;
    }
 
-   return false;
+   return SameAddress(from, _peer_addr);
 }
 
 /*
