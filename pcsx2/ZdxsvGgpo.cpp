@@ -265,6 +265,8 @@ namespace ZdxsvGgpo
 		std::vector<std::vector<Zdxsv::PeerAddr>> s_lobby_peers; // candidates per position
 		std::vector<Zdxsv::PeerAddr> s_net_peers; // per position, picked when armed
 		u32 s_lobby_session = 0; // ggpo_session
+		std::string s_report_ids; // battle info lines naming the battle (SetLobbyPeers)
+		std::string s_report; // P2PMatchingReport of the last lobby battle (TakeLobbyReport)
 		bool s_running = false; // net: GGPO_EVENTCODE_RUNNING seen
 		bool s_disconnected = false;
 		int s_frames_ahead = 0; // net: last GGPO_EVENTCODE_TIMESYNC
@@ -663,6 +665,14 @@ namespace ZdxsvGgpo
 			g_active = false;
 			ZdxsvDeltaState::Clear();
 			Report(what);
+			if (s_lobby)
+			{
+				std::lock_guard lock(s_lobby_mtx);
+				if (!s_report.empty())
+					s_report += std::string("close=") + what + "\nframes=" + std::to_string(s_session_frames) +
+					            "\nrollback_frames=" + std::to_string(s_rollback_frames) + "\nmismatches=" + std::to_string(s_mismatches) +
+					            "\ndisconnected=" + (s_disconnected ? "1" : "0") + "\n";
+			}
 			if (s_net)
 			{
 				s_net_over = true; // the battle sock goes back to the IOP
@@ -1743,10 +1753,20 @@ namespace ZdxsvGgpo
 			                  (n < 2 || n > GGPO_MAX_PLAYERS) ? "player count" :
 			                  (me < 0 || me >= n || !s_lobby_peers[me].empty()) ? "own position not in the battle info" :
 			                                                                         nullptr;
+			auto report = [&](const char* result) {
+				s_report = s_report_ids + "result=" + result + "\nposition=" + std::to_string(me) + "\nplayers=" + std::to_string(n) + "\n";
+			};
 			if (why)
 			{
 				if (!s_lobby_logged)
+				{
 					Console.WriteLn("ZdxsvGgpo: lobby battle stays on the battle server: %s (position %d, %d players)", why, me, n);
+					if (s_lobby_info) // else not a lobby battle (s696: key msgs before the login)
+					{
+						report("server");
+						s_report += std::string("reason=") + why + "\n";
+					}
+				}
 				s_lobby_logged = true;
 				return false;
 			}
@@ -1767,6 +1787,12 @@ namespace ZdxsvGgpo
 					rtt = std::max(rtt, pings[p].rtt), up++;
 					peers[p] = pings[p].addr; // the address the ping test picked (IPv4 or IPv6)
 				}
+				std::string rtts;
+				for (size_t p = 0; p < pings.size(); p++)
+					if (static_cast<int>(p) != me)
+						rtts += "rtt_" + std::to_string(p) + "=" + std::to_string(pings[p].rtt) +
+						        (pings[p].rtt > 0 ? "\naddr_" + std::to_string(p) + "=" + pings[p].addr.String() : "") + "\n";
+				rtts += "ping_wait_ms=" + std::to_string(static_cast<int>(wait.GetTimeMilliseconds())) + "\n";
 				// as flycast ("Peer%d unreachable"): no GGPO unless every peer answered the ping test (same
 				// session, position and address); a peer from another battle never gets our inputs
 				if (up < n - 1)
@@ -1775,11 +1801,20 @@ namespace ZdxsvGgpo
 						up, n - 1, me, wait.GetTimeSeconds());
 					s_lobby_unreachable = s_lobby_logged = s_lobby_cut = true;
 					s_cut_sends = 0;
+					report("cut");
+					s_report += "answered=" + std::to_string(up) + "\n" + rtts;
 					return false;
 				}
 				s_delay = std::max(s_min_delay, rtt > 0 ? (rtt + 31) / 32 : 0);
 				Console.WriteLn("ZdxsvGgpo: lobby delay %d: slowest peer rtt %d ms (%d of %d peers measured), min %d, waited %.1f s for the ping test",
 					s_delay, rtt, up, n - 1, s_min_delay, wait.GetTimeSeconds());
+				report("ggpo");
+				s_report += "delay=" + std::to_string(s_delay) + "\nmin_delay=" + std::to_string(s_min_delay) + "\n" + rtts;
+			}
+			else
+			{
+				report("ggpo");
+				s_report += "delay=" + std::to_string(s_delay) + "\nfixed_delay=1\n";
 			}
 			s_players = n;
 			s_net_peers = std::move(peers);
@@ -1807,6 +1842,9 @@ namespace ZdxsvGgpo
 					Console.WriteLn("ZdxsvGgpo: lobby battle connection cut ended at vsync %u: game RPC 0x%x after %u dropped sends",
 						g_FrameCount, fno, s_cut_sends);
 					s_lobby_cut = false;
+					std::lock_guard lock(s_lobby_mtx);
+					if (!s_report.empty())
+						s_report += "cut_sends=" + std::to_string(s_cut_sends) + "\n";
 				}
 				return false;
 			}
@@ -1832,9 +1870,10 @@ namespace ZdxsvGgpo
 		return port;
 	}
 
-	void SetLobbyPeers(bool ok, std::vector<std::vector<Zdxsv::PeerAddr>> byPosition, u32 session, int pingMs)
+	void SetLobbyPeers(bool ok, std::vector<std::vector<Zdxsv::PeerAddr>> byPosition, u32 session, int pingMs, std::string ids)
 	{
 		std::lock_guard lock(s_lobby_mtx);
+		s_report_ids = std::move(ids);
 		s_lobby_info = true;
 		s_lobby_ok = ok;
 		s_lobby_logged = s_lobby_unreachable = false;
@@ -1847,6 +1886,12 @@ namespace ZdxsvGgpo
 		s_lobby_peers = std::move(byPosition);
 		if (ok && session && !s_delay_set && pingMs > 0)
 			Zdxsv::StartPingTest(session, s_lobby_peers, static_cast<u16>(LobbyPort()), pingMs);
+	}
+
+	std::string TakeLobbyReport()
+	{
+		std::lock_guard lock(s_lobby_mtx);
+		return std::exchange(s_report, {});
 	}
 
 	// EE rec hook at NET_RPC_PC (the net RPC wrapper's entry): trace, and in net mode answer the

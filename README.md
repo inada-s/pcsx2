@@ -44,6 +44,7 @@ on [zdxsv](https://github.com/inada-s/zdxsv). Player setup: [ZDXSV.md](ZDXSV.md)
   `mindelay`). Dual-stack: peers get every IPv4 and IPv6 address, the ping test picks one per peer;
   a peer that never answers it (other session, position or address) fails the battle as a connection failure: no
   GGPO and no fallback to the battle server; the game gets no response, gives up and reconnects to the lobby.
+  After each lobby battle the emulator reports to the lobby how it ran (match report `0x9952`).
 
 ### Releases and updates
 - The auto-updater checks this fork's GitHub releases (`zdxsv-X.Y.Z` tags) instead of pcsx2.net.
@@ -119,6 +120,12 @@ Test scripts that use them: `zdxsv/` in inada-s/ai-automation (named in brackets
     `zdxsv: ping test: ...` (RTT per peer) and `ZdxsvGgpo: lobby delay D`. `delay=` keeps it fixed and skips the
     test (local tests). `badsession=1` (test): this client's ping test uses another session id, so no peer
     answers it and every client cuts the battle connection (`zdxsv/m4z.sh` `BAD_SESSION=K`).
+    Match report (as flycast's `lbsP2PMatchingReport`): the next lobby connection after a battle sends, right after
+    the platform info, a custom message `0x9952` with `key=value` lines: `battle_code`, `user_id` (from the battle
+    info), `result` = `ggpo` / `cut` / `server` (+ `reason`), `position`, `players`, per peer `rtt_<pos>` (-1 = no
+    answer) and `addr_<pos>` (the picked address), `ping_wait_ms`, `delay`; GGPO battles add `close` (why the session
+    ended), `frames`, `rollback_frames`, `mismatches`, `disconnected`; cuts add `answered`, `cut_sends`. Logged as
+    `DEV9: TCP: zdxsv matching report: ...`; the zdxsv lobby logs it (`p2p matching report: ...`).
 - `ZDXSV_RBK=i/N`: rollback test (`rbk.sh`, `rbkprep.sh`). Start from a post-entry save state as battle position i of
   N. The emulator answers the lobby itself, runs turbo until the battle, and exits when the GGPO session ends.
   - `ZDXSV_RBK_TIME=s` (time limit), `ZDXSV_RBK_COUNT=n` (battles), `ZDXSV_RBK_GAUGE=v` (戦力ゲージ),

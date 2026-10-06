@@ -20,6 +20,7 @@
 #include "TCP_Session.h"
 #include "BuildVersion.h"
 #include "ZdxsvGgpo.h"
+#include "common/StringUtil.h"
 
 using namespace PacketReader;
 using namespace PacketReader::IP;
@@ -221,7 +222,8 @@ namespace Sessions
 			Zdxsv::SetBattleInfoListener([](const Zdxsv::BattleInfo& info) {
 				std::vector<std::vector<Zdxsv::PeerAddr>> byPosition;
 				const bool ok = Zdxsv::GgpoPeers(info, Zdxsv::PublicIP(), byPosition);
-				ZdxsvGgpo::SetLobbyPeers(ok, std::move(byPosition), info.ggpoSession, info.ggpoPingMs);
+				ZdxsvGgpo::SetLobbyPeers(ok, std::move(byPosition), info.ggpoSession, info.ggpoPingMs,
+					"battle_code=" + info.battleCode + "\nuser_id=" + info.userId + "\n");
 			});
 		return port;
 	}
@@ -296,10 +298,21 @@ namespace Sessions
 		if (ggpoPort > 0)
 			body += "udp=1\n" + udpLines + "ggpo=" + std::to_string(ggpoPort) + "\n";
 
-		std::vector<u8> msg = {0x81, 0xFF, 0x99, 0x50,
-			static_cast<u8>(body.size() >> 8), static_cast<u8>(body.size()),
-			0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF};
-		msg.insert(msg.end(), body.begin(), body.end());
+		std::vector<u8> msg;
+		const auto append = [&msg](u8 command, const std::string& b) {
+			const u8 header[12] = {0x81, 0xFF, 0x99, command, static_cast<u8>(b.size() >> 8), static_cast<u8>(b.size()),
+				0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF};
+			msg.insert(msg.end(), header, header + 12);
+			msg.insert(msg.end(), b.begin(), b.end());
+		};
+		append(0x50, body);
+		// The last lobby battle's report (0x9952 P2PMatchingReport, as flycast's lbsP2PMatchingReport).
+		const std::string report = ggpoPort > 0 ? ZdxsvGgpo::TakeLobbyReport() : "";
+		if (!report.empty() && report.size() < 0x8000)
+		{
+			append(0x52, report);
+			Console.WriteLn("DEV9: TCP: zdxsv matching report: %s", StringUtil::ReplaceAll(report, "\n", " ").c_str());
+		}
 
 		size_t sent = 0;
 		while (sent < msg.size())

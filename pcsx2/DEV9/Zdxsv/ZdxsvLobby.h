@@ -34,6 +34,7 @@ namespace Zdxsv
 	{
 		std::string sessionId;
 		std::string userId;
+		std::string battleCode; // "battle_code=" (zdxsv since inada-s/zdxsv ai/ggpo-report), for the report
 		uint32_t serverIP = 0; // network byte order
 		uint16_t serverPort = 0;
 		std::vector<std::string> users; // every player, self included
