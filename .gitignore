@@ -125,3 +125,8 @@ CMakeSettings.json
 /ci-artifacts/
 /out/
 /.cache/
+
+# zdxsv rig settings of one machine (tests/zdxsv/README.md)
+/tests/zdxsv/local.env
+/tests/zdxsv/__pycache__/
+/tools/zdxsv/__pycache__/

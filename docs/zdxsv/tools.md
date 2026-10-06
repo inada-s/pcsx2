@@ -27,6 +27,10 @@
 | `run.py` | Launches several local instances side by side, each with its own data directory under `work/`. Modes: `rom`, `state`, `rbk_test`, `rbk_test_random`. Settings are environment variables listed at the top of the script. |
 | `tools/zdxsv/udprelay.py` | UDP relay that adds latency, jitter and loss between two GGPO peers. |
 | `tools/zdxsv/pwcheck.py` | Compares the per-frame work RAM hashes of the players across the peers: `IN SYNC` or `DESYNC`. |
+| `tools/zdxsv/zdcheck.py` | Checks the `zd=1` lines (`Z`) of a `ZDXSV_NET_TRACE` file. |
+| `tools/zdxsv/recvcheck.py` | Checks the receive slots (`R` lines) of a `ZDXSV_NET_TRACE` file. |
+| `tools/zdxsv/ramcount.py` | Finds EE RAM values that count down or up linearly across `ZDXSV_RAM_DUMP` dumps. |
+| `tools/zdxsv/ramvals.py` | Lists EE RAM u16 slots by the values they take across `ZDXSV_RAM_DUMP` dumps. |
 
 `run.py rbk_test` runs a GGPO battle between the instances without a server
 and ends with the sync check. `LAT=ms JITTER=ms LOSS=0..1` send each pair of

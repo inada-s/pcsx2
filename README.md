@@ -57,4 +57,5 @@ will run battles over GGPO only.
 | [docs/zdxsv/rollback.md](docs/zdxsv/rollback.md) | GGPO library, delta save states, the GGPO session, sync checks. |
 | [docs/zdxsv/replay.md](docs/zdxsv/replay.md) | Replay file format, playback and its controls. |
 | [docs/zdxsv/tools.md](docs/zdxsv/tools.md) | Releases, CI, local build and run scripts, PINE commands. |
+| [tests/zdxsv/README.md](tests/zdxsv/README.md) | Rig test scripts: setup and machine settings. |
 | [AGENTS.md](AGENTS.md) | Rules for work in this fork. |
