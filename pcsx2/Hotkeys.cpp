@@ -11,6 +11,7 @@
 #include "Recording/InputRecording.h"
 #include "SPU2/spu2.h"
 #include "VMManager.h"
+#include "ZdxsvGgpo.h"
 #include "SIO/Memcard/MemoryCardFile.h"
 
 #include "common/Assertions.h"
@@ -354,5 +355,15 @@ DEFINE_HOTKEY("ToggleMouseLock", TRANSLATE_NOOP("Hotkeys", "System"), TRANSLATE_
 	[](s32 pressed) {
 		if (!pressed)
 			Host::SetMouseLock(!Host::GetBoolSettingValue("EmuCore", "EnableMouseLock"));
+	})
+DEFINE_HOTKEY("ZdxsvReplaySeekBack", TRANSLATE_NOOP("Hotkeys", "Zdxsv Replay"), TRANSLATE_NOOP("Hotkeys", "Seek Back 10 s"),
+	[](s32 pressed) {
+		if (!pressed && VMManager::HasValidVM())
+			ZdxsvGgpo::ReplaySeekBy(-600);
+	})
+DEFINE_HOTKEY("ZdxsvReplaySeekForward", TRANSLATE_NOOP("Hotkeys", "Zdxsv Replay"), TRANSLATE_NOOP("Hotkeys", "Seek Forward 10 s"),
+	[](s32 pressed) {
+		if (!pressed && VMManager::HasValidVM())
+			ZdxsvGgpo::ReplaySeekBy(600);
 	})
 END_HOTKEY_LIST()

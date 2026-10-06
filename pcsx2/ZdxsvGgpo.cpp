@@ -71,6 +71,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cstdlib>
 #include <cstring>
 #include <ctime>
@@ -1827,6 +1828,130 @@ namespace ZdxsvGgpo
 		std::vector<NetInput> s_play_inputs;
 		int s_play_frames = 0;
 
+		// Seek: a key every ZDXSV_REPLAY_KEY=n frames played (default 600, 0 = none): the full state as .p2s in the
+		// cache folder (download here, zip on a thread) + the HLE state outside it. A seek loads the newest key at or
+		// before the target (none when running on from the current frame is closer) and runs up to the target
+		// unlimited. ZDXSV_REPLAY_SEEK=at:to[,at:to...]: seek to `to` when frame `at` is reached (tests).
+		// ZDXSV_REPLAY_KEY_NOHLE=1: control, keys restore no HLE state.
+		struct PlayKey
+		{
+			std::string path;
+			std::thread zip;
+			std::atomic<bool> ok{false};
+			size_t pos = 0;
+			std::vector<u8> rx;
+			int k3seen[GGPO_MAX_PLAYERS] = {}, k3rel = 0;
+			PS ps = {};
+			Input zd_pad[128] = {};
+			u16 zd_hist[128][GGPO_MAX_PLAYERS][2] = {};
+			u8 seq_at[64][GGPO_MAX_PLAYERS] = {};
+			~PlayKey()
+			{
+				if (zip.joinable())
+					zip.join();
+			}
+		};
+		std::map<int, std::unique_ptr<PlayKey>> s_play_keys;
+		const int s_play_key_every = [] {
+			const char* e = std::getenv("ZDXSV_REPLAY_KEY");
+			return e ? std::atoi(e) : 600;
+		}();
+		const bool s_play_key_nohle = std::getenv("ZDXSV_REPLAY_KEY_NOHLE") != nullptr;
+		std::deque<std::pair<int, int>> s_play_seeks; // ZDXSV_REPLAY_SEEK
+		std::atomic<int> s_play_req{INT_MIN}; // requested seek target, INT_MIN = none
+		bool s_play_at_end = false; // paused after the last frame (no ZDXSV_REPLAY_EXIT)
+		int s_play_target = -1; // seeking: frames run unlimited up to this one
+		LimiterModeType s_play_limiter = LimiterModeType::Nominal;
+
+		// At the start of frame f, before its inputs (the point of the frame 0 state).
+		void PlayKeySave(int f)
+		{
+			if (s_play_key_every <= 0 || f % s_play_key_every != 0 || s_play_keys.contains(f))
+				return;
+			Common::Timer timer;
+			Error error;
+			std::unique_ptr<ArchiveEntryList> list = SaveState_DownloadState(&error);
+			if (!list)
+			{
+				Console.Error("ZdxsvGgpo: replay key %d: state download failed: %s", f, error.GetDescription().c_str());
+				return;
+			}
+			auto key = std::make_unique<PlayKey>();
+			PlayKey* k = key.get();
+			k->path = Path::Combine(EmuFolders::Cache, fmt::format("zdxsv-replay-key-{}.p2s", f));
+			k->pos = s_net_pos;
+			k->rx = s_net_rx;
+			std::memcpy(k->k3seen, s_zds_seen, sizeof(k->k3seen));
+			k->k3rel = s_zds_rel;
+			k->ps = s_ps;
+			std::memcpy(k->zd_pad, s_zd_pad, sizeof(k->zd_pad));
+			std::memcpy(k->zd_hist, s_zd_hist, sizeof(k->zd_hist));
+			std::memcpy(k->seq_at, s_net_seq_at, sizeof(k->seq_at));
+			k->zip = std::thread([list = std::move(list), k]() mutable {
+				Error error;
+				k->ok = SaveState_ZipToDisk(std::move(list), nullptr, k->path.c_str(), &error);
+				if (!k->ok)
+					Console.Error("ZdxsvGgpo: replay key: state zip failed: %s", error.GetDescription().c_str());
+			});
+			s_play_keys.emplace(f, std::move(key));
+			Console.WriteLn("ZdxsvGgpo: replay key %d (download %.1f ms)", f, timer.GetTimeMilliseconds());
+		}
+
+		// Returns the frame to run next.
+		int PlaySeek(int target)
+		{
+			target = std::clamp(target, 0, s_play_frames - 1);
+			const int next = s_net_frame + 1;
+			int from = next;
+			auto it = s_play_keys.upper_bound(target);
+			while (it != s_play_keys.begin())
+			{
+				--it;
+				if (target >= next && it->first <= next)
+					break; // running on is as close
+				PlayKey& k = *it->second;
+				if (k.zip.joinable())
+					k.zip.join();
+				if (!k.ok)
+					continue;
+				Common::Timer timer;
+				Error error;
+				if (!VMManager::LoadState(k.path.c_str(), &error))
+				{
+					Console.Error("ZdxsvGgpo: replay seek: key %d load failed: %s", it->first, error.GetDescription().c_str());
+					return next;
+				}
+				if (!s_play_key_nohle)
+				{
+					s_net_pos = k.pos;
+					s_net_rx = k.rx;
+					std::memcpy(s_zds_seen, k.k3seen, sizeof(s_zds_seen));
+					s_zds_rel = k.k3rel;
+					s_ps = k.ps;
+					std::memcpy(s_zd_pad, k.zd_pad, sizeof(s_zd_pad));
+					std::memcpy(s_zd_hist, k.zd_hist, sizeof(s_zd_hist));
+					std::memcpy(s_net_seq_at, k.seq_at, sizeof(s_net_seq_at));
+				}
+				from = it->first;
+				Console.WriteLn("ZdxsvGgpo: replay seek: key %d loaded (%.1f ms)", from, timer.GetTimeMilliseconds());
+				break;
+			}
+			if (from > target)
+			{
+				Console.Error("ZdxsvGgpo: replay seek %d -> %d: no key at or before it", s_net_frame, target);
+				return next;
+			}
+			Console.WriteLn("ZdxsvGgpo: replay seek %d -> %d: from %d, %d frames to run", s_net_frame, target, from, target - from);
+			if (from < target)
+			{
+				if (s_play_target < 0)
+					s_play_limiter = VMManager::GetLimiterMode();
+				s_play_target = target;
+				VMManager::SetLimiterMode(LimiterModeType::Unlimited);
+			}
+			return from;
+		}
+
 		Input PadFromB(u16 b)
 		{
 			Input in = {};
@@ -1845,6 +1970,13 @@ namespace ZdxsvGgpo
 
 		void PlayFrame(int f)
 		{
+			if (f == s_play_target)
+			{
+				s_play_target = -1;
+				VMManager::SetLimiterMode(s_play_limiter);
+				Console.WriteLn("ZdxsvGgpo: replay seek done at frame %d, vsync %u", f, g_FrameCount);
+			}
+			PlayKeySave(f);
 			s_net_frame = f;
 			NetSaved(f);
 			const NetInput* in = &s_play_inputs[static_cast<size_t>(f) * s_players];
@@ -1862,7 +1994,7 @@ namespace ZdxsvGgpo
 			NetReport();
 			if (const char* e = std::getenv("ZDXSV_REPLAY_EXIT"); e && e[0] == '1')
 				Host::RunOnCPUThread([] { Host::RequestVMShutdown(false, false, false); });
-			else
+			else if (!s_play_at_end)
 				Host::RunOnCPUThread([] { VMManager::SetPaused(true); });
 		}
 
@@ -1934,6 +2066,11 @@ namespace ZdxsvGgpo
 			g_active = true;
 			if (const char* e = std::getenv("ZDXSV_REPLAY_TURBO"); e && e[0] == '1')
 				VMManager::SetLimiterMode(LimiterModeType::Turbo);
+			if (const char* e = std::getenv("ZDXSV_REPLAY_SEEK"))
+				for (const std::string_view one : StringUtil::SplitString(e, ','))
+					if (const size_t c = one.find(':'); c != std::string_view::npos)
+						s_play_seeks.emplace_back(StringUtil::FromChars<int>(one.substr(0, c)).value_or(-1),
+							StringUtil::FromChars<int>(one.substr(c + 1)).value_or(0));
 			Console.WriteLn("ZdxsvGgpo: replay %s: position %d of %d, %d frames, zds_ps %d, rx0 %zu bytes, state %lld bytes", s_play_env,
 				s_net_me, s_players, s_play_frames, s_zds_ps ? 1 : 0, s_net_rx.size(), state_size);
 			PlayFrame(0);
@@ -1942,10 +2079,28 @@ namespace ZdxsvGgpo
 		void PlayNext()
 		{
 			s_session_frames++;
-			if (s_net_frame + 1 >= s_play_frames)
+			int next = s_net_frame + 1;
+			if (!s_play_seeks.empty() && s_play_seeks.front().first == next)
+			{
+				s_play_req = s_play_seeks.front().second;
+				s_play_seeks.pop_front();
+			}
+			if (const int req = s_play_req.exchange(INT_MIN); req != INT_MIN)
+				next = PlaySeek(req);
+			if (next < s_play_frames)
+			{
+				s_play_at_end = false;
+				PlayFrame(next);
+			}
+			else if (const char* e = std::getenv("ZDXSV_REPLAY_EXIT"); s_play_at_end || (e && e[0] == '1'))
 				PlayStop("end");
 			else
-				PlayFrame(s_net_frame + 1);
+			{
+				// a seek requested while paused here plays on; resuming without one stops the replay
+				s_play_at_end = true;
+				Console.WriteLn("ZdxsvGgpo: replay at its end (frame %d of %d, vsync %u), paused", s_net_frame, s_play_frames, g_FrameCount);
+				VMManager::SetPaused(true); // now: queued, one more frame ran and ended the replay (s709)
+			}
 		}
 	} // namespace
 
@@ -2281,6 +2436,17 @@ namespace ZdxsvGgpo
 			return (p > 0 && p <= 0xFFFF) ? p : 0;
 		}();
 		return port;
+	}
+
+	void ReplaySeekBy(int frames)
+	{
+		if (!s_play_env || s_play_frames <= 0 || !g_active)
+			return;
+		const int req = s_play_req.load();
+		s_play_req = (req != INT_MIN ? req : s_net_frame + 1) + frames;
+		Console.WriteLn("ZdxsvGgpo: replay seek requested: frame %d", s_play_req.load());
+		if (s_play_at_end && VMManager::GetState() == VMState::Paused)
+			VMManager::SetPaused(false);
 	}
 
 	int LobbyAdvertisePort()

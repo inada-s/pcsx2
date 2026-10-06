@@ -51,6 +51,9 @@ namespace ZdxsvGgpo
 	// rtt and address per peer, delay, frames, close reason), then cleared; "" if none. The lobby connection
 	// sends it (0x9952) after the next platform info, as flycast after its next login.
 	std::string TakeLobbyReport();
+	// Replay play (ZDXSV_REPLAY): seek by `frames` from the current frame (hotkeys "Zdxsv Replay: Seek
+	// Back / Forward 10 s"), done at the next frame start; at the end (paused) it plays on. No-op otherwise.
+	void ReplaySeekBy(int frames);
 
 	// Network status OSD (as flycast's drawNetworkStat) while a net session runs: input delay, rollback
 	// frames, frames waited for a peer, predicted frames; per opponent: position, user id, name, GGPO
