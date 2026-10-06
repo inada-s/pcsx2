@@ -1862,6 +1862,17 @@ namespace ZdxsvGgpo
 		bool s_play_at_end = false; // paused after the last frame (no ZDXSV_REPLAY_EXIT)
 		int s_play_target = -1; // seeking: frames run unlimited up to this one
 		LimiterModeType s_play_limiter = LimiterModeType::Nominal;
+		// skip MS selection (ZDXSV_REPLAY_SKIP_MS, default on as flycast's gdxsv:ReplaySkipMsSelection, 0 = off): from
+		// frame 0 the replay runs unlimited to the briefing = the frame tick state 0xc627b4 leaves 8 (battle load) the
+		// 2nd time (s715 lobby 1v1: loads at frames 204 and 4169, MS select 228-4054, briefing from 4183; round 2
+		// loads again with no MS select). Playing from frame 0 again jumps to the briefing.
+		const bool s_play_skip_ms = [] {
+			const char* e = std::getenv("ZDXSV_REPLAY_SKIP_MS");
+			return !e || e[0] != '0';
+		}();
+		bool s_skip_on = false; // running unlimited to the briefing
+		int s_skip_loads = 0, s_play_briefing = -1;
+		u8 s_skip_state = 0;
 		bool s_play_pov_ok[GGPO_MAX_PLAYERS] = {};
 		// control bar (ReplayBarInfo): written per played frame on the CPU thread, read by the GS thread's ImGui
 		std::atomic<int> s_bar_frame{-1}; // -1 = no replay playing
@@ -2052,8 +2063,39 @@ namespace ZdxsvGgpo
 			return in;
 		}
 
+		void PlaySkipBegin()
+		{
+			s_skip_on = true;
+			s_skip_loads = 0;
+			s_skip_state = 0;
+			s_play_limiter = VMManager::GetLimiterMode();
+			VMManager::SetLimiterMode(LimiterModeType::Unlimited);
+			Console.WriteLn("ZdxsvGgpo: replay skip MS selection: running to the briefing");
+		}
+
+		void PlaySkipEnd(const char* why, int f)
+		{
+			if (!s_skip_on)
+				return;
+			s_skip_on = false;
+			VMManager::SetLimiterMode(s_play_limiter);
+			Console.WriteLn("ZdxsvGgpo: replay skip MS selection: %s at frame %d, vsync %u", why, f, g_FrameCount);
+		}
+
 		void PlayFrame(int f)
 		{
+			if (s_skip_on)
+			{
+				const u8 st = eeMem->Main[0xc627b4];
+				if (st == 8 && s_skip_state != 8)
+					s_skip_loads++;
+				s_skip_state = st;
+				if (s_skip_loads >= 2 && st != 8)
+				{
+					s_play_briefing = f;
+					PlaySkipEnd("briefing", f);
+				}
+			}
 			if (f == s_play_target)
 			{
 				s_play_target = -1;
@@ -2215,6 +2257,8 @@ namespace ZdxsvGgpo
 			g_active = true;
 			if (const char* e = std::getenv("ZDXSV_REPLAY_TURBO"); e && e[0] == '1')
 				VMManager::SetLimiterMode(LimiterModeType::Turbo);
+			if (s_play_skip_ms)
+				PlaySkipBegin();
 			if (const char* e = std::getenv("ZDXSV_REPLAY_SEEK"))
 				for (const std::string_view one : StringUtil::SplitString(e, ','))
 					if (const size_t c = one.find(':'); c != std::string_view::npos)
@@ -2274,11 +2318,20 @@ namespace ZdxsvGgpo
 				s_play_pov_req = s_play_pov_at.front().second;
 				s_play_pov_at.pop_front();
 			}
-			const int req = s_play_req.exchange(INT_MIN);
-			if (const int pov = s_play_pov_req.exchange(-1); pov >= 0 && pov != s_net_me)
+			int req = s_play_req.exchange(INT_MIN);
+			const int pov = s_play_pov_req.exchange(-1);
+			if (req != INT_MIN || (pov >= 0 && pov != s_net_me))
+				PlaySkipEnd("cancelled by a seek", s_net_frame);
+			if (req == 0 && s_play_briefing > 0)
+				req = s_play_briefing; // from the start = from the briefing
+			if (pov >= 0 && pov != s_net_me)
 				next = PlaySwitch(pov, req != INT_MIN ? req : next);
 			else if (req != INT_MIN)
 				next = PlaySeek(req);
+			if (req == 0 && next == 0 && s_play_skip_ms)
+				PlaySkipBegin(); // briefing not reached yet
+			if (next >= s_play_frames)
+				PlaySkipEnd("replay ended before the briefing", s_net_frame);
 			if (next < s_play_frames)
 			{
 				s_play_at_end = false;

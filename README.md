@@ -195,6 +195,12 @@ Test scripts that use them: `zdxsv/` in inada-s/ai-automation (named in brackets
     `ZDXSV_REPLAY_KEY_DISPLAY=1` to start with it on. Follows seeks and point-of-view switches. While on, logs
     `ZdxsvGgpo: replay keys frame F pos P: <word>*<frames> ...` every 600 frames (zdxsv `keycheck.py` compares
     them with the file).
+  - Skip mobile suit selection (default on, as flycast's `gdxsv:ReplaySkipMsSelection`; `ZDXSV_REPLAY_SKIP_MS=0`
+    turns it off): the replay runs unlimited from frame 0 to the briefing (the frame the game's tick state leaves
+    the battle load the 2nd time), then plays at the normal speed. A seek or switch during the skip ends it; playing
+    from frame 0 again (Space at the end, timeline start) jumps to the briefing. Logs
+    `ZdxsvGgpo: replay skip MS selection: briefing at frame F` (or `cancelled by a seek` /
+    `replay ended before the briefing`).
 - `ZDXSV_RBK=i/N`: rollback test (`rbk.sh`, `rbkprep.sh`). Start from a post-entry save state as battle position i of
   N. The emulator answers the lobby itself, runs turbo until the battle, and exits when the GGPO session ends.
   - `ZDXSV_RBK_TIME=s` (time limit), `ZDXSV_RBK_COUNT=n` (battles), `ZDXSV_RBK_GAUGE=v` (戦力ゲージ),
