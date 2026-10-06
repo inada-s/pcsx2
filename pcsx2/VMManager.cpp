@@ -8,6 +8,12 @@
 #include "Counters.h"
 #include "ZdxsvInputLatency.h"
 #include "ZdxsvGgpo.h"
+namespace ZdxsvGgpo
+{
+	// Replay control bar state; false when no replay plays. Declared here and in ImGuiOverlays.cpp, not in
+	// ZdxsvGgpo.h (a change there rebuilds most of pcsx2).
+	bool ReplayBarInfo(int& frame, int& frames, int& pov, u32& povs, int& target);
+} // namespace ZdxsvGgpo
 #include "DEV9/DEV9.h"
 #include "DebugTools/DebugInterface.h"
 #include "DebugTools/SymbolImporter.h"
@@ -2772,6 +2778,12 @@ void VMManager::IdlePollUpdate()
 	PollDiscordPresence();
 
 	InputManager::PollSources();
+
+	// a paused replay keeps redrawing (10 Hz poll) so its control bar sees the mouse and the Play click
+	int frame, frames, pov, target;
+	u32 povs;
+	if (GetState() == VMState::Paused && ZdxsvGgpo::ReplayBarInfo(frame, frames, pov, povs, target))
+		MTGS::PresentCurrentFrame();
 }
 
 void VMManager::SetPaused(bool paused)

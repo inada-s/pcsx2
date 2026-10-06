@@ -1862,6 +1862,23 @@ namespace ZdxsvGgpo
 		bool s_play_at_end = false; // paused after the last frame (no ZDXSV_REPLAY_EXIT)
 		int s_play_target = -1; // seeking: frames run unlimited up to this one
 		LimiterModeType s_play_limiter = LimiterModeType::Nominal;
+		bool s_play_pov_ok[GGPO_MAX_PLAYERS] = {};
+		// control bar (ReplayBarInfo): written per played frame on the CPU thread, read by the GS thread's ImGui
+		std::atomic<int> s_bar_frame{-1}; // -1 = no replay playing
+		std::atomic<int> s_bar_frames{0}, s_bar_pov{-1}, s_bar_target{-1};
+		std::atomic<u32> s_bar_povs{0}; // bit p = position p has a file
+
+		void PlayBarPublish()
+		{
+			u32 povs = 0;
+			for (int p = 0; p < s_players; p++)
+				povs |= s_play_pov_ok[p] ? (1u << p) : 0u;
+			s_bar_frames = s_play_frames;
+			s_bar_pov = s_net_me;
+			s_bar_povs = povs;
+			s_bar_target = s_play_target;
+			s_bar_frame = s_net_frame;
+		}
 
 		// At the start of frame f, before its inputs (the point of the frame 0 state).
 		void PlayKeySave(int f)
@@ -1985,6 +2002,7 @@ namespace ZdxsvGgpo
 			}
 			PlayKeySave(f);
 			s_net_frame = f;
+			PlayBarPublish();
 			NetSaved(f);
 			const NetInput* in = &s_play_inputs[static_cast<size_t>(f) * s_players];
 			u16 ab[2];
@@ -1996,6 +2014,7 @@ namespace ZdxsvGgpo
 		void PlayStop(const char* what)
 		{
 			g_active = false;
+			s_bar_frame = -1;
 			s_net_over = true; // the battle sock goes back to the IOP
 			Console.WriteLn("ZdxsvGgpo: replay %s at frame %d of %d, vsync %u", what, s_net_frame, s_play_frames, g_FrameCount);
 			NetReport();
@@ -2009,7 +2028,6 @@ namespace ZdxsvGgpo
 		// are the same (checked on the common frames); each brings its own position's frame 0 state + battle-socket
 		// state, kept as key 0 of that position. A switch at frame f loads the new position's newest key <= f and
 		// runs to f unlimited (PlaySeek pov_switch); keys and sent msgs are kept per position.
-		bool s_play_pov_ok[GGPO_MAX_PLAYERS] = {};
 		std::atomic<int> s_play_pov_req{-1}; // requested position, -1 = none
 		std::deque<std::pair<int, int>> s_play_pov_at; // ZDXSV_REPLAY_POV_AT=frame:position,...
 		struct PlaySent
@@ -2580,6 +2598,38 @@ namespace ZdxsvGgpo
 		Console.WriteLn("ZdxsvGgpo: replay point of view requested: %d", p);
 		if (s_play_at_end && VMManager::GetState() == VMState::Paused)
 			VMManager::SetPaused(false);
+	}
+
+	void ReplaySeekTo(int frame)
+	{
+		if (!s_play_env || s_play_frames <= 0 || !g_active)
+			return;
+		s_play_req = std::clamp(frame, 0, s_play_frames - 1);
+		Console.WriteLn("ZdxsvGgpo: replay seek requested: frame %d", s_play_req.load());
+		if (VMManager::GetState() == VMState::Paused) // control bar: a seek plays on, also from a pause
+			VMManager::SetPaused(false);
+	}
+
+	void ReplayTogglePause()
+	{
+		if (!s_play_env || s_play_frames <= 0 || !g_active)
+			return;
+		if (s_play_at_end)
+			ReplaySeekTo(0); // play at the end = from the start
+		else
+			VMManager::SetPaused(VMManager::GetState() != VMState::Paused);
+	}
+
+	bool ReplayBarInfo(int& frame, int& frames, int& pov, u32& povs, int& target)
+	{
+		frame = s_bar_frame;
+		if (!s_play_env || frame < 0)
+			return false;
+		frames = s_bar_frames;
+		pov = s_bar_pov;
+		povs = s_bar_povs;
+		target = s_bar_target;
+		return true;
 	}
 
 	int LobbyAdvertisePort()
