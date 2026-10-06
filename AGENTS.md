@@ -91,15 +91,19 @@ the agent's working context.
 
 - Directory, file, namespace, type and function names follow upstream:
   `PascalCase`. The directory has the name of the namespace: `pcsx2/Zdxsv/`.
-- All zdxsv code is in the root namespace `Zdxsv`, one nested namespace per
-  component: `Zdxsv::Ggpo`, `Zdxsv::Replay`, `Zdxsv::DeltaState`,
-  `Zdxsv::Lobby`, `Zdxsv::InputLatency`. Do not add new top-level namespaces
-  (`ZdxsvGgpo`, ...); rename the existing ones in a PR that only renames.
+- All zdxsv code is in one namespace, `Zdxsv`. Do not add nested namespaces
+  (`Zdxsv::Ggpo`, `Zdxsv::Internal`, ...) or other top-level namespaces
+  (`ZdxsvGgpo`, ...). Rename the existing ones in a PR that only renames.
+- A name must be clear without a component namespace. Give it the component
+  as a prefix when it is generic or exists in more than one component:
+  `GgpoOnVsync`, `InputLatencyOnVsync`, `DeltaStateSave`, `g_ggpo_enabled`. A
+  name that is already specific (`ParseBattleInfo`, `StartPingTest`) stays as
+  it is.
 - Nothing zdxsv is declared in the global namespace or in an upstream
   namespace.
 - Helpers used by one file go in an anonymous namespace. Helpers shared by the
-  files of one component go in `Zdxsv::<Component>::Internal`, declared in a
-  header that only that component includes, never in a hook header.
+  files of one component are declared in a header that only that component
+  includes, never in a hook header.
 - No `using namespace` in headers.
 
 ### Seams With Upstream Code
