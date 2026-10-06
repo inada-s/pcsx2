@@ -120,8 +120,12 @@ the agent's working context.
   config field), add the smallest declaration or accessor upstream and keep the
   logic in `pcsx2/Zdxsv/`. Class members and config fields have to stay in
   upstream headers: keep them minimal.
-- Do not reformat, reorder or refactor upstream code. Do not fix upstream bugs
-  in passing: make it a separate commit that could be sent upstream.
+- Do not reformat, reorder or refactor upstream code.
+- A bug found in upstream code may be fixed when the fork needs the fix. Keep
+  it out of zdxsv changes: make it its own PR, and say in the description
+  that it fixes upstream code, what was wrong and how it was found. Whether it
+  is reported to upstream is the decision of the owner; do not open an
+  upstream issue or PR.
 - With no zdxsv feature active, behavior must equal upstream. A change of a
   default (settings, hotkeys, frame pacing) is listed in
   `docs/zdxsv/features.md` and has a setting to turn it off.
