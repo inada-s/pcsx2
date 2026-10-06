@@ -231,7 +231,7 @@ namespace Sessions
 					players.emplace_back(u, name == info.names.end() ? std::string() : name->second);
 				}
 				ZdxsvGgpo::SetLobbyPeers(ok, std::move(byPosition), info.ggpoSession, info.ggpoPingMs,
-					"battle_code=" + info.battleCode + "\nuser_id=" + info.userId + "\n", std::move(players));
+					"battle_code=" + info.battleCode + "\nuser_id=" + info.userId + "\n", std::move(players), info.relays);
 			});
 		return port;
 	}
@@ -313,10 +313,11 @@ namespace Sessions
 		// ZDXSV_GGPO net=1,lobby=1: udp=1 makes the lobby send battle info (0x9951) with every player's
 		// address (udp_addr/udp_local/udp_addr6) and ggpo=port; when every other player has one the battle runs over
 		// GGPO (ZdxsvGgpo), else on the battle server. The game always connects to the battle server by TCP.
+		// relay_server=1: we can route GGPO through the lobby's relay servers (battle info relay_<k>), as flycast.
 		int ggpoPort;
 		const std::string udpLines = ZdxsvOpenLobby(ggpoPort);
 		if (ggpoPort > 0)
-			body += "udp=1\n" + udpLines + "ggpo=" + std::to_string(ggpoPort) + "\n";
+			body += "udp=1\n" + udpLines + "ggpo=" + std::to_string(ggpoPort) + "\nrelay_server=1\n";
 
 		std::vector<u8> msg;
 		const auto append = [&msg](u8 command, const std::string& b) {
