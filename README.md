@@ -127,7 +127,9 @@ Test scripts that use them: `zdxsv/` in inada-s/ai-automation (named in brackets
     delay is max(`mindelay=2`, ceil(slowest peer's mean RTT / 2 / 16 ms)), as flycast's rollback backend; log lines
     `zdxsv: ping test: ...` (RTT per peer) and `ZdxsvGgpo: lobby delay D`. `delay=` keeps it fixed and skips the
     test (local tests). `badsession=1` (test): this client's ping test uses another session id, so no peer
-    answers it and every client cuts the battle connection (`zdxsv/m4z.sh` `BAD_SESSION=K`).
+    answers it and every client cuts the battle connection (`zdxsv/m4z.sh` `BAD_SESSION=K`). `advertise=P` (test):
+    the platform info announces `127.0.0.1:P` and `ggpo=P` only (no STUN / local / IPv6 address), so peers reach
+    this client through a localhost `udprelay.py` at P that adds latency (`zdxsv/m4z.sh` `GGPO_LAT=D`).
     Relays: battle info `relay_<k>=<hex token>,<ip:port>[,<[ip6]:port>]` (zdxsv `ZDXSV_LOBBY_RELAY_ADDR`). The ping
     test pings each over IPv4 and IPv6 (gdxsv's 28-byte relay ping) and shares the RTT and relay-RTT matrices
     (flycast `PacketWithRelays`). A peer goes through relay server k when that path (own + peer's relay RTT) is
