@@ -5,12 +5,12 @@
 #include "CDVD/CDVD.h"
 #include "Counters.h"
 #include "DebugTools/Breakpoints.h"
-#include "ZdxsvDeltaState.h"
-#include "ZdxsvGgpo.h"
+#include "Zdxsv/DeltaState.h"
+#include "Zdxsv/Ggpo.h"
 
 namespace ZdxsvGgpo
 {
-	// fno 0x14 recv (0x30ec70), return of its wait RPC; kept out of ZdxsvGgpo.h (27 min rebuild)
+	// fno 0x14 recv (0x30ec70), return of its wait RPC; kept out of Zdxsv/Ggpo.h (27 min rebuild)
 	constexpr u32 NET_RECV_RET_PC = 0x30ecf0;
 	void OnNetRecv();
 	// At NET_RPC_PC: true = the RPC was answered here (v0 set, pc = ra), skip the wrapper.

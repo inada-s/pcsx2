@@ -35,9 +35,9 @@
 //   control=input  control run: reruns get other inputs (must report mismatches)
 // Results go to the log, lines start with "ZdxsvGgpo".
 
-#include "ZdxsvGgpo.h"
-#include "ZdxsvDeltaState.h"
-#include "DEV9/Zdxsv/ZdxsvLobby.h"
+#include "Zdxsv/Ggpo.h"
+#include "Zdxsv/DeltaState.h"
+#include "Zdxsv/Lobby.h"
 #include "Config.h"
 #include "Counters.h"
 #include "Memory.h"

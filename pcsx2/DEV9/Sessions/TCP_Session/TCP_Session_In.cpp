@@ -24,7 +24,7 @@
 #endif
 #include "TCP_Session.h"
 #include "BuildVersion.h"
-#include "ZdxsvGgpo.h"
+#include "Zdxsv/Ggpo.h"
 #include "Host.h"
 #include "IconsFontAwesome.h"
 #include "common/StringUtil.h"

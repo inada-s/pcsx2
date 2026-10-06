@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0+
 
 // zdxsv debug: pad input latency measurement. Off unless the environment
-// variable ZDXSV_INPUT_LATENCY is set (see ZdxsvInputLatency.cpp for its keys).
+// variable ZDXSV_INPUT_LATENCY is set (see Zdxsv/InputLatency.cpp for its keys).
 // Injects button presses into pad 1 and timestamps each stage:
 // press (virtual host event) -> host poll applies it -> SIO2 pad read returns
 // it to the game -> watched EE RAM byte changes -> the frame pushed at that

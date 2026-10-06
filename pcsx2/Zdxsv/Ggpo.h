@@ -4,7 +4,7 @@
 #pragma once
 
 #include "common/Pcsx2Defs.h"
-#include "DEV9/Zdxsv/ZdxsvLobby.h"
+#include "Zdxsv/Lobby.h"
 #include <cstdio>
 #include <string>
 #include <utility>

@@ -30,10 +30,10 @@
 #include "SIO/Pad/PadBase.h"
 #include "USB/USB.h"
 #include "VMManager.h"
-#include "ZdxsvGgpo.h"
+#include "Zdxsv/Ggpo.h"
 namespace ZdxsvGgpo
 {
-	// Replay control bar. Declared here (and ReplayBarInfo in VMManager.cpp), not in ZdxsvGgpo.h: that header
+	// Replay control bar. Declared here (and ReplayBarInfo in VMManager.cpp), not in Zdxsv/Ggpo.h: that header
 	// is included widely (a change rebuilds most of pcsx2). The actions run on the CPU thread.
 	bool ReplayBarInfo(int& frame, int& frames, int& pov, u32& povs, int& target);
 	void ReplaySeekTo(int frame);

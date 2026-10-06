@@ -5,7 +5,7 @@
 #include "Gif_Unit.h"
 #include "MTGS.h"
 #include "MTVU.h"
-#include "ZdxsvInputLatency.h"
+#include "Zdxsv/InputLatency.h"
 #include "Host.h"
 #include "IconsFontAwesome.h"
 #include "VMManager.h"
