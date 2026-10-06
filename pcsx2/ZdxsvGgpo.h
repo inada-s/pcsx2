@@ -6,6 +6,7 @@
 #include "common/Pcsx2Defs.h"
 #include "DEV9/Zdxsv/ZdxsvLobby.h"
 #include <cstdio>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -39,10 +40,23 @@ namespace ZdxsvGgpo
 	// position empty; session = ggpo_session (0 = none: stays on the battle server), pingMs = ggpo_ping_ms.
 	// Without delay=, starts the ping test (Zdxsv::StartPingTest) on our GGPO port; GGPO arms after it
 	// ended, at the candidate it picked per peer; else (or nothing answered) at the first candidate.
-	// ids = report lines naming the battle ("battle_code=..\nuser_id=..\n").
-	void SetLobbyPeers(bool ok, std::vector<std::vector<Zdxsv::PeerAddr>> byPosition, u32 session, int pingMs, std::string ids);
+	// ids = report lines naming the battle ("battle_code=..\nuser_id=..\n"); players = user id and name
+	// per position (network status OSD).
+	void SetLobbyPeers(bool ok, std::vector<std::vector<Zdxsv::PeerAddr>> byPosition, u32 session, int pingMs, std::string ids,
+		std::vector<std::pair<std::string, std::string>> players);
 	// The last lobby battle's P2PMatchingReport body ("key=value" lines: result=ggpo/cut/server, ping test
 	// rtt and address per peer, delay, frames, close reason), then cleared; "" if none. The lobby connection
 	// sends it (0x9952) after the next platform info, as flycast after its next login.
 	std::string TakeLobbyReport();
+
+	// Network status OSD (as flycast's drawNetworkStat) while a net session runs: input delay, rollback
+	// frames, frames waited for a peer, predicted frames; per opponent: position, user id, name, GGPO
+	// ping or "disconnected". Built once per frame on the CPU thread; read by the GS thread's ImGui
+	// overlay. Empty when no session runs or with ZDXSV_GGPO osd=0. color = IM_COL32 value.
+	struct OsdLine
+	{
+		std::string text;
+		u32 color;
+	};
+	std::vector<OsdLine> OsdLines();
 } // namespace ZdxsvGgpo
