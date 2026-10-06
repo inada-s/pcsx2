@@ -13,6 +13,8 @@
 # EMU=1: the 4 clients are emulators instead (platform info, TCP to the battle server, no zproxy by default);
 #   GGPO=7101: with ZDXSV_GGPO net=1,lobby=1,port=GGPO+i-1 on GGPO_CLIENTS (default "1 2 3 4"; a lobby with
 #   the GGPO battle info, ZBIN): the battle runs over GGPO (checks below).
+#   BATTLES=N (CLIENTS="1 3", 1v1): N battles in the same processes (EXIT from 作戦後部屋, Lobby 02 again);
+#   the result and GGPO checks then expect N battle codes and N GGPO battle ends per client.
 #   GGPO_DEFAULT=K: client K gets no ZDXSV_GGPO (launch.ps1 ZDXSV_GGPO=default), so the ZdxsvGgpo setting
 #   gives its options (port 7001); check: its log names the default options.
 #   BAD_SESSION=K (GDELAY=auto): client K gets badsession=1: every ping test fails,
@@ -173,29 +175,43 @@ if [ -n "${BAD_SESSION:-}" ]; then
   fi
   exit $ok
 fi
-$DRIVE mash $CLIENTS 2>&1 | grep -v memgate | tail -1
-t0=$SECONDS
-while [ $((SECONDS - t0)) -lt "${MAXS:-2100}" ]; do
-  sleep 30
-  results; r=$(grep -c '^result' "$OUT/results.txt")
-  echo "$((SECONDS - t0)) s: results $r/$nc"
-  [ "$r" -ge "$nc" ] && break
+B=${BATTLES:-1}
+for b in $(seq "$B"); do
+  if [ "$b" -gt 1 ]; then
+    # the results come at the post-battle login, in 作戦後部屋 (待機 / EXIT): EXIT -> 戦場選択 (map up
+    # < 12 s later, s728 shots), then Lobby 02 from the map
+    for i in $CLIENTS; do
+      $DRIVE seq "$i" "Down,w500,C,w12000" exit$b 2>&1 | grep -v memgate | tail -1
+      entry2p_retry "$i" remap2p || { echo "FAIL client $i entry $b (no Lobby 02)"; exit 1; }
+    done
+    for t in $(seq 10); do [ "$(grep -c 'C->S \[Q\] ID:0x640E' "$OUT/lobby.log")" -ge $((nc * b)) ] && break; sleep 2; done
+    [ "$(grep -c 'C->S \[Q\] ID:0x640E' "$OUT/lobby.log")" -ge $((nc * b)) ] || { echo "FAIL battle $b entry (no 0x640E)"; exit 1; }
+  fi
+  $DRIVE mash $CLIENTS 2>&1 | grep -v memgate | tail -1
+  t0=$SECONDS
+  while [ $((SECONDS - t0)) -lt "${MAXS:-2100}" ]; do
+    sleep 30
+    results; r=$(grep -c '^result' "$OUT/results.txt")
+    echo "$((SECONDS - t0)) s: results $r/$((nc * b))"
+    [ "$r" -ge $((nc * b)) ] && break
+  done
 done
 cat "$OUT/results.txt"
 grep -h "Error\|失敗" "$OUT"/zproxy-p*.log 2>/dev/null | tail -4 | cut -c1-160
-check "BattleResult x$nc" "[ \$(grep -c '^result' '$OUT/results.txt') -ge $nc ]"
-check "results agree" "awk '{for(i=3;i<=NF;i++){split(\$i,a,\":\"); v[a[1]]=a[2]} f[v[\"total_frame\"] v[\"battle_code\"]]=1; k+=v[\"kill_count\"]; d+=v[\"death_count\"]} END{n=0; for(x in f)n++; exit !(n==1 && k==d)}' '$OUT/results.txt'"
+check "BattleResult x$((nc * B))" "[ \$(grep -c '^result' '$OUT/results.txt') -ge $((nc * B)) ]"
+# per battle code: $nc results, one total_frame; $B codes
+check "results agree ($B battle codes)" "awk '{for(i=3;i<=NF;i++){split(\$i,a,\":\"); v[a[1]]=a[2]} c=v[\"battle_code\"]; n[c]++; f[c \" \" v[\"total_frame\"]]=1; k+=v[\"kill_count\"]; d+=v[\"death_count\"]} END{m=0; for(x in n){m++; if(n[x]<$nc)bad=1} u=0; for(x in f)u++; exit !(m==$B && u==$B && !bad && k==d)}' '$OUT/results.txt'"
 if [ -n "${EMU:-}" ] && [ -n "${GGPO:-}" ]; then
   grep -a -h "ggpo peers\|ZdxsvGgpo: \(lobby\|net player\)" "$OUT"/emulog-p[1-4].txt "$RUN"/p[1-4]/PCSX2/logs/emulog.txt 2>/dev/null | cut -c1-160 | sort -u
   for i in ${GGPO_CLIENTS:-$CLIENTS}; do
     f="$RUN/p$i/PCSX2/logs/emulog.txt"
-    check "p$i ggpo session, $((nc - 1)) lobby peers" "grep -a -q 'ZdxsvGgpo: net player' '$f' && [ \$(grep -a -c 'ZdxsvGgpo: lobby peer position' '$f') -eq $((nc - 1)) ]"
+    check "p$i ggpo session, $((nc - 1)) lobby peers x$B" "grep -a -q 'ZdxsvGgpo: net player' '$f' && [ \$(grep -a -c 'ZdxsvGgpo: lobby peer position' '$f') -eq $(((nc - 1) * B)) ]"
   done
   [ -n "${GGPO_DEFAULT:-}" ] && check "p$GGPO_DEFAULT GGPO from the setting" "grep -a -q \"ZdxsvGgpo: options 'net=1,lobby=1' (serial SLPS-25419, setting 1)\" '$RUN/p$GGPO_DEFAULT/PCSX2/logs/emulog.txt'"
-  # every GGPO client: same end frame, 0 mismatches
-  ends=$(for i in ${GGPO_CLIENTS:-$CLIENTS}; do grep -a -o 'net battle end frames [0-9]* rollback frames [0-9]* loads [0-9]* mismatches [0-9]*' "$RUN/p$i/PCSX2/logs/emulog.txt" | tail -1; done)
-  echo "$ends" | awk '{print "ggpo end frames", $5, "mismatches", $NF}'
-  check "ggpo end frame agrees, 0 mismatches" "[ \$(echo '$ends' | grep -c 'mismatches 0\$') -eq $(echo ${GGPO_CLIENTS:-$CLIENTS} | wc -w) ] && [ \$(echo '$ends' | awk '{print \$5}' | sort -u | wc -l) -eq 1 ]"
+  # every GGPO client: $B GGPO battle ends; per battle the same end frame; 0 mismatches
+  ends=$(for i in ${GGPO_CLIENTS:-$CLIENTS}; do grep -a -o 'net battle end frames [0-9]* rollback frames [0-9]* loads [0-9]* mismatches [0-9]*' "$RUN/p$i/PCSX2/logs/emulog.txt" | awk -v p=$i '{print "p" p, "battle", NR, "frames", $5, "mismatches", $NF}'; done)
+  echo "$ends" | sed 's/^/ggpo end /'
+  check "ggpo end frame agrees per battle ($B), 0 mismatches" "echo '$ends' | awk '{n++; if (\$7 != 0) bad=1; if ((\$3 in f) && f[\$3] != \$5) bad=1; f[\$3]=\$5} END{u=0; for(x in f)u++; exit !(n==$(echo ${GGPO_CLIENTS:-$CLIENTS} | wc -w) * $B && u==$B && !bad)}'"
   if [ -n "${REPORT:-}" ]; then
     ng=$(echo ${GGPO_CLIENTS:-$CLIENTS} | wc -w)
     grep -a 'p2p matching report:' "$OUT/lobby.log" | cut -c1-300

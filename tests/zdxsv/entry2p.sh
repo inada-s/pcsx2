@@ -1,4 +1,5 @@
-# sourced by m4z.sh: entry2p_retry N -- client N from 戦場選択 into Lobby 02 (1v1) and its side dialog.
+# sourced by m4z.sh: entry2p_retry N [ROUTE] -- client N from 戦場選択 into Lobby 02 (1v1) and its side dialog.
+# ROUTE: first try's route (map2p after login; remap2p when the map is already up, e.g. after a battle).
 # Entry flake (3 of 15 entry2p entries): no 0x6305 EnterLobby after the map
 # press, the client stays on the map polling 0x6303/04/08 and the 0x640E check fails ~4 min into the rig.
 # Here: map2p, wait ENTRY2P_WAIT (12 s) for this client's 0x6305 `00 02`, else remap2p (walk again from
@@ -6,7 +7,7 @@
 # ENTRY2P_FAULT=N: client N's first press is left out (the flake's state: on the map, no 0x6305).
 lobby_enters() { grep -a -A1 "C->S \[Q\] ID:0x6305" "$OUT/lobby.log" | grep -c "^00000000  $1 "; }
 entry2p_retry() {
-  local i=$1 k n0 a0 t route=map2p
+  local i=$1 k n0 a0 t route=${2:-map2p}
   n0=$(lobby_enters "00 02"); a0=$(grep -ac "C->S \[Q\] ID:0x6305" "$OUT/lobby.log")
   for k in $(seq "${ENTRY_TRIES:-3}"); do
     if [ "$k" = 1 ] && [ "${ENTRY2P_FAULT:-}" = "$i" ]; then
