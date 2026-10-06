@@ -3,7 +3,8 @@
 # PW hashes, then pwcheck compares them with the live battle's traces (rbk.sh OUT/trace-p*.txt).
 #   OUT=dir FILE=x.zdxr bash tests/zdxsv/rplay.sh <live trace>...   Exit 0 = replay end logged + player work equal.
 # Env: N (instance, default 1), CLAMP (ZDXSV_EE_CLAMP of the recording: rbk.sh's is in its emulog `rbk env`;
-# a lobby battle has none), PLAYERS (players compared, default 2), OWN (default 1: pwcheck --own),
+# a lobby battle has none; unset = read from the `rbk env` lines of emulog-p*.txt next to the live traces, the
+# replay or its parent dir, a CLAMP differing from them FAILs before launch, CLAMP=none plays without one), PLAYERS (players compared, default 2), OWN (default 1: pwcheck --own),
 # STATE (any state of the game to boot from; default rbk-p1), MAXS (default 300).
 # WINDOW=1: windowed, 1x (no turbo). KEYS="secs:seq;..." (needs WINDOW=1): pcsx2ctl.ps1 -Seq at secs after the
 # replay started; binds the seek hotkeys (PageUp back / PageDown forward 10 s), TogglePause (Space), point of
@@ -18,6 +19,17 @@ N=${N:-1}
 STATE=${STATE:-${RBKSTATES:?set STATE or RBKSTATES}/rbk-p1.p2s}
 mkdir -p "$OUT"
 trap 'powershell -NoProfile -Command "Get-Process pcsx2* -EA 0 | Stop-Process -Force"; cp "$RUN/p$N/PCSX2/logs/emulog.txt" "$OUT/emulog-play.txt" 2>/dev/null; rig_release' EXIT
+# the recording's clamp (a play without it differs from the live battle at the first clamped frame)
+rec=$(dirname "$FILE")
+cl=$( { for f in "$@"; do ls "$(dirname "$f")"/emulog-p*.txt; done; ls "$rec"/emulog-p*.txt "$rec"/../emulog-p*.txt; } 2>/dev/null \
+  | sort -u | while read -r e; do grep -a -h -o "ZdxsvGgpo: rbk env .* clamp=[^ ]*" "$e" | sed 's/.* clamp=//'; done | sort -u)
+if [ "$(printf '%s' "$cl" | grep -c .)" -gt 1 ]; then
+  echo "FAIL recordings' emulogs name different clamps: $(echo $cl)"; exit 1
+elif [ -n "$cl" ]; then
+  if [ -z "$CLAMP" ]; then CLAMP=$cl; echo "CLAMP=$cl (rbk env)"
+  elif [ "$CLAMP" != "$cl" ] && [ "$CLAMP" != none ]; then echo "FAIL CLAMP=$CLAMP but the recording ran with clamp=$cl"; exit 1; fi
+fi
+[ "$CLAMP" = none ] && CLAMP=
 t0=$SECONDS
 rm -f "$RUN/p$N/PCSX2/logs/emulog.txt" "$OUT/trace-play.txt"
 ini=$RUN/p$N/PCSX2/inis/PCSX2.ini
