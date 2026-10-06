@@ -321,7 +321,14 @@ namespace Sessions
 		// relay_server=1: we can route GGPO through the lobby's relay servers (battle info relay_<k>), as flycast.
 		int ggpoPort;
 		const std::string udpLines = ZdxsvOpenLobby(ggpoPort);
-		if (ggpoPort > 0)
+		const int advertise = ZdxsvGgpo::LobbyAdvertisePort();
+		if (ggpoPort > 0 && advertise > 0)
+		{
+			const std::string port = std::to_string(advertise);
+			body += "udp=1\nudp_addr=127.0.0.1:" + port + "\nggpo=" + port + "\nrelay_server=1\n";
+			Console.WriteLn("DEV9: TCP: zdxsv advertise=%d: platform info announces 127.0.0.1:%d only", advertise, advertise);
+		}
+		else if (ggpoPort > 0)
 			body += "udp=1\n" + udpLines + "ggpo=" + std::to_string(ggpoPort) + "\nrelay_server=1\n";
 
 		std::vector<u8> msg;

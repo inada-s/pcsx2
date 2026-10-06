@@ -35,6 +35,8 @@ namespace ZdxsvGgpo
 	void OnNetRpc();
 	// Lobby battles (net=1,lobby=1): our GGPO UDP port for the lobby's platform info, 0 = off.
 	int LobbyPort();
+	// advertise=P (test): the port the platform info announces instead, at 127.0.0.1; 0 = off.
+	int LobbyAdvertisePort();
 	// The lobby's battle info (DEV9 thread): ok = every other player has a GGPO address;
 	// byPosition = GGPO address candidates (IPv4 / IPv6, Zdxsv::GgpoPeers) per battle position, own
 	// position empty; session = ggpo_session (0 = none: stays on the battle server), pingMs = ggpo_ping_ms.
