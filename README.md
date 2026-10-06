@@ -1,231 +1,59 @@
 # PCSX2 for zdxsv
 
-A fork of [PCSX2](https://github.com/PCSX2/pcsx2) for playing Mobile Suit Gundam: Federation vs. Zeon DX (PS2) online
-on [zdxsv](https://github.com/inada-s/zdxsv). Player setup: [ZDXSV.md](ZDXSV.md).
+A fork of [PCSX2](https://github.com/PCSX2/pcsx2) for playing Mobile Suit Gundam: Gundam vs. Zeta Gundam (PS2)
+online on [zdxsv](https://github.com/inada-s/zdxsv).
 
-- Upstream base: PCSX2 `fd9d310c`. Main branch: `zdxsv-master`. Work branch: `ai/zdxsv`.
+- Players: see [ZDXSV.md](ZDXSV.md) for setup.
+- Upstream base: PCSX2 `fd9d310c`. Main branch: `zdxsv-master`.
 - License, BIOS requirement, and everything not listed here: same as upstream PCSX2.
 
-## Changes from upstream PCSX2
+## What this fork adds
 
-### Online play (DEV9 network adapter)
-- Network defaults point at zdxsv: adapter on, Sockets API, `Auto` device, DHCP intercepted, internal DNS.
-  The game's server hosts (`www01.kddi-mmbb.jp`, `gate1.jp.dnas.playstation.org`, `ca1202.mmcp6`, `ca1203.mmcp6`)
-  resolve to the zdxsv server.
-- Platform info: on the lobby's first key question, the emulator sends the lobby a custom message (`0x9950`) with
-  `key=value` lines (emulator, version, OS; with GGPO lobby battles also `udp=1`, the UDP addresses from the lobby's
-  STUN and the GGPO port), so the server can tell emulators from real PS2s. The game never sees it.
-- The game always talks TCP to the battle server, as on a PS2. (The zproxy-compatible UDP bridge to the battle server
-  was removed after the GGPO experiment, inada-s/ai-automation#45.)
-- Lobby save states (opt-in, debugging, see `ZDXSV_LOBBY_STATE`): save states also keep the network adapter (DEV9
-  registers, SMAP buffers), and after a load the emulator takes over the TCP connections the PS2 had opened.
-  With `ZDXSV_GGPO` or `ZDXSV_REPLAY` set, save states (replay frame 0 and seek keys included) keep the network
-  adapter too, without taking over connections: otherwise, after a load the PS2's network driver and the adapter
-  disagree on the next send buffer and the game's network calls hang.
+One line per feature. Each feature and its tests are listed in
+[docs/zdxsv/features.md](docs/zdxsv/features.md).
+
+### Online play
+
+- Network defaults point at the zdxsv server.
+- Platform info: the emulator tells the lobby that it is an emulator, so the server can tell it from a real PS2.
+- Lobby save states (opt-in, for debugging): save states made online keep working after a load.
 
 ### Input latency
-- Low-latency vsync (on by default): the finished frame is presented before the frame limiter sleeps, and input is
-  polled right before the next frame runs (about -14 ms from button press to screen).
-  Setting: `[EmuCore/GS] ZdxsvLowLatencyVsync = true|false` in `PCSX2.ini`.
 
-### Rollback netcode (GGPO, in progress)
-- [GGPO](https://github.com/pond3r/ggpo) in `3rdparty/ggpo` (MIT), imported from inada-s/flycast, with
-  `ggpo_get_last_confirmed_frame` added. On Windows its UDP sockets ignore ICMP port unreachable (`SIO_UDP_CONNRESET`
-  off): a send to a peer that has not started yet or has exited no longer fails the next receive with 10054.
-- Delta save states (`ZdxsvDeltaState`): a save copies only the EE RAM pages written since the last save (found with
-  page write protection), plus the rest of the state. Fast enough to save every frame.
-  - Supporting changes in the core: saved scratch fields are skipped in the comparison, counters and the GIF path keep
-    their bookkeeping when a delta state loads, and SPU2 DMA IRQ flags are part of the state.
-  - The EE and IOP recompilers end blocks only at branches and page boundaries while GGPO runs, so a rerun after a
-    rollback times events the same way as the first run.
-- GGPO session in a running game (`ZdxsvGgpo`): the Gundam battle runs over GGPO with GGPO input delay 2 and game
-  input delay 0. Off unless `ZDXSV_GGPO` is set. Not yet used by the zdxsv release.
-- GGPO battles from the lobby (`ZDXSV_GGPO` `lobby=1`): the GGPO port goes to the lobby in the platform info, the
-  peers come from the lobby's battle info (`pcsx2/DEV9/Zdxsv/ZdxsvLobby`); a battle with a player without GGPO stays
-  on the battle server (TCP). The GGPO
-  input delay follows the slowest peer's RTT from a ping test on the GGPO port (flycast's packet format, floor
-  `mindelay`). Dual-stack: peers get every IPv4 and IPv6 address, the ping test picks one per peer;
-  a peer that never answers it (other session, position or address) fails the battle as a connection failure: no
-  GGPO and no fallback to the battle server; the game gets no response, gives up and reconnects to the lobby.
-  After each lobby battle the emulator reports to the lobby how it ran (match report `0x9952`).
-  During a GGPO battle an OSD shows the input delay, rollbacks and each opponent's ID, name and ping.
-  On the first lobby connection a P2P connectivity test of the GGPO port (as flycast's feasibility test, against
-  the lobby's STUN and its test socket at the STUN port + 1) shows `open` / `cone NAT` / `symmetric NAT` /
-  `unknown` in an OSD message and the log, and sends it in the platform info (`nat=`).
-  Relay servers (as flycast with gdxsv's `relay`): the platform info says `relay_server=1`; the ping test also
-  pings the battle info's relay servers and a peer is reached through a relay server or another peer when that
-  path is faster (by 16 / 32 ms), shown as `(R)` on the OSD.
+- Low-latency vsync, on by default: the finished frame is presented before the frame limiter sleeps
+  (about -14 ms from button press to screen).
 
-### Releases and updates
-- The auto-updater checks this fork's GitHub releases (`zdxsv-X.Y.Z` tags) instead of pcsx2.net.
-- `zdxsv_release.yml`: pushing a tag `zdxsv-X.Y.Z` builds Windows x64 and publishes `.7z` (updater) and `.zip`
-  (first install). A tag with a suffix (`zdxsv-0.0.1-rc1`) becomes a prerelease, which the updater skips.
+### Rollback netcode (GGPO)
 
-### Tools and CI
-- PINE commands for test rigs: `0x30` set pad input (pad u8, bind u8, value u8), `0x31` queue a GS screenshot
-  (path len u16, path), `0x32` read the frame count (u32).
-- Unit tests: `tests/ctest/core/ggpo_tests.cpp` (GGPO synctest), `dev9_config_tests.cpp` (network defaults).
-- `run.py rbk_test` network: `LAT=ms JITTER=ms LOSS=0..1` send each pair of instances through `tools/zdxsv/udprelay.py`;
-  the run ends with a sync check (`tools/zdxsv/pwcheck.py` on per-frame player work hashes, `SYNC_CHECK=0` off).
-- CI: one Windows build (CMake + clang-cl) on pushes to and PRs into `zdxsv-master` and `ai/zdxsv`. The Linux and
-  macOS workflows only run by hand (`workflow_dispatch`).
+In progress. Off unless `ZDXSV_GGPO` is set, and not yet used by the zdxsv release.
 
-## Options
+- GGPO library in `3rdparty/ggpo`.
+- Delta save states: fast enough to save the whole machine every frame.
+- GGPO battles: the battle of the game runs over GGPO instead of the battle server.
+- Lobby battles: peers, addresses and input delay come from the lobby and a ping test. Relay servers, a match
+  report to the lobby, a P2P connectivity test and a network status OSD.
 
-All options are environment variables, read at startup. None is needed to play.
-Test scripts that use them: `zdxsv/` in inada-s/ai-automation (named in brackets).
+### Replays
 
-### Network
-- `ZDXSV_STUN_PORT=port`: the lobby's STUN port (default 8201; asked only with `ZDXSV_GGPO` `lobby=1`). The
-  connectivity test also uses port + 1 (zdxsv's STUN test socket); a server without it gives `nat=unknown`.
-- `ZDXSV_PLATFORM_INFO=0`: send no platform info; the server sees a real PS2.
-- `ZDXSV_LOBBY_STATE=1`: save states made online keep working after a load (`launch.ps1`).
-- `ZDXSV_UPDATE_URL=url`: the updater reads its release list from this URL (testing updates).
+- A GGPO battle is saved to a `.zdxr` file.
+- Playback with seek, point of view switch, a control bar, key display, and a skip of the mobile suit selection.
 
-### Input latency measurement
-- `ZDXSV_INPUT_LATENCY="key=value,..."` (any value turns it on): presses a button on pad 1 and logs the time of each
-  stage: press, host poll, game pad read, RAM change, present (`latency.ps1`, `m4lat.sh`).
-  - `btn=down`, `back=up`: button of even / odd presses (`none` = always `btn`).
-  - `addr=0x..`: EE byte the press changes; without it, search mode finds that byte.
-  - `count=20`, `start=600` (vsync of the first press), `go=path` (start 60 vsyncs after this file appears),
-    `hold=4`, `gap=60` (frames), `held=1` (search for a byte that differs only while held), `seed=1`, `out=path` (CSV).
+### Releases and tools
 
-### Delta state self-test
-- `ZDXSV_DELTA_TEST="key=value,..."` (any value turns it on): from vsync `start`, save every frame; every `every`
-  frames load the frame `depth` back and rerun. Each rerun frame must hash like its first run. Log lines `ZdxsvDelta`
-  (`deltatest.ps1`).
-  - `start=3000`, `frames=1800`, `depth=8`, `every=20`.
-  - `gap=0`: the `gap` frames before each rollback window are not saved, older saves are still discarded (GGPO's
-    confirmed-frame save skip). `gap` > `depth` drops every save before the window; at most `every - depth - 1`.
-  - Controls (must report mismatches): `break=ee` (a load does not restore EE RAM), `blocks=linked` (recompiler blocks
-    end as upstream).
-- `ZDXSV_DELTA_HOT=0`: control; every written page is write-protected each frame (no hot-page copy).
+- The auto-updater follows the GitHub releases of this fork.
+- A `zdxsv-X.Y.Z` tag builds and publishes a release.
+- Scripts for local builds and for running several instances side by side.
+- Options for tests, traces and game investigation.
 
-### GGPO
-- `ZDXSV_GGPO="key=value,..."`: GGPO session in a running game. Log lines `ZdxsvGgpo`.
-  - Synctest (default): from vsync `start=1500`, `frames=3000`; every `check=6` frames GGPO loads back and compares
-    state hashes. Input: `seed=1` random, `input=host` (pad 1 from the host), `input=none`; `mask=fcff` (allowed
-    buttons, hex). Control: `control=input` (reruns get other inputs; must report mismatches).
-  - `net=1`: a battle between `players=4` peers, started when the game opens its battle socket. Peer at position p
-    listens on UDP `port=7001` + p on `host=127.0.0.1`; `relay=R`: remote p at R + 8 * me + p (`udprelay.py`).
-    `delay=0`: GGPO input delay. `sync=0`: no state hashes (always with `net=1`).
-  - `net=1,lobby=1,port=P`: battles from the zdxsv lobby. Platform info sends `ggpo=P`; the lobby's battle info
-    (`0x9951`) lists every player's GGPO port (`ggpo_<user>`) next to its UDP addresses (`p2p_<user>`). At the
-    battle's first key message the battle runs over GGPO (players and peer addresses from the battle info, listen
-    on UDP P, IPv4 and IPv6) when every other player has a GGPO port; otherwise it stays on the battle server.
-    Peer address candidates: its public IPv4 (or local IPv4 behind the same public IP) first, its other IPv4, its
-    IPv6 (`udp_addr6`: our global IPv6 address, sent in the platform info when we have one). One GGPO battle per
-    emulator run; later battles use the battle server. Local test: `zdxsv/m4ggpo.sh` in inada-s/ai-automation.
-    GGPO needs `ggpo_session=` in the battle info (the battle's id; zdxsv: FNV-1 32 of the battle code, as gdxsv).
-    Input delay: without `delay=`, the battle info starts a ping test on UDP P for `ggpo_ping_ms` (zdxsv: 7500),
-    with flycast's `UdpPingPong` packet (magic, session id, from / to battle position, candidate, timestamps) to
-    every candidate of every peer, from an IPv4 and an IPv6 socket; packets with another session, position or
-    source address are dropped. If a peer answered on no candidate, the GGPO session does not start and the
-    battle connection is cut, as a connection failure (`lobby battle connection cut: K of N peers answered the ping
-    test`; flycast: `Peer unreachable`): sends on the battle socket are dropped and nothing arrives, so the game
-    gets no response from the battle server, closes the socket (`connection cut ended ... game RPC 0xd`; ~5 s on
-    the fake lobby) and reconnects to the lobby. Its post-battle report has `battles=0`.
-    Else, when GGPO arms (after the test ended), each peer is at the candidate with the best
-    flycast score (lowest RTT; +100 loopback, +50 private, +20 IPv6) and the
-    delay is max(`mindelay=2`, ceil(slowest peer's mean RTT / 2 / 16 ms)), as flycast's rollback backend; log lines
-    `zdxsv: ping test: ...` (RTT per peer) and `ZdxsvGgpo: lobby delay D`. `delay=` keeps it fixed and skips the
-    test (local tests). `badsession=1` (test): this client's ping test uses another session id, so no peer
-    answers it and every client cuts the battle connection (`zdxsv/m4z.sh` `BAD_SESSION=K`). `advertise=P` (test):
-    the platform info announces `127.0.0.1:P` and `ggpo=P` only (no STUN / local / IPv6 address), so peers reach
-    this client through a localhost `udprelay.py` at P that adds latency (`zdxsv/m4z.sh` `GGPO_LAT=D`).
-    Relays: battle info `relay_<k>=<hex token>,<ip:port>[,<[ip6]:port>]` (zdxsv `ZDXSV_LOBBY_RELAY_ADDR`). The ping
-    test pings each over IPv4 and IPv6 (gdxsv's 28-byte relay ping) and shares the RTT and relay-RTT matrices
-    (flycast `PacketWithRelays`). A peer goes through relay server k when that path (own + peer's relay RTT) is
-    16 ms faster than direct, or through a peer 32 ms faster (or direct got no answer); the relay servers are
-    registered with GGPO in order before the players. Log `ZdxsvGgpo: lobby path to position P: direct|peer K|relay
-    K`; match report `path_<p>=`, `relays=`. Local test: `zdxsv/m4ggpo.sh` `RELAY=1 GGPO_LAT=100 GDELAY=auto`.
-    Match report (as flycast's `lbsP2PMatchingReport`): the next lobby connection after a battle sends, right after
-    the platform info, a custom message `0x9952` with `key=value` lines: `battle_code`, `user_id` (from the battle
-    info), `result` = `ggpo` / `cut` / `server` (+ `reason`), `position`, `players`, per peer `rtt_<pos>` (-1 = no
-    answer) and `addr_<pos>` (the picked address), `ping_wait_ms`, `delay`; GGPO battles add `close` (why the session
-    ended), `frames`, `rollback_frames`, `mismatches`, `disconnected`; cuts add `answered`, `cut_sends`. Logged as
-    `DEV9: TCP: zdxsv matching report: ...`; the zdxsv lobby logs it (`p2p matching report: ...`).
-    Network status OSD (as flycast's `drawNetworkStat`; any `net=1` session, on by default, `osd=0` hides it): at
-    the left edge during the battle, `Delay Nfr` (yellow from 5, orange from 10, red from 13), `Roll` (rollback
-    frames) and `Wait` (frames that waited for a peer), then per opponent its position + user id, name (zdxsv
-    battle info `name_<user id>`) and `Ping` (GGPO RTT, flycast's colors) + `P` (frames predicted for it), or
-    `Interrupted` / `Disconnected`. Logged every 600 frames as `ZdxsvGgpo: osd frame F: ...` (lines joined by `|`).
-  - Replays (`net=1`): `replay=DIR` saves every GGPO battle to `DIR`; `lobby=1` battles save to
-    `<data dir>/replays` without it (`replay=0` turns that off). File `<battle_code>.zdxr` (without a battle code,
-    `rbk-<start time>-p<position>.zdxr`): the line `ZDXSV-REPLAY 1`, `key=value` lines (`battle_code`, `user_id`,
-    `players`, `position`, `delay`, `start_at`, `end_at`, `frames`, `close`, `user_<p>`, `name_<p>`, `zds_ps`, `rx0`, `hle0`, `input_size`,
-    `state_size`), an empty line, then the full save state (.p2s zip, `state_size` bytes) at GGPO frame 0, then the
-    synced inputs of all players (`frames` x `players` x `input_size` bytes, frame-major, by battle position).
-    Only frames GGPO confirmed are written, so the peers' files of one battle hold the same inputs. The state is
-    zipped on a thread during the battle; the file is written when the session stops (~50 ms). Log:
-    `ZdxsvGgpo: replay saved <path> frames=N ...`. Checker: ai-automation `zdxsv/replay_check.py`.
-- `ZDXSV_REPLAY=<file.zdxr>`: plays a saved replay. Boot the game (any save state of it works); the first frame loads
-  the replay's frame 0 state and its battle-socket state (`zds_ps`, `rx0`, `hle0`; files saved before these keys
-  play with an empty one and may drift), then every frame gets the recorded inputs of all players through the same
-  battle-socket emulation as a live GGPO battle, without GGPO. Shown from the recording player's side. At the end the
-  emulator pauses (a seek then plays on; resuming without one ends the replay); `ZDXSV_REPLAY_EXIT=1` exits
-  instead, `ZDXSV_REPLAY_TURBO=1` plays turbo. Log `ZdxsvGgpo: replay <file>: position P of N, F frames ...`,
-  `ZdxsvGgpo: replay end at frame ...`. A replay of a `ZDXSV_RBK` battle needs the recording's `ZDXSV_EE_CLAMP`.
-  Test: ai-automation `zdxsv/rplay.sh` (player-work hashes against the live battle's).
-  - Seek: hotkeys "Zdxsv Replay: Seek Back 10 s" / "Seek Forward 10 s" (Settings > Hotkeys; defaults PageUp /
-    PageDown, applied when hotkeys are reset to defaults). Every 600 played frames a key is kept (the full state
-    as `cache/zdxsv-replay-key-<frame>.p2s`, ~11 ms on the CPU thread, zipped on a thread, plus the battle-socket
-    state). A seek loads the newest key at or before the target (~150 ms) unless running on from the current
-    frame is as close, then runs to the target unlimited. Forward seeks past the played part run every frame.
-  - `ZDXSV_REPLAY_KEY=n`: key interval in frames (default 600, 0 = none: no backward seek).
-  - `ZDXSV_REPLAY_SEEK=at:to[,at:to...]` (test): seek to frame `to` when frame `at` is reached.
-  - `ZDXSV_REPLAY_KEY_NOHLE=1` (test control): keys restore no battle-socket state (the replay then drifts).
-  - Point of view: `ZDXSV_REPLAY=a.zdxr;b.zdxr` loads the files that different players saved of one battle (the
-    inputs must match on the common frames; each file adds its position's frame 0 state). Hotkey "Zdxsv Replay:
-    Switch Point of View" (default Home) moves to the next position with a file at the current frame: it loads
-    that position's newest key at or before the frame and runs to it unlimited. `ZDXSV_REPLAY_POV=P` starts at
-    position P; `ZDXSV_REPLAY_POV_AT=frame:P[,...]` (test) switches when that frame is reached. Keys are kept per
-    position (`cache/zdxsv-replay-key-p<P>-<frame>.p2s`).
-    Files saved before DEV9 was kept in replay states (bbbe3e9d2) may hang for a position (its IOP SMAP driver
-    and DEV9 on different TX buffers).
-  - Control bar (ImGui, bottom of the window): play/pause, seek -10 s / +10 s, time and frame / length, a timeline
-    (click or drag, seeks on release), point of view (eye button, enabled with a second file). Shown while
-    paused and for 3 s after the mouse moves over the bottom quarter; `ZDXSV_REPLAY_BAR=1` always shows it, `=0`
-    never. A bar seek plays on from a pause; play at the end restarts from frame 0. While paused, the window
-    redraws at 10 Hz (`VMManager::IdlePollUpdate`) so the bar sees the mouse. Logs `ZdxsvGgpo: replay bar:
-    <action>` and its `layout` (element x ranges in window pixels; zdxsv `pcsx2ctl.ps1 bar:NAME` clicks from it).
-  - Key display (as flycast's `gdxsv:ReplayKeyDisplay`): the shown position's last 14 input changes on the left
-    edge, newest on top, each with the frames it was held (shown up to 99) and its d-pad / button glyphs (from the
-    recorded game input word). Hotkey "Zdxsv Replay: Toggle Key Display" (default End), or
-    `ZDXSV_REPLAY_KEY_DISPLAY=1` to start with it on. Follows seeks and point-of-view switches. While on, logs
-    `ZdxsvGgpo: replay keys frame F pos P: <word>*<frames> ...` every 600 frames (zdxsv `keycheck.py` compares
-    them with the file).
-  - Skip mobile suit selection (default on, as flycast's `gdxsv:ReplaySkipMsSelection`; `ZDXSV_REPLAY_SKIP_MS=0`
-    turns it off): the replay runs unlimited from frame 0 to the briefing (the frame the game's tick state leaves
-    the battle load the 2nd time), then plays at the normal speed. A seek or switch during the skip ends it; playing
-    from frame 0 again (Space at the end, timeline start) jumps to the briefing. Logs
-    `ZdxsvGgpo: replay skip MS selection: briefing at frame F` (or `cancelled by a seek` /
-    `replay ended before the briefing`).
-- `ZDXSV_RBK=i/N`: rollback test (`rbk.sh`, `rbkprep.sh`). Start from a post-entry save state as battle position i of
-  N. The emulator answers the lobby itself, runs turbo until the battle, and exits when the GGPO session ends.
-  - `ZDXSV_RBK_TIME=s` (time limit), `ZDXSV_RBK_COUNT=n` (battles), `ZDXSV_RBK_GAUGE=v` (戦力ゲージ),
-    `ZDXSV_RBK_TURBO=1` (the battle runs turbo too).
-- `ZDXSV_RAND_INPUT=seed`: seeded random pad input.
-- `ZDXSV_ZDS_PS=1`: play-start barrier; every peer starts the battle on the same GGPO frame. Leave it off only as a
-  control (peers desync at play start).
-- `ZDXSV_K3_LAG=n` (default 8): GGPO frames between the game sending a round-handshake message and the input that
-  carries it. `0` is a control (the battle depends on network timing).
-- `ZDXSV_SAVE_ALL=1`: control; delta-save every GGPO frame, also frames that can no longer be rolled back.
-- `ZDXSV_NET_TAIL=n`: frames run after the battle end message before the session stops (default 300).
-- `ZDXSV_NET_DISCONNECT_MS=ms`: GGPO disconnect timeout (default 5000).
-- Sync checks:
-  - `ZDXSV_NET_TRACE=file`: per-frame trace of the battle socket and inputs (`zdcheck.py`, `recvcheck.py`,
-    `cmptrace.py`).
-  - `ZDXSV_PW_HASH=1`: per-frame hash of each player's work RAM, written to the net trace (`pwcheck.py`).
-  - `ZDXSV_PW_DUMP=file`: player work RAM of every saved frame (`pwdiff.py`).
-  - `ZDXSV_RAM_DUMP=dir,start,step,count`: EE RAM (32 MB) to `dir/<frame>.bin` (`ramcount.py`, `ramvals.py`).
-  - `ZDXSV_SNAP=dir,n`: GS screenshot `dir/v<vsync>.png` every n vsyncs (needs a renderer; not in headless runs).
+## Documentation
 
-### Game investigation (EE recompiler)
-- `ZDXSV_EE_PROBE=pc,pc,..` (hex): each time the EE reaches one of these PCs, log registers and memory to
-  `ZDXSV_EE_PROBE_OUT-<n>.txt` (default prefix `eeprobe`).
-  - `ZDXSV_EE_PROBE_MEM=addr` (hex, 48 bytes; default 0xc22c98) or `sp` (128 bytes from the stack pointer).
-- `ZDXSV_EE_WATCH=addr[:len],..` (hex): log every EE store into these ranges (pc, address, value, ra, stack, GGPO
-  frame) to `ZDXSV_EE_PROBE_OUT-w<n>.txt`.
-- `ZDXSV_EE_CLAMP=addr,max[,lo,hi][;..]` (hex): keep a u16 at addr at or below max (only while in lo..hi). Used to
-  shorten the 出撃準備 timer (`rbk.sh`).
+| Document | Content |
+|---|---|
+| [ZDXSV.md](ZDXSV.md) | Player setup. Shipped in the release zip. |
+| [docs/zdxsv/features.md](docs/zdxsv/features.md) | Every feature with how to turn it on and its tests. |
+| [docs/zdxsv/options.md](docs/zdxsv/options.md) | Reference of every option: name, default, use. |
+| [docs/zdxsv/lobby.md](docs/zdxsv/lobby.md) | Lobby messages, ping test, relay servers, how a lobby battle starts. |
+| [docs/zdxsv/rollback.md](docs/zdxsv/rollback.md) | GGPO library, delta save states, the GGPO session, sync checks. |
+| [docs/zdxsv/replay.md](docs/zdxsv/replay.md) | Replay file format, playback and its controls. |
+| [docs/zdxsv/tools.md](docs/zdxsv/tools.md) | Releases, CI, local build and run scripts, PINE commands. |
+| [AGENTS.md](AGENTS.md) | Rules for work in this fork. |

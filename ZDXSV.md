@@ -35,9 +35,8 @@ Do not change them. If you copy a `PCSX2.ini` from another PCSX2 installation, i
 replaces these settings. In that case, enter the values from the table yourself, or
 delete `inis\PCSX2.ini` to get a new one with these defaults.
 
-When you first play online, Windows Firewall asks if PCSX2 can use the network.
-Allow it. Battles then connect directly to the other players (UDP). If the connection
-is blocked, the battle still works, but it goes through the server.
+If Windows Firewall asks whether PCSX2 can use the network, allow it.
+Battles go through the zdxsv server, as on a PS2.
 
 ## First time in the game
 
@@ -60,7 +59,7 @@ Later sessions only need 通信対戦 → ログイン.
 
 When PCSX2 starts and a newer zdxsv release exists on
 https://github.com/inada-s/pcsx2/releases, it shows an update window.
-Press "Download and Install": PCSX2 downloads the new version, closes, replaces its
+Press "Download and Install...": PCSX2 downloads the new version, closes, replaces its
 files and starts again. Your settings, memory cards and save states are kept.
 "Remind Me Later" asks again on the next start; "Skip This Update" waits for the next version.
 You can also check by hand from the Help menu (Check for Updates).
