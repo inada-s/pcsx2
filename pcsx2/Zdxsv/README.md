@@ -15,6 +15,7 @@ options: `docs/zdxsv/`.
 | `InputHooks.h` | Hook header: pad code |
 | `SaveStateHooks.h` | Hook header: save state code |
 | `Dev9Hooks.h` | Hook header: DEV9 network code |
+| `MediaHooks.h` | Hook header: GS present, SPU2 output |
 | `UiHooks.h` | Hook header: hotkeys, replay control bar |
 
 Upstream files include only the hook headers, except `ImGuiOverlays.cpp` and `TCP_Session_In.cpp`,

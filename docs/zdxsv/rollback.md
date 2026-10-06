@@ -51,6 +51,12 @@ is the unit GGPO works in. Between two frames the emulator saves the state,
 rolls back and reruns frames when GGPO asks for it, then applies the synced
 inputs of the next frame. Host pad input is held back and goes through GGPO.
 
+Rerun frames are not throttled, not presented and not heard: the vsync packet
+of a rerun frame tells the GS thread to skip the present (as for a duplicate
+frame), and SPU2 drops the samples of rerun frames (`Zdxsv/MediaHooks.h`). A
+rollback of N frames shows and plays the live frame once. The session report
+logs `output: presented frames .. | audio samples played .. dropped (rerun) ..`.
+
 ### Synctest
 
 `ZDXSV_GGPO` without `net=1`. Every frame is saved. Every `check` frames GGPO

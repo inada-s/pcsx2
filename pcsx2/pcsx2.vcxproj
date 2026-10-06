@@ -904,6 +904,7 @@
     <ClInclude Include="Zdxsv\CpuHooks.h" />
     <ClInclude Include="Zdxsv\InputHooks.h" />
     <ClInclude Include="Zdxsv\SaveStateHooks.h" />
+    <ClInclude Include="Zdxsv\MediaHooks.h" />
     <ClInclude Include="Zdxsv\UiHooks.h" />
     <ClInclude Include="x86\iR5900Analysis.h" />
     <ClInclude Include="x86\microVU.h" />

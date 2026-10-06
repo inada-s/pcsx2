@@ -6,6 +6,7 @@
 #include "MTGS.h"
 #include "MTVU.h"
 #include "Zdxsv/CpuHooks.h"
+#include "Zdxsv/MediaHooks.h"
 #include "Host.h"
 #include "IconsFontAwesome.h"
 #include "VMManager.h"
@@ -234,7 +235,8 @@ struct RingCmdPacket_Vsync
 
 	// must be 16 byte aligned
 	u32 registers_written;
-	u32 pad[3];
+	u32 zdxsv_rerun; // Zdxsv::g_ggpo_in_rollback
+	u32 pad[2];
 };
 
 void MTGS::PostVsyncStart(bool registers_written)
@@ -253,6 +255,7 @@ void MTGS::PostVsyncStart(bool registers_written)
 	remainder[1] = GSIMR._u32;
 	(GSRegSIGBLID&)remainder[2] = GSSIGLBLID;
 	remainder[4] = static_cast<u32>(registers_written);
+	remainder[5] = Zdxsv::g_ggpo_in_rollback ? 1 : 0;
 	s_packet_writepos = (s_packet_writepos + 2) & RingBufferMask;
 
 	SendDataPacket();
@@ -501,6 +504,7 @@ void MTGS::MainLoop()
 							((GSRegSIGBLID&)RingBuffer.Regs[0x1080]) = (GSRegSIGBLID&)remainder[2];
 
 							// CSR & 0x2000; is the pageflip id.
+							Zdxsv::g_gs_rerun_frame = remainder[5] != 0;
 							if (Zdxsv::g_input_latency_enabled)
 								Zdxsv::InputLatencyOnPresentStart();
 							GSvsync((((u32&)RingBuffer.Regs[0x1000]) & 0x2000) ? 0 : 1, remainder[4] != 0);

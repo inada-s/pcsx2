@@ -51,6 +51,8 @@
 #include "Host.h"
 #include "VMManager.h"
 #include "GS/GS.h"
+#include "GS/GSPerfMon.h"
+#include "Zdxsv/MediaHooks.h"
 
 #include "common/FileSystem.h"
 #include "common/Path.h"
@@ -105,6 +107,7 @@ namespace Zdxsv
 	} // namespace
 	bool g_ggpo_active = false;
 	bool g_ggpo_in_rollback = false;
+	bool g_gs_rerun_frame = false;
 
 	namespace
 	{
@@ -329,6 +332,10 @@ namespace Zdxsv
 		Stat s_rerun_ms, s_wait_ms; // between frames: rollback rerun emulation, net wait for a peer
 		Stat s_emu_ms, s_exit_ms, s_ours_ms; // wall: last GgpoOnExecuteReturned end -> GgpoOnVsync -> GgpoOnExecuteReturned start -> its end
 		Common::Timer::Value s_t_vsync = 0, s_t_returned = 0;
+		// Output of the session: GS frames presented (g_perfmon, GS thread; read here for the report only)
+		// since the start, SPU2 samples played and dropped in rerun frames.
+		int s_gs_frame0 = 0;
+		s64 s_spu_played = 0, s_spu_dropped = 0;
 
 		void Parse()
 		{
@@ -411,6 +418,8 @@ namespace Zdxsv
 			Console.WriteLn("ZdxsvGgpo: %s between frames ms per frame %.2f: save %.2f hash %.2f load %.2f rerun %.2f wait %.2f rest (ggpo) %.2f | sync=%d",
 				what, ours, s_save_ms.sum / n, s_hash_ms.sum / n, s_load_ms.sum / n, s_rerun_ms.sum / n, s_wait_ms.sum / n, ours - split, s_sync);
 			Console.WriteLn("ZdxsvGgpo: %s delta %s | %s", what, Zdxsv::DeltaStateTimes().c_str(), SaveState_DeltaTimes().c_str());
+			Console.WriteLn("ZdxsvGgpo: %s output: presented frames %d | audio samples played %lld dropped (rerun) %lld",
+				what, g_perfmon.GetFrame() - s_gs_frame0, static_cast<long long>(s_spu_played), static_cast<long long>(s_spu_dropped));
 		}
 
 		Input HostInput()
@@ -963,6 +972,7 @@ namespace Zdxsv
 			s_rollback_frames = s_loads = s_mismatches = s_ggpo_warnings = s_diff_logged = 0;
 			s_save_ms = s_hash_ms = s_load_ms = s_rerun_ms = s_wait_ms = s_emu_ms = s_exit_ms = s_ours_ms = {};
 			s_t_vsync = s_t_returned = 0;
+			s_spu_played = s_spu_dropped = 0;
 		}
 
 		// lobby=1: a battle info came after the one the last GGPO battle armed with
@@ -1056,6 +1066,7 @@ namespace Zdxsv
 				return;
 			s_started = true;
 			g_ggpo_active = true;
+			s_gs_frame0 = g_perfmon.GetFrame();
 		}
 		s_frame_ended = true;
 		if (!g_ggpo_in_rollback)
@@ -1068,6 +1079,12 @@ namespace Zdxsv
 	}
 
 	static void Returned();
+
+	bool SpuOnOutput()
+	{
+		(g_ggpo_in_rollback ? s_spu_dropped : s_spu_played)++;
+		return g_ggpo_in_rollback;
+	}
 
 	void GgpoOnExecuteReturned()
 	{

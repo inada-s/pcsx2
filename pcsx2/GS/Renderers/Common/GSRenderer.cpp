@@ -14,6 +14,7 @@
 #include "PerformanceMetrics.h"
 #include "pcsx2/Config.h"
 #include "VMManager.h"
+#include "Zdxsv/MediaHooks.h"
 
 #include "common/FileSystem.h"
 #include "common/Image.h"
@@ -636,7 +637,7 @@ void GSRenderer::VSync(u32 field, bool registers_written, bool idle_frame)
 	m_last_transfer_n = s_transfer_n;
 
 	// Skip presentation when running uncapped while vsync is on.
-	if (skip_frame || g_gs_device->ShouldSkipPresentingFrame())
+	if (skip_frame || Zdxsv::g_gs_rerun_frame || g_gs_device->ShouldSkipPresentingFrame())
 	{
 		if (BeginPresentFrame(true))
 			EndPresentFrame();
