@@ -20,6 +20,8 @@ namespace ZdxsvGgpo
 	void ReplayNextPov();
 	// Replay play: show / hide the key display (also ZDXSV_REPLAY_KEY_DISPLAY=1).
 	void ReplayToggleKeys();
+	// Replay play: jump to the start of the round `delta` rounds from the current one (round 0 = the briefing).
+	void ReplayJumpRound(int delta);
 } // namespace ZdxsvGgpo
 #include "SIO/Memcard/MemoryCardFile.h"
 
@@ -384,5 +386,15 @@ DEFINE_HOTKEY("ZdxsvReplayToggleKeys", TRANSLATE_NOOP("Hotkeys", "Zdxsv Replay")
 	[](s32 pressed) {
 		if (!pressed && VMManager::HasValidVM())
 			ZdxsvGgpo::ReplayToggleKeys();
+	})
+DEFINE_HOTKEY("ZdxsvReplayPrevRound", TRANSLATE_NOOP("Hotkeys", "Zdxsv Replay"), TRANSLATE_NOOP("Hotkeys", "Previous Round"),
+	[](s32 pressed) {
+		if (!pressed && VMManager::HasValidVM())
+			ZdxsvGgpo::ReplayJumpRound(-1);
+	})
+DEFINE_HOTKEY("ZdxsvReplayNextRound", TRANSLATE_NOOP("Hotkeys", "Zdxsv Replay"), TRANSLATE_NOOP("Hotkeys", "Next Round"),
+	[](s32 pressed) {
+		if (!pressed && VMManager::HasValidVM())
+			ZdxsvGgpo::ReplayJumpRound(1);
 	})
 END_HOTKEY_LIST()

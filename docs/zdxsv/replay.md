@@ -64,6 +64,7 @@ Log lines: `ZdxsvGgpo: replay <file>: position P of N, F frames ...`,
 | Play or pause | | yes |
 | Switch point of view | Home | eye button |
 | Toggle key display | End | |
+| Previous round / next round | Shift+PageUp / Shift+PageDown | step buttons around the round number (`R0` = before round 1); the timeline marks round starts |
 
 The hotkeys are under Settings > Hotkeys, group "Zdxsv Replay". The defaults
 apply when hotkeys are reset to defaults.
@@ -125,4 +126,22 @@ load for the second time.
 - Playing from frame 0 again jumps to the briefing.
 
 Log lines: `ZdxsvGgpo: replay skip MS selection: briefing at frame F`, or
-`cancelled by a seek`, or `replay ended before the briefing`.
+`cancelled by a seek`, or `replay ended first`.
+
+### Round jump
+
+A round starts at the frame at which the tick state of the game leaves the
+battle load. Load 0 ends at the mobile suit selection, load 1 at the briefing,
+load 1 + N at the start of round N. Round 0 is the briefing.
+
+- Loads are recorded as frames are played. Frames always play in order up to
+  the furthest played frame (a forward seek runs every frame between), so the
+  list is complete up to that frame.
+- A jump to a known round start is a seek. A jump to an unknown one seeks to
+  the furthest played frame and runs unlimited until that load ends.
+- Previous round goes to the round before the one shown, not to the start of
+  the shown round.
+
+Log lines: `ZdxsvGgpo: replay: load K ends at frame F`,
+`replay round N: starts at frame F` (known) or `replay round N: start at frame
+F` (after the run), `cancelled by a seek`, or `replay ended first`.

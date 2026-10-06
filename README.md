@@ -37,7 +37,7 @@ will run battles over GGPO only.
 ### Replays
 
 - A GGPO battle is saved to a `.zdxr` file.
-- Playback with seek, point of view switch, a control bar, key display, and a skip of the mobile suit selection.
+- Playback with seek, point of view switch, a control bar, key display, a skip of the mobile suit selection, and a round jump.
 
 ### Releases and tools
 

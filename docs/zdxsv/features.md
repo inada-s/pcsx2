@@ -70,6 +70,7 @@ Those scripts are to be moved to `tests/zdxsv/` in this repository.
 | Control bar | shown during a replay; `ZDXSV_REPLAY_BAR` | `rplay.sh` with `WINDOW=1 KEYS="...bar:NAME..."` (real mouse through `pcsx2ctl.ps1`): the logged seek frame is the one computed from the click position | none |
 | Key display | End; `ZDXSV_REPLAY_KEY_DISPLAY=1` | `keycheck.py`: every logged key history equals the inputs in the file up to that frame | a copy with 1 input bit flipped fails for the histories that reach that frame |
 | Skip mobile suit selection | on by default; `ZDXSV_REPLAY_SKIP_MS=0` turns it off | `rplay.sh` with `SKIP_MS=1`: the logged briefing frame equals the one in the live trace | `SKIP_MS=0`: the screenshot at 25 s shows the selection screen |
+| Round jump | Shift+PageUp, Shift+PageDown, bar step buttons; `ZDXSV_REPLAY_ROUND_AT` in tests | `rplay.sh` with `SKIP_MS=1 PCSX2_ENV=ZDXSV_REPLAY_ROUND_AT=1000:2,17000:1,6000:3`: every logged load end is 1 frame after a live trace `L` line leaving state 8 (same vsync), the rounds start at the predicted loads, player work equals live. Keys and bar: `WINDOW=1 KEYS="10:Shift+PageDown;40:bar:show,w600,bar:nextround"` | none |
 
 ## Releases and tools
 
