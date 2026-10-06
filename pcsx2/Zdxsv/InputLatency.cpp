@@ -39,7 +39,7 @@
 #include <string>
 #include <vector>
 
-namespace ZdxsvInputLatency
+namespace Zdxsv::InputLatency
 {
 	bool g_enabled = std::getenv("ZDXSV_INPUT_LATENCY") != nullptr;
 
@@ -611,4 +611,4 @@ namespace ZdxsvInputLatency
 	{
 		s_vsync_start_t = Common::Timer::GetCurrentValue();
 	}
-} // namespace ZdxsvInputLatency
+} // namespace Zdxsv::InputLatency

@@ -14,7 +14,7 @@
 // frame is the unit GGPO works in (like flycast's emu.run()). Between frames: save (delta state),
 // maybe roll back (load + rerun frames inside the advance_frame callback), then the synced pad
 // inputs of the next frame are written to both pads. Host pad input is held back meanwhile.
-namespace ZdxsvGgpo
+namespace Zdxsv::Ggpo
 {
 	extern bool g_enabled; // ZDXSV_GGPO is set
 	extern bool g_active; // a session runs
@@ -38,15 +38,15 @@ namespace ZdxsvGgpo
 	// advertise=P (test): the port the platform info announces instead, at 127.0.0.1; 0 = off.
 	int LobbyAdvertisePort();
 	// The lobby's battle info (DEV9 thread): ok = every other player has a GGPO address;
-	// byPosition = GGPO address candidates (IPv4 / IPv6, Zdxsv::GgpoPeers) per battle position, own
+	// byPosition = GGPO address candidates (IPv4 / IPv6, Zdxsv::Lobby::GgpoPeers) per battle position, own
 	// position empty; session = ggpo_session (0 = none: stays on the battle server), pingMs = ggpo_ping_ms.
-	// Without delay=, starts the ping test (Zdxsv::StartPingTest) on our GGPO port; GGPO arms after it
+	// Without delay=, starts the ping test (Zdxsv::Lobby::StartPingTest) on our GGPO port; GGPO arms after it
 	// ended, at the candidate it picked per peer; else (or nothing answered) at the first candidate.
 	// ids = report lines naming the battle ("battle_code=..\nuser_id=..\n"); players = user id and name
 	// per position (network status OSD); relays = the battle info's relay servers (pinged by the ping test,
 	// registered with GGPO in order; a peer is reached through one when the ping test picked it).
-	void SetLobbyPeers(bool ok, std::vector<std::vector<Zdxsv::PeerAddr>> byPosition, u32 session, int pingMs, std::string ids,
-		std::vector<std::pair<std::string, std::string>> players, std::vector<Zdxsv::BattleInfo::Relay> relays = {});
+	void SetLobbyPeers(bool ok, std::vector<std::vector<Zdxsv::Lobby::PeerAddr>> byPosition, u32 session, int pingMs, std::string ids,
+		std::vector<std::pair<std::string, std::string>> players, std::vector<Zdxsv::Lobby::BattleInfo::Relay> relays = {});
 	// The last lobby battle's P2PMatchingReport body ("key=value" lines: result=ggpo/cut/server, ping test
 	// rtt and address per peer, delay, frames, close reason), then cleared; "" if none. The lobby connection
 	// sends it (0x9952) after the next platform info, as flycast after its next login.
@@ -65,4 +65,4 @@ namespace ZdxsvGgpo
 		u32 color;
 	};
 	std::vector<OsdLine> OsdLines();
-} // namespace ZdxsvGgpo
+} // namespace Zdxsv::Ggpo

@@ -1234,8 +1234,8 @@ bool DEV9DoState(StateWrapper& sw)
 
 	// Host connections of this process no longer match the PS2's sequence
 	// numbers: drop them (no RST to the PS2) so the next packet adopts anew.
-	Zdxsv::OnStateLoaded();
-	if (Zdxsv::AdoptConnections())
+	Zdxsv::Lobby::OnStateLoaded();
+	if (Zdxsv::Lobby::AdoptConnections())
 		ad_reset();
 	return true;
 }

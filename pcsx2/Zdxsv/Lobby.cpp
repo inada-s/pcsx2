@@ -34,7 +34,7 @@ using sock_t = int;
 #define closesocket close
 #endif
 
-namespace Zdxsv
+namespace Zdxsv::Lobby
 {
 	namespace
 	{
@@ -1105,4 +1105,4 @@ namespace Zdxsv
 		std::lock_guard lock(g_mtx);
 		return ip == g_info.serverIP && port == g_info.serverPort;
 	}
-} // namespace Zdxsv
+} // namespace Zdxsv::Lobby

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2002-2026 PCSX2 Dev Team
 // SPDX-License-Identifier: GPL-3.0+
 
-// zdxsv lobby side of a GGPO battle (ZdxsvGgpo lobby=1).
+// zdxsv lobby side of a GGPO battle (Zdxsv::Ggpo lobby=1).
 // The lobby sends the custom notice 0x9951 (battle info) to emulators that
 // announce "udp=1" in their platform info. LobbyFilter strips it from the
 // game's stream and hands it to the listener (GGPO peers). The game itself
@@ -18,7 +18,7 @@
 #include <utility>
 #include <vector>
 
-namespace Zdxsv
+namespace Zdxsv::Lobby
 {
 	// A peer's UDP address: numeric IPv4 ("1.2.3.4") or IPv6 ("2001:db8::1") ip, host order port.
 	struct PeerAddr
@@ -177,4 +177,4 @@ namespace Zdxsv
 		std::vector<uint8_t> Encode(const Packet& p);
 		bool Decode(const uint8_t* data, size_t len, Packet& p);
 	} // namespace Proto
-} // namespace Zdxsv
+} // namespace Zdxsv::Lobby

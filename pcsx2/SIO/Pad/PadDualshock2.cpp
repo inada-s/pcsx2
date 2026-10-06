@@ -204,8 +204,8 @@ u8 PadDualshock2::ButtonQuery(u8 commandByte)
 u8 PadDualshock2::Poll(u8 commandByte)
 {
 	const u32 buttons = GetButtons();
-	if (ZdxsvInputLatency::g_enabled && commandBytesReceived == 3)
-		ZdxsvInputLatency::OnPadPoll(unifiedSlot, buttons);
+	if (Zdxsv::InputLatency::g_enabled && commandBytesReceived == 3)
+		Zdxsv::InputLatency::OnPadPoll(unifiedSlot, buttons);
 	u8 largeMotor = 0x00;
 	u8 smallMotor = 0x00;
 

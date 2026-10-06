@@ -221,21 +221,21 @@ namespace Sessions
 		return std::nullopt;
 	}
 
-	// ZDXSV_GGPO net=1,lobby=1: battle infos go to ZdxsvGgpo as GGPO peers. Returns our GGPO port, 0 = off.
+	// ZDXSV_GGPO net=1,lobby=1: battle infos go to Zdxsv::Ggpo as GGPO peers. Returns our GGPO port, 0 = off.
 	static int ZdxsvListenGgpo()
 	{
-		const int port = ZdxsvGgpo::LobbyPort();
+		const int port = Zdxsv::Ggpo::LobbyPort();
 		if (port > 0)
-			Zdxsv::SetBattleInfoListener([](const Zdxsv::BattleInfo& info) {
-				std::vector<std::vector<Zdxsv::PeerAddr>> byPosition;
-				const bool ok = Zdxsv::GgpoPeers(info, Zdxsv::PublicIP(), byPosition);
+			Zdxsv::Lobby::SetBattleInfoListener([](const Zdxsv::Lobby::BattleInfo& info) {
+				std::vector<std::vector<Zdxsv::Lobby::PeerAddr>> byPosition;
+				const bool ok = Zdxsv::Lobby::GgpoPeers(info, Zdxsv::Lobby::PublicIP(), byPosition);
 				std::vector<std::pair<std::string, std::string>> players;
 				for (const std::string& u : info.users)
 				{
 					const auto name = info.names.find(u);
 					players.emplace_back(u, name == info.names.end() ? std::string() : name->second);
 				}
-				ZdxsvGgpo::SetLobbyPeers(ok, std::move(byPosition), info.ggpoSession, info.ggpoPingMs,
+				Zdxsv::Ggpo::SetLobbyPeers(ok, std::move(byPosition), info.ggpoSession, info.ggpoPingMs,
 					"battle_code=" + info.battleCode + "\nuser_id=" + info.userId + "\n", std::move(players), info.relays);
 			});
 		return port;
@@ -249,12 +249,12 @@ namespace Sessions
 		ggpoPort = ZdxsvListenGgpo();
 		if (ggpoPort <= 0)
 			return "";
-		Zdxsv::SetLogger([](const std::string& s) { Console.WriteLn("DEV9: %s", s.c_str()); });
-		zdxsvLobbyFilter = std::make_unique<Zdxsv::LobbyFilter>();
+		Zdxsv::Lobby::SetLogger([](const std::string& s) { Console.WriteLn("DEV9: %s", s.c_str()); });
+		zdxsvLobbyFilter = std::make_unique<Zdxsv::Lobby::LobbyFilter>();
 		// The lobby's UDP STUN is on its host at 8201 (zdxsv docker-compose); ZDXSV_STUN_PORT overrides.
 		const char* stunPortEnv = std::getenv("ZDXSV_STUN_PORT");
 		const u16 stunPort = stunPortEnv ? static_cast<u16>(std::atoi(stunPortEnv)) : 8201;
-		std::string lines = Zdxsv::OpenUdp(std::bit_cast<u32>(destIP), stunPort);
+		std::string lines = Zdxsv::Lobby::OpenUdp(std::bit_cast<u32>(destIP), stunPort);
 		// Connectivity test of the GGPO port (flycast's P2P feasibility test), once per run: the lobby
 		// reconnects after every battle and the result does not change in between. It blocks this thread
 		// up to ~2 s (no answer); not on an adopted connection (s701: 3 of 3 adoptions after a state load
@@ -262,7 +262,7 @@ namespace Sessions
 		static std::string natLine, natSummary;
 		if (natTest && natLine.empty())
 		{
-			natLine = Zdxsv::UdpTest(std::bit_cast<u32>(destIP), stunPort, static_cast<u16>(ggpoPort), natSummary);
+			natLine = Zdxsv::Lobby::UdpTest(std::bit_cast<u32>(destIP), stunPort, static_cast<u16>(ggpoPort), natSummary);
 			Host::AddIconOSDMessage("ZdxsvUdpTest", ICON_FA_NETWORK_WIRED, "P2P connectivity: " + natSummary, 10.0f);
 		}
 		return lines + natLine;
@@ -317,11 +317,11 @@ namespace Sessions
 #endif
 		// ZDXSV_GGPO net=1,lobby=1: udp=1 makes the lobby send battle info (0x9951) with every player's
 		// address (udp_addr/udp_local/udp_addr6) and ggpo=port; when every other player has one the battle runs over
-		// GGPO (ZdxsvGgpo), else on the battle server. The game always connects to the battle server by TCP.
+		// GGPO (Zdxsv::Ggpo), else on the battle server. The game always connects to the battle server by TCP.
 		// relay_server=1: we can route GGPO through the lobby's relay servers (battle info relay_<k>), as flycast.
 		int ggpoPort;
 		const std::string udpLines = ZdxsvOpenLobby(ggpoPort);
-		const int advertise = ZdxsvGgpo::LobbyAdvertisePort();
+		const int advertise = Zdxsv::Ggpo::LobbyAdvertisePort();
 		if (ggpoPort > 0 && advertise > 0)
 		{
 			const std::string port = std::to_string(advertise);
@@ -340,7 +340,7 @@ namespace Sessions
 		};
 		append(0x50, body);
 		// The last lobby battle's report (0x9952 P2PMatchingReport, as flycast's lbsP2PMatchingReport).
-		const std::string report = ggpoPort > 0 ? ZdxsvGgpo::TakeLobbyReport() : "";
+		const std::string report = ggpoPort > 0 ? Zdxsv::Ggpo::TakeLobbyReport() : "";
 		if (!report.empty() && report.size() < 0x8000)
 		{
 			append(0x52, report);

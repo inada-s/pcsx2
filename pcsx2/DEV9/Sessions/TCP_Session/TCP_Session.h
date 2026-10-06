@@ -96,7 +96,7 @@ namespace Sessions
 		void ZdxsvAdopted();
 		std::string ZdxsvOpenLobby(int& ggpoPort, bool natTest = true);
 		// zdxsv: strips the lobby's battle info notice (Zdxsv/Lobby.cpp), set with udp=1 (GGPO lobby=1)
-		std::unique_ptr<Zdxsv::LobbyFilter> zdxsvLobbyFilter;
+		std::unique_ptr<Zdxsv::Lobby::LobbyFilter> zdxsvLobbyFilter;
 
 		void IncrementMyNumber(u32 amount);
 		void UpdateReceivedAckNumber(u32 ack);

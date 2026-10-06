@@ -39,7 +39,7 @@
 #include <string>
 #include <vector>
 
-namespace ZdxsvDeltaState
+namespace Zdxsv::DeltaState
 {
 	bool g_test_enabled = std::getenv("ZDXSV_DELTA_TEST") != nullptr;
 	// A control run: ZDXSV_DELTA_TEST=...,blocks=linked keeps the recompilers' history-dependent block ends.
@@ -563,4 +563,4 @@ namespace ZdxsvDeltaState
 			s_frame = frame - s_depth;
 		}
 	}
-} // namespace ZdxsvDeltaState
+} // namespace Zdxsv::DeltaState

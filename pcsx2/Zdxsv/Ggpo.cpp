@@ -16,7 +16,7 @@
 //                connection failure, no fallback (LobbyCutCall). One GGPO battle per process.
 //   delay=0      GGPO frame delay of the local input (fixed). Without it a lobby battle picks
 //                max(mindelay, ceil(slowest peer's rtt / 2 / 16 ms)) when GGPO arms; rtt from a ping
-//                test on the GGPO port (flycast UdpPingPong packets, Zdxsv::StartPingTest)
+//                test on the GGPO port (flycast UdpPingPong packets, Zdxsv::Lobby::StartPingTest)
 //   mindelay=2   lower bound of that pick
 //   badsession=1 test: this client's ping test uses another session id, so no peer answers it (the cut)
 //   advertise=P  lobby test: the platform info announces 127.0.0.1 and GGPO port P only (no STUN /
@@ -88,7 +88,7 @@
 #include <vector>
 #include <limits>
 
-namespace ZdxsvGgpo
+namespace Zdxsv::Ggpo
 {
 	// ZDXSV_REPLAY=file.zdxr: plays a saved replay (PlayLoad), the net=1 hooks on, no GGPO session
 	const char* const s_play_env = std::getenv("ZDXSV_REPLAY");
@@ -285,11 +285,11 @@ namespace ZdxsvGgpo
 		// lobby=1: peers of the last battle info (SetLobbyPeers, DEV9 thread)
 		std::mutex s_lobby_mtx;
 		bool s_lobby_info = false, s_lobby_ok = false, s_lobby_logged = false, s_lobby_unreachable = false;
-		std::vector<std::vector<Zdxsv::PeerAddr>> s_lobby_peers; // candidates per position
-		std::vector<Zdxsv::PeerAddr> s_net_peers; // per position, picked when armed
+		std::vector<std::vector<Zdxsv::Lobby::PeerAddr>> s_lobby_peers; // candidates per position
+		std::vector<Zdxsv::Lobby::PeerAddr> s_net_peers; // per position, picked when armed
 		std::vector<int> s_net_via; // per position: PingResult.via (0 direct, 1 peer relay, 2 relay server)
-		std::vector<Zdxsv::RelayServerAddr> s_net_servers; // relay servers, registered with GGPO in order
-		std::vector<Zdxsv::BattleInfo::Relay> s_lobby_relays; // relay servers of the last battle info
+		std::vector<Zdxsv::Lobby::RelayServerAddr> s_net_servers; // relay servers, registered with GGPO in order
+		std::vector<Zdxsv::Lobby::BattleInfo::Relay> s_lobby_relays; // relay servers of the last battle info
 		u32 s_lobby_session = 0; // ggpo_session
 		std::string s_report_ids; // battle info lines naming the battle (SetLobbyPeers)
 		std::string s_report; // P2PMatchingReport of the last lobby battle (TakeLobbyReport)
@@ -402,7 +402,7 @@ namespace ZdxsvGgpo
 			const double ours = s_ours_ms.sum / n, split = (s_save_ms.sum + s_hash_ms.sum + s_load_ms.sum + s_rerun_ms.sum + s_wait_ms.sum) / n;
 			Console.WriteLn("ZdxsvGgpo: %s between frames ms per frame %.2f: save %.2f hash %.2f load %.2f rerun %.2f wait %.2f rest (ggpo) %.2f | sync=%d",
 				what, ours, s_save_ms.sum / n, s_hash_ms.sum / n, s_load_ms.sum / n, s_rerun_ms.sum / n, s_wait_ms.sum / n, ours - split, s_sync);
-			Console.WriteLn("ZdxsvGgpo: %s delta %s | %s", what, ZdxsvDeltaState::Times().c_str(), SaveState_DeltaTimes().c_str());
+			Console.WriteLn("ZdxsvGgpo: %s delta %s | %s", what, Zdxsv::DeltaState::Times().c_str(), SaveState_DeltaTimes().c_str());
 		}
 
 		Input HostInput()
@@ -653,7 +653,7 @@ namespace ZdxsvGgpo
 			int confirmed = -1;
 			if (!s_save_all && !s_sync && ggpo_get_last_confirmed_frame(s_session, &confirmed) == GGPO_OK && frame <= confirmed)
 				s_save_skipped++;
-			else if (!ZdxsvDeltaState::Save(frame))
+			else if (!Zdxsv::DeltaState::Save(frame))
 				return false;
 			if (s_net)
 				NetSaved(frame);
@@ -667,24 +667,24 @@ namespace ZdxsvGgpo
 			*buffer = reinterpret_cast<unsigned char*>(saved);
 			*len = sizeof(int);
 			// GGPO never goes back further than its check distance / prediction window.
-			ZdxsvDeltaState::DiscardBefore(frame - std::max(s_check, 8) - 4);
+			Zdxsv::DeltaState::DiscardBefore(frame - std::max(s_check, 8) - 4);
 			return true;
 		}
 
 		// sync=1 part of SaveGameState: checksum, synctest diff samples.
 		void HashSave(int frame, int* checksum)
 		{
-			const std::vector<u8>* state = ZdxsvDeltaState::GetState(frame);
+			const std::vector<u8>* state = Zdxsv::DeltaState::GetState(frame);
 			Sample sample;
 			sample.pages.resize(Ps2MemSize::ExposedRam / PAGE_SIZE);
 			for (size_t i = 0; i < sample.pages.size(); i++)
 				sample.pages[i] = XXH3_64bits(&eeMem->Main[i * PAGE_SIZE], PAGE_SIZE);
 			const u64 ram_hash = XXH3_64bits(sample.pages.data(), sample.pages.size() * sizeof(u64));
-			const u64 state_hash = ZdxsvDeltaState::HashState(*state);
+			const u64 state_hash = Zdxsv::DeltaState::HashState(*state);
 			const u64 hash = ram_hash ^ state_hash;
 			*checksum = static_cast<int>(hash ^ (hash >> 32));
 			std::vector<u8> masked = *state;
-			ZdxsvDeltaState::MaskScratch(masked);
+			Zdxsv::DeltaState::MaskScratch(masked);
 			if (s_rerun)
 			{
 				const auto first = s_first.find(frame);
@@ -705,7 +705,7 @@ namespace ZdxsvGgpo
 			if (len != sizeof(int))
 				return false;
 			Common::Timer timer;
-			const bool ok = ZdxsvDeltaState::Load(*reinterpret_cast<int*>(buffer));
+			const bool ok = Zdxsv::DeltaState::Load(*reinterpret_cast<int*>(buffer));
 			if (s_net)
 				NetLoaded(*reinterpret_cast<int*>(buffer));
 			s_load_ms.Add(timer.GetTimeMilliseconds());
@@ -780,7 +780,7 @@ namespace ZdxsvGgpo
 			return s_lobby ? Path::Combine(EmuFolders::DataRoot, "replays") : std::string();
 		}
 
-		// At GGPO frame 0: the session started, its first input not added yet (ZdxsvDeltaState::Save(0) saves this point).
+		// At GGPO frame 0: the session started, its first input not added yet (Zdxsv::DeltaState::Save(0) saves this point).
 		void ReplayBegin()
 		{
 			const std::string dir = ReplayDir();
@@ -894,7 +894,7 @@ namespace ZdxsvGgpo
 			s_session = nullptr;
 			ggpo_set_log_function(nullptr);
 			g_active = false;
-			ZdxsvDeltaState::Clear();
+			Zdxsv::DeltaState::Clear();
 			Report(what);
 			{
 				std::lock_guard lock(s_osd_mtx);
@@ -1598,7 +1598,7 @@ namespace ZdxsvGgpo
 			ggpo_set_disconnect_notify_start(s_session, 1000);
 			// relay servers before the players, in the battle info's order on every peer (ggpo_add_relay_server)
 			if (s_lobby)
-				for (const Zdxsv::RelayServerAddr& r : s_net_servers)
+				for (const Zdxsv::Lobby::RelayServerAddr& r : s_net_servers)
 				{
 					if (ggpo_add_relay_server(s_session, r.addr.ip.c_str(), r.addr.port, r.alt.ip.empty() ? nullptr : r.alt.ip.c_str()) != GGPO_OK)
 						return false;
@@ -1613,7 +1613,7 @@ namespace ZdxsvGgpo
 				player.type = (p == s_net_me) ? GGPO_PLAYERTYPE_LOCAL : GGPO_PLAYERTYPE_REMOTE;
 				if (player.type == GGPO_PLAYERTYPE_REMOTE && s_lobby)
 				{
-					const Zdxsv::PeerAddr& a = s_net_peers[p];
+					const Zdxsv::Lobby::PeerAddr& a = s_net_peers[p];
 					StringUtil::Strlcpy(player.u.remote.ip_address, a.ip.c_str(), sizeof(player.u.remote.ip_address));
 					player.u.remote.port = a.port;
 					player.u.remote.relay = p < static_cast<int>(s_net_via.size()) && s_net_via[p] != 0;
@@ -2621,7 +2621,7 @@ namespace ZdxsvGgpo
 				s_lobby_logged = true;
 				return false;
 			}
-			std::vector<Zdxsv::PeerAddr> peers(n);
+			std::vector<Zdxsv::Lobby::PeerAddr> peers(n);
 			for (int p = 0; p < n; p++)
 				if (!s_lobby_peers[p].empty())
 					peers[p] = s_lobby_peers[p].front();
@@ -2629,8 +2629,8 @@ namespace ZdxsvGgpo
 			{
 				// as flycast's rollback backend: one-way time to the slowest peer in 16 ms frames, rounded up
 				Common::Timer wait;
-				std::vector<Zdxsv::RelayServerAddr> servers;
-				const std::vector<Zdxsv::PingResult> pings = Zdxsv::FinishPingTest(&servers);
+				std::vector<Zdxsv::Lobby::RelayServerAddr> servers;
+				const std::vector<Zdxsv::Lobby::PingResult> pings = Zdxsv::Lobby::FinishPingTest(&servers);
 				std::vector<int> via(n);
 				int rtt = -1, up = 0;
 				for (size_t p = 0; p < pings.size() && p < peers.size(); p++)
@@ -2860,8 +2860,8 @@ namespace ZdxsvGgpo
 		return port;
 	}
 
-	void SetLobbyPeers(bool ok, std::vector<std::vector<Zdxsv::PeerAddr>> byPosition, u32 session, int pingMs, std::string ids,
-		std::vector<std::pair<std::string, std::string>> players, std::vector<Zdxsv::BattleInfo::Relay> relays)
+	void SetLobbyPeers(bool ok, std::vector<std::vector<Zdxsv::Lobby::PeerAddr>> byPosition, u32 session, int pingMs, std::string ids,
+		std::vector<std::pair<std::string, std::string>> players, std::vector<Zdxsv::Lobby::BattleInfo::Relay> relays)
 	{
 		std::lock_guard lock(s_lobby_mtx);
 		s_report_ids = std::move(ids);
@@ -2878,7 +2878,7 @@ namespace ZdxsvGgpo
 		s_lobby_peers = std::move(byPosition);
 		s_lobby_relays = std::move(relays);
 		if (ok && session && !s_delay_set && pingMs > 0)
-			Zdxsv::StartPingTest(session, s_lobby_peers, static_cast<u16>(LobbyPort()), pingMs, s_lobby_relays);
+			Zdxsv::Lobby::StartPingTest(session, s_lobby_peers, static_cast<u16>(LobbyPort()), pingMs, s_lobby_relays);
 	}
 
 	std::string TakeLobbyReport()
@@ -2981,10 +2981,10 @@ namespace ZdxsvGgpo
 		cpuRegs.pc = cpuRegs.GPR.n.ra.UL[0];
 		return true;
 	}
-} // namespace ZdxsvGgpo
+} // namespace Zdxsv::Ggpo
 
-namespace ZdxsvGgpo
+namespace Zdxsv::Ggpo
 {
 	// EE probe (iR5900.cpp): GGPO frame being run, the frame numbers of NET_TRACE H lines and PW dumps.
 	int ProbeFrame() { return s_net_frame; }
-} // namespace ZdxsvGgpo
+} // namespace Zdxsv::Ggpo

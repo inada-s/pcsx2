@@ -8,7 +8,7 @@
 #include "Zdxsv/DeltaState.h"
 #include "Zdxsv/Ggpo.h"
 
-namespace ZdxsvGgpo
+namespace Zdxsv::Ggpo
 {
 	// fno 0x14 recv (0x30ec70), return of its wait RPC; kept out of Zdxsv/Ggpo.h (27 min rebuild)
 	constexpr u32 NET_RECV_RET_PC = 0x30ecf0;
@@ -1714,7 +1714,7 @@ static void zdxsvProbeHit()
 	for (int i = 0; i < (mem_sp ? 128 : 48); i++)
 		std::fprintf(f, "%02x", p[i]);
 	// g = GGPO frame (NET_TRACE H / PW dump numbering), rb = rerun by a rollback.
-	std::fprintf(f, " g=%d rb=%d s0=%x s1=%x sp=%x\n", ZdxsvGgpo::ProbeFrame(), ZdxsvGgpo::g_in_rollback ? 1 : 0,
+	std::fprintf(f, " g=%d rb=%d s0=%x s1=%x sp=%x\n", Zdxsv::Ggpo::ProbeFrame(), Zdxsv::Ggpo::g_in_rollback ? 1 : 0,
 		r.s0.UL[0], r.s1.UL[0], r.sp.UL[0]);
 	std::fflush(f); // the rig kills pcsx2: rare hits must not stay buffered
 }
@@ -1758,7 +1758,7 @@ static void zdxsvWatchHit(u32 addr, u32 op)
 	const auto& r = cpuRegs.GPR.n;
 	const GPR_reg& rt = cpuRegs.GPR.r[(op >> 16) & 0x1f];
 	std::fprintf(f, "%u %08x addr=%x op=%08x rt=%08x%08x ra=%08x s0=%x s1=%x a0=%x g=%d rb=%d st=", g_FrameCount, cpuRegs.pc, addr, op,
-		rt.UL[1], rt.UL[0], r.ra.UL[0], r.s0.UL[0], r.s1.UL[0], r.a0.UL[0], ZdxsvGgpo::ProbeFrame(), ZdxsvGgpo::g_in_rollback ? 1 : 0);
+		rt.UL[1], rt.UL[0], r.ra.UL[0], r.s0.UL[0], r.s1.UL[0], r.a0.UL[0], Zdxsv::Ggpo::ProbeFrame(), Zdxsv::Ggpo::g_in_rollback ? 1 : 0);
 	const u8* p = eeMem->Main + (r.sp.UL[0] & (Ps2MemSize::MainRam - 1) & ~3u);
 	for (int i = 0; i < 128; i += 4)
 		std::fprintf(f, "%08x ", *reinterpret_cast<const u32*>(p + i));
@@ -1850,30 +1850,30 @@ void recompileNextInstruction(bool delayslot, bool swapped_delay_slot)
 			encodeZdxsvProbe();
 		if (!s_zdxsv_watch.empty())
 			encodeZdxsvWatch();
-		if (ZdxsvGgpo::g_net_hook && pc == ZdxsvGgpo::NET_RPC_PC)
+		if (Zdxsv::Ggpo::g_net_hook && pc == Zdxsv::Ggpo::NET_RPC_PC)
 		{
 			iFlushCall(FLUSH_EVERYTHING | FLUSH_PC);
-			xFastCall((void*)ZdxsvGgpo::OnNetCall);
+			xFastCall((void*)Zdxsv::Ggpo::OnNetCall);
 			// Everything is flushed: on true leave the block, the dispatcher continues at cpuRegs.pc.
 			xTEST(al, al);
 			xForwardJZ32 run_wrapper;
 			xJMP(DispatcherReg);
 			run_wrapper.SetTarget();
 		}
-		if (ZdxsvGgpo::g_net_hook && pc == ZdxsvGgpo::NET_RECV_RET_PC)
+		if (Zdxsv::Ggpo::g_net_hook && pc == Zdxsv::Ggpo::NET_RECV_RET_PC)
 		{
 			iFlushCall(FLUSH_EVERYTHING | FLUSH_PC);
-			xFastCall((void*)ZdxsvGgpo::OnNetRecv);
+			xFastCall((void*)Zdxsv::Ggpo::OnNetRecv);
 		}
-		if (ZdxsvGgpo::g_zd_hook && pc == ZdxsvGgpo::STEP_COPY_PC)
+		if (Zdxsv::Ggpo::g_zd_hook && pc == Zdxsv::Ggpo::STEP_COPY_PC)
 		{
 			iFlushCall(FLUSH_EVERYTHING | FLUSH_PC);
-			xFastCall((void*)ZdxsvGgpo::OnStepCopy);
+			xFastCall((void*)Zdxsv::Ggpo::OnStepCopy);
 		}
-		if (ZdxsvGgpo::g_ps_hook && pc == ZdxsvGgpo::LOAD_STEP_PC)
+		if (Zdxsv::Ggpo::g_ps_hook && pc == Zdxsv::Ggpo::LOAD_STEP_PC)
 		{
 			iFlushCall(FLUSH_EVERYTHING | FLUSH_PC);
-			xFastCall((void*)ZdxsvGgpo::OnLoadStep);
+			xFastCall((void*)Zdxsv::Ggpo::OnLoadStep);
 			xTEST(al, al);
 			xForwardJZ32 run_step;
 			xJMP(DispatcherReg);
@@ -2533,7 +2533,7 @@ static void recRecompile(const u32 startpc)
 				break;
 			}
 
-			if (!ZdxsvDeltaState::g_fixed_blocks && pblock->GetFnptr() != (uptr)JITCompile)
+			if (!Zdxsv::DeltaState::g_fixed_blocks && pblock->GetFnptr() != (uptr)JITCompile)
 			{
 				willbranch3 = 1;
 				s_nEndBlock = i;

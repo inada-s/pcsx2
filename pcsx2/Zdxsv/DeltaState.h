@@ -12,7 +12,7 @@
 // EE RAM is copy-on-write (vtlb mmap_Delta*): a save keeps only the old data of the pages
 // written since the previous save. The rest (SaveState_DeltaSave) is copied whole.
 // GS thread state is not saved. CPU thread only, at the same point every frame (vsync).
-namespace ZdxsvDeltaState
+namespace Zdxsv::DeltaState
 {
 	// Frames must be saved in increasing order (after a Load(f), the next save is > f).
 	bool Save(int frame);
@@ -39,4 +39,4 @@ namespace ZdxsvDeltaState
 	// ZDXSV_DELTA_TEST: synctest in a running game, see Zdxsv/DeltaState.cpp.
 	extern bool g_test_enabled;
 	void OnVsync();
-} // namespace ZdxsvDeltaState
+} // namespace Zdxsv::DeltaState

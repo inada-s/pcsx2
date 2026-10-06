@@ -647,7 +647,7 @@ bool DEV9DoState(StateWrapper& sw);
 // on the next TX buffer, the IOP spins on TXDNV and the game's net RPCs never return.
 static bool Dev9InState()
 {
-	return Zdxsv::LobbyStateEnabled() || ZdxsvGgpo::g_enabled;
+	return Zdxsv::Lobby::LobbyStateEnabled() || Zdxsv::Ggpo::g_enabled;
 }
 
 class SavestateEntry_DEV9 final : public BaseSavestateEntry
@@ -1308,7 +1308,7 @@ void SaveState_ReportSaveErrorOSD(const std::string& message, std::optional<s32>
 // --------------------------------------------------------------------------------------
 //  zdxsv delta state (#31)
 // --------------------------------------------------------------------------------------
-// The state minus EE RAM (tracked per page by ZdxsvDeltaState) and the GS thread state (an
+// The state minus EE RAM (tracked per page by Zdxsv::DeltaState) and the GS thread state (an
 // output device, not rolled back). In memory, no zip. Loaded on the CPU thread at the point
 // it was saved (vsync), like a hotkey load.
 

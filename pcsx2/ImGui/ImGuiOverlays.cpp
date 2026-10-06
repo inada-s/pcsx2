@@ -31,7 +31,7 @@
 #include "USB/USB.h"
 #include "VMManager.h"
 #include "Zdxsv/Ggpo.h"
-namespace ZdxsvGgpo
+namespace Zdxsv::Ggpo
 {
 	// Replay control bar. Declared here (and ReplayBarInfo in VMManager.cpp), not in Zdxsv/Ggpo.h: that header
 	// is included widely (a change rebuilds most of pcsx2). The actions run on the CPU thread.
@@ -42,7 +42,7 @@ namespace ZdxsvGgpo
 	void ReplayJumpRound(int delta);
 	std::vector<int> ReplayRoundStarts(); // start frames of the rounds played so far
 	bool ReplayKeys(std::vector<std::pair<u16, int>>& runs);
-} // namespace ZdxsvGgpo
+} // namespace Zdxsv::Ggpo
 
 #include "common/BitUtils.h"
 #include "common/Error.h"
@@ -1823,12 +1823,12 @@ void SaveStateSelectorUI::ShowSlotOSDMessage()
 		Host::OSD_QUICK_DURATION);
 }
 
-// zdxsv network status (ZdxsvGgpo::OsdLines) during a GGPO battle: left edge, below the game's top HUD.
+// zdxsv network status (Zdxsv::Ggpo::OsdLines) during a GGPO battle: left edge, below the game's top HUD.
 __ri void ImGuiManager::DrawZdxsvGgpoOverlay(float scale, float margin, float spacing)
 {
-	if (!ZdxsvGgpo::g_enabled || FullscreenUI::HasActiveWindow())
+	if (!Zdxsv::Ggpo::g_enabled || FullscreenUI::HasActiveWindow())
 		return;
-	const std::vector<ZdxsvGgpo::OsdLine> lines = ZdxsvGgpo::OsdLines();
+	const std::vector<Zdxsv::Ggpo::OsdLine> lines = Zdxsv::Ggpo::OsdLines();
 	if (lines.empty())
 		return;
 
@@ -1837,7 +1837,7 @@ __ri void ImGuiManager::DrawZdxsvGgpoOverlay(float scale, float margin, float sp
 	const float line_height = ImGuiFullscreen::GetLineHeight({font, font_size});
 	const float pad = std::ceil(4.0f * scale);
 	float width = 0.0f;
-	for (const ZdxsvGgpo::OsdLine& l : lines)
+	for (const Zdxsv::Ggpo::OsdLine& l : lines)
 		width = std::max(width, font->CalcTextSizeA(font_size, std::numeric_limits<float>::max(), -1.0f, l.text.c_str()).x);
 
 	ImDrawList* dl = ImGui::GetBackgroundDrawList();
@@ -1845,7 +1845,7 @@ __ri void ImGuiManager::DrawZdxsvGgpoOverlay(float scale, float margin, float sp
 	float y = std::floor(GetWindowHeight() * 0.22f);
 	dl->AddRectFilled(ImVec2(x, y), ImVec2(x + width + pad * 2.0f, y + line_height * lines.size() + pad * 2.0f), IM_COL32(0, 0, 0, 128));
 	y += pad;
-	for (const ZdxsvGgpo::OsdLine& l : lines)
+	for (const Zdxsv::Ggpo::OsdLine& l : lines)
 	{
 		dl->AddText(font, font_size, ImVec2(x + pad, y), l.color, l.text.c_str());
 		y += line_height;
@@ -1857,7 +1857,7 @@ __ri void ImGuiManager::DrawZdxsvGgpoOverlay(float scale, float margin, float sp
 __ri void ImGuiManager::DrawZdxsvReplayKeys(float scale, float margin)
 {
 	std::vector<std::pair<u16, int>> runs;
-	if (!ZdxsvGgpo::g_enabled || FullscreenUI::HasActiveWindow() || !ZdxsvGgpo::ReplayKeys(runs) || runs.empty())
+	if (!Zdxsv::Ggpo::g_enabled || FullscreenUI::HasActiveWindow() || !Zdxsv::Ggpo::ReplayKeys(runs) || runs.empty())
 		return;
 
 	static constexpr struct { u16 bit; const char* icon; } buttons[] = {
@@ -1923,8 +1923,8 @@ __ri void ImGuiManager::DrawZdxsvReplayBar(float scale, float margin)
 	std::string layout;
 	int frame, frames, pov, target;
 	u32 povs;
-	if (!ZdxsvGgpo::g_enabled || (s_env && s_env[0] == '0') || FullscreenUI::HasActiveWindow() ||
-		!ZdxsvGgpo::ReplayBarInfo(frame, frames, pov, povs, target) || frames <= 0)
+	if (!Zdxsv::Ggpo::g_enabled || (s_env && s_env[0] == '0') || FullscreenUI::HasActiveWindow() ||
+		!Zdxsv::Ggpo::ReplayBarInfo(frame, frames, pov, povs, target) || frames <= 0)
 		return;
 
 	const ImGuiIO& io = ImGui::GetIO();
@@ -1991,25 +1991,25 @@ __ri void ImGuiManager::DrawZdxsvReplayBar(float scale, float margin)
 		if (button("##pause", paused ? ICON_FA_PLAY : ICON_FA_PAUSE, true))
 		{
 			Console.WriteLn("ZdxsvGgpo: replay bar: %s at frame %d", paused ? "play" : "pause", frame);
-			Host::RunOnCPUThread([] { ZdxsvGgpo::ReplayTogglePause(); });
+			Host::RunOnCPUThread([] { Zdxsv::Ggpo::ReplayTogglePause(); });
 		}
 		if (button("##back", ICON_FA_BACKWARD " 10s", true))
 		{
 			Console.WriteLn("ZdxsvGgpo: replay bar: seek -600 at frame %d", frame);
-			Host::RunOnCPUThread([f = shown - 600] { ZdxsvGgpo::ReplaySeekTo(f); });
+			Host::RunOnCPUThread([f = shown - 600] { Zdxsv::Ggpo::ReplaySeekTo(f); });
 		}
 		if (button("##forward", "10s " ICON_FA_FORWARD, true))
 		{
 			Console.WriteLn("ZdxsvGgpo: replay bar: seek +600 at frame %d", frame);
-			Host::RunOnCPUThread([f = shown + 600] { ZdxsvGgpo::ReplaySeekTo(f); });
+			Host::RunOnCPUThread([f = shown + 600] { Zdxsv::Ggpo::ReplaySeekTo(f); });
 		}
 		// round jump: R0 = before round 1 (MS select, briefing)
-		const std::vector<int> rounds = ZdxsvGgpo::ReplayRoundStarts();
+		const std::vector<int> rounds = Zdxsv::Ggpo::ReplayRoundStarts();
 		const int round = static_cast<int>(std::upper_bound(rounds.begin(), rounds.end(), shown) - rounds.begin());
 		if (button("##prevround", ICON_FA_BACKWARD_STEP, true))
 		{
 			Console.WriteLn("ZdxsvGgpo: replay bar: round -1 at frame %d", frame);
-			Host::RunOnCPUThread([] { ZdxsvGgpo::ReplayJumpRound(-1); });
+			Host::RunOnCPUThread([] { Zdxsv::Ggpo::ReplayJumpRound(-1); });
 		}
 		const std::string round_label = fmt::format("R{}", round);
 		const float round_w = font->CalcTextSizeA(font_size, std::numeric_limits<float>::max(), -1.0f, "R00").x;
@@ -2019,7 +2019,7 @@ __ri void ImGuiManager::DrawZdxsvReplayBar(float scale, float margin)
 		if (button("##nextround", ICON_FA_FORWARD_STEP, true))
 		{
 			Console.WriteLn("ZdxsvGgpo: replay bar: round +1 at frame %d", frame);
-			Host::RunOnCPUThread([] { ZdxsvGgpo::ReplayJumpRound(1); });
+			Host::RunOnCPUThread([] { Zdxsv::Ggpo::ReplayJumpRound(1); });
 		}
 		x += pad;
 		text_at(x, time.c_str(), text_col);
@@ -2071,7 +2071,7 @@ __ri void ImGuiManager::DrawZdxsvReplayBar(float scale, float margin)
 			{
 				const int f = frame_at(mouse.x);
 				Console.WriteLn("ZdxsvGgpo: replay bar: seek to %d at frame %d", f, frame);
-				Host::RunOnCPUThread([f] { ZdxsvGgpo::ReplaySeekTo(f); });
+				Host::RunOnCPUThread([f] { Zdxsv::Ggpo::ReplaySeekTo(f); });
 			}
 		}
 
@@ -2079,7 +2079,7 @@ __ri void ImGuiManager::DrawZdxsvReplayBar(float scale, float margin)
 		if (button("##pov", pov_label.c_str(), can_switch))
 		{
 			Console.WriteLn("ZdxsvGgpo: replay bar: point of view at frame %d", frame);
-			Host::RunOnCPUThread([] { ZdxsvGgpo::ReplayNextPov(); });
+			Host::RunOnCPUThread([] { Zdxsv::Ggpo::ReplayNextPov(); });
 		}
 		layout = fmt::format("{:.0f}x{:.0f} y {:.0f}-{:.0f}{}", w, h, y0, y0 + bar_h, layout);
 		if (layout != s_layout)

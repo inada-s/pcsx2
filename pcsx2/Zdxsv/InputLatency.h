@@ -13,7 +13,7 @@
 
 #include "common/Pcsx2Types.h"
 
-namespace ZdxsvInputLatency
+namespace Zdxsv::InputLatency
 {
 	extern bool g_enabled;
 
@@ -29,4 +29,4 @@ namespace ZdxsvInputLatency
 	void OnPresentStart();
 	// GS thread, after a vsync's frame was presented.
 	void OnPresent();
-} // namespace ZdxsvInputLatency
+} // namespace Zdxsv::InputLatency

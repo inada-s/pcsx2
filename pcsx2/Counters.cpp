@@ -489,11 +489,11 @@ static __fi void DoFMVSwitch()
 
 static __fi void ZdxsvPostVsyncStart()
 {
-	if (ZdxsvInputLatency::g_enabled)
-		ZdxsvInputLatency::OnPush(false);
+	if (Zdxsv::InputLatency::g_enabled)
+		Zdxsv::InputLatency::OnPush(false);
 	gsPostVsyncStart();
-	if (ZdxsvInputLatency::g_enabled)
-		ZdxsvInputLatency::OnPush(true);
+	if (Zdxsv::InputLatency::g_enabled)
+		Zdxsv::InputLatency::OnPush(true);
 }
 
 static __fi void VSyncStart(u64 sCycle)
@@ -501,25 +501,25 @@ static __fi void VSyncStart(u64 sCycle)
 	// End-of-frame tasks.
 	DoFMVSwitch();
 	VMManager::Internal::VSyncOnCPUThread();
-	if (ZdxsvInputLatency::g_enabled)
-		ZdxsvInputLatency::OnFrameEnd();
-	if (ZdxsvDeltaState::g_test_enabled)
-		ZdxsvDeltaState::OnVsync();
-	if (ZdxsvGgpo::g_enabled || ZdxsvGgpo::g_net_hook)
-		ZdxsvGgpo::OnVsync();
+	if (Zdxsv::InputLatency::g_enabled)
+		Zdxsv::InputLatency::OnFrameEnd();
+	if (Zdxsv::DeltaState::g_test_enabled)
+		Zdxsv::DeltaState::OnVsync();
+	if (Zdxsv::Ggpo::g_enabled || Zdxsv::Ggpo::g_net_hook)
+		Zdxsv::Ggpo::OnVsync();
 
 	if (EmuConfig.EmulationSpeed.LowLatencyVsync)
 	{
 		// zdxsv: present the finished frame now, sleep, then poll input right before the next
 		// frame is emulated. Press -> present loses the limiter sleep (#29).
 		ZdxsvPostVsyncStart();
-		if (!VMManager::Internal::IsExecutionInterrupted() && !ZdxsvGgpo::g_in_rollback)
+		if (!VMManager::Internal::IsExecutionInterrupted() && !Zdxsv::Ggpo::g_in_rollback)
 			VMManager::Internal::Throttle();
 	}
 	else
 	{
 		// Don't bother throttling if we're going to pause.
-		if (!VMManager::Internal::IsExecutionInterrupted() && !ZdxsvGgpo::g_in_rollback)
+		if (!VMManager::Internal::IsExecutionInterrupted() && !Zdxsv::Ggpo::g_in_rollback)
 			VMManager::Internal::Throttle();
 
 		ZdxsvPostVsyncStart(); // MUST be after framelimit; doing so before causes funk with frame times!
