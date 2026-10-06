@@ -137,7 +137,14 @@ the agent's working context.
 - One responsibility per file. Around 800 lines is the point to split; do not
   add a new concern to a file because its state is convenient to reach.
 - Production code, test harnesses, tracing and recorded fixtures go in separate
-  files, so the non-production ones can be left out of release builds.
+  files.
+- Test and diagnostic code may stay in release builds, so that a release can
+  be tested against earlier releases. Two kinds must not be in a release
+  build: code that costs performance while it is not in use, and code that
+  can be abused, such as an option that changes game memory or inputs in an
+  online battle, disturbs the battle of other players, redirects the updater,
+  or writes files to a path given from outside. Put those behind a build
+  option that release builds leave off.
 - Group state in structs instead of adding file-scope variables. State that a
   rollback or a replay key restores lives in one struct that is saved and
   restored as a whole, never as a hand-written list of variables.
