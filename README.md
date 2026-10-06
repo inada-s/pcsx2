@@ -19,6 +19,9 @@ on [zdxsv](https://github.com/inada-s/zdxsv). Player setup: [ZDXSV.md](ZDXSV.md)
   was removed after the GGPO experiment, inada-s/ai-automation#45.)
 - Lobby save states (opt-in, debugging, see `ZDXSV_LOBBY_STATE`): save states also keep the network adapter (DEV9
   registers, SMAP buffers), and after a load the emulator takes over the TCP connections the PS2 had opened.
+  With `ZDXSV_GGPO` or `ZDXSV_REPLAY` set, save states (replay frame 0 and seek keys included) keep the network
+  adapter too, without taking over connections: otherwise, after a load the PS2's network driver and the adapter
+  disagree on the next send buffer and the game's network calls hang.
 
 ### Input latency
 - Low-latency vsync (on by default): the finished frame is presented before the frame limiter sleeps, and input is
@@ -172,6 +175,14 @@ Test scripts that use them: `zdxsv/` in inada-s/ai-automation (named in brackets
   - `ZDXSV_REPLAY_KEY=n`: key interval in frames (default 600, 0 = none: no backward seek).
   - `ZDXSV_REPLAY_SEEK=at:to[,at:to...]` (test): seek to frame `to` when frame `at` is reached.
   - `ZDXSV_REPLAY_KEY_NOHLE=1` (test control): keys restore no battle-socket state (the replay then drifts).
+  - Point of view: `ZDXSV_REPLAY=a.zdxr;b.zdxr` loads the files that different players saved of one battle (the
+    inputs must match on the common frames; each file adds its position's frame 0 state). Hotkey "Zdxsv Replay:
+    Switch Point of View" (default Home) moves to the next position with a file at the current frame: it loads
+    that position's newest key at or before the frame and runs to it unlimited. `ZDXSV_REPLAY_POV=P` starts at
+    position P; `ZDXSV_REPLAY_POV_AT=frame:P[,...]` (test) switches when that frame is reached. Keys are kept per
+    position (`cache/zdxsv-replay-key-p<P>-<frame>.p2s`).
+    Known issue: the real-lobby position 1 file of s707 drifts from frame 4028 when played alone too
+    (the battle socket is never used), so a switch to it shows the same drift.
 - `ZDXSV_RBK=i/N`: rollback test (`rbk.sh`, `rbkprep.sh`). Start from a post-entry save state as battle position i of
   N. The emulator answers the lobby itself, runs turbo until the battle, and exits when the GGPO session ends.
   - `ZDXSV_RBK_TIME=s` (time limit), `ZDXSV_RBK_COUNT=n` (battles), `ZDXSV_RBK_GAUGE=v` (戦力ゲージ),
