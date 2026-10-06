@@ -1162,16 +1162,17 @@ namespace Zdxsv
 	bool g_zd_hook = false;
 	bool g_ps_hook = s_zds_ps;
 
-	// Release build: of ZDXSV_GGPO only the keys that change nothing for the other players (osd=, port=, replay=0;
-	// net=1 and lobby=1 repeat DEFAULT_OPTIONS) are kept, as ",k=v,..." for DEFAULT_OPTIONS. delay=/mindelay= are
+	// Release build: of ZDXSV_GGPO only the keys that change nothing for the other players (osd=, port=, replay=0)
+	// are kept, as ",k=v,..." for DEFAULT_OPTIONS (net=1 and lobby=1 are in it already). delay=/mindelay= are
 	// test options too: the ping test picks the delay.
 	static std::string PlayerOptions(const char* e)
 	{
 		std::string kept;
 		for (const std::string_view item : StringUtil::SplitString(e ? e : "", ','))
 		{
-			if (item.starts_with("osd=") || item.starts_with("port=") || item == "replay=0" || item == "net=1" ||
-				item == "lobby=1")
+			if (item == "net=1" || item == "lobby=1")
+				continue;
+			if (item.starts_with("osd=") || item.starts_with("port=") || item == "replay=0")
 				kept += fmt::format(",{}", item);
 			else
 				Console.Warning("ZdxsvGgpo: '%.*s' ignored: a test option, needs a ZDXSV_TEST_OPTIONS build",
