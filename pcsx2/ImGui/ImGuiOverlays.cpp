@@ -39,6 +39,7 @@ namespace ZdxsvGgpo
 	void ReplaySeekTo(int frame);
 	void ReplayTogglePause();
 	void ReplayNextPov();
+	bool ReplayKeys(std::vector<std::pair<u16, int>>& runs);
 } // namespace ZdxsvGgpo
 
 #include "common/BitUtils.h"
@@ -164,6 +165,7 @@ namespace ImGuiManager
 	static void DrawIndicatorsOverlay(float& position_y, float scale, float margin, float spacing);
 	static void DrawZdxsvGgpoOverlay(float scale, float margin, float spacing);
 	static void DrawZdxsvReplayBar(float scale, float margin);
+	static void DrawZdxsvReplayKeys(float scale, float margin);
 } // namespace ImGuiManager
 
 static std::tuple<float, float> GetMinMax(std::span<const float> values)
@@ -1848,6 +1850,65 @@ __ri void ImGuiManager::DrawZdxsvGgpoOverlay(float scale, float margin, float sp
 	}
 }
 
+// zdxsv replay key display (ZDXSV_REPLAY_KEY_DISPLAY=1 / hotkey): the shown position's last input changes, newest on top,
+// each with the frames it was held (capped at 99), as in flycast's gdxsv_key_display. Bits: the B word (ZdPadAB).
+__ri void ImGuiManager::DrawZdxsvReplayKeys(float scale, float margin)
+{
+	std::vector<std::pair<u16, int>> runs;
+	if (!ZdxsvGgpo::g_enabled || FullscreenUI::HasActiveWindow() || !ZdxsvGgpo::ReplayKeys(runs) || runs.empty())
+		return;
+
+	static constexpr struct { u16 bit; const char* icon; } buttons[] = {
+		{0x0200, ICON_PF_BUTTON_SQUARE}, {0x0100, ICON_PF_BUTTON_TRIANGLE}, {0x0040, ICON_PF_BUTTON_CROSS},
+		{0x0020, ICON_PF_BUTTON_CIRCLE}, {0x0080, ICON_PF_LEFT_SHOULDER_L1}, {0x0010, ICON_PF_RIGHT_SHOULDER_R1},
+		{0x0008, ICON_PF_LEFT_TRIGGER_L2}, {0x0004, ICON_PF_RIGHT_TRIGGER_R2}, {0x0002, ICON_PF_LEFT_ANALOG_CLICK},
+		{0x4000, ICON_PF_SELECT_SHARE}};
+	const auto dir = [](u16 b) -> const char* {
+		const bool u = b & 0x2000, d = b & 0x1000, l = b & 0x0800, r = b & 0x0400;
+		if (u && l) return ICON_PF_DPAD_LEFT_UP;
+		if (u && r) return ICON_PF_DPAD_UP_RIGHT;
+		if (d && l) return ICON_PF_DPAD_LEFT_DOWN;
+		if (d && r) return ICON_PF_DPAD_RIGHT_DOWN;
+		if (u) return ICON_PF_DPAD_UP;
+		if (d) return ICON_PF_DPAD_DOWN;
+		if (l) return ICON_PF_DPAD_LEFT;
+		if (r) return ICON_PF_DPAD_RIGHT;
+		return nullptr;
+	};
+
+	ImFont* const font = ImGuiManager::GetStandardFont();
+	const float font_size = ImGuiManager::GetFontSizeStandard();
+	const float line_height = ImGuiFullscreen::GetLineHeight({font, font_size});
+	const float pad = std::ceil(4.0f * scale);
+	const float count_w = font->CalcTextSizeA(font_size, FLT_MAX, -1.0f, "99 ").x;
+	const float icon_w = font->CalcTextSizeA(font_size, FLT_MAX, -1.0f, ICON_PF_DPAD_LEFT_UP " ").x;
+	const float width = count_w + icon_w * (1 + std::size(buttons));
+
+	ImDrawList* dl = ImGui::GetBackgroundDrawList();
+	const float x = margin;
+	float y = std::floor(GetWindowHeight() * 0.40f);
+	dl->AddRectFilled(ImVec2(x, y), ImVec2(x + width + pad * 2.0f, y + line_height * runs.size() + pad * 2.0f), IM_COL32(0, 0, 0, 128));
+	y += pad;
+	for (const auto& [b, n] : runs)
+	{
+		const std::string count = fmt::format("{:2}", std::min(n, 99));
+		dl->AddText(font, font_size, ImVec2(x + pad, y), IM_COL32(255, 255, 255, 255), count.c_str());
+		float cx = x + pad + count_w;
+		if (const char* d = dir(b))
+			dl->AddText(font, font_size, ImVec2(cx, y), IM_COL32(255, 255, 255, 255), d);
+		cx += icon_w;
+		for (const auto& e : buttons)
+		{
+			if (b & e.bit)
+			{
+				dl->AddText(font, font_size, ImVec2(cx, y), IM_COL32(255, 255, 255, 255), e.icon);
+				cx += icon_w;
+			}
+		}
+		y += line_height;
+	}
+}
+
 // zdxsv replay control bar (ZDXSV_REPLAY): play/pause, seek -10 s / +10 s, time and frame, a timeline (click or
 // drag, seek on release), point of view. Shown while paused and for 3 s after the mouse moves over the bottom
 // quarter; ZDXSV_REPLAY_BAR=1 always shows it, =0 never.
@@ -2024,6 +2085,7 @@ void ImGuiManager::RenderOverlays()
 	DrawShaderCompileIndicator(scale, margin, spacing);
 	DrawInputsOverlay(scale, margin, spacing);
 	DrawZdxsvGgpoOverlay(scale, margin, spacing);
+	DrawZdxsvReplayKeys(scale, margin);
 	DrawZdxsvReplayBar(scale, margin);
 	if (SaveStateSelectorUI::s_open)
 		SaveStateSelectorUI::Draw();

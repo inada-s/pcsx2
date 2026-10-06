@@ -189,6 +189,12 @@ Test scripts that use them: `zdxsv/` in inada-s/ai-automation (named in brackets
     never. A bar seek plays on from a pause; play at the end restarts from frame 0. While paused, the window
     redraws at 10 Hz (`VMManager::IdlePollUpdate`) so the bar sees the mouse. Logs `ZdxsvGgpo: replay bar:
     <action>` and its `layout` (element x ranges in window pixels; zdxsv `pcsx2ctl.ps1 bar:NAME` clicks from it).
+  - Key display (as flycast's `gdxsv:ReplayKeyDisplay`): the shown position's last 14 input changes on the left
+    edge, newest on top, each with the frames it was held (shown up to 99) and its d-pad / button glyphs (from the
+    recorded game input word). Hotkey "Zdxsv Replay: Toggle Key Display" (default End), or
+    `ZDXSV_REPLAY_KEY_DISPLAY=1` to start with it on. Follows seeks and point-of-view switches. While on, logs
+    `ZdxsvGgpo: replay keys frame F pos P: <word>*<frames> ...` every 600 frames (zdxsv `keycheck.py` compares
+    them with the file).
 - `ZDXSV_RBK=i/N`: rollback test (`rbk.sh`, `rbkprep.sh`). Start from a post-entry save state as battle position i of
   N. The emulator answers the lobby itself, runs turbo until the battle, and exits when the GGPO session ends.
   - `ZDXSV_RBK_TIME=s` (time limit), `ZDXSV_RBK_COUNT=n` (battles), `ZDXSV_RBK_GAUGE=v` (戦力ゲージ),
