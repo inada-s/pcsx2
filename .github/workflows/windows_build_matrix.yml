@@ -5,6 +5,7 @@ name: 🖥️ Windows Builds
 # SSE4/AVX2 msbuild, CMake MSVC) are dropped to keep CI short.
 # Runs on pushes to zdxsv-master / ai/zdxsv and on PRs into them: a PR run
 # restores the base branch caches, a push to a new branch would not.
+# A draft PR is not built: the build starts when the PR is marked ready for review.
 # No secrets: none are used.
 
 on:
@@ -13,6 +14,7 @@ on:
       - "zdxsv-master"
       - "ai/zdxsv"
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
     branches:
       - "zdxsv-master"
       - "ai/zdxsv"
@@ -21,7 +23,7 @@ on:
 jobs:
   build_qt_cmake_clang:
     name: "CMake"
-    if: github.repository != 'PCSX2/pcsx2' || github.event_name == 'pull_request'
+    if: (github.repository != 'PCSX2/pcsx2' || github.event_name == 'pull_request') && !(github.event_name == 'pull_request' && github.event.pull_request.draft)
     uses: ./.github/workflows/windows_build_qt.yml
     with:
       jobName: "CMake Clang"

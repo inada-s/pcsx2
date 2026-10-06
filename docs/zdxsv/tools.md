@@ -14,7 +14,9 @@
 ## CI
 
 - One Windows build (CMake + clang-cl) runs on pushes to and pull requests
-  into `zdxsv-master` and `ai/zdxsv`. It also runs the unit tests.
+  into `zdxsv-master` and `ai/zdxsv`. It also runs the unit tests. A draft
+  pull request is not built; the build starts when it is marked ready for
+  review.
 - The Linux and macOS workflows only run by hand (`workflow_dispatch`).
 
 ## Local build and run
