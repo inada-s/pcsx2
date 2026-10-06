@@ -50,7 +50,8 @@ through the same battle-socket emulation as a live GGPO battle, without GGPO.
   ends the replay.
 - Files saved before the battle-socket keys existed play with an empty state
   and may drift.
-- A replay of a `ZDXSV_RBK` battle needs the `ZDXSV_EE_CLAMP` of the recording.
+- A replay of a `ZDXSV_RBK` battle needs the `ZDXSV_EE_CLAMP` of the recording
+  (`tests/zdxsv/rplay.sh` reads it from the recording's `rbk env` log line).
 
 Log lines: `ZdxsvGgpo: replay <file>: position P of N, F frames ...`,
 `ZdxsvGgpo: replay end at frame ...`.
