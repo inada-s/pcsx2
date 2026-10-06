@@ -147,6 +147,15 @@ Test scripts that use them: `zdxsv/` in inada-s/ai-automation (named in brackets
     frames) and `Wait` (frames that waited for a peer), then per opponent its position + user id, name (zdxsv
     battle info `name_<user id>`) and `Ping` (GGPO RTT, flycast's colors) + `P` (frames predicted for it), or
     `Interrupted` / `Disconnected`. Logged every 600 frames as `ZdxsvGgpo: osd frame F: ...` (lines joined by `|`).
+  - Replays (`net=1`): `replay=DIR` saves every GGPO battle to `DIR`; `lobby=1` battles save to
+    `<data dir>/replays` without it (`replay=0` turns that off). File `<battle_code>.zdxr` (without a battle code,
+    `rbk-<start time>-p<position>.zdxr`): the line `ZDXSV-REPLAY 1`, `key=value` lines (`battle_code`, `user_id`,
+    `players`, `position`, `delay`, `start_at`, `end_at`, `frames`, `close`, `user_<p>`, `name_<p>`, `input_size`,
+    `state_size`), an empty line, then the full save state (.p2s zip, `state_size` bytes) at GGPO frame 0, then the
+    synced inputs of all players (`frames` x `players` x `input_size` bytes, frame-major, by battle position).
+    Only frames GGPO confirmed are written, so the peers' files of one battle hold the same inputs. The state is
+    zipped on a thread during the battle; the file is written when the session stops (~50 ms). Log:
+    `ZdxsvGgpo: replay saved <path> frames=N ...`. Checker: ai-automation `zdxsv/replay_check.py`. Playback: not yet.
 - `ZDXSV_RBK=i/N`: rollback test (`rbk.sh`, `rbkprep.sh`). Start from a post-entry save state as battle position i of
   N. The emulator answers the lobby itself, runs turbo until the battle, and exits when the GGPO session ends.
   - `ZDXSV_RBK_TIME=s` (time limit), `ZDXSV_RBK_COUNT=n` (battles), `ZDXSV_RBK_GAUGE=v` (戦力ゲージ),

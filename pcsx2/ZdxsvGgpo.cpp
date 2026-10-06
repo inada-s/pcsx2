@@ -21,6 +21,8 @@
 //   badsession=1 test: this client's ping test uses another session id, so no peer answers it (the cut)
 //   advertise=P  lobby test: the platform info announces 127.0.0.1 and GGPO port P only (no STUN /
 //                local / IPv6 address), so peers reach us through a localhost udprelay.py at P
+//   replay=DIR   net: save the battle to DIR/<battle_code>.zdxr (frame 0 state + all inputs, ReplayWrite);
+//                lobby=1 saves to <data dir>/replays by default; replay=0 = off
 //   osd=1        net: network status OSD (OsdLines; 0 = off); its text is also logged every 600 frames
 //   sync=0       no state hashes: checksum 0 (net: always)
 //   start=1500   vsync (counted from boot) the session starts at
@@ -51,6 +53,7 @@
 #include "common/FileSystem.h"
 #include "common/Path.h"
 #include "common/Console.h"
+#include "common/Error.h"
 #include "common/StringUtil.h"
 #include "common/Threading.h"
 #include "common/Timer.h"
@@ -70,11 +73,15 @@
 #include <array>
 #include <cstdlib>
 #include <cstring>
+#include <ctime>
+#include <cctype>
 #include <deque>
+#include <optional>
 #include <map>
 #include <mutex>
 #include <random>
 #include <string>
+#include <thread>
 #include <tuple>
 #include <utility>
 #include <vector>
@@ -263,6 +270,8 @@ namespace ZdxsvGgpo
 		bool s_lobby = false; // lobby=1
 		bool s_bad_session = false; // badsession=1 (test): the ping test uses another session id
 		bool s_osd = true; // osd=
+		std::string s_replay_dir; // replay=DIR; without it lobby=1 saves to <data dir>/replays, other net runs none
+		bool s_replay_off = false; // replay=0
 		// network status OSD: user id + name per position (lobby battle info), lines of the last frame
 		std::vector<std::pair<std::string, std::string>> s_lobby_players, s_net_players;
 		std::mutex s_osd_mtx;
@@ -360,6 +369,11 @@ namespace ZdxsvGgpo
 					s_osd = (n != 0);
 				else if (key == "advertise")
 					; // LobbyAdvertisePort
+				else if (key == "replay")
+				{
+					s_replay_off = (value == "0");
+					s_replay_dir = s_replay_off ? std::string() : Path::ToNativePath(value); // '/' fails on Windows
+				}
 				else
 					Console.Warning("ZdxsvGgpo: unknown key '%.*s'", static_cast<int>(key.size()), key.data());
 			}
@@ -732,6 +746,130 @@ namespace ZdxsvGgpo
 				Console.Warning("ZdxsvGgpo: ggpo: %s", msg);
 		}
 
+		// replay= (net): the battle as the full state at GGPO frame 0 (.p2s, zipped on a thread while the battle
+		// runs) + the synced inputs of every player per frame. File format: see ReplayWrite.
+		std::string s_replay_state; // the frame 0 .p2s being written, "" = not recording
+		struct ReplayZip
+		{
+			std::thread t;
+			bool ok = false; // set by t before it ends
+			~ReplayZip()
+			{
+				if (t.joinable())
+					t.join();
+			}
+		} s_replay_zip;
+		std::vector<NetInput> s_replay_inputs; // [frame * s_players + position]
+		s64 s_replay_start_at = 0; // unix seconds
+		int s_replay_confirmed = -1; // GGPO's last confirmed frame: the frames after it (predicted inputs) are not written
+
+		std::string ReplayDir()
+		{
+			if (s_replay_off || !s_net)
+				return {};
+			if (!s_replay_dir.empty())
+				return s_replay_dir;
+			return s_lobby ? Path::Combine(EmuFolders::DataRoot, "replays") : std::string();
+		}
+
+		// At GGPO frame 0: the session started, its first input not added yet (ZdxsvDeltaState::Save(0) saves this point).
+		void ReplayBegin()
+		{
+			const std::string dir = ReplayDir();
+			if (dir.empty())
+				return;
+			Error error;
+			if (!FileSystem::DirectoryExists(dir.c_str()) && !FileSystem::CreateDirectoryPath(dir.c_str(), true, &error))
+			{
+				Console.Error("ZdxsvGgpo: replay: cannot create %s: %s", dir.c_str(), error.GetDescription().c_str());
+				return;
+			}
+			Common::Timer timer;
+			std::unique_ptr<ArchiveEntryList> list = SaveState_DownloadState(&error);
+			if (!list)
+			{
+				Console.Error("ZdxsvGgpo: replay: state download failed: %s", error.GetDescription().c_str());
+				return;
+			}
+			s_replay_start_at = static_cast<s64>(std::time(nullptr));
+			s_replay_state = Path::Combine(dir, fmt::format(".replay-{}-p{}.p2s", s_replay_start_at, s_net_me));
+			s_replay_inputs.clear();
+			s_replay_confirmed = -1;
+			s_replay_zip.ok = false;
+			s_replay_zip.t = std::thread([list = std::move(list), path = s_replay_state]() mutable {
+				Error error;
+				s_replay_zip.ok = SaveState_ZipToDisk(std::move(list), nullptr, path.c_str(), &error);
+				if (!s_replay_zip.ok)
+					Console.Error("ZdxsvGgpo: replay: state zip failed: %s", error.GetDescription().c_str());
+			});
+			Console.WriteLn("ZdxsvGgpo: replay: recording to %s (state download %.1f ms)", dir.c_str(), timer.GetTimeMilliseconds());
+		}
+
+		// The synced inputs of frame f (also rerun frames: a rollback replaces the frames from f on).
+		void ReplayLog(int f, const NetInput* in)
+		{
+			if (s_replay_state.empty() || f < 0)
+				return;
+			s_replay_inputs.resize(static_cast<size_t>(f) * s_players);
+			s_replay_inputs.insert(s_replay_inputs.end(), in, in + s_players);
+			int confirmed = -1;
+			if (s_session && ggpo_get_last_confirmed_frame(s_session, &confirmed) == GGPO_OK)
+				s_replay_confirmed = std::max(s_replay_confirmed, confirmed);
+		}
+
+		// <dir>/<battle_code>.zdxr (without a battle code: rbk-<start_at>-p<position>.zdxr):
+		//   "ZDXSV-REPLAY 1\n", key=value lines (battle info ids, players, position, delay, start_at, end_at,
+		//   frames, close, user_<p>, name_<p>, input_size, state_size), an empty line,
+		//   state_size bytes: the .p2s at frame 0, then frames * players NetInput (input_size bytes each,
+		//   frame-major, by battle position).
+		void ReplayWrite(const char* what)
+		{
+			if (s_replay_state.empty())
+				return;
+			Common::Timer timer;
+			if (s_replay_zip.t.joinable())
+				s_replay_zip.t.join();
+			const std::string state_path = std::exchange(s_replay_state, {});
+			const std::optional<std::vector<u8>> state = s_replay_zip.ok ? FileSystem::ReadBinaryFile(state_path.c_str()) : std::nullopt;
+			FileSystem::DeleteFilePath(state_path.c_str());
+			if (!state)
+			{
+				Console.Error("ZdxsvGgpo: replay: no frame 0 state, nothing saved");
+				return;
+			}
+			std::string ids;
+			{
+				std::lock_guard lock(s_lobby_mtx);
+				ids = s_lobby ? s_report_ids : std::string();
+			}
+			std::string name;
+			if (const size_t at = ids.find("battle_code="); at != std::string::npos)
+				for (size_t i = at + 12; i < ids.size() && ids[i] != '\n'; i++)
+					name += std::isalnum(static_cast<unsigned char>(ids[i])) || ids[i] == '-' || ids[i] == '_' ? ids[i] : '_';
+			if (name.empty())
+				name = fmt::format("rbk-{}-p{}", s_replay_start_at, s_net_me);
+			const size_t frames = std::min<size_t>(s_replay_inputs.size() / s_players, s_replay_confirmed + 1);
+			std::string header = "ZDXSV-REPLAY 1\n" + ids;
+			header += fmt::format("players={}\nposition={}\ndelay={}\nstart_at={}\nend_at={}\nframes={}\nclose={}\n", s_players, s_net_me,
+				s_delay, s_replay_start_at, static_cast<s64>(std::time(nullptr)), frames, what);
+			for (size_t p = 0; p < s_net_players.size(); p++)
+				header += fmt::format("user_{}={}\nname_{}={}\n", p, s_net_players[p].first, p, s_net_players[p].second);
+			header += fmt::format("input_size={}\nstate_size={}\n\n", sizeof(NetInput), state->size());
+			const std::string path = Path::Combine(Path::GetDirectory(state_path), name + ".zdxr");
+			Error error;
+			auto fp = FileSystem::OpenManagedCFile(path.c_str(), "wb", &error);
+			const size_t input_bytes = frames * s_players * sizeof(NetInput);
+			if (!fp || std::fwrite(header.data(), 1, header.size(), fp.get()) != header.size() ||
+				std::fwrite(state->data(), 1, state->size(), fp.get()) != state->size() ||
+				std::fwrite(s_replay_inputs.data(), 1, input_bytes, fp.get()) != input_bytes || std::fflush(fp.get()) != 0)
+			{
+				Console.Error("ZdxsvGgpo: replay: write %s failed %s", path.c_str(), error.GetDescription().c_str());
+				return;
+			}
+			Console.WriteLn("ZdxsvGgpo: replay saved %s frames=%zu state=%zu bytes, %.1f ms", path.c_str(), frames, state->size(),
+				timer.GetTimeMilliseconds());
+		}
+
 		void Stop(const char* what)
 		{
 			if (s_session)
@@ -756,6 +894,7 @@ namespace ZdxsvGgpo
 			if (s_net)
 			{
 				s_net_over = true; // the battle sock goes back to the IOP
+				ReplayWrite(what);
 				NetReport();
 			}
 			if (s_rbk)
@@ -866,6 +1005,8 @@ namespace ZdxsvGgpo
 				Stop("start failed");
 				return;
 			}
+			if (s_net)
+				ReplayBegin();
 			// The synctest saves frame 0 at the first synchronize_input.
 			if (!NextInputs())
 				Stop("failed");
@@ -1571,6 +1712,7 @@ namespace ZdxsvGgpo
 				return false;
 			}
 			const int f = s_net_frame;
+			ReplayLog(f, in);
 			ApplyPad(0, s_zd_pad[f & 127]);
 			for (int p = 0; p < s_players; p++)
 				std::memcpy(s_zd_hist[f & 127][p], &in[p].pad, sizeof(s_zd_hist[f & 127][p]));
