@@ -35,4 +35,11 @@ namespace Zdxsv
 	{
 		void operator()(LobbyFilter* filter) const;
 	};
+
+	// TCP_Session, once per connection (Zdxsv/LobbyConnection.cpp). Both return the connection's lobby
+	// filter (the caller owns it), nullptr = plain TCP. The first bytes from the server: on a zdxsv lobby
+	// connection the platform info is sent on socket before the game answers.
+	LobbyFilter* LobbyOnFirstData(uptr socket, u32 serverIp, const u8* data, int len);
+	// A connection adopted after a state load.
+	LobbyFilter* LobbyOnAdopted(u32 serverIp);
 } // namespace Zdxsv

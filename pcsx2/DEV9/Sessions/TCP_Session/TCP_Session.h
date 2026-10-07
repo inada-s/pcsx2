@@ -90,11 +90,8 @@ namespace Sessions
 		void PushRecvBuff(ReceivedPayload tcp);
 		std::optional<ReceivedPayload> PopRecvBuff();
 
-		// zdxsv: tell the lobby server this peer is an emulator (see TCP_Session_In.cpp)
+		// zdxsv: tell the lobby server this peer is an emulator (Zdxsv::LobbyOnFirstData)
 		bool zdxsvChecked = false;
-		void ZdxsvSendPlatformInfo(const u8* data, int len);
-		void ZdxsvAdopted();
-		std::string ZdxsvOpenLobby(int& ggpoPort, bool natTest = true);
 		// zdxsv: strips the lobby's battle info notice (Zdxsv/Lobby.cpp), set with udp=1 (GGPO lobby=1)
 		std::unique_ptr<Zdxsv::LobbyFilter, Zdxsv::LobbyFilterDeleter> zdxsvLobbyFilter;
 
