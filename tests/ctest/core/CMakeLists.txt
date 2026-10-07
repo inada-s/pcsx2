@@ -16,8 +16,16 @@ target_link_libraries(core_test PUBLIC
 	common
 )
 
-# ggpo_tests.cpp tests GGPO's internal socket class
+# ggpo_tests.cpp tests GGPO's internal socket class; its headers throw (see 3rdparty/ggpo)
 target_include_directories(core_test PRIVATE "${CMAKE_SOURCE_DIR}/3rdparty/ggpo/lib/ggpo")
+if(MSVC)
+	set_source_files_properties(ggpo_tests.cpp PROPERTIES COMPILE_OPTIONS /EHsc)
+else()
+	set_source_files_properties(ggpo_tests.cpp PROPERTIES COMPILE_OPTIONS -fexceptions)
+endif()
+if(WIN32)
+	target_link_libraries(core_test PRIVATE winmm)
+endif()
 
 if(DISABLE_ADVANCE_SIMD AND ARCH_X86)
 	if(WIN32)

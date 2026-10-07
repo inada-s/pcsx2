@@ -1,6 +1,13 @@
 // SPDX-FileCopyrightText: 2002-2026 PCSX2 Dev Team
 // SPDX-License-Identifier: GPL-3.0+
 
+#ifdef _WIN32
+// GGPO's platform header calls timeGetTime; WIN32_LEAN_AND_MEAN drops mmsystem.h from windows.h.
+#include <winsock2.h>
+#include <windows.h>
+#include <mmsystem.h>
+#endif
+
 #include "ggpo_log.h"
 #include "ggponet.h"
 #include "ggpo_types.h"
