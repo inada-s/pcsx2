@@ -10,8 +10,7 @@ The rules for keeping this file up to date are in [AGENTS.md](../../AGENTS.md).
   repository.
 - **Control** is the variant of a test that must fail. It shows the test can
   detect the problem.
-- "none" means the feature has no automated test. "none listed" means the test
-  index this file was made from names no test for it.
+- "none" means the feature has no automated test.
 - This file does not record results. A result belongs to the commit it ran on.
 
 ## Where the test scripts are
@@ -82,7 +81,7 @@ zdxsv checkout, save states): `tests/zdxsv/README.md`.
 
 | Feature | How to turn on | Test | Control |
 |---|---|---|---|
-| Self-update from the GitHub releases of this fork | on in release builds; `ZDXSV_UPDATE_URL` for tests | none listed | none |
+| Self-update from the GitHub releases of this fork | on in release builds; `ZDXSV_UPDATE_URL` for tests | `updatecheck.py --exe <build at a zdxsv-X.Y.Z tag> --inis <data dir>/PCSX2/inis`: a local release list offers `zdxsv-999.0.0`, the startup check fetches it once and logs `Update needed.` | `--offer zdxsv-0.0.0`: `No update needed.` An untagged build fetches nothing |
 | Release workflow (a `zdxsv-X.Y.Z` tag builds the release) | push a tag | none | none |
 | Windows CI build | every push and PR | the workflow itself; it also runs the unit tests | none |
 | PINE opcodes `0x30` to `0x32` (pad input, screenshot, frame count) | PINE enabled | no test of its own; the rig scripts drive the emulator through them (`pine.py`) | none |
