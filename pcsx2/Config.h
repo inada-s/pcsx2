@@ -1191,7 +1191,7 @@ struct Pcsx2Config
 		BITFIELD32()
 		bool SyncToHostRefreshRate : 1;
 		bool UseVSyncForTiming : 1;
-		// zdxsv: present a frame before the frame limiter sleep, poll input after it.
+		// zdxsv: present a frame before the frame limiter sleep, poll input after it. Z game only.
 		bool LowLatencyVsync : 1;
 		BITFIELD_END
 

@@ -308,6 +308,13 @@
         </property>
        </widget>
       </item>
+      <item>
+       <widget class="QCheckBox" name="zdxsvLowLatencyVsync">
+        <property name="text">
+         <string>Low-latency vsync: show each frame before the frame limiter waits (shorter input lag).</string>
+        </property>
+       </widget>
+      </item>
      </layout>
     </widget>
    </item>
