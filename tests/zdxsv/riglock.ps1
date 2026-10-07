@@ -18,6 +18,10 @@ if ($Release) {
   if ($owner -eq $Release) { Remove-Item $lock -Force -EA 0 }
   exit 0
 }
+# -Take under a live outer rig ($env:RIG_OWNER, exported by riglock.sh): it owns the lock and its processes.
+# m4z.sh runs `RUN=$OUT stack.sh`, whose lock file is another one (none there): the sweep below killed
+# m4z's own udprelay.py (GGPO_LAT ran with no relay).
+if ($Take -and $env:RIG_OWNER -and (Get-CimInstance Win32_Process -Filter "ProcessId = $([int]$env:RIG_OWNER) AND Name = 'bash.exe'" -EA 0)) { exit 0 }
 # alive = a bash.exe with that pid (a reused pid is not the owner)
 $alive = $owner -and (Get-CimInstance Win32_Process -Filter "ProcessId = $owner AND Name = 'bash.exe'" -EA 0)
 # -Check from the rig's own script (a script that ran `stack.sh &` then launch.ps1, RIG_OWNER unset, had
