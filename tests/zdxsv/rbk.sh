@@ -59,6 +59,15 @@ for p in "${P[@]}"; do
   grep -aq '^\[Framerate\]' "$ini" || printf '\r\n[Framerate]\r\n' >> "$ini"
   sed -i "s/^\[Framerate\]\r\?$/&\nTurboScalar = $tscale\r/" "$ini"
 done
+# MTVU=1: MTVU speedhack on in the ini ([EmuCore/Speedhacks] vuThread; the Qt setup wizard turns it on with
+# 3+ cores). pcsx2 must turn it off for the VM ("MTVU speedhack off"); MTVU unset = pcsx2 default (off).
+for p in "${P[@]}"; do
+  ini=$RUN/p$p/PCSX2/inis/PCSX2.ini
+  sed -i '/^vuThread *=/d' "$ini"
+  [ "${MTVU-}" = 1 ] || continue
+  grep -aq '^\[EmuCore/Speedhacks\]' "$ini" || printf '\r\n[EmuCore/Speedhacks]\r\n' >> "$ini"
+  sed -i "s/^\[EmuCore\/Speedhacks\]\r\?$/&\nvuThread = true\r/" "$ini"
+done
 clamp="${select:+117f566,$select,2000,3600}${brief:+;6f2b50,$brief,$((brief + 1)),600}${battle:+;838f66,$battle,$((battle + 1)),$((60 * ${TIME:-90}))}"
 for i in $(seq 0 $((N - 1))); do
   p=${P[$i]}
@@ -103,6 +112,9 @@ for p in "${P[@]}"; do
   l=$RUN/p$p/PCSX2/logs/emulog.txt
   grep -a "ZdxsvGgpo: \(rbk position\|net armed\|rbk exit\|net report\)" "$l" | cut -c1-160
   grep -a -q "rbk exit (net battle end)" "$l" || { echo "FAIL p$p: no session end"; ok=1; }
+  w=$(grep -a -c "MTVU speedhack is enabled" "$l")
+  [ "$w" = 0 ] || { echo "FAIL p$p: $w state saves/loads with MTVU on"; ok=1; }
+  [ "${MTVU-}" != 1 ] || grep -a -q "ZdxsvGgpo: MTVU speedhack off" "$l" || { echo "FAIL p$p: MTVU=1 not turned off"; ok=1; }
 done
 traces=(); for p in "${P[@]}"; do traces+=("$OUT/trace-p$p.txt"); done
 $PY "$TOOLS/pwcheck.py" $([ "${OWN-1}" = 1 ] && echo --own) "${traces[@]}" > "$OUT/pwcheck.txt"

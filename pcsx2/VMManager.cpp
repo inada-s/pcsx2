@@ -668,6 +668,8 @@ void VMManager::LoadCoreSettings(SettingsInterface& si)
 	// Force MTVU off when playing back GS dumps, it doesn't get used.
 	if (GSDumpReplayer::IsReplayingDump())
 		EmuConfig.Speedhacks.vuThread = false;
+	if (Zdxsv::g_mtvu_off)
+		EmuConfig.Speedhacks.vuThread = false;
 }
 
 void VMManager::LoadInputBindings(SettingsInterface& si, std::unique_lock<std::mutex>& lock)

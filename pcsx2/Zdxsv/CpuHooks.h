@@ -13,6 +13,8 @@ namespace Zdxsv
 	extern bool g_ggpo_enabled; // GGPO options (ZDXSV_GGPO or the ZdxsvGgpo setting) or a replay
 	extern bool g_ggpo_active; // a session runs
 	extern bool g_ggpo_in_rollback; // rerunning frames: no throttle
+	// GGPO, a replay or ZDXSV_DELTA_TEST in this VM: the MTVU speedhack stays off (VMManager::LoadCoreSettings)
+	extern bool g_mtvu_off;
 
 	extern bool g_z_game; // the disc is the Z game: serial SLPS-25419 and its ELF CRC (GgpoOnVmInitialize)
 
