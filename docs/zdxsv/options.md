@@ -82,6 +82,7 @@ off. Any other value turns it on. Without `net=1` the session is a synctest. Log
 | `input=host` | random | test | Pad 1 comes from the host pad; pad 2 stays random. |
 | `input=none` | random | test | No buttons, sticks centered. |
 | `mask=hex` | `ffff` | test | Random buttons are limited to these bits. `fcff` leaves out Select and Start. |
+| `hash=pw` | `pw` | test | What the synctest compares. `pw`: the player work of all 4 players (masked as the `ZDXSV_PW_HASH` H lines) and the 2 game RNG words. `pos`: x, y, z of the 4 players and the RNG words. `full`: EE RAM and delta state; a rerun's IOP/event cycles differ (code cache), so it always reports mismatches. |
 | `sync=0` | 1 | test | No state hashes. Always the case with `net=1`. |
 | `control=input` | off | control | Reruns get other inputs. The synctest must report mismatches. |
 

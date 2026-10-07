@@ -73,7 +73,9 @@ logs `output: presented frames .. | audio samples played .. dropped (rerun) ..`.
 
 `ZDXSV_GGPO` without `net=1`. Every frame is saved. Every `check` frames GGPO
 loads the state `check` frames back, reruns the frames with the same inputs
-and compares the state hashes (EE RAM and delta state). Results go to the log.
+and compares the state hashes (`hash=`: by default the player work of all 4
+players and the game RNG). Results go to the log; on a mismatch `DIFF` lines
+name the differing player work offsets.
 
 ### Battle (`net=1`)
 
