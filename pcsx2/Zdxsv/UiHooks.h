@@ -25,4 +25,7 @@ namespace Zdxsv
 	void ReplayToggleKeys();
 	// Replay play: jump to the start of the round `delta` rounds from the current one (round 0 = the briefing).
 	void ReplayJumpRound(int delta);
+
+	// GGPO network status, replay keys and replay control bar (ImGuiManager::RenderOverlays). GS thread.
+	void DrawOverlays(float scale, float margin, float spacing);
 } // namespace Zdxsv

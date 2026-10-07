@@ -131,6 +131,7 @@ set(pcsx2Sources
 	VUmicro.cpp
 	Zdxsv/InputLatency.cpp
 	Zdxsv/DeltaState.cpp
+	Zdxsv/Overlays.cpp
 	Zdxsv/DeltaFreeze.cpp
 	Zdxsv/Ggpo.cpp
 	Zdxsv/RecHooks.cpp
