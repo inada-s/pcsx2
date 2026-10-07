@@ -59,11 +59,11 @@ zdxsv checkout, save states): `tests/zdxsv/README.md`.
 | Ping test failure cuts the battle connection | lobby battle | 1v1 `m4z.sh` with `BAD_SESSION=3`: both clients cut and return to the lobby | none |
 | Match report `0x9952` | lobby battle | `REPORT=1` on the 1v1 or the cut case: the lobby logs 2 reports with the battle code and the expected result | none |
 | Relay servers | battle info with `relay_<k>` | `RELAY=1 GGPO_LAT=100 GDELAY=auto m4ggpo.sh`: every path `relay 0`, delay 2. Real lobby: the same options on 1v1 `m4z.sh` | the same without `RELAY`: every path `direct`, delay 7 |
-| Dual-stack peers (IPv4 and IPv6 candidates) | lobby battle | none listed | none |
+| Dual-stack peers (IPv4 and IPv6 candidates) | lobby battle | unit: `GGPO.UdpDualStack`: the GGPO socket sends and receives over IPv6 (skipped on a host without IPv6). The choice between the candidates has no test | none |
 | P2P connectivity test (open, cone NAT, symmetric NAT) | first lobby connection with `lobby=1` | 1v1 `m4z.sh` with `NAT=open`: one `udp test: nat=open` line per client | none |
 | Bounded lobby network waits (`ggpo_ping_ms` at most 10000, full STUN tries, no cached STUN failure, connectivity test on its own thread, a new ping test cancels the running one, ping test bind error in the match report) | lobby battle | `lobbytest.sh`: unit test of `Zdxsv/Lobby.cpp` with a fake STUN | the same checks on the code before the change fail (see the PR) |
-| Network status OSD | `net=1`; `osd=0` hides it | none listed | none |
-| UDP sockets ignore ICMP port unreachable on Windows | always in GGPO | none listed | none |
+| Network status OSD | `net=1`; `osd=0` hides it | `EMU=1 GGPO=7101 OSD=1 m4z.sh`: the logged OSD text of each client has its delay and every opponent's user id, name and ping; the names equal the lobby db (`osdname.py`) | none |
+| UDP sockets ignore ICMP port unreachable on Windows | always in GGPO | unit: `GGPO.UdpReadsPastPortUnreachable`: after a send to a closed port, the next poll still reads the datagram behind the error | the same test with the `SIO_UDP_CONNRESET` call removed from `udp.cpp`: 0 datagrams read |
 
 ## Replays
 

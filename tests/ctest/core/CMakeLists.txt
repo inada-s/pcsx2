@@ -16,6 +16,9 @@ target_link_libraries(core_test PUBLIC
 	common
 )
 
+# ggpo_tests.cpp tests GGPO's internal socket class
+target_include_directories(core_test PRIVATE "${CMAKE_SOURCE_DIR}/3rdparty/ggpo/lib/ggpo")
+
 if(DISABLE_ADVANCE_SIMD AND ARCH_X86)
 	if(WIN32)
 		set(compile_options_avx2 /arch:AVX2)
