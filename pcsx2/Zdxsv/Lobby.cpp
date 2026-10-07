@@ -180,6 +180,8 @@ namespace Zdxsv
 		}
 		if (const std::string& url = kv["replay_upload"]; url.starts_with("http://") || url.starts_with("https://"))
 			info.replayUpload = url;
+		if (const std::string& url = kv["live"]; url.starts_with("http://") || url.starts_with("https://"))
+			info.live = url;
 		out = std::move(info);
 		return true;
 	}
@@ -203,6 +205,12 @@ namespace Zdxsv
 	{
 		std::lock_guard lock(g_mtx);
 		return {g_info.replayUpload, g_info.battleCode};
+	}
+
+	std::pair<std::string, std::string> LiveTarget()
+	{
+		std::lock_guard lock(g_mtx);
+		return {g_info.live, g_info.battleCode};
 	}
 
 	void SetBattleInfoListener(std::function<void(const BattleInfo&)> listener)

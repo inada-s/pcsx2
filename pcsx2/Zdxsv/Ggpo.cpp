@@ -86,9 +86,11 @@
 #include <cstring>
 #include <ctime>
 #include <cctype>
+#include <condition_variable>
 #include <deque>
 #include <optional>
 #include <map>
+#include <memory>
 #include <mutex>
 #include <random>
 #include <string>
@@ -894,6 +896,186 @@ namespace Zdxsv
 		int s_replay_confirmed = -1; // GGPO's last confirmed frame: the frames after it (predicted inputs) are not written
 		std::string s_replay_hle0; // header lines zds_ps, rx0, hle0 (ReplayBegin)
 
+		// Frames of s_replay_inputs that are final: up to GGPO's last confirmed frame.
+		size_t ReplayFrames()
+		{
+			return std::min<size_t>(s_replay_inputs.size() / s_players, s_replay_confirmed + 1);
+		}
+
+		std::string ReplayIds()
+		{
+			std::lock_guard lock(s_lobby_mtx);
+			return s_lobby ? s_report_ids : std::string();
+		}
+
+		// The value of a key=value line of the battle info ids, "" = none.
+		std::string IdsValue(const std::string& ids, std::string_view key)
+		{
+			const std::string k = fmt::format("{}=", key);
+			for (size_t at = 0; (at = ids.find(k, at)) != std::string::npos; at += k.size())
+				if (at == 0 || ids[at - 1] == '\n')
+					return ids.substr(at + k.size(), ids.find('\n', at) - at - k.size());
+			return {};
+		}
+
+		// The .zdxr header up to state_size (format: ReplayWrite).
+		std::string ReplayHeader(const std::string& ids, size_t frames, s64 end_at, const char* what)
+		{
+			std::string header = "ZDXSV-REPLAY 1\n" + ids;
+			header += fmt::format("players={}\nposition={}\ndelay={}\nstart_at={}\nend_at={}\nframes={}\nclose={}\n", s_players, s_net_me,
+				s_delay, s_replay_start_at, end_at, frames, what);
+			for (size_t p = 0; p < s_net_players.size(); p++)
+				header += fmt::format("user_{}={}\nname_{}={}\n", p, s_net_players[p].first, p, s_net_players[p].second);
+			header += s_replay_hle0;
+			header += fmt::format("input_size={}\n", sizeof(NetInput));
+			return header;
+		}
+
+		// Live (battle info live=, lobby battles with a replay recorded, setting ZdxsvUploadReplay): the battle streamed
+		// to the lobby's replay server while it runs, for spectators (PlayLoad of an http URL). One detached worker per
+		// battle posts in order: the start (the .zdxr header with frames=0 + the frame 0 state) once the state is zipped,
+		// then the confirmed inputs every LIVE_POST_MS, the close last. Every player streams the same frames: the server
+		// keeps the first copy and replies its frame count, the next post starts there.
+		struct LiveUp
+		{
+			std::string url, query; // live=, "battle_code=..&user_id=.."
+			int players = 0;
+			std::mutex mtx;
+			std::condition_variable cv;
+			std::string start; // "" until the state is zipped
+			std::vector<NetInput> inputs; // confirmed frames, frame-major
+			std::string close; // "" = running
+		};
+		std::shared_ptr<LiveUp> s_live_up;
+		int s_live_pushed = 0; // frames copied to s_live_up->inputs
+		static constexpr int LIVE_PUSH_FRAMES = 15;
+		static constexpr int LIVE_POST_MS = 250;
+		static constexpr int LIVE_POST_TRIES = 20; // failed posts in a row before the stream is given up
+
+		void LiveUpRun(std::shared_ptr<LiveUp> l)
+		{
+			std::unique_ptr<HTTPDownloader> http = HTTPDownloader::Create(Host::GetHTTPUserAgent());
+			if (!http)
+			{
+				Console.Error("ZdxsvGgpo: live: no HTTP client");
+				return;
+			}
+			http->SetTimeout(10.0f);
+			const auto post = [&http](const std::string& url, std::string body, std::string& reply) {
+				s32 status = 0;
+				http->CreatePostRequest(url, std::move(body), [&](s32 code, const std::string&, HTTPDownloader::Request::Data data) {
+					status = code;
+					reply.assign(data.begin(), data.end());
+				});
+				http->WaitForAllRequests();
+				return status;
+			};
+			bool started = false;
+			size_t server = 0; // the server's frame count
+			int failures = 0;
+			for (;;)
+			{
+				std::string body, close;
+				size_t frames = 0, from = 0;
+				{
+					std::unique_lock lock(l->mtx);
+					l->cv.wait_for(lock, std::chrono::milliseconds(LIVE_POST_MS), [&l] { return !l->close.empty(); });
+					if (l->start.empty())
+					{
+						if (!l->close.empty()) // the zip ended before the close: it failed
+							return;
+						continue;
+					}
+					if (started)
+					{
+						frames = l->inputs.size() / l->players;
+						from = std::min(server, frames);
+						close = l->close;
+						if (from == frames && close.empty())
+							continue;
+						body.assign(reinterpret_cast<const char*>(l->inputs.data() + from * l->players), (frames - from) * l->players * sizeof(NetInput));
+					}
+					else
+						body = l->start;
+				}
+				std::string reply;
+				const s32 status = started ? post(fmt::format("{}/inputs?{}&from={}{}{}", l->url, l->query, from, close.empty() ? "" : "&close=", close),
+													 std::move(body), reply) :
+											 post(fmt::format("{}/start?{}", l->url, l->query), std::move(body), reply);
+				if (status == HTTPDownloader::HTTP_STATUS_OK)
+				{
+					failures = 0;
+					if (!started)
+					{
+						started = true;
+						Console.WriteLn("ZdxsvGgpo: live: streaming to %s", l->url.c_str());
+						continue;
+					}
+					server = StringUtil::FromChars<size_t>(reply).value_or(0);
+					if (!close.empty() && server >= frames)
+					{
+						Console.WriteLn("ZdxsvGgpo: live: stream closed (%s), server has %zu frames", close.c_str(), server);
+						return;
+					}
+					continue;
+				}
+				if (status == 409) // the server lost the stream (restart): open it again
+					started = false;
+				if (++failures == 1)
+					Console.Warning("ZdxsvGgpo: live: post failed: status %d", status);
+				if (failures >= LIVE_POST_TRIES)
+				{
+					Console.Error("ZdxsvGgpo: live: %d posts failed in a row (last status %d), stream given up", failures, status);
+					return;
+				}
+			}
+		}
+
+		// ReplayBegin: a lobby battle with live= streams.
+		void LiveBegin(const std::string& ids)
+		{
+			s_live_up.reset();
+			s_live_pushed = 0;
+			const auto [url, code] = Zdxsv::LiveTarget();
+			const std::string user = IdsValue(ids, "user_id");
+			if (url.empty() || code.empty() || code != IdsValue(ids, "battle_code") || user.empty() ||
+				!Host::GetBoolSettingValue("DEV9/Eth", "ZdxsvUploadReplay", true))
+				return;
+			s_live_up = std::make_shared<LiveUp>();
+			s_live_up->url = url;
+			s_live_up->query = fmt::format("battle_code={}&user_id={}", code, user);
+			s_live_up->players = s_players;
+			std::thread(LiveUpRun, s_live_up).detach();
+		}
+
+		void LivePush()
+		{
+			const int frames = static_cast<int>(ReplayFrames());
+			if (frames <= s_live_pushed)
+				return;
+			{
+				std::lock_guard lock(s_live_up->mtx);
+				s_live_up->inputs.insert(s_live_up->inputs.end(), s_replay_inputs.begin() + static_cast<size_t>(s_live_pushed) * s_players,
+					s_replay_inputs.begin() + static_cast<size_t>(frames) * s_players);
+			}
+			s_live_pushed = frames;
+			s_live_up->cv.notify_one();
+		}
+
+		// ReplayWrite: the last frames and the close.
+		void LiveClose(const char* what)
+		{
+			if (!s_live_up)
+				return;
+			LivePush();
+			{
+				std::lock_guard lock(s_live_up->mtx);
+				s_live_up->close = what && what[0] ? what : "end";
+			}
+			s_live_up->cv.notify_one();
+			s_live_up.reset();
+		}
+
 		std::string ReplayDir()
 		{
 			if (s_replay_off || !s_net)
@@ -934,11 +1116,24 @@ namespace Zdxsv
 			s_replay_hle0 = fmt::format("zds_ps={}\nrx0={}\nhle0={},{},{},{},{},{},{},{},{}\n", s_zds_ps ? 1 : 0, rx, s_ps.n, s_ps.rel,
 				s_ps.hold ? 1 : 0, s_ps.go ? 1 : 0, s_zds_seen[0], s_zds_seen[1], s_zds_seen[2], s_zds_seen[3], s_zds_rel);
 			s_replay_zip.ok = false;
-			s_replay_zip.t = std::thread([list = std::move(list), path = s_replay_state]() mutable {
+			const std::string ids = ReplayIds();
+			LiveBegin(ids);
+			std::string live_header = s_live_up ? ReplayHeader(ids, 0, 0, "") : std::string();
+			s_replay_zip.t = std::thread([list = std::move(list), path = s_replay_state, live = s_live_up, live_header = std::move(live_header)]() mutable {
 				Error error;
 				s_replay_zip.ok = SaveState_ZipToDisk(std::move(list), nullptr, path.c_str(), &error);
 				if (!s_replay_zip.ok)
 					Console.Error("ZdxsvGgpo: replay: state zip failed: %s", error.GetDescription().c_str());
+				else if (live)
+				{
+					if (const std::optional<std::string> state = FileSystem::ReadFileToString(path.c_str()))
+					{
+						live_header += fmt::format("state_size={}\n\n", state->size());
+						std::lock_guard lock(live->mtx);
+						live->start = std::move(live_header) + *state;
+					}
+					live->cv.notify_one();
+				}
 			});
 			Console.WriteLn("ZdxsvGgpo: replay: recording to %s (state download %.1f ms)", dir.c_str(), timer.GetTimeMilliseconds());
 		}
@@ -953,6 +1148,8 @@ namespace Zdxsv
 			int confirmed = -1;
 			if (s_session && ggpo_get_last_confirmed_frame(s_session, &confirmed) == GGPO_OK)
 				s_replay_confirmed = std::max(s_replay_confirmed, confirmed);
+			if (s_live_up && static_cast<int>(ReplayFrames()) >= s_live_pushed + LIVE_PUSH_FRAMES)
+				LivePush();
 		}
 
 		void ReplayUpload(const std::string& code, const std::string& ids, std::string body);
@@ -971,6 +1168,7 @@ namespace Zdxsv
 			if (s_replay_zip.t.joinable())
 				s_replay_zip.t.join();
 			const std::string state_path = std::exchange(s_replay_state, {});
+			LiveClose(what);
 			const std::optional<std::vector<u8>> state = s_replay_zip.ok ? FileSystem::ReadBinaryFile(state_path.c_str()) : std::nullopt;
 			FileSystem::DeleteFilePath(state_path.c_str());
 			if (!state)
@@ -978,25 +1176,16 @@ namespace Zdxsv
 				Console.Error("ZdxsvGgpo: replay: no frame 0 state, nothing saved");
 				return;
 			}
-			std::string ids;
-			{
-				std::lock_guard lock(s_lobby_mtx);
-				ids = s_lobby ? s_report_ids : std::string();
-			}
+			const std::string ids = ReplayIds();
 			std::string name;
 			if (const size_t at = ids.find("battle_code="); at != std::string::npos)
 				for (size_t i = at + 12; i < ids.size() && ids[i] != '\n'; i++)
 					name += std::isalnum(static_cast<unsigned char>(ids[i])) || ids[i] == '-' || ids[i] == '_' ? ids[i] : '_';
 			if (name.empty())
 				name = fmt::format("rbk-{}-p{}", s_replay_start_at, s_net_me);
-			const size_t frames = std::min<size_t>(s_replay_inputs.size() / s_players, s_replay_confirmed + 1);
-			std::string header = "ZDXSV-REPLAY 1\n" + ids;
-			header += fmt::format("players={}\nposition={}\ndelay={}\nstart_at={}\nend_at={}\nframes={}\nclose={}\n", s_players, s_net_me,
-				s_delay, s_replay_start_at, static_cast<s64>(std::time(nullptr)), frames, what);
-			for (size_t p = 0; p < s_net_players.size(); p++)
-				header += fmt::format("user_{}={}\nname_{}={}\n", p, s_net_players[p].first, p, s_net_players[p].second);
-			header += s_replay_hle0;
-			header += fmt::format("input_size={}\nstate_size={}\n\n", sizeof(NetInput), state->size());
+			const size_t frames = ReplayFrames();
+			std::string header = ReplayHeader(ids, frames, static_cast<s64>(std::time(nullptr)), what);
+			header += fmt::format("state_size={}\n\n", state->size());
 			const std::string path = Path::Combine(Path::GetDirectory(state_path), name + ".zdxr");
 			Error error;
 			auto fp = FileSystem::OpenManagedCFile(path.c_str(), "wb", &error);
@@ -2426,6 +2615,215 @@ namespace Zdxsv
 		};
 		PlaySent s_play_sent[GGPO_MAX_PLAYERS];
 
+		// Live spectating: ZDXSV_REPLAY=http://host:port/live/<battle code> (or .../live = the newest running battle there),
+		// the stream the players post (LiveUpRun). PlayLoadFile reads the start and the inputs so far, a thread polls the
+		// frames that follow and PlayNext takes them in (LiveNext). At the newest frame PlayNext waits, as a GGPO frame
+		// waits for a peer, until LIVE_BUFFER more frames are there (1 while running unlimited) or the stream is closed;
+		// more than LIVE_CATCHUP frames behind (a late join) it runs unlimited.
+		struct LiveDown
+		{
+			std::string url; // .../live/<battle code>
+			int players = 0;
+			size_t have = 0; // frames fetched (the thread's)
+			std::mutex mtx;
+			std::vector<NetInput> got; // fetched, not taken by LiveNext yet
+			std::string close; // the stream's close, "" = running
+			std::atomic<bool> quit{false};
+			std::thread t;
+			~LiveDown()
+			{
+				quit = true;
+				if (t.joinable())
+					t.join();
+			}
+		};
+		std::unique_ptr<LiveDown> s_live_down;
+		bool s_live_catchup = false;
+		LimiterModeType s_live_limiter = LimiterModeType::Nominal;
+		int s_live_waits = 0;
+		double s_live_wait_ms = 0;
+		static constexpr int LIVE_POLL_MS = 100;
+		static constexpr int LIVE_BUFFER = 60;
+		static constexpr int LIVE_CATCHUP = 600;
+		static constexpr int LIVE_STALL_S = 30; // no new frame for this long = the stream is lost
+
+		// GET; status 200 or the error logged.
+		std::optional<std::vector<u8>> LiveGet(HTTPDownloader& http, const std::string& url)
+		{
+			s32 status = 0;
+			HTTPDownloader::Request::Data body;
+			http.CreateRequest(url, [&](s32 code, const std::string&, HTTPDownloader::Request::Data data) {
+				status = code;
+				body = std::move(data);
+			});
+			http.WaitForAllRequests();
+			if (status == HTTPDownloader::HTTP_STATUS_OK)
+				return body;
+			Console.Error("ZdxsvGgpo: live: GET %s: status %d", url.c_str(), status);
+			return std::nullopt;
+		}
+
+		// GET .../inputs from l.have: appends to l.got; false = failed.
+		bool LiveFetch(HTTPDownloader& http, LiveDown& l)
+		{
+			const std::optional<std::vector<u8>> r = LiveGet(http, fmt::format("{}/inputs?from={}", l.url, l.have));
+			const std::string_view all = r ? std::string_view(reinterpret_cast<const char*>(r->data()), r->size()) : std::string_view();
+			const size_t nl = all.find('\n');
+			const size_t record = l.players * sizeof(NetInput);
+			if (nl == std::string_view::npos || !all.starts_with("frames=") || (all.size() - nl - 1) % record != 0)
+				return false;
+			const size_t n = (all.size() - nl - 1) / record;
+			const size_t close = all.find(" close=");
+			std::lock_guard lock(l.mtx);
+			const NetInput* in = reinterpret_cast<const NetInput*>(all.data() + nl + 1);
+			l.got.insert(l.got.end(), in, in + n * l.players);
+			l.have += n;
+			if (close != std::string_view::npos && close < nl && close + 7 < nl &&
+				StringUtil::FromChars<size_t>(all.substr(7, close - 7)).value_or(SIZE_MAX) == l.have)
+				l.close = all.substr(close + 7, nl - close - 7);
+			return true;
+		}
+
+		// PlayLoadFile of an http URL: the start + the inputs so far as one .zdxr (frames= is the body's), the poll thread
+		// started.
+		std::optional<std::vector<u8>> LiveOpen(std::string url)
+		{
+			s_live_down.reset();
+			std::unique_ptr<HTTPDownloader> http = HTTPDownloader::Create(Host::GetHTTPUserAgent());
+			if (!http)
+				return std::nullopt;
+			http->SetTimeout(30.0f);
+			if (url.ends_with("/live") || url.ends_with("/live/"))
+			{
+				// the newest running battle, else the newest
+				const std::optional<std::vector<u8>> list = LiveGet(*http, url);
+				const std::string_view text = list ? std::string_view(reinterpret_cast<const char*>(list->data()), list->size()) : std::string_view();
+				std::string code;
+				for (const std::string_view line : StringUtil::SplitString(text, '\n'))
+					if (const std::vector<std::string_view> f = StringUtil::SplitString(line, ' '); f.size() == 3 && (code.empty() || f[2] == "-"))
+					{
+						const bool running = f[2] == "-";
+						code = f[0];
+						if (running)
+							break;
+					}
+				if (code.empty())
+				{
+					Console.Error("ZdxsvGgpo: live: no battle at %s", url.c_str());
+					return std::nullopt;
+				}
+				url = fmt::format("{}/{}", url.ends_with('/') ? url.substr(0, url.size() - 1) : url, code);
+			}
+			std::optional<std::vector<u8>> start = LiveGet(*http, url);
+			if (!start)
+				return std::nullopt;
+			const std::string_view all(reinterpret_cast<const char*>(start->data()), start->size());
+			const size_t end = all.find("\n\n");
+			const size_t at = all.find("\nplayers=");
+			const int players = at < end ? StringUtil::FromChars<int>(all.substr(at + 9, all.find('\n', at + 9) - at - 9)).value_or(0) : 0;
+			if (end == std::string_view::npos || players < 1 || players > GGPO_MAX_PLAYERS)
+			{
+				Console.Error("ZdxsvGgpo: live %s: not a live start", url.c_str());
+				return std::nullopt;
+			}
+			auto l = std::make_unique<LiveDown>();
+			l->url = url;
+			l->players = players;
+			Common::Timer wait;
+			while (l->have == 0 && l->close.empty() && wait.GetTimeSeconds() < LIVE_STALL_S)
+			{
+				if (!LiveFetch(*http, *l))
+					return std::nullopt;
+				if (l->have == 0)
+					Threading::Sleep(LIVE_POLL_MS);
+			}
+			start->insert(start->end(), reinterpret_cast<const u8*>(l->got.data()), reinterpret_cast<const u8*>(l->got.data() + l->got.size()));
+			l->got.clear();
+			Console.WriteLn("ZdxsvGgpo: live: watching %s, %zu frames there%s%s", url.c_str(), l->have, l->close.empty() ? "" : ", closed: ",
+				l->close.c_str());
+			http->SetTimeout(10.0f);
+			l->t = std::thread([l = l.get(), http = std::move(http)]() {
+				int failures = 0;
+				while (!l->quit)
+				{
+					{
+						std::lock_guard lock(l->mtx);
+						if (!l->close.empty())
+							return;
+					}
+					if (LiveFetch(*http, *l))
+						failures = 0;
+					else if (++failures >= LIVE_STALL_S * 1000 / LIVE_POLL_MS)
+						return;
+					Threading::Sleep(LIVE_POLL_MS);
+				}
+			});
+			s_live_down = std::move(l);
+			return start;
+		}
+
+		// Before a seek or run (they save the limiter) and at the newest frames.
+		void LiveCatchupEnd(int f)
+		{
+			if (!std::exchange(s_live_catchup, false))
+				return;
+			VMManager::SetLimiterMode(s_live_limiter);
+			Console.WriteLn("ZdxsvGgpo: live: caught up at frame %d, vsync %u", f, g_FrameCount);
+		}
+
+		// PlayNext, before frame next: the fetched frames taken in, the wait at the newest frame, catch-up.
+		void LiveNext(int next)
+		{
+			LiveDown& l = *s_live_down;
+			std::string close;
+			const auto take = [&] {
+				std::lock_guard lock(l.mtx);
+				s_play_inputs.insert(s_play_inputs.end(), l.got.begin(), l.got.end());
+				s_play_frames += static_cast<int>(l.got.size() / s_players);
+				l.got.clear();
+				close = l.close;
+			};
+			take();
+			if (next >= s_play_frames && close.empty())
+			{
+				const int want = next + (s_run_load >= 0 || s_play_target >= 0 || s_live_catchup ? 1 : LIVE_BUFFER);
+				Common::Timer wait, idle;
+				int frames = s_play_frames;
+				while (s_play_frames < want && close.empty() && idle.GetTimeSeconds() < LIVE_STALL_S)
+				{
+					Threading::Sleep(2);
+					take();
+					if (s_play_frames != frames)
+					{
+						frames = s_play_frames;
+						idle.Reset();
+					}
+				}
+				s_live_waits++;
+				s_live_wait_ms += wait.GetTimeMilliseconds();
+				if (next >= s_play_frames && close.empty())
+				{
+					Console.Error("ZdxsvGgpo: live: no new frame for %d s, stream lost", LIVE_STALL_S);
+					std::lock_guard lock(l.mtx);
+					l.close = "lost";
+					close = l.close;
+				}
+			}
+			if (!close.empty() && next >= s_play_frames)
+				Console.WriteLn("ZdxsvGgpo: live: stream closed (%s) at frame %d, %d waits %.0f ms", close.c_str(), s_play_frames, s_live_waits,
+					s_live_wait_ms);
+			const int ahead = s_play_frames - next;
+			if (!s_live_catchup && ahead > LIVE_CATCHUP && s_run_load < 0 && s_play_target < 0)
+			{
+				s_live_catchup = true;
+				s_live_limiter = VMManager::GetLimiterMode();
+				VMManager::SetLimiterMode(LimiterModeType::Unlimited);
+				Console.WriteLn("ZdxsvGgpo: live: %d frames behind at frame %d: catching up", ahead, next);
+			}
+			else if (s_live_catchup && ahead <= LIVE_BUFFER)
+				LiveCatchupEnd(next);
+		}
+
 		// GgpoOnVmShutdown: the key files go; a new VM (or the reset one) loads the files again and plays from the start.
 		void PlayReset()
 		{
@@ -2439,6 +2837,10 @@ namespace Zdxsv
 				}
 				keys.clear();
 			}
+			s_live_down.reset();
+			s_live_catchup = false;
+			s_live_waits = 0;
+			s_live_wait_ms = 0;
 			s_play_inputs.clear();
 			s_play_frames = 0;
 			s_play_seeks.clear();
@@ -2465,7 +2867,14 @@ namespace Zdxsv
 		// Reads one file; returns its position, -1 = not used.
 		int PlayLoadFile(const std::string& path)
 		{
-			const std::optional<std::vector<u8>> file = FileSystem::ReadBinaryFile(Path::ToNativePath(path).c_str()); // '/' fails on Windows
+			const bool live = path.starts_with("http://") || path.starts_with("https://");
+			if (live && s_play_frames > 0)
+			{
+				Console.Error("ZdxsvGgpo: replay %s: a live stream plays alone", path.c_str());
+				return -1;
+			}
+			const std::optional<std::vector<u8>> file =
+				live ? LiveOpen(path) : FileSystem::ReadBinaryFile(Path::ToNativePath(path).c_str()); // '/' fails on Windows
 			const std::string_view all = file ? std::string_view(reinterpret_cast<const char*>(file->data()), file->size()) : std::string_view();
 			const size_t end = all.find("\n\n");
 			if (!all.starts_with("ZDXSV-REPLAY 1\n") || end == std::string_view::npos)
@@ -2481,8 +2890,13 @@ namespace Zdxsv
 				const auto it = kv.find(k);
 				return it == kv.end() ? -1 : StringUtil::FromChars<s64>(it->second).value_or(-1);
 			};
-			const s64 players = num("players"), me = num("position"), frames = num("frames"), state_size = num("state_size");
+			const s64 players = num("players"), me = num("position"), state_size = num("state_size");
 			const size_t data = end + 2;
+			// live: the inputs so far (LiveOpen), the header's frames= is 0
+			const s64 frames = !live ? num("frames") :
+				players < 1 || players > GGPO_MAX_PLAYERS || state_size <= 0 || static_cast<u64>(state_size) > all.size() - data ?
+									   -1 :
+									   static_cast<s64>((all.size() - data - state_size) / (players * sizeof(NetInput)));
 			// each bound before the next product: header values are any s64
 			if (players < 1 || players > GGPO_MAX_PLAYERS || me < 0 || me >= players || frames < 1 || frames > INT_MAX ||
 				state_size <= 0 || num("input_size") != static_cast<s64>(sizeof(NetInput)) ||
@@ -2676,7 +3090,10 @@ namespace Zdxsv
 				}
 			}
 			if (req != INT_MIN || run >= 0 || (pov >= 0 && pov != s_net_me))
+			{
 				PlayRunEnd("cancelled by a seek", s_net_frame);
+				LiveCatchupEnd(s_net_frame);
+			}
 			if (req == 0 && s_battle_loads.size() > 1)
 				req = s_battle_loads[1]; // from the start = from the briefing
 			if (pov >= 0 && pov != s_net_me)
@@ -2687,6 +3104,8 @@ namespace Zdxsv
 				run = 1; // briefing not reached yet
 			if (run >= 0)
 				PlayRunBegin(run);
+			if (s_live_down)
+				LiveNext(next);
 			if (next >= s_play_frames)
 				PlayRunEnd("replay ended first", s_net_frame);
 			if (next < s_play_frames)

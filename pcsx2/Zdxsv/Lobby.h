@@ -71,6 +71,8 @@ namespace Zdxsv
 		std::vector<Relay> relays;
 		// "replay_upload=": the lobby's replay server (http(s) URL) for this battle's replay, "" = none.
 		std::string replayUpload;
+		// "live=": where the players stream this battle for spectators (http(s) URL), "" = none.
+		std::string live;
 	};
 	// Asks the lobby's UDP STUN (zdxsv ServeUDPStunServer) at stunIP:stunPort for
 	// our public address, from a UDP socket on bindPort (0 = any) that is closed after.
@@ -106,6 +108,8 @@ namespace Zdxsv
 
 	// replayUpload and battle code of the last battle info ("" before any).
 	std::pair<std::string, std::string> ReplayUploadTarget();
+	// live and battle code of the last battle info ("" before any).
+	std::pair<std::string, std::string> LiveTarget();
 
 	// Called by SetBattleInfo (DEV9 thread) with every battle info (pcsx2: GGPO lobby peers).
 	void SetBattleInfoListener(std::function<void(const BattleInfo&)> listener);
