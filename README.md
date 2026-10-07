@@ -49,9 +49,8 @@ with a peer without GGPO is cut, as a connection failure (`docs/zdxsv/lobby.md`)
 - The auto-updater follows the GitHub releases of this fork.
 - A `zdxsv-X.Y.Z` tag builds and publishes a release.
 - Scripts for local builds and for running several instances side by side.
-- Test options that can be abused (inputs, game memory, other players' battles, the updater URL, file paths)
-  work only in a test build (`build-local.sh --test-options`, CMake `-DZDXSV_TEST_OPTIONS=ON`); releases leave
-  it off. List: [docs/zdxsv/options.md](docs/zdxsv/options.md), Test build.
+- The test options (rollback test, traces, self-tests) work in every build, so a released build can be a peer
+  in the rig tests.
 - Everything above is on only for the one game build it was made for (serial `SLPS-25419`, ELF CRC
   `435D8236`); any other disc runs as in stock PCSX2. [docs/zdxsv/options.md](docs/zdxsv/options.md), Game check.
 - Options for tests, traces and game investigation.

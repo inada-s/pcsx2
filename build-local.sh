@@ -7,7 +7,6 @@
 #   ./build-local.sh --config Devel     # Devel build (asserts + dev features)
 #   ./build-local.sh --run-only         # launch the last build without building
 #   ./build-local.sh --rebuild          # clean rebuild of PCSX2 (deps are kept)
-#   ./build-local.sh --test-options     # zdxsv test build (ZDXSV_TEST_OPTIONS), needed by tests/zdxsv
 #   ./build-local.sh --run -- -fastboot /c/games/foo.iso   # args after -- go to pcsx2-qt
 #
 # The first run builds the third-party dependencies into ./deps (Qt, SDL, ffmpeg, ...),
@@ -22,7 +21,6 @@ RUN_ONLY=0
 REBUILD=0
 REBUILD_DEPS=0
 SKIP_PATCHES=0
-TEST_OPTIONS=0
 GAME_ARGS=()
 
 usage() { sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
@@ -36,7 +34,6 @@ while [[ $# -gt 0 ]]; do
 		--rebuild) REBUILD=1; shift ;;
 		--rebuild-deps) REBUILD_DEPS=1; shift ;;
 		--skip-patches) SKIP_PATCHES=1; shift ;;
-		--test-options) TEST_OPTIONS=1; shift ;;
 		-h|--help) usage ;;
 		--) shift; GAME_ARGS=("$@"); break ;;
 		*) echo "Unknown option: $1" >&2; usage 1 ;;
@@ -143,7 +140,7 @@ if [[ $RUN_ONLY -eq 0 ]]; then
 	TARGET=Build
 	[[ $REBUILD -eq 1 ]] && TARGET=Rebuild
 	step "Building PCSX2 ($MSBUILD_CONFIG|x64, $TARGET)"
-	"$MSBUILD" PCSX2_qt.sln -m -v:m -nologo "-t:$TARGET" "-p:Configuration=$MSBUILD_CONFIG" -p:Platform=x64 "-p:ZdxsvTestOptions=$([[ $TEST_OPTIONS == 1 ]] && echo true || echo false)"
+	"$MSBUILD" PCSX2_qt.sln -m -v:m -nologo "-t:$TARGET" "-p:Configuration=$MSBUILD_CONFIG" -p:Platform=x64
 	step "Built: bin/$EXE_NAME.exe"
 fi
 
