@@ -75,16 +75,25 @@ class Pine:
     def title(self): return self.call(0xB)[4:].split(b"\0")[0].decode("utf-8", "replace")
 
     def snap(self, path, wait_s=10):
-        """GS screenshot to path (png); waits for the file."""
-        p = path.encode()
+        """GS screenshot to path (png); waits for the file. pcsx2 writes only a bare name into its
+        snapshots folder and returns that path; the file is moved to path."""
+        p = ("pine-%d-%s" % (os.getpid(), os.path.basename(path))).encode()
         if os.path.exists(path):
             os.remove(path)
-        self.call(0x31, struct.pack("<H", len(p)) + p)
+        src = self.call(0x31, struct.pack("<H", len(p)) + p)[4:].split(b"\0")[0].decode()
         for _ in range(int(wait_s * 5)):
             time.sleep(0.2)
-            if os.path.exists(path) and os.path.getsize(path) > 0:
+            if os.path.exists(src) and os.path.getsize(src) > 0:
+                break
+        else:
+            raise TimeoutError("no snapshot " + src)
+        for _ in range(50):  # the GS thread may still hold the file
+            try:
+                os.replace(src, path)
                 return path
-        raise TimeoutError("no snapshot " + path)
+            except PermissionError:
+                time.sleep(0.2)
+        raise TimeoutError("snapshot still in use " + src)
 
     def pad(self, bind, value, port=0):
         self.call(0x30, bytes([port, bind, value]))
