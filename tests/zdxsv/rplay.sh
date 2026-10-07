@@ -9,6 +9,7 @@
 # WINDOW=1: windowed, 1x (no turbo). KEYS="secs:seq;..." (needs WINDOW=1): pcsx2ctl.ps1 -Seq at secs after the
 # replay started; binds the seek hotkeys (PageUp back / PageDown forward 10 s), TogglePause (Space), point of
 # view (Home) and key display (End), round jump (Shift+PageUp / Shift+PageDown) in the instance ini. With PCSX2_ENV=ZDXSV_REPLAY_EXIT=0 the replay pauses at its end; Space then ends it (H lines written).
+# FILE="a;b" (point of view) refuses unless a and b each PASSed alone on this exe ($RUN/rplay-ledger.txt); POV_UNTESTED=1 skips.
 # SKIP_MS=1: skip MS selection (pcsx2's default; off here so KEYS seconds keep their frames).
 # Control bar: KEYS="15:bar:show,w600,bar:timeline:0.7,shot:$OUT/a.png" (pcsx2ctl.ps1 mouse tokens).
 here=$(cd "$(dirname "$0")" && pwd -W)
@@ -30,6 +31,19 @@ elif [ -n "$cl" ]; then
   elif [ "$CLAMP" != "$cl" ] && [ "$CLAMP" != none ]; then echo "FAIL CLAMP=$CLAMP but the recording ran with clamp=$cl"; exit 1; fi
 fi
 [ "$CLAMP" = none ] && CLAMP=
+# FILE="a;b" (point of view) needs each file's own single-file run to have PASSed on this exe (ledger below):
+# a switch run on a file never played alone fails exactly like that file alone, and shows nothing new.
+# POV_UNTESTED=1 runs anyway.
+ledger=$RUN/rplay-ledger.txt
+exe=${PCSX2_EXE:-$here/../../bin/pcsx2-qtx64.exe}
+fid() { echo "$(sha1sum < "$1" | cut -c1-16).$(stat -c %s.%Y "$exe")"; }
+if [[ $FILE == *\;* ]] && [ "${POV_UNTESTED:-0}" != 1 ]; then
+  IFS=';' read -ra parts <<< "$FILE"
+  for f in "${parts[@]}"; do
+    r=$(grep -a " $(fid "$f") " "$ledger" 2>/dev/null | tail -1 | cut -d' ' -f1)
+    [ "$r" = PASS ] || { echo "FAIL $f: last single-file rplay on this exe: ${r:-none}; run FILE=$f alone first (POV_UNTESTED=1 skips)"; exit 1; }
+  done
+fi
 t0=$SECONDS
 rm -f "$RUN/p$N/PCSX2/logs/emulog.txt" "$OUT/trace-play.txt"
 ini=$RUN/p$N/PCSX2/inis/PCSX2.ini
@@ -80,4 +94,5 @@ grep '^common\|^player' "$OUT/pwcheck.txt" | cut -c1-160
 awk -v n=${PLAYERS:-2} '$1=="player" && $2+0 < n {s += $4} $1=="common" {c = $3} END {exit !(c > 0 && s == 0)}' "$OUT/pwcheck.txt" \
   || { echo "FAIL player work differs (players < ${PLAYERS:-2}) or no frames"; ok=1; }
 echo "rplay $(basename "$FILE"): $((SECONDS - t0)) s, $([ $ok = 0 ] && echo PASS || echo FAIL)"
+[[ $FILE == *\;* ]] || echo "$([ $ok = 0 ] && echo PASS || echo FAIL) $(fid "$FILE") $FILE $(date +%F.%T)" >> "$ledger"
 exit $ok
