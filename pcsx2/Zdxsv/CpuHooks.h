@@ -50,6 +50,12 @@ namespace Zdxsv
 	bool OnLoadStep();
 	int ProbeFrame(); // GGPO frame being run (EE probe lines)
 
+	extern bool g_ee_probe; // ZDXSV_EE_PROBE or ZDXSV_EE_WATCH is set
+	// EE recompiler, before each non-delay-slot instruction: any call to emit at pc.
+	inline bool RecHooksOn() { return g_ee_probe || g_net_hook || g_zd_hook || g_ps_hook; }
+	// Emits the probe and hook calls for pc; dispatcher = where a hook that answered leaves the block.
+	void RecEmitHooks(u32 pc, const void* dispatcher);
+
 	// ZDXSV_DELTA_TEST: synctest in a running game, see Zdxsv/DeltaState.cpp.
 	extern bool g_delta_state_test_enabled;
 	void DeltaStateOnVsync();

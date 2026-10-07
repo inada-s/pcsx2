@@ -3,11 +3,8 @@
 
 #include "Common.h"
 #include "CDVD/CDVD.h"
-#include "Counters.h"
 #include "DebugTools/Breakpoints.h"
 #include "Zdxsv/CpuHooks.h"
-#include "Zdxsv/TestOptions.h"
-
 #include "Elfheader.h"
 #include "GS.h"
 #include "Host.h"
@@ -25,7 +22,6 @@
 #include "common/FastJmp.h"
 #include "common/HeapArray.h"
 #include "common/Perf.h"
-#include "common/Timer.h"
 
 // Only for MOVQ workaround.
 #include "common/emitter/internal.h"
@@ -1661,133 +1657,6 @@ bool encodeBreakpoint()
 	return false;
 }
 
-// zdxsv probe: ZDXSV_EE_PROBE=pc,pc,... logs regs + 48 bytes at ZDXSV_EE_PROBE_MEM (default 0xc22c98)
-// to ZDXSV_EE_PROBE_OUT-<pid>.txt each time the EE reaches one of the PCs.
-static std::vector<u32> s_zdxsv_probe_pcs = [] {
-	std::vector<u32> v;
-	if (const char* e = Zdxsv::TestEnv("ZDXSV_EE_PROBE"))
-		for (const char* p = e; *p;)
-		{
-			char* end;
-			v.push_back(static_cast<u32>(std::strtoul(p, &end, 16)));
-			p = (*end == ',') ? end + 1 : end;
-			if (end == p && *p) break;
-		}
-	return v;
-}();
-
-static void zdxsvProbeHit()
-{
-	static FILE* f = [] {
-		const char* o = Zdxsv::TestEnv("ZDXSV_EE_PROBE_OUT");
-		std::string path = std::string(o ? o : "eeprobe") + "-" + std::to_string(Common::Timer::GetCurrentValue() % 100000) + ".txt";
-		return std::fopen(path.c_str(), "w");
-	}();
-	// ZDXSV_EE_PROBE_MEM=sp: 128 bytes from sp (callers' saved ra) instead of 48 at a fixed address.
-	static const char* mem_env = Zdxsv::TestEnv("ZDXSV_EE_PROBE_MEM");
-	static const bool mem_sp = mem_env && std::strcmp(mem_env, "sp") == 0;
-	static const u32 mem = mem_env && !mem_sp ? static_cast<u32>(std::strtoul(mem_env, nullptr, 16)) : 0xc22c98u;
-	if (!f)
-		return;
-	const auto& r = cpuRegs.GPR.n;
-	std::fprintf(f, "%u %08x a0=%x a1=%x a2=%x a3=%x v0=%x ra=%08x m=", g_FrameCount, cpuRegs.pc,
-		r.a0.UL[0], r.a1.UL[0], r.a2.UL[0], r.a3.UL[0], r.v0.UL[0], r.ra.UL[0]);
-	const u32 at = mem_sp ? r.sp.UL[0] : mem;
-	const u8* p = eeMem->Main + (at & (Ps2MemSize::MainRam - 1));
-	for (int i = 0; i < (mem_sp ? 128 : 48); i++)
-		std::fprintf(f, "%02x", p[i]);
-	// g = GGPO frame (NET_TRACE H / PW dump numbering), rb = rerun by a rollback.
-	std::fprintf(f, " g=%d rb=%d s0=%x s1=%x sp=%x\n", Zdxsv::ProbeFrame(), Zdxsv::g_ggpo_in_rollback ? 1 : 0,
-		r.s0.UL[0], r.s1.UL[0], r.sp.UL[0]);
-	std::fflush(f); // the rig kills pcsx2: rare hits must not stay buffered
-}
-
-static bool encodeZdxsvProbe()
-{
-	if (std::find(s_zdxsv_probe_pcs.begin(), s_zdxsv_probe_pcs.end(), pc) == s_zdxsv_probe_pcs.end())
-		return false;
-	iFlushCall(FLUSH_EVERYTHING | FLUSH_PC);
-	xFastCall((void*)zdxsvProbeHit);
-	return true;
-}
-
-// zdxsv watch: ZDXSV_EE_WATCH=addr:len,... (hex) logs every EE store into a range (pc, address, rt value,
-// ra, 128 stack bytes, GGPO frame) to ZDXSV_EE_PROBE_OUT-w<pid>.txt. Inline range compare per store.
-static std::vector<std::pair<u32, u32>> s_zdxsv_watch = [] {
-	std::vector<std::pair<u32, u32>> v;
-	if (const char* e = Zdxsv::TestEnv("ZDXSV_EE_WATCH"))
-		for (const char* p = e; *p;)
-		{
-			char* end;
-			const u32 a = static_cast<u32>(std::strtoul(p, &end, 16));
-			const u32 n = *end == ':' ? static_cast<u32>(std::strtoul(end + 1, &end, 16)) : 4;
-			v.emplace_back(a & 0x1fffffff, n);
-			if (*end != ',')
-				break;
-			p = end + 1;
-		}
-	return v;
-}();
-
-static void zdxsvWatchHit(u32 addr, u32 op)
-{
-	static FILE* f = [] {
-		const char* o = Zdxsv::TestEnv("ZDXSV_EE_PROBE_OUT");
-		std::string path = std::string(o ? o : "eeprobe") + "-w" + std::to_string(Common::Timer::GetCurrentValue() % 100000) + ".txt";
-		return std::fopen(path.c_str(), "w");
-	}();
-	if (!f)
-		return;
-	const auto& r = cpuRegs.GPR.n;
-	const GPR_reg& rt = cpuRegs.GPR.r[(op >> 16) & 0x1f];
-	std::fprintf(f, "%u %08x addr=%x op=%08x rt=%08x%08x ra=%08x s0=%x s1=%x a0=%x g=%d rb=%d st=", g_FrameCount, cpuRegs.pc, addr, op,
-		rt.UL[1], rt.UL[0], r.ra.UL[0], r.s0.UL[0], r.s1.UL[0], r.a0.UL[0], Zdxsv::ProbeFrame(), Zdxsv::g_ggpo_in_rollback ? 1 : 0);
-	const u8* p = eeMem->Main + (r.sp.UL[0] & (Ps2MemSize::MainRam - 1) & ~3u);
-	for (int i = 0; i < 128; i += 4)
-		std::fprintf(f, "%08x ", *reinterpret_cast<const u32*>(p + i));
-	std::fputc('\n', f);
-	std::fflush(f);
-}
-
-static void encodeZdxsvWatchOp(u32 op)
-{
-	const OPCODE& opcode = GetInstruction(op);
-	if (!(opcode.flags & IS_STORE))
-		return;
-	static constexpr u32 sizes[8] = {0, 1, 2, 4, 8, 16, 0, 0};
-	const u32 size = sizes[opcode.flags & MEMTYPE_MASK];
-	if (!size)
-		return;
-	iFlushCall(FLUSH_EVERYTHING | FLUSH_PC);
-	_eeMoveGPRtoR(ecx, (op >> 21) & 0x1F, false);
-	if (static_cast<s16>(op) != 0)
-		xADD(ecx, static_cast<s16>(op));
-	if (size == 16)
-		xAND(ecx, ~0x0F);
-	xAND(ecx, 0x1fffffff);
-	for (const auto& [start, len] : s_zdxsv_watch)
-	{
-		// hit: addr < start + len && start < addr + size (unsigned)
-		xCMP(ecx, start + len);
-		xForwardJAE32 skip1;
-		xCMP(ecx, start - size + 1);
-		xForwardJB32 skip2;
-		xMOV(edx, op);
-		xFastCall((void*)zdxsvWatchHit, ecx, edx);
-		skip1.SetTarget();
-		skip2.SetTarget();
-	}
-}
-
-static void encodeZdxsvWatch()
-{
-	const u32 op = memRead32(pc);
-	encodeZdxsvWatchOp(op);
-	// a branch's delay slot is compiled with the branch, not through recompileNextInstruction(false)
-	if (GetInstruction(op).flags & IS_BRANCH)
-		encodeZdxsvWatchOp(memRead32(pc + 4));
-}
-
 bool encodeMemcheck()
 {
 	const int needed = isMemcheckNeeded(pc);
@@ -1829,39 +1698,8 @@ void recompileNextInstruction(bool delayslot, bool swapped_delay_slot)
 	{
 		if(encodeBreakpoint() || encodeMemcheck())
 			xFastCall((void*)CBreakPoints::CommitClearSkipFirst, BREAKPOINT_EE);
-		if (!s_zdxsv_probe_pcs.empty())
-			encodeZdxsvProbe();
-		if (!s_zdxsv_watch.empty())
-			encodeZdxsvWatch();
-		if (Zdxsv::g_net_hook && pc == Zdxsv::NET_RPC_PC)
-		{
-			iFlushCall(FLUSH_EVERYTHING | FLUSH_PC);
-			xFastCall((void*)Zdxsv::OnNetCall);
-			// Everything is flushed: on true leave the block, the dispatcher continues at cpuRegs.pc.
-			xTEST(al, al);
-			xForwardJZ32 run_wrapper;
-			xJMP(DispatcherReg);
-			run_wrapper.SetTarget();
-		}
-		if (Zdxsv::g_net_hook && pc == Zdxsv::NET_RECV_RET_PC)
-		{
-			iFlushCall(FLUSH_EVERYTHING | FLUSH_PC);
-			xFastCall((void*)Zdxsv::OnNetRecv);
-		}
-		if (Zdxsv::g_zd_hook && pc == Zdxsv::STEP_COPY_PC)
-		{
-			iFlushCall(FLUSH_EVERYTHING | FLUSH_PC);
-			xFastCall((void*)Zdxsv::OnStepCopy);
-		}
-		if (Zdxsv::g_ps_hook && pc == Zdxsv::LOAD_STEP_PC)
-		{
-			iFlushCall(FLUSH_EVERYTHING | FLUSH_PC);
-			xFastCall((void*)Zdxsv::OnLoadStep);
-			xTEST(al, al);
-			xForwardJZ32 run_step;
-			xJMP(DispatcherReg);
-			run_step.SetTarget();
-		}
+		if (Zdxsv::RecHooksOn())
+			Zdxsv::RecEmitHooks(pc, DispatcherReg);
 	}
 	else
 	{
