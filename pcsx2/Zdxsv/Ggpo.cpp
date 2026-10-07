@@ -2814,7 +2814,10 @@ namespace Zdxsv
 				// as flycast's rollback backend: one-way time to the slowest peer in 16 ms frames, rounded up
 				Common::Timer wait;
 				std::vector<Zdxsv::RelayServerAddr> servers;
-				const std::vector<Zdxsv::PingResult> pings = Zdxsv::FinishPingTest(&servers);
+				std::string pingError;
+				const std::vector<Zdxsv::PingResult> pings = Zdxsv::FinishPingTest(&servers, &pingError);
+				if (!pingError.empty())
+					Console.WriteLn("ZdxsvGgpo: lobby ping test failed: %s", pingError.c_str());
 				std::vector<int> via(n);
 				int rtt = -1, up = 0;
 				for (size_t p = 0; p < pings.size() && p < peers.size(); p++)
@@ -2839,6 +2842,8 @@ namespace Zdxsv
 								pings[p].rtt, pings[p].addr.String().c_str());
 					}
 				rtts += "relays=" + std::to_string(servers.size()) + "\n";
+				if (!pingError.empty())
+					rtts += "ping_error=" + pingError + "\n";
 				s_net_via = std::move(via);
 				s_net_servers = std::move(servers);
 				rtts += "ping_wait_ms=" + std::to_string(static_cast<int>(wait.GetTimeMilliseconds())) + "\n";
