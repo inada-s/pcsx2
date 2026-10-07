@@ -26,7 +26,7 @@ One line per feature. Each feature and its tests are listed in
 ### Rollback netcode (GGPO)
 
 In development. On by default for lobby battles of the game (setting under Settings → Network & HDD); a battle
-with a peer without GGPO still goes through the battle server. The release will run battles over GGPO only.
+with a peer without GGPO is cut, as a connection failure (`docs/zdxsv/lobby.md`). Battles run over GGPO only.
 
 - GGPO library in `3rdparty/ggpo`; its MIT notice is in `bin/docs/ThirdPartyLicenses.html`.
 - Delta save states: fast enough to save the whole machine every frame.

@@ -70,7 +70,7 @@ the zdxsv lobby logs it as `p2p matching report: ...`.
 | Key | Sent | Meaning |
 |---|---|---|
 | `battle_code`, `user_id` | always | from the battle info |
-| `result` | always | `ggpo`, `cut` or `server`; `server` adds `reason` |
+| `result` | always | `ggpo` or `cut`; a cut before the ping test adds `reason` |
 | `position`, `players` | always | own battle position and the player count |
 | `rtt_<pos>`, `addr_<pos>`, `path_<pos>` | ping test ran | RTT per peer (-1 = no answer), the picked address and path |
 | `relays`, `ping_wait_ms`, `delay` | ping test ran | relay server count, time waited for the test, GGPO input delay |
@@ -83,13 +83,15 @@ the zdxsv lobby logs it as `p2p matching report: ...`.
 1. The platform info announces the GGPO port and the addresses of the client.
 2. The battle info lists the players. The ping test starts on the GGPO port.
 3. At the first key message of the battle the emulator decides:
-   - A player has no GGPO port: the battle stays on the battle server.
+   - A player has no GGPO port, or the battle info is incomplete: the battle
+     connection is cut. See [Connection cut](#connection-cut).
    - A peer answered the ping test on no address: the battle connection is
-     cut. See [Ping test failure](#ping-test-failure).
+     cut.
    - Otherwise the battle runs over GGPO, with the address and the input delay
      the ping test picked.
 
-One GGPO battle runs per emulator run. Later battles use the battle server.
+Every lobby battle starts a new GGPO session. No battle runs on the battle
+server.
 
 ## Ping test
 
@@ -116,16 +118,20 @@ and skips the test.
 Log lines: `zdxsv: ping test: ...` (RTT per peer), `ZdxsvGgpo: lobby delay D`,
 `ZdxsvGgpo: lobby path to position P: direct|peer K|relay K`.
 
-### Ping test failure
+### Connection cut
 
-When a peer answered on no candidate, the GGPO session does not start and the
+When the GGPO session cannot start (a peer answered the ping test on no
+candidate, a player has no GGPO port, the battle info is incomplete), the
 battle connection is cut, as a connection failure. There is no fallback to the
-battle server. Sends on the battle socket are dropped and nothing arrives, so
-the game gets no response, closes the socket and reconnects to the lobby. Its
-post-battle report has `battles=0`.
+battle server. Sends on the battle socket are dropped and the poll of the
+socket fails, so the game sets its connection error at once, closes the socket
+and goes back to the lobby: about 53 frames after the cut, where waiting for
+its no-response timeout took about 590. Its post-battle report has
+`battles=0`.
 
-Log lines: `lobby battle connection cut: K of N peers answered the ping test`,
-then `connection cut ended ... game RPC 0xd`.
+Log lines: `lobby battle connection cut: K of N peers answered the ping test`
+or `lobby battle connection cut: <reason>`, then `connection cut ended ... game
+RPC 0xd`.
 
 ## Relay servers
 

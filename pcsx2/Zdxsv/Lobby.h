@@ -109,7 +109,7 @@ namespace Zdxsv
 	// peer's p2p addresses (IPv4 and IPv6) with its ggpo_ port; own position empty. The first one is
 	// the default (no ping test): the public IPv4, or the local one when that IP is our own public
 	// one (same NAT), or the IPv6 one when the peer has no IPv4. ownPublicIP "" = unknown. False when
-	// another player has no GGPO port or no p2p address: the battle stays on the battle server (TCP).
+	// another player has no GGPO port or no p2p address: the battle connection is cut (no GGPO session).
 	bool GgpoPeers(const BattleInfo& info, const std::string& ownPublicIP, std::vector<std::vector<PeerAddr>>& byPosition);
 
 	// GGPO ping test before a lobby GGPO battle, as flycast's UdpPingPong (same packet: magic,
