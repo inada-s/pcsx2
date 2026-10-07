@@ -1168,12 +1168,15 @@ namespace
 	}
 } // namespace
 
-bool DEV9DoState(StateWrapper& sw)
+// delta: a zdxsv delta state (rollback). No marker, and the host connections are kept: the
+// PS2 rolls back a few frames only, and its TCP resends are old sequence numbers to TCP_Session.
+static bool Dev9DoState(StateWrapper& sw, bool delta)
 {
 	// "DEV9" states (no longer written) hold the struct from dev9R to
 	// dma_iop_ptr including the eeprom host pointer, then transfered and size.
 	std::string marker("DEV9v2");
-	sw.Do(&marker);
+	if (!delta)
+		sw.Do(&marker);
 	if (sw.HasError() || (marker != "DEV9v2" && marker != "DEV9"))
 	{
 		Console.Warning("DEV9: no DEV9 state in this save state, keeping the current one.");
@@ -1192,12 +1195,18 @@ bool DEV9DoState(StateWrapper& sw)
 		sw.Do(&dma_offset);
 		sw.Do(&dev9.dma_iop_transfered);
 		sw.Do(&dev9.dma_iop_size);
+		if (delta)
+		{
+			u64 rx_seq = Zdxsv::DeltaStateRxSeq();
+			sw.Do(&rx_seq);
+		}
 		return !sw.HasError();
 	}
 
 	// Read into a copy so a damaged state leaves the current one untouched.
 	const std::unique_ptr<dev9Struct> loaded = std::make_unique<dev9Struct>(dev9);
 	u32 dma_offset = kNoIopDma;
+	u64 rx_seq = 0;
 	if (marker == "DEV9v2")
 	{
 		sw.DoBytes(reinterpret_cast<u8*>(loaded.get()) + kDev9RegsBegin, kDev9RegsEnd - kDev9RegsBegin);
@@ -1205,6 +1214,8 @@ bool DEV9DoState(StateWrapper& sw)
 		sw.Do(&dma_offset);
 		sw.Do(&loaded->dma_iop_transfered);
 		sw.Do(&loaded->dma_iop_size);
+		if (delta)
+			sw.Do(&rx_seq);
 	}
 	else
 	{
@@ -1225,12 +1236,26 @@ bool DEV9DoState(StateWrapper& sw)
 	const bool valid = !sw.HasError() && Dev9StateValid(*loaded, dma_offset);
 	if (valid)
 		std::memcpy(&dev9, loaded.get(), sizeof(dev9));
+	if (valid && delta)
+	{
+		Zdxsv::DeltaStateRedeliverRx(rx_seq, [](const void* data, int size) {
+			if (!rx_fifo_can_rx())
+			{
+				Console.Error("DEV9: delta load: RX FIFO full, dropping a received frame of %d bytes", size);
+				return;
+			}
+			NetPacket pk(const_cast<void*>(data), size);
+			rx_process(&pk);
+		});
+	}
 	rx_lock.unlock();
 	if (!valid)
 	{
 		Console.Error("DEV9: the DEV9 state in this save state is damaged or from an unknown build.");
 		return false;
 	}
+	if (delta)
+		return true;
 
 	// Host connections of this process no longer match the PS2's sequence
 	// numbers: drop them (no RST to the PS2) so the next packet adopts anew.
@@ -1238,6 +1263,16 @@ bool DEV9DoState(StateWrapper& sw)
 	if (Zdxsv::AdoptConnections())
 		ad_reset();
 	return true;
+}
+
+bool DEV9DoState(StateWrapper& sw)
+{
+	return Dev9DoState(sw, false);
+}
+
+bool DEV9DeltaDoState(StateWrapper& sw)
+{
+	return Dev9DoState(sw, true);
 }
 
 void DEV9CheckChanges(const Pcsx2Config& old_config)

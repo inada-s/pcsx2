@@ -15,6 +15,7 @@
 // Results go to the log, lines start with "ZdxsvDelta".
 
 #include "Zdxsv/DeltaState.h"
+#include "Zdxsv/Dev9Hooks.h"
 #include "Zdxsv/TestOptions.h"
 
 #include "Memory.h"
@@ -35,8 +36,10 @@
 #include <climits>
 #include <cstdlib>
 #include <cstring>
+#include <deque>
 #include <map>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -162,7 +165,71 @@ namespace Zdxsv
 			}
 			return watch;
 		}
+
+		// SMAP frames received while delta states are kept (Dev9Hooks.h). s_rx_mutex is taken
+		// inside rx_mutex, or alone (never around a deliver call).
+		struct RxFrame
+		{
+			u64 seq;
+			int frame; // newest saved frame when received
+			std::vector<u8> data;
+		};
+		std::mutex s_rx_mutex;
+		std::deque<RxFrame> s_rx;
+		u64 s_rx_seq = 0; // seq of the next logged frame
+		bool s_rx_logging = false;
+		bool s_rx_redelivering = false;
+		int s_rx_newest = INT_MIN;
+		int s_rx_redeliver_logs = 0;
+		size_t s_rx_redelivered = 0;
+
+		void RxSetNewest(int frame)
+		{
+			std::lock_guard lock(s_rx_mutex);
+			s_rx_logging = true;
+			s_rx_newest = frame;
+		}
 	} // namespace
+
+	void DeltaStateOnRx(const void* data, int size)
+	{
+		std::lock_guard lock(s_rx_mutex);
+		if (!s_rx_logging || s_rx_redelivering)
+			return;
+		const u8* p = static_cast<const u8*>(data);
+		s_rx.push_back({s_rx_seq++, s_rx_newest, std::vector<u8>(p, p + size)});
+	}
+
+	u64 DeltaStateRxSeq()
+	{
+		std::lock_guard lock(s_rx_mutex);
+		return s_rx_seq;
+	}
+
+	void DeltaStateRedeliverRx(u64 seq, void (*deliver)(const void* data, int size))
+	{
+		std::vector<std::vector<u8>> frames;
+		{
+			std::lock_guard lock(s_rx_mutex);
+			for (const RxFrame& f : s_rx)
+			{
+				if (f.seq >= seq)
+					frames.push_back(f.data);
+			}
+			if (frames.empty())
+				return;
+			s_rx_redelivering = true;
+		}
+		// The caller holds rx_mutex: no other thread reaches DeltaStateOnRx meanwhile.
+		for (const std::vector<u8>& f : frames)
+			deliver(f.data(), static_cast<int>(f.size()));
+		std::lock_guard lock(s_rx_mutex);
+		s_rx_redelivering = false;
+		s_rx_redelivered += frames.size();
+		if (s_rx_redeliver_logs++ < 20)
+			Console.WriteLn("ZdxsvDelta: load received %zu frames again (from seq %llu, %zu so far)", frames.size(),
+				static_cast<unsigned long long>(seq), s_rx_redelivered);
+	}
 
 	std::string DeltaStateTimes()
 	{
@@ -205,6 +272,7 @@ namespace Zdxsv
 			mmap_DeltaSetHook(&OnWrite);
 			mmap_DeltaWatchAll();
 		}
+		RxSetNewest(frame);
 
 		std::vector<u8> buffer;
 		if (!s_buffer_pool.empty())
@@ -249,6 +317,7 @@ namespace Zdxsv
 			s_states.erase(it);
 		}
 
+		RxSetNewest(frame);
 		return SaveState_DeltaLoad(state->second);
 	}
 
@@ -298,6 +367,13 @@ namespace Zdxsv
 			ReleaseDelta(s_deltas.begin()->second);
 			s_deltas.erase(s_deltas.begin());
 		}
+
+		// A frame received before the oldest kept save is in all of them. Tags may be one frame
+		// early (received during a save), so one more is kept.
+		std::lock_guard lock(s_rx_mutex);
+		const int oldest = s_states.empty() ? INT_MAX : s_states.begin()->first;
+		while (!s_rx.empty() && s_rx.front().frame < oldest - 1)
+			s_rx.pop_front();
 	}
 
 	void DeltaStateClear()
@@ -313,6 +389,10 @@ namespace Zdxsv
 		std::fill_n(s_run, EE_PAGES, 0);
 		s_page_pool.clear();
 		s_buffer_pool.clear();
+		std::lock_guard lock(s_rx_mutex);
+		s_rx.clear();
+		s_rx_logging = false;
+		s_rx_newest = INT_MIN;
 	}
 
 	// ---- synctest -------------------------------------------------------------------------
