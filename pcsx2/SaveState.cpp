@@ -1474,8 +1474,94 @@ static bool DeltaFreezeAll(SaveStateBase& s, Error* error)
 	return ok;
 }
 
+// One-off probe (ai-automation#54): does DEV9 or USB state change between delta saves?
+static std::vector<u8> DeltaProbeBytes(bool (*do_state_func)(StateWrapper&))
+{
+	StateWrapper::VectorMemoryStream stream(16 * 1024);
+	StateWrapper sw(&stream, StateWrapper::Mode::Write, g_SaveVersion);
+	if (!do_state_func(sw))
+		return {};
+	return std::vector<u8>(stream.GetBuffer().begin(), stream.GetBuffer().begin() + stream.GetPosition());
+}
+
+static size_t DeltaProbeHash(const u8* p, size_t n)
+{
+	return std::hash<std::string_view>()(std::string_view(reinterpret_cast<const char*>(p), n));
+}
+
+// save key (hash of the buffer's first 4 KiB: CPU registers + cycle) -> save index, dev9 hash
+static std::array<std::tuple<size_t, int, size_t>, 256> s_probe_ring;
+static int s_probe_crossings = 0;
+
+static void DeltaProbeOne(const char* name, bool (*do_state_func)(StateWrapper&), std::vector<u8>& prev, int& changes)
+{
+	std::vector<u8> cur = DeltaProbeBytes(do_state_func);
+	if (cur.empty())
+		return;
+	if (!prev.empty() && cur != prev)
+	{
+		changes++;
+		size_t first = 0;
+		size_t ndiff = 0;
+		const size_t n = std::min(cur.size(), prev.size());
+		for (size_t i = 0; i < n; i++)
+			if (cur[i] != prev[i] && ndiff++ == 0)
+				first = i;
+		if (changes <= 40)
+			Console.WriteLn(fmt::format("(ZdxsvProbe) {} changed save={} size={}/{} first={:#x} bytes={}",
+				name, s_delta_calls[0], prev.size(), cur.size(), first, ndiff));
+	}
+	prev = std::move(cur);
+}
+
+static void DeltaProbe()
+{
+	static std::vector<u8> dev9, usb;
+	static int dev9_changes = 0, usb_changes = 0;
+	if (Dev9InState())
+		DeltaProbeOne("dev9", &DEV9DoState, dev9, dev9_changes);
+	DeltaProbeOne("usb", &USB::DoState, usb, usb_changes);
+	if (s_delta_calls[0] % 600 == 1)
+		Console.WriteLn(fmt::format("(ZdxsvProbe) totals saves={} loads={} dev9_changes={} usb_changes={} dev9_size={} usb_size={} crossings={}",
+			s_delta_calls[0], s_delta_calls[1], dev9_changes, usb_changes, dev9.size(), usb.size(), s_probe_crossings));
+}
+
+static void DeltaProbeSaved(const std::vector<u8>& buffer)
+{
+	if (!Dev9InState())
+		return;
+	const std::vector<u8> d = DeltaProbeBytes(&DEV9DoState);
+	const int index = s_delta_calls[0];
+	s_probe_ring[index % s_probe_ring.size()] = {DeltaProbeHash(buffer.data(), std::min<size_t>(buffer.size(), 4096)),
+		index, DeltaProbeHash(d.data(), d.size())};
+}
+
+static void DeltaProbeLoad(const std::vector<u8>& buffer)
+{
+	if (!Dev9InState())
+		return;
+	const size_t key = DeltaProbeHash(buffer.data(), std::min<size_t>(buffer.size(), 4096));
+	for (const auto& [k, index, dev9_hash] : s_probe_ring)
+	{
+		if (k != key || index == 0)
+			continue;
+		const std::vector<u8> d = DeltaProbeBytes(&DEV9DoState);
+		if (DeltaProbeHash(d.data(), d.size()) != dev9_hash)
+		{
+			s_probe_crossings++;
+			if (s_probe_crossings <= 40)
+				Console.WriteLn(fmt::format("(ZdxsvProbe) load crosses a dev9 change: loads save={} at save={}", index, s_delta_calls[0]));
+		}
+		return;
+	}
+	static int unknown = 0;
+	if (++unknown <= 20)
+		Console.WriteLn(fmt::format("(ZdxsvProbe) load of an unknown save at save={}", s_delta_calls[0]));
+}
+
 bool SaveState_DeltaSave(std::vector<u8>& buffer)
 {
+	DeltaProbe();
 	memSavingState s(buffer);
 	Error error;
 	s_delta_scratch.clear();
@@ -1488,11 +1574,13 @@ bool SaveState_DeltaSave(std::vector<u8>& buffer)
 		return false;
 	}
 	buffer.resize(s.GetCurrentPos());
+	DeltaProbeSaved(buffer);
 	return true;
 }
 
 bool SaveState_DeltaLoad(const std::vector<u8>& buffer)
 {
+	DeltaProbeLoad(buffer);
 	if (THREAD_VU1)
 		vu1Thread.WaitVU();
 	std::memcpy(s_tlb_backup, tlb, sizeof(s_tlb_backup));
