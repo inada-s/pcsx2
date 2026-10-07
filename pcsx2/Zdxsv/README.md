@@ -17,7 +17,7 @@ options: `docs/zdxsv/`.
 | `Dev9Hooks.h` | Hook header: DEV9 network code |
 | `MediaHooks.h` | Hook header: GS present, SPU2 output |
 | `UiHooks.h` | Hook header: hotkeys, replay control bar |
-| `TestOptions.h` | `TestEnv()`: environment options that work only in a test build (`ZDXSV_TEST_OPTIONS`) |
+| `TestOptions.h` | `TestEnv()`: environment options meant for tests and diagnostics; every build reads them |
 
 Upstream files include only the hook headers, except `ImGuiOverlays.cpp` and `TCP_Session_In.cpp`,
 which still hold zdxsv logic (overlays, lobby hook) and include `Ggpo.h` until that logic moves here.

@@ -1296,25 +1296,6 @@ namespace Zdxsv
 	bool g_zd_hook = false;
 	bool g_ps_hook = s_zds_ps;
 
-	// Release build: of ZDXSV_GGPO only the keys that change nothing for the other players (osd=, port=, replay=0)
-	// are kept, as ",k=v,..." for DEFAULT_OPTIONS (net=1 and lobby=1 are in it already). delay=/mindelay= are
-	// test options too: the ping test picks the delay.
-	static std::string PlayerOptions(const char* e)
-	{
-		std::string kept;
-		for (const std::string_view item : StringUtil::SplitString(e ? e : "", ','))
-		{
-			if (item == "net=1" || item == "lobby=1")
-				continue;
-			if (item.starts_with("osd=") || item.starts_with("port=") || item == "replay=0")
-				kept += fmt::format(",{}", item);
-			else
-				Console.Warning("ZdxsvGgpo: '%.*s' ignored: a test option, needs a ZDXSV_TEST_OPTIONS build",
-					static_cast<int>(item.size()), item.data());
-		}
-		return kept;
-	}
-
 	void GgpoOnVmInitialize(const char* serial, u32 crc)
 	{
 		const char* e = std::getenv("ZDXSV_GGPO");
@@ -1326,7 +1307,7 @@ namespace Zdxsv
 		const bool serial_match = std::strcmp(serial, GAME_SERIAL) == 0;
 		g_z_game = serial_match && crc == want;
 		const bool lobby_default = g_z_game && setting && !s_play_env;
-		if (!g_z_game) // any other game or build: no GGPO, replay, hooks or platform info, in test builds too
+		if (!g_z_game) // any other game or build: no GGPO, replay, hooks or platform info
 		{
 			s_options.clear();
 			g_ggpo_enabled = s_net_env = g_net_hook = g_zd_hook = g_ps_hook = false;
@@ -1336,10 +1317,8 @@ namespace Zdxsv
 		}
 		if (e && std::strcmp(e, "0") == 0) // off whatever the setting (rigs without GGPO)
 			s_options.clear();
-		else if (TEST_OPTIONS)
+		else
 			s_options = e ? e : lobby_default ? DEFAULT_OPTIONS : "";
-		else // release build: the lobby session only, plus the player's own choices
-			s_options = lobby_default ? DEFAULT_OPTIONS + PlayerOptions(e) : "";
 		g_ggpo_enabled = !s_options.empty() || s_play_env;
 		s_net_env = s_options.find("net=1") != std::string::npos || s_play_env;
 		g_net_hook = s_net_trace != nullptr || s_net_env;

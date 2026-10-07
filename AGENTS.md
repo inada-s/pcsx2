@@ -115,10 +115,12 @@ the agent's context.
 
 - One responsibility per file; split around 800 lines.
 - Production code, test harnesses, tracing and fixtures in separate files.
-- Test and diagnostic code may ship, except code that costs performance when
-  unused or can be abused (changes memory or inputs online, disturbs other
-  players, redirects the updater, writes to a given path): behind a build
-  option that release builds leave off.
+- Test and diagnostic code ships in every build: the rigs run against released
+  builds too. There is no test-build flag. Code that costs performance while
+  unused is not acceptable. An option that can be abused online (changes
+  memory or inputs in a lobby battle, disturbs other players, redirects the
+  updater) is a release blocker: before a release it is removed or made
+  ineffective in lobby battles.
 - State in structs, not file-scope variables. State a rollback or replay key
   restores: one struct, saved and restored whole.
 - Reset zdxsv state, threads, sockets and sessions on VM shutdown and reset.
