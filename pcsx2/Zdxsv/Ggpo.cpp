@@ -231,28 +231,24 @@ namespace Zdxsv
 		// (scene/load timing, s621 run1: side 2 one frame later), so it goes through the GGPO input
 		// and the n-th kind 3 of every remote goes to recv once all peers' n-th is in the synced stream.
 		std::vector<std::vector<u8>> s_zds_k3[GGPO_MAX_PLAYERS]; // per sender, by index
-		int s_zds_seen[GGPO_MAX_PLAYERS] = {}, s_zds_rel = 0; // rollback state (NetFrame)
 		u32 s_zds_k3rel = 0;
 		// ZDXSV_ZDS_PS=1: play start. The battle load step 0x2b1d60 (scene step: waits for the load-busy
 		// flag via 0x214260, then inits the per-battle work and sets tick state 8) passes 0x2b1d80 when this
 		// machine's load is done: local timing (s630: player work initialized 1 frame apart). The rec hook
 		// there counts the wish, returns 0 (step retried next frame) until every peer's synced count in
-		// Input::unused[1] reaches n, then lets the n-th pass. Rollback state (NetFrame).
+		// Input::unused[1] reaches n, then lets the n-th pass. Rollback state (RollbackState::ps).
 		bool s_zds_ps = Zdxsv::TestEnv("ZDXSV_ZDS_PS") != nullptr; // replay: the file's zds_ps
 		struct PS
 		{
 			u8 n, rel;
 			bool hold, go;
-		} s_ps = {};
-		Input s_zd_pad[128] = {}; // own host pad per frame & 127 (reruns reapply it)
-		u16 s_zd_hist[128][GGPO_MAX_PLAYERS][2] = {}; // synced (A, B) per frame & 127
+		};
 		u32 s_zd_steps = 0, s_zd_changed = 0;
 		bool s_net_armed = false, s_net_over = false;
 		bool s_lobby_cut = false; // lobby=1 ping test failed: the battle connection is silent (LobbyCutCall)
 		u32 s_cut_sends = 0;
 		int s_net_me = -1; // local battle position
 		std::vector<std::vector<u8>> s_net_sent; // every msg the game sent since armed, in order
-		size_t s_net_pos = 0; // msgs sent so far in the current timeline
 		// ZDXSV_K3_LAG (default 8): a msg sent at GGPO frame s goes into the local input of frame s + lag. A send
 		// first seen in a rollback rerun (s645 r1: K3 #4 released in a rerun, the reply sent there) used to go
 		// into the next forward frame's input, so the handshake frame depended on input arrival timing. With
@@ -270,17 +266,25 @@ namespace Zdxsv
 		std::deque<NetOut> s_net_out; // committed, not yet in a local input
 		std::vector<int> s_net_sent_at; // GGPO frame of each s_net_sent entry (latest timeline)
 		NetInput s_net_local = {};
-		u8 s_net_seq_at[64][GGPO_MAX_PLAYERS] = {}; // per frame & 63: each player's synced seq
-		std::vector<u8> s_net_rx; // remote msgs not yet given to the game's recv
 		int s_net_frame = 0; // GGPO frame being run (last save or load)
-		struct NetFrame
+		// The HLE state outside the VM that a rollback (s_net_at) or a replay key (PlayKey) restores with the
+		// VM state. A new field here is saved and restored everywhere.
+		struct RollbackState
 		{
-			size_t pos;
-			std::vector<u8> rx;
-			int k3seen[GGPO_MAX_PLAYERS], k3rel;
-			PS ps;
-		};
-		NetFrame s_net_at[128]; // per frame & 127, at its save
+			size_t net_pos = 0; // msgs sent so far in the current timeline
+			std::vector<u8> net_rx; // remote msgs not yet given to the game's recv
+			int zds_seen[GGPO_MAX_PLAYERS] = {}, zds_rel = 0; // zds kind-3 barrier counters
+			PS ps = {};
+		} s_rb;
+		RollbackState s_net_at[128]; // per frame & 127, at its save
+		// Per-frame rings that a rollback leaves in place (they hold every frame it can go back to) and a
+		// replay key copies whole.
+		struct FrameRings
+		{
+			Input zd_pad[128] = {}; // own host pad per frame & 127 (reruns reapply it)
+			u16 zd_hist[128][GGPO_MAX_PLAYERS][2] = {}; // synced (A, B) per frame & 127
+			u8 net_seq_at[64][GGPO_MAX_PLAYERS] = {}; // per frame & 63: each player's synced seq
+		} s_rings;
 		int s_net_end = -1; // frames since the end msg (kind f) was sent or received, -1 = not yet
 		// ZDXSV_NET_TAIL=n: frames run after the end msg before the session stops (default 300).
 		const int s_net_tail = [] {
@@ -928,10 +932,10 @@ namespace Zdxsv
 			// HLE state outside the save state at frame 0 (PlayLoad restores it): msgs waiting for the game's recv,
 			// play-start barrier, kind-3 barrier
 			std::string rx;
-			for (u8 v : s_net_rx)
+			for (u8 v : s_rb.net_rx)
 				rx += fmt::format("{:02x}", v);
-			s_replay_hle0 = fmt::format("zds_ps={}\nrx0={}\nhle0={},{},{},{},{},{},{},{},{}\n", s_zds_ps ? 1 : 0, rx, s_ps.n, s_ps.rel,
-				s_ps.hold ? 1 : 0, s_ps.go ? 1 : 0, s_zds_seen[0], s_zds_seen[1], s_zds_seen[2], s_zds_seen[3], s_zds_rel);
+			s_replay_hle0 = fmt::format("zds_ps={}\nrx0={}\nhle0={},{},{},{},{},{},{},{},{}\n", s_zds_ps ? 1 : 0, rx, s_rb.ps.n, s_rb.ps.rel,
+				s_rb.ps.hold ? 1 : 0, s_rb.ps.go ? 1 : 0, s_rb.zds_seen[0], s_rb.zds_seen[1], s_rb.zds_seen[2], s_rb.zds_seen[3], s_rb.zds_rel);
 			s_replay_zip.ok = false;
 			s_replay_zip.t = std::thread([list = std::move(list), path = s_replay_state]() mutable {
 				Error error;
@@ -1053,23 +1057,17 @@ namespace Zdxsv
 			s_cut_sends = 0;
 			s_net_sent.clear();
 			s_net_sent_at.clear();
-			s_net_pos = 0;
+			s_rb = {};
 			s_net_out.clear();
 			s_net_local = {};
-			std::memset(s_net_seq_at, 0, sizeof(s_net_seq_at));
-			s_net_rx.clear();
 			s_net_frame = 0;
-			std::fill(std::begin(s_net_at), std::end(s_net_at), NetFrame{});
+			std::fill(std::begin(s_net_at), std::end(s_net_at), RollbackState{});
 			s_net_end = -1;
 			s_ns = {};
-			s_ps = {};
-			std::fill(std::begin(s_zd_pad), std::end(s_zd_pad), Input{});
-			std::memset(s_zd_hist, 0, sizeof(s_zd_hist));
+			s_rings = {};
 			s_zd_steps = s_zd_changed = s_zds_echo = s_zds_skip = s_zds_k3rel = 0;
 			for (auto& k3 : s_zds_k3)
 				k3.clear();
-			std::fill(std::begin(s_zds_seen), std::end(s_zds_seen), 0);
-			s_zds_rel = 0;
 			s_pw.clear();
 			std::fill(std::begin(s_peer_state), std::end(s_peer_state), 0);
 			std::fill(std::begin(s_handles), std::end(s_handles), GGPOPlayerHandle{});
@@ -1358,16 +1356,16 @@ namespace Zdxsv
 	{
 		if (!g_ggpo_active || !s_net_armed || s_net_over)
 			return false;
-		if (!s_ps.hold)
+		if (!s_rb.ps.hold)
 		{
-			s_ps.hold = true;
-			s_ps.n++;
+			s_rb.ps.hold = true;
+			s_rb.ps.n++;
 			if (s_net_trace)
-				std::fprintf(s_net_trace, "%u PH%s %d %d\n", g_FrameCount, g_ggpo_in_rollback ? "r" : "", s_net_frame, s_ps.n);
+				std::fprintf(s_net_trace, "%u PH%s %d %d\n", g_FrameCount, g_ggpo_in_rollback ? "r" : "", s_net_frame, s_rb.ps.n);
 		}
-		if (s_ps.go)
+		if (s_rb.ps.go)
 		{
-			s_ps.hold = s_ps.go = false;
+			s_rb.ps.hold = s_rb.ps.go = false;
 			return false;
 		}
 		cpuRegs.GPR.n.v0.UD[0] = 0;
@@ -1391,7 +1389,7 @@ namespace Zdxsv
 		std::memcpy(&b, ram + e + 6, 2);
 		const int c = ram[e] & 63;
 		const int k = s_net_frame;
-		const u16* ab = s_zd_hist[k & 127][p];
+		const u16* ab = s_rings.zd_hist[k & 127][p];
 		const u16 na = ab[0];
 		const u16 nb = static_cast<u16>((ab[1] & ~1u) | (b & 1u));
 		s_zd_steps++;
@@ -1702,38 +1700,38 @@ namespace Zdxsv
 				for (int q = 0; q < s_players; q++)
 					if (q != s_net_me)
 					{
-						s_net_rx.push_back(m[0]);
-						s_net_rx.push_back(static_cast<u8>((m[1] & 0xf0) | q));
-						s_net_rx.insert(s_net_rx.end(), m.begin() + 2, m.end());
+						s_rb.net_rx.push_back(m[0]);
+						s_rb.net_rx.push_back(static_cast<u8>((m[1] & 0xf0) | q));
+						s_rb.net_rx.insert(s_rb.net_rx.end(), m.begin() + 2, m.end());
 					}
 				if (!g_ggpo_in_rollback)
 					s_zds_echo++;
 			}
 			else if (!g_ggpo_in_rollback && s_zds_skip++ < 20)
 				Console.Warning("ZdxsvGgpo: zds msg kind %d (%zu bytes) not echoed", kind, m.size());
-			if (s_net_pos < s_net_sent.size())
+			if (s_rb.net_pos < s_net_sent.size())
 			{
-				if (s_net_sent[s_net_pos] != m && s_ns.senddiff++ < 40)
+				if (s_net_sent[s_rb.net_pos] != m && s_ns.senddiff++ < 40)
 				{
 					std::string a, b;
 					char h[4];
-					for (u8 v : s_net_sent[s_net_pos])
+					for (u8 v : s_net_sent[s_rb.net_pos])
 						std::snprintf(h, sizeof(h), "%02x", v), a += h;
 					for (u8 v : m)
 						std::snprintf(h, sizeof(h), "%02x", v), b += h;
-					Console.Warning("ZdxsvGgpo: net rerun send %zu differs (frame %d) sent %s rerun %s", s_net_pos, s_net_frame, a.c_str(), b.c_str());
+					Console.Warning("ZdxsvGgpo: net rerun send %zu differs (frame %d) sent %s rerun %s", s_rb.net_pos, s_net_frame, a.c_str(), b.c_str());
 				}
-				if (s_net_sent_at[s_net_pos] != s_net_frame && m.size() >= 2 && (m[1] >> 4) == 3)
+				if (s_net_sent_at[s_rb.net_pos] != s_net_frame && m.size() >= 2 && (m[1] >> 4) == 3)
 				{
-					auto it = std::find_if(s_net_out.begin(), s_net_out.end(), [](const NetOut& o) { return o.idx == s_net_pos; });
+					auto it = std::find_if(s_net_out.begin(), s_net_out.end(), [](const NetOut& o) { return o.idx == s_rb.net_pos; });
 					if (it != s_net_out.end())
 						it->frame = s_net_frame, s_ns.restamp++;
 					else if (s_ns.late++ < 20)
-						Console.Warning("ZdxsvGgpo: net rerun send %zu moved %d -> %d after it went into an input", s_net_pos, s_net_sent_at[s_net_pos], s_net_frame);
+						Console.Warning("ZdxsvGgpo: net rerun send %zu moved %d -> %d after it went into an input", s_rb.net_pos, s_net_sent_at[s_rb.net_pos], s_net_frame);
 					if (s_net_trace)
-						std::fprintf(s_net_trace, "%u OM %zu %d %d\n", g_FrameCount, s_net_pos, s_net_sent_at[s_net_pos], s_net_frame);
+						std::fprintf(s_net_trace, "%u OM %zu %d %d\n", g_FrameCount, s_rb.net_pos, s_net_sent_at[s_rb.net_pos], s_net_frame);
 				}
-				s_net_sent_at[s_net_pos] = s_net_frame;
+				s_net_sent_at[s_rb.net_pos] = s_net_frame;
 			}
 			else
 			{
@@ -1742,10 +1740,10 @@ namespace Zdxsv
 				s_net_sent.push_back(m);
 				s_net_sent_at.push_back(s_net_frame);
 				if (m.size() >= 2 && (m[1] >> 4) == 3)
-					s_net_out.push_back({s_net_frame, s_net_pos, std::move(m)});
+					s_net_out.push_back({s_net_frame, s_rb.net_pos, std::move(m)});
 				s_ns.maxq = std::max<u32>(s_ns.maxq, static_cast<u32>(s_net_out.size()));
 			}
-			s_net_pos++;
+			s_rb.net_pos++;
 		}
 
 		// McsMessage framing: byte 0 = length (>= 2), byte 1 = kind << 4 | sender.
@@ -1760,12 +1758,7 @@ namespace Zdxsv
 		void NetSaved(int frame)
 		{
 			s_net_frame = frame;
-			NetFrame& at = s_net_at[frame & 127];
-			at.pos = s_net_pos;
-			at.rx = s_net_rx;
-			std::memcpy(at.k3seen, s_zds_seen, sizeof(at.k3seen));
-			at.k3rel = s_zds_rel;
-			at.ps = s_ps;
+			s_net_at[frame & 127] = s_rb;
 			if (s_pw_hash)
 			{
 				std::array<u64, 5>& h = s_pw[frame];
@@ -1787,12 +1780,7 @@ namespace Zdxsv
 		void NetLoaded(int frame)
 		{
 			s_net_frame = frame;
-			const NetFrame& at = s_net_at[frame & 127];
-			s_net_pos = at.pos;
-			s_net_rx = at.rx;
-			std::memcpy(s_zds_seen, at.k3seen, sizeof(s_zds_seen));
-			s_zds_rel = at.k3rel;
-			s_ps = at.ps;
+			s_rb = s_net_at[frame & 127];
 		}
 
 		bool NetStart(GGPOSessionCallbacks& cb)
@@ -1889,14 +1877,14 @@ namespace Zdxsv
 		{
 			NetInput in = s_net_local;
 			in.pad = s_rand_env ? RandInput() : HostInput();
-			s_zd_pad[s_net_frame & 127] = in.pad;
+			s_rings.zd_pad[s_net_frame & 127] = in.pad;
 			u16 ab[2];
 			ZdPadAB(in.pad, ab[0], ab[1]);
 			if (s_net_trace)
 				std::fprintf(s_net_trace, "%u Q %d %04x %04x\n", g_FrameCount, s_net_frame, ab[0], ab[1]);
 			in.pad = {};
 			std::memcpy(&in.pad, ab, sizeof(ab));
-			in.pad.unused[1] = s_ps.n;
+			in.pad.unused[1] = s_rb.ps.n;
 			std::vector<u8> data;
 			while (!s_net_out.empty() && (s_k3_lag == 0 || s_net_out.front().frame + s_k3_lag <= s_net_frame))
 			{
@@ -1943,7 +1931,7 @@ namespace Zdxsv
 			return NetSyncAndApply();
 		}
 
-		// Inputs of frame s_net_frame: own host pad to pad 0, every position's (A, B) to s_zd_hist, kind-3
+		// Inputs of frame s_net_frame: own host pad to pad 0, every position's (A, B) to s_rings.zd_hist, kind-3
 		// msgs with a new seq to the barrier (the n-th of each remote to recv once all peers' n-th arrived).
 		bool NetSyncAndApply()
 		{
@@ -1964,13 +1952,13 @@ namespace Zdxsv
 		{
 			const int f = s_net_frame;
 			ReplayLog(f, in);
-			ApplyPad(0, s_zd_pad[f & 127]);
+			ApplyPad(0, s_rings.zd_pad[f & 127]);
 			for (int p = 0; p < s_players; p++)
-				std::memcpy(s_zd_hist[f & 127][p], &in[p].pad, sizeof(s_zd_hist[f & 127][p]));
+				std::memcpy(s_rings.zd_hist[f & 127][p], &in[p].pad, sizeof(s_rings.zd_hist[f & 127][p]));
 			// a predicted input repeats its seq, so entries come only from real inputs: no rollback state
 			for (int p = 0; p < s_players; p++)
 			{
-				const bool fresh = in[p].seq != s_net_seq_at[(f - 1) & 63][p];
+				const bool fresh = in[p].seq != s_rings.net_seq_at[(f - 1) & 63][p];
 				const u8* d = in[p].data;
 				const u32 len = std::min<u32>(in[p].len, sizeof(in[p].data));
 				if (fresh)
@@ -1978,39 +1966,39 @@ namespace Zdxsv
 						if ((d[i + 1] >> 4) == 3)
 						{
 							std::vector<std::vector<u8>>& v = s_zds_k3[p];
-							if (v.size() <= static_cast<size_t>(s_zds_seen[p]))
-								v.resize(s_zds_seen[p] + 1);
-							v[s_zds_seen[p]++].assign(d + i, d + i + d[i]);
+							if (v.size() <= static_cast<size_t>(s_rb.zds_seen[p]))
+								v.resize(s_rb.zds_seen[p] + 1);
+							v[s_rb.zds_seen[p]++].assign(d + i, d + i + d[i]);
 						}
-				s_net_seq_at[f & 63][p] = in[p].seq;
+				s_rings.net_seq_at[f & 63][p] = in[p].seq;
 			}
 			for (;;)
 			{
 				bool all = true;
 				for (int p = 0; p < s_players; p++)
-					all = all && s_zds_seen[p] > s_zds_rel;
+					all = all && s_rb.zds_seen[p] > s_rb.zds_rel;
 				if (!all)
 					break;
 				for (int p = 0; p < s_players; p++)
 					if (p != s_net_me)
-						s_net_rx.insert(s_net_rx.end(), s_zds_k3[p][s_zds_rel].begin(), s_zds_k3[p][s_zds_rel].end());
+						s_rb.net_rx.insert(s_rb.net_rx.end(), s_zds_k3[p][s_rb.zds_rel].begin(), s_zds_k3[p][s_rb.zds_rel].end());
 				if (s_net_trace)
-					std::fprintf(s_net_trace, "%u K3%s %d %d\n", g_FrameCount, g_ggpo_in_rollback ? "r" : "", f, s_zds_rel);
+					std::fprintf(s_net_trace, "%u K3%s %d %d\n", g_FrameCount, g_ggpo_in_rollback ? "r" : "", f, s_rb.zds_rel);
 				if (!g_ggpo_in_rollback)
 					s_zds_k3rel++;
-				s_zds_rel++;
+				s_rb.zds_rel++;
 			}
-			if (s_zds_ps && s_ps.hold && !s_ps.go)
+			if (s_zds_ps && s_rb.ps.hold && !s_rb.ps.go)
 			{
 				bool all = true;
 				for (int p = 0; p < s_players; p++)
-					all = all && static_cast<u8>(in[p].pad.unused[1] - s_ps.rel) >= 1 && static_cast<u8>(in[p].pad.unused[1] - s_ps.rel) < 128;
+					all = all && static_cast<u8>(in[p].pad.unused[1] - s_rb.ps.rel) >= 1 && static_cast<u8>(in[p].pad.unused[1] - s_rb.ps.rel) < 128;
 				if (all)
 				{
-					s_ps.go = true;
-					s_ps.rel++;
+					s_rb.ps.go = true;
+					s_rb.ps.rel++;
 					if (s_net_trace)
-						std::fprintf(s_net_trace, "%u PS%s %d %d\n", g_FrameCount, g_ggpo_in_rollback ? "r" : "", f, s_ps.rel);
+						std::fprintf(s_net_trace, "%u PS%s %d %d\n", g_FrameCount, g_ggpo_in_rollback ? "r" : "", f, s_rb.ps.rel);
 				}
 			}
 		}
@@ -2021,7 +2009,7 @@ namespace Zdxsv
 				s_ns.sends, s_ns.msgs, s_net_sent.size(), s_net_out.size(), s_ns.recvs, s_ns.rxmsgs, s_ns.rxbytes, s_ns.polls,
 				s_ns.other, s_ns.nowait, s_ns.senddiff, s_ns.toolong, s_ns.maxq, s_waits, s_k3_lag, s_ns.restamp, s_ns.late);
 			Console.WriteLn("ZdxsvGgpo: zd steps %u changed %u echo %u skip %u k3 %d/%d/%d/%d rel %d (fwd %u)", s_zd_steps, s_zd_changed, s_zds_echo, s_zds_skip,
-				s_zds_seen[0], s_zds_seen[1], s_zds_seen[2], s_zds_seen[3], s_zds_rel, s_zds_k3rel);
+				s_rb.zds_seen[0], s_rb.zds_seen[1], s_rb.zds_seen[2], s_rb.zds_seen[3], s_rb.zds_rel, s_zds_k3rel);
 			if (s_pw_hash && s_net_trace)
 			{
 				for (const auto& [f, h] : s_pw)
@@ -2055,13 +2043,8 @@ namespace Zdxsv
 			std::string path;
 			std::thread zip;
 			std::atomic<bool> ok{false};
-			size_t pos = 0;
-			std::vector<u8> rx;
-			int k3seen[GGPO_MAX_PLAYERS] = {}, k3rel = 0;
-			PS ps = {};
-			Input zd_pad[128] = {};
-			u16 zd_hist[128][GGPO_MAX_PLAYERS][2] = {};
-			u8 seq_at[64][GGPO_MAX_PLAYERS] = {};
+			RollbackState rb;
+			FrameRings rings;
 			~PlayKey()
 			{
 				if (zip.joinable())
@@ -2195,14 +2178,8 @@ namespace Zdxsv
 			auto key = std::make_unique<PlayKey>();
 			PlayKey* k = key.get();
 			k->path = Path::Combine(EmuFolders::Cache, fmt::format("zdxsv-replay-key-p{}-{}.p2s", s_net_me, f));
-			k->pos = s_net_pos;
-			k->rx = s_net_rx;
-			std::memcpy(k->k3seen, s_zds_seen, sizeof(k->k3seen));
-			k->k3rel = s_zds_rel;
-			k->ps = s_ps;
-			std::memcpy(k->zd_pad, s_zd_pad, sizeof(k->zd_pad));
-			std::memcpy(k->zd_hist, s_zd_hist, sizeof(k->zd_hist));
-			std::memcpy(k->seq_at, s_net_seq_at, sizeof(k->seq_at));
+			k->rb = s_rb;
+			k->rings = s_rings;
 			k->zip = std::thread([list = std::move(list), k]() mutable {
 				Error error;
 				k->ok = SaveState_ZipToDisk(std::move(list), nullptr, k->path.c_str(), &error);
@@ -2215,14 +2192,8 @@ namespace Zdxsv
 
 		void PlayKeyApply(const PlayKey& k)
 		{
-			s_net_pos = k.pos;
-			s_net_rx = k.rx;
-			std::memcpy(s_zds_seen, k.k3seen, sizeof(s_zds_seen));
-			s_zds_rel = k.k3rel;
-			s_ps = k.ps;
-			std::memcpy(s_zd_pad, k.zd_pad, sizeof(s_zd_pad));
-			std::memcpy(s_zd_hist, k.zd_hist, sizeof(s_zd_hist));
-			std::memcpy(s_net_seq_at, k.seq_at, sizeof(s_net_seq_at));
+			s_rb = k.rb;
+			s_rings = k.rings;
 		}
 
 		// Returns the frame to run next. pov_switch: s_net_me just changed, so a key of it is always loaded (the
@@ -2355,7 +2326,7 @@ namespace Zdxsv
 			const NetInput* in = &s_play_inputs[static_cast<size_t>(f) * s_players];
 			u16 ab[2];
 			std::memcpy(ab, &in[s_net_me].pad, sizeof(ab));
-			s_zd_pad[f & 127] = PadFromB(ab[1]);
+			s_rings.zd_pad[f & 127] = PadFromB(ab[1]);
 			NetApply(in);
 		}
 
@@ -2475,7 +2446,7 @@ namespace Zdxsv
 			const auto rx0 = kv.find("rx0");
 			if (rx0 != kv.end())
 				for (size_t i = 0; i + 1 < rx0->second.size(); i += 2)
-					key->rx.push_back(static_cast<u8>(std::strtoul(rx0->second.substr(i, 2).c_str(), nullptr, 16)));
+					key->rb.net_rx.push_back(static_cast<u8>(std::strtoul(rx0->second.substr(i, 2).c_str(), nullptr, 16)));
 			int h[9] = {};
 			const auto hle0 = kv.find("hle0");
 			if (rx0 == kv.end() || hle0 == kv.end() ||
@@ -2502,13 +2473,13 @@ namespace Zdxsv
 			s_players = static_cast<int>(players);
 			s_zds_ps = zds_ps;
 			key->path = state_path;
-			key->ps = {static_cast<u8>(h[0]), static_cast<u8>(h[1]), h[2] != 0, h[3] != 0};
+			key->rb.ps = {static_cast<u8>(h[0]), static_cast<u8>(h[1]), h[2] != 0, h[3] != 0};
 			for (int p = 0; p < 4; p++)
-				key->k3seen[p] = h[4 + p];
-			key->k3rel = h[8];
+				key->rb.zds_seen[p] = h[4 + p];
+			key->rb.zds_rel = h[8];
 			key->ok = true;
 			Console.WriteLn("ZdxsvGgpo: replay %s: position %lld of %d, %lld frames, zds_ps %d, rx0 %zu bytes, state %lld bytes", path.c_str(),
-				me, s_players, frames, s_zds_ps ? 1 : 0, key->rx.size(), state_size);
+				me, s_players, frames, s_zds_ps ? 1 : 0, key->rb.net_rx.size(), state_size);
 			s_play_keys[me].emplace(0, std::move(key));
 			s_play_pov_ok[me] = true;
 			return static_cast<int>(me);
@@ -3197,7 +3168,7 @@ namespace Zdxsv
 			s_net_armed = true;
 			if (s_rbk)
 			{
-				s_net_rx.insert(s_net_rx.end(), s_rbk_rx.begin(), s_rbk_rx.end());
+				s_rb.net_rx.insert(s_rb.net_rx.end(), s_rbk_rx.begin(), s_rbk_rx.end());
 				s_rbk_rx.clear();
 				// ZDXSV_RBK_TURBO=1: the battle runs turbo too (GGPO paces the peers by frame)
 				if (!Zdxsv::TestEnv("ZDXSV_RBK_TURBO"))
@@ -3225,12 +3196,12 @@ namespace Zdxsv
 		{
 			s_ns.recvs++;
 			u32 n = 0;
-			while (n + 1 < s_net_rx.size() && s_net_rx[n] >= 2 && n + s_net_rx[n] <= s_net_rx.size() && n + s_net_rx[n] <= NET_RX_MAX)
-				n += s_net_rx[n], s_ns.rxmsgs++;
-			if (n == 0 && !s_net_rx.empty() && s_net_rx.size() <= NET_RX_MAX) // unframed rest
-				n = static_cast<u32>(s_net_rx.size());
-			std::memcpy(d, s_net_rx.data(), n);
-			s_net_rx.erase(s_net_rx.begin(), s_net_rx.begin() + n);
+			while (n + 1 < s_rb.net_rx.size() && s_rb.net_rx[n] >= 2 && n + s_rb.net_rx[n] <= s_rb.net_rx.size() && n + s_rb.net_rx[n] <= NET_RX_MAX)
+				n += s_rb.net_rx[n], s_ns.rxmsgs++;
+			if (n == 0 && !s_rb.net_rx.empty() && s_rb.net_rx.size() <= NET_RX_MAX) // unframed rest
+				n = static_cast<u32>(s_rb.net_rx.size());
+			std::memcpy(d, s_rb.net_rx.data(), n);
+			s_rb.net_rx.erase(s_rb.net_rx.begin(), s_rb.net_rx.begin() + n);
 			s_ns.rxbytes += n;
 			result = static_cast<s32>(n);
 		}
@@ -3240,7 +3211,7 @@ namespace Zdxsv
 			s_ns.polls++;
 			*reinterpret_cast<u16*>(ram + NET_REQ_LEN) = 4;
 			*reinterpret_cast<u16*>(ram + NET_REQ_DATA + 2) = 0x2000;
-			*reinterpret_cast<u16*>(ram + NET_REQ_DATA + 4) = static_cast<u16>(std::min<size_t>(s_net_rx.size(), NET_RX_MAX));
+			*reinterpret_cast<u16*>(ram + NET_REQ_DATA + 4) = static_cast<u16>(std::min<size_t>(s_rb.net_rx.size(), NET_RX_MAX));
 		}
 		else
 		{
