@@ -63,6 +63,8 @@ DEV9SettingsWidget::DEV9SettingsWidget(SettingsWindow* settings_dialog, QWidget*
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvGgpo, "DEV9/Eth", "ZdxsvGgpo", true);
 	// zdxsv: low-latency vsync, Z game only
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvLowLatencyVsync, "EmuCore/GS", "ZdxsvLowLatencyVsync", true);
+	// zdxsv: live spectating moves on to the next battle (read by Zdxsv LiveAutoNext)
+	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvLiveAutoNext, "DEV9/Eth", "ZdxsvLiveAutoNext", false);
 
 	//////////////////////////////////////////////////////////////////////////
 	// Eth Device Settings
