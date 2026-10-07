@@ -52,7 +52,8 @@ namespace Zdxsv
 
 	namespace
 	{
-		constexpr u32 PAGE_SIZE = 4096;
+		// vtlb watches and reports host pages (__pagesize: 16 KiB on arm64, 4 KiB on x86).
+		constexpr u32 PAGE_BYTES = __pagesize;
 
 		struct SavedPage
 		{
@@ -77,7 +78,7 @@ namespace Zdxsv
 		// fault copy), which saves the protect calls (one per fastmem alias, ~17 us a page) and the
 		// fault. Unchanged for COLD_AFTER intervals: watched again. ZDXSV_DELTA_HOT=0: off.
 		constexpr u8 HOT_AFTER = 2, COLD_AFTER = 8;
-		constexpr u32 EE_PAGES = Ps2MemSize::TotalRam / PAGE_SIZE;
+		constexpr u32 EE_PAGES = Ps2MemSize::TotalRam / PAGE_BYTES;
 		int s_hot_enabled = -1;
 		bool s_is_hot[EE_PAGES] = {};
 		u8 s_run[EE_PAGES] = {}; // cold: save intervals in a row with a write; hot: without a change
@@ -88,7 +89,7 @@ namespace Zdxsv
 		std::unique_ptr<u8[]> TakePage()
 		{
 			if (s_page_pool.empty())
-				return std::make_unique<u8[]>(PAGE_SIZE);
+				return std::make_unique<u8[]>(PAGE_BYTES);
 			std::unique_ptr<u8[]> p = std::move(s_page_pool.back());
 			s_page_pool.pop_back();
 			return p;
@@ -105,7 +106,7 @@ namespace Zdxsv
 		void OnWrite(u32 page)
 		{
 			std::unique_ptr<u8[]> data = TakePage();
-			std::memcpy(data.get(), &eeMem->Main[page * PAGE_SIZE], PAGE_SIZE);
+			std::memcpy(data.get(), &eeMem->Main[page * PAGE_BYTES], PAGE_BYTES);
 			s_open.push_back({page, std::move(data)});
 		}
 
@@ -125,7 +126,7 @@ namespace Zdxsv
 			for (u32 page : s_hot)
 			{
 				std::unique_ptr<u8[]> data = TakePage();
-				std::memcpy(data.get(), &eeMem->Main[page * PAGE_SIZE], PAGE_SIZE);
+				std::memcpy(data.get(), &eeMem->Main[page * PAGE_BYTES], PAGE_BYTES);
 				s_open.push_back({page, std::move(data)});
 			}
 		}
@@ -141,7 +142,7 @@ namespace Zdxsv
 				const u32 page = p.page;
 				if (s_is_hot[page])
 				{
-					if (std::memcmp(p.data.get(), &eeMem->Main[page * PAGE_SIZE], PAGE_SIZE) != 0)
+					if (std::memcmp(p.data.get(), &eeMem->Main[page * PAGE_BYTES], PAGE_BYTES) != 0)
 						s_run[page] = 0;
 					else if (++s_run[page] >= COLD_AFTER)
 					{
@@ -480,10 +481,10 @@ namespace Zdxsv
 		Sample TakeSample(int frame)
 		{
 			Sample s;
-			const u32 pages = Ps2MemSize::ExposedRam / PAGE_SIZE;
+			const u32 pages = Ps2MemSize::ExposedRam / PAGE_BYTES;
 			s.ee_pages.resize(pages);
 			for (u32 i = 0; i < pages; i++)
-				s.ee_pages[i] = XXH3_64bits(&eeMem->Main[i * PAGE_SIZE], PAGE_SIZE);
+				s.ee_pages[i] = XXH3_64bits(&eeMem->Main[i * PAGE_BYTES], PAGE_BYTES);
 			s.state = s_states[frame];
 			DeltaStateMaskScratch(s.state);
 			return s;
@@ -524,7 +525,7 @@ namespace Zdxsv
 			if (s_mismatched++ < 20)
 			{
 				Console.WriteLn("ZdxsvDelta: MISMATCH pass %d frame %d: ee pages %d (first 0x%08x), state bytes %d (first offset %d), size %zu/%zu",
-					s_pass, frame, ee_diff, ee_first < 0 ? 0 : ee_first * PAGE_SIZE, st_diff, st_first, first.state.size(), again.state.size());
+					s_pass, frame, ee_diff, ee_first < 0 ? 0 : ee_first * PAGE_BYTES, st_diff, st_first, first.state.size(), again.state.size());
 				for (size_t k = 0; k < st_runs.size() && k < 6; k++)
 				{
 					const size_t o = st_runs[k];

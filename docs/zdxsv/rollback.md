@@ -30,7 +30,8 @@ Changes made in this fork:
 
 A save copies only the EE RAM pages written since the last save, found with
 page write protection, plus the rest of the state. That is fast enough to save
-every frame.
+every frame. A page is a host page (`__pagesize`: 4 KiB on x86, 16 KiB on
+arm64), the unit vtlb protects and reports.
 
 Supporting changes in the core:
 
