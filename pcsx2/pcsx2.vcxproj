@@ -197,6 +197,7 @@
     <ClCompile Include="DEV9\Sessions\TCP_Session\TCP_Session_Out.cpp" />
     <ClCompile Include="Zdxsv\Lobby.cpp" />
     <ClCompile Include="Zdxsv\LobbyConnection.cpp" />
+    <ClCompile Include="Zdxsv\ServerHosts.cpp" />
     <ClCompile Include="DEV9\Win32\pcap_io_win32.cpp" />
     <ClCompile Include="DEV9\Sessions\BaseSession.cpp" />
     <ClCompile Include="DEV9\Sessions\UDP_Session\UDP_Common.cpp" />
