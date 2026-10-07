@@ -90,9 +90,9 @@ ok=${ok_keys:-0}
 grep -a "ZdxsvGgpo: \(replay end\|replay:\|replay seek\|net sends\|zd steps\)" "$l" | cut -c1-200
 grep -a -q "ZdxsvGgpo: replay end" "$l" || { echo "FAIL no replay end"; ok=1; }
 $PY "$TOOLS/pwcheck.py" $([ "${OWN-1}" = 1 ] && echo --own) "$OUT/trace-play.txt" "$@" > "$OUT/pwcheck.txt"
-grep '^common\|^player' "$OUT/pwcheck.txt" | cut -c1-160
-awk -v n=${PLAYERS:-2} '$1=="player" && $2+0 < n {s += $4} $1=="common" {c = $3} END {exit !(c > 0 && s == 0)}' "$OUT/pwcheck.txt" \
-  || { echo "FAIL player work differs (players < ${PLAYERS:-2}) or no frames"; ok=1; }
+grep '^common\|^player\|^rng' "$OUT/pwcheck.txt" | cut -c1-160
+awk -v n=${PLAYERS:-2} '$1=="player" && $2+0 < n {s += $4} $1=="rng:" {s += $3} $1=="common" {c = $3} END {exit !(c > 0 && s == 0)}' "$OUT/pwcheck.txt" \
+  || { echo "FAIL coordinates (players < ${PLAYERS:-2}) or RNG differ, or no frames"; ok=1; }
 echo "rplay $(basename "$FILE"): $((SECONDS - t0)) s, $([ $ok = 0 ] && echo PASS || echo FAIL)"
 [[ $FILE == *\;* ]] || echo "$([ $ok = 0 ] && echo PASS || echo FAIL) $(fid "$FILE") $FILE $(date +%F.%T)" >> "$ledger"
 exit $ok

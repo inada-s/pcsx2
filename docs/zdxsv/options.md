@@ -82,7 +82,7 @@ off. Any other value turns it on. Without `net=1` the session is a synctest. Log
 | `input=host` | random | test | Pad 1 comes from the host pad; pad 2 stays random. |
 | `input=none` | random | test | No buttons, sticks centered. |
 | `mask=hex` | `ffff` | test | Random buttons are limited to these bits. `fcff` leaves out Select and Start. |
-| `hash=pw` | `pw` | test | What the synctest compares. `pw`: the player work of all 4 players (masked as the `ZDXSV_PW_HASH` H lines) and the 2 game RNG words. `pos`: x, y, z of the 4 players and the RNG words. `full`: EE RAM and delta state; a rerun's IOP/event cycles differ (code cache), so it always reports mismatches. |
+| `hash=pw` | `pw` | test | What the synctest compares. `pw`: the player work of all 4 players (with machine-local fields masked) and the 2 game RNG words. `pos`: x, y, z of the 4 players and the RNG words. `full`: EE RAM and delta state; a rerun's IOP/event cycles differ (code cache), so it always reports mismatches. |
 | `sync=0` | 1 | test | No state hashes. Always the case with `net=1`. |
 | `control=input` | off | control | Reruns get other inputs. The synctest must report mismatches. |
 
@@ -113,7 +113,7 @@ off. Any other value turns it on. Without `net=1` the session is a synctest. Log
 | `ZDXSV_RBK_GAUGE=v` | 600 | test | Force gauge (戦力ゲージ) of both sides. |
 | `ZDXSV_RBK_TURBO=1` | off | test | The battle runs turbo too. |
 | `ZDXSV_RAND_INPUT=seed` | off | test | Seeded random pad input. |
-| `ZDXSV_ZDS_PS=1` | off | feature | Play-start barrier: every peer starts the battle on the same GGPO frame. Leaving it off is a control: the peers desync at play start. |
+| `ZDXSV_ZDS_PS=1` | off | feature | Play-start barrier: every peer starts the battle on the same GGPO frame. With it off, `rbk.sh 4 1` still passed `pwcheck.py` (coordinates and RNG B equal after the battle load), so it is not a desync control for that check. |
 | `ZDXSV_K3_LAG=n` | 8 | tuning | GGPO frames between the game sending a round-handshake message and the input that carries it. `0` is a control: the battle then depends on network timing. |
 | `ZDXSV_SAVE_ALL=1` | off | control | Delta-save every GGPO frame, also frames that can no longer be rolled back. |
 | `ZDXSV_NET_TAIL=n` | 300 | tuning | Frames run after the battle end message before the session stops. |
@@ -184,7 +184,7 @@ game pad read, RAM change, present. Log lines start with `ZdxsvLatency`.
 | Option | Use | Meaning |
 |---|---|---|
 | `ZDXSV_NET_TRACE=file` | diagnostic | Per-frame trace of the battle socket and the inputs. Read by `tools/zdxsv/zdcheck.py`, `tools/zdxsv/recvcheck.py`. |
-| `ZDXSV_PW_HASH=1` | diagnostic | Per-frame hash of the work RAM of each player, written to the net trace. Read by `pwcheck.py`. |
+| `ZDXSV_PW_HASH=1` | diagnostic | The sync check: per frame, a hash of each player's x, y, z and the 2 game RNG words, written to the net trace. `pwcheck.py` compares the coordinates and RNG B (`0x6d793c`); RNG A (`0x6d7940`) also takes machine-local sound draws, so it is only reported. |
 | `ZDXSV_PW_DUMP=file` | diagnostic | Work RAM of the players for every saved frame. Read by `pwdiff.py`. |
 | `ZDXSV_RAM_DUMP=dir,start,step,count` | diagnostic | EE RAM (32 MB) to `dir/<frame>.bin`. Read by `tools/zdxsv/ramcount.py`, `tools/zdxsv/ramvals.py`. |
 | `ZDXSV_SNAP=dir,n` | diagnostic | GS screenshot `dir/v<vsync>.png` every n vsyncs. Needs a renderer; not in headless runs. |
