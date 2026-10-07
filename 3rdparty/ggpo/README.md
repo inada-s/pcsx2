@@ -9,3 +9,7 @@ PCSX2-side additions (the flycast sources are otherwise unchanged):
 - `backends/synctest.cpp`: sync errors also go to the log sink (error level).
 - `network/udp.cpp` `Udp::OnLoopPoll`: a socket that could not be created
   (no IPv6) is skipped instead of looping forever.
+- `network/udp_proto.cpp` `UdpProtocol::HandlesMsg`: a packet is matched to an
+  endpoint by its peer's source address, not by the `remote_endpoint` header
+  byte alone, so a third party who knows a player's address can no longer inject
+  inputs or a disconnect.
