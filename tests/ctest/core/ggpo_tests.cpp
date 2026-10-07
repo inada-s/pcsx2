@@ -1,15 +1,26 @@
 // SPDX-FileCopyrightText: 2002-2026 PCSX2 Dev Team
 // SPDX-License-Identifier: GPL-3.0+
 
+#ifdef _WIN32
+// GGPO's platform header calls timeGetTime; WIN32_LEAN_AND_MEAN drops mmsystem.h from windows.h.
+#include <winsock2.h>
+#include <windows.h>
+#include <mmsystem.h>
+#endif
+
 #include "ggpo_log.h"
 #include "ggponet.h"
+#include "ggpo_types.h"
+#include "network/udp.h"
 
 #include <gtest/gtest.h>
 
+#include <chrono>
 #include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include <thread>
 #include <vector>
 
 // zdxsv: GGPO (from inada-s/flycast) builds and links into PCSX2. A synctest session
@@ -145,4 +156,108 @@ TEST(GGPO, SyncTestCatchesStateOutsideSave)
 	RunSyncTest(true, 30);
 	ASSERT_FALSE(s_errors.empty());
 	EXPECT_NE(s_errors.front().find("Checksum"), std::string::npos) << s_errors.front();
+}
+
+// zdxsv: GGPO's UDP socket (network/udp.cpp). Datagrams of a UdpMsg header's size are enough:
+// OnLoopPoll hands every one of at least that size to the callbacks.
+namespace
+{
+	struct TestUdp : Udp
+	{
+		SOCKET Socket(bool v6) const { return v6 ? _socket_v6 : _socket_v4; }
+	};
+
+	struct MsgCount : Udp::Callbacks
+	{
+		int msgs = 0;
+		int family = 0;
+		void OnMsg(sockaddr_storage& from, UdpMsg*, int) override
+		{
+			msgs++;
+			family = from.ss_family;
+		}
+	};
+
+	// loopback address of family af with the port of socket s (INVALID_SOCKET: a port nothing listens on)
+	sockaddr_storage Loopback(int af, SOCKET s)
+	{
+		sockaddr_storage a{};
+		socklen_t len = sizeof(a);
+		if (s != INVALID_SOCKET)
+			getsockname(s, reinterpret_cast<sockaddr*>(&a), &len);
+		else
+		{
+			// a port that was free a moment ago
+			const SOCKET tmp = socket(af, SOCK_DGRAM, 0);
+			a.ss_family = static_cast<decltype(a.ss_family)>(af);
+			bind(tmp, reinterpret_cast<sockaddr*>(&a), af == AF_INET ? sizeof(sockaddr_in) : sizeof(sockaddr_in6));
+			getsockname(tmp, reinterpret_cast<sockaddr*>(&a), &len);
+			closesocket(tmp);
+		}
+		if (af == AF_INET)
+			reinterpret_cast<sockaddr_in*>(&a)->sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+		else
+			reinterpret_cast<sockaddr_in6*>(&a)->sin6_addr = in6addr_loopback;
+		return a;
+	}
+
+	int AddrLen(const sockaddr_storage& a) { return a.ss_family == AF_INET ? sizeof(sockaddr_in) : sizeof(sockaddr_in6); }
+
+	void SendFromNewSocket(const sockaddr_storage& dst)
+	{
+		char buf[sizeof(UdpMsg::hdr)] = {};
+		const SOCKET s = socket(dst.ss_family, SOCK_DGRAM, 0);
+		ASSERT_NE(s, INVALID_SOCKET);
+		EXPECT_EQ(sendto(s, buf, sizeof(buf), 0, reinterpret_cast<const sockaddr*>(&dst), AddrLen(dst)), static_cast<int>(sizeof(buf)));
+		closesocket(s);
+	}
+
+	void Wait() { std::this_thread::sleep_for(std::chrono::milliseconds(200)); }
+} // namespace
+
+// Windows reports the ICMP port unreachable of an earlier send (peer not started yet, or gone)
+// as an error of the next recvfrom. The socket ignores it: the datagram queued behind it is read
+// by the same poll. Other platforms never report it on an unconnected socket.
+TEST(GGPO, UdpReadsPastPortUnreachable)
+{
+	Poll poll;
+	MsgCount cb;
+	TestUdp udp;
+	udp.Init(0, &poll, &cb);
+	char buf[sizeof(UdpMsg::hdr)] = {};
+	sockaddr_storage closed = Loopback(AF_INET, INVALID_SOCKET);
+	udp.SendTo(buf, sizeof(buf), 0, reinterpret_cast<sockaddr*>(&closed), AddrLen(closed));
+	Wait();
+	SendFromNewSocket(Loopback(AF_INET, udp.Socket(false)));
+	Wait();
+	udp.OnLoopPoll(nullptr);
+	EXPECT_EQ(cb.msgs, 1);
+}
+
+// A peer's IPv6 candidate: the socket sends and receives over IPv6 next to IPv4 on the same port.
+TEST(GGPO, UdpDualStack)
+{
+	Poll poll;
+	MsgCount cb;
+	TestUdp udp;
+	udp.Init(0, &poll, &cb);
+	if (udp.Socket(true) == INVALID_SOCKET)
+		GTEST_SKIP() << "no IPv6 on this host";
+
+	SendFromNewSocket(Loopback(AF_INET6, udp.Socket(true)));
+	Wait();
+	udp.OnLoopPoll(nullptr);
+	EXPECT_EQ(cb.msgs, 1);
+	EXPECT_EQ(cb.family, AF_INET6);
+
+	MsgCount peer_cb;
+	TestUdp peer;
+	peer.Init(0, &poll, &peer_cb);
+	sockaddr_storage peer_addr = Loopback(AF_INET6, peer.Socket(true));
+	char buf[sizeof(UdpMsg::hdr)] = {};
+	udp.SendTo(buf, sizeof(buf), 0, reinterpret_cast<sockaddr*>(&peer_addr), AddrLen(peer_addr));
+	Wait();
+	peer.OnLoopPoll(nullptr);
+	EXPECT_EQ(peer_cb.msgs, 1);
+	EXPECT_EQ(peer_cb.family, AF_INET6);
 }
