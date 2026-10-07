@@ -52,8 +52,10 @@ namespace Zdxsv
 						const auto name = info.names.find(u);
 						players.emplace_back(u, name == info.names.end() ? std::string() : name->second);
 					}
-					SetLobbyPeers(ok, std::move(byPosition), info.ggpoSession, info.ggpoPingMs,
-						"battle_code=" + info.battleCode + "\nuser_id=" + info.userId + "\n", std::move(players), info.relays);
+					std::string ids = "battle_code=" + info.battleCode + "\nuser_id=" + info.userId + "\n";
+					if (info.liveUplink && !LobbyUdpAddr().empty())
+						ids += "live_uplink=" + LobbyUdpAddr() + "\n"; // Ggpo.cpp ReplayBegin streams the battle there
+					SetLobbyPeers(ok, std::move(byPosition), info.ggpoSession, info.ggpoPingMs, std::move(ids), std::move(players), info.relays);
 				});
 			return port;
 		}
