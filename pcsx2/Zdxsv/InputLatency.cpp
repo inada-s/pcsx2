@@ -17,6 +17,7 @@
 // Results go to the log, lines start with "ZdxsvLatency".
 
 #include "Zdxsv/InputLatency.h"
+#include "Zdxsv/CpuHooks.h"
 #include "Zdxsv/TestOptions.h"
 
 #include "Config.h"
@@ -227,7 +228,7 @@ namespace Zdxsv
 				static_cast<unsigned long long>(s_cfg.start), s_cfg.hold, s_cfg.gap, s_cfg.seed);
 			if (s_cfg.has_addr)
 				Console.WriteLn("ZdxsvLatency: addr=%08x", EeAddr(s_cfg.addr));
-			Console.WriteLn("ZdxsvLatency: LowLatencyVsync=%d", EmuConfig.EmulationSpeed.LowLatencyVsync ? 1 : 0);
+			Console.WriteLn("ZdxsvLatency: LowLatencyVsync=%d", EmuConfig.EmulationSpeed.LowLatencyVsync && g_z_game ? 1 : 0);
 		}
 
 		void Snapshot(std::vector<u8>& dst)

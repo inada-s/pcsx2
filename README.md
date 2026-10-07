@@ -20,8 +20,8 @@ One line per feature. Each feature and its tests are listed in
 
 ### Input latency
 
-- Low-latency vsync, on by default: the finished frame is presented before the frame limiter sleeps
-  (about -14 ms from button press to screen).
+- Low-latency vsync, on by default, for the Z game only: the finished frame is presented before the frame
+  limiter sleeps (about -14 ms from button press to screen). Settings → Network & HDD → zdxsv.
 
 ### Rollback netcode (GGPO)
 

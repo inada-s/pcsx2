@@ -36,7 +36,7 @@ server of another game gets no platform info
 | Setting | Default | Use | Meaning |
 |---|---|---|---|
 | `[DEV9/Eth] ZdxsvGgpo` | `true` | feature | Lobby battles of the game run over GGPO (`ZDXSV_GGPO` options `net=1,lobby=1`). Read when the game starts; Settings → Network & HDD. Other games are never affected. |
-| `[EmuCore/GS] ZdxsvLowLatencyVsync` | `true` | feature | Present the finished frame before the frame limiter sleeps, and poll input right before the next frame runs. |
+| `[EmuCore/GS] ZdxsvLowLatencyVsync` | `true` | feature | Present the finished frame before the frame limiter sleeps, and poll input right before the next frame runs. Settings → Network & HDD. Other games are never affected. |
 
 ## Network
 
