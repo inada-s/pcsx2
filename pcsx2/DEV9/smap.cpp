@@ -15,6 +15,7 @@
 #include "smap.h"
 #include "net.h"
 #include "pcap_io.h"
+#include "Zdxsv/Dev9Hooks.h"
 
 bool has_link = true;
 volatile bool fireIntR = false;
@@ -106,6 +107,7 @@ void rx_process(NetPacket* pk)
 	dev9Ru8(SMAP_R_RXFIFO_FRAME_CNT)++;
 	counter_lock.unlock();
 	reset_lock.unlock();
+	Zdxsv::DeltaStateOnRx(pk->buffer, pk->size);
 	//spams// emu_printf("Got packet, %d bytes (%d fifo)\n", pk->size,bytes);
 	fireIntR = true;
 	//_DEV9irq(SMAP_INTR_RXEND,0);//now ? or when the fifo is full ? i guess now atm

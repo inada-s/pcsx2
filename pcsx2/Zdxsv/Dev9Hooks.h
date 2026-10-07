@@ -19,6 +19,15 @@ namespace Zdxsv
 	// closed room.
 	bool IsBattleServer(u32 ip, u16 port);
 
+	// Delta states (Zdxsv/DeltaState.h) restore DEV9, so the frames SMAP received after a save
+	// are received again after its load. All three with rx_mutex held. rx_process logs each frame
+	// while delta states are kept,
+	void DeltaStateOnRx(const void* data, int size);
+	// the DEV9 part of a delta state saves the log position,
+	u64 DeltaStateRxSeq();
+	// and its load passes the frames logged from that position on to deliver, oldest first.
+	void DeltaStateRedeliverRx(u64 seq, void (*deliver)(const void* data, int size));
+
 	// Server-to-game lobby stream filter (Zdxsv/Lobby.h), held by TCP_Session through
 	// std::unique_ptr<LobbyFilter, LobbyFilterDeleter>, so its header needs no definition.
 	class LobbyFilter;

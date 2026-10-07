@@ -676,6 +676,7 @@ s32 DEV9open();
 void DEV9shutdown();
 class StateWrapper;
 bool DEV9DoState(StateWrapper& sw);
+bool DEV9DeltaDoState(StateWrapper& sw); // zdxsv delta states (SaveState_DeltaSave)
 u32 FLASHread32(u32 addr, int size);
 void FLASHwrite32(u32 addr, u32 value, int size);
 void _DEV9irq(int cause, int cycles);

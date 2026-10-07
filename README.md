@@ -36,6 +36,8 @@ with a peer without GGPO still goes through the battle server. The release will 
 - A VM shutdown or reset during a GGPO battle ends it like a disconnect (replay saved, state dropped).
 - The MTVU speedhack is turned off for a VM with GGPO or a replay: delta states copy VU1 memory, which the
   MTVU thread may still be writing. The setting itself is not changed.
+- Delta states include the network adapter (DEV9): a rollback across a sent frame no longer stops the game's
+  network after the battle. Frames received after the loaded state are received again.
 
 ### Replays
 

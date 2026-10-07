@@ -44,6 +44,14 @@ Supporting changes in the core:
   `ZDXSV_DELTA_TEST` (`GgpoOnVmInitialize`, kept off on settings reloads by
   `VMManager::LoadCoreSettings`): a delta save or load copies VU1 memory
   without waiting for the VU1 thread.
+- DEV9 (network adapter registers and buffers) is part of a delta state when
+  DEV9 is in save states (GGPO, replay, `ZDXSV_LOBBY_STATE=1`). Without it, a
+  rollback across a sent frame left DEV9's TX descriptor one ahead of the IOP
+  driver's, and after the battle the IOP spun on `BD_TX was not ready` and
+  sent no result. Host connections are kept on a delta load; the frames the
+  adapter received after the loaded save are received again
+  (`ZdxsvDelta: load received N frames again`). A frame sent again after a
+  rollback reaches TCP_Session as an old sequence number.
 
 The self-test `ZDXSV_DELTA_TEST` saves every frame, rolls back at a fixed
 interval, and checks that each rerun frame hashes like its first run.

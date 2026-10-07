@@ -638,6 +638,7 @@ public:
 };
 
 bool DEV9DoState(StateWrapper& sw);
+bool DEV9DeltaDoState(StateWrapper& sw);
 
 // zdxsv: optional, so states without it still load (DEV9 then keeps its current state).
 // Only with ZDXSV_LOBBY_STATE=1, ZDXSV_GGPO or ZDXSV_REPLAY; otherwise nothing is written (an
@@ -1467,6 +1468,14 @@ static bool DeltaFreezeAll(SaveStateBase& s, Error* error)
 	// interrupt, IOP counter). Left stale, the IOP takes an interrupt at another point (#31).
 	mark("iopEventAction");
 	s.Freeze(iopEventAction);
+
+	// The IOP's SMAP driver state is in IOP RAM: without DEV9, a rollback across an SMAP TX
+	// leaves DEV9's TX descriptor index one ahead of the driver's, and after the battle the
+	// IOP spins on "BD_TX was not ready" (ai-automation#54, about 1 battle in 3 at 100 ms).
+	// Frames received since the loaded save are received again (Zdxsv::DeltaStateLoad).
+	mark("DEV9");
+	if (Dev9InState() && !DeltaFreezeWrapper(s, &DEV9DeltaDoState))
+		return false;
 
 	mark("Pad");
 	const bool ok = DeltaFreezeWrapper(s, &Pad::Freeze);
