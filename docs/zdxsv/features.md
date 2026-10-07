@@ -69,9 +69,9 @@ zdxsv checkout, save states): `tests/zdxsv/README.md`.
 | Feature | How to turn on | Test | Control |
 |---|---|---|---|
 | Save a GGPO battle as a replay | `replay=DIR` in `ZDXSV_GGPO`; default for lobby battles | `rbk.sh 2 1` with `replay=DIR`, then `replay_check.py` on the file of every peer: same inputs on the common frames. Real lobby: 1v1 `m4z.sh`, then `replay_check.py` | a copy with 1 input byte changed fails at that frame |
-| Play a replay | `ZDXSV_REPLAY=file.zdxr` | `rplay.sh` against the trace of the live battle: player work equal on every frame | a copy with changed buttons fails from the changed frame |
+| Play a replay | `ZDXSV_REPLAY=file.pb` | `rplay.sh` against the trace of the live battle: player work equal on every frame | a copy with changed buttons fails from the changed frame |
 | Seek (keys every 600 frames, hotkeys) | PageUp, PageDown; `ZDXSV_REPLAY_SEEK` in tests | `rplay.sh` with `ZDXSV_REPLAY_SEEK=at:to,...`: the predicted key is loaded and player work equals live after the seeks. Hotkeys: `WINDOW=1 KEYS=...` | `ZDXSV_REPLAY_KEY_NOHLE=1` with the same seeks fails |
-| Point of view switch | `ZDXSV_REPLAY=a.zdxr;b.zdxr`, Home | `rplay.sh` with `ZDXSV_REPLAY_POV_AT=frame:P`: after the switch the trace equals the live trace of the other player | without `POV_AT` it differs from that trace |
+| Point of view switch | `ZDXSV_REPLAY=a.pb;b.pb`, Home | `rplay.sh` with `ZDXSV_REPLAY_POV_AT=frame:P`: after the switch the trace equals the live trace of the other player | without `POV_AT` it differs from that trace |
 | Control bar | shown during a replay; `ZDXSV_REPLAY_BAR` | `rplay.sh` with `WINDOW=1 KEYS="...bar:NAME..."` (real mouse through `pcsx2ctl.ps1`): the logged seek frame is the one computed from the click position | none |
 | Key display | End; `ZDXSV_REPLAY_KEY_DISPLAY=1` | `keycheck.py`: every logged key history equals the inputs in the file up to that frame | a copy with 1 input bit flipped fails for the histories that reach that frame |
 | Skip mobile suit selection | on by default; `ZDXSV_REPLAY_SKIP_MS=0` turns it off | `rplay.sh` with `SKIP_MS=1`: the logged briefing frame equals the one in the live trace | `SKIP_MS=0`: the screenshot at 25 s shows the selection screen |

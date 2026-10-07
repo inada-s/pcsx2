@@ -1,6 +1,6 @@
 """Check the pcsx2 replay key display (ZDXSV_REPLAY_KEY_DISPLAY=1) against the replay file.
 
-  python keycheck.py X.zdxr emulog.txt [--min N]
+  python keycheck.py X.pb emulog.txt [--min N]
 
 pcsx2 logs `ZdxsvGgpo: replay keys frame F pos P: bbbb*n ...` every 600 played frames: the runs of
 position P's B word (input bytes 2-3, bit 0 dropped) up to frame F, newest first, at most 14.

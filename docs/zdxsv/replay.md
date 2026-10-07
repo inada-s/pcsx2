@@ -8,8 +8,8 @@ defaults are in [options.md](options.md).
 `replay=DIR` in `ZDXSV_GGPO` saves every `net=1` battle to `DIR`. Lobby battles
 save to `<data dir>/replays` without it. `replay=0` turns saving off.
 
-- The file name is `<battle_code>.zdxr`. Without a battle code it is
-  `rbk-<start time>-p<position>.zdxr`.
+- The file name is `<battle_code>.pb`. Without a battle code it is
+  `rbk-<start time>-p<position>.pb`.
 - The full save state is taken at GGPO frame 0 and zipped on a thread during
   the battle. The file is written when the session stops, also when the VM
   is shut down or reset during the battle.
@@ -20,27 +20,35 @@ Log line: `ZdxsvGgpo: replay saved <path> frames=N ...`.
 
 ## File format
 
-1. The line `ZDXSV-REPLAY 1`.
-2. `key=value` lines, then an empty line.
-3. The save state at GGPO frame 0: a `.p2s` zip of `state_size` bytes.
-4. The synced inputs of all players: `frames` x `players` x `input_size`
-   bytes, frame-major, by battle position.
+A protobuf `BattleLogFile`, schema in
+[`pcsx2/Zdxsv/replay.proto`](../../pcsx2/Zdxsv/replay.proto). It keeps the field
+numbers of gdxsv's replay file (inada-s/gdxsv `gdxsv/proto/gdxsv.proto`) and
+adds the fields a PCSX2 replay needs from 40 on.
 
-| Key | Meaning |
+A gdxsv replay plays from the game's boot. A PCSX2 replay starts from the
+save state of one battle position at GGPO frame 0 instead, so one file plays
+the point of view of the player who saved it.
+
+| Field | Meaning |
 |---|---|
-| `battle_code`, `user_id` | from the battle info of the lobby |
-| `players`, `position` | player count, and the battle position of the recording player |
-| `delay` | GGPO input delay of the battle |
+| `battle_code`, `battle_info` | the battle code, and the lobby's battle info (`key=value` lines) |
+| `log_file_version` | format version (20261008) |
+| `game_disk` | `zdxsv-ps2` |
+| `users` | user id, name and battle position per player |
 | `start_at`, `end_at` | unix seconds |
-| `frames` | number of frames in the file |
-| `close` | why the session ended |
-| `user_<p>`, `name_<p>` | user id and name per position |
-| `zds_ps`, `rx0`, `hle0` | battle-socket state at frame 0 |
-| `input_size`, `state_size` | sizes in bytes |
+| `close_reason` | why the session ended |
+| `players`, `position` | player count, and the battle position of the recording player |
+| `input_delay` | GGPO input delay of the battle |
+| `zds_ps`, `net_rx0`, `hle0` | battle-socket state at frame 0 |
+| `input_size`, `frames`, `inputs` | the synced inputs of all players: `frames` x `players` x `input_size` bytes, frame-major, by battle position |
+| `start_state` | the save state at GGPO frame 0 (a `.p2s` zip) |
+
+`tests/zdxsv/replay_check.py` reads it without a protobuf library;
+`protoc --decode=zdxsv.BattleLogFile pcsx2/Zdxsv/replay.proto < file.pb` prints it.
 
 ## Playing
 
-`ZDXSV_REPLAY=<file.zdxr>` plays a replay. Boot the game; any save state of it
+`ZDXSV_REPLAY=<file.pb>` plays a replay. Boot the game; any save state of it
 works. The first frame loads the frame 0 state of the replay and its
 battle-socket state. Then every frame gets the recorded inputs of all players
 through the same battle-socket emulation as a live GGPO battle, without GGPO.
@@ -84,7 +92,7 @@ from the start.
 
 ### Point of view
 
-`ZDXSV_REPLAY=a.zdxr;b.zdxr` loads the files that different players saved of
+`ZDXSV_REPLAY=a.pb;b.pb` loads the files that different players saved of
 one battle. The inputs must match on the common frames. Each file adds the
 frame 0 state of its position.
 

@@ -652,6 +652,7 @@
     <ClInclude Include="DEV9\Sessions\ICMP_Session\ICMP_Session.h" />
     <ClInclude Include="DEV9\Sessions\TCP_Session\TCP_Session.h" />
     <ClInclude Include="Zdxsv\Lobby.h" />
+    <ClInclude Include="Zdxsv\Proto.h" />
     <ClInclude Include="Zdxsv\Dev9Hooks.h" />
     <ClInclude Include="DEV9\Sessions\UDP_Session\UDP_Common.h" />
     <ClInclude Include="DEV9\Sessions\UDP_Session\UDP_FixedPort.h" />

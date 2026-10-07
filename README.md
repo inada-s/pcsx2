@@ -41,7 +41,7 @@ with a peer without GGPO is cut, as a connection failure (`docs/zdxsv/lobby.md`)
 
 ### Replays
 
-- A GGPO battle is saved to a `.zdxr` file.
+- A GGPO battle is saved to a protobuf `.pb` file (gdxsv's replay format plus the frame 0 save state).
 - Playback with seek, point of view switch, a control bar, key display, a skip of the mobile suit selection, and a round jump.
 
 ### Releases and tools

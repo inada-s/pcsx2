@@ -23,7 +23,7 @@
 //   badsession=1 test: this client's ping test uses another session id, so no peer answers it (the cut)
 //   advertise=P  lobby test: the platform info announces 127.0.0.1 and GGPO port P only (no STUN /
 //                local / IPv6 address), so peers reach us through a localhost tools/zdxsv/udprelay.py at P
-//   replay=DIR   net: save the battle to DIR/<battle_code>.zdxr (frame 0 state + all inputs, ReplayWrite);
+//   replay=DIR   net: save the battle to DIR/<battle_code>.pb (frame 0 state + all inputs, ReplayWrite);
 //                lobby=1 saves to <data dir>/replays by default; replay=0 = off
 //   osd=1        net: network status OSD (GgpoOsdLines; 0 = off); its text is also logged every 600 frames
 //   sync=0       no state hashes: checksum 0 (net: always)
@@ -45,6 +45,7 @@
 #include "Zdxsv/DeltaState.h"
 #include "Zdxsv/DeltaFreeze.h"
 #include "Zdxsv/Lobby.h"
+#include "Zdxsv/Proto.h"
 #include "Zdxsv/TestOptions.h"
 #include "Config.h"
 #include "Counters.h"
@@ -100,7 +101,7 @@
 
 namespace Zdxsv
 {
-	// ZDXSV_REPLAY=file.zdxr: plays a saved replay (PlayLoad), the net=1 hooks on, no GGPO session
+	// ZDXSV_REPLAY=file.pb: plays a saved replay (PlayLoad), the net=1 hooks on, no GGPO session
 	const char* const s_play_env = std::getenv("ZDXSV_REPLAY");
 	bool g_ggpo_enabled = false; // GgpoOnVmInitialize
 	bool g_mtvu_off = false; // GgpoOnVmInitialize, cleared at VM shutdown
@@ -896,7 +897,14 @@ namespace Zdxsv
 		std::vector<NetInput> s_replay_inputs; // [frame * s_players + position]
 		s64 s_replay_start_at = 0; // unix seconds
 		int s_replay_confirmed = -1; // GGPO's last confirmed frame: the frames after it (predicted inputs) are not written
-		std::string s_replay_hle0; // header lines zds_ps, rx0, hle0 (ReplayBegin)
+		constexpr int REPLAY_FILE_VERSION = 20261008; // BattleLogFile.log_file_version of the files written here
+		// HLE state outside the save state at frame 0 (ReplayBegin; replay.proto zds_ps, net_rx0, hle0)
+		struct ReplayHle0
+		{
+			bool zds_ps = false;
+			std::vector<u8> rx;
+			std::vector<int64_t> hle;
+		} s_replay_hle0;
 
 		std::string ReplayDir()
 		{
@@ -932,11 +940,10 @@ namespace Zdxsv
 			s_replay_confirmed = -1;
 			// HLE state outside the save state at frame 0 (PlayLoad restores it): msgs waiting for the game's recv,
 			// play-start barrier, kind-3 barrier
-			std::string rx;
-			for (u8 v : s_rb.net_rx)
-				rx += fmt::format("{:02x}", v);
-			s_replay_hle0 = fmt::format("zds_ps={}\nrx0={}\nhle0={},{},{},{},{},{},{},{},{}\n", s_zds_ps ? 1 : 0, rx, s_rb.ps.n, s_rb.ps.rel,
-				s_rb.ps.hold ? 1 : 0, s_rb.ps.go ? 1 : 0, s_rb.zds_seen[0], s_rb.zds_seen[1], s_rb.zds_seen[2], s_rb.zds_seen[3], s_rb.zds_rel);
+			s_replay_hle0.zds_ps = s_zds_ps;
+			s_replay_hle0.rx.assign(s_rb.net_rx.begin(), s_rb.net_rx.end());
+			s_replay_hle0.hle = {s_rb.ps.n, s_rb.ps.rel, s_rb.ps.hold ? 1 : 0, s_rb.ps.go ? 1 : 0, s_rb.zds_seen[0], s_rb.zds_seen[1],
+				s_rb.zds_seen[2], s_rb.zds_seen[3], s_rb.zds_rel};
 			s_replay_zip.ok = false;
 			s_replay_zip.t = std::thread([list = std::move(list), path = s_replay_state]() mutable {
 				Error error;
@@ -959,12 +966,8 @@ namespace Zdxsv
 				s_replay_confirmed = std::max(s_replay_confirmed, confirmed);
 		}
 
-		// <dir>/<battle_code>.zdxr (without a battle code: rbk-<start_at>-p<position>.zdxr):
-		//   "ZDXSV-REPLAY 1\n", key=value lines (battle info ids, players, position, delay, start_at, end_at,
-		//   frames, close, user_<p>, name_<p>, zds_ps, rx0 (hex), hle0 (ps n,rel,hold,go, k3 seen 0..3,rel), input_size,
-		//   state_size), an empty line,
-		//   state_size bytes: the .p2s at frame 0, then frames * players NetInput (input_size bytes each,
-		//   frame-major, by battle position).
+		// <dir>/<battle_code>.pb (without a battle code: rbk-<start_at>-p<position>.pb): a BattleLogFile protobuf,
+		// schema in Zdxsv/replay.proto.
 		void ReplayWrite(const char* what)
 		{
 			if (s_replay_state.empty())
@@ -985,33 +988,50 @@ namespace Zdxsv
 				std::lock_guard lock(s_lobby_mtx);
 				ids = s_lobby ? s_report_ids : std::string();
 			}
-			std::string name;
+			std::string code, name;
 			if (const size_t at = ids.find("battle_code="); at != std::string::npos)
-				for (size_t i = at + 12; i < ids.size() && ids[i] != '\n'; i++)
-					name += std::isalnum(static_cast<unsigned char>(ids[i])) || ids[i] == '-' || ids[i] == '_' ? ids[i] : '_';
+				code = ids.substr(at + 12, ids.find('\n', at) - at - 12);
+			for (const char c : code)
+				name += std::isalnum(static_cast<unsigned char>(c)) || c == '-' || c == '_' ? c : '_';
 			if (name.empty())
 				name = fmt::format("rbk-{}-p{}", s_replay_start_at, s_net_me);
 			const size_t frames = std::min<size_t>(s_replay_inputs.size() / s_players, s_replay_confirmed + 1);
-			std::string header = "ZDXSV-REPLAY 1\n" + ids;
-			header += fmt::format("players={}\nposition={}\ndelay={}\nstart_at={}\nend_at={}\nframes={}\nclose={}\n", s_players, s_net_me,
-				s_delay, s_replay_start_at, static_cast<s64>(std::time(nullptr)), frames, what);
+			using namespace Pb;
+			std::vector<uint8_t> pb;
+			pb.reserve(state->size() + frames * s_players * sizeof(NetInput) + ids.size() + 1024);
+			PutString(pb, 3, code);
+			PutInt(pb, 4, REPLAY_FILE_VERSION);
+			PutString(pb, 5, "zdxsv-ps2");
 			for (size_t p = 0; p < s_net_players.size(); p++)
-				header += fmt::format("user_{}={}\nname_{}={}\n", p, s_net_players[p].first, p, s_net_players[p].second);
-			header += s_replay_hle0;
-			header += fmt::format("input_size={}\nstate_size={}\n\n", sizeof(NetInput), state->size());
-			const std::string path = Path::Combine(Path::GetDirectory(state_path), name + ".zdxr");
-			Error error;
-			auto fp = FileSystem::OpenManagedCFile(path.c_str(), "wb", &error);
-			const size_t input_bytes = frames * s_players * sizeof(NetInput);
-			if (!fp || std::fwrite(header.data(), 1, header.size(), fp.get()) != header.size() ||
-				std::fwrite(state->data(), 1, state->size(), fp.get()) != state->size() ||
-				std::fwrite(s_replay_inputs.data(), 1, input_bytes, fp.get()) != input_bytes || std::fflush(fp.get()) != 0)
 			{
-				Console.Error("ZdxsvGgpo: replay: write %s failed %s", path.c_str(), error.GetDescription().c_str());
+				std::vector<uint8_t> user;
+				PutString(user, 1, s_net_players[p].first);
+				PutString(user, 2, s_net_players[p].second);
+				PutInt(user, 12, static_cast<int64_t>(p));
+				PutBytes(pb, 11, user.data(), user.size());
+			}
+			PutInt(pb, 20, s_replay_start_at);
+			PutInt(pb, 21, static_cast<s64>(std::time(nullptr)));
+			PutString(pb, 24, what);
+			PutInt(pb, 40, s_players);
+			PutInt(pb, 41, s_net_me);
+			PutInt(pb, 42, s_delay);
+			PutString(pb, 43, ids);
+			PutInt(pb, 44, s_replay_hle0.zds_ps ? 1 : 0);
+			PutBytes(pb, 45, s_replay_hle0.rx.data(), s_replay_hle0.rx.size());
+			PutPackedInts(pb, 46, s_replay_hle0.hle);
+			PutInt(pb, 47, sizeof(NetInput));
+			PutInt(pb, 48, static_cast<int64_t>(frames));
+			PutBytes(pb, 49, s_replay_inputs.data(), frames * s_players * sizeof(NetInput));
+			PutBytes(pb, 50, state->data(), state->size());
+			const std::string path = Path::Combine(Path::GetDirectory(state_path), name + ".pb");
+			if (!FileSystem::WriteBinaryFile(path.c_str(), pb.data(), pb.size()))
+			{
+				Console.Error("ZdxsvGgpo: replay: write %s failed", path.c_str());
 				return;
 			}
-			Console.WriteLn("ZdxsvGgpo: replay saved %s frames=%zu state=%zu bytes, %.1f ms", path.c_str(), frames, state->size(),
-				timer.GetTimeMilliseconds());
+			Console.WriteLn("ZdxsvGgpo: replay saved %s frames=%zu state=%zu bytes, file=%zu bytes, %.1f ms", path.c_str(), frames,
+				state->size(), pb.size(), timer.GetTimeMilliseconds());
 		}
 
 		void Stop(const char* what)
@@ -2025,8 +2045,8 @@ namespace Zdxsv
 				std::fflush(s_pw_dump);
 		}
 
-		// ZDXSV_REPLAY (s_play_env): the .zdxr's frame 0 state is loaded, the HLE state of frame 0 restored
-		// (header rx0 / hle0), then each frame gets the file's synced inputs (NetApply, as a live frame without
+		// ZDXSV_REPLAY (s_play_env): the file's frame 0 state is loaded, the HLE state of frame 0 restored
+		// (net_rx0 / hle0), then each frame gets the file's synced inputs (NetApply, as a live frame without
 		// rollback): the battle sock HLE, zd step copy and both barriers run as live. Own pad 0 = the own
 		// position's B bits mapped back to buttons (no sticks in the file). ZDXSV_REPLAY_EXIT=1: exit at the
 		// end (else pause); ZDXSV_REPLAY_TURBO=1: turbo limiter. With ZDXSV_PW_HASH + ZDXSV_NET_TRACE the H lines
@@ -2344,7 +2364,7 @@ namespace Zdxsv
 				Host::RunOnCPUThread([] { VMManager::SetPaused(true); });
 		}
 
-		// Point of view: ZDXSV_REPLAY=a.zdxr;b.zdxr... = files of one battle saved by different players. Their inputs
+		// Point of view: ZDXSV_REPLAY=a.pb;b.pb... = files of one battle saved by different players. Their inputs
 		// are the same (checked on the common frames); each brings its own position's frame 0 state + battle-socket
 		// state, kept as key 0 of that position. A switch at frame f loads the new position's newest key <= f and
 		// runs to f unlimited (PlaySeek pov_switch); keys and sent msgs are kept per position.
@@ -2394,39 +2414,75 @@ namespace Zdxsv
 			s_bar_povs = 0;
 		}
 
+		// A replay file (Zdxsv/replay.proto) as PlayLoadFile uses it.
+		struct ReplayFile
+		{
+			s64 version = 0, players = -1, me = -1, frames = -1, input_size = -1;
+			bool zds_ps = false;
+			std::string code;
+			std::vector<u8> rx0;
+			std::vector<int64_t> hle0;
+			std::string_view inputs, state; // into the file's bytes
+		};
+
+		bool ReplayParse(std::string_view all, ReplayFile& r)
+		{
+			Pb::Reader rd{reinterpret_cast<const uint8_t*>(all.data()), reinterpret_cast<const uint8_t*>(all.data() + all.size())};
+			return rd.Fields([&r](uint32_t field, uint32_t wt, uint64_t v, const uint8_t* b, size_t n) {
+				const std::string_view bytes(reinterpret_cast<const char*>(b), n);
+				if (wt == 0)
+				{
+					s64* num = field == 4 ? &r.version : field == 40 ? &r.players : field == 41 ? &r.me : field == 47 ? &r.input_size :
+							   field == 48 ? &r.frames : nullptr;
+					if (num)
+						*num = static_cast<s64>(v);
+					else if (field == 44)
+						r.zds_ps = v != 0;
+					else if (field == 46)
+						r.hle0.push_back(static_cast<int64_t>(v));
+				}
+				else if (wt == 2)
+				{
+					if (field == 3)
+						r.code = bytes;
+					else if (field == 45)
+						r.rx0.assign(b, b + n);
+					else if (field == 46)
+						return Pb::ReadInts(wt, v, b, n, r.hle0);
+					else if (field == 49)
+						r.inputs = bytes;
+					else if (field == 50)
+						r.state = bytes;
+				}
+				return true;
+			});
+		}
+
 		// Reads one file; returns its position, -1 = not used.
 		int PlayLoadFile(const std::string& path)
 		{
 			const std::optional<std::vector<u8>> file = FileSystem::ReadBinaryFile(Path::ToNativePath(path).c_str()); // '/' fails on Windows
 			const std::string_view all = file ? std::string_view(reinterpret_cast<const char*>(file->data()), file->size()) : std::string_view();
-			const size_t end = all.find("\n\n");
-			if (!all.starts_with("ZDXSV-REPLAY 1\n") || end == std::string_view::npos)
+			ReplayFile r;
+			if (all.empty() || !ReplayParse(all, r) || r.version <= 0)
 			{
 				Console.Error("ZdxsvGgpo: replay %s: not a replay file", path.c_str());
 				return -1;
 			}
-			std::map<std::string, std::string, std::less<>> kv;
-			for (const std::string_view line : StringUtil::SplitString(all.substr(0, end), '\n'))
-				if (const size_t eq = line.find('='); eq != std::string_view::npos)
-					kv.emplace(line.substr(0, eq), line.substr(eq + 1));
-			const auto num = [&kv](std::string_view k) -> s64 {
-				const auto it = kv.find(k);
-				return it == kv.end() ? -1 : StringUtil::FromChars<s64>(it->second).value_or(-1);
-			};
-			const s64 players = num("players"), me = num("position"), frames = num("frames"), state_size = num("state_size");
-			const size_t data = end + 2;
-			// each bound before the next product: header values are any s64
+			const s64 players = r.players, me = r.me, frames = r.frames;
+			// each bound before the next product: the values are any s64
 			if (players < 1 || players > GGPO_MAX_PLAYERS || me < 0 || me >= players || frames < 1 || frames > INT_MAX ||
-				state_size <= 0 || num("input_size") != static_cast<s64>(sizeof(NetInput)) ||
-				static_cast<u64>(state_size) > all.size() - data ||
-				static_cast<u64>(frames) > (all.size() - data - state_size) / (players * sizeof(NetInput)))
+				r.state.empty() || r.input_size != static_cast<s64>(sizeof(NetInput)) ||
+				r.inputs.size() != static_cast<u64>(frames) * players * sizeof(NetInput))
 			{
 				Console.Error("ZdxsvGgpo: replay %s: bad header or short file (players %lld position %lld frames %lld)", path.c_str(),
 					players, me, frames);
 				return -1;
 			}
-			const bool zds_ps = num("zds_ps") == 1;
-			const NetInput* in = reinterpret_cast<const NetInput*>(all.data() + data + state_size);
+			const bool zds_ps = r.zds_ps;
+			std::vector<NetInput> inputs(static_cast<size_t>(frames * players));
+			std::memcpy(inputs.data(), r.inputs.data(), r.inputs.size());
+			const NetInput* in = inputs.data();
 			if (s_play_frames > 0)
 			{
 				// a later file: same battle, another position
@@ -2444,15 +2500,14 @@ namespace Zdxsv
 				}
 			}
 			auto key = std::make_unique<PlayKey>();
-			const auto rx0 = kv.find("rx0");
-			if (rx0 != kv.end())
-				for (size_t i = 0; i + 1 < rx0->second.size(); i += 2)
-					key->rb.net_rx.push_back(static_cast<u8>(std::strtoul(rx0->second.substr(i, 2).c_str(), nullptr, 16)));
+			key->rb.net_rx.assign(r.rx0.begin(), r.rx0.end());
 			int h[9] = {};
-			const auto hle0 = kv.find("hle0");
-			if (rx0 == kv.end() || hle0 == kv.end() ||
-				std::sscanf(hle0->second.c_str(), "%d,%d,%d,%d,%d,%d,%d,%d,%d", &h[0], &h[1], &h[2], &h[3], &h[4], &h[5], &h[6], &h[7], &h[8]) != 9)
-				Console.Warning("ZdxsvGgpo: replay: no rx0 / hle0 (file from before replay play): frame 0 HLE state empty");
+			if (r.hle0.size() != std::size(h))
+			{
+				Console.Error("ZdxsvGgpo: replay %s: hle0 has %zu values, not %zu", path.c_str(), r.hle0.size(), std::size(h));
+				return -1;
+			}
+			std::copy(r.hle0.begin(), r.hle0.end(), h);
 			// The kind-3 counters index s_zds_k3 (NetApply) and the file holds no kind-3 bodies: only the empty barrier
 			// the recorder writes (ReplayBegin, right after the session reset) can be played.
 			if (std::any_of(h + 4, h + 9, [](int v) { return v != 0; }))
@@ -2461,7 +2516,7 @@ namespace Zdxsv
 				return -1;
 			}
 			const std::string state_path = Path::Combine(EmuFolders::Cache, fmt::format("zdxsv-replay-p{}.p2s", me));
-			if (!FileSystem::WriteBinaryFile(state_path.c_str(), all.data() + data, state_size))
+			if (!FileSystem::WriteBinaryFile(state_path.c_str(), r.state.data(), r.state.size()))
 			{
 				Console.Error("ZdxsvGgpo: replay: cannot write %s", state_path.c_str());
 				return -1;
@@ -2479,8 +2534,8 @@ namespace Zdxsv
 				key->rb.zds_seen[p] = h[4 + p];
 			key->rb.zds_rel = h[8];
 			key->ok = true;
-			Console.WriteLn("ZdxsvGgpo: replay %s: position %lld of %d, %lld frames, zds_ps %d, rx0 %zu bytes, state %lld bytes", path.c_str(),
-				me, s_players, frames, s_zds_ps ? 1 : 0, key->rb.net_rx.size(), state_size);
+			Console.WriteLn("ZdxsvGgpo: replay %s: position %lld of %d, %lld frames, zds_ps %d, rx0 %zu bytes, state %zu bytes", path.c_str(),
+				me, s_players, frames, s_zds_ps ? 1 : 0, key->rb.net_rx.size(), r.state.size());
 			s_play_keys[me].emplace(0, std::move(key));
 			s_play_pov_ok[me] = true;
 			return static_cast<int>(me);
@@ -2995,7 +3050,7 @@ namespace Zdxsv
 				break;
 		if (p == s_net_me)
 		{
-			Console.WriteLn("ZdxsvGgpo: replay: no other point of view (one file per position: ZDXSV_REPLAY=a.zdxr;b.zdxr)");
+			Console.WriteLn("ZdxsvGgpo: replay: no other point of view (one file per position: ZDXSV_REPLAY=a.pb;b.pb)");
 			return;
 		}
 		s_play_pov_req = p;
