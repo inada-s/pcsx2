@@ -104,8 +104,10 @@ namespace Zdxsv
 		// ZdxsvGgpo setting on, else empty = off. Set by GgpoOnVmInitialize before the CPU runs.
 		std::string s_options;
 		constexpr const char* GAME_SERIAL = "SLPS-25419";
+		constexpr u32 GAME_CRC = 0x435D8236; // ELF CRC of SLPS_254.19: the hooks' fixed guest addresses are this build's
 		constexpr const char* DEFAULT_OPTIONS = "net=1,lobby=1";
 	} // namespace
+	bool g_z_game = false;
 	bool g_ggpo_active = false;
 	bool g_ggpo_in_rollback = false;
 	bool g_gs_rerun_frame = false;
@@ -1210,12 +1212,28 @@ namespace Zdxsv
 		return kept;
 	}
 
-	void GgpoOnVmInitialize(const char* serial)
+	void GgpoOnVmInitialize(const char* serial, u32 crc)
 	{
+		// DeltaState.cpp sets it for ZDXSV_DELTA_TEST at startup; the recompilers read it from the first block on
+		static const bool fixed_for_test = g_fixed_blocks;
 		const char* e = std::getenv("ZDXSV_GGPO");
 		// Read here only, so not a config field: a change takes effect at the next VM start.
 		const bool setting = Host::GetBoolSettingValue("DEV9/Eth", "ZdxsvGgpo", true);
-		const bool lobby_default = std::strcmp(serial, GAME_SERIAL) == 0 && setting && !s_play_env;
+		// ZDXSV_GAME_CRC=hex (test): the CRC taken as the Z game's, to run the wrong-game path on the Z game
+		const char* want_env = Zdxsv::TestEnv("ZDXSV_GAME_CRC");
+		const u32 want = want_env ? static_cast<u32>(std::strtoul(want_env, nullptr, 16)) : GAME_CRC;
+		const bool serial_match = std::strcmp(serial, GAME_SERIAL) == 0;
+		g_z_game = serial_match && crc == want;
+		const bool lobby_default = g_z_game && setting && !s_play_env;
+		if (!g_z_game) // any other game or build: no GGPO, replay, hooks or platform info, in test builds too
+		{
+			s_options.clear();
+			g_ggpo_enabled = s_net_env = g_net_hook = g_zd_hook = g_ps_hook = false;
+			g_fixed_blocks = fixed_for_test;
+			if (serial_match || (e && std::strcmp(e, "0") != 0) || s_play_env || s_net_trace)
+				Console.Warning("ZdxsvGgpo: off: not the Z game (serial %s CRC %08X, need %s %08X)", serial, crc, GAME_SERIAL, want);
+			return;
+		}
 		if (e && std::strcmp(e, "0") == 0) // off whatever the setting (rigs without GGPO)
 			s_options.clear();
 		else if (TEST_OPTIONS)
@@ -1226,8 +1244,7 @@ namespace Zdxsv
 		s_net_env = s_options.find("net=1") != std::string::npos || s_play_env;
 		g_net_hook = s_net_trace != nullptr || s_net_env;
 		g_zd_hook = s_net_env;
-		// DeltaState.cpp sets it for ZDXSV_DELTA_TEST at startup; the recompilers read it from the first block on
-		static const bool fixed_for_test = g_fixed_blocks;
+		g_ps_hook = s_zds_ps;
 		g_fixed_blocks = fixed_for_test || !s_options.empty();
 		if (!s_options.empty() || std::strcmp(serial, GAME_SERIAL) == 0)
 			Console.WriteLn("ZdxsvGgpo: options '%s' (serial %s, setting %d)", s_options.c_str(), serial, setting ? 1 : 0);
