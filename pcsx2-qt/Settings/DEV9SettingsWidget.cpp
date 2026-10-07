@@ -61,6 +61,8 @@ DEV9SettingsWidget::DEV9SettingsWidget(SettingsWindow* settings_dialog, QWidget*
 
 	// zdxsv: GGPO for battles of the Z game (read by Zdxsv::GgpoOnVmInitialize)
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvGgpo, "DEV9/Eth", "ZdxsvGgpo", true);
+	// zdxsv: send GGPO battle replays to the lobby's replay server (read by Zdxsv ReplayUpload)
+	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvUploadReplay, "DEV9/Eth", "ZdxsvUploadReplay", true);
 	// zdxsv: low-latency vsync, Z game only
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvLowLatencyVsync, "EmuCore/GS", "ZdxsvLowLatencyVsync", true);
 

@@ -39,6 +39,12 @@ foreach ($i in $N) {
   $c = @($c -replace '^Renderer = .*', "Renderer = $r" | Where-Object { $_ -notmatch '^NominalScalar *=' })
   if (!($c -match '^\[Framerate\]')) { $c += @('', '[Framerate]') }
   $c = foreach ($l in $c) { $l; if ($l -match '^\[Framerate\]') { "NominalScalar = $Speed" } }
+  # ZDXSV_UPLOAD_REPLAY=0|1: setting ZdxsvUploadReplay; unset = the default (no line)
+  $c = @($c | Where-Object { $_ -notmatch '^ZdxsvUploadReplay *=' })
+  if ($env:ZDXSV_UPLOAD_REPLAY) {
+    $v = if ($env:ZDXSV_UPLOAD_REPLAY -eq '0') { 'false' } else { 'true' }
+    $c = foreach ($l in $c) { $l; if ($l -match '^\[DEV9/Eth\]') { "ZdxsvUploadReplay = $v" } }
+  }
   $c | Set-Content $ini -Encoding UTF8
   if ($Memcard) { Copy-Item -Force $Memcard "$d\PCSX2\memcards\Mcd001.ps2" }
   $a = @('-datapath', $d, '-batch')

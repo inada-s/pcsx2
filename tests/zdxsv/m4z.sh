@@ -35,6 +35,9 @@
 #   127.0.0.1:7300/7301 between p1 and p3's GGPO ports; each announces only its relay socket, so the direct
 #   path is ~2D ms rtt. Checks: lobby delay = max(GMIN or 2, ceil(2D/32)), or GMIN/2 when RELAY_PATH is a relay.
 #   With RELAY=1 RELAY_PATH="relay 0" the GGPO traffic skips udprelay.py (its count = ping test only).
+#   REPLAY_UP=1 (GGPO): lobby replay server on :8204 into $OUT/replays-up. Checks per battle code: one
+#   GGPO client logged upload ok, the others "already there" (UPLOAD_OFF=K: client K has the setting
+#   ZdxsvUploadReplay off and logs no upload); the stored file = that client's own .zdxr, byte for byte.
 # db: copied from $RUN/zdxsv.db (the cards' accounts) into $OUT; stack logs land in $OUT.
 # Cards: each client starts from $RUN/Mcd001-<CARDS[i]>.ps2 (CARDS, required: one registered card per client);
 # the live card is put back after (m4.sh's lobby states use it). A post-battle prompt creates system
@@ -61,6 +64,7 @@ cenv() {
   [ -z "${EMU:-}" ] && { echo ZDXSV_PLATFORM_INFO=0; return; }
   # PWTRACE=1: player-work hashes + net trace per client (OUT/trace-p<i>.txt; rplay.sh compares a replay to them)
   [ -n "${PWTRACE:-}" ] && echo "ZDXSV_PW_HASH=1 ZDXSV_NET_TRACE=$OUT/trace-p$1.txt"
+  [ "$1" = "${UPLOAD_OFF:-}" ] && echo ZDXSV_UPLOAD_REPLAY=0
   # GGPO_DEFAULT=K (GGPO, GDELAY=auto): client K has no ZDXSV_GGPO, its GGPO options come from the setting
   [ -n "${GGPO:-}" ] && [ "$1" = "${GGPO_DEFAULT:-}" ] && { echo ZDXSV_GGPO=default; return; }
   case " ${GGPO_CLIENTS:-$CLIENTS} " in *" $1 "*) [ -n "${GGPO:-}" ] && echo "ZDXSV_GGPO=net=1,lobby=1,port=$((GGPO + $1 - 1))$([ "${GDELAY:-1}" = auto ] || echo ",delay=${GDELAY:-1}")${GMIN:+,mindelay=$GMIN}$([ "$1" = "${BAD_SESSION:-}" ] && echo ,badsession=1)$([ -n "${GGPO_LAT:-}" ] && echo ",advertise=$((7300 + ($1 == 1)))")";; esac  # GDELAY=auto: no delay= (rtt pick, floor GMIN)
@@ -88,6 +92,7 @@ check() { if eval "$2"; then echo "PASS $1"; else echo "FAIL $1"; ok=1; fi; }
 ZDXSV=$ZDXSV bash "$here/zbincheck.sh" "${ZBIN:-$ZDXSV/bin/zdxsv.exe}" || exit 1
 # -v=2: every lobby frame (entry check below, lobby_trace.py)
 [ -n "${RELAY:-}" ] && export ZDXSV_LOBBY_RELAY_ADDR=:8203
+[ -n "${REPLAY_UP:-}" ] && export ZDXSV_LOBBY_REPLAY_ADDR=:8204 ZDXSV_LOBBY_REPLAY_DIR="$OUT/replays-up"
 RELAY_PATH=${RELAY_PATH:-direct}
 LOBBY_ARGS=-v=2 RUN="$OUT" bash "$here/stack.sh" "$IP" > "$OUT/stack.out" 2>&1 & pids+=($!)
 if [ -n "${GGPO_LAT:-}" ]; then
@@ -274,5 +279,26 @@ if [ -n "${GGPO_LAT:-}" ]; then
   done
   echo "udprelay: $(grep -a 'relay \(end\|stats\)' "$OUT/udprelay.txt" | tail -1 | tr -d '\r')"
   check "udprelay forwarded (the ping test reached it)" "grep -a 'relay \(end\|stats\)' '$OUT/udprelay.txt' | tail -1 | grep -a -q 'packets in [1-9]'"
+fi
+if [ -n "${REPLAY_UP:-}" ]; then
+  check "lobby replay server started" "grep -a -q 'Start replay server' '$OUT/lobby.log'"
+  up=""; for i in ${GGPO_CLIENTS:-$CLIENTS}; do [ "$i" != "${UPLOAD_OFF:-}" ] && up="$up $i"; done
+  # the upload runs on a thread after the replay is written: up to 60 s
+  for t in $(seq 60); do
+    n=0; for i in $up; do n=$((n + $(grep -a -c 'ZdxsvGgpo: replay upload' "$RUN/p$i/PCSX2/logs/emulog.txt"))); done
+    [ "$n" -ge $(($(echo $up | wc -w) * B)) ] && break; sleep 1
+  done
+  for code in $(grep -o 'battle_code:[0-9]*' "$OUT/results.txt" | cut -d: -f2 | sort -u); do
+    oks=""; there=0
+    for i in ${GGPO_CLIENTS:-$CLIENTS}; do
+      f="$RUN/p$i/PCSX2/logs/emulog.txt"
+      grep -a "ZdxsvGgpo: replay upload .*battle_code=$code&" "$f" | tr -d '\r' | cut -c1-200
+      grep -a -q "replay upload .*battle_code=$code&.*: ok" "$f" && oks="$oks $i"
+      there=$((there + $(grep -a -c "replay upload .*battle_code=$code&.*: already there" "$f")))
+      [ "$i" = "${UPLOAD_OFF:-}" ] && check "p$i (setting off) no upload of $code" "! grep -a -q 'replay upload .*battle_code=$code&' '$f'"
+    done
+    check "$code: one upload ok ($oks), $(($(echo $up | wc -w) - 1)) already there" "[ $(echo $oks | wc -w) -eq 1 ] && [ $there -eq $(($(echo $up | wc -w) - 1)) ]"
+    check "$code: stored file = p${oks# }'s own replay" "cmp -s '$OUT/replays-up/$code.zdxr' '$RUN/p${oks# }/PCSX2/replays/$code.zdxr'"
+  done
 fi
 exit $ok

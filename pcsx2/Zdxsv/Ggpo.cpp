@@ -60,6 +60,7 @@
 #include "Zdxsv/MediaHooks.h"
 
 #include "common/FileSystem.h"
+#include "common/HTTPDownloader.h"
 #include "common/Path.h"
 #include "common/Console.h"
 #include "common/Error.h"
@@ -954,6 +955,8 @@ namespace Zdxsv
 				s_replay_confirmed = std::max(s_replay_confirmed, confirmed);
 		}
 
+		void ReplayUpload(const std::string& code, const std::string& ids, std::string body);
+
 		// <dir>/<battle_code>.zdxr (without a battle code: rbk-<start_at>-p<position>.zdxr):
 		//   "ZDXSV-REPLAY 1\n", key=value lines (battle info ids, players, position, delay, start_at, end_at,
 		//   frames, close, user_<p>, name_<p>, zds_ps, rx0 (hex), hle0 (ps n,rel,hold,go, k3 seen 0..3,rel), input_size,
@@ -1007,6 +1010,43 @@ namespace Zdxsv
 			}
 			Console.WriteLn("ZdxsvGgpo: replay saved %s frames=%zu state=%zu bytes, %.1f ms", path.c_str(), frames, state->size(),
 				timer.GetTimeMilliseconds());
+			std::string body = std::move(header);
+			body.append(reinterpret_cast<const char*>(state->data()), state->size());
+			body.append(reinterpret_cast<const char*>(s_replay_inputs.data()), input_bytes);
+			ReplayUpload(name, ids, std::move(body));
+		}
+
+		// A lobby battle's replay goes to the lobby's replay server (battle info replay_upload=), unless the
+		// setting ZdxsvUploadReplay is off. The server keeps the first upload of a battle (409 for the others).
+		// Detached as flycast's: a slow upload neither blocks the next battle nor the exit.
+		void ReplayUpload(const std::string& code, const std::string& ids, std::string body)
+		{
+			const auto [url, info_code] = Zdxsv::ReplayUploadTarget();
+			if (url.empty() || code != info_code || !Host::GetBoolSettingValue("DEV9/Eth", "ZdxsvUploadReplay", true))
+				return;
+			std::string user;
+			if (const size_t at = ids.find("user_id="); at != std::string::npos)
+				for (size_t i = at + 8; i < ids.size() && std::isalnum(static_cast<unsigned char>(ids[i])); i++)
+					user += ids[i];
+			std::thread([url = fmt::format("{}?battle_code={}&user_id={}", url, code, user), body = std::move(body)]() mutable {
+				std::unique_ptr<HTTPDownloader> http = HTTPDownloader::Create(Host::GetHTTPUserAgent());
+				if (!http)
+				{
+					Console.Error("ZdxsvGgpo: replay upload: no HTTP client");
+					return;
+				}
+				http->SetTimeout(300.0f);
+				Common::Timer timer;
+				const size_t size = body.size();
+				http->CreatePostRequest(url, std::move(body), [&](s32 status, const std::string&, HTTPDownloader::Request::Data) {
+					if (status == HTTPDownloader::HTTP_STATUS_OK || status == 409)
+						Console.WriteLn("ZdxsvGgpo: replay upload %s: %s, %zu bytes, %.0f ms", url.c_str(),
+							status == 409 ? "already there" : "ok", size, timer.GetTimeMilliseconds());
+					else
+						Console.Error("ZdxsvGgpo: replay upload %s failed: status %d", url.c_str(), status);
+				});
+				http->WaitForAllRequests();
+			}).detach();
 		}
 
 		void Stop(const char* what)

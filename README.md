@@ -41,7 +41,8 @@ with a peer without GGPO is cut, as a connection failure (`docs/zdxsv/lobby.md`)
 
 ### Replays
 
-- A GGPO battle is saved to a `.zdxr` file.
+- A GGPO battle is saved to a `.zdxr` file, and a lobby battle's file is uploaded to the lobby's replay server
+  (setting `ZdxsvUploadReplay`). For it, curl POST requests send their whole body (upstream: up to the first zero byte).
 - Playback with seek, point of view switch, a control bar, key display, a skip of the mobile suit selection, and a round jump.
 
 ### Releases and tools

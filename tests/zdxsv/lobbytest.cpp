@@ -86,6 +86,20 @@ int main()
 	const bool ok = Zdxsv::ParseBattleInfo("session_id=1\nuser_id=A\nbattle_server=1.2.3.4:5\nusers=A,B\nggpo_ping_ms=600000\n", info);
 	Check(ok && info.ggpoPingMs == Zdxsv::MAX_PING_MS, "ggpo_ping_ms=600000 parsed as MAX_PING_MS", info.ggpoPingMs);
 
+	// replay_upload: http(s) URLs only; ReplayUploadTarget = the last battle info's
+	{
+		const char* base = "session_id=1\nuser_id=A\nbattle_code=123\nbattle_server=1.2.3.4:5\nusers=A,B\n";
+		Zdxsv::BattleInfo a, b;
+		Zdxsv::ParseBattleInfo(std::string(base) + "replay_upload=http://192.168.1.8:8204/replay\n", a);
+		Zdxsv::ParseBattleInfo(std::string(base) + "replay_upload=file:///c:/x\n", b);
+		Check(a.replayUpload == "http://192.168.1.8:8204/replay" && b.replayUpload.empty(), "replay_upload: http kept, file: dropped", 0);
+		Zdxsv::SetBattleInfo(a);
+		const auto t = Zdxsv::ReplayUploadTarget();
+		Check(t.first == a.replayUpload && t.second == "123", "ReplayUploadTarget = last battle info", 0);
+		Zdxsv::SetBattleInfo(b);
+		Check(Zdxsv::ReplayUploadTarget().first.empty(), "a battle info without replay_upload clears it", 0);
+	}
+
 	// OpenUdp: 3 tries of 200 ms each; no answer is not cached, an answer is
 	{
 		FakeStun stun(27201);

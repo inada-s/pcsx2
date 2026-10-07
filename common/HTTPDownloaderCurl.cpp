@@ -176,6 +176,7 @@ bool HTTPDownloaderCurl::StartRequest(HTTPDownloader::Request* request)
 	if (request->type == Request::Type::Post)
 	{
 		curl_easy_setopt(req->handle, CURLOPT_POST, 1L);
+		curl_easy_setopt(req->handle, CURLOPT_POSTFIELDSIZE_LARGE, static_cast<curl_off_t>(request->post_data.size()));
 		curl_easy_setopt(req->handle, CURLOPT_POSTFIELDS, request->post_data.c_str());
 	}
 

@@ -178,6 +178,8 @@ namespace Zdxsv
 				break;
 			info.relays.push_back(r);
 		}
+		if (const std::string& url = kv["replay_upload"]; url.starts_with("http://") || url.starts_with("https://"))
+			info.replayUpload = url;
 		out = std::move(info);
 		return true;
 	}
@@ -195,6 +197,12 @@ namespace Zdxsv
 			std::to_string(info.ggpo.size()) + " ggpo peers, " + std::to_string(info.relays.size()) + " relays");
 		if (listener)
 			listener(info);
+	}
+
+	std::pair<std::string, std::string> ReplayUploadTarget()
+	{
+		std::lock_guard lock(g_mtx);
+		return {g_info.replayUpload, g_info.battleCode};
 	}
 
 	void SetBattleInfoListener(std::function<void(const BattleInfo&)> listener)

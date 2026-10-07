@@ -18,6 +18,21 @@ save to `<data dir>/replays` without it. `replay=0` turns saving off.
 
 Log line: `ZdxsvGgpo: replay saved <path> frames=N ...`.
 
+## Upload
+
+A lobby battle's replay is also posted to the lobby's replay server, when the
+battle info names one (`replay_upload=<url>`, zdxsv `ZDXSV_LOBBY_REPLAY_ADDR`)
+and the setting `ZdxsvUploadReplay` is on (default; Settings → Network & HDD).
+
+- `POST <url>?battle_code=<code>&user_id=<own user id>`, body = the `.zdxr`
+  file. The server keeps the first upload of a battle and answers 409 to the
+  other players: one file holds every player's input.
+- On a thread of its own after the file is written; nothing waits for it.
+- The server serves stored files at `GET <url>/<battle_code>.zdxr`.
+
+Log lines: `ZdxsvGgpo: replay upload <url>: ok|already there, N bytes, T ms`,
+or `ZdxsvGgpo: replay upload <url> failed: status S`.
+
 ## File format
 
 1. The line `ZDXSV-REPLAY 1`.

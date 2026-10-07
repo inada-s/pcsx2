@@ -36,6 +36,7 @@ server of another game gets no platform info
 | Setting | Default | Use | Meaning |
 |---|---|---|---|
 | `[DEV9/Eth] ZdxsvGgpo` | `true` | feature | Lobby battles of the game run over GGPO (`ZDXSV_GGPO` options `net=1,lobby=1`). Read when the game starts; Settings → Network & HDD. Other games are never affected. |
+| `[DEV9/Eth] ZdxsvUploadReplay` | `true` | feature | Post each lobby battle's replay to the lobby's replay server when the battle info names one ([replay.md](replay.md), Upload). Settings → Network & HDD. |
 | `[EmuCore/GS] ZdxsvLowLatencyVsync` | `true` | feature | Present the finished frame before the frame limiter sleeps, and poll input right before the next frame runs. Settings → Network & HDD. Other games are never affected. |
 
 ## Network
