@@ -98,6 +98,7 @@ namespace Zdxsv
 	// ZDXSV_REPLAY=file.zdxr: plays a saved replay (PlayLoad), the net=1 hooks on, no GGPO session
 	const char* const s_play_env = std::getenv("ZDXSV_REPLAY");
 	bool g_ggpo_enabled = false; // GgpoOnVmInitialize
+	bool g_mtvu_off = false; // GgpoOnVmInitialize, cleared at VM shutdown
 	namespace
 	{
 		// The ZDXSV_GGPO options of this VM: the variable, else DEFAULT_OPTIONS for the Z game with the
@@ -1231,6 +1232,14 @@ namespace Zdxsv
 		g_fixed_blocks = fixed_for_test || !s_options.empty();
 		if (!s_options.empty() || std::strcmp(serial, GAME_SERIAL) == 0)
 			Console.WriteLn("ZdxsvGgpo: options '%s' (serial %s, setting %d)", s_options.c_str(), serial, setting ? 1 : 0);
+		// Delta saves and loads, replay keys: VU1 memory is copied while the MTVU thread may still run on it.
+		// The settings were loaded before this; VMManager::LoadCoreSettings keeps it off on later reloads.
+		g_mtvu_off = g_ggpo_enabled || g_delta_state_test_enabled;
+		if (g_mtvu_off && EmuConfig.Speedhacks.vuThread)
+		{
+			EmuConfig.Speedhacks.vuThread = false;
+			Console.WriteLn("ZdxsvGgpo: MTVU speedhack off for this VM");
+		}
 	}
 
 	// zdp: record (A, B) of a host pad, s613 bind table (OR-linear; B bit 0 = game state, left 0).
@@ -3154,6 +3163,8 @@ namespace Zdxsv
 
 	void GgpoOnVmShutdown(const char* what)
 	{
+		if (std::strcmp(what, "vm shutdown") == 0)
+			g_mtvu_off = false; // the next VM decides again (a reset VM keeps it off)
 		if (!g_ggpo_enabled)
 			return;
 		size_t keys = 0;

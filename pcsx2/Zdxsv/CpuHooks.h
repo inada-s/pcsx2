@@ -13,6 +13,8 @@ namespace Zdxsv
 	extern bool g_ggpo_enabled; // GGPO options (ZDXSV_GGPO or the ZdxsvGgpo setting) or a replay
 	extern bool g_ggpo_active; // a session runs
 	extern bool g_ggpo_in_rollback; // rerunning frames: no throttle
+	// GGPO, a replay or ZDXSV_DELTA_TEST in this VM: the MTVU speedhack stays off (VMManager::LoadCoreSettings)
+	extern bool g_mtvu_off;
 
 	// In VMManager::Initialize, once the disc serial is known and before the CPU runs: the GGPO options of
 	// this VM (ZDXSV_GGPO, else the ZdxsvGgpo setting for the Z game) and the flags above that follow them.

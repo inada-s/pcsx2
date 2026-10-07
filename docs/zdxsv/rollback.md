@@ -40,6 +40,10 @@ Supporting changes in the core:
 - While GGPO runs, the EE and IOP recompilers end blocks only at branches and
   page boundaries. A rerun after a rollback then times events the same way as
   the first run.
+- The MTVU speedhack is off for a VM with GGPO options, a replay or
+  `ZDXSV_DELTA_TEST` (`GgpoOnVmInitialize`, kept off on settings reloads by
+  `VMManager::LoadCoreSettings`): a delta save or load copies VU1 memory
+  without waiting for the VU1 thread.
 
 The self-test `ZDXSV_DELTA_TEST` saves every frame, rolls back at a fixed
 interval, and checks that each rerun frame hashes like its first run.

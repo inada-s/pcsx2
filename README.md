@@ -34,6 +34,8 @@ with a peer without GGPO still goes through the battle server. The release will 
 - Lobby battles: peers, addresses and input delay come from the lobby and a ping test. Relay servers, a match
   report to the lobby, a P2P connectivity test and a network status OSD.
 - A VM shutdown or reset during a GGPO battle ends it like a disconnect (replay saved, state dropped).
+- The MTVU speedhack is turned off for a VM with GGPO or a replay: delta states copy VU1 memory, which the
+  MTVU thread may still be writing. The setting itself is not changed.
 
 ### Replays
 
