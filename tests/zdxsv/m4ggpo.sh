@@ -24,6 +24,8 @@ D=$(cd "$(dirname "$0")" && pwd)
 PORT=${PORT:-7101}
 GC=${GGPO_CLIENTS:-1 2 3 4}
 GDELAY=${GDELAY:-1}
+# RELAY checks assume the ping test (GDELAY=auto); a fixed delay skips it
+[ -n "${RELAY:-}" ] && [ "$GDELAY" != auto ] && { echo "m4ggpo: RELAY needs GDELAY=auto (got $GDELAY)"; exit 2; }
 for i in $GC; do
   export PCSX2_ENV_P$i="ZDXSV_GGPO=net=1,lobby=1,port=$((PORT + i - 1))$([ "$GDELAY" = auto ] || echo ",delay=$GDELAY")${GMIN:+,mindelay=$GMIN}"
 done
