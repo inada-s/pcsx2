@@ -2374,9 +2374,11 @@ namespace Zdxsv
 			};
 			const s64 players = num("players"), me = num("position"), frames = num("frames"), state_size = num("state_size");
 			const size_t data = end + 2;
-			if (players < 1 || players > GGPO_MAX_PLAYERS || me < 0 || me >= players || frames < 1 || state_size <= 0 ||
-				num("input_size") != static_cast<s64>(sizeof(NetInput)) ||
-				data + state_size + frames * players * sizeof(NetInput) > all.size())
+			// each bound before the next product: header values are any s64
+			if (players < 1 || players > GGPO_MAX_PLAYERS || me < 0 || me >= players || frames < 1 || frames > INT_MAX ||
+				state_size <= 0 || num("input_size") != static_cast<s64>(sizeof(NetInput)) ||
+				static_cast<u64>(state_size) > all.size() - data ||
+				static_cast<u64>(frames) > (all.size() - data - state_size) / (players * sizeof(NetInput)))
 			{
 				Console.Error("ZdxsvGgpo: replay %s: bad header or short file (players %lld position %lld frames %lld)", path.c_str(),
 					players, me, frames);
@@ -2400,6 +2402,23 @@ namespace Zdxsv
 					return -1;
 				}
 			}
+			auto key = std::make_unique<PlayKey>();
+			const auto rx0 = kv.find("rx0");
+			if (rx0 != kv.end())
+				for (size_t i = 0; i + 1 < rx0->second.size(); i += 2)
+					key->rx.push_back(static_cast<u8>(std::strtoul(rx0->second.substr(i, 2).c_str(), nullptr, 16)));
+			int h[9] = {};
+			const auto hle0 = kv.find("hle0");
+			if (rx0 == kv.end() || hle0 == kv.end() ||
+				std::sscanf(hle0->second.c_str(), "%d,%d,%d,%d,%d,%d,%d,%d,%d", &h[0], &h[1], &h[2], &h[3], &h[4], &h[5], &h[6], &h[7], &h[8]) != 9)
+				Console.Warning("ZdxsvGgpo: replay: no rx0 / hle0 (file from before replay play): frame 0 HLE state empty");
+			// The kind-3 counters index s_zds_k3 (NetApply) and the file holds no kind-3 bodies: only the empty barrier
+			// the recorder writes (ReplayBegin, right after the session reset) can be played.
+			if (std::any_of(h + 4, h + 9, [](int v) { return v != 0; }))
+			{
+				Console.Error("ZdxsvGgpo: replay %s: hle0 kind-3 counters %d,%d,%d,%d,%d not 0", path.c_str(), h[4], h[5], h[6], h[7], h[8]);
+				return -1;
+			}
 			const std::string state_path = Path::Combine(EmuFolders::Cache, fmt::format("zdxsv-replay-p{}.p2s", me));
 			if (!FileSystem::WriteBinaryFile(state_path.c_str(), all.data() + data, state_size))
 			{
@@ -2413,17 +2432,7 @@ namespace Zdxsv
 			}
 			s_players = static_cast<int>(players);
 			s_zds_ps = zds_ps;
-			auto key = std::make_unique<PlayKey>();
 			key->path = state_path;
-			const auto rx0 = kv.find("rx0");
-			if (rx0 != kv.end())
-				for (size_t i = 0; i + 1 < rx0->second.size(); i += 2)
-					key->rx.push_back(static_cast<u8>(std::strtoul(rx0->second.substr(i, 2).c_str(), nullptr, 16)));
-			int h[9] = {};
-			const auto hle0 = kv.find("hle0");
-			if (rx0 == kv.end() || hle0 == kv.end() ||
-				std::sscanf(hle0->second.c_str(), "%d,%d,%d,%d,%d,%d,%d,%d,%d", &h[0], &h[1], &h[2], &h[3], &h[4], &h[5], &h[6], &h[7], &h[8]) != 9)
-				Console.Warning("ZdxsvGgpo: replay: no rx0 / hle0 (file from before replay play): frame 0 HLE state empty");
 			key->ps = {static_cast<u8>(h[0]), static_cast<u8>(h[1]), h[2] != 0, h[3] != 0};
 			for (int p = 0; p < 4; p++)
 				key->k3seen[p] = h[4 + p];
