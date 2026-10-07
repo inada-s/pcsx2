@@ -331,6 +331,7 @@ set(pcsx2DEV9Sources
 	DEV9/Sessions/UDP_Session/UDP_FixedPort.cpp
 	DEV9/Sessions/UDP_Session/UDP_Session.cpp
 	Zdxsv/Lobby.cpp
+	Zdxsv/LobbyConnection.cpp
 	DEV9/smap.cpp
 	DEV9/sockets.cpp
 	DEV9/DEV9.cpp

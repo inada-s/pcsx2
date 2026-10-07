@@ -165,7 +165,7 @@ s32 SPU2Savestate::SizeIt()
 	return sizeof(DataBlock);
 }
 
-// zdxsv delta state (#31): ThawIt points each voice's SBuffer at its cache line after wiping the
+// zdxsv delta state: ThawIt points each voice's SBuffer at its cache line after wiping the
 // cache (zeroed samples). A delta load instead restores the line each voice is decoding from.
 // The block ends with has_to_call_irq_dma (spu2sys.cpp), a pending DMA IRQ the full save drops.
 struct SPU2DeltaVoice

@@ -623,6 +623,348 @@ namespace Zdxsv
 						out.push_back(s);
 			return out;
 		}
+
+		// One ping test on its thread (flycast UdpPingPong): pings each candidate address of every other position
+		// and each relay path, answers the peers' pings, then picks a path per position.
+		class PingRun
+		{
+			// candidate k of position p: byPosition[p][k], the index sent in its pings' candidate byte
+			struct Cand
+			{
+				sockaddr_storage sa{};
+				socklen_t len = 0;
+				sock_t s = INVALID_SOCKET; // socket of its family, INVALID_SOCKET = not pinged
+				int64_t sum = 0, pongs = 0;
+				int Rtt() const { return pongs ? static_cast<int>((sum + pongs - 1) / pongs) : -1; }
+			};
+
+		public:
+			PingRun(sock_t s4, sock_t s6, uint32_t session, const std::vector<std::vector<PeerAddr>>& byPosition, int me,
+				const std::vector<BattleInfo::Relay>& relays)
+				: m_s4(s4)
+				, m_s6(s6)
+				, m_session(session)
+				, m_byPosition(byPosition)
+				, m_me(me)
+				, m_n(static_cast<int>(byPosition.size()))
+				, m_relays(relays)
+				, m_nr(static_cast<int>(std::min<size_t>(relays.size(), 4)))
+				// older peers read only a PingPacket: the relay rtts go out only in battles with relays (as flycast)
+				, m_pkSize(m_nr ? sizeof(PingPacketRelays) : sizeof(PingPacket))
+				, m_cand(m_n)
+				, m_rpath(m_nr)
+				, m_pongsIn(m_n, 0)
+			{
+				for (int p = 0; p < m_n; p++)
+					for (const PeerAddr& a : m_byPosition[p])
+					{
+						Cand c;
+						if (ToSockaddr(a, c.sa, c.len))
+							c.s = a.V6() ? m_s6 : m_s4;
+						m_cand[p].push_back(c);
+					}
+				// relay k's IPv4 and IPv6 path, pinged like a candidate
+				for (int k = 0; k < m_nr; k++)
+					for (const PeerAddr* a : {&m_relays[k].addr, &m_relays[k].addr6})
+					{
+						Cand& c = m_rpath[k][a->V6() ? 1 : 0];
+						if (!a->ip.empty() && ToSockaddr(*a, c.sa, c.len))
+							c.s = a->V6() ? m_s6 : m_s4;
+					}
+			}
+
+			// Pings every 100 ms (none in the last 500 ms) and answers until stop or durationMs, then closes the sockets.
+			void Run(const std::atomic<bool>& stop, int durationMs)
+			{
+				const auto start = Clock::now();
+				auto next = start;
+				for (;;)
+				{
+					const auto now = Clock::now();
+					const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count();
+					if (stop || elapsed >= durationMs)
+						break;
+					if (now >= next && elapsed + 500 < durationMs)
+					{
+						next = now + std::chrono::milliseconds(100);
+						SendPings();
+					}
+					for (const sock_t s : Readable({m_s4, m_s6}, 10))
+						Receive(s);
+				}
+				if (m_s4 != INVALID_SOCKET)
+					closesocket(m_s4);
+				if (m_s6 != INVALID_SOCKET)
+					closesocket(m_s6);
+			}
+
+			// Fills t.result (path per position) and t.servers (GGPO's relay server addresses), logs the test.
+			void Finish(PingTest& t)
+			{
+				OwnRow();
+				std::string line = "ping test: session " + std::to_string(m_session) + ", position " + std::to_string(m_me);
+				const std::vector<PingResult> direct = PickDirect(line);
+				AddRelayServers(line, t.servers);
+				for (int p = 0; p < m_n; p++)
+				{
+					if (p == m_me)
+						continue;
+					const PingResult r = PickPath(p, direct, t.servers);
+					t.result[p] = r;
+					line += "; path " + std::to_string(p) + " " +
+							(r.via == 2 ? "relay " + std::to_string(r.relay) : r.via == 1 ? "peer " + std::to_string(r.relay) : std::string("direct")) +
+							" rtt " + std::to_string(r.rtt);
+				}
+				Log(line + MatrixText() + ", " + std::to_string(m_dropped) + " dropped");
+			}
+
+		private:
+			// the faster family (0 IPv4, 1 IPv6) of relay k that answered, -1 = none
+			int RelayBest(int k) const
+			{
+				int f = -1;
+				for (int i = 0; i < 2; i++)
+					if (m_rpath[k][i].Rtt() > 0 && (f < 0 || m_rpath[k][i].Rtt() < m_rpath[k][f].Rtt()))
+						f = i;
+				return f;
+			}
+
+			// our rows of the matrices sent in every ping and pong
+			void OwnRow()
+			{
+				for (int p = 0; p < m_n; p++)
+				{
+					int best = 0;
+					for (const Cand& c : m_cand[p])
+						if (c.Rtt() > 0 && (!best || c.Rtt() < best))
+							best = c.Rtt();
+					m_rtt[m_me][p] = static_cast<uint8_t>(std::min(255, best));
+				}
+				for (int k = 0; k < m_nr; k++)
+				{
+					const int f = RelayBest(k);
+					m_relayRtt[m_me][k] = static_cast<uint8_t>(f < 0 ? 0 : std::min(255, m_rpath[k][f].Rtt()));
+				}
+			}
+
+			void Send(PingPacketRelays& pk, sock_t s, const sockaddr_storage& sa, socklen_t len)
+			{
+				std::memcpy(pk.rttMatrix, m_rtt, sizeof(m_rtt));
+				std::memcpy(pk.relayRttMatrix, m_relayRtt, sizeof(m_relayRtt));
+				sendto(s, reinterpret_cast<const char*>(&pk), m_pkSize, 0, reinterpret_cast<const sockaddr*>(&sa), len);
+			}
+
+			void SendPings()
+			{
+				OwnRow();
+				for (int p = 0; p < m_n; p++)
+				{
+					for (size_t k = 0; p != m_me && k < m_cand[p].size(); k++)
+					{
+						const Cand& c = m_cand[p][k];
+						if (c.s == INVALID_SOCKET)
+							continue;
+						PingPacketRelays pk{};
+						pk.magic = PING_MAGIC;
+						pk.sessionId = m_session;
+						pk.type = PING_TYPE;
+						pk.fromPeer = static_cast<uint8_t>(m_me);
+						pk.toPeer = static_cast<uint8_t>(p);
+						pk.candidate = static_cast<uint8_t>(k);
+						pk.sendTimestamp = NowMs();
+						Send(pk, c.s, c.sa, c.len);
+					}
+				}
+				for (int k = 0; k < m_nr; k++)
+					for (const Cand& c : m_rpath[k])
+					{
+						if (c.s == INVALID_SOCKET)
+							continue;
+						RelayPacket rp{};
+						rp.magic = RELAY_MAGIC;
+						rp.type = RELAY_PING;
+						rp.peer = static_cast<uint8_t>(m_me);
+						rp.relayIdx = static_cast<uint8_t>(k);
+						rp.sessionId = m_session;
+						rp.token = m_relays[k].token;
+						rp.timestamp = NowMs();
+						sendto(c.s, reinterpret_cast<const char*>(&rp), sizeof(rp), 0, reinterpret_cast<const sockaddr*>(&c.sa), c.len);
+					}
+			}
+
+			// One datagram from s: a relay pong, a peer's ping (answered) or pong, else dropped.
+			void Receive(sock_t s)
+			{
+				union
+				{
+					PingPacketRelays pk;
+					RelayPacket rp;
+					char raw[128];
+				} buf{};
+				const PingPacketRelays& pk = buf.pk;
+				sockaddr_storage from{};
+				socklen_t len = sizeof(from);
+				// Windows: an ICMP port unreachable (peer not bound yet) fails this recv, nothing to read
+				const int got = recvfrom(s, buf.raw, sizeof(buf.raw), 0, reinterpret_cast<sockaddr*>(&from), &len);
+				if (got == static_cast<int>(sizeof(RelayPacket)) && buf.rp.magic == RELAY_MAGIC)
+				{
+					const RelayPacket& rp = buf.rp;
+					Cand* c = rp.relayIdx < m_nr ? &m_rpath[rp.relayIdx][s == m_s6 ? 1 : 0] : nullptr;
+					if (c && rp.type == RELAY_PONG && rp.sessionId == m_session && rp.peer == m_me && rp.token == m_relays[rp.relayIdx].token &&
+						SameAddr(from, c->sa))
+					{
+						c->sum += std::max<int64_t>(1, static_cast<int64_t>(NowMs() - rp.timestamp));
+						c->pongs++;
+					}
+					else
+						m_dropped++;
+					return;
+				}
+				if (got < static_cast<int>(sizeof(PingPacket)))
+					return;
+				const bool head = pk.magic == PING_MAGIC && pk.sessionId == m_session && pk.toPeer == m_me && pk.fromPeer < m_n && pk.fromPeer != m_me;
+				const std::vector<Cand>* fc = head ? &m_cand[pk.fromPeer] : nullptr;
+				bool ok = false;
+				if (head && pk.type == PING_TYPE &&
+					std::any_of(fc->begin(), fc->end(), [&from](const Cand& c) { return SameAddr(from, c.sa); }))
+				{
+					OwnRow();
+					PingPacketRelays pong{};
+					pong.magic = PING_MAGIC;
+					pong.sessionId = m_session;
+					pong.type = PONG_TYPE;
+					pong.fromPeer = static_cast<uint8_t>(m_me);
+					pong.toPeer = pk.fromPeer;
+					pong.candidate = pk.candidate;
+					pong.sendTimestamp = NowMs();
+					pong.pingTimestamp = pk.sendTimestamp;
+					Send(pong, s, from, len);
+					m_pongsIn[pk.fromPeer]++;
+					ok = true;
+				}
+				else if (head && pk.type == PONG_TYPE && pk.candidate < fc->size() && SameAddr(from, (*fc)[pk.candidate].sa))
+				{
+					Cand& c = m_cand[pk.fromPeer][pk.candidate];
+					c.sum += std::max<int64_t>(1, static_cast<int64_t>(NowMs() - pk.pingTimestamp));
+					c.pongs++;
+					ok = true;
+				}
+				else
+					m_dropped++;
+				if (ok) // the sender's own rows of the matrices
+				{
+					std::memcpy(m_rtt[pk.fromPeer], pk.rttMatrix[pk.fromPeer], sizeof(m_rtt[0]));
+					if (got >= static_cast<int>(sizeof(PingPacketRelays)))
+						std::memcpy(m_relayRtt[pk.fromPeer], pk.relayRttMatrix[pk.fromPeer], sizeof(m_relayRtt[0]));
+				}
+			}
+
+			// the best direct candidate per position, rtt 0 = none answered
+			std::vector<PingResult> PickDirect(std::string& line) const
+			{
+				std::vector<PingResult> direct(m_n);
+				for (int p = 0; p < m_n; p++)
+				{
+					if (p == m_me)
+						continue;
+					// flycast UdpPingPong::GetAvailableAddress: highest 10000 - rtt, +100 loopback, +50 private, +20 IPv6
+					float best = 0;
+					line += "; peer " + std::to_string(p);
+					for (size_t k = 0; k < m_cand[p].size(); k++)
+					{
+						const Cand& c = m_cand[p][k];
+						const int r = c.Rtt();
+						line += " " + m_byPosition[p][k].String() + " rtt " + std::to_string(r) + " ms (" + std::to_string(c.pongs) + " pongs)";
+						if (r <= 0)
+							continue;
+						const float score = 10000.f - r + (IsLoopback(c.sa) ? 100.f : 0.f) + (IsPrivate(c.sa) ? 50.f : 0.f) +
+											(c.sa.ss_family == AF_INET6 ? 20.f : 0.f);
+						if (score > best)
+							best = score, direct[p] = {r, m_byPosition[p][k]};
+					}
+					line += ", " + std::to_string(m_pongsIn[p]) + " pings answered, picked " +
+							(direct[p].rtt > 0 ? direct[p].addr.String() : std::string("none"));
+				}
+				return direct;
+			}
+
+			void AddRelayServers(std::string& line, std::vector<RelayServerAddr>& servers) const
+			{
+				for (int k = 0; k < m_nr; k++)
+				{
+					const BattleInfo::Relay& rl = m_relays[k];
+					line += "; relay " + std::to_string(k);
+					for (int i = 0; i < 2; i++)
+						if (m_rpath[k][i].s != INVALID_SOCKET)
+							line += " " + (rl.addr.V6() == (i == 1) ? rl.addr : rl.addr6).String() + " rtt " + std::to_string(m_rpath[k][i].Rtt()) +
+									" ms (" + std::to_string(m_rpath[k][i].pongs) + " pongs)";
+					// GGPO's address of the relay: the faster family that answered, else addr; alt = the other one
+					const int f = RelayBest(k);
+					const bool useAddr6 = f >= 0 && !rl.addr6.ip.empty() && (f == 1) != rl.addr.V6();
+					servers.push_back(useAddr6 ? RelayServerAddr{rl.addr6, rl.addr} : RelayServerAddr{rl.addr, rl.addr6});
+				}
+			}
+
+			// path choice, flycast's rollback backend: a relaying peer must beat direct by 32 ms (it spends its
+			// own bandwidth), a relay server by 16 ms; of the two the lower rtt wins
+			PingResult PickPath(int p, const std::vector<PingResult>& direct, const std::vector<RelayServerAddr>& servers) const
+			{
+				PingResult r = direct[p];
+				const bool directOk = r.rtt > 0;
+				int peerJ = -1, peerSum = INT_MAX;
+				for (int j = 0; j < m_n; j++)
+					if (j != p && j != m_me && m_rtt[m_me][j] && 0 < m_rtt[j][p] && m_rtt[j][p] < 255 && m_rtt[m_me][j] + m_rtt[j][p] < peerSum)
+						peerSum = m_rtt[m_me][j] + m_rtt[j][p], peerJ = j;
+				bool peerOk = false;
+				int peerRtt = 0;
+				if (peerJ >= 0 && (!directOk || peerSum + 32 < r.rtt) && direct[peerJ].rtt > 0)
+					peerOk = true, peerRtt = direct[peerJ].rtt + m_rtt[peerJ][p];
+				int server = -1, serverSum = INT_MAX;
+				for (int k = 0; k < m_nr; k++)
+				{
+					const int mine = m_relayRtt[m_me][k], theirs = m_relayRtt[p][k];
+					if (0 < mine && mine < 255 && 0 < theirs && theirs < 255 && mine + theirs < serverSum)
+						serverSum = mine + theirs, server = k;
+				}
+				const bool serverOk = server >= 0 && (!directOk || serverSum + 16 < r.rtt) && RelayBest(server) >= 0;
+				if (serverOk && (!peerOk || serverSum <= peerRtt))
+					r = {serverSum, servers[server].addr, 2, server};
+				else if (peerOk)
+					r = {peerRtt, direct[peerJ].addr, 1, peerJ};
+				return r;
+			}
+
+			std::string MatrixText() const
+			{
+				std::string line = "; rtt";
+				for (int i = 0; i < m_n; i++)
+				{
+					line += i ? " |" : "";
+					for (int j = 0; j < m_n; j++)
+						line += " " + std::to_string(m_rtt[i][j]);
+				}
+				for (int k = 0; k < m_nr; k++)
+				{
+					line += "; relay " + std::to_string(k) + " rtt";
+					for (int i = 0; i < m_n; i++)
+						line += " " + std::to_string(m_relayRtt[i][k]);
+				}
+				return line;
+			}
+
+			const sock_t m_s4, m_s6;
+			const uint32_t m_session;
+			const std::vector<std::vector<PeerAddr>> m_byPosition;
+			const int m_me, m_n;
+			const std::vector<BattleInfo::Relay> m_relays;
+			const int m_nr;
+			const int m_pkSize;
+			std::vector<std::vector<Cand>> m_cand;
+			std::vector<std::array<Cand, 2>> m_rpath;
+			std::vector<int64_t> m_pongsIn;
+			uint8_t m_rtt[4][4] = {}, m_relayRtt[4][4] = {};
+			int m_dropped = 0;
+		};
 	} // namespace
 
 	void StartPingTest(uint32_t session, const std::vector<std::vector<PeerAddr>>& byPosition, uint16_t port, int durationMs,
@@ -652,268 +994,10 @@ namespace Zdxsv
 		g_ping = std::make_unique<PingTest>();
 		g_ping->result.assign(n, {});
 		PingTest* t = g_ping.get();
-		t->thread = std::thread([t, s4, s6, session, byPosition, me, n, durationMs, relays] {
-			// candidate k of position p: byPosition[p][k], the index sent in its pings' candidate byte
-			struct Cand
-			{
-				sockaddr_storage sa{};
-				socklen_t len = 0;
-				sock_t s = INVALID_SOCKET; // socket of its family, INVALID_SOCKET = not pinged
-				int64_t sum = 0, pongs = 0;
-				int Rtt() const { return pongs ? static_cast<int>((sum + pongs - 1) / pongs) : -1; }
-			};
-			std::vector<std::vector<Cand>> cand(n);
-			for (int p = 0; p < n; p++)
-				for (const PeerAddr& a : byPosition[p])
-				{
-					Cand c;
-					if (ToSockaddr(a, c.sa, c.len))
-						c.s = a.V6() ? s6 : s4;
-					cand[p].push_back(c);
-				}
-			// relay k's IPv4 and IPv6 path, pinged like a candidate
-			const int nr = static_cast<int>(std::min<size_t>(relays.size(), 4));
-			std::vector<std::array<Cand, 2>> rpath(nr);
-			for (int k = 0; k < nr; k++)
-				for (const PeerAddr* a : {&relays[k].addr, &relays[k].addr6})
-				{
-					Cand& c = rpath[k][a->V6() ? 1 : 0];
-					if (!a->ip.empty() && ToSockaddr(*a, c.sa, c.len))
-						c.s = a->V6() ? s6 : s4;
-				}
-			auto relayBest = [&rpath](int k) {
-				int f = -1;
-				for (int i = 0; i < 2; i++)
-					if (rpath[k][i].Rtt() > 0 && (f < 0 || rpath[k][i].Rtt() < rpath[k][f].Rtt()))
-						f = i;
-				return f;
-			};
-			uint8_t rtt[4][4] = {}, relayRtt[4][4] = {};
-			auto ownRow = [&] {
-				for (int p = 0; p < n; p++)
-				{
-					int best = 0;
-					for (const Cand& c : cand[p])
-						if (c.Rtt() > 0 && (!best || c.Rtt() < best))
-							best = c.Rtt();
-					rtt[me][p] = static_cast<uint8_t>(std::min(255, best));
-				}
-				for (int k = 0; k < nr; k++)
-				{
-					const int f = relayBest(k);
-					relayRtt[me][k] = static_cast<uint8_t>(f < 0 ? 0 : std::min(255, rpath[k][f].Rtt()));
-				}
-			};
-			// older peers read only a PingPacket: the relay rtts go out only in battles with relays (as flycast)
-			const int pkSize = nr ? sizeof(PingPacketRelays) : sizeof(PingPacket);
-			auto send = [&](PingPacketRelays& pk, sock_t s, const sockaddr_storage& sa, socklen_t len) {
-				std::memcpy(pk.rttMatrix, rtt, sizeof(rtt));
-				std::memcpy(pk.relayRttMatrix, relayRtt, sizeof(relayRtt));
-				sendto(s, reinterpret_cast<const char*>(&pk), pkSize, 0, reinterpret_cast<const sockaddr*>(&sa), len);
-			};
-			std::vector<int64_t> pongsIn(n, 0);
-			int dropped = 0;
-			const auto start = Clock::now();
-			auto next = start;
-			for (;;)
-			{
-				const auto now = Clock::now();
-				const int64_t elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - start).count();
-				if (t->stop || elapsed >= durationMs)
-					break;
-				if (now >= next && elapsed + 500 < durationMs)
-				{
-					next = now + std::chrono::milliseconds(100);
-					ownRow();
-					for (int p = 0; p < n; p++)
-					{
-						for (size_t k = 0; p != me && k < cand[p].size(); k++)
-						{
-							const Cand& c = cand[p][k];
-							if (c.s == INVALID_SOCKET)
-								continue;
-							PingPacketRelays pk{};
-							pk.magic = PING_MAGIC;
-							pk.sessionId = session;
-							pk.type = PING_TYPE;
-							pk.fromPeer = static_cast<uint8_t>(me);
-							pk.toPeer = static_cast<uint8_t>(p);
-							pk.candidate = static_cast<uint8_t>(k);
-							pk.sendTimestamp = NowMs();
-							send(pk, c.s, c.sa, c.len);
-						}
-					}
-					for (int k = 0; k < nr; k++)
-						for (const Cand& c : rpath[k])
-						{
-							if (c.s == INVALID_SOCKET)
-								continue;
-							RelayPacket rp{};
-							rp.magic = RELAY_MAGIC;
-							rp.type = RELAY_PING;
-							rp.peer = static_cast<uint8_t>(me);
-							rp.relayIdx = static_cast<uint8_t>(k);
-							rp.sessionId = session;
-							rp.token = relays[k].token;
-							rp.timestamp = NowMs();
-							sendto(c.s, reinterpret_cast<const char*>(&rp), sizeof(rp), 0, reinterpret_cast<const sockaddr*>(&c.sa), c.len);
-						}
-				}
-				for (const sock_t s : Readable({s4, s6}, 10))
-				{
-					union
-					{
-						PingPacketRelays pk;
-						RelayPacket rp;
-						char raw[128];
-					} buf{};
-					const PingPacketRelays& pk = buf.pk;
-					sockaddr_storage from{};
-					socklen_t len = sizeof(from);
-					// Windows: an ICMP port unreachable (peer not bound yet) fails this recv, nothing to read
-					const int got = recvfrom(s, buf.raw, sizeof(buf.raw), 0, reinterpret_cast<sockaddr*>(&from), &len);
-					if (got == static_cast<int>(sizeof(RelayPacket)) && buf.rp.magic == RELAY_MAGIC)
-					{
-						const RelayPacket& rp = buf.rp;
-						Cand* c = rp.relayIdx < nr ? &rpath[rp.relayIdx][s == s6 ? 1 : 0] : nullptr;
-						if (c && rp.type == RELAY_PONG && rp.sessionId == session && rp.peer == me && rp.token == relays[rp.relayIdx].token &&
-							SameAddr(from, c->sa))
-						{
-							c->sum += std::max<int64_t>(1, static_cast<int64_t>(NowMs() - rp.timestamp));
-							c->pongs++;
-						}
-						else
-							dropped++;
-						continue;
-					}
-					if (got < static_cast<int>(sizeof(PingPacket)))
-						continue;
-					const bool head = pk.magic == PING_MAGIC && pk.sessionId == session && pk.toPeer == me && pk.fromPeer < n && pk.fromPeer != me;
-					const std::vector<Cand>* fc = head ? &cand[pk.fromPeer] : nullptr;
-					bool ok = false;
-					if (head && pk.type == PING_TYPE &&
-						std::any_of(fc->begin(), fc->end(), [&from](const Cand& c) { return SameAddr(from, c.sa); }))
-					{
-						ownRow();
-						PingPacketRelays pong{};
-						pong.magic = PING_MAGIC;
-						pong.sessionId = session;
-						pong.type = PONG_TYPE;
-						pong.fromPeer = static_cast<uint8_t>(me);
-						pong.toPeer = pk.fromPeer;
-						pong.candidate = pk.candidate;
-						pong.sendTimestamp = NowMs();
-						pong.pingTimestamp = pk.sendTimestamp;
-						send(pong, s, from, len);
-						pongsIn[pk.fromPeer]++;
-						ok = true;
-					}
-					else if (head && pk.type == PONG_TYPE && pk.candidate < fc->size() && SameAddr(from, (*fc)[pk.candidate].sa))
-					{
-						Cand& c = cand[pk.fromPeer][pk.candidate];
-						c.sum += std::max<int64_t>(1, static_cast<int64_t>(NowMs() - pk.pingTimestamp));
-						c.pongs++;
-						ok = true;
-					}
-					else
-						dropped++;
-					if (ok) // the sender's own rows of the matrices
-					{
-						std::memcpy(rtt[pk.fromPeer], pk.rttMatrix[pk.fromPeer], sizeof(rtt[0]));
-						if (got >= static_cast<int>(sizeof(PingPacketRelays)))
-							std::memcpy(relayRtt[pk.fromPeer], pk.relayRttMatrix[pk.fromPeer], sizeof(relayRtt[0]));
-					}
-				}
-			}
-			if (s4 != INVALID_SOCKET)
-				closesocket(s4);
-			if (s6 != INVALID_SOCKET)
-				closesocket(s6);
-			ownRow();
-			std::string line = "ping test: session " + std::to_string(session) + ", position " + std::to_string(me);
-			std::vector<PingResult> direct(n);
-			for (int p = 0; p < n; p++)
-			{
-				if (p == me)
-					continue;
-				// flycast UdpPingPong::GetAvailableAddress: highest 10000 - rtt, +100 loopback, +50 private, +20 IPv6
-				float best = 0;
-				line += "; peer " + std::to_string(p);
-				for (size_t k = 0; k < cand[p].size(); k++)
-				{
-					const Cand& c = cand[p][k];
-					const int r = c.Rtt();
-					line += " " + byPosition[p][k].String() + " rtt " + std::to_string(r) + " ms (" + std::to_string(c.pongs) + " pongs)";
-					if (r <= 0)
-						continue;
-					const float score = 10000.f - r + (IsLoopback(c.sa) ? 100.f : 0.f) + (IsPrivate(c.sa) ? 50.f : 0.f) +
-										(c.sa.ss_family == AF_INET6 ? 20.f : 0.f);
-					if (score > best)
-						best = score, direct[p] = {r, byPosition[p][k]};
-				}
-				line += ", " + std::to_string(pongsIn[p]) + " pings answered, picked " +
-						(direct[p].rtt > 0 ? direct[p].addr.String() : std::string("none"));
-			}
-			for (int k = 0; k < nr; k++)
-			{
-				const BattleInfo::Relay& rl = relays[k];
-				line += "; relay " + std::to_string(k);
-				for (int i = 0; i < 2; i++)
-					if (rpath[k][i].s != INVALID_SOCKET)
-						line += " " + (rl.addr.V6() == (i == 1) ? rl.addr : rl.addr6).String() + " rtt " + std::to_string(rpath[k][i].Rtt()) +
-								" ms (" + std::to_string(rpath[k][i].pongs) + " pongs)";
-				// GGPO's address of the relay: the faster family that answered, else addr; alt = the other one
-				const int f = relayBest(k);
-				const bool useAddr6 = f >= 0 && !rl.addr6.ip.empty() && (f == 1) != rl.addr.V6();
-				t->servers.push_back(useAddr6 ? RelayServerAddr{rl.addr6, rl.addr} : RelayServerAddr{rl.addr, rl.addr6});
-			}
-			// path choice, flycast's rollback backend: a relaying peer must beat direct by 32 ms (it spends its
-			// own bandwidth), a relay server by 16 ms; of the two the lower rtt wins
-			for (int p = 0; p < n; p++)
-			{
-				if (p == me)
-					continue;
-				PingResult r = direct[p];
-				const bool directOk = r.rtt > 0;
-				int peerJ = -1, peerSum = INT_MAX;
-				for (int j = 0; j < n; j++)
-					if (j != p && j != me && rtt[me][j] && 0 < rtt[j][p] && rtt[j][p] < 255 && rtt[me][j] + rtt[j][p] < peerSum)
-						peerSum = rtt[me][j] + rtt[j][p], peerJ = j;
-				bool peerOk = false;
-				int peerRtt = 0;
-				if (peerJ >= 0 && (!directOk || peerSum + 32 < r.rtt) && direct[peerJ].rtt > 0)
-					peerOk = true, peerRtt = direct[peerJ].rtt + rtt[peerJ][p];
-				int server = -1, serverSum = INT_MAX;
-				for (int k = 0; k < nr; k++)
-				{
-					const int mine = relayRtt[me][k], theirs = relayRtt[p][k];
-					if (0 < mine && mine < 255 && 0 < theirs && theirs < 255 && mine + theirs < serverSum)
-						serverSum = mine + theirs, server = k;
-				}
-				const bool serverOk = server >= 0 && (!directOk || serverSum + 16 < r.rtt) && relayBest(server) >= 0;
-				if (serverOk && (!peerOk || serverSum <= peerRtt))
-					r = {serverSum, t->servers[server].addr, 2, server};
-				else if (peerOk)
-					r = {peerRtt, direct[peerJ].addr, 1, peerJ};
-				t->result[p] = r;
-				line += "; path " + std::to_string(p) + " " +
-						(r.via == 2 ? "relay " + std::to_string(r.relay) : r.via == 1 ? "peer " + std::to_string(r.relay) : std::string("direct")) +
-						" rtt " + std::to_string(r.rtt);
-			}
-			line += "; rtt";
-			for (int i = 0; i < n; i++)
-			{
-				line += i ? " |" : "";
-				for (int j = 0; j < n; j++)
-					line += " " + std::to_string(rtt[i][j]);
-			}
-			for (int k = 0; k < nr; k++)
-			{
-				line += "; relay " + std::to_string(k) + " rtt";
-				for (int i = 0; i < n; i++)
-					line += " " + std::to_string(relayRtt[i][k]);
-			}
-			Log(line + ", " + std::to_string(dropped) + " dropped");
+		t->thread = std::thread([t, s4, s6, session, byPosition, me, durationMs, relays] {
+			PingRun run(s4, s6, session, byPosition, me, relays);
+			run.Run(t->stop, durationMs);
+			run.Finish(*t);
 		});
 	}
 

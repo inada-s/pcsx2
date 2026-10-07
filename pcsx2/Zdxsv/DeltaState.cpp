@@ -360,7 +360,7 @@ namespace Zdxsv
 	{
 		// The newest saved frame stays: s_open holds the pages written since it. Without it the next
 		// save starts over with s_open still holding that older interval, and a load of that save puts
-		// those pages back to their old data (GGPO's confirmed-frame save skip, 0 ms + loss froze the game, s663).
+		// those pages back to their old data (GGPO's confirmed-frame save skip; with 0 ms latency and packet loss it froze the game).
 		while (s_states.size() > 1 && s_states.begin()->first < frame)
 		{
 			s_buffer_pool.push_back(std::move(s_states.begin()->second));

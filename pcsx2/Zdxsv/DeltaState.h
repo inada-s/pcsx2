@@ -9,7 +9,7 @@
 #include <string>
 #include <vector>
 
-// zdxsv delta state (#31): fast per-frame save/load of the VM for rollback (GGPO).
+// zdxsv delta state: fast per-frame save/load of the VM for rollback (GGPO).
 // EE RAM is copy-on-write (vtlb mmap_Delta*): a save keeps only the old data of the pages
 // written since the previous save. The rest (SaveState_DeltaSave) is copied whole.
 // GS thread state is not saved. CPU thread only, at the same point every frame (vsync).
