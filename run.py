@@ -9,7 +9,9 @@
 
 For checking things by hand: the game runs with its own rules (time, rounds) and nothing is cut short.
 
-Settings are environment variables (see the block below), e.g.
+Settings are environment variables (see the block below). ROM (the game's .iso) and BIOS (its directory)
+have no default, e.g.
+    ROM=/path/to/zgundam.iso BIOS=/path/to/ps2-bios python run.py rom
     N=2 python run.py rom
     N=4 SEED=7 python run.py rbk_test_random
     GDXSV=192.168.1.8 python run.py rom    # point the game's server hosts at a local zdxsv
@@ -25,6 +27,7 @@ Closing instance 1 or Ctrl+C closes every instance.
 import configparser
 import ctypes
 import functools
+import hashlib
 import os
 import shutil
 import subprocess
@@ -42,8 +45,9 @@ os.chdir(ROOT)
 
 N = int(os.getenv("N", 2))
 PCSX2 = Path(os.getenv("PCSX2", ROOT / "bin" / "pcsx2-qtx64-avx2.exe"))
-ROM = os.getenv("ROM", r"D:\rom\ps2-gundam-vs-zeta-gundam.iso")
-BIOS = Path(os.getenv("BIOS", r"D:\rom\ps2-bios"))
+# No defaults. Path() gives native separators: PCSX2 on Windows rejects ROM=G:/... as "does not exist".
+ROM = str(Path(os.environ["ROM"])) if os.getenv("ROM") else ""
+BIOS = Path(os.environ["BIOS"]) if os.getenv("BIOS") else None
 BIOS_FILE = os.getenv("BIOS_FILE", "SCPH-50000_JPN_Con_0190_20030822_v10_[D9407AE8].rom0")
 # Copied into an instance's memcards/ when it has no Mcd001.ps2 yet. Unset = PCSX2 makes an empty card.
 MEMCARD = os.getenv("MEMCARD", "")
@@ -280,6 +284,8 @@ def mode_args(mode: str, idx: int):
 
 
 RBK_STATE_URL = os.getenv("RBK_STATE_URL", "https://storage.googleapis.com/zdxsv/misc/rbk-p1.p2s")
+# A save state holds the whole machine: a download is used only if it is the known file.
+RBK_STATE_SHA256 = os.getenv("RBK_STATE_SHA256", "bd6db1b5ed73e3f8321161601a89846ea5fce125b3cf194e6cf938ef30f72fdb")
 
 
 def download_rbk_state():
@@ -295,6 +301,10 @@ def download_rbk_state():
     except OSError as e:
         tmp.unlink(missing_ok=True)
         raise SystemExit(f"download failed: {e}")
+    digest = hashlib.sha256(tmp.read_bytes()).hexdigest()
+    if digest != RBK_STATE_SHA256.lower():
+        tmp.unlink()
+        raise SystemExit(f"download rejected: sha256 {digest}, expected {RBK_STATE_SHA256} (RBK_STATE_SHA256)")
     tmp.replace(dest)
 
 
@@ -302,9 +312,13 @@ def check(mode: str):
     problems = []
     if not PCSX2.is_file():
         problems.append(f"PCSX2 not found: {PCSX2} (build it with ./build-local.sh)")
-    if not Path(ROM).is_file():
+    if not ROM:
+        problems.append("set ROM to the game's .iso")
+    elif not Path(ROM).is_file():
         problems.append(f"ROM not found: {ROM}")
-    if not (BIOS / BIOS_FILE).is_file():
+    if BIOS is None:
+        problems.append("set BIOS to the directory of the BIOS file")
+    elif not (BIOS / BIOS_FILE).is_file():
         problems.append(f"BIOS not found: {BIOS / BIOS_FILE}")
     if mode == "state" and not Path(STATE).is_file():
         problems.append(f"STATE not found: '{STATE}'")
