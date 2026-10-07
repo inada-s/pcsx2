@@ -11,6 +11,8 @@ options: `docs/zdxsv/`.
 | `DeltaState.cpp`, `DeltaState.h` | Fast per-frame save and load of the VM for rollback (copy-on-write EE RAM pages) |
 | `Lobby.cpp`, `Lobby.h` | Lobby side of a GGPO battle: platform info, battle info notice, STUN, ping test, relay, match report |
 | `InputLatency.cpp`, `InputLatency.h` | Debug: pad input latency measurement |
+| `RecHooks.cpp`, `RecHooks.h` | EE recompiler: emits the hook calls (net RPC, recv, step copy, load step) before an instruction |
+| `RecProbe.cpp` | Debug: EE recompiler probes and store watches (`ZDXSV_EE_PROBE`, `ZDXSV_EE_WATCH`) |
 | `CpuHooks.h` | Hook header: recompilers, counters, MTGS, VMManager |
 | `InputHooks.h` | Hook header: pad code |
 | `SaveStateHooks.h` | Hook header: save state code |

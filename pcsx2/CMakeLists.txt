@@ -132,6 +132,8 @@ set(pcsx2Sources
 	Zdxsv/InputLatency.cpp
 	Zdxsv/DeltaState.cpp
 	Zdxsv/Ggpo.cpp
+	Zdxsv/RecHooks.cpp
+	Zdxsv/RecProbe.cpp
 	VU0micro.cpp
 	VU0microInterp.cpp
 	VU1micro.cpp
@@ -207,6 +209,7 @@ set(pcsx2Headers
 	Zdxsv/InputLatency.h
 	Zdxsv/DeltaState.h
 	Zdxsv/Ggpo.h
+	Zdxsv/RecHooks.h
 	Zdxsv/CpuHooks.h
 	Zdxsv/InputHooks.h
 	Zdxsv/SaveStateHooks.h
