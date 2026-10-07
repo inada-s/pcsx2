@@ -119,10 +119,12 @@ ends. With `ZDXSV_RAND_INPUT` the pad input is seeded random.
 ## Sync checks
 
 The peers run different views of one battle, so their whole state cannot be
-compared. The check compares the work RAM of each player instead:
+compared. The check compares, per frame, each player's coordinates and the
+game RNG instead:
 
-- `ZDXSV_PW_HASH=1` writes a hash of the work RAM of each player per GGPO frame
-  to the net trace. In sync, the hashes agree across the peers.
+- `ZDXSV_PW_HASH=1` writes a hash of each player's x, y, z (player work
+  `+0x2a8`) and the 2 game RNG words (`0x6d7940`, `0x6d793c`) per GGPO frame to
+  the net trace. In sync, they agree across the peers.
 - `ZDXSV_PW_DUMP` writes the work RAM itself, to find the field behind a
   mismatch.
 - `ZDXSV_NET_TRACE` writes the battle socket traffic and the inputs per frame.

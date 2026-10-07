@@ -82,7 +82,7 @@ off. Any other value turns it on. Without `net=1` the session is a synctest. Log
 | `input=host` | random | test | Pad 1 comes from the host pad; pad 2 stays random. |
 | `input=none` | random | test | No buttons, sticks centered. |
 | `mask=hex` | `ffff` | test | Random buttons are limited to these bits. `fcff` leaves out Select and Start. |
-| `hash=pw` | `pw` | test | What the synctest compares. `pw`: the player work of all 4 players (masked as the `ZDXSV_PW_HASH` H lines) and the 2 game RNG words. `pos`: x, y, z of the 4 players and the RNG words. `full`: EE RAM and delta state; a rerun's IOP/event cycles differ (code cache), so it always reports mismatches. |
+| `hash=pw` | `pw` | test | What the synctest compares. `pw`: the player work of all 4 players (with machine-local fields masked) and the 2 game RNG words. `pos`: x, y, z of the 4 players and the RNG words. `full`: EE RAM and delta state; a rerun's IOP/event cycles differ (code cache), so it always reports mismatches. |
 | `sync=0` | 1 | test | No state hashes. Always the case with `net=1`. |
 | `control=input` | off | control | Reruns get other inputs. The synctest must report mismatches. |
 
@@ -184,7 +184,7 @@ game pad read, RAM change, present. Log lines start with `ZdxsvLatency`.
 | Option | Use | Meaning |
 |---|---|---|
 | `ZDXSV_NET_TRACE=file` | diagnostic | Per-frame trace of the battle socket and the inputs. Read by `tools/zdxsv/zdcheck.py`, `tools/zdxsv/recvcheck.py`. |
-| `ZDXSV_PW_HASH=1` | diagnostic | Per-frame hash of the work RAM of each player, written to the net trace. Read by `pwcheck.py`. |
+| `ZDXSV_PW_HASH=1` | diagnostic | The sync check: per frame, a hash of each player's x, y, z and the 2 game RNG words, written to the net trace. Read by `pwcheck.py`. |
 | `ZDXSV_PW_DUMP=file` | diagnostic | Work RAM of the players for every saved frame. Read by `pwdiff.py`. |
 | `ZDXSV_RAM_DUMP=dir,start,step,count` | diagnostic | EE RAM (32 MB) to `dir/<frame>.bin`. Read by `tools/zdxsv/ramcount.py`, `tools/zdxsv/ramvals.py`. |
 | `ZDXSV_SNAP=dir,n` | diagnostic | GS screenshot `dir/v<vsync>.png` every n vsyncs. Needs a renderer; not in headless runs. |

@@ -165,9 +165,12 @@ namespace Zdxsv
 		int s_players = 4; // players= (net)
 		int s_relay = 0; // relay=R (net): remote p is at port R + 8 * me + p (zdxsv/udprelay.py per pair), not port + p
 		u32 s_zds_echo = 0, s_zds_skip = 0;
-		// ZDXSV_PW_HASH=1: per GGPO frame (last save wins) XXH3 of each player work 0x8395d8 + 0x2200*p,
-		// written as `H frame h0 h1 h2 h3` to NET_TRACE at the report: the 4 machines simulate every
-		// player, so in sync these agree across peers (own-position RAM elsewhere does not, sync=0).
+		// ZDXSV_PW_HASH=1: the sync check (@inada-s, inada-s/ai-automation#62): per GGPO frame (last save wins)
+		// each player's coordinates and the game RNG, written as `H frame h0 h1 h2 h3 rng` to NET_TRACE at
+		// the report: h<p> = XXH3 of x, y, z (3 floats at player work 0x8395d8 + 0x2200*p + 0x2a8), rng =
+		// u16 0x6d7940 (generator 0x20f4b0, the DC games' x*3>>8 byte RNG) << 16 | u16 0x6d793c (generator
+		// 0x20f4f0, s*176 % 32749); both seeded by 0x20f490. Every machine simulates every player, so in sync
+		// these agree across peers.
 		const bool s_pw_hash = [] {
 			const char* e = Zdxsv::TestEnv("ZDXSV_PW_HASH");
 			return e && e[0] == '1';
@@ -188,8 +191,8 @@ namespace Zdxsv
 		// u16 +0x92 follows u16 +0x90 (gauge 4000, equal on all) on the own machine, stays 4000 on others.
 		constexpr std::pair<u32, u32> PW_MASK_BITS[] = {{0x58, 0x100}, {0x68, 0x300}, {0x9c, 0x10000}, {0x2004, ~0u}, {0x2068, 1}, {0x2074, 0x100}, {0x2088, 0xff},
 			{0xcc, 0xffff}, {0x90, 0xffff0000}};
-		std::map<int, std::array<u64, 4>> s_pw;
-		// XXH3 of player p's work with the fields above masked (H lines, synctest hash=pw).
+		std::map<int, std::array<u64, 5>> s_pw;
+		// XXH3 of player p's work with the fields above masked (synctest hash=pw).
 		u64 PwHash(u32 p)
 		{
 			std::array<u8, PW_SIZE> w;
@@ -1785,9 +1788,13 @@ namespace Zdxsv
 			at.ps = s_ps;
 			if (s_pw_hash)
 			{
-				std::array<u64, 4>& h = s_pw[frame];
+				std::array<u64, 5>& h = s_pw[frame];
 				for (u32 p = 0; p < 4; p++)
-					h[p] = PwHash(p);
+					h[p] = XXH3_64bits(&eeMem->Main[PW_BASE + PW_SIZE * p + PW_POS], 12);
+				u16 a, b;
+				std::memcpy(&a, &eeMem->Main[RNG_A], 2);
+				std::memcpy(&b, &eeMem->Main[RNG_B], 2);
+				h[4] = (static_cast<u64>(a) << 16) | b;
 			}
 			if (s_pw_dump)
 			{
@@ -2038,8 +2045,9 @@ namespace Zdxsv
 			if (s_pw_hash && s_net_trace)
 			{
 				for (const auto& [f, h] : s_pw)
-					std::fprintf(s_net_trace, "0 H %d %016llx %016llx %016llx %016llx\n", f, static_cast<unsigned long long>(h[0]),
-						static_cast<unsigned long long>(h[1]), static_cast<unsigned long long>(h[2]), static_cast<unsigned long long>(h[3]));
+					std::fprintf(s_net_trace, "0 H %d %016llx %016llx %016llx %016llx %08llx\n", f, static_cast<unsigned long long>(h[0]),
+						static_cast<unsigned long long>(h[1]), static_cast<unsigned long long>(h[2]), static_cast<unsigned long long>(h[3]),
+						static_cast<unsigned long long>(h[4]));
 				std::fflush(s_net_trace);
 				Console.WriteLn("ZdxsvGgpo: pw hashes %zu frames", s_pw.size());
 				s_pw.clear();
