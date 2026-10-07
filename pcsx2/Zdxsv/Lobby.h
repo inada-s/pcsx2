@@ -61,7 +61,7 @@ namespace Zdxsv
 		// [0, MAX_PING_MS]: the CPU thread waits for the whole test (LobbyArm).
 		uint32_t ggpoSession = 0;
 		int ggpoPingMs = 0;
-		// "relay_<k>=<token hex>,<ip:port>[,<[ip6]:port>]" (k = 0..3, zdxsv since ai/ggpo-relay): relay servers
+		// "relay_<k>=<token hex>,<ip:port>[,<[ip6]:port>]" (k = 0..3): relay servers
 		// of the battle (gdxsv P2PMatching.relays), in the lobby's order.
 		struct Relay
 		{

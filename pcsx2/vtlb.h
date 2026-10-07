@@ -234,7 +234,7 @@ extern vtlb_ProtectionMode mmap_GetRamPageInfo(u32 paddr);
 extern void mmap_MarkCountedRamPage(u32 paddr);
 extern void mmap_ResetBlockTracking();
 
-// zdxsv delta state (#31): copy-on-write tracking of EE RAM pages (page = offset >> __pageshift).
+// zdxsv delta state: copy-on-write tracking of EE RAM pages (page = offset >> __pageshift).
 // A watched page is read-only; its first write calls the hook while the page still holds the
 // old data, then the page is unwatched. Shares the fault handler with code-page protection.
 using mmap_DeltaWriteHook = void (*)(u32 page);

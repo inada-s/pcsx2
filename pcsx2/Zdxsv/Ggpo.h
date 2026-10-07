@@ -13,7 +13,7 @@
 #include <utility>
 #include <vector>
 
-// zdxsv GGPO (#31 step 3): while a session runs, the CPU leaves Execute() at every vsync, so a
+// zdxsv GGPO: while a session runs, the CPU leaves Execute() at every vsync, so a
 // frame is the unit GGPO works in (like flycast's emu.run()). Between frames: save (delta state),
 // maybe roll back (load + rerun frames inside the advance_frame callback), then the synced pad
 // inputs of the next frame are written to both pads. Host pad input is held back meanwhile.

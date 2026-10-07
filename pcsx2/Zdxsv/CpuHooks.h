@@ -31,7 +31,7 @@ namespace Zdxsv
 	// In VMManager::Execute, after the CPU returned.
 	void GgpoOnExecuteReturned();
 
-	// Z battle net HLE (#31 step 4). The EE recompiler calls OnNetCall when the game enters its
+	// Z battle net HLE. The EE recompiler calls OnNetCall when the game enters its
 	// net RPC wrapper (NET_RPC_PC: fno in a0, request header + data at 0xc22c9c).
 	constexpr u32 NET_RPC_PC = 0x30e380;
 	extern bool g_net_hook; // the recompiler emits the OnNetCall call at NET_RPC_PC

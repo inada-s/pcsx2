@@ -14,7 +14,7 @@
 // GAMEINPUT_MAX_BYTES * GAMEINPUT_MAX_PLAYERS * 8 must be less than
 // 2^BITVECTOR_NIBBLE_SIZE (see bitvector.h)
 
-#define GAMEINPUT_MAX_BYTES      32 // zdxsv net HLE: 32-byte inputs (ai-automation#31)
+#define GAMEINPUT_MAX_BYTES      32 // zdxsv net HLE: 32-byte inputs
 #define GAMEINPUT_MAX_PLAYERS    4
 
 struct GameInput {
