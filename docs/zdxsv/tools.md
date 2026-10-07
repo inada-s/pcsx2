@@ -26,7 +26,7 @@
 | `build-local.sh` | Builds PCSX2 on Windows from Git Bash, as the MSBuild path of the Windows CI. `--run` launches the build. `--test-options` makes a test build (needed by `tests/zdxsv`). The first run builds the third-party dependencies into `deps/`. |
 | `run.py` | Launches several local instances side by side, each with its own data directory under `work/`. Modes: `rom`, `state`, `rbk_test`, `rbk_test_random`. Settings are environment variables listed at the top of the script. |
 | `tools/zdxsv/udprelay.py` | UDP relay that adds latency, jitter and loss between two GGPO peers. |
-| `tools/zdxsv/pwcheck.py` | Compares the per-frame work RAM hashes of the players across the peers: `IN SYNC` or `DESYNC`. |
+| `tools/zdxsv/pwcheck.py` | Sync check across peers or a replay and its live traces: per frame from the play start (`PS` line, else battle load end), each player's x, y, z and game RNG B; mismatch counts per player. |
 | `tools/zdxsv/zdcheck.py` | Checks the `zd=1` lines (`Z`) of a `ZDXSV_NET_TRACE` file. |
 | `tools/zdxsv/recvcheck.py` | Checks the receive slots (`R` lines) of a `ZDXSV_NET_TRACE` file. |
 | `tools/zdxsv/ramcount.py` | Finds EE RAM values that count down or up linearly across `ZDXSV_RAM_DUMP` dumps. |

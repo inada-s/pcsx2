@@ -126,7 +126,9 @@ game RNG instead:
   `+0x2a8`) and the 2 game RNG words (`0x6d7940`, `0x6d793c`) per GGPO frame to
   the net trace. In sync, the coordinates and RNG B (`0x6d793c`) agree across
   the peers. RNG A (`0x6d7940`) also takes draws that only one machine makes
-  (a sound pick), so `pwcheck.py` reports it but does not judge it.
+  (a sound pick), so `pwcheck.py` reports it but does not judge it. Frames
+  before the play start (`PS` line; without one, the end of the battle load)
+  are not judged: the scene steps there follow local load timing.
 - `ZDXSV_PW_DUMP` writes the work RAM itself, to find the field behind a
   mismatch.
 - `ZDXSV_NET_TRACE` writes the battle socket traffic and the inputs per frame.
