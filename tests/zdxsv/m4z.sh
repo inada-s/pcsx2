@@ -37,7 +37,12 @@
 #   With RELAY=1 RELAY_PATH="relay 0" the GGPO traffic skips udprelay.py (its count = ping test only).
 #   REPLAY_UP=1 (GGPO): lobby replay server on :8204 into $OUT/replays-up. Checks per battle code: one
 #   GGPO client logged upload ok, the others "already there" (UPLOAD_OFF=K: client K has the setting
-#   ZdxsvUploadReplay off and logs no upload); the stored file = that client's own .zdxr, byte for byte.
+#   ZdxsvUploadReplay off and logs no upload; a list "1 3" = every client: nothing stored); the stored file =
+#   that client's own .zdxr, byte for byte.
+#   LIVE=N (implies REPLAY_UP): once the lobby logs `live start`, instance N (not a client) plays
+#   ZDXSV_REPLAY=http://IP:8204/live with PW hashes (OUT/trace-live.txt). Checks: the spectator's stream closed at
+#   the saved .zdxr's frame count; with PWTRACE=1 its player work + rng = the players' (pwcheck).
+#   LIVE_OFF=1 (control, with UPLOAD_OFF = every client): no live start, no client streamed.
 # db: copied from $RUN/zdxsv.db (the cards' accounts) into $OUT; stack logs land in $OUT.
 # Cards: each client starts from $RUN/Mcd001-<CARDS[i]>.ps2 (CARDS, required: one registered card per client);
 # the live card is put back after (m4.sh's lobby states use it). A post-battle prompt creates system
@@ -60,11 +65,12 @@ CLIENTS=${CLIENTS:-1 2 3 4}; nc=$(echo $CLIENTS | wc -w)
 ENTRY=entry; [ "$nc" -eq 2 ] && ENTRY=entry2p
 nz=$(echo $ZP | wc -w)  # UDP joins: zproxy clients only (pcsx2 has no UDP bridge)
 # client i's env: console (no platform info), or emulator (+ GGPO lobby battle on port GGPO+i-1)
+upoff() { case " ${UPLOAD_OFF:-} " in *" $1 "*) return 0;; esac; return 1; }
 cenv() {
   [ -z "${EMU:-}" ] && { echo ZDXSV_PLATFORM_INFO=0; return; }
   # PWTRACE=1: player-work hashes + net trace per client (OUT/trace-p<i>.txt; rplay.sh compares a replay to them)
   [ -n "${PWTRACE:-}" ] && echo "ZDXSV_PW_HASH=1 ZDXSV_NET_TRACE=$OUT/trace-p$1.txt"
-  [ "$1" = "${UPLOAD_OFF:-}" ] && echo ZDXSV_UPLOAD_REPLAY=0
+  upoff $1 && echo ZDXSV_UPLOAD_REPLAY=0
   # GGPO_DEFAULT=K (GGPO, GDELAY=auto): client K has no ZDXSV_GGPO, its GGPO options come from the setting
   [ -n "${GGPO:-}" ] && [ "$1" = "${GGPO_DEFAULT:-}" ] && { echo ZDXSV_GGPO=default; return; }
   case " ${GGPO_CLIENTS:-$CLIENTS} " in *" $1 "*) [ -n "${GGPO:-}" ] && echo "ZDXSV_GGPO=net=1,lobby=1,port=$((GGPO + $1 - 1))$([ "${GDELAY:-1}" = auto ] || echo ",delay=${GDELAY:-1}")${GMIN:+,mindelay=$GMIN}$([ "$1" = "${BAD_SESSION:-}" ] && echo ,badsession=1)$([ -n "${GGPO_LAT:-}" ] && echo ",advertise=$((7300 + ($1 == 1)))")";; esac  # GDELAY=auto: no delay= (rtt pick, floor GMIN)
@@ -92,6 +98,7 @@ check() { if eval "$2"; then echo "PASS $1"; else echo "FAIL $1"; ok=1; fi; }
 ZDXSV=$ZDXSV bash "$here/zbincheck.sh" "${ZBIN:-$ZDXSV/bin/zdxsv.exe}" || exit 1
 # -v=2: every lobby frame (entry check below, lobby_trace.py)
 [ -n "${RELAY:-}" ] && export ZDXSV_LOBBY_RELAY_ADDR=:8203
+[ -n "${LIVE:-}" ] && REPLAY_UP=1
 [ -n "${REPLAY_UP:-}" ] && export ZDXSV_LOBBY_REPLAY_ADDR=:8204 ZDXSV_LOBBY_REPLAY_DIR="$OUT/replays-up"
 RELAY_PATH=${RELAY_PATH:-direct}
 LOBBY_ARGS=-v=2 RUN="$OUT" bash "$here/stack.sh" "$IP" > "$OUT/stack.out" 2>&1 & pids+=($!)
@@ -108,6 +115,16 @@ for i in $ZP; do
     -lobbyrpcaddr=127.0.0.1:8201 > "$OUT/zproxy-p$i.log" 2>&1 & pids+=($!)
 done
 rm -f "$RUN"/p[1-4]/PCSX2/logs/emulog.txt
+if [ -n "${LIVE:-}" ]; then
+  # the spectator joins once a stream exists (GET /live = the newest running stream)
+  ( t1=$SECONDS
+    for t in $(seq 1800); do grep -a -q 'live start' "$OUT/lobby.log" 2>/dev/null && break; sleep 2; done
+    grep -a -q 'live start' "$OUT/lobby.log" || { echo "no live start in $((SECONDS - t1)) s"; exit 0; }
+    echo "live start after $((SECONDS - t1)) s: spectator p$LIVE"
+    env ZDXSV_REPLAY="http://$IP:8204/live" ZDXSV_REPLAY_EXIT=1 ZDXSV_PW_HASH=1 ZDXSV_NET_TRACE="$OUT/trace-live.txt" \
+      powershell -NoProfile -Command "& '$here/launch.ps1' -N $LIVE -Headless -StateFile ${LIVE_STATE:-$RBKSTATES/rbk-p1.p2s}" 2>&1 | tail -1
+  ) > "$OUT/live-launch.txt" 2>&1 & pids+=($!)
+fi
 for i in $CLIENTS; do
   cp -p "$RUN/p$i/PCSX2/memcards/Mcd001.ps2" "$OUT/live-p$i.ps2"
   l=$(env $(cenv $i) powershell -NoProfile -Command "& '$here/launch.ps1' -N $i -Speed ${SPEED:-1} -Memcard $RUN/Mcd001-${CARDS[i-1]}.ps2 $(case " ${SHOW:-} " in *" $i "*) ;; *) echo -Headless;; esac)" 2>&1)
@@ -282,7 +299,7 @@ if [ -n "${GGPO_LAT:-}" ]; then
 fi
 if [ -n "${REPLAY_UP:-}" ]; then
   check "lobby replay server started" "grep -a -q 'Start replay server' '$OUT/lobby.log'"
-  up=""; for i in ${GGPO_CLIENTS:-$CLIENTS}; do [ "$i" != "${UPLOAD_OFF:-}" ] && up="$up $i"; done
+  up=""; for i in ${GGPO_CLIENTS:-$CLIENTS}; do ! upoff $i && up="$up $i"; done
   # the upload runs on a thread after the replay is written: up to 60 s
   for t in $(seq 60); do
     n=0; for i in $up; do n=$((n + $(grep -a -c 'ZdxsvGgpo: replay upload' "$RUN/p$i/PCSX2/logs/emulog.txt"))); done
@@ -295,10 +312,38 @@ if [ -n "${REPLAY_UP:-}" ]; then
       grep -a "ZdxsvGgpo: replay upload .*battle_code=$code&" "$f" | tr -d '\r' | cut -c1-200
       grep -a -q "replay upload .*battle_code=$code&.*: ok" "$f" && oks="$oks $i"
       there=$((there + $(grep -a -c "replay upload .*battle_code=$code&.*: already there" "$f")))
-      [ "$i" = "${UPLOAD_OFF:-}" ] && check "p$i (setting off) no upload of $code" "! grep -a -q 'replay upload .*battle_code=$code&' '$f'"
+      upoff $i && check "p$i (setting off) no upload of $code" "! grep -a -q 'replay upload .*battle_code=$code&' '$f'"
     done
+    if [ -z "$up" ]; then
+      check "$code: nothing stored (setting off on every client)" "[ ! -f '$OUT/replays-up/$code.zdxr' ]"
+      continue
+    fi
     check "$code: one upload ok ($oks), $(($(echo $up | wc -w) - 1)) already there" "[ $(echo $oks | wc -w) -eq 1 ] && [ $there -eq $(($(echo $up | wc -w) - 1)) ]"
     check "$code: stored file = p${oks# }'s own replay" "cmp -s '$OUT/replays-up/$code.zdxr' '$RUN/p${oks# }/PCSX2/replays/$code.zdxr'"
   done
+fi
+if [ -n "${LIVE:-}" ]; then
+  f=$RUN/p$LIVE/PCSX2/logs/emulog.txt
+  # the spectator trails the players (60-frame edge wait, the close is posted after the replay write)
+  for t in $(seq 60); do grep -a -q 'ZdxsvGgpo: live: \(stream closed\|no new frame\)\|ZdxsvGgpo: replay end' "$f" 2>/dev/null && break; sleep 5; done
+  sleep 5
+  cat "$OUT/live-launch.txt"
+  grep -a -h 'ZdxsvGgpo: live' "$RUN"/p[1-4]/PCSX2/logs/emulog.txt 2>/dev/null | tr -d '\r' | cut -c1-200
+  grep -a 'live start\|live close' "$OUT/lobby.log" | cut -c1-200 | head -6
+  if [ -n "${LIVE_OFF:-}" ]; then
+    check "no live start (LIVE_OFF)" "! grep -a -q 'live start' '$OUT/lobby.log'"
+    for i in $CLIENTS; do check "p$i streamed nothing" "! grep -a -q 'ZdxsvGgpo: live: streaming' '$RUN/p$i/PCSX2/logs/emulog.txt'"; done
+  else
+    fr=$(for i in $CLIENTS; do grep -a -o "replays.$(report_code).zdxr frames=[0-9]*" "$RUN/p$i/PCSX2/logs/emulog.txt"; done | sed 's/.*frames=//' | sort -u)
+    sf=$(grep -a -o 'ZdxsvGgpo: live: stream closed ([^)]*) at frame [0-9]*' "$f" | tail -1 | sed 's/.* //')
+    echo "saved .zdxr frames: $(echo $fr), spectator closed at: ${sf:-none}"
+    check "spectator watched a live stream" "grep -a -q 'ZdxsvGgpo: live: watching' '$f'"
+    check "spectator stream closed at the saved frame count" "[ -n '$sf' ] && [ '$(echo $fr)' = '$sf' ]"
+    if [ -n "${PWTRACE:-}" ]; then
+      "$PY" -I "$TOOLS/pwcheck.py" --own "$OUT/trace-live.txt" $(for i in $CLIENTS; do echo "$OUT/trace-p$i.txt"; done) > "$OUT/pwcheck-live.txt"
+      grep '^common\|^judged\|^player\|^rng' "$OUT/pwcheck-live.txt" | cut -c1-160
+      check "spectator player work + rng = players' (pwcheck)" "awk -v n=$nc '(\$1==\"player\" && \$2+0 < n) || \$1==\"rng:\" {s += \$(\$1==\"rng:\" ? 3 : 4)} \$1==\"common\" {c = \$3} END {exit !(c > 0 && s == 0)}' '$OUT/pwcheck-live.txt'"
+    fi
+  fi
 fi
 exit $ok

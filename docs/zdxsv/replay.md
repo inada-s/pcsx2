@@ -33,6 +33,31 @@ and the setting `ZdxsvUploadReplay` is on (default; Settings → Network & HDD).
 Log lines: `ZdxsvGgpo: replay upload <url>: ok|already there, N bytes, T ms`,
 or `ZdxsvGgpo: replay upload <url> failed: status S`.
 
+## Live
+
+A lobby battle is streamed to the lobby's replay server while it runs, when the
+battle info names a live address (`live=<url>`, zdxsv `ZDXSV_LOBBY_REPLAY_ADDR`),
+a replay is recorded, and `ZdxsvUploadReplay` is on.
+
+- Players: `POST <url>/start` (the replay header and the frame 0 state; the
+  first start wins), then the confirmed inputs every 250 ms
+  (`POST <url>/inputs?from=F`), the close last. Every player posts; the server
+  drops frames it has. 20 failed posts in a row give the stream up.
+- Spectator: `ZDXSV_REPLAY=http://<server>/live/<battle code>`, or
+  `http://<server>/live` for the newest running battle. Boot the game first, as
+  for a file. It polls every 100 ms. At the newest frame it waits for 60 more
+  frames (a GGPO-like wait); more than 600 frames behind (a late join) it runs
+  unlimited until it catches up. No new frame for 30 s: the stream is lost.
+- A live stream plays alone (no `;` point of view list). Seek stays within the
+  frames received so far (not tested live). No auto-next to the following battle yet.
+
+Log lines: players `ZdxsvGgpo: live: streaming to <url>`,
+`ZdxsvGgpo: live: stream closed (<reason>), server has N frames`; the spectator
+`ZdxsvGgpo: live: watching <url>, N frames there`,
+`ZdxsvGgpo: live: N frames behind at frame F: catching up`,
+`ZdxsvGgpo: live: caught up at frame F, vsync V`,
+`ZdxsvGgpo: live: stream closed (<reason>) at frame F, W waits T ms`.
+
 ## File format
 
 1. The line `ZDXSV-REPLAY 1`.

@@ -111,7 +111,7 @@ See [replay.md](replay.md).
 
 | Option | Default | Use | Meaning |
 |---|---|---|---|
-| `ZDXSV_REPLAY=file.zdxr` | off | feature | Play a saved replay. `a.zdxr;b.zdxr` loads the files that different players saved of one battle. |
+| `ZDXSV_REPLAY=file.zdxr` | off | feature | Play a saved replay. `a.zdxr;b.zdxr` loads the files that different players saved of one battle. `http://host:port/live/<battle code>` (or `.../live`: the newest running battle there) watches a lobby battle live ([replay.md](replay.md), Live). |
 | `ZDXSV_REPLAY_POV=P` | position of the first file | feature | Start from the point of view of position P. |
 | `ZDXSV_REPLAY_BAR=1` / `=0` | automatic | feature | Always show the control bar, or never. |
 | `ZDXSV_REPLAY_KEY_DISPLAY=1` | off | feature | Start with the key display on. |

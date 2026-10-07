@@ -102,7 +102,8 @@
 
 namespace Zdxsv
 {
-	// ZDXSV_REPLAY=file.zdxr: plays a saved replay (PlayLoad), the net=1 hooks on, no GGPO session
+	// ZDXSV_REPLAY=file.zdxr: plays a saved replay (PlayLoad), the net=1 hooks on, no GGPO session;
+	// http://host:port/live[/<battle code>]: watches a lobby battle live (LiveOpen)
 	const char* const s_play_env = std::getenv("ZDXSV_REPLAY");
 	bool g_ggpo_enabled = false; // GgpoOnVmInitialize
 	bool g_mtvu_off = false; // GgpoOnVmInitialize, cleared at VM shutdown
