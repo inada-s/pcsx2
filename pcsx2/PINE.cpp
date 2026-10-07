@@ -13,6 +13,8 @@
 #include "VMManager.h"
 #include "vtlb.h"
 #include "common/Error.h"
+#include "common/Path.h"
+#include "common/StringUtil.h"
 #include "common/Threading.h"
 
 #include <atomic>
@@ -163,7 +165,7 @@ namespace PINEServer
 		MsgGameVersion = 0xE, /**< Returns the game verion. */
 		MsgStatus = 0xF, /**< Returns the emulator status. */
 		MsgPadSet = 0x30, /**< zdxsv: set pad input (pad u8, bind u8, value u8 0-255). */
-		MsgSnapshot = 0x31, /**< zdxsv: queue a GS screenshot (path len u16, path bytes). */
+		MsgSnapshot = 0x31, /**< zdxsv: queue a GS screenshot (name len u16, file name *.png in the snapshots folder); returns the full path. */
 		MsgFrameCount = 0x32, /**< zdxsv: returns g_FrameCount (u32). */
 		MsgUnimplemented = 0xFF /**< Unimplemented IPC message. */
 	};
@@ -774,7 +776,19 @@ PINEServer::IPCBuffer PINEServer::ParseCommand(std::span<u8> buf, std::vector<u8
 				const u16 len = FromSpan<u16>(buf, buf_cnt);
 				if (!SafetyChecks(buf_cnt, 2 + len, ret_cnt, 0, buf_size)) [[unlikely]]
 					goto error;
-				std::string path(reinterpret_cast<const char*>(&buf[buf_cnt + 2]), len);
+				// A bare file name only: any client of the socket must not choose where the file goes.
+				const std::string_view name(reinterpret_cast<const char*>(&buf[buf_cnt + 2]), len);
+				if (len <= 4 || !StringUtil::EndsWithNoCase(name, ".png") || !Path::IsValidFileName(name) ||
+					name.front() == '.')
+					goto error;
+				std::string path = Path::Combine(EmuFolders::Snapshots, name);
+				const u32 size = path.size() + 1;
+				if (!SafetyChecks(buf_cnt, 2 + len, ret_cnt, size + 4, buf_size)) [[unlikely]]
+					goto error;
+				ToResultVector(ret_buffer, size, ret_cnt);
+				ret_cnt += 4;
+				memcpy(&ret_buffer[ret_cnt], path.c_str(), size);
+				ret_cnt += size;
 				Host::RunOnCPUThread([path = std::move(path)] { GSQueueSnapshot(path); });
 				buf_cnt += 2 + len;
 				break;

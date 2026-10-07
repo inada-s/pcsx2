@@ -41,7 +41,7 @@ instances through `udprelay.py`. `SYNC_CHECK=0` turns the check off.
 | Opcode | Arguments | Action |
 |---|---|---|
 | `0x30` | pad u8, bind u8, value u8 | set a pad input |
-| `0x31` | path length u16, path | queue a GS screenshot to that path |
+| `0x31` | name length u16, file name `*.png` (no folder) | queue a GS screenshot into the snapshots folder; returns u32 length + the full path. `pine.py snap` moves it to the path asked for |
 | `0x32` | none; returns u32 | read the frame count |
 
 ## Unit tests
