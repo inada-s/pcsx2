@@ -444,6 +444,7 @@
     <ClCompile Include="VUmicro.cpp" />
     <ClCompile Include="Zdxsv\InputLatency.cpp" />
     <ClCompile Include="Zdxsv\DeltaState.cpp" />
+    <ClCompile Include="Zdxsv\Overlays.cpp" />
     <ClCompile Include="Zdxsv\Ggpo.cpp" />
     <ClCompile Include="Zdxsv\RecHooks.cpp" />
     <ClCompile Include="Zdxsv\RecProbe.cpp" />

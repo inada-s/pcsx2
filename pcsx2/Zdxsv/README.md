@@ -13,6 +13,7 @@ options: `docs/zdxsv/`.
 | `InputLatency.cpp`, `InputLatency.h` | Debug: pad input latency measurement |
 | `RecHooks.cpp`, `RecHooks.h` | EE recompiler: emits the hook calls (net RPC, recv, step copy, load step) before an instruction |
 | `RecProbe.cpp` | Debug: EE recompiler probes and store watches (`ZDXSV_EE_PROBE`, `ZDXSV_EE_WATCH`) |
+| `Overlays.cpp` | On-screen GGPO network status, replay keys and replay control bar |
 | `CpuHooks.h` | Hook header: recompilers, counters, MTGS, VMManager |
 | `InputHooks.h` | Hook header: pad code |
 | `SaveStateHooks.h` | Hook header: save state code |
@@ -21,5 +22,5 @@ options: `docs/zdxsv/`.
 | `UiHooks.h` | Hook header: hotkeys, replay control bar |
 | `TestOptions.h` | `TestEnv()`: environment options meant for tests and diagnostics; every build reads them |
 
-Upstream files include only the hook headers, except `ImGuiOverlays.cpp` and `TCP_Session_In.cpp`,
-which still hold zdxsv logic (overlays, lobby hook) and include `Ggpo.h` until that logic moves here.
+Upstream files include only the hook headers, except `TCP_Session_In.cpp`, which still holds zdxsv
+logic (lobby hook) and includes `Ggpo.h` until that logic moves here.
