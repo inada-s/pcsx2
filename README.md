@@ -45,6 +45,8 @@ with a peer without GGPO is cut, as a connection failure (`docs/zdxsv/lobby.md`)
 - A lobby battle's `.pb` is posted (multipart, as flycast) to the replay uploader (zdxsv `infra/uploader`) at
   `[DEV9/Eth] ZdxsvReplayUploadUrl` in `PCSX2.ini` (empty = no upload; `ZDXSV_GGPO` `upload=URL` overrides it).
 - Playback with seek, point of view switch, a control bar, key display, a skip of the mobile suit selection, and a round jump.
+- Live spectating: the lobby picks one GGPO player per battle to stream it over UDP (lobby `live_uplink=1`);
+  `ZDXSV_REPLAY=udp://<lobby host>:8201[/battle code]` watches it (`docs/zdxsv/replay.md`).
 
 ### Releases and tools
 

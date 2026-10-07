@@ -1537,11 +1537,12 @@ namespace Zdxsv
 							g.inputs.insert(g.inputs.end(), in.begin(), in.end());
 							frames += in.size() / fb;
 						}
-						if (bytes.count(8) && nums[3] == frames && !g.closed)
-						{
-							g.closed = true;
-							g.close = bytes[8];
-						}
+					}
+					// the lobby's close push carries no frame_bytes
+					if (bytes.count(8) && nums[3] == frames && !g.closed)
+					{
+						g.closed = true;
+						g.close = bytes[8];
 					}
 					std::vector<uint8_t> ack;
 					Pb::PutString(ack, 1, code);
