@@ -117,10 +117,7 @@ the agent's context.
 - Production code, test harnesses, tracing and fixtures in separate files.
 - Test and diagnostic code ships in every build: the rigs run against released
   builds too. There is no test-build flag. Code that costs performance while
-  unused is not acceptable. An option that can be abused online (changes
-  memory or inputs in a lobby battle, disturbs other players, redirects the
-  updater) is a release blocker: before a release it is removed or made
-  ineffective in lobby battles.
+  unused is not acceptable.
 - State in structs, not file-scope variables. State a rollback or replay key
   restores: one struct, saved and restored whole.
 - Reset zdxsv state, threads, sockets and sessions on VM shutdown and reset.

@@ -19,9 +19,7 @@ The **Use** column says what an option is for:
 ## Test options
 
 Every build reads every option: a released build must be able to take part in
-the rig tests, as a peer of a newer build. Options that could be abused in a
-lobby battle (input delay, memory patches, sync barriers, the announced
-address, the ping test session, the updater URL) are a release concern.
+the rig tests, as a peer of a newer build.
 
 ## Game check
 
