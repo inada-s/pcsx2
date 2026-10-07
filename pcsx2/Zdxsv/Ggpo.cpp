@@ -170,7 +170,8 @@ namespace Zdxsv
 		// the report: h<p> = XXH3 of x, y, z (3 floats at player work 0x8395d8 + 0x2200*p + 0x2a8), rng =
 		// u16 0x6d7940 (generator 0x20f4b0, the DC games' x*3>>8 byte RNG) << 16 | u16 0x6d793c (generator
 		// 0x20f4f0, s*176 % 32749); both seeded by 0x20f490. Every machine simulates every player, so in sync
-		// these agree across peers.
+		// the coordinates and RNG B agree across peers; RNG A also takes machine-local draws (sound pick at
+		// 0x23abec), so it differs in sync and pwcheck.py only reports it.
 		const bool s_pw_hash = [] {
 			const char* e = Zdxsv::TestEnv("ZDXSV_PW_HASH");
 			return e && e[0] == '1';

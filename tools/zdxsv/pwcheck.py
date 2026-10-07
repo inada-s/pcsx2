@@ -26,8 +26,13 @@ for p, t in zip(paths, ts):
     print(p, "frames", len(t), min(t) if t else None, max(t) if t else None)
 common = sorted(set.intersection(*(set(t) for t in ts)))
 print("common frames", len(common))
-for k in range(5):
-    bad = [f for f in common if len({t[f][k] for t in ts}) > 1]
+# Column rng = RNG A << 16 | RNG B. In sync = players + RNG B equal (`rng:`). RNG A (0x6d7940) also takes
+# machine-local draws (s759 rbk 2 1 ZDXSV_EE_WATCH: sound pick 0x23abec on one peer only, 71 of 73 differing
+# frames; RNG B callers equal on all 828 frames), so peers differ on it in sync: `rng_a:` is printed, not judged.
+cols = [("player %d" % k, lambda h, k=k: h[k]) for k in range(4)]
+cols += [("rng", lambda h: h[4][-4:]), ("rng_a", lambda h: h[4][:-4])]
+for name, val in cols:
+    bad = [f for f in common if len({val(t[f]) for t in ts}) > 1]
     runs = []
     for f in bad:
         if runs and f == runs[-1][1] + 1:
@@ -36,4 +41,4 @@ for k in range(5):
             runs.append([f, f])
     long = [r for r in runs if r[1] > r[0]]
     print("%s: mismatches %d first %s runs %d (1-frame %d) longer %s" % (
-        "player %d" % k if k < 4 else "rng", len(bad), bad[0] if bad else None, len(runs), len(runs) - len(long), long[:8]))
+        name, len(bad), bad[0] if bad else None, len(runs), len(runs) - len(long), long[:8]))
