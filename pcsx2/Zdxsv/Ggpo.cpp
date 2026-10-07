@@ -8,10 +8,10 @@
 // frames with the same inputs and compares the state checksums (hash=).
 // With net=1 a battle of players= peers instead (see NetInput): the session starts when the game
 // arms its battle sock, every peer runs its own position, no state hashes.
-//   net=1        GGPO battle session (zdxsv/rbk.sh, m4relay.sh)
+//   net=1        GGPO battle session (tests/zdxsv/rbk.sh, m4relay.sh)
 //   players=4    peers (2..4); GGPO player = battle position + 1
 //   port=7001    UDP port of position 0; position p listens on port + p, peers on host= (default 127.0.0.1)
-//   relay=R      remote p is at R + 8 * me + p (zdxsv/udprelay.py per pair)
+//   relay=R      remote p is at R + 8 * me + p (tools/zdxsv/udprelay.py per pair)
 //   lobby=1      battles from the zdxsv lobby: platform info announces ggpo=port, the lobby's battle
 //                info gives players and peer addresses; listen on port itself. A peer without GGPO or
 //                one that did not answer the ping test: connection failure, no fallback to the battle
@@ -22,7 +22,7 @@
 //   mindelay=2   lower bound of that pick
 //   badsession=1 test: this client's ping test uses another session id, so no peer answers it (the cut)
 //   advertise=P  lobby test: the platform info announces 127.0.0.1 and GGPO port P only (no STUN /
-//                local / IPv6 address), so peers reach us through a localhost udprelay.py at P
+//                local / IPv6 address), so peers reach us through a localhost tools/zdxsv/udprelay.py at P
 //   replay=DIR   net: save the battle to DIR/<battle_code>.zdxr (frame 0 state + all inputs, ReplayWrite);
 //                lobby=1 saves to <data dir>/replays by default; replay=0 = off
 //   osd=1        net: network status OSD (GgpoOsdLines; 0 = off); its text is also logged every 600 frames
@@ -31,7 +31,7 @@
 //   frames=3000  frames the session runs, then it is closed and reported
 //   check=6      synctest check distance (1..6)
 //   hash=pw      synctest checksum: the player work of all 4 players, masked as the H lines (PwHash),
-//                and the game RNG words (without them a rerun with other inputs went unseen, s756);
+//                and the game RNG words (without them a rerun with other inputs can go unseen);
 //                pos = the 4 players' x, y, z + game RNG (PosRng); full = EE RAM + delta state (code-cache
 //                noise: the rerun's IOP/event cycles differ, so it always reports mismatches)
 //   seed=1       random pad input (both pads; a new input every 5 frames)
@@ -130,7 +130,7 @@ namespace Zdxsv
 		};
 		static_assert(sizeof(Input) == 8);
 
-		// net=1 (ai-automation#31 step 4): the Z battle runs over GGPO, game-side input delay 0.
+		// net=1: the Z battle runs over GGPO, game-side input delay 0.
 		// Armed by the game's first key msg send on the battle sock: from then on that sock's send /
 		// recv / poll RPCs are answered on the EE side (OnNetCall) and never reach the IOP.
 		// Input of frame f = (A, B) of the host pad (ZdPadAB) + the kind-3 msgs the game sent at frame f - K3_LAG.
@@ -149,7 +149,7 @@ namespace Zdxsv
 		};
 		static_assert(sizeof(NetInput) == 32);
 		bool s_net_env = false; // net=1 in s_options, or a replay plays (GgpoOnVmInitialize)
-		// ZDXSV_RBK=i/N (net=1; flycast rbk_test): started from a post-entry state (zdxsv/rbkprep.sh)
+		// ZDXSV_RBK=i/N (net=1; flycast rbk_test): started from a post-entry state (tests/zdxsv/rbkprep.sh)
 		// as battle position i (0-based) of N. Until GGPO arms, every lobby / battle connect RPC is
 		// answered here (RbkCall: built-in battle start, recorded connect results, own battle msgs
 		// echoed per remote position) and the limiter runs turbo; the process exits at the session end.
@@ -163,32 +163,32 @@ namespace Zdxsv
 		const char* s_rand_env = Zdxsv::TestEnv("ZDXSV_RAND_INPUT");
 		bool s_net = false; // net=1 parsed
 		int s_players = 4; // players= (net)
-		int s_relay = 0; // relay=R (net): remote p is at port R + 8 * me + p (zdxsv/udprelay.py per pair), not port + p
+		int s_relay = 0; // relay=R (net): remote p is at port R + 8 * me + p (tools/zdxsv/udprelay.py per pair), not port + p
 		u32 s_zds_echo = 0, s_zds_skip = 0;
-		// ZDXSV_PW_HASH=1: the sync check (@inada-s, inada-s/ai-automation#62): per GGPO frame (last save wins)
+		// ZDXSV_PW_HASH=1: the sync check: per GGPO frame (last save wins)
 		// each player's coordinates and the game RNG, written as `H frame h0 h1 h2 h3 rng` to NET_TRACE at
 		// the report: h<p> = XXH3 of x, y, z (3 floats at player work 0x8395d8 + 0x2200*p + 0x2a8), rng =
 		// u16 0x6d7940 (generator 0x20f4b0, the DC games' x*3>>8 byte RNG) << 16 | u16 0x6d793c (generator
 		// 0x20f4f0, s*176 % 32749); both seeded by 0x20f490. Every machine simulates every player, so in sync
 		// the coordinates and RNG B agree across peers; RNG A also takes machine-local draws (sound pick at
-		// 0x23abec), so it differs in sync and pwcheck.py only reports it.
+		// 0x23abec), so it differs in sync and tools/zdxsv/pwcheck.py only reports it.
 		const bool s_pw_hash = [] {
 			const char* e = Zdxsv::TestEnv("ZDXSV_PW_HASH");
 			return e && e[0] == '1';
 		}();
 		constexpr u32 PW_BASE = 0x8395d8, PW_SIZE = 0x2200;
-		// Left out of the hash: machine-local 1-frame scratch (s623 pwdiff, in-sync 60 ms run):
+		// Left out of the hash: machine-local 1-frame scratch, seen in an in-sync battle:
 		// +0x274/+0x2b4 go 1.0 -> a different float per machine -> 0 at one frame on all machines;
 		// +0x1e64..+0x1e94 (stride 0x10) set on one machine for one frame. Player work agrees after.
 		// +0x214c = player struct (0x839330 + 0x2200*q) +0x1f4 of q = p + 1: HUD gauge display value, moved 1/frame
-		// toward +0x1f2 by 0x14d860 for the own position only (s625 ZDXSV_EE_WATCH: writer 0x14d910).
+		// toward +0x1f2 by 0x14d860 for the own position only (the store is at 0x14d910).
 		constexpr u32 PW_MASK[] = {0x274, 0x2b4, 0x1e64, 0x1e74, 0x1e84, 0x1e94, 0x214c};
-		// Viewer-team bits (s628 rbk N=4, pwdiff --own): equal on the machines of one side, set for the
+		// Viewer-team bits: equal on the machines of one side, set for the
 		// other side's players: +0x68 0x300 (119 frames mid-battle), and from time-up on +0x58 0x100,
-		// +0x9c 0x10000, +0x2068 bit 0, +0x2004 (pointer); +0x2074 0x100 on the time-up frame (s630). No other field follows them.
+		// +0x9c 0x10000, +0x2068 bit 0, +0x2004 (pointer); +0x2074 0x100 on the time-up frame. No other field follows them.
 		// +0x2088 byte (struct +0x130): effect flag, set each frame by 0xe0a1b4, cleared by the MS-kind handler
-		// (0x2a7560 cases 4/6) of the model update 0x1e4340, run for the own player + players in view only (s631).
-		// Own player only (s634 rbk N=2 pwdiff --own): u16 +0xcc set on the own machine, 0 on others;
+		// (0x2a7560 cases 4/6) of the model update 0x1e4340, run for the own player + players in view only.
+		// Own player only: u16 +0xcc set on the own machine, 0 on others;
 		// u16 +0x92 follows u16 +0x90 (gauge 4000, equal on all) on the own machine, stays 4000 on others.
 		constexpr std::pair<u32, u32> PW_MASK_BITS[] = {{0x58, 0x100}, {0x68, 0x300}, {0x9c, 0x10000}, {0x2004, ~0u}, {0x2068, 1}, {0x2074, 0x100}, {0x2088, 0xff},
 			{0xcc, 0xffff}, {0x90, 0xffff0000}};
@@ -209,7 +209,7 @@ namespace Zdxsv
 			}
 			return XXH3_64bits(w.data(), PW_SIZE);
 		}
-		// Synctest hash=pos (inada-s/ai-automation#62): x, y, z (3 floats at player work + 0x2a8) of the 4
+		// Synctest hash=pos: x, y, z (3 floats at player work + 0x2a8) of the 4
 		// players, then u16 0x6d7940 and u16 0x6d793c (the game RNGs, generators 0x20f4b0 / 0x20f4f0).
 		constexpr u32 PW_POS = 0x2a8, RNG_A = 0x6d7940, RNG_B = 0x6d793c;
 		std::array<u8, 4 * 12 + 4> PosRng()
@@ -222,20 +222,20 @@ namespace Zdxsv
 			return b;
 		}
 		// ZDXSV_PW_DUMP=file: every save appends (s32 frame, 4 * PW_SIZE bytes of player work); rollback
-		// re-saves a frame, the last record wins (`zdxsv/pwdiff.py` finds the fields behind H mismatches).
+		// re-saves a frame, the last record wins (`tests/zdxsv/pwdiff.py` finds the fields behind H mismatches).
 		std::FILE* s_pw_dump = [] {
 			const char* p = Zdxsv::TestEnv("ZDXSV_PW_DUMP");
 			return p ? std::fopen(p, "wb") : nullptr;
 		}();
 		// zds: kind 3 (round handshake) is the one barrier: each machine reaches it at its own frame
-		// (scene/load timing, s621 run1: side 2 one frame later), so it goes through the GGPO input
+		// (scene/load timing: one side can be a frame later), so it goes through the GGPO input
 		// and the n-th kind 3 of every remote goes to recv once all peers' n-th is in the synced stream.
 		std::vector<std::vector<u8>> s_zds_k3[GGPO_MAX_PLAYERS]; // per sender, by index
 		int s_zds_seen[GGPO_MAX_PLAYERS] = {}, s_zds_rel = 0; // rollback state (NetFrame)
 		u32 s_zds_k3rel = 0;
 		// ZDXSV_ZDS_PS=1: play start. The battle load step 0x2b1d60 (scene step: waits for the load-busy
 		// flag via 0x214260, then inits the per-battle work and sets tick state 8) passes 0x2b1d80 when this
-		// machine's load is done: local timing (s630: player work initialized 1 frame apart). The rec hook
+		// machine's load is done: local timing (player work can be initialized 1 frame apart). The rec hook
 		// there counts the wish, returns 0 (step retried next frame) until every peer's synced count in
 		// Input::unused[1] reaches n, then lets the n-th pass. Rollback state (NetFrame).
 		bool s_zds_ps = Zdxsv::TestEnv("ZDXSV_ZDS_PS") != nullptr; // replay: the file's zds_ps
@@ -1336,7 +1336,7 @@ namespace Zdxsv
 		}
 	}
 
-	// zdp: record (A, B) of a host pad, s613 bind table (OR-linear; B bit 0 = game state, left 0).
+	// The game's input record (A, B) of a host pad: its button bind table (OR-linear; B bit 0 = game state, left 0).
 	static void ZdPadAB(const Input& in, u16& a, u16& b)
 	{
 		using I = PadDualshock2::Inputs;
@@ -1444,7 +1444,7 @@ namespace Zdxsv
 	{
 		constexpr u32 PAD_RAW = 0x6f2460;
 		constexpr u32 PAD_GAME = 0x117f4d9;
-		// `A vsync frame A0..A3`: pad module A cur per position (0x6f2500 + 16p, the applied input, s614)
+		// `A vsync frame A0..A3`: pad module A cur per position (0x6f2500 + 16p, the applied input)
 		if (s_net_trace && !g_ggpo_in_rollback)
 		{
 			static u16 last_a[4];
@@ -1479,7 +1479,7 @@ namespace Zdxsv
 	}
 
 	// NET_TRACE `I`: the game's per-position input array (16 B entries at *(gp-0x5b28) + 0x4d8,
-	// reader 0x2ba63c, s614), bytes 0-7 of each + the base, when changed.
+	// reader 0x2ba63c), bytes 0-7 of each + the base, when changed.
 	void TraceInputs()
 	{
 		// ZDXSV_RAM_DUMP=dir,start,step,count: EE RAM (32 MB) to dir/<frame>.bin.
@@ -1506,7 +1506,7 @@ namespace Zdxsv
 		}
 		// ZDXSV_EE_CLAMP=addr,max[,lo,hi][;addr,...]: u16 at addr set to max whenever above it (and in lo..hi);
 		// a function of state, so rollback-safe. 0x117f566 = 出撃準備 frames left (3599 at
-		// entry; 1800 and 0xffff in earlier phases, s630 ramcount.py).
+		// entry; 1800 and 0xffff in earlier phases; tools/zdxsv/ramcount.py).
 		static const auto clamps = [] {
 			std::vector<std::tuple<u32, u32, u32, u32>> v;
 			for (const char* e = Zdxsv::TestEnv("ZDXSV_EE_CLAMP"); e && *e;)
@@ -2661,14 +2661,14 @@ namespace Zdxsv
 				// a seek requested while paused here plays on; resuming without one stops the replay
 				s_play_at_end = true;
 				Console.WriteLn("ZdxsvGgpo: replay at its end (frame %d of %d, vsync %u), paused", s_net_frame, s_play_frames, g_FrameCount);
-				VMManager::SetPaused(true); // now: queued, one more frame ran and ended the replay (s709)
+				VMManager::SetPaused(true); // now: a queued pause lets one more frame run, which ends the replay
 			}
 		}
 	} // namespace
 
 	namespace
 	{
-		// ZDXSV_RBK: answers of a real start (s626 trace, 4 players, fake_lobby.py): lobby frames are
+		// ZDXSV_RBK: answers of a real start (traced with 4 players and tests/zdxsv/fake_lobby.py): lobby frames are
 		// `18 cat cmd size seq 00ffffff body` (BE, 12-byte header), the game's `81 01 ..`.
 		std::vector<u8> s_rbk_rx; // what recv 0x13 / 0x14 and the poll's readable count see
 		bool s_rbk_started = false; // 0x6910 (battle start) queued
@@ -2756,7 +2756,7 @@ namespace Zdxsv
 			return {};
 		}
 
-		// Sock-0 RPC fno before GGPO arms. Results as recorded (s626 pr1): send 0, poll as the battle
+		// Sock-0 RPC fno before GGPO arms. Results as recorded in that trace: send 0, poll as the battle
 		// poll, getopt 4 (0x2008 -> 0, 0x2001 -> 1 at data+2), 0x38 3, close / socket / connect /
 		// setopt 0. Other fnos go to the IOP.
 		bool RbkCall(u32 fno, s16 len, u8* d)
@@ -2872,7 +2872,7 @@ namespace Zdxsv
 			};
 			if (why)
 			{
-				if (!s_lobby_logged && s_lobby_info) // else not a lobby battle (s696: key msgs before the login)
+				if (!s_lobby_logged && s_lobby_info) // else not a lobby battle (key msgs can come before the login)
 				{
 					Console.WriteLn("ZdxsvGgpo: lobby battle connection cut: %s (position %d, %d players, vsync %u)",
 						why, me, n, g_FrameCount);
@@ -3236,7 +3236,7 @@ namespace Zdxsv
 		}
 		else if (fno == NET_FNO_POLL)
 		{
-			// s609 battle polls: state 4, 0x2000 send space, readable bytes
+			// As a real battle poll returns: state 4, 0x2000 send space, readable bytes
 			s_ns.polls++;
 			*reinterpret_cast<u16*>(ram + NET_REQ_LEN) = 4;
 			*reinterpret_cast<u16*>(ram + NET_REQ_DATA + 2) = 0x2000;
