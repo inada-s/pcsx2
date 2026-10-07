@@ -13,9 +13,9 @@
 //   port=7001    UDP port of position 0; position p listens on port + p, peers on host= (default 127.0.0.1)
 //   relay=R      remote p is at R + 8 * me + p (zdxsv/udprelay.py per pair)
 //   lobby=1      battles from the zdxsv lobby: platform info announces ggpo=port, the lobby's battle
-//                info gives players and peer addresses; listen on port itself. A peer without GGPO:
-//                the battle stays on the battle server (TCP). A peer that did not answer the ping test:
-//                connection failure, no fallback (LobbyCutCall). One GGPO battle per process.
+//                info gives players and peer addresses; listen on port itself. A peer without GGPO or
+//                one that did not answer the ping test: connection failure, no fallback to the battle
+//                server (LobbyCutCall).
 //   delay=0      GGPO frame delay of the local input (fixed). Without it a lobby battle picks
 //                max(mindelay, ceil(slowest peer's rtt / 2 / 16 ms)) when GGPO arms; rtt from a ping
 //                test on the GGPO port (flycast UdpPingPong packets, Zdxsv::StartPingTest)
@@ -2875,7 +2875,8 @@ namespace Zdxsv
 			return true;
 		}
 		// lobby=1, at the battle's first key msg: GGPO only when the battle info has every peer and our
-		// position; else the battle stays on the battle server (logged once per battle info).
+		// position; else the battle connection is cut (LobbyCutCall, logged once per battle info). Without a
+		// battle info it is not a lobby battle: the call goes to the IOP.
 		bool LobbyArm(int me)
 		{
 			std::lock_guard lock(s_lobby_mtx);
@@ -2892,14 +2893,14 @@ namespace Zdxsv
 			};
 			if (why)
 			{
-				if (!s_lobby_logged)
+				if (!s_lobby_logged && s_lobby_info) // else not a lobby battle (s696: key msgs before the login)
 				{
-					Console.WriteLn("ZdxsvGgpo: lobby battle stays on the battle server: %s (position %d, %d players)", why, me, n);
-					if (s_lobby_info) // else not a lobby battle (s696: key msgs before the login)
-					{
-						report("server");
-						s_report += std::string("reason=") + why + "\n";
-					}
+					Console.WriteLn("ZdxsvGgpo: lobby battle connection cut: %s (position %d, %d players, vsync %u)",
+						why, me, n, g_FrameCount);
+					s_lobby_cut = true;
+					s_cut_sends = 0;
+					report("cut");
+					s_report += std::string("reason=") + why + "\n";
 				}
 				s_lobby_logged = true;
 				return false;
@@ -2950,8 +2951,8 @@ namespace Zdxsv
 				// session, position and address); a peer from another battle never gets our inputs
 				if (up < n - 1)
 				{
-					Console.WriteLn("ZdxsvGgpo: lobby battle connection cut: %d of %d peers answered the ping test (position %d, waited %.1f s)",
-						up, n - 1, me, wait.GetTimeSeconds());
+					Console.WriteLn("ZdxsvGgpo: lobby battle connection cut: %d of %d peers answered the ping test (position %d, waited %.1f s, vsync %u)",
+						up, n - 1, me, wait.GetTimeSeconds(), g_FrameCount);
 					s_lobby_unreachable = s_lobby_logged = s_lobby_cut = true;
 					s_cut_sends = 0;
 					report("cut");
@@ -2977,9 +2978,10 @@ namespace Zdxsv
 			s_armed_gen = s_lobby_gen;
 			return true;
 		}
-		// lobby=1, the ping test failed (LobbyArm): a connection failure, no fallback to the battle server.
-		// The battle sock goes silent: sends are dropped, nothing to recv. The game gets no response, gives up
-		// and reconnects to the lobby; its next connect or close goes to the IOP and ends the cut.
+		// lobby=1, no GGPO session (LobbyArm): a connection failure, no fallback to the battle server.
+		// Sends are dropped, nothing to recv, and the poll fails (-1). The battle's net pump (0x3133f0) sets
+		// its net state to 9 (error) on a failed poll, so the game closes the sock and goes back to the lobby
+		// at once instead of after its no-response timeout. That close goes to the IOP and ends the cut.
 		bool LobbyCutCall(u32 fno, s16 sock, s16 len)
 		{
 			u8* ram = eeMem->Main;
@@ -2987,11 +2989,7 @@ namespace Zdxsv
 			if (sock == NET_BATTLE_SOCK && fno == NET_FNO_SEND)
 				result = std::clamp<s32>(len, 0, 0x3ca), s_cut_sends++;
 			else if (sock == NET_BATTLE_SOCK && fno == NET_FNO_POLL)
-			{
-				*reinterpret_cast<u16*>(ram + NET_REQ_LEN) = 4;
-				*reinterpret_cast<u16*>(ram + NET_REQ_DATA + 2) = 0x2000;
-				*reinterpret_cast<u16*>(ram + NET_REQ_DATA + 4) = 0;
-			}
+				result = -1;
 			else if (!(sock == NET_BATTLE_SOCK && fno == NET_FNO_RECV))
 			{
 				if (fno == 7 || fno == 0xd)

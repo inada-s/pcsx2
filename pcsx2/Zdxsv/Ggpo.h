@@ -28,7 +28,7 @@ namespace Zdxsv
 	int GgpoLobbyAdvertisePort();
 	// The lobby's battle info (DEV9 thread): ok = every other player has a GGPO address;
 	// byPosition = GGPO address candidates (IPv4 / IPv6, Zdxsv::GgpoPeers) per battle position, own
-	// position empty; session = ggpo_session (0 = none: stays on the battle server), pingMs = ggpo_ping_ms.
+	// position empty; session = ggpo_session (0 = none: the battle connection is cut), pingMs = ggpo_ping_ms.
 	// Without delay=, starts the ping test (Zdxsv::StartPingTest) on our GGPO port; GGPO arms after it
 	// ended, at the candidate it picked per peer; else (or nothing answered) at the first candidate.
 	// ids = report lines naming the battle ("battle_code=..\nuser_id=..\n"); players = user id and name

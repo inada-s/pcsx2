@@ -5,12 +5,12 @@
 #   GMIN (mindelay=), GGPO_LAT (one-way ms on every GGPO path: fake_lobby.py --ggpo-delay),
 #   P2P (v4 default, v6, dual: fake_lobby.py --p2p; peers' addresses IPv4, this box's IPv6, both),
 #   GGPO_CLIENTS ("1 2 3 4": clients with lobby=1 and a ggpo_ line; fewer = control, expect every client
-#   on the battle server); other env goes to m4.sh.
+#   cutting the battle connection: a peer has no GGPO address); other env goes to m4.sh.
 # Checks (besides m4.sh's): GGPO clients: `lobby peer position` x(N-1) and `net player` each;
 #   GDELAY=auto: `ping test` and `lobby delay E`, E = max(GMIN or 2, ceil(2*GGPO_LAT/32));
 #   P2P=v6: every peer at an IPv6 address; P2P=dual + GDELAY=auto: every peer's IPv6 candidate answered
 #   the ping test; P2P!=v4: every client found its IPv6 (`udp: ... IPv6 [`);
-#   control: `stays on the battle server` on each lobby=1 client, no `net player` anywhere.
+#   control: `connection cut: a peer has no GGPO address` on each lobby=1 client, no `net player` anywhere.
 #   BAD_SESSION=K (GDELAY=auto; fake_lobby.py --bad-session): client K's ping test gets no answer and drops
 #   packets; every other client gets rtt -1 from K only, and drops packets; then every client cuts the battle
 #   connection (no GGPO, no TCP fallback), the game gives up on it and
@@ -70,7 +70,7 @@ for i in $GC; do
       ok "p$i paths direct x3" "[ \$(grep -a -c 'ZdxsvGgpo: lobby path to position [0-9]: direct' '$f') -eq 3 ]"
     fi
   else
-    ok "p$i stays on the battle server" "grep -a -q 'ZdxsvGgpo: lobby battle stays on the battle server' '$f'"
+    ok "p$i connection cut (a peer has no GGPO port)" "grep -a -q 'ZdxsvGgpo: lobby battle connection cut: a peer has no GGPO address' '$f'"
   fi
 done
 # no UDP bridge; STUN only on lobby=1 clients

@@ -20,6 +20,9 @@
 #   BAD_SESSION=K (GDELAY=auto): client K gets badsession=1: every ping test fails,
 #   every client cuts the battle connection; no mash; waits for each cut to end + 2 lobby tcp conns per client;
 #   checks: cut + cut ended per client, no GGPO session, no result with frames.
+#   GGPO_CLIENTS without a client of CLIENTS (GGPO): that client has no GGPO port (ZDXSV_GGPO=0), so every
+#   GGPO client cuts (`a peer has no GGPO address`); the same wait and checks as BAD_SESSION.
+#   Both: CUTMAX=V fails a cut that took more than V vsyncs to end.
 #   REPORT=1: the lobby logged one 0x9952 match report per
 #   client for the results' battle code: result=ggpo + close=net battle end + 0 mismatches (cut: result=cut).
 #   OSD=1: each GGPO client's last `osd frame` log line (-> osd-pN.txt)
@@ -149,29 +152,45 @@ report_code() { grep -o -m1 'battle_code:[0-9]*' "$OUT/results.txt" | cut -d: -f
 results() {
   awk '/== BattleResult ==/{n++; b=1; next} /==================/{b=0} b&&/\] ID:/{id[n]=$NF} b&&/"battle_code": "[0-9]/{gsub(/[",]/,""); c[n]=$NF} b&&/"(total_frame|kill_count|death_count|win_count|lose_count)"/{gsub(/[",]/,""); v[n]=v[n]" "$(NF-1)$NF} END{for(i=1;i<=n;i++) if (c[i] != "") print "result", id[i], "battle_code:" c[i] v[i]}' "$OUT/lobby.log" > "$OUT/results.txt"
 }
-if [ -n "${BAD_SESSION:-}" ]; then
+gc=${GGPO_CLIENTS:-$CLIENTS}; ngc=$(echo $gc | wc -w)
+# a cut: BAD_SESSION, or a client without GGPO (not in GGPO_CLIENTS)
+CUT=; [ -n "${BAD_SESSION:-}" ] && CUT=ping; [ -n "${GGPO:-}" ] && [ "$ngc" -lt "$nc" ] && CUT=noport
+# vsyncs from the cut to its end (the game closed the battle sock), "?" if a line is missing
+cutlen() {
+  local a b
+  a=$(grep -a -o -m1 'ZdxsvGgpo: lobby battle connection cut: .*vsync [0-9]*)' "$1" | grep -o 'vsync [0-9]*' | cut -d' ' -f2)
+  b=$(grep -a -o -m1 'connection cut ended at vsync [0-9]*' "$1" | awk '{print $NF}')
+  [ -n "$a" ] && [ -n "$b" ] && echo $((b - a)) || echo "?"
+}
+if [ -n "$CUT" ]; then
   t0=$SECONDS
   while [ $((SECONDS - t0)) -lt "${MAXS:-300}" ]; do
     sleep 15
-    e=0; for i in $CLIENTS; do grep -a -q 'ZdxsvGgpo: lobby battle connection cut ended' "$RUN/p$i/PCSX2/logs/emulog.txt" && e=$((e + 1)); done
+    e=0; for i in $gc; do grep -a -q 'ZdxsvGgpo: lobby battle connection cut ended' "$RUN/p$i/PCSX2/logs/emulog.txt" && e=$((e + 1)); done
     c=$(grep -c 'A new tcp connection open' "$OUT/lobby.log")
-    echo "$((SECONDS - t0)) s: cut ended $e/$nc, lobby tcp conns $c/$((2 * nc))"
-    [ "$e" -ge "$nc" ] && [ "$c" -ge $((2 * nc)) ] && break
+    echo "$((SECONDS - t0)) s: cut ended $e/$ngc, lobby tcp conns $c/$((2 * nc))"
+    [ "$e" -ge "$ngc" ] && [ "$c" -ge $((2 * nc)) ] && break
   done
   sleep 20; results; cat "$OUT/results.txt"
   grep -a -h "ZdxsvGgpo: \(lobby\|badsession\|net player\)\|zdxsv: ping test" "$RUN"/p[1-4]/PCSX2/logs/emulog.txt 2>/dev/null | cut -c1-200
-  for i in $CLIENTS; do
+  for i in $gc; do
     f="$RUN/p$i/PCSX2/logs/emulog.txt"
-    check "p$i connection cut (unanswered ping test), no ggpo session" "grep -a -q 'ZdxsvGgpo: lobby battle connection cut: [0-9] of $((nc - 1)) peers answered the ping test' '$f' && ! grep -a -q 'ZdxsvGgpo: net player' '$f'"
+    if [ "$CUT" = ping ]; then
+      check "p$i connection cut (unanswered ping test), no ggpo session" "grep -a -q 'ZdxsvGgpo: lobby battle connection cut: [0-9] of $((nc - 1)) peers answered the ping test' '$f' && ! grep -a -q 'ZdxsvGgpo: net player' '$f'"
+    else
+      check "p$i connection cut (a peer has no GGPO port), no ggpo session" "grep -a -q 'ZdxsvGgpo: lobby battle connection cut: a peer has no GGPO address' '$f' && ! grep -a -q 'ZdxsvGgpo: net player' '$f'"
+    fi
     check "p$i game gave up the battle connection (cut ended)" "grep -a -q 'ZdxsvGgpo: lobby battle connection cut ended' '$f'"
+    echo "p$i cut ended after $(cutlen "$f") vsyncs"
+    [ -n "${CUTMAX:-}" ] && check "p$i cut ended within $CUTMAX vsyncs" "[ '$(cutlen "$f")' != '?' ] && [ $(cutlen "$f" | tr -d '?') -le $CUTMAX ]"
   done
-  check "p$BAD_SESSION used the bad session" "grep -a -q 'badsession=1: ping test session' '$RUN/p$BAD_SESSION/PCSX2/logs/emulog.txt'"
+  [ "$CUT" = ping ] && check "p$BAD_SESSION used the bad session" "grep -a -q 'badsession=1: ping test session' '$RUN/p$BAD_SESSION/PCSX2/logs/emulog.txt'"
   check "every client back in the lobby (tcp conns x$((2 * nc)))" "[ \$(grep -c 'A new tcp connection open' '$OUT/lobby.log') -ge $((2 * nc)) ]"
   check "no battle fought (no result with frames)" "! grep -q 'total_frame:[1-9]' '$OUT/results.txt'"
   if [ -n "${REPORT:-}" ]; then
     grep -a 'p2p matching report:' "$OUT/lobby.log" | cut -c1-300
     check "no match report without a battle code" "! grep -a -q 'p2p matching report: battle_code=\"\"' '$OUT/lobby.log'"
-    check "match report x$nc: battle code $(report_code), result cut, cut ended" "[ \$(grep -a 'p2p matching report: battle_code=\"$(report_code)\"' '$OUT/lobby.log' | grep 'result=\"cut\"' | grep -c 'cut_sends=') -eq $nc ]"
+    check "match report x$ngc: battle code $(report_code), result cut, cut ended" "[ \$(grep -a 'p2p matching report: battle_code=\"$(report_code)\"' '$OUT/lobby.log' | grep 'result=\"cut\"' | grep -c 'cut_sends=') -eq $ngc ]"
   fi
   exit $ok
 fi
