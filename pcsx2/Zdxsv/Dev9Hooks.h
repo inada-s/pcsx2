@@ -3,7 +3,7 @@
 
 #pragma once
 
-// zdxsv hooks of the DEV9 network code (DEV9.cpp, TCP_Session). Only flags and declarations (AGENTS.md,
+// zdxsv hooks of the DEV9 network code (DEV9.cpp, TCP_Session, DNS_Server, the DEV9 config). Only flags and declarations (AGENTS.md,
 // Seams With Upstream Code).
 
 #include "common/Pcsx2Defs.h"
@@ -42,4 +42,12 @@ namespace Zdxsv
 	LobbyFilter* LobbyOnFirstData(uptr socket, u32 serverIp, const u8* data, int len);
 	// A connection adopted after a state load.
 	LobbyFilter* LobbyOnAdopted(u32 serverIp);
+
+	// Zdxsv/ServerHosts.cpp. The internal DNS server looks up the game's server hosts (login, DNAS,
+	// lobby) as the zdxsv server's hostname. A host entry for the same name is checked first and wins.
+	// Returns the name to look up for url: the zdxsv server's hostname or url itself.
+	const char* DnsLookupName(const char* url);
+	// url -> address is a game host mapped to the fixed address the defaults once held. The config drops
+	// such entries on load, so the lookup above applies.
+	bool DnsIsStaleHostEntry(const char* url, const u8* address);
 } // namespace Zdxsv

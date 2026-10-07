@@ -8,13 +8,17 @@ battle that the lobby matched runs over GGPO. Option names and defaults are in
 ## Network defaults
 
 A new configuration points at zdxsv: adapter on, Sockets API, `Auto` device,
-DHCP intercepted, internal DNS. The server hosts of the game resolve to the
-zdxsv server:
+DHCP intercepted, internal DNS, no host entries. The internal DNS server looks
+up the server hosts of the game as `zdxsv.net` on the host's resolver
+(`Zdxsv/ServerHosts.cpp`), so a server move needs no new release:
 
 - `www01.kddi-mmbb.jp`
 - `gate1.jp.dnas.playstation.org`
 - `ca1202.mmcp6`
 - `ca1203.mmcp6`
+
+A host entry for one of these names wins (local servers, tests). Entries that
+map one of them to `153.121.44.150` are dropped when the config loads.
 
 ## Battle server connection
 

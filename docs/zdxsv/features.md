@@ -28,7 +28,7 @@ zdxsv checkout, save states): `tests/zdxsv/README.md`.
 
 | Feature | How to turn on | Test | Control |
 |---|---|---|---|
-| Network defaults for zdxsv (adapter on, Sockets, internal DNS, game hosts to the zdxsv server) | always | unit: `DEV9Config.*` in `tests/ctest/core/dev9_config_tests.cpp` | none |
+| Network defaults for zdxsv (adapter on, Sockets, internal DNS, game hosts looked up as `zdxsv.net`) | always | unit: `DEV9Config.*` in `tests/ctest/core/dev9_config_tests.cpp` | none |
 | Platform info `0x9950` to the lobby | always on a zdxsv lobby; `ZDXSV_PLATFORM_INFO=0` turns it off | `m4z.sh` with samples of the lobby `/api/stat`: the lobby counts each client by platform | none |
 | Battle over TCP to the battle server, as a PS2 | always | `m4.sh`: 4 emulators, fake lobby, one battle. Variant `MASHP=1 SHOW=1`: time-up with side 1 ahead, all 4 report a loss | none |
 | First login from a blank memory card | always | `launch.ps1 -Memcard <blank>`, then `drive.py fresh`, `register`, `newlogin` | none |
