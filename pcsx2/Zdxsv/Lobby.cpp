@@ -1611,6 +1611,31 @@ namespace Zdxsv
 		return m->code;
 	}
 
+	std::string LiveDown::Newest(const std::string& hostPort, int timeoutMs)
+	{
+		sockaddr_in to{};
+		sock_t s;
+		if (!LiveResolve(hostPort, to) || (s = LiveSocket()) == INVALID_SOCKET)
+			return {};
+		// a subscribe without a cookie only gets the challenge, which names the battle
+		std::vector<uint8_t> m;
+		Pb::PutString(m, 1, std::string());
+		LiveSend(s, to, LIVE_SUBSCRIBE, m);
+		std::string code;
+		std::vector<uint8_t> buf;
+		const auto until = Clock::now() + std::chrono::milliseconds(timeoutMs);
+		while (code.empty() && Clock::now() < until)
+		{
+			std::string_view msg;
+			std::map<uint32_t, uint64_t> nums;
+			std::map<uint32_t, std::string_view> bytes;
+			if (LiveRecv(s, to, 10, buf, msg) == LIVE_CHALLENGE && LiveFields(msg, nums, bytes))
+				code = bytes[1];
+		}
+		closesocket(s);
+		return code;
+	}
+
 	bool LiveDown::Take(LiveStreams& s, int stallMs)
 	{
 		std::lock_guard lock(m->mtx);

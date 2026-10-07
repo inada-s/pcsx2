@@ -95,6 +95,7 @@
 #include <map>
 #include <mutex>
 #include <random>
+#include <set>
 #include <string>
 #include <thread>
 #include <tuple>
@@ -2482,6 +2483,29 @@ namespace Zdxsv
 		int s_live_waits = 0;
 		double s_live_wait_ms = 0;
 
+		// Auto-next (flycast's gdxsv:LiveAutoNext; setting ZdxsvLiveAutoNext, ZDXSV_LIVE_NEXT=N: N more battles, 0 = off):
+		// at the end of a closed stream a thread asks the lobby every LIVE_NEXT_POLL_S for its newest live battle
+		// (LiveDown::Newest); one not watched yet resets the VM, and PlayLoad opens it instead of ZDXSV_REPLAY.
+		struct LiveWait
+		{
+			std::atomic<bool> quit{false};
+			std::thread t;
+			~LiveWait()
+			{
+				quit = true;
+				if (t.joinable())
+					t.join();
+			}
+		};
+		std::unique_ptr<LiveWait> s_live_wait;
+		std::set<std::string, std::less<>> s_live_seen; // battle codes watched, kept across the resets
+		std::string s_live_next_url; // the battle auto-next moved on to, "" = ZDXSV_REPLAY
+		int s_live_next_left = [] {
+			const char* e = std::getenv("ZDXSV_LIVE_NEXT");
+			return e ? std::atoi(e) : -1; // -1 = the setting decides (no limit)
+		}();
+		constexpr int LIVE_NEXT_POLL_S = 5, LIVE_NEWEST_MS = 2000;
+
 		void LiveTake()
 		{
 			const bool ok = s_live_down->Take(s_live_got, LIVE_STALL_MS);
@@ -2526,9 +2550,47 @@ namespace Zdxsv
 			PutBytes(pb, 50, s_live_got.state.data(), s_live_got.state.size());
 			s_live_got.inputs.erase(s_live_got.inputs.begin(), s_live_got.inputs.begin() + frames * fb);
 			s_live_got.state = {};
-			Console.WriteLn("ZdxsvGgpo: live: battle %s, %zu frames so far, state %zu bytes%s", s_live_down->Code().c_str(), frames,
+			const std::string code = s_live_down->Code();
+			s_live_seen.insert(code);
+			Console.WriteLn("ZdxsvGgpo: live: battle %s, %zu frames so far, state %zu bytes%s", code.c_str(), frames,
 				s_live_got.stateTotal, s_live_got.closed ? ", closed" : "");
 			return pb;
+		}
+
+		// PlayNext at the end of a closed stream: true = auto-next waits for the next battle (VM paused).
+		bool LiveAutoNext()
+		{
+			if (s_live_next_left < 0 ? !Host::GetBoolSettingValue("DEV9/Eth", "ZdxsvLiveAutoNext", false) : s_live_next_left == 0)
+				return false;
+			if (s_live_next_left > 0)
+				s_live_next_left--;
+			const std::string_view src = s_live_next_url.empty() ? std::string_view(s_play_env) : std::string_view(s_live_next_url);
+			const std::string_view rest = src.substr(std::min<size_t>(6, src.size())); // after udp://
+			std::string host(rest.substr(0, rest.find('/')));
+			Console.WriteLn("ZdxsvGgpo: live: auto-next: waiting for a new battle at %s (%zu watched)", host.c_str(), s_live_seen.size());
+			s_live_wait = std::make_unique<LiveWait>();
+			s_live_wait->t = std::thread([w = s_live_wait.get(), host = std::move(host), seen = s_live_seen]() {
+				Common::Timer since;
+				while (!w->quit)
+				{
+					if (const std::string code = Zdxsv::LiveDown::Newest(host, LIVE_NEWEST_MS); !code.empty() && !seen.contains(code))
+					{
+						Console.WriteLn("ZdxsvGgpo: live: auto-next: moving on to %s after %.0f s", code.c_str(), since.GetTimeSeconds());
+						Host::RunOnCPUThread([url = fmt::format("udp://{}/{}", host, code)] {
+							if (!VMManager::HasValidVM())
+								return;
+							s_live_next_url = url;
+							VMManager::Reset();
+							VMManager::SetPaused(false);
+						});
+						return;
+					}
+					for (int i = 0; i < LIVE_NEXT_POLL_S * 10 && !w->quit; i++)
+						Threading::Sleep(100);
+				}
+			});
+			VMManager::SetPaused(true);
+			return true;
 		}
 
 		void LiveCatchupEnd(int f)
@@ -2584,6 +2646,7 @@ namespace Zdxsv
 				keys.clear();
 			}
 			s_live_down.reset();
+			s_live_wait.reset();
 			s_live_got = {};
 			s_live_close.clear();
 			s_live_catchup = s_live_close_logged = false;
@@ -2750,7 +2813,7 @@ namespace Zdxsv
 		void PlayLoad()
 		{
 			int me = -1;
-			for (const std::string_view path : StringUtil::SplitString(s_play_env, ';'))
+			for (const std::string_view path : StringUtil::SplitString(s_live_next_url.empty() ? s_play_env : s_live_next_url, ';'))
 				if (const int p = PlayLoadFile(std::string(path)); me < 0)
 					me = p;
 			if (me < 0)
@@ -2889,8 +2952,11 @@ namespace Zdxsv
 			if (next < s_play_frames)
 			{
 				s_play_at_end = false;
+				s_live_wait.reset(); // played on from the end: no move to another battle
 				PlayFrame(next);
 			}
+			else if (s_live_down && !s_play_at_end && LiveAutoNext())
+				s_play_at_end = true;
 			else if (const char* e = std::getenv("ZDXSV_REPLAY_EXIT"); s_play_at_end || (e && e[0] == '1'))
 				PlayStop("end");
 			else
