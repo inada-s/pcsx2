@@ -254,7 +254,8 @@ namespace Sessions
 				destIP.bytes[0], destIP.bytes[1], destIP.bytes[2], destIP.bytes[3], destPort,
 				tcp->sequenceNumber, tcp->acknowledgementNumber);
 			state = TCP_State::Connected;
-			ZdxsvAdopted();
+			zdxsvChecked = true;
+			zdxsvLobbyFilter.reset(Zdxsv::LobbyOnAdopted(std::bit_cast<u32>(destIP)));
 			return SendData(tcp);
 		}
 
