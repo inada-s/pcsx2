@@ -18,3 +18,8 @@ Start-Sleep 2
 Copy-Item "$env:RUN\p1\PCSX2\logs\emulog.txt" "$o\$Tag-emulog.txt"
 Get-Process pcsx2-qtx64 -ErrorAction SilentlyContinue | Stop-Process -Force
 Select-String -Path "$o\$Tag-emulog.txt" -Pattern 'ZdxsvDelta|ZdxsvGgpo' | ForEach-Object { $_.Line }
+# ZDXSV_DELTA_TEST: exit 1 on `result FAIL` (pass 2+ differed), 3 when no result line was logged
+if ($Var -eq 'ZDXSV_DELTA_TEST') {
+  if (Select-String -Path "$o\$Tag-emulog.txt" -Pattern 'ZdxsvDelta: result FAIL' -Quiet) { exit 1 }
+  if (-not (Select-String -Path "$o\$Tag-emulog.txt" -Pattern 'ZdxsvDelta: result' -Quiet)) { exit 3 }
+}

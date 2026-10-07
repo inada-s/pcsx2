@@ -142,7 +142,9 @@ See [replay.md](replay.md).
 
 `ZDXSV_DELTA_TEST="key=value,..."` (any value turns it on): from vsync `start`,
 save every frame; every `every` frames load the frame `depth` back and rerun.
-Each rerun frame must hash like its first run. Log lines start with
+The 2nd rerun of a window must hash like the 1st: both start from the same load with the same
+recompiler code cache. The 1st rerun can differ from the first run: the recompilers end a block
+where the next PC is already compiled, so events land at other cycles. Log lines start with
 `ZdxsvDelta`.
 
 | Key or option | Default | Use | Meaning |
@@ -151,9 +153,9 @@ Each rerun frame must hash like its first run. Log lines start with
 | `frames=N` | 1800 | test | Frames the test runs. |
 | `depth=N` | 8 | test | Frames each rollback goes back. |
 | `every=N` | 20 | test | Frames between rollbacks. |
+| `replays=N` | 2 | test | Reruns of each window, each compared with the one before. The result (PASS/FAIL) counts reruns 2 and later; 1 = no result. |
 | `gap=N` | 0 | test | The N frames before each rollback window are not saved; older saves are still discarded. This is the save skip GGPO does for confirmed frames. A gap above `depth` drops every save before the window. At most `every - depth - 1`. |
 | `break=ee` | off | control | A load does not restore EE RAM. Mismatches must be reported. |
-| `blocks=linked` | off | control | Recompiler blocks end as upstream. Mismatches must be reported. |
 | `ZDXSV_DELTA_HOT=0` | on | control | Every written page is write-protected each frame; no hot-page copy. |
 
 ## Input latency measurement

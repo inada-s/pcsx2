@@ -2516,7 +2516,7 @@ static void recRecompile(const u32 startpc)
 				break;
 			}
 
-			if (!Zdxsv::g_fixed_blocks && pblock->GetFnptr() != (uptr)JITCompile)
+			if (pblock->GetFnptr() != (uptr)JITCompile)
 			{
 				willbranch3 = 1;
 				s_nEndBlock = i;

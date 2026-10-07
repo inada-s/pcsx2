@@ -3,13 +3,18 @@
 
 // ZDXSV_DELTA_TEST="key=value,..." (any value, even empty, turns it on): synctest in a running
 // game. Every frame from start: save; every `every` frames: load the frame `depth` back and run
-// those frames again. A rerun frame must hash the same as its first run (EE RAM per page, the
-// rest of the state byte by byte).
+// those frames again, `replays` times. Each pass is compared with the one before it (EE RAM per
+// page, the rest of the state byte by byte). Pass 1 (first run vs first rerun) differs by the code
+// cache: the recompilers end a block where the next PC is already compiled, so the first run and
+// the rerun test events at other cycles (an IOP event start cycle off by 4 in most of them). Pass 2
+// runs from the same load with the same code cache, so it must match pass 1 exactly: the result line
+// (PASS/FAIL) counts pass 2+ only.
 //   start=3000   vsync (counted from boot) of the first save
 //   frames=1800  frames to test
 //   depth=8      frames rolled back
 //   every=20     frames from one rollback to the next
-//   break=ee     control: a load does not restore EE RAM (must report mismatches)
+//   replays=2    reruns of each window (1: pass 1 only, no result)
+//   break=ee     control: a load does not restore EE RAM (the result must be FAIL)
 //   gap=0        frames before each rollback window that are not saved, older saves still
 //                discarded (GGPO's confirmed-frame save skip; gap > depth drops all of them)
 // Results go to the log, lines start with "ZdxsvDelta".
@@ -46,9 +51,6 @@
 namespace Zdxsv
 {
 	bool g_delta_state_test_enabled = Zdxsv::TestEnv("ZDXSV_DELTA_TEST") != nullptr;
-	// A control run: ZDXSV_DELTA_TEST=...,blocks=linked keeps the recompilers' history-dependent block ends.
-	// With GGPO options GgpoOnVmInitialize sets it too.
-	bool g_fixed_blocks = g_delta_state_test_enabled && !std::strstr(Zdxsv::TestEnv("ZDXSV_DELTA_TEST"), "blocks=linked");
 
 	namespace
 	{
@@ -424,7 +426,7 @@ namespace Zdxsv
 		int s_replay_until = -1, s_next_rollback = 0;
 		// replays=N: a window is replayed N times, each pass compared with the one before it (pass 0 =
 		// the first run). Pass 2 vs 1 runs both from a load, so it separates code cache history.
-		int s_replays = 1, s_pass = 0;
+		int s_replays = 2, s_pass = 0;
 		// preload=1: the first run also loads the window start right after saving it.
 		bool s_preload = false;
 		int s_preload_logged = 0;
@@ -432,7 +434,8 @@ namespace Zdxsv
 		bool s_done = false;
 		std::map<int, Sample> s_samples;
 		int s_gap = 0, s_gap_skipped = 0;
-		int s_rollbacks = 0, s_compared = 0, s_mismatched = 0;
+		int s_rollbacks = 0, s_compared = 0, s_mismatched = 0, s_ee_mismatched = 0;
+		std::map<std::string, int> s_fields; // SaveState_DeltaDescribe of differing state runs -> count
 		Stat s_save_ms, s_load_ms, s_pages, s_state_kb;
 
 		void Parse()
@@ -462,8 +465,6 @@ namespace Zdxsv
 					s_gap = std::max(n, 0);
 				else if (key == "break")
 					s_break_ee = (value == "ee");
-				else if (key == "blocks")
-					; // read at startup (g_fixed_blocks)
 				else
 					Console.Warning("ZdxsvDelta: unknown key '%.*s'", static_cast<int>(key.size()), key.data());
 			}
@@ -521,6 +522,14 @@ namespace Zdxsv
 			if (ee_diff == 0 && st_diff == 0 && first.state.size() == again.state.size())
 				return;
 			s_mismatched_pass[std::min(s_pass, 2) - 1]++;
+			if (ee_diff)
+				s_ee_mismatched++;
+			for (size_t k = 0; k < st_runs.size() && k < 16; k++)
+			{
+				std::string field = SaveState_DeltaDescribe(first.state, st_runs[k]);
+				field = field.substr(0, field.find(" (block at"));
+				s_fields[field]++;
+			}
 			if (s_mismatched++ < 20)
 			{
 				Console.WriteLn("ZdxsvDelta: MISMATCH pass %d frame %d: ee pages %d (first 0x%08x), state bytes %d (first offset %d), size %zu/%zu",
@@ -539,6 +548,14 @@ namespace Zdxsv
 			Console.WriteLn("ZdxsvDelta: %s frame %d rollbacks %d compared %d mismatched %d | save ms mean %.3f max %.3f | load ms mean %.3f max %.3f | ee pages/frame mean %.1f max %.0f | state KB %.0f | mismatched pass 1 %d pass 2+ %d | gap skipped %d",
 				what, s_frame, s_rollbacks, s_compared, s_mismatched, s_save_ms.Mean(), s_save_ms.max, s_load_ms.Mean(), s_load_ms.max,
 				s_pages.Mean(), s_pages.max, s_state_kb.Mean(), s_mismatched_pass[0], s_mismatched_pass[1], s_gap_skipped);
+			// which state differed over all mismatches (first 16 differing runs of each), not just the 20 logged
+			std::string fields;
+			for (const auto& [name, count] : s_fields)
+				fields += fmt::format(" | {} x{}", name, count);
+			Console.WriteLn("ZdxsvDelta: %s mismatched with ee pages %d, state fields%s", what, s_ee_mismatched, fields.empty() ? " none" : fields.c_str());
+			if (std::strcmp(what, "done") == 0)
+				Console.WriteLn("ZdxsvDelta: result %s: pass 2+ mismatched %d (pass 1, code cache: %d)",
+					s_replays < 2 ? "none (replays=1)" : s_mismatched_pass[1] ? "FAIL" : "PASS", s_mismatched_pass[1], s_mismatched_pass[0]);
 		}
 	} // namespace
 

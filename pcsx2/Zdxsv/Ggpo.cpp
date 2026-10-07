@@ -1215,8 +1215,6 @@ namespace Zdxsv
 
 	void GgpoOnVmInitialize(const char* serial, u32 crc)
 	{
-		// DeltaState.cpp sets it for ZDXSV_DELTA_TEST at startup; the recompilers read it from the first block on
-		static const bool fixed_for_test = g_fixed_blocks;
 		const char* e = std::getenv("ZDXSV_GGPO");
 		// Read here only, so not a config field: a change takes effect at the next VM start.
 		const bool setting = Host::GetBoolSettingValue("DEV9/Eth", "ZdxsvGgpo", true);
@@ -1230,7 +1228,6 @@ namespace Zdxsv
 		{
 			s_options.clear();
 			g_ggpo_enabled = s_net_env = g_net_hook = g_zd_hook = g_ps_hook = false;
-			g_fixed_blocks = fixed_for_test;
 			if (serial_match || (e && std::strcmp(e, "0") != 0) || s_play_env || s_net_trace)
 				Console.Warning("ZdxsvGgpo: off: not the Z game (serial %s CRC %08X, need %s %08X)", serial, crc, GAME_SERIAL, want);
 			return;
@@ -1246,8 +1243,6 @@ namespace Zdxsv
 		g_net_hook = s_net_trace != nullptr || s_net_env;
 		g_zd_hook = s_net_env;
 		g_ps_hook = s_zds_ps;
-		// a replay ends blocks as its recording did (a GGPO session), else EE cycles drift from the live battle
-		g_fixed_blocks = fixed_for_test || !s_options.empty() || s_play_env;
 		if (!s_options.empty() || std::strcmp(serial, GAME_SERIAL) == 0)
 			Console.WriteLn("ZdxsvGgpo: options '%s' (serial %s, setting %d)", s_options.c_str(), serial, setting ? 1 : 0);
 		// Delta saves and loads, replay keys: VU1 memory is copied while the MTVU thread may still run on it.
