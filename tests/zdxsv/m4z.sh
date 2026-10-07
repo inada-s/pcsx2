@@ -17,7 +17,7 @@
 #   the result and GGPO checks then expect N battle codes and N GGPO battle ends per client.
 #   UPLOAD=1 (GGPO): replay upload as gdxsv. The lobby's ops api on 127.0.0.1:9880 (db migrated first), a local
 #   zdxsv infra/uploader (UPLOADER, default $ZDXSV/bin/uploader.exe) on :8281 storing into OUT/upload, served on
-#   :8282; clients post (ZDXSV_GGPO upload=). Checks per battle code: the stored .pb = each client's saved one,
+#   :8282; clients post (ZDXSV_GGPO upload=). Checks per battle code: the stored .pb = one client's saved one,
 #   one client's upload ok + the rest 409, every db record's replay_url = the stored file's url.
 #   GGPO_DEFAULT=K: client K gets no ZDXSV_GGPO (launch.ps1 ZDXSV_GGPO=default), so the ZdxsvGgpo setting
 #   gives its options (port 7001); check: its log names the default options.
@@ -255,9 +255,9 @@ if [ -n "${EMU:-}" ] && [ -n "${GGPO:-}" ]; then
     grep -a -h 'replay upload' "$RUN"/p[1-4]/PCSX2/logs/emulog.txt | cut -c1-200
     for code in $(grep -o 'battle_code:[0-9]*' "$OUT/results.txt" | cut -d: -f2 | sort -u); do
       pb="$OUT/upload/replays/$code.pb"
-      for i in ${GGPO_CLIENTS:-$CLIENTS}; do
-        check "$code: stored .pb = p$i's saved .pb" "cmp -s '$pb' '$RUN/p$i/PCSX2/replays/$code.pb'"
-      done
+      # each client's file is its own (position, frame 0 state): the first upload is kept
+      same=0; for i in ${GGPO_CLIENTS:-$CLIENTS}; do cmp -s "$pb" "$RUN/p$i/PCSX2/replays/$code.pb" && same=$((same + 1)); done
+      check "$code: stored .pb = exactly one client's saved .pb" "[ $same -eq 1 ]"
       check "$code: every db record's replay_url = stored url" "[ \"\$('$PY' -I -c 'import sqlite3,sys; print(*sorted(set(r[0] for r in sqlite3.connect(sys.argv[1]).execute(\"select replay_url from battle_record where battle_code=?\", (sys.argv[2],)))), sep=\";\")' '$OUT/zdxsv.db' $code | tr -d '\r')\" = 'http://127.0.0.1:8282/replays/$code.pb' ]"
     done
     check "uploads x$((ng * B)): $B ok + $(((ng - 1) * B)) already there, no failure" "[ \$(cat '$RUN'/p[1-4]/PCSX2/logs/emulog.txt | grep -a -c 'replay upload.*: ok') -eq $B ] && [ \$(cat '$RUN'/p[1-4]/PCSX2/logs/emulog.txt | grep -a -c 'replay upload.*: already there') -eq $(((ng - 1) * B)) ] && ! cat '$RUN'/p[1-4]/PCSX2/logs/emulog.txt | grep -a -q 'replay upload.*failed'"
