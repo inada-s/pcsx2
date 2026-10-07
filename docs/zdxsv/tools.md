@@ -24,7 +24,7 @@
 | Script | What it does |
 |---|---|
 | `build-local.sh` | Builds PCSX2 on Windows from Git Bash, as the MSBuild path of the Windows CI. `--run` launches the build. The first run builds the third-party dependencies into `deps/`. |
-| `run.py` | Launches several local instances side by side, each with its own data directory under `work/`. Modes: `rom`, `state`, `rbk_test`, `rbk_test_random`. Settings are environment variables listed at the top of the script. |
+| `run.py` | Launches several local instances side by side, each with its own data directory under `work/`. Modes: `rom`, `state`, `rbk_test`, `rbk_test_random`. Settings are environment variables listed at the top of the script; `ROM` and `BIOS` have no default. The `rbk_test` save state is downloaded when missing and used only if its SHA-256 is `RBK_STATE_SHA256`. |
 | `tools/zdxsv/udprelay.py` | UDP relay that adds latency, jitter and loss between two GGPO peers. |
 | `tools/zdxsv/pwcheck.py` | Sync check across peers or a replay and its live traces: per frame from the play start (`PS` line, else battle load end), each player's x, y, z and game RNG B; mismatch counts per player. |
 | `tools/zdxsv/zdcheck.py` | Checks the `zd=1` lines (`Z`) of a `ZDXSV_NET_TRACE` file. |
