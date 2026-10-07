@@ -131,6 +131,7 @@ set(pcsx2Sources
 	VUmicro.cpp
 	Zdxsv/InputLatency.cpp
 	Zdxsv/DeltaState.cpp
+	Zdxsv/DeltaFreeze.cpp
 	Zdxsv/Ggpo.cpp
 	VU0micro.cpp
 	VU0microInterp.cpp
@@ -206,6 +207,7 @@ set(pcsx2Headers
 	VUmicro.h
 	Zdxsv/InputLatency.h
 	Zdxsv/DeltaState.h
+	Zdxsv/DeltaFreeze.h
 	Zdxsv/Ggpo.h
 	Zdxsv/CpuHooks.h
 	Zdxsv/InputHooks.h

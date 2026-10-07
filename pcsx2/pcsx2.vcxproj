@@ -444,6 +444,7 @@
     <ClCompile Include="VUmicro.cpp" />
     <ClCompile Include="Zdxsv\InputLatency.cpp" />
     <ClCompile Include="Zdxsv\DeltaState.cpp" />
+    <ClCompile Include="Zdxsv\DeltaFreeze.cpp" />
     <ClCompile Include="Zdxsv\Ggpo.cpp" />
     <ClCompile Include="VUmicroMem.cpp" />
     <ClCompile Include="x86\microVU.cpp">
@@ -900,6 +901,7 @@
     <ClInclude Include="VUmicro.h" />
     <ClInclude Include="Zdxsv\InputLatency.h" />
     <ClInclude Include="Zdxsv\DeltaState.h" />
+    <ClInclude Include="Zdxsv\DeltaFreeze.h" />
     <ClInclude Include="Zdxsv\Ggpo.h" />
     <ClInclude Include="Zdxsv\CpuHooks.h" />
     <ClInclude Include="Zdxsv\InputHooks.h" />

@@ -43,6 +43,7 @@
 
 #include "Zdxsv/Ggpo.h"
 #include "Zdxsv/DeltaState.h"
+#include "Zdxsv/DeltaFreeze.h"
 #include "Zdxsv/Lobby.h"
 #include "Zdxsv/TestOptions.h"
 #include "Config.h"
