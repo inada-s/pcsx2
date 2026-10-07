@@ -5,7 +5,7 @@
 // ZDXSV_GGPO replaces it (GgpoOnVmInitialize); ZDXSV_GGPO=0 = off.
 // ZDXSV_GGPO="key=value,...": a GGPO session in a running game. Synctest by default:
 // every frame is saved, and every `check` frames GGPO loads the frame `check` back, reruns the
-// frames with the same inputs and compares the state checksums (EE RAM + delta state).
+// frames with the same inputs and compares the state checksums (hash=).
 // With net=1 a battle of players= peers instead (see NetInput): the session starts when the game
 // arms its battle sock, every peer runs its own position, no state hashes.
 //   net=1        GGPO battle session (zdxsv/rbk.sh, m4relay.sh)
@@ -30,6 +30,10 @@
 //   start=1500   vsync (counted from boot) the session starts at
 //   frames=3000  frames the session runs, then it is closed and reported
 //   check=6      synctest check distance (1..6)
+//   hash=pw      synctest checksum: the player work of all 4 players, masked as the H lines (PwHash),
+//                and the game RNG words (without them a rerun with other inputs went unseen, s756);
+//                pos = the 4 players' x, y, z + game RNG (PosRng); full = EE RAM + delta state (code-cache
+//                noise: the rerun's IOP/event cycles differ, so it always reports mismatches)
 //   seed=1       random pad input (both pads; a new input every 5 frames)
 //   input=host   pad 1 from the host pad instead of random (pad 2 stays random)
 //   input=none   no buttons, sticks centered
@@ -185,6 +189,34 @@ namespace Zdxsv
 		constexpr std::pair<u32, u32> PW_MASK_BITS[] = {{0x58, 0x100}, {0x68, 0x300}, {0x9c, 0x10000}, {0x2004, ~0u}, {0x2068, 1}, {0x2074, 0x100}, {0x2088, 0xff},
 			{0xcc, 0xffff}, {0x90, 0xffff0000}};
 		std::map<int, std::array<u64, 4>> s_pw;
+		// XXH3 of player p's work with the fields above masked (H lines, synctest hash=pw).
+		u64 PwHash(u32 p)
+		{
+			std::array<u8, PW_SIZE> w;
+			std::memcpy(w.data(), &eeMem->Main[PW_BASE + PW_SIZE * p], PW_SIZE);
+			for (u32 o : PW_MASK)
+				std::memset(&w[o], 0, 4);
+			for (const auto& [o, bits] : PW_MASK_BITS)
+			{
+				u32 v;
+				std::memcpy(&v, &w[o], 4);
+				v &= ~bits;
+				std::memcpy(&w[o], &v, 4);
+			}
+			return XXH3_64bits(w.data(), PW_SIZE);
+		}
+		// Synctest hash=pos (inada-s/ai-automation#62): x, y, z (3 floats at player work + 0x2a8) of the 4
+		// players, then u16 0x6d7940 and u16 0x6d793c (the game RNGs, generators 0x20f4b0 / 0x20f4f0).
+		constexpr u32 PW_POS = 0x2a8, RNG_A = 0x6d7940, RNG_B = 0x6d793c;
+		std::array<u8, 4 * 12 + 4> PosRng()
+		{
+			std::array<u8, 4 * 12 + 4> b;
+			for (u32 p = 0; p < 4; p++)
+				std::memcpy(&b[12 * p], &eeMem->Main[PW_BASE + PW_SIZE * p + PW_POS], 12);
+			std::memcpy(&b[48], &eeMem->Main[RNG_A], 2);
+			std::memcpy(&b[50], &eeMem->Main[RNG_B], 2);
+			return b;
+		}
 		// ZDXSV_PW_DUMP=file: every save appends (s32 frame, 4 * PW_SIZE bytes of player work); rollback
 		// re-saves a frame, the last record wins (`zdxsv/pwdiff.py` finds the fields behind H mismatches).
 		std::FILE* s_pw_dump = [] {
@@ -283,6 +315,12 @@ namespace Zdxsv
 		bool s_host_input = false, s_no_input = false, s_control_input = false;
 		u16 s_mask = 0xffff;
 		bool s_sync = true; // sync=0: no state hashes (checksum 0)
+		enum class Hash
+		{
+			Pw,
+			Pos,
+			Full
+		} s_hash = Hash::Pw; // hash= (synctest checksum)
 		int s_port = 7001, s_delay = 0;
 		bool s_delay_set = false; // delay= given: fixed; else a lobby battle picks it from the peers' rtt
 		int s_min_delay = 2; // mindelay=
@@ -355,6 +393,8 @@ namespace Zdxsv
 					s_start = n;
 				else if (key == "frames")
 					s_frames = n;
+				else if (key == "hash")
+					s_hash = value == "full" ? Hash::Full : value == "pos" ? Hash::Pos : Hash::Pw;
 				else if (key == "check")
 					s_check = std::clamp(n, 1, 6); // GGPO keeps MAX_PREDICTION_FRAMES + 2 = 8 states: frames 0..check
 				else if (key == "seed")
@@ -536,6 +576,26 @@ namespace Zdxsv
 		bool s_rerun = false; // the save is of a rerun frame
 		int s_diff_logged = 0;
 
+		// hash=pw / pos: the differing u32 words, as player work p + offset (pw) or PosRng byte offset (pos).
+		void DiffRaw(int frame, const std::vector<u8>& first, const std::vector<u8>& raw)
+		{
+			for (size_t w = 0; w + 4 <= std::min(first.size(), raw.size()) && s_diff_logged < 60; w += 4)
+			{
+				u32 x, y;
+				std::memcpy(&x, &first[w], 4);
+				std::memcpy(&y, &raw[w], 4);
+				if (x == y)
+					continue;
+				if (s_hash == Hash::Pw && w == 4 * PW_SIZE)
+					Console.WriteLn("ZdxsvGgpo: DIFF frame %d rng: %08x -> %08x", frame, x, y);
+				else if (s_hash == Hash::Pw)
+					Console.WriteLn("ZdxsvGgpo: DIFF frame %d player %zu +0x%04zx: %08x -> %08x", frame, w / PW_SIZE, w % PW_SIZE, x, y);
+				else
+					Console.WriteLn("ZdxsvGgpo: DIFF frame %d posrng +%zu: %08x -> %08x", frame, w, x, y);
+				s_diff_logged++;
+			}
+		}
+
 		void Diff(int frame, const Sample& first, const std::vector<u64>& pages, const std::vector<u8>& state)
 		{
 			if (s_diff_logged >= 60)
@@ -695,6 +755,43 @@ namespace Zdxsv
 		// sync=1 part of SaveGameState: checksum, synctest diff samples.
 		void HashSave(int frame, int* checksum)
 		{
+			if (s_hash != Hash::Full)
+			{
+				// hash=pw / pos: the sample keeps the raw bytes (4 player works / PosRng) to name what differed.
+				std::vector<u8> raw;
+				u64 hash;
+				if (s_hash == Hash::Pw)
+				{
+					raw.assign(&eeMem->Main[PW_BASE], &eeMem->Main[PW_BASE + 4 * PW_SIZE]);
+					raw.insert(raw.end(), &eeMem->Main[RNG_A], &eeMem->Main[RNG_A + 2]);
+					raw.insert(raw.end(), &eeMem->Main[RNG_B], &eeMem->Main[RNG_B + 2]);
+					u64 h[5];
+					for (u32 p = 0; p < 4; p++)
+						h[p] = PwHash(p);
+					h[4] = XXH3_64bits(&raw[4 * PW_SIZE], 4);
+					hash = XXH3_64bits(h, sizeof(h));
+				}
+				else
+				{
+					const auto b = PosRng();
+					raw.assign(b.begin(), b.end());
+					hash = XXH3_64bits(b.data(), b.size());
+				}
+				*checksum = static_cast<int>(hash ^ (hash >> 32));
+				if (s_rerun)
+				{
+					const auto first = s_first.find(frame);
+					if (first != s_first.end())
+						DiffRaw(frame, first->second.state, raw);
+				}
+				else
+				{
+					s_first[frame].state = std::move(raw);
+					while (!s_first.empty() && s_first.begin()->first < frame - 16)
+						s_first.erase(s_first.begin());
+				}
+				return;
+			}
 			const std::vector<u8>* state = Zdxsv::DeltaStateGetState(frame);
 			Sample sample;
 			sample.pages.resize(Ps2MemSize::ExposedRam / PAGE_SIZE);
@@ -1012,8 +1109,9 @@ namespace Zdxsv
 					return false;
 			}
 			s_rng.seed(s_seed);
-			Console.WriteLn("ZdxsvGgpo: synctest start=%d frames=%d check=%d seed=%u input=%s mask=%04x control=%d",
-				s_start, s_frames, s_check, s_seed, s_host_input ? "host" : s_no_input ? "none" : "random", s_mask, s_control_input);
+			Console.WriteLn("ZdxsvGgpo: synctest start=%d frames=%d check=%d seed=%u input=%s mask=%04x control=%d hash=%s",
+				s_start, s_frames, s_check, s_seed, s_host_input ? "host" : s_no_input ? "none" : "random", s_mask, s_control_input,
+				s_hash == Hash::Full ? "full" : s_hash == Hash::Pos ? "pos" : "pw");
 			return true;
 		}
 	} // namespace
@@ -1215,8 +1313,6 @@ namespace Zdxsv
 
 	void GgpoOnVmInitialize(const char* serial, u32 crc)
 	{
-		// DeltaState.cpp sets it for ZDXSV_DELTA_TEST at startup; the recompilers read it from the first block on
-		static const bool fixed_for_test = g_fixed_blocks;
 		const char* e = std::getenv("ZDXSV_GGPO");
 		// Read here only, so not a config field: a change takes effect at the next VM start.
 		const bool setting = Host::GetBoolSettingValue("DEV9/Eth", "ZdxsvGgpo", true);
@@ -1230,7 +1326,6 @@ namespace Zdxsv
 		{
 			s_options.clear();
 			g_ggpo_enabled = s_net_env = g_net_hook = g_zd_hook = g_ps_hook = false;
-			g_fixed_blocks = fixed_for_test;
 			if (serial_match || (e && std::strcmp(e, "0") != 0) || s_play_env || s_net_trace)
 				Console.Warning("ZdxsvGgpo: off: not the Z game (serial %s CRC %08X, need %s %08X)", serial, crc, GAME_SERIAL, want);
 			return;
@@ -1246,8 +1341,6 @@ namespace Zdxsv
 		g_net_hook = s_net_trace != nullptr || s_net_env;
 		g_zd_hook = s_net_env;
 		g_ps_hook = s_zds_ps;
-		// a replay ends blocks as its recording did (a GGPO session), else EE cycles drift from the live battle
-		g_fixed_blocks = fixed_for_test || !s_options.empty() || s_play_env;
 		if (!s_options.empty() || std::strcmp(serial, GAME_SERIAL) == 0)
 			Console.WriteLn("ZdxsvGgpo: options '%s' (serial %s, setting %d)", s_options.c_str(), serial, setting ? 1 : 0);
 		// Delta saves and loads, replay keys: VU1 memory is copied while the MTVU thread may still run on it.
@@ -1694,20 +1787,7 @@ namespace Zdxsv
 			{
 				std::array<u64, 4>& h = s_pw[frame];
 				for (u32 p = 0; p < 4; p++)
-				{
-					std::array<u8, PW_SIZE> w;
-					std::memcpy(w.data(), &eeMem->Main[PW_BASE + PW_SIZE * p], PW_SIZE);
-					for (u32 o : PW_MASK)
-						std::memset(&w[o], 0, 4);
-					for (const auto& [o, bits] : PW_MASK_BITS)
-					{
-						u32 v;
-						std::memcpy(&v, &w[o], 4);
-						v &= ~bits;
-						std::memcpy(&w[o], &v, 4);
-					}
-					h[p] =XXH3_64bits(w.data(), PW_SIZE);
-				}
+					h[p] = PwHash(p);
 			}
 			if (s_pw_dump)
 			{

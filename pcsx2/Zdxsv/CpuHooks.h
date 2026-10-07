@@ -50,11 +50,6 @@ namespace Zdxsv
 	bool OnLoadStep();
 	int ProbeFrame(); // GGPO frame being run (EE probe lines)
 
-	// The EE/IOP recompilers end a block where the next PC is already compiled, so block ends
-	// (and the cycles at which events are tested) depend on the code cache history, which a
-	// rollback does not restore. When set, blocks end only at branches and page splits.
-	extern bool g_fixed_blocks; // EE and IOP
-
 	// ZDXSV_DELTA_TEST: synctest in a running game, see Zdxsv/DeltaState.cpp.
 	extern bool g_delta_state_test_enabled;
 	void DeltaStateOnVsync();

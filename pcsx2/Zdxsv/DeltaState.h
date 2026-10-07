@@ -32,5 +32,5 @@ namespace Zdxsv
 	// Drops everything and stops EE RAM tracking.
 	void DeltaStateClear();
 
-	// g_fixed_blocks, g_delta_state_test_enabled, DeltaStateOnVsync: Zdxsv/CpuHooks.h.
+	// g_delta_state_test_enabled, DeltaStateOnVsync: Zdxsv/CpuHooks.h.
 } // namespace Zdxsv
