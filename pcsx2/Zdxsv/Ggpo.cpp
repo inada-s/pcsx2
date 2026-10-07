@@ -1246,7 +1246,8 @@ namespace Zdxsv
 		g_net_hook = s_net_trace != nullptr || s_net_env;
 		g_zd_hook = s_net_env;
 		g_ps_hook = s_zds_ps;
-		g_fixed_blocks = fixed_for_test || !s_options.empty();
+		// a replay ends blocks as its recording did (a GGPO session), else EE cycles drift from the live battle
+		g_fixed_blocks = fixed_for_test || !s_options.empty() || s_play_env;
 		if (!s_options.empty() || std::strcmp(serial, GAME_SERIAL) == 0)
 			Console.WriteLn("ZdxsvGgpo: options '%s' (serial %s, setting %d)", s_options.c_str(), serial, setting ? 1 : 0);
 		// Delta saves and loads, replay keys: VU1 memory is copied while the MTVU thread may still run on it.
