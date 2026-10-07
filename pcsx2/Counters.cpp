@@ -20,6 +20,7 @@
 #include "Recording/InputRecording.h"
 #include "VMManager.h"
 #include "Zdxsv/CpuHooks.h"
+#include "Zdxsv/SaveStateHooks.h"
 #include "VUmicro.h"
 
 static const uint EECNT_FUTURE_TARGET = 0x10000000;

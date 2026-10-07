@@ -14,6 +14,7 @@
 #include "IopHw.h"
 #include "IopDma.h"
 #include "CDVD/CDVD.h"
+#include "Zdxsv/SaveStateHooks.h"
 
 #include <math.h>
 

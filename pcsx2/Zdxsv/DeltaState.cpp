@@ -20,6 +20,7 @@
 // Results go to the log, lines start with "ZdxsvDelta".
 
 #include "Zdxsv/DeltaState.h"
+#include "Zdxsv/DeltaFreeze.h"
 #include "Zdxsv/Dev9Hooks.h"
 #include "Zdxsv/TestOptions.h"
 

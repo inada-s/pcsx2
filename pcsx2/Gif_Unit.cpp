@@ -6,6 +6,7 @@
 #include "Gif_Unit.h"
 #include "Vif_Dma.h"
 #include "MTVU.h"
+#include "Zdxsv/SaveStateHooks.h"
 
 Gif_Unit gifUnit;
 
