@@ -316,6 +316,13 @@
        </widget>
       </item>
       <item>
+       <widget class="QCheckBox" name="zdxsvLiveAutoNext">
+        <property name="text">
+         <string>Live spectating: watch the next live battle automatically.</string>
+        </property>
+       </widget>
+      </item>
+      <item>
        <widget class="QCheckBox" name="zdxsvLowLatencyVsync">
         <property name="text">
          <string>Low-latency vsync: show each frame before the frame limiter waits (shorter input lag).</string>

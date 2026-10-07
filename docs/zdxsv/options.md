@@ -37,6 +37,7 @@ server of another game gets no platform info
 |---|---|---|---|
 | `[DEV9/Eth] ZdxsvGgpo` | `true` | feature | Lobby battles of the game run over GGPO (`ZDXSV_GGPO` options `net=1,lobby=1`). Read when the game starts; Settings → Network & HDD. Other games are never affected. |
 | `[DEV9/Eth] ZdxsvUploadReplay` | `true` | feature | Post each lobby battle's replay to the lobby's replay server when the battle info names one ([replay.md](replay.md), Upload). Settings → Network & HDD. |
+| `[DEV9/Eth] ZdxsvLiveAutoNext` | `false` | feature | Live spectating: when a stream ends, watch the next running battle on that server ([replay.md](replay.md), Live). Settings → Network & HDD. |
 | `[EmuCore/GS] ZdxsvLowLatencyVsync` | `true` | feature | Present the finished frame before the frame limiter sleeps, and poll input right before the next frame runs. Settings → Network & HDD. Other games are never affected. |
 
 ## Network
@@ -119,6 +120,7 @@ See [replay.md](replay.md).
 | `ZDXSV_REPLAY_KEY=n` | 600 | tuning | Interval of the seek keys in frames. 0 = none: no backward seek. |
 | `ZDXSV_REPLAY_TURBO=1` | off | test | Play turbo. |
 | `ZDXSV_REPLAY_EXIT=1` | off | test | Exit at the end instead of pausing. |
+| `ZDXSV_LIVE_NEXT=N` | the setting | test | Live auto-next for N more battles (0 = off), over `ZdxsvLiveAutoNext`. |
 | `ZDXSV_REPLAY_SEEK=at:to[,at:to...]` | off | test | Seek to frame `to` when frame `at` is reached. |
 | `ZDXSV_REPLAY_POV_AT=frame:P[,...]` | off | test | Switch to position P when that frame is reached. |
 | `ZDXSV_REPLAY_ROUND_AT=frame:N[,...]` | off | test | Jump to round N (0 = the briefing) when that frame is reached. |

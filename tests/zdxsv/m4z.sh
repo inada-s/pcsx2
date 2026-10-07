@@ -42,6 +42,8 @@
 #   LIVE=N (implies REPLAY_UP): once the lobby logs `live start`, instance N (not a client) plays
 #   ZDXSV_REPLAY=http://IP:8204/live with PW hashes (OUT/trace-live.txt). Checks: the spectator's stream closed at
 #   the saved .zdxr's frame count; with PWTRACE=1 its player work + rng = the players' (pwcheck).
+#   LIVE_NEXT=K (with BATTLES=K+1): the spectator moves on to the next battle K times (ZDXSV_LIVE_NEXT); checked
+#   per battle: K+1 different streams, each closed at its saved .zdxr's frame count.
 #   LIVE_OFF=1 (control, with UPLOAD_OFF = every client): no live start, no client streamed.
 # db: copied from $RUN/zdxsv.db (the cards' accounts) into $OUT; stack logs land in $OUT.
 # Cards: each client starts from $RUN/Mcd001-<CARDS[i]>.ps2 (CARDS, required: one registered card per client);
@@ -121,7 +123,7 @@ if [ -n "${LIVE:-}" ]; then
     for t in $(seq 1800); do grep -a -q 'live start' "$OUT/lobby.log" 2>/dev/null && break; sleep 2; done
     grep -a -q 'live start' "$OUT/lobby.log" || { echo "no live start in $((SECONDS - t1)) s"; exit 0; }
     echo "live start after $((SECONDS - t1)) s: spectator p$LIVE"
-    env ZDXSV_REPLAY="http://$IP:8204/live" ZDXSV_REPLAY_EXIT=1 ZDXSV_PW_HASH=1 ZDXSV_NET_TRACE="$OUT/trace-live.txt" \
+    env ZDXSV_REPLAY="http://$IP:8204/live" ZDXSV_LIVE_NEXT=${LIVE_NEXT:-0} ZDXSV_REPLAY_EXIT=1 ZDXSV_PW_HASH=1 ZDXSV_NET_TRACE="$OUT/trace-live.txt" \
       powershell -NoProfile -Command "& '$here/launch.ps1' -N $LIVE -Headless -StateFile ${LIVE_STATE:-$RBKSTATES/rbk-p1.p2s}" 2>&1 | tail -1
   ) > "$OUT/live-launch.txt" 2>&1 & pids+=($!)
 fi
@@ -325,7 +327,7 @@ fi
 if [ -n "${LIVE:-}" ]; then
   f=$RUN/p$LIVE/PCSX2/logs/emulog.txt
   # the spectator trails the players (60-frame edge wait, the close is posted after the replay write)
-  for t in $(seq 60); do grep -a -q 'ZdxsvGgpo: live: \(stream closed\|no new frame\)\|ZdxsvGgpo: replay end' "$f" 2>/dev/null && break; sleep 5; done
+  for t in $(seq 60); do [ "$(grep -a -c 'ZdxsvGgpo: live: \(stream closed\|no new frame\)' "$f" 2>/dev/null)" -gt "${LIVE_NEXT:-0}" ] && break; sleep 5; done
   sleep 5
   cat "$OUT/live-launch.txt"
   grep -a -h 'ZdxsvGgpo: live' "$RUN"/p[1-4]/PCSX2/logs/emulog.txt 2>/dev/null | tr -d '\r' | cut -c1-200
@@ -334,11 +336,18 @@ if [ -n "${LIVE:-}" ]; then
     check "no live start (LIVE_OFF)" "! grep -a -q 'live start' '$OUT/lobby.log'"
     for i in $CLIENTS; do check "p$i streamed nothing" "! grep -a -q 'ZdxsvGgpo: live: streaming' '$RUN/p$i/PCSX2/logs/emulog.txt'"; done
   else
-    fr=$(for i in $CLIENTS; do grep -a -o "replays.$(report_code).zdxr frames=[0-9]*" "$RUN/p$i/PCSX2/logs/emulog.txt"; done | sed 's/.*frames=//' | sort -u)
-    sf=$(grep -a -o 'ZdxsvGgpo: live: stream closed ([^)]*) at frame [0-9]*' "$f" | tail -1 | sed 's/.* //')
-    echo "saved .zdxr frames: $(echo $fr), spectator closed at: ${sf:-none}"
-    check "spectator watched a live stream" "grep -a -q 'ZdxsvGgpo: live: watching' '$f'"
-    check "spectator stream closed at the saved frame count" "[ -n '$sf' ] && [ '$(echo $fr)' = '$sf' ]"
+    # per watched battle, in order: its code (watching .../live/<code>) and the frame its stream closed at
+    codes=$(grep -a -o 'ZdxsvGgpo: live: watching [^ ,]*' "$f" | sed 's#.*/##')
+    sfs=$(grep -a -o 'ZdxsvGgpo: live: stream closed ([^)]*) at frame [0-9]*' "$f" | sed 's/.* //')
+    nw=$((${LIVE_NEXT:-0} + 1))
+    check "spectator watched $nw different live stream(s)" "[ $(echo $codes | wc -w) -eq $nw ] && [ $(echo $codes | tr ' ' '\n' | sort -u | wc -l) -eq $nw ]"
+    n=0
+    for code in $codes; do
+      n=$((n + 1)); sf=$(echo $sfs | cut -d' ' -f$n)
+      fr=$(for i in $CLIENTS; do grep -a -o "replays.$code.zdxr frames=[0-9]*" "$RUN/p$i/PCSX2/logs/emulog.txt"; done | sed 's/.*frames=//' | sort -u)
+      echo "$code: saved .zdxr frames: $(echo $fr), spectator closed at: ${sf:-none}"
+      check "$code: spectator stream closed at the saved frame count" "[ -n '$sf' ] && [ '$(echo $fr)' = '$sf' ]"
+    done
     if [ -n "${PWTRACE:-}" ]; then
       "$PY" -I "$TOOLS/pwcheck.py" --own "$OUT/trace-live.txt" $(for i in $CLIENTS; do echo "$OUT/trace-p$i.txt"; done) > "$OUT/pwcheck-live.txt"
       grep '^common\|^judged\|^player\|^rng' "$OUT/pwcheck-live.txt" | cut -c1-160

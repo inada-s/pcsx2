@@ -93,6 +93,7 @@
 #include <memory>
 #include <mutex>
 #include <random>
+#include <set>
 #include <string>
 #include <thread>
 #include <tuple>
@@ -2648,6 +2649,29 @@ namespace Zdxsv
 		static constexpr int LIVE_CATCHUP = 600;
 		static constexpr int LIVE_STALL_S = 30; // no new frame for this long = the stream is lost
 
+		// Auto-next (setting ZdxsvLiveAutoNext, ZDXSV_LIVE_NEXT=N: N more battles, 0 = off): at the end of a closed stream
+		// a thread polls .../live every LIVE_NEXT_POLL_S for the newest running battle not watched yet, then the VM is
+		// reset and PlayLoad opens that battle instead of ZDXSV_REPLAY.
+		struct LiveWait
+		{
+			std::atomic<bool> quit{false};
+			std::thread t;
+			~LiveWait()
+			{
+				quit = true;
+				if (t.joinable())
+					t.join();
+			}
+		};
+		std::unique_ptr<LiveWait> s_live_wait;
+		std::set<std::string, std::less<>> s_live_seen; // battle codes watched or picked, kept across the resets
+		std::string s_live_next_url; // the battle auto-next moved on to, "" = ZDXSV_REPLAY
+		int s_live_next_left = [] {
+			const char* e = std::getenv("ZDXSV_LIVE_NEXT");
+			return e ? std::atoi(e) : -1; // -1 = the setting decides (no limit)
+		}();
+		static constexpr int LIVE_NEXT_POLL_S = 5;
+
 		// GET; status 200 or the error logged.
 		std::optional<std::vector<u8>> LiveGet(HTTPDownloader& http, const std::string& url)
 		{
@@ -2685,6 +2709,67 @@ namespace Zdxsv
 			return true;
 		}
 
+		// GET .../live lines "<code> <frames> <close or ->", newest first: the newest running battle not in s_live_seen,
+		// else (running_only false) the newest not in it; "" = none.
+		std::string LivePick(const std::vector<u8>& list, bool running_only)
+		{
+			const std::string_view text(reinterpret_cast<const char*>(list.data()), list.size());
+			std::string code;
+			for (const std::string_view line : StringUtil::SplitString(text, '\n'))
+				if (const std::vector<std::string_view> f = StringUtil::SplitString(line, ' ');
+					f.size() == 3 && !s_live_seen.contains(f[0]) && (f[2] == "-" || (!running_only && code.empty())))
+				{
+					code = f[0];
+					if (f[2] == "-")
+						break;
+				}
+			return code;
+		}
+
+		// PlayNext at the end of a closed stream: true = auto-next waits for the next battle (VM paused).
+		bool LiveAutoNext()
+		{
+			if (s_live_next_left < 0 ? !Host::GetBoolSettingValue("DEV9/Eth", "ZdxsvLiveAutoNext", false) : s_live_next_left == 0)
+				return false;
+			if (s_live_next_left > 0)
+				s_live_next_left--;
+			const std::string_view src = s_live_next_url.empty() ? std::string_view(s_play_env) : std::string_view(s_live_next_url);
+			const size_t at = src.rfind("/live");
+			if (at == std::string_view::npos)
+				return false;
+			std::string base(src.substr(0, at + 5));
+			std::unique_ptr<HTTPDownloader> http = HTTPDownloader::Create(Host::GetHTTPUserAgent());
+			if (!http)
+				return false;
+			http->SetTimeout(10.0f);
+			Console.WriteLn("ZdxsvGgpo: live: auto-next: waiting for a new battle at %s (%zu watched)", base.c_str(), s_live_seen.size());
+			s_live_wait = std::make_unique<LiveWait>();
+			s_live_wait->t = std::thread([w = s_live_wait.get(), http = std::move(http), base = std::move(base)]() {
+				Common::Timer since;
+				while (!w->quit)
+				{
+					// s_live_seen: only the CPU thread writes it, and not while this thread runs
+					const std::optional<std::vector<u8>> list = LiveGet(*http, base);
+					if (const std::string code = list ? LivePick(*list, true) : std::string(); !code.empty())
+					{
+						Console.WriteLn("ZdxsvGgpo: live: auto-next: moving on to %s after %.0f s", code.c_str(), since.GetTimeSeconds());
+						Host::RunOnCPUThread([url = fmt::format("{}/{}", base, code)] {
+							if (!VMManager::HasValidVM())
+								return;
+							s_live_next_url = url;
+							VMManager::Reset();
+							VMManager::SetPaused(false);
+						});
+						return;
+					}
+					for (int i = 0; i < LIVE_NEXT_POLL_S * 10 && !w->quit; i++)
+						Threading::Sleep(100);
+				}
+			});
+			VMManager::SetPaused(true);
+			return true;
+		}
+
 		// PlayLoadFile of an http URL: the start + the inputs so far as one .zdxr (frames= is the body's), the poll thread
 		// started.
 		std::optional<std::vector<u8>> LiveOpen(std::string url)
@@ -2698,16 +2783,7 @@ namespace Zdxsv
 			{
 				// the newest running battle, else the newest
 				const std::optional<std::vector<u8>> list = LiveGet(*http, url);
-				const std::string_view text = list ? std::string_view(reinterpret_cast<const char*>(list->data()), list->size()) : std::string_view();
-				std::string code;
-				for (const std::string_view line : StringUtil::SplitString(text, '\n'))
-					if (const std::vector<std::string_view> f = StringUtil::SplitString(line, ' '); f.size() == 3 && (code.empty() || f[2] == "-"))
-					{
-						const bool running = f[2] == "-";
-						code = f[0];
-						if (running)
-							break;
-					}
+				const std::string code = list ? LivePick(*list, false) : std::string();
 				if (code.empty())
 				{
 					Console.Error("ZdxsvGgpo: live: no battle at %s", url.c_str());
@@ -2715,6 +2791,7 @@ namespace Zdxsv
 				}
 				url = fmt::format("{}/{}", url.ends_with('/') ? url.substr(0, url.size() - 1) : url, code);
 			}
+			s_live_seen.insert(url.substr(url.rfind('/') + 1));
 			std::optional<std::vector<u8>> start = LiveGet(*http, url);
 			if (!start)
 				return std::nullopt;
@@ -2839,6 +2916,7 @@ namespace Zdxsv
 				keys.clear();
 			}
 			s_live_down.reset();
+			s_live_wait.reset();
 			s_live_catchup = false;
 			s_live_waits = 0;
 			s_live_wait_ms = 0;
@@ -2973,7 +3051,7 @@ namespace Zdxsv
 		void PlayLoad()
 		{
 			int me = -1;
-			for (const std::string_view path : StringUtil::SplitString(s_play_env, ';'))
+			for (const std::string_view path : StringUtil::SplitString(s_live_next_url.empty() ? s_play_env : s_live_next_url, ';'))
 				if (const int p = PlayLoadFile(std::string(path)); me < 0)
 					me = p;
 			if (me < 0)
@@ -3112,8 +3190,11 @@ namespace Zdxsv
 			if (next < s_play_frames)
 			{
 				s_play_at_end = false;
+				s_live_wait.reset(); // played on from the end: no move to another battle
 				PlayFrame(next);
 			}
+			else if (s_live_down && !s_play_at_end && LiveAutoNext())
+				s_play_at_end = true;
 			else if (const char* e = std::getenv("ZDXSV_REPLAY_EXIT"); s_play_at_end || (e && e[0] == '1'))
 				PlayStop("end");
 			else

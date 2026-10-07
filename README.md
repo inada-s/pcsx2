@@ -45,6 +45,7 @@ with a peer without GGPO is cut, as a connection failure (`docs/zdxsv/lobby.md`)
   (setting `ZdxsvUploadReplay`). For it, curl POST requests send their whole body (upstream: up to the first zero byte).
 - Live spectating: a lobby battle is also streamed to the replay server while it runs (same setting);
   `ZDXSV_REPLAY=http://<server>/live` watches the newest running battle, `.../live/<battle code>` a given one.
+  Setting `ZdxsvLiveAutoNext` (off; test override `ZDXSV_LIVE_NEXT=N`) moves on to the next running battle when one ends.
 - Playback with seek, point of view switch, a control bar, key display, a skip of the mobile suit selection, and a round jump.
 
 ### Releases and tools

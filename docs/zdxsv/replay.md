@@ -49,14 +49,21 @@ a replay is recorded, and `ZdxsvUploadReplay` is on.
   frames (a GGPO-like wait); more than 600 frames behind (a late join) it runs
   unlimited until it catches up. No new frame for 30 s: the stream is lost.
 - A live stream plays alone (no `;` point of view list). Seek stays within the
-  frames received so far (not tested live). No auto-next to the following battle yet.
+  frames received so far (not tested live).
+- Auto-next (setting `[DEV9/Eth] ZdxsvLiveAutoNext`, off; `ZDXSV_LIVE_NEXT=N`
+  overrides it: N more battles, 0 = off): when a stream ends, the spectator
+  pauses and polls `<server>/live` every 5 s for the newest running battle it
+  has not watched, then resets the VM and watches that one from its start (with
+  catch-up if it is far along). Playing on from the end (a seek) cancels it.
 
 Log lines: players `ZdxsvGgpo: live: streaming to <url>`,
 `ZdxsvGgpo: live: stream closed (<reason>), server has N frames`; the spectator
 `ZdxsvGgpo: live: watching <url>, N frames there`,
 `ZdxsvGgpo: live: N frames behind at frame F: catching up`,
 `ZdxsvGgpo: live: caught up at frame F, vsync V`,
-`ZdxsvGgpo: live: stream closed (<reason>) at frame F, W waits T ms`.
+`ZdxsvGgpo: live: stream closed (<reason>) at frame F, W waits T ms`,
+`ZdxsvGgpo: live: auto-next: waiting for a new battle at <url> (N watched)`,
+`ZdxsvGgpo: live: auto-next: moving on to <battle code> after S s`.
 
 ## File format
 
