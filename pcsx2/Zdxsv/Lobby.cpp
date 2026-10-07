@@ -156,7 +156,7 @@ namespace Zdxsv
 				info.ggpo[u] = static_cast<uint16_t>(port);
 		}
 		info.ggpoSession = static_cast<uint32_t>(std::strtoul(kv["ggpo_session"].c_str(), nullptr, 10));
-		info.ggpoPingMs = std::atoi(kv["ggpo_ping_ms"].c_str());
+		info.ggpoPingMs = std::clamp(std::atoi(kv["ggpo_ping_ms"].c_str()), 0, MAX_PING_MS);
 		for (const std::string& u : info.users)
 			if (auto it = kv.find("name_" + u); it != kv.end())
 				info.names[u] = it->second;
@@ -579,6 +579,23 @@ namespace Zdxsv
 			}
 		};
 		std::unique_ptr<PingTest> g_ping;
+		std::string g_pingError; // why the last StartPingTest ran no test
+
+		// StartUdpTest's thread
+		struct UdpTestRun
+		{
+			std::thread thread;
+			std::atomic<bool> stop{false};
+			~UdpTestRun()
+			{
+				stop = true;
+				if (thread.joinable())
+					thread.join();
+			}
+		};
+		std::mutex g_udpTestMtx;
+		std::atomic<bool> g_udpTestRunning{false};
+		std::unique_ptr<UdpTestRun> g_udpTest;
 
 		uint64_t NowMs()
 		{
@@ -611,7 +628,11 @@ namespace Zdxsv
 	void StartPingTest(uint32_t session, const std::vector<std::vector<PeerAddr>>& byPosition, uint16_t port, int durationMs,
 		const std::vector<BattleInfo::Relay>& relays)
 	{
+		if (g_ping)
+			g_ping->stop = true;
 		FinishPingTest();
+		StopUdpTest();
+		g_pingError.clear();
 		const int n = static_cast<int>(byPosition.size());
 		int me = -1;
 		for (int p = 0; p < n; p++)
@@ -622,7 +643,8 @@ namespace Zdxsv
 		const sock_t s4 = BindUdp(AF_INET, port), s6 = BindUdp(AF_INET6, port);
 		if (s4 == INVALID_SOCKET && s6 == INVALID_SOCKET)
 		{
-			Log("ping test: bind :" + std::to_string(port) + " failed");
+			g_pingError = "bind :" + std::to_string(port) + " failed (IPv4 and IPv6)";
+			Log("ping test: " + g_pingError);
 			return;
 		}
 		if (s4 == INVALID_SOCKET || s6 == INVALID_SOCKET)
@@ -895,10 +917,13 @@ namespace Zdxsv
 		});
 	}
 
-	std::vector<PingResult> FinishPingTest(std::vector<RelayServerAddr>* servers)
+	std::vector<PingResult> FinishPingTest(std::vector<RelayServerAddr>* servers, std::string* error)
 	{
 		if (servers)
 			servers->clear();
+		if (error)
+			*error = g_pingError;
+		g_pingError.clear();
 		if (!g_ping)
 			return {};
 		if (g_ping->thread.joinable())
@@ -925,7 +950,7 @@ namespace Zdxsv
 		// The socket is only for the STUN question: peers take the public IP, GGPO has its own port.
 		if (g_udpOpened)
 			return g_udpLines;
-		g_udpOpened = true;
+		g_udpLines.clear();
 		sock_t s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 		sockaddr_in addr{};
 		addr.sin_family = AF_INET;
@@ -979,8 +1004,11 @@ namespace Zdxsv
 			sendto(s, reinterpret_cast<const char*>(data.data()), static_cast<int>(data.size()), 0,
 				reinterpret_cast<const sockaddr*>(&stun), sizeof(stun));
 			const auto until = Clock::now() + std::chrono::milliseconds(200);
-			while (pub.empty() && Clock::now() < until && WaitReadable(s, 50))
+			while (pub.empty() && Clock::now() < until)
 			{
+				// a 50 ms silence is not the end of the try (it ended the whole try once)
+				if (!WaitReadable(s, 50))
+					continue;
 				uint8_t buf[512];
 				sockaddr_in from{};
 				socklen_t fromLen = sizeof(from);
@@ -991,6 +1019,7 @@ namespace Zdxsv
 			}
 		}
 		closesocket(s);
+		g_udpOpened = !pub.empty(); // no answer: the next lobby connection asks again
 		if (!pub.empty())
 			g_udpLines += "udp_addr=" + pub + "\n";
 		if (!local.empty())
@@ -1002,8 +1031,9 @@ namespace Zdxsv
 		return g_udpLines;
 	}
 
-	std::string UdpTest(uint32_t stunIP, uint16_t stunPort, uint16_t bindPort, std::string& summary)
+	std::string UdpTest(uint32_t stunIP, uint16_t stunPort, uint16_t bindPort, std::string& summary, const std::atomic<bool>* stop)
 	{
+		const auto stopped = [stop] { return stop && stop->load(); };
 		// zdxsv's STUN test socket is at stunPort + 1. On bindPort (the GGPO port, as flycast tests
 		// GdxLocalPort): a "udptest" Ping makes the server answer from both sockets; the test socket's
 		// Pong arrives only if the port takes packets from a source it never sent to (open). Then a
@@ -1028,14 +1058,14 @@ namespace Zdxsv
 			ProtoPacket ping;
 			ping.type = ProtoPing;
 			ping.pingUserId = userId;
-			for (int i = 0; i < 3 && !done(); i++)
+			for (int i = 0; i < 3 && !done() && !stopped(); i++)
 			{
 				ping.timestamp = NowNanos();
 				const std::vector<uint8_t> data = ProtoEncode(ping);
 				sendto(s, reinterpret_cast<const char*>(data.data()), static_cast<int>(data.size()), 0,
 					reinterpret_cast<const sockaddr*>(&to), sizeof(to));
 				const auto until = Clock::now() + std::chrono::milliseconds(300);
-				while (!done() && Clock::now() < until)
+				while (!done() && !stopped() && Clock::now() < until)
 				{
 					if (!WaitReadable(s, 50))
 						continue;
@@ -1067,7 +1097,9 @@ namespace Zdxsv
 		uint32_t ip1 = 0, ip2 = 0;
 		uint16_t port1 = 0, port2 = 0;
 		std::string nat;
-		if (mapped.empty())
+		if (stopped())
+			nat = "unknown", summary = "unknown (test cancelled: port " + std::to_string(bindPort) + " taken by the ping test)";
+		else if (mapped.empty())
 			nat = "unknown", summary = "unknown (no STUN answer from " + AddrString(stun) + ")";
 		else if (open)
 			nat = "open", summary = "open (port " + std::to_string(bindPort) + " reachable from any source, public " + mapped + ")";
@@ -1079,6 +1111,32 @@ namespace Zdxsv
 			nat = "symmetric", summary = "symmetric NAT (port " + std::to_string(bindPort) + " closed, public " + mapped + " / " + mappedTest + ")";
 		Log("udp test: nat=" + nat + ": " + summary);
 		return "nat=" + nat + "\n";
+	}
+
+	bool StartUdpTest(uint32_t stunIP, uint16_t stunPort, uint16_t bindPort,
+		std::function<void(const std::string& natLine, const std::string& summary)> done)
+	{
+		std::lock_guard lock(g_udpTestMtx);
+		if (g_udpTestRunning)
+			return false;
+		g_udpTest.reset(); // a finished run: its thread ends at once
+		g_udpTestRunning = true;
+		g_udpTest = std::make_unique<UdpTestRun>();
+		UdpTestRun* t = g_udpTest.get();
+		t->thread = std::thread([t, stunIP, stunPort, bindPort, done = std::move(done)] {
+			std::string summary;
+			const std::string line = UdpTest(stunIP, stunPort, bindPort, summary, &t->stop);
+			if (done && !t->stop)
+				done(line, summary);
+			g_udpTestRunning = false;
+		});
+		return true;
+	}
+
+	void StopUdpTest()
+	{
+		std::lock_guard lock(g_udpTestMtx);
+		g_udpTest.reset();
 	}
 
 	static std::atomic<bool> g_stateLoaded{false};

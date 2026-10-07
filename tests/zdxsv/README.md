@@ -65,3 +65,5 @@ USERS=AAAAAA BBBBBB CCCCCC DDDDDD
   Exit 0 = every check passed; a failed check prints `FAIL` and its reason.
   `rbk.sh` takes N and seed as arguments; an `N=` or `SEED=` in the environment
   that differs from them is refused (exit 2).
+- `lobbytest.sh` is not a rig: a unit test of `pcsx2/Zdxsv/Lobby.cpp` built with
+  MinGW `g++`. It needs no PCSX2 build, game, lock or server.

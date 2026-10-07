@@ -59,7 +59,8 @@ zdxsv checkout, save states): `tests/zdxsv/README.md`.
 | Match report `0x9952` | lobby battle | `REPORT=1` on the 1v1 or the cut case: the lobby logs 2 reports with the battle code and the expected result | none |
 | Relay servers | battle info with `relay_<k>` | `RELAY=1 GGPO_LAT=100 GDELAY=auto m4ggpo.sh`: every path `relay 0`, delay 2. Real lobby: the same options on 1v1 `m4z.sh` | the same without `RELAY`: every path `direct`, delay 7 |
 | Dual-stack peers (IPv4 and IPv6 candidates) | lobby battle | none listed | none |
-| P2P connectivity test (open, cone NAT, symmetric NAT) | first lobby connection with `lobby=1` | none listed | none |
+| P2P connectivity test (open, cone NAT, symmetric NAT) | first lobby connection with `lobby=1` | 1v1 `m4z.sh` with `NAT=open`: one `udp test: nat=open` line per client | none |
+| Bounded lobby network waits (`ggpo_ping_ms` at most 10000, full STUN tries, no cached STUN failure, connectivity test on its own thread, a new ping test cancels the running one, ping test bind error in the match report) | lobby battle | `lobbytest.sh`: unit test of `Zdxsv/Lobby.cpp` with a fake STUN | the same checks on the code before the change fail (see the PR) |
 | Network status OSD | `net=1`; `osd=0` hides it | none listed | none |
 | UDP sockets ignore ICMP port unreachable on Windows | always in GGPO | none listed | none |
 

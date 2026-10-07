@@ -45,7 +45,7 @@ It lets the server tell emulators from real PS2s.
 | `udp_addr6` | lobby GGPO on, with a global IPv6 address | global IPv6 address |
 | `ggpo=P` | lobby GGPO on | GGPO UDP port |
 | `relay_server=1` | lobby GGPO on | the client can route GGPO through relay servers |
-| `nat=` | lobby GGPO on | result of the connectivity test |
+| `nat=` | lobby GGPO on, after the connectivity test ended | result of the connectivity test |
 
 "Lobby GGPO on" means `ZDXSV_GGPO` with `net=1,lobby=1`.
 
@@ -56,7 +56,7 @@ It lets the server tell emulators from real PS2s.
 | `ggpo_<user>=port` | GGPO port of each player that announced one |
 | `p2p_<user>=addr,...` | UDP addresses of each player |
 | `ggpo_session=` | id of the battle. zdxsv sends the FNV-1 32 hash of the battle code, as gdxsv. Without it there is no GGPO. |
-| `ggpo_ping_ms=` | length of the ping test. zdxsv sends 7500. |
+| `ggpo_ping_ms=` | length of the ping test, at most 10000 (`MAX_PING_MS`). zdxsv sends 7500. |
 | `name_<user>=` | player name, for the OSD |
 | `relay_<k>=<hex token>,<ip:port>[,<[ip6]:port>]` | relay servers of the battle, k = 0 to 3 |
 | `battle_code=`, `user_id=` | name the battle in the match report and the replay file |
@@ -74,6 +74,7 @@ the zdxsv lobby logs it as `p2p matching report: ...`.
 | `position`, `players` | always | own battle position and the player count |
 | `rtt_<pos>`, `addr_<pos>`, `path_<pos>` | ping test ran | RTT per peer (-1 = no answer), the picked address and path |
 | `relays`, `ping_wait_ms`, `delay` | ping test ran | relay server count, time waited for the test, GGPO input delay |
+| `ping_error` | the ping test could not start | why, e.g. the GGPO port could not be bound |
 | `close`, `frames`, `rollback_frames`, `mismatches`, `disconnected` | GGPO battle | why the session ended and its counters |
 | `answered`, `cut_sends` | cut | peers that answered, and sends dropped during the cut |
 
@@ -150,7 +151,10 @@ On the first lobby connection the emulator tests the GGPO port against the
 STUN of the lobby and its test socket at the STUN port + 1, as the feasibility
 test of flycast. The result is `open`, `cone NAT`, `symmetric NAT` or
 `unknown`. It is shown in an OSD message, written to the log and sent in the
-platform info.
+platform info. It runs on its own thread (up to about 2 s), so `nat=` goes out
+from the first lobby connection after it ended. A ping test cancels it (both
+use the GGPO port). A missing STUN answer is not kept: the next lobby
+connection asks again.
 
 ## Network status OSD
 
