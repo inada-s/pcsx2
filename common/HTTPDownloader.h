@@ -52,6 +52,7 @@ public:
 		ProgressCallback* progress;
 		std::string url;
 		std::string post_data;
+		std::string post_content_type; // "" = application/x-www-form-urlencoded
 		std::string content_type;
 		Data data;
 		u64 start_time;
@@ -72,7 +73,8 @@ public:
 	void SetMaxActiveRequests(u32 max_active_requests);
 
 	void CreateRequest(std::string url, Request::Callback callback, ProgressCallback* progress = nullptr);
-	void CreatePostRequest(std::string url, std::string post_data, Request::Callback callback, ProgressCallback* progress = nullptr);
+	void CreatePostRequest(std::string url, std::string post_data, Request::Callback callback, ProgressCallback* progress = nullptr,
+		std::string content_type = {});
 	void PollRequests();
 	void WaitForAllRequests();
 	bool HasAnyRequests();
