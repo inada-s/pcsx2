@@ -258,6 +258,29 @@ namespace Zdxsv
 		}
 		static constexpr u32 TICK_STATE = 0xc627b4; // u8 game phase; 8 = battle load
 		static constexpr u8 TICK_LOAD = 8, TICK_PLAY = 6, TICK_END = 7; // 7 = round or game end phase
+		// Team result records, equal on all peers (team 1 = position 0's side): u8 wins at +0, u8 losses at +1. A round
+		// adds a win to the winner and a loss to the loser, a time-up a loss to both (a draw), in one frame.
+		static constexpr u32 TEAM_RECORD[2] = {0xc227f0, 0xc22804};
+		u32 RoundRecord()
+		{
+			u32 v = 0;
+			for (int t = 0; t < 2; t++)
+				v |= static_cast<u32>(eeMem->Main[TEAM_RECORD[t]] | eeMem->Main[TEAM_RECORD[t] + 1] << 8) << (t * 16);
+			return v;
+		}
+		// The round ended between records a and b: the winning team 1 / 2, -1 = a draw (losses only); 0 = none
+		int RoundResult(u32 a, u32 b)
+		{
+			int up = 0, win = 0;
+			for (int i = 0; i < 4; i++)
+			{
+				const int d = static_cast<int>((b >> (i * 8)) & 0xff) - static_cast<int>((a >> (i * 8)) & 0xff);
+				up += d;
+				if (d > 0 && i % 2 == 0)
+					win = i / 2 + 1;
+			}
+			return up <= 0 ? 0 : win ? win : -1;
+		}
 		// ZDXSV_PW_DUMP=file: every save appends (s32 frame, 4 * PW_SIZE bytes of player work); rollback
 		// re-saves a frame, the last record wins (`tests/zdxsv/pwdiff.py` finds the fields behind H mismatches).
 		std::FILE* s_pw_dump = [] {
@@ -928,8 +951,8 @@ namespace Zdxsv
 		std::string s_replay_rec_dir; // where it is saved, "" = not saved
 		std::vector<NetInput> s_replay_inputs; // [frame * s_players + position]
 		// per frame, before its inputs: ReplayStateHash, GameRng, the tick state (load ends -> load_frames), the play
-		// starts passed (-> play_start_frames, game_end_frames)
-		std::vector<u32> s_replay_hashes, s_replay_rngs;
+		// starts passed (-> play_start_frames, game_end_frames), RoundRecord (-> round_data)
+		std::vector<u32> s_replay_hashes, s_replay_rngs, s_replay_records;
 		std::vector<u8> s_replay_ticks, s_replay_ps;
 		s64 s_replay_start_at = 0; // unix seconds
 		int s_replay_confirmed = -1; // GGPO's last confirmed frame: the frames after it (predicted inputs) are not written
@@ -1037,6 +1060,7 @@ namespace Zdxsv
 			s_replay_inputs.clear();
 			s_replay_hashes.clear();
 			s_replay_rngs.clear();
+			s_replay_records.clear();
 			s_replay_ticks.clear();
 			s_replay_ps.clear();
 			s_replay_confirmed = -1;
@@ -1064,6 +1088,8 @@ namespace Zdxsv
 			s_replay_hashes.push_back(ReplayStateHash());
 			s_replay_rngs.resize(f);
 			s_replay_rngs.push_back(GameRng());
+			s_replay_records.resize(f);
+			s_replay_records.push_back(RoundRecord());
 			s_replay_ticks.resize(f);
 			s_replay_ticks.push_back(eeMem->Main[TICK_STATE]);
 			s_replay_ps.resize(f);
@@ -1192,6 +1218,16 @@ namespace Zdxsv
 			PutPackedInts(pb, 57, starts);
 			PutPackedInts(pb, 58, ends);
 			PutPackedInts(pb, 59, rounds);
+			for (size_t f = 1; f < std::min(frames, s_replay_records.size()); f++)
+			{
+				if (const int win = RoundResult(s_replay_records[f - 1], s_replay_records[f]))
+				{
+					std::vector<uint8_t> round;
+					PutInt(round, 1, win);
+					PutBytes(pb, 18, round.data(), round.size());
+					Console.WriteLn("ZdxsvGgpo: replay round result: win_team %d at frame %zu", win, f - 1);
+				}
+			}
 			if (!dir.empty())
 			{
 				const std::string path = Path::Combine(dir, name + ".pb");
@@ -3271,6 +3307,7 @@ namespace Zdxsv
 			std::optional<u32> start_rng;
 			std::vector<int64_t> load_frames, load_rngs;
 			std::vector<int64_t> play_starts, game_ends, round_ends;
+			std::vector<int> rounds; // round_data win_team
 		};
 
 		bool ReplayParse(std::string_view all, ReplayFile& r)
@@ -3303,6 +3340,18 @@ namespace Zdxsv
 				{
 					if (field == 3)
 						r.code = bytes;
+					else if (field == 18)
+					{
+						int win = 0;
+						Pb::Reader round{b, b + n};
+						if (!round.Fields([&win](uint32_t f, uint32_t w, uint64_t x, const uint8_t*, size_t) {
+								if (f == 1 && w == 0)
+									win = static_cast<int32_t>(x);
+								return true;
+							}))
+							return false;
+						r.rounds.push_back(win);
+					}
 					else if (field == 45)
 						r.rx0.assign(b, b + n);
 					else if (field == 46)
