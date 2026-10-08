@@ -275,6 +275,9 @@ namespace Zdxsv
 		// there counts the wish, returns 0 (step retried next frame) until every peer's synced count in
 		// Input::unused[1] reaches n, then lets the n-th pass. Rollback state (RollbackState::ps).
 		bool s_zds_ps = Zdxsv::TestEnv("ZDXSV_ZDS_PS") != nullptr; // replay: the file's zds_ps
+		// Replay of a battle without zds_ps: the file's load_start_frames. Its load step passes on the recorder's
+		// frames (this machine's load can be done earlier: player work and RNG B would start a frame apart).
+		std::vector<int64_t> s_play_load_starts;
 		struct PS
 		{
 			u8 n, rel;
@@ -1140,9 +1143,11 @@ namespace Zdxsv
 			PutBytes(pb, 52, s_replay_hashes.data(), frames * sizeof(u32));
 			if (frames > 0)
 				PutUint(pb, 53, s_replay_rngs[0]);
-			std::vector<int64_t> load_frames, load_rngs;
+			std::vector<int64_t> load_frames, load_rngs, load_starts;
 			for (size_t f = 1; f < frames; f++)
 			{
+				if (s_replay_ticks[f - 1] != TICK_LOAD && s_replay_ticks[f] == TICK_LOAD)
+					load_starts.push_back(static_cast<int64_t>(f));
 				if (s_replay_ticks[f - 1] == TICK_LOAD && s_replay_ticks[f] != TICK_LOAD)
 				{
 					load_frames.push_back(static_cast<int64_t>(f));
@@ -1151,6 +1156,7 @@ namespace Zdxsv
 			}
 			PutPackedInts(pb, 54, load_frames);
 			PutPackedInts(pb, 55, load_rngs);
+			PutPackedInts(pb, 56, load_starts);
 			if (!dir.empty())
 			{
 				const std::string path = Path::Combine(dir, name + ".pb");
@@ -1472,7 +1478,7 @@ namespace Zdxsv
 		s_net_env = s_options.find("net=1") != std::string::npos || s_play_env;
 		g_net_hook = s_net_trace != nullptr || s_net_env;
 		g_zd_hook = s_net_env;
-		g_ps_hook = s_zds_ps;
+		g_ps_hook = s_zds_ps || !s_play_load_starts.empty();
 		if (!s_options.empty() || std::strcmp(serial, GAME_SERIAL) == 0)
 			Console.WriteLn("ZdxsvGgpo: options '%s' (serial %s, setting %d)", s_options.c_str(), serial, setting ? 1 : 0);
 		// Delta saves and loads, replay keys: VU1 memory is copied while the MTVU thread may still run on it.
@@ -1513,6 +1519,25 @@ namespace Zdxsv
 			s_rb.ps.n++;
 			if (s_net_trace)
 				std::fprintf(s_net_trace, "%u PH%s %d %d\n", g_FrameCount, g_ggpo_in_rollback ? "r" : "", s_net_frame, s_rb.ps.n);
+		}
+		if (!s_zds_ps)
+		{
+			// Other loads (MS select, briefing) enter tick state 8 too, hundreds of frames apart: this pass is the
+			// nearest recorded one. The step run in frame F sets the tick state seen before frame F + 1.
+			int at = s_net_frame;
+			int64_t best = INT64_MAX;
+			for (const int64_t e : s_play_load_starts)
+				if (std::abs(e - 1 - s_net_frame) < best)
+					best = std::abs(e - 1 - s_net_frame), at = static_cast<int>(e) - 1;
+			if (s_net_frame < at)
+			{
+				cpuRegs.GPR.n.v0.UD[0] = 0;
+				cpuRegs.pc = 0x2b1fa8;
+				return true;
+			}
+			Console.WriteLn("ZdxsvGgpo: replay: load step passes at frame %d (recorded %d)", s_net_frame, at);
+			s_rb.ps.hold = false;
+			return false;
 		}
 		if (s_rb.ps.go)
 		{
@@ -3173,6 +3198,7 @@ namespace Zdxsv
 			s_play_frames = 0;
 			s_play_hashes.clear();
 			s_play_rngs.clear();
+			s_play_load_starts.clear();
 			s_play_rng_pos = -1;
 			s_play_hash_checks = s_play_hash_bad = s_play_rng_checks = s_play_rng_bad = 0;
 			s_play_hash_first_bad = -1;
@@ -3211,7 +3237,7 @@ namespace Zdxsv
 			std::vector<std::vector<u8>> answers; // lobby frames, 12-byte header + body
 			std::string_view hashes; // u32 per frame, "" = none (older files)
 			std::optional<u32> start_rng;
-			std::vector<int64_t> load_frames, load_rngs;
+			std::vector<int64_t> load_frames, load_rngs, load_starts;
 		};
 
 		bool ReplayParse(std::string_view all, ReplayFile& r)
@@ -3235,6 +3261,8 @@ namespace Zdxsv
 						r.load_frames.push_back(static_cast<int64_t>(v));
 					else if (field == 55)
 						r.load_rngs.push_back(static_cast<int64_t>(v));
+					else if (field == 56)
+						r.load_starts.push_back(static_cast<int64_t>(v));
 				}
 				else if (wt == 2)
 				{
@@ -3254,6 +3282,8 @@ namespace Zdxsv
 						return Pb::ReadInts(wt, v, b, n, r.load_frames);
 					else if (field == 55)
 						return Pb::ReadInts(wt, v, b, n, r.load_rngs);
+					else if (field == 56)
+						return Pb::ReadInts(wt, v, b, n, r.load_starts);
 				}
 				return true;
 			});
@@ -3389,6 +3419,8 @@ namespace Zdxsv
 			s_play_rng_pos = static_cast<int>(me);
 			s_players = static_cast<int>(players);
 			s_zds_ps = r.zds_ps;
+			s_play_load_starts = s_zds_ps ? std::vector<int64_t>() : r.load_starts;
+			g_ps_hook = s_zds_ps || !s_play_load_starts.empty();
 			// key 0 of each position: its state is saved at its common start's arm (PlayCommonStart); the HLE state
 			// here (the recorder's) is only compared there
 			for (int p = 0; p < s_players; p++)
@@ -3545,7 +3577,7 @@ namespace Zdxsv
 		{
 			const PlayKey& k0 = *s_play_keys[me].at(0);
 			Error error;
-			g_ps_hook = s_zds_ps; // before the load: the recompiler cache is rebuilt from it
+			g_ps_hook = s_zds_ps || !s_play_load_starts.empty(); // before the load: the recompiler cache is rebuilt from it
 			if (!VMManager::LoadState(k0.path.c_str(), &error))
 			{
 				Console.Error("ZdxsvGgpo: replay: state load failed: %s", error.GetDescription().c_str());

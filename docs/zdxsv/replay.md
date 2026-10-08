@@ -46,6 +46,7 @@ one file plays the point of view of any player.
 | `lobby_answers` | the lobby's battle-start answers the game got (0x6911..0x6917: player count, side, players, rule, battle code, battle server), each as received (header + body) |
 | `state_hashes` | optional: per frame (before its inputs) a u32 hash of the 4 players' masked work + RNG B; equal in every position's file of one battle. Playback compares it and logs `replay state hash differs at frame F` (first 10) and, at the end, `replay state check: hashes N checked, M differ` |
 | `start_rng`, `load_frames`, `load_rngs` | optional: the game RNGs (u16 RNG A << 16 \| u16 RNG B) at frame 0 and at each battle load end (load 0 MS select, 1 briefing, 1 + N round N), for round skip; the recorder's position's values (RNG A is per machine). Playback of that position logs `replay rng at frame F` |
+| `load_start_frames` | optional: the frames where the tick state 0xc627b4 enters 8. Without `zds_ps` the round-start load step (0x2b1d80) passes at local load timing; playback holds it to the nearest recorded frame (the step run in frame F shows at F + 1) and logs `replay: load step passes at frame F (recorded R)`. Without the field the step runs at local timing |
 
 A file without the optional fields plays the same, unchecked.
 

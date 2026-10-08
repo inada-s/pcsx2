@@ -51,4 +51,8 @@ message BattleLogFile {
   optional uint32 start_rng = 53;
   repeated int32 load_frames = 54;
   repeated uint32 load_rngs = 55;
+  // The frames where the tick state enters 8: the battle load step passed and initialized the per-battle player
+  // work. Without zds_ps this pass is local load timing; a replay holds the step to these frames (else player work
+  // and RNG B can start a frame apart from the recording). Optional: a file without them plays at local timing.
+  repeated int32 load_start_frames = 56;
 }
