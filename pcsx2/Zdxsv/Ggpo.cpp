@@ -123,6 +123,8 @@ namespace Zdxsv
 		constexpr const char* GAME_SERIAL = "SLPS-25419";
 		constexpr u32 GAME_CRC = 0x435D8236; // ELF CRC of SLPS_254.19: the hooks' fixed guest addresses are this build's
 		constexpr const char* DEFAULT_OPTIONS = "net=1,lobby=1";
+		// The hosted post-entry save state a replay or live battle starts from (PlayCommonState)
+		constexpr const char* REPLAY_STATE_URL = "https://storage.googleapis.com/zdxsv/misc/rbk-p1.p2s";
 	} // namespace
 	bool g_z_game = false;
 	bool g_ggpo_active = false;
@@ -919,19 +921,10 @@ namespace Zdxsv
 				Console.Warning("ZdxsvGgpo: ggpo: %s", msg);
 		}
 
-		// replay= (net): the battle as the full state at GGPO frame 0 (.p2s, zipped on a thread while the battle
-		// runs) + the synced inputs of every player per frame. File format: see ReplayWrite.
-		std::string s_replay_state; // the frame 0 .p2s being written, "" = not recording
-		struct ReplayZip
-		{
-			std::thread t;
-			bool ok = false; // set by t before it ends
-			~ReplayZip()
-			{
-				if (t.joinable())
-					t.join();
-			}
-		} s_replay_zip;
+		// replay= (net): the lobby answers and HLE state at GGPO frame 0 + the synced inputs of every player per
+		// frame; playback starts from the hosted common state (PlayCommonState). File format: see ReplayWrite.
+		bool s_replay_rec = false; // a battle is being recorded
+		std::string s_replay_rec_dir; // where it is saved, "" = not saved
 		std::vector<NetInput> s_replay_inputs; // [frame * s_players + position]
 		// per frame, before its inputs: ReplayStateHash, GameRng, the tick state (load ends -> load_frames)
 		std::vector<u32> s_replay_hashes, s_replay_rngs;
@@ -1016,27 +1009,31 @@ namespace Zdxsv
 			return s_lobby ? Path::Combine(EmuFolders::DataRoot, "replays") : std::string();
 		}
 
+		std::string ReplayUploadUrl()
+		{
+			return !s_upload_url.empty() ? s_upload_url : Host::GetStringSettingValue("DEV9/Eth", "ZdxsvReplayUploadUrl", "");
+		}
+
 		// At GGPO frame 0: the session started, its first input not added yet (Zdxsv::DeltaStateSave(0) saves this point).
+		// Records when the battle is saved, uploaded or streamed live: each one goes without the others (as gdxsv).
 		void ReplayBegin()
 		{
-			const std::string dir = ReplayDir();
-			if (dir.empty())
+			if (!s_net)
 				return;
+			std::string dir = ReplayDir();
+			const std::string ids = ReplayIds(), code = IdValue(ids, "battle_code"), to = IdValue(ids, "live_uplink");
 			Error error;
-			if (!FileSystem::DirectoryExists(dir.c_str()) && !FileSystem::CreateDirectoryPath(dir.c_str(), true, &error))
+			if (!dir.empty() && !FileSystem::DirectoryExists(dir.c_str()) && !FileSystem::CreateDirectoryPath(dir.c_str(), true, &error))
 			{
 				Console.Error("ZdxsvGgpo: replay: cannot create %s: %s", dir.c_str(), error.GetDescription().c_str());
-				return;
+				dir.clear();
 			}
-			Common::Timer timer;
-			std::unique_ptr<ArchiveEntryList> list = SaveState_DownloadState(&error);
-			if (!list)
-			{
-				Console.Error("ZdxsvGgpo: replay: state download failed: %s", error.GetDescription().c_str());
+			const bool upload = !code.empty() && !ReplayUploadUrl().empty();
+			if (dir.empty() && !upload && to.empty())
 				return;
-			}
+			s_replay_rec = true;
 			s_replay_start_at = static_cast<s64>(std::time(nullptr));
-			s_replay_state = Path::Combine(dir, fmt::format(".replay-{}-p{}.p2s", s_replay_start_at, s_net_me));
+			s_replay_rec_dir = dir;
 			s_replay_inputs.clear();
 			s_replay_hashes.clear();
 			s_replay_rngs.clear();
@@ -1050,28 +1047,16 @@ namespace Zdxsv
 				s_rb.zds_seen[2], s_rb.zds_seen[3], s_rb.zds_rel};
 			s_replay_answers = Zdxsv::LobbyStartAnswers();
 			s_live.reset();
-			if (const std::string ids = ReplayIds(), to = IdValue(ids, "live_uplink"); !to.empty())
-			{
-				const std::string code = IdValue(ids, "battle_code");
+			if (!to.empty())
 				s_live = std::make_shared<Zdxsv::LiveUp>(to, code, s_lobby_session, ReplayHeader(code, ids), s_players * sizeof(NetInput));
-			}
-			s_replay_zip.ok = false;
-			s_replay_zip.t = std::thread([list = std::move(list), path = s_replay_state, live = s_live]() mutable {
-				Error error;
-				s_replay_zip.ok = SaveState_ZipToDisk(std::move(list), nullptr, path.c_str(), &error);
-				if (!s_replay_zip.ok)
-					Console.Error("ZdxsvGgpo: replay: state zip failed: %s", error.GetDescription().c_str());
-				else if (live)
-					if (std::optional<std::vector<u8>> state = FileSystem::ReadBinaryFile(path.c_str()))
-						live->SetState(std::move(*state));
-			});
-			Console.WriteLn("ZdxsvGgpo: replay: recording to %s (state download %.1f ms)", dir.c_str(), timer.GetTimeMilliseconds());
+			Console.WriteLn("ZdxsvGgpo: replay: recording (save %s, upload %d, live %d)", dir.empty() ? "off" : dir.c_str(), upload ? 1 : 0,
+				to.empty() ? 0 : 1);
 		}
 
 		// The synced inputs of frame f (also rerun frames: a rollback replaces the frames from f on).
 		void ReplayLog(int f, const NetInput* in)
 		{
-			if (s_replay_state.empty() || f < 0)
+			if (!s_replay_rec || f < 0)
 				return;
 			s_replay_inputs.resize(static_cast<size_t>(f) * s_players);
 			s_replay_inputs.insert(s_replay_inputs.end(), in, in + s_players);
@@ -1092,7 +1077,7 @@ namespace Zdxsv
 		// the next battle nor the exit.
 		void ReplayUpload(const std::string& name, const std::vector<uint8_t>& pb)
 		{
-			const std::string url = !s_upload_url.empty() ? s_upload_url : Host::GetStringSettingValue("DEV9/Eth", "ZdxsvReplayUploadUrl", "");
+			const std::string url = ReplayUploadUrl();
 			if (url.empty())
 				return;
 			const std::string boundary = fmt::format("zdxsv{:016x}", XXH64(pb.data(), pb.size(), 0));
@@ -1126,24 +1111,15 @@ namespace Zdxsv
 		// schema in Zdxsv/replay.proto.
 		void ReplayWrite(const char* what)
 		{
-			if (s_replay_state.empty())
+			if (!std::exchange(s_replay_rec, false))
 				return;
 			Common::Timer timer;
-			if (s_replay_zip.t.joinable())
-				s_replay_zip.t.join();
-			const std::string state_path = std::exchange(s_replay_state, {});
-			const std::optional<std::vector<u8>> state = s_replay_zip.ok ? FileSystem::ReadBinaryFile(state_path.c_str()) : std::nullopt;
-			FileSystem::DeleteFilePath(state_path.c_str());
+			const std::string dir = std::exchange(s_replay_rec_dir, {});
 			const size_t frames = std::min<size_t>(s_replay_inputs.size() / s_players, s_replay_confirmed + 1);
 			if (s_live)
 			{
 				LiveFeed(frames);
 				s_live->Close(what);
-			}
-			if (!state)
-			{
-				Console.Error("ZdxsvGgpo: replay: no frame 0 state, nothing saved");
-				return;
 			}
 			const std::string ids = ReplayIds();
 			const std::string code = IdValue(ids, "battle_code");
@@ -1154,12 +1130,11 @@ namespace Zdxsv
 				name = fmt::format("rbk-{}-p{}", s_replay_start_at, s_net_me);
 			using namespace Pb;
 			std::vector<uint8_t> pb = ReplayHeader(code, ids);
-			pb.reserve(state->size() + frames * s_players * sizeof(NetInput) + pb.size() + 1024);
+			pb.reserve(frames * s_players * sizeof(NetInput) + pb.size() + 1024);
 			PutInt(pb, 21, static_cast<s64>(std::time(nullptr)));
 			PutString(pb, 24, what);
 			PutInt(pb, 48, static_cast<int64_t>(frames));
 			PutBytes(pb, 49, s_replay_inputs.data(), frames * s_players * sizeof(NetInput));
-			PutBytes(pb, 50, state->data(), state->size());
 			PutBytes(pb, 52, s_replay_hashes.data(), frames * sizeof(u32));
 			if (frames > 0)
 				PutUint(pb, 53, s_replay_rngs[0]);
@@ -1174,14 +1149,15 @@ namespace Zdxsv
 			}
 			PutPackedInts(pb, 54, load_frames);
 			PutPackedInts(pb, 55, load_rngs);
-			const std::string path = Path::Combine(Path::GetDirectory(state_path), name + ".pb");
-			if (!FileSystem::WriteBinaryFile(path.c_str(), pb.data(), pb.size()))
+			if (!dir.empty())
 			{
-				Console.Error("ZdxsvGgpo: replay: write %s failed", path.c_str());
-				return;
+				const std::string path = Path::Combine(dir, name + ".pb");
+				if (!FileSystem::WriteBinaryFile(path.c_str(), pb.data(), pb.size()))
+					Console.Error("ZdxsvGgpo: replay: write %s failed", path.c_str());
+				else
+					Console.WriteLn("ZdxsvGgpo: replay saved %s frames=%zu, file=%zu bytes, %.1f ms", path.c_str(), frames,
+						pb.size(), timer.GetTimeMilliseconds());
 			}
-			Console.WriteLn("ZdxsvGgpo: replay saved %s frames=%zu state=%zu bytes, file=%zu bytes, %.1f ms", path.c_str(), frames,
-				state->size(), pb.size(), timer.GetTimeMilliseconds());
 			if (!code.empty())
 				ReplayUpload(name, pb);
 		}
@@ -2830,13 +2806,11 @@ namespace Zdxsv
 			std::vector<u8> pb = std::move(s_live_got.header);
 			PutInt(pb, 48, static_cast<int64_t>(frames));
 			PutBytes(pb, 49, s_live_got.inputs.data(), frames * fb);
-			PutBytes(pb, 50, s_live_got.state.data(), s_live_got.state.size());
 			s_live_got.inputs.erase(s_live_got.inputs.begin(), s_live_got.inputs.begin() + frames * fb);
-			s_live_got.state = {};
 			const std::string code = s_live_down->Code();
 			s_live_seen.insert(code);
-			Console.WriteLn("ZdxsvGgpo: live: battle %s, %zu frames so far, state %zu bytes%s", code.c_str(), frames,
-				s_live_got.stateTotal, s_live_got.closed ? ", closed" : "");
+			Console.WriteLn("ZdxsvGgpo: live: battle %s, %zu frames so far%s", code.c_str(), frames,
+				s_live_got.closed ? ", closed" : "");
 			return pb;
 		}
 
@@ -3445,12 +3419,12 @@ namespace Zdxsv
 		}
 
 		// The hosted post-entry state of a common start (as gdxsv's slot 99): ZDXSV_REPLAY_STATE, else the setting
-		// DEV9/Eth ZdxsvReplayStateUrl; a URL is downloaded once into the cache (one file per URL). None set = the
-		// booted state is used as it is.
+		// DEV9/Eth ZdxsvReplayStateUrl (default: the hosted one); a URL is downloaded once into the cache (one file
+		// per URL). Set empty = the booted state is used as it is.
 		bool PlayCommonState()
 		{
 			const char* env = std::getenv("ZDXSV_REPLAY_STATE");
-			const std::string src = env ? env : Host::GetStringSettingValue("DEV9/Eth", "ZdxsvReplayStateUrl", "");
+			const std::string src = env ? env : Host::GetStringSettingValue("DEV9/Eth", "ZdxsvReplayStateUrl", REPLAY_STATE_URL);
 			if (src.empty())
 				return true;
 			std::string path = src;
@@ -4469,7 +4443,7 @@ namespace Zdxsv
 		for (const auto& k : s_play_keys)
 			keys += k.size();
 		Console.WriteLn("ZdxsvGgpo: %s: session %d, replay recording %d, replay keys %zu", what, g_ggpo_active && !s_play_env ? 1 : 0,
-			s_replay_state.empty() ? 0 : 1, keys);
+			s_replay_rec ? 1 : 0, keys);
 		if (s_play_env)
 		{
 			g_ggpo_active = false;

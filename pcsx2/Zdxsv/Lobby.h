@@ -86,13 +86,12 @@ namespace Zdxsv
 	std::string LobbyUdpAddr();
 
 	// Live spectating over the lobby's UDP socket (inada-s/zdxsv pkg/lobby/spectator.go, gdxsv's
-	// SpectatorInputPush/Ack/Subscribe): every stream (header, start state, inputs) goes in 1000-byte
+	// SpectatorInputPush/Ack/Subscribe): every stream (header, inputs) goes in 1000-byte
 	// datagrams, go-back-N from the receiver's ack. Each runs a thread.
+	// No start state: a spectator plays the battle start from the hosted common state.
 	struct LiveStreams
 	{
-		std::vector<uint8_t> header; // a replay BattleLogFile without inputs and start_state
-		std::vector<uint8_t> state; // the start state
-		size_t stateTotal = 0;
+		std::vector<uint8_t> header; // a replay BattleLogFile without inputs
 		std::vector<uint8_t> inputs; // frames x frameBytes
 		int frameBytes = 0;
 		bool closed = false;
@@ -105,7 +104,6 @@ namespace Zdxsv
 		// to = LobbyUdpAddr(); session = the battle's ggpo_session.
 		LiveUp(const std::string& to, std::string code, uint32_t session, std::vector<uint8_t> header, int frameBytes);
 		~LiveUp(); // stops the thread
-		void SetState(std::vector<uint8_t> state);
 		void AddFrames(const void* data, size_t frames); // the next confirmed frames, in order
 		size_t Frames();
 		void Close(const std::string& reason);
@@ -119,13 +117,13 @@ namespace Zdxsv
 	{
 	public:
 		~LiveDown(); // stops the thread
-		// Subscribes and waits up to timeoutMs for the header, the whole state and a frame (or the close).
+		// Subscribes and waits up to timeoutMs for the header and a frame (or the close).
 		static std::unique_ptr<LiveDown> Open(const std::string& url, int timeoutMs, std::string& error);
 		std::string Code();
 		// The battle code a subscribe without one gets at hostPort (the newest live battle, running ones
 		// first); "" = none or no answer in timeoutMs.
 		static std::string Newest(const std::string& hostPort, int timeoutMs);
-		// Moves the frames received since the last call into s.inputs (with the header and state on the
+		// Moves the frames received since the last call into s.inputs (with the header on the
 		// first call), sets s.closed / s.close; false = nothing from the lobby for stallMs.
 		bool Take(LiveStreams& s, int stallMs);
 	private:
