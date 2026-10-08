@@ -45,6 +45,9 @@ with a peer without GGPO is cut, as a connection failure (`docs/zdxsv/lobby.md`)
   and the lobby's battle-start answers). `ZDXSV_REPLAY_COMMON=1` (or a file without the state) plays the battle start
   from those answers on a post-entry save state, as gdxsv's common start state (`docs/zdxsv/replay.md`): the hosted one
   at `[DEV9/Eth] ZdxsvReplayStateUrl` (downloaded once; `ZDXSV_REPLAY_STATE=<url or path>` overrides), else the booted one.
+- Desync check (optional in the file): a per-frame state hash (player work + RNG) and the game RNGs at frame 0 and at
+  each battle load end (for round skip). Playback logs `replay state hash differs at frame F` and a `replay state
+  check` summary; `tests/zdxsv/replay_check.py` compares the hashes of one battle's files. Older files play unchecked.
 - A lobby battle's `.pb` is posted (multipart, as flycast) to the replay uploader (zdxsv `infra/uploader`) at
   `[DEV9/Eth] ZdxsvReplayUploadUrl` in `PCSX2.ini` (empty = no upload; `ZDXSV_GGPO` `upload=URL` overrides it).
 - An uploaded replay plays from the lobby's public API (as gdxsv lbsapi):

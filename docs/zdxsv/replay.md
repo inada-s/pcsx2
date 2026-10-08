@@ -46,6 +46,10 @@ who saved it.
 | `input_size`, `frames`, `inputs` | the synced inputs of all players: `frames` x `players` x `input_size` bytes, frame-major, by battle position |
 | `start_state` | the save state at GGPO frame 0 (a `.p2s` zip) |
 | `lobby_answers` | the lobby's battle-start answers the game got (0x6911..0x6917: player count, side, players, rule, battle code, battle server), each as received (header + body) |
+| `state_hashes` | optional: per frame (before its inputs) a u32 hash of the 4 players' masked work + RNG B; equal in every position's file of one battle. Playback compares it and logs `replay state hash differs at frame F` (first 10) and, at the end, `replay state check: hashes N checked, M differ` |
+| `start_rng`, `load_frames`, `load_rngs` | optional: the game RNGs (u16 RNG A << 16 \| u16 RNG B) at frame 0 and at each battle load end (load 0 MS select, 1 briefing, 1 + N round N), for round skip; the recorder's position's values (RNG A is per machine). Playback of that position logs `replay rng at frame F` |
+
+A file without the optional fields plays the same, unchecked.
 
 `tests/zdxsv/replay_check.py` reads it without a protobuf library;
 `protoc --decode=zdxsv.BattleLogFile pcsx2/Zdxsv/replay.proto < file.pb` prints it.
