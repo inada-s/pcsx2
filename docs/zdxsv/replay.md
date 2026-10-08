@@ -161,3 +161,29 @@ load 1 + N at the start of round N. Round 0 is the briefing.
 Log lines: `ZdxsvGgpo: replay: load K ends at frame F`,
 `replay round N: starts at frame F` (known) or `replay round N: start at frame
 F` (after the run), `cancelled by a seek`, or `replay ended first`.
+
+## Live spectating
+
+A lobby GGPO battle is streamed to the lobby while it runs, as gdxsv does
+(`SpectatorInputPush` / `Ack` / `SubscribeRequest` / `Challenge` on the
+lobby's UDP socket, zdxsv `pkg/lobby/spectator.go`).
+
+- Uplink: the lobby marks one GGPO player per battle (`live_uplink=1` in the
+  battle info, the lowest `udp_rtt`). That client sends the replay header, the
+  frame 0 state and every confirmed frame to the lobby's UDP address, then the
+  close. It needs replay saving on (the default for lobby battles).
+- Transfer: 1000-byte datagrams, go-back-N from the receiver's ack (window 32,
+  resent after 200 ms without progress), both uplink to lobby and lobby to
+  spectator.
+- Spectator: `ZDXSV_REPLAY=udp://host:port[/battle code]` (the lobby's UDP
+  port, 8201 by default; no code = the newest live battle there). Boot the
+  game as for a file. It waits up to 15 s for the header, the state and a
+  frame, then plays as a replay (seek, point of view of the uplink, keys).
+- Pacing: at the newest frame it waits until 30 more frames are there (or the
+  close); more than 300 frames behind it runs unlimited until 90 behind
+  (flycast's `gdxsv:LiveBufferFrames` and its catch-up edges). Nothing from the
+  lobby for 30 s = stream lost.
+
+Log lines: `live: uplink CODE to ADDR`, `ZdxsvGgpo: live: battle CODE, N
+frames so far`, `live: N frames behind at frame F: catching up`, `caught up`,
+`live: stream closed (REASON) at frame F, N waits T ms`.

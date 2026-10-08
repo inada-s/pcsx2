@@ -18,6 +18,7 @@
 #include <cstdint>
 #include <functional>
 #include <map>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -61,6 +62,8 @@ namespace Zdxsv
 		// [0, MAX_PING_MS]: the CPU thread waits for the whole test (LobbyArm).
 		uint32_t ggpoSession = 0;
 		int ggpoPingMs = 0;
+		// "live_uplink=1": this client streams the battle to live spectators (LiveUp)
+		bool liveUplink = false;
 		// "relay_<k>=<token hex>,<ip:port>[,<[ip6]:port>]" (k = 0..3): relay servers
 		// of the battle (gdxsv P2PMatching.relays), in the lobby's order.
 		struct Relay
@@ -78,6 +81,55 @@ namespace Zdxsv
 	// STUN answered; udp_addr6 = our global IPv6 address, only if we have one: IPv6 has no NAT, so
 	// the source address of a route to the internet is the public one); "" if the socket can't be opened.
 	std::string OpenUdp(uint32_t stunIP, uint16_t stunPort, uint16_t bindPort = 0);
+
+	// "ip:port" of the lobby UDP socket OpenUdp asked (live spectating goes there too), "" before.
+	std::string LobbyUdpAddr();
+
+	// Live spectating over the lobby's UDP socket (inada-s/zdxsv pkg/lobby/spectator.go, gdxsv's
+	// SpectatorInputPush/Ack/Subscribe): every stream (header, start state, inputs) goes in 1000-byte
+	// datagrams, go-back-N from the receiver's ack. Each runs a thread.
+	struct LiveStreams
+	{
+		std::vector<uint8_t> header; // a replay BattleLogFile without inputs and start_state
+		std::vector<uint8_t> state; // the start state
+		size_t stateTotal = 0;
+		std::vector<uint8_t> inputs; // frames x frameBytes
+		int frameBytes = 0;
+		bool closed = false;
+		std::string close;
+	};
+	// The battle's uplink (battle info live_uplink=1): sends what it is given, until the lobby acked the close.
+	class LiveUp
+	{
+	public:
+		// to = LobbyUdpAddr(); session = the battle's ggpo_session.
+		LiveUp(const std::string& to, std::string code, uint32_t session, std::vector<uint8_t> header, int frameBytes);
+		~LiveUp(); // stops the thread
+		void SetState(std::vector<uint8_t> state);
+		void AddFrames(const void* data, size_t frames); // the next confirmed frames, in order
+		size_t Frames();
+		void Close(const std::string& reason);
+		bool Done(); // the lobby acked the close, or the thread gave up
+	private:
+		struct Impl;
+		std::unique_ptr<Impl> m;
+	};
+	// A spectator: url = "host:port[/battle code]" (no code: the newest live battle there).
+	class LiveDown
+	{
+	public:
+		~LiveDown(); // stops the thread
+		// Subscribes and waits up to timeoutMs for the header, the whole state and a frame (or the close).
+		static std::unique_ptr<LiveDown> Open(const std::string& url, int timeoutMs, std::string& error);
+		std::string Code();
+		// Moves the frames received since the last call into s.inputs (with the header and state on the
+		// first call), sets s.closed / s.close; false = nothing from the lobby for stallMs.
+		bool Take(LiveStreams& s, int stallMs);
+	private:
+		LiveDown();
+		struct Impl;
+		std::unique_ptr<Impl> m;
+	};
 
 	// Connectivity test of bindPort against zdxsv's STUN (stunPort) and its test socket (stunPort + 1), as
 	// flycast's P2P feasibility test: returns the platform info line "nat=open|cone|symmetric|unknown\n";
