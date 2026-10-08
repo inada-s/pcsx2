@@ -2333,6 +2333,10 @@ namespace Zdxsv
 		std::vector<int> s_battle_loads; // written on the CPU thread; the GS thread reads it under s_battle_loads_mtx
 		int s_play_hi = -1, s_tick_f = -1;
 		u8 s_tick_st = 0;
+		// Round results (win_team 1 / 2, -1 = draw): the file's round_data, and the ones played so far (also under
+		// s_battle_loads_mtx); s_round_rec = RoundRecord at s_tick_f
+		std::vector<int> s_play_file_rounds, s_round_results;
+		u32 s_round_rec = 0;
 		int s_run_load = -1; // running unlimited until this load has ended, -1 = none (skip MS selection = 1)
 		std::atomic<int> s_play_round_req{INT_MIN}; // requested round, 0 = briefing, INT_MIN = none
 		std::deque<std::pair<int, int>> s_play_round_at; // ZDXSV_REPLAY_ROUND_AT=frame:round,...
@@ -2561,10 +2565,23 @@ namespace Zdxsv
 					s_battle_loads.push_back(f);
 					Console.WriteLn("ZdxsvGgpo: replay: load %zu ends at frame %d, vsync %u", s_battle_loads.size() - 1, f, g_FrameCount);
 				}
+				if (f == s_tick_f + 1)
+				{
+					if (const int win = RoundResult(s_round_rec, RoundRecord()))
+					{
+						std::lock_guard lock(s_battle_loads_mtx);
+						const size_t i = s_round_results.size();
+						s_round_results.push_back(win);
+						Console.WriteLn("ZdxsvGgpo: replay: round result %zu: win_team %d at frame %d", i + 1, win, f - 1);
+						if (i < s_play_file_rounds.size() && s_play_file_rounds[i] != win)
+							Console.Error("ZdxsvGgpo: replay: round result %zu differs from the file's win_team %d", i + 1, s_play_file_rounds[i]);
+					}
+				}
 				s_play_hi = f;
 			}
 			s_tick_f = f;
 			s_tick_st = st;
+			s_round_rec = RoundRecord();
 			if (s_run_load >= 0 && s_run_load < static_cast<int>(s_battle_loads.size()) && s_battle_loads[s_run_load] == f)
 				PlayRunEnd(s_run_load == 1 ? "briefing" : "start", f);
 		}
@@ -3278,8 +3295,11 @@ namespace Zdxsv
 			{
 				std::lock_guard lock(s_battle_loads_mtx);
 				s_battle_loads.clear();
+				s_play_file_rounds.clear();
+				s_round_results.clear();
 			}
 			s_play_hi = s_tick_f = s_run_load = -1;
+			s_round_rec = 0;
 			s_play_round_req = INT_MIN;
 			s_play_round_at.clear();
 			std::fill(std::begin(s_play_pov_ok), std::end(s_play_pov_ok), false);
@@ -3515,6 +3535,10 @@ namespace Zdxsv
 			}
 			for (size_t i = 0; i + 1 < r.round_ends.size(); i += 2)
 				s_play_cut.emplace_back(static_cast<int>(r.round_ends[i]), static_cast<int>(r.round_ends[i + 1]));
+			{
+				std::lock_guard lock(s_battle_loads_mtx);
+				s_play_file_rounds = r.rounds;
+			}
 			s_play_rng_pos = static_cast<int>(me);
 			s_players = static_cast<int>(players);
 			// key 0 of each position: its state is saved at its common start's arm (PlayCommonStart); the HLE state
@@ -4474,6 +4498,20 @@ namespace Zdxsv
 	{
 		std::lock_guard lock(s_battle_loads_mtx);
 		return s_battle_loads.size() > 2 ? std::vector<int>(s_battle_loads.begin() + 2, s_battle_loads.end()) : std::vector<int>();
+	}
+
+	std::string ReplayRoundResults()
+	{
+		const int pov = s_bar_pov, players = s_players;
+		if (pov < 0 || players < 1)
+			return {};
+		const int team = pov < players / 2 ? 1 : 2; // team 1 = the first half of the positions
+		std::lock_guard lock(s_battle_loads_mtx);
+		const std::vector<int>& rounds = s_play_file_rounds.empty() ? s_round_results : s_play_file_rounds;
+		std::string s;
+		for (const int win : rounds)
+			s += win == team ? 'W' : win < 0 ? 'D' : 'L';
+		return s;
 	}
 
 	int GgpoLobbyAdvertisePort()

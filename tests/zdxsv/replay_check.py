@@ -15,7 +15,7 @@ Exit 1 on any failure.
 import sys
 
 # replay.proto BattleLogFile: field number -> key
-FIELDS = {3: "battle_code", 4: "version", 5: "game_disk", 11: "users", 20: "start_at", 21: "end_at", 24: "close",
+FIELDS = {3: "battle_code", 4: "version", 5: "game_disk", 11: "users", 18: "round_data", 20: "start_at", 21: "end_at", 24: "close",
           40: "players", 41: "position", 42: "delay", 43: "battle_info", 45: "rx0", 46: "hle0",
           47: "input_size", 48: "frames", 49: "inputs", 51: "lobby_answers", 52: "hashes", 53: "start_rng", 54: "load_frames",
           55: "load_rngs", 57: "play_start_frames", 58: "game_end_frames", 59: "round_end_frames"}
@@ -55,10 +55,14 @@ def fields(b):
 
 
 def load(path):
-    h = {"users": [], "lobby_answers": [], **{k: [] for k in PACKED}}
+    h = {"users": [], "lobby_answers": [], "round_data": [], **{k: [] for k in PACKED}}
     for f, wt, v in fields(open(path, "rb").read()):
         k = FIELDS.get(f)
-        if k == "lobby_answers":
+        if k == "round_data":
+            # BattleLogRound.win_team: int32, -1 = a 10-byte varint
+            w = next((x for rf, _, x in fields(v) if rf == 1), 0)
+            h[k].append(w - (1 << 64) if w >= 1 << 63 else w)
+        elif k == "lobby_answers":
             h[k].append(v)
         elif k == "users":
             u = {FIELDS_USER.get(uf, uf): uv for uf, _, uv in fields(v)}
@@ -123,7 +127,8 @@ def main():
         if hashes or "start_rng" in h:
             loads = " ".join(f"{f}:{r:08x}" for f, r in zip(h["load_frames"], h["load_rngs"]))
             print(f"  state_hashes={len(hashes) // 4} start_rng={h.get('start_rng', 0):08x} loads={loads} "
-                  f"play_starts={h['play_start_frames']} game_ends={h['game_end_frames']} round_ends={h['round_end_frames']}")
+                  f"play_starts={h['play_start_frames']} game_ends={h['game_end_frames']} round_ends={h['round_end_frames']}"
+                  f" round_data={h['round_data']}")
         if hashes and len(hashes) != frames * 4:
             fails.append(f"{path}: state_hashes {len(hashes)} bytes != {frames}*4")
         if want is not None and frames != want:
@@ -162,6 +167,8 @@ def main():
             k = min(len(ld), len(ld0))
             if ld[:k] != ld0[:k]:
                 fails.append(f"{path} vs {p0}: load frames / RNG B differ: {lf} {lf0}")
+            if h["round_data"] != h0["round_data"]:
+                fails.append(f"{path} vs {p0}: round_data (win_team per round) differ: {h['round_data']} {h0['round_data']}")
             if h.get("battle_code") != h0.get("battle_code"):
                 fails.append(f"{path}: battle_code {h.get('battle_code')} != {h0.get('battle_code')}")
     for f in fails:
