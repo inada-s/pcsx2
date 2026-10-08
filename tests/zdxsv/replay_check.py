@@ -5,7 +5,10 @@
 Per file: the fields, input bytes = frames * players * input_size.
 Several files of one battle (one per peer): same players / frames (+-tail), and the inputs of every
 common frame byte-identical (all peers log the same synced inputs); state_hashes, load_frames and RNG B
-(load_rngs & 0xffff) equal where both files have them. --frames N: frames must be N.
+(load_rngs & 0xffff) equal where both files have them, except from a game end (the earliest file's) to the next
+play start: peers enter the game end on different frames (play_start_frames, game_end_frames; not a desync).
+State hashes are judged from the play start, as pwcheck.py (earlier differing frames are printed).
+--frames N: frames must be N.
 Exit 1 on any failure.
 """
 import sys
@@ -14,8 +17,8 @@ import sys
 FIELDS = {3: "battle_code", 4: "version", 5: "game_disk", 11: "users", 20: "start_at", 21: "end_at", 24: "close",
           40: "players", 41: "position", 42: "delay", 43: "battle_info", 45: "rx0", 46: "hle0",
           47: "input_size", 48: "frames", 49: "inputs", 51: "lobby_answers", 52: "hashes", 53: "start_rng", 54: "load_frames",
-          55: "load_rngs"}
-PACKED = ("hle0", "load_frames", "load_rngs")
+          55: "load_rngs", 57: "play_start_frames", 58: "game_end_frames"}
+PACKED = ("hle0", "load_frames", "load_rngs", "play_start_frames", "game_end_frames")
 
 
 def varint(b, i):
@@ -76,6 +79,25 @@ def load(path):
 
 
 FIELDS_USER = {1: "user_id", 2: "user_name", 12: "pos"}
+
+
+def cuts(*hs):
+    """[game end, next play start) over the files: from the earliest file's end (fields 57, 58)."""
+    starts = sorted({s for h in hs for s in h["play_start_frames"]})
+    out = []
+    for e in sorted({e for h in hs for e in h["game_end_frames"]}):
+        to = next((s for s in starts if s > e), max(h.get("frames", 0) for h in hs))
+        if out and e < out[-1][1]:
+            out[-1][1] = max(out[-1][1], to)
+        else:
+            out.append([e, to])
+    return out
+
+
+def cut_at(cut, f):
+    return any(a <= f < b for a, b in cut)
+
+
 def main():
     args = sys.argv[1:]
     want = None
@@ -96,7 +118,8 @@ def main():
         hashes = h.get("hashes", b"")
         if hashes or "start_rng" in h:
             loads = " ".join(f"{f}:{r:08x}" for f, r in zip(h["load_frames"], h["load_rngs"]))
-            print(f"  state_hashes={len(hashes) // 4} start_rng={h.get('start_rng', 0):08x} loads={loads}")
+            print(f"  state_hashes={len(hashes) // 4} start_rng={h.get('start_rng', 0):08x} loads={loads} "
+                  f"play_starts={h['play_start_frames']} game_ends={h['game_end_frames']}")
         if hashes and len(hashes) != frames * 4:
             fails.append(f"{path}: state_hashes {len(hashes)} bytes != {frames}*4")
         if want is not None and frames != want:
@@ -114,16 +137,26 @@ def main():
             print(f"{path} vs {p0}: {n} common frames, {len(diff)} differ{' first ' + str(diff[0]) if diff else ''}")
             if diff:
                 fails.append(f"{path} vs {p0}: {len(diff)} of {n} frames differ, first {diff[0]}")
-            # state hashes and load frames + RNG B are the same on every machine (RNG A is not)
+            # state hashes and load frames + RNG B are the same on every machine (RNG A is not), outside the cut
+            cut = cuts(h, h0)
+            if cut:
+                print(f"{path} vs {p0}: not judged (game end -> next play start): {cut}")
             hs, hs0 = h.get("hashes", b""), h0.get("hashes", b"")
             if hs and hs0:
-                hd = [f for f in range(min(len(hs), len(hs0)) // 4) if hs[f * 4:f * 4 + 4] != hs0[f * 4:f * 4 + 4]]
-                print(f"{path} vs {p0}: state hashes {len(hd)} differ{' first ' + str(hd[0]) if hd else ''}")
+                # as pwcheck: from the play start (the scene steps before it follow local load timing)
+                start = max(x["play_start_frames"][0] for x in (h, h0)) if h["play_start_frames"] and h0["play_start_frames"] else 0
+                hd = [f for f in range(min(len(hs), len(hs0)) // 4) if hs[f * 4:f * 4 + 4] != hs0[f * 4:f * 4 + 4] and not cut_at(cut, f)]
+                pre = [f for f in hd if f < start]
+                hd = [f for f in hd if f >= start]
+                print(f"{path} vs {p0}: state hashes {len(hd)} differ{' first ' + str(hd[0]) if hd else ''} from play start {start}"
+                      f"; before it {len(pre)} differ (not judged){' first ' + str(pre[0]) if pre else ''}")
                 if hd:
                     fails.append(f"{path} vs {p0}: state hashes differ from frame {hd[0]} ({len(hd)} frames)")
+            ld = [(f, r & 0xffff) for f, r in zip(h["load_frames"], h["load_rngs"]) if not cut_at(cut, f)]
+            ld0 = [(f, r & 0xffff) for f, r in zip(h0["load_frames"], h0["load_rngs"]) if not cut_at(cut, f)]
             lf, lf0 = h["load_frames"], h0["load_frames"]
-            k = min(len(lf), len(lf0))
-            if lf[:k] != lf0[:k] or [r & 0xffff for r in h["load_rngs"][:k]] != [r & 0xffff for r in h0["load_rngs"][:k]]:
+            k = min(len(ld), len(ld0))
+            if ld[:k] != ld0[:k]:
                 fails.append(f"{path} vs {p0}: load frames / RNG B differ: {lf} {lf0}")
             if h.get("battle_code") != h0.get("battle_code"):
                 fails.append(f"{path}: battle_code {h.get('battle_code')} != {h0.get('battle_code')}")

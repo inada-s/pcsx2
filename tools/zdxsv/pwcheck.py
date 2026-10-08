@@ -9,7 +9,11 @@ machine-local fields)
 or live battle load) to its next `B` line; for traces of several battles in one process (m4z BATTLES, LIVE_NEXT).
 Without it a multi-battle trace mixes the battles (same frame numbers, last line wins).
 Per player p and for the RNG: frames where the values differ, first differing frame and the runs of differing
-frames, counted from the play start; `pre-play` = differing frames before it. Judged: players + `rng` (RNG B).
+frames, counted from the play start; `pre-play` = differing frames not judged (before it, or after a game end).
+Judged: players + `rng` (RNG B).
+Game end = per play start the last tick state 6 -> 7 (`L` lines) before the next play start; from the earliest trace's
+game end to the next play start nothing is judged: the peers enter it on different frames (the end phase waits on
+the HLE'd battle socket; x/y/z, RNG B and the applied inputs are equal up to there).
 Play start = the first `PS` trace line (play-start barrier frame, equal on all peers); in traces without
 one (older builds) the first frame the tick state 0xc627b4 (`L` lines, last column) leaves 8 =
 battle load end; the latest over the traces. All frames if a trace has neither.
@@ -24,7 +28,7 @@ import sys
 
 
 def load(path, battle):
-    h, ps, load_end, tick = {}, None, None, None
+    h, pss, ends, load_end, tick = {}, [], [], None, None
     on, seen = battle is None, False
     for line in open(path, encoding="utf-8", errors="replace"):
         f = line.split()
@@ -37,13 +41,17 @@ def load(path, battle):
             if len(f) != 8:
                 sys.exit("%s: H line without the rng column (pcsx2 before the coordinate + RNG check): %s" % (path, line.strip()))
             h[int(f[2])] = f[3:8]
-        elif len(f) >= 3 and f[1] == "PS" and ps is None:
-            ps = int(f[2])
+        elif len(f) >= 3 and f[1] in ("PS", "PSr") and int(f[2]) not in pss:
+            pss.append(int(f[2]))
+            ends.append(None)
         elif len(f) == 7 and f[1] == "L":
             if tick == "8" and f[6] != "8" and load_end is None:
                 load_end = int(f[2])
+            if tick == "6" and f[6] == "7" and pss:
+                ends[-1] = int(f[2])  # the last one before the next play start = the game end
             tick = f[6]
-    return h, ps if ps is not None else load_end, "play start" if ps is not None else "load end"
+    ps = pss[0] if pss else None
+    return h, ps if ps is not None else load_end, "play start" if ps is not None else "load end", pss, [e for e in ends if e is not None]
 
 
 args = [a for a in sys.argv[1:] if a != "--own"]
@@ -52,24 +60,34 @@ if args[:1] == ["--battle"]:
     battle, args = args[1], args[2:]
 paths = args
 loaded = [load(p, battle) for p in paths]
-for p, (t, _, _) in zip(paths, loaded):
+for p, (t, *_) in zip(paths, loaded):
     if battle is not None and not t:
         sys.exit("%s: no H lines after a `B %s` line" % (p, battle))
-ts = [t for t, _, _ in loaded]
-for p, (t, ps, how) in zip(paths, loaded):
-    print(p, "frames", len(t), min(t) if t else None, max(t) if t else None, how, ps)
+ts = [t for t, *_ in loaded]
+for p, (t, ps, how, starts, ends) in zip(paths, loaded):
+    print(p, "frames", len(t), min(t) if t else None, max(t) if t else None, how, ps, "play starts", starts, "game ends", ends)
 common = sorted(set.intersection(*(set(t) for t in ts)))
 print("common frames", len(common))
-pss = [ps for _, ps, _ in loaded]
+pss = [ps for _, ps, *_ in loaded]
 start = max(pss) if None not in pss else 0
-print("judged from frame %d (%s), %d frames" % (start, "/".join(sorted({how for _, _, how in loaded})) if start
-                                                  else "no PS or load end: all frames",
-                                                  sum(1 for f in common if f >= start)))
+# from a game end (the earliest trace's) to the next play start: the peers enter the game end on different frames
+starts = sorted({s for *_, ss, _ in loaded for s in ss})
+cut = []
+for e in sorted({e for *_, es in loaded for e in es}):
+    to = next((s for s in starts if s > e), max(common, default=e) + 1)
+    if cut and e < cut[-1][1]:
+        cut[-1][1] = max(cut[-1][1], to)
+    else:
+        cut.append([e, to])
+judged = [f for f in common if f >= start and not any(a <= f < b for a, b in cut)]
+print("judged from frame %d (%s), %d frames; not judged (game end -> next play start) %s" % (
+    start, "/".join(sorted({how for _, _, how, *_ in loaded})) if start else "no PS or load end: all frames", len(judged), cut))
+judged = set(judged)
 cols = [("player %d" % k, lambda h, k=k: h[k]) for k in range(4)]
 cols += [("rng", lambda h: h[4][-4:]), ("rng_a", lambda h: h[4][:-4])]
 for name, val in cols:
     diff = [f for f in common if len({val(t[f]) for t in ts}) > 1]
-    bad = [f for f in diff if f >= start]
+    bad = [f for f in diff if f in judged]
     runs = []
     for f in bad:
         if runs and f == runs[-1][1] + 1:
