@@ -134,6 +134,7 @@ set(pcsx2Sources
 	Zdxsv/Overlays.cpp
 	Zdxsv/DeltaFreeze.cpp
 	Zdxsv/Ggpo.cpp
+	Zdxsv/SpectateSync.cpp
 	Zdxsv/RecHooks.cpp
 	Zdxsv/RecProbe.cpp
 	VU0micro.cpp
@@ -212,6 +213,7 @@ set(pcsx2Headers
 	Zdxsv/DeltaState.h
 	Zdxsv/DeltaFreeze.h
 	Zdxsv/Ggpo.h
+	Zdxsv/SpectateSync.h
 	Zdxsv/RecHooks.h
 	Zdxsv/CpuHooks.h
 	Zdxsv/InputHooks.h

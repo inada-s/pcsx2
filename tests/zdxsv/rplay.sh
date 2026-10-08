@@ -11,6 +11,9 @@
 # view (Home) and key display (End), round jump (Shift+PageUp / Shift+PageDown) in the instance ini. With PCSX2_ENV=ZDXSV_REPLAY_EXIT=0 the replay pauses at its end; Space then ends it (H lines written).
 # FILE="a;b" (point of view) refuses unless a and b each PASSed alone on this exe ($RUN/rplay-ledger.txt); POV_UNTESTED=1 skips.
 # SKIP_MS=1: skip MS selection (pcsx2's default; off here so KEYS seconds keep their frames).
+# FOUR=1 (FILE="a;b..."): four-screen, the first file's position in pN, one spawned guest per other file's; each
+# guest's trace (trace-play-povP.txt) is pwchecked too, and the host's `spread` lines with all members live must stay
+# <= SPREAD (default 4) frames. With PCSX2_ENV=ZDXSV_REPLAY_SYNC=0 (control: no waiting) the spread check FAILs.
 # Control bar: KEYS="15:bar:show,w600,bar:timeline:0.7,shot:$OUT/a.png" (pcsx2ctl.ps1 mouse tokens).
 here=$(cd "$(dirname "$0")" && pwd -W)
 . "$here/riglock.sh"  # one rig at a time
@@ -19,7 +22,7 @@ FILE=${FILE:?FILE=replay .pb}
 N=${N:-1}
 STATE=${STATE:-${RBKSTATES:?set STATE or RBKSTATES}/rbk-p1.p2s}
 mkdir -p "$OUT"
-trap 'powershell -NoProfile -Command "Get-Process pcsx2* -EA 0 | Stop-Process -Force"; cp "$RUN/p$N/PCSX2/logs/emulog.txt" "$OUT/emulog-play.txt" 2>/dev/null; rig_release' EXIT
+trap 'powershell -NoProfile -Command "Get-Process pcsx2* -EA 0 | Stop-Process -Force"; cp "$RUN/p$N/PCSX2/logs/emulog.txt" "$OUT/emulog-play.txt" 2>/dev/null; cp "$RUN/p$N"/PCSX2/logs/emulog-pov*.txt "$OUT/" 2>/dev/null; rig_release' EXIT
 # the recording's clamp (a play without it differs from the live battle at the first clamped frame)
 rec=$(dirname "$FILE")
 cl=$( { for f in "$@"; do ls "$(dirname "$f")"/emulog-p*.txt; done; ls "$rec"/emulog-p*.txt "$rec"/../emulog-p*.txt; } 2>/dev/null \
@@ -45,7 +48,7 @@ if [[ $FILE == *\;* ]] && [ "${POV_UNTESTED:-0}" != 1 ]; then
   done
 fi
 t0=$SECONDS
-rm -f "$RUN/p$N/PCSX2/logs/emulog.txt" "$OUT/trace-play.txt"
+rm -f "$RUN/p$N/PCSX2/logs/emulog.txt" "$OUT/trace-play.txt" "$RUN/p$N"/PCSX2/logs/emulog-pov*.txt "$OUT"/trace-play-pov*.txt
 ini=$RUN/p$N/PCSX2/inis/PCSX2.ini
 if [ -n "$KEYS" ]; then
   [ "$WINDOW" = 1 ] || { echo "FAIL KEYS needs WINDOW=1"; exit 1; }
@@ -61,7 +64,7 @@ if [ -n "$KEYS" ]; then
   done
 fi
 env ZDXSV_REPLAY="$FILE" ZDXSV_REPLAY_EXIT=1 $([ "$WINDOW" = 1 ] || echo ZDXSV_REPLAY_TURBO=1) ${CLAMP:+ZDXSV_EE_CLAMP=$CLAMP} \
-  ZDXSV_PW_HASH=1 ZDXSV_NET_TRACE="$OUT/trace-play.txt" ZDXSV_REPLAY_SKIP_MS=${SKIP_MS:-0} $PCSX2_ENV \
+  $([ "${FOUR:-0}" = 1 ] && echo ZDXSV_REPLAY_FOUR=1)   ZDXSV_PW_HASH=1 ZDXSV_NET_TRACE="$OUT/trace-play.txt" ZDXSV_REPLAY_SKIP_MS=${SKIP_MS:-0} $PCSX2_ENV \
   powershell -NoProfile -Command "& '$here/launch.ps1' -N $N $([ "$WINDOW" = 1 ] || echo -Headless) -StateFile $STATE" 2>&1 | tail -1
 l=$RUN/p$N/PCSX2/logs/emulog.txt
 # start check: the replay header line within 30 s, else stop
@@ -93,6 +96,27 @@ $PY "$TOOLS/pwcheck.py" $([ "${OWN-1}" = 1 ] && echo --own) "$OUT/trace-play.txt
 grep '^common\|^player\|^rng' "$OUT/pwcheck.txt" | cut -c1-160
 awk -v n=${PLAYERS:-2} '$1=="player" && $2+0 < n {s += $4} $1=="rng:" {s += $3} $1=="common" {c = $3} END {exit !(c > 0 && s == 0)}' "$OUT/pwcheck.txt" \
   || { echo "FAIL coordinates (players < ${PLAYERS:-2}) or RNG differ, or no frames"; ok=1; }
+if [ "${FOUR:-0}" = 1 ]; then
+  IFS=';' read -ra parts <<< "$FILE"
+  cp "$RUN/p$N"/PCSX2/logs/emulog-pov*.txt "$OUT/" 2>/dev/null
+  nt=0
+  for t in "$OUT"/trace-play-pov*.txt; do
+    [ -f "$t" ] || continue
+    nt=$((nt + 1)); p=${t##*-pov}; p=${p%.txt}
+    gl="$OUT/emulog-pov$p.txt"
+    grep -a "ZdxsvGgpo: replay \(end\|four-screen: the host\|four-screen: frame [0-9]*, [0-9]* behind\)" "$gl" | head -5 | cut -c1-160
+    grep -a -q "ZdxsvGgpo: replay end" "$gl" || { echo "FAIL pov $p: no replay end in $gl"; ok=1; }
+    $PY "$TOOLS/pwcheck.py" $([ "${OWN-1}" = 1 ] && echo --own) "$t" "$@" > "$OUT/pwcheck-pov$p.txt"
+    grep '^common\|^player\|^rng' "$OUT/pwcheck-pov$p.txt" | sed "s/^/pov $p: /" | cut -c1-160
+    awk -v n=${PLAYERS:-2} '$1=="player" && $2+0 < n {s += $4} $1=="rng:" {s += $3} $1=="common" {c = $3} END {exit !(c > 0 && s == 0)}' "$OUT/pwcheck-pov$p.txt" \
+      || { echo "FAIL pov $p: coordinates or RNG differ, or no frames"; ok=1; }
+  done
+  [ $nt = $((${#parts[@]} - 1)) ] || { echo "FAIL $nt guest traces for ${#parts[@]} files"; ok=1; }
+  # host's spread lines while all members are live
+  grep -a "four-screen: frame [0-9]*, ${#parts[@]} members" "$l" | awk -v max=${SPREAD:-4} '{n++; match($0, /spread -?[0-9]+/); s = substr($0, RSTART + 7, RLENGTH - 7) + 0; if (s > m) m = s} END {
+    printf "spread: %d lines with all members, max %d frames\n", n, m; exit !(n >= 10 && m <= max)}' \
+    || { echo "FAIL spread over ${SPREAD:-4} frames or under 10 samples"; ok=1; }
+fi
 echo "rplay $(basename "$FILE"): $((SECONDS - t0)) s, $([ $ok = 0 ] && echo PASS || echo FAIL)"
 [[ $FILE == *\;* ]] || echo "$([ $ok = 0 ] && echo PASS || echo FAIL) $(fid "$FILE") $FILE $(date +%F.%T)" >> "$ledger"
 exit $ok
