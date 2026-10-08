@@ -47,6 +47,10 @@ with a peer without GGPO is cut, as a connection failure (`docs/zdxsv/lobby.md`)
 - An uploaded replay plays from the lobby's public API (as gdxsv lbsapi):
   `ZDXSV_REPLAY=http://<lobby api>/lbs/replay?battle_code=<code>`, or straight from a `.pb` URL.
 - Playback with seek, point of view switch, a control bar, key display, a skip of the mobile suit selection, and a round jump.
+- Takeover (as gdxsv): the bar's "Take over" button or the hotkey "Zdxsv Replay: Take Over / Retry" plays the shown
+  position from the current frame with the host pad (input delay = `mindelay`, default 2). Hold the replay's input
+  shown in the panel for 1 s, or press START to skip the matching. START while taken over retries from that frame,
+  and the bar's "Replay" button goes back to the replay. Not while spectating live.
 - Live spectating: the lobby picks one GGPO player per battle to stream it over UDP (lobby `live_uplink=1`);
   `ZDXSV_REPLAY=udp://<lobby host>:8201[/battle code]` watches it (`docs/zdxsv/replay.md`).
   Setting `[DEV9/Eth] ZdxsvLiveAutoNext` (off; Settings → Network & HDD) moves on to the next live battle when one ends.

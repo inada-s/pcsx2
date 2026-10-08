@@ -1985,10 +1985,12 @@ namespace Zdxsv
 			return in;
 		}
 
-		bool NetNextInputs()
+		// Own input of frame s_net_frame (live: GGPO adds the delay; replay takeover: PlayFrame): pad 0 undelayed to
+		// the game, its (A, B) + the own kind-3 msgs due since the last input.
+		NetInput NetPack(const Input& pad)
 		{
 			NetInput in = s_net_local;
-			in.pad = s_rand_env ? RandInput() : HostInput();
+			in.pad = pad;
 			s_rings.zd_pad[s_net_frame & 127] = in.pad;
 			u16 ab[2];
 			ZdPadAB(in.pad, ab[0], ab[1]);
@@ -2022,6 +2024,12 @@ namespace Zdxsv
 				std::memcpy(in.data, data.data(), data.size());
 			}
 			s_net_local = in;
+			return in;
+		}
+
+		bool NetNextInputs()
+		{
+			NetInput in = NetPack(s_rand_env ? RandInput() : HostInput());
 			GGPOErrorCode rc = ggpo_add_local_input(s_session, s_handles[s_net_me], &in, sizeof(in));
 			if (rc == GGPO_ERRORCODE_PREDICTION_THRESHOLD)
 			{
@@ -2275,21 +2283,19 @@ namespace Zdxsv
 		}
 
 		// At the start of frame f, before its inputs (the point of the frame 0 state).
-		void PlayKeySave(int f)
+		// The state before frame f runs, zipped to `name` in the cache folder on a thread.
+		std::unique_ptr<PlayKey> PlayKeyMake(int f, const std::string& name)
 		{
-			if (s_play_key_every <= 0 || f % s_play_key_every != 0 || s_play_keys[s_net_me].contains(f))
-				return;
-			Common::Timer timer;
 			Error error;
 			std::unique_ptr<ArchiveEntryList> list = SaveState_DownloadState(&error);
 			if (!list)
 			{
 				Console.Error("ZdxsvGgpo: replay key %d: state download failed: %s", f, error.GetDescription().c_str());
-				return;
+				return nullptr;
 			}
 			auto key = std::make_unique<PlayKey>();
 			PlayKey* k = key.get();
-			k->path = Path::Combine(EmuFolders::Cache, fmt::format("zdxsv-replay-key-p{}-{}.p2s", s_net_me, f));
+			k->path = Path::Combine(EmuFolders::Cache, name);
 			k->rb = s_rb;
 			k->rings = s_rings;
 			k->zip = std::thread([list = std::move(list), k]() mutable {
@@ -2298,6 +2304,17 @@ namespace Zdxsv
 				if (!k->ok)
 					Console.Error("ZdxsvGgpo: replay key: state zip failed: %s", error.GetDescription().c_str());
 			});
+			return key;
+		}
+
+		void PlayKeySave(int f)
+		{
+			if (s_play_key_every <= 0 || f % s_play_key_every != 0 || s_play_keys[s_net_me].contains(f))
+				return;
+			Common::Timer timer;
+			std::unique_ptr<PlayKey> key = PlayKeyMake(f, fmt::format("zdxsv-replay-key-p{}-{}.p2s", s_net_me, f));
+			if (!key)
+				return;
 			s_play_keys[s_net_me].emplace(f, std::move(key));
 			Console.WriteLn("ZdxsvGgpo: replay key %d (download %.1f ms)", f, timer.GetTimeMilliseconds());
 		}
@@ -2420,8 +2437,181 @@ namespace Zdxsv
 				PlayRunEnd(s_run_load == 1 ? "briefing" : "start", f);
 		}
 
+		// Takeover (as flycast's GdxsvBackendReplay): from frame T the own position plays the host pad, packed as in a
+		// live battle (NetPack) with an input delay of mindelay= frames; the other positions keep the file's inputs
+		// (past its end: no buttons, no new msgs). The first `delay` own inputs are the file's (added before T). It
+		// starts paused at T: the host pad must hold the replay's own input at T, then keep it for 1 s (START skips
+		// the matching). START while taken over = retry from T. Keys and battle loads stay the replay's.
+		// ZDXSV_REPLAY_TAKEOVER=frame[:replay|:rand] (tests): take over at `frame` with no matching; `replay` = the host
+		// pad is the file's own input `delay` frames ahead (plays the replay unchanged), `rand` = random buttons.
+		// ZDXSV_REPLAY_TAKEOVER_RETRY=frame: retry at that frame.
+		enum : int { TO_OFF, TO_ALIGN, TO_COUNT, TO_ON };
+		enum : int { TO_REQ_NONE, TO_REQ_TAKE, TO_REQ_START, TO_REQ_RETRY, TO_REQ_RETURN, TO_REQ_CANCEL };
+		std::atomic<int> s_to_phase{TO_OFF};
+		std::atomic<int> s_to_req{TO_REQ_NONE};
+		std::atomic<u16> s_to_target{0}; // own B of the file at T
+		int s_to_frame = -1; // T
+		int s_to_delay = 0;
+		std::unique_ptr<PlayKey> s_to_key; // the state before T
+		std::vector<std::vector<u8>> s_to_sent; // own sends before T
+		std::vector<int> s_to_sent_at;
+		std::deque<NetOut> s_to_out; // own kind-3 msgs before T not in the file's own inputs up to T + delay - 1
+		NetInput s_to_local; // the file's own input at T + delay - 1
+		std::deque<NetInput> s_to_queue; // packed own inputs, `delay` frames ahead
+		bool s_to_skip = false, s_to_start_held = false;
+		Common::Timer::Value s_to_count_t0 = 0;
+		const char* const s_to_test = std::getenv("ZDXSV_REPLAY_TAKEOVER");
+		int s_to_test_at = s_to_test ? std::atoi(s_to_test) : -1;
+		const char s_to_test_src = [] {
+			const char* c = s_to_test ? std::strchr(s_to_test, ':') : nullptr;
+			const std::string_view src = c ? c + 1 : "";
+			return src == "replay" ? 'r' : src == "rand" ? 'n' : '\0';
+		}();
+		int s_to_test_retry = [] {
+			const char* e = std::getenv("ZDXSV_REPLAY_TAKEOVER_RETRY");
+			return e ? std::atoi(e) : -1;
+		}();
+		std::mt19937 s_to_rng{1};
+
+		const NetInput& PlayRow(int f, int p) { return s_play_inputs[static_cast<size_t>(f) * s_players + p]; }
+
+		u16 PlayOwnB(int f)
+		{
+			if (f < 0 || f >= s_play_frames)
+				return 0;
+			u16 ab[2];
+			std::memcpy(ab, &PlayRow(f, s_net_me).pad, sizeof(ab));
+			return ab[1];
+		}
+
+		Input TakeoverPad(int f)
+		{
+			if (s_to_test_src == 'r')
+				return PadFromB(PlayOwnB(f + s_to_delay));
+			if (s_to_test_src == 'n')
+			{
+				static Input in = PadFromB(0);
+				if (f % 5 == 0)
+				{
+					using I = PadDualshock2::Inputs;
+					in.buttons = static_cast<u16>(s_to_rng() & s_to_rng() & ~((1u << I::PAD_START) | (1u << I::PAD_SELECT)));
+				}
+				return in;
+			}
+			return HostInput();
+		}
+
+		// At T = the next frame (the running state = before T): keeps the state and the own sent msgs.
+		bool TakeoverBegin(int t)
+		{
+			s_to_delay = s_min_delay;
+			if (t < 1 || t + s_to_delay > s_play_frames)
+			{
+				Console.Error("ZdxsvGgpo: replay takeover at frame %d: not within the replay (%d frames)", t, s_play_frames);
+				return false;
+			}
+			s_to_key = PlayKeyMake(t, fmt::format("zdxsv-replay-takeover-p{}.p2s", s_net_me));
+			if (!s_to_key)
+				return false;
+			const size_t pos = std::min(s_rb.net_pos, s_net_sent.size());
+			s_to_sent.assign(s_net_sent.begin(), s_net_sent.begin() + pos);
+			s_to_sent_at.assign(s_net_sent_at.begin(), s_net_sent_at.begin() + pos);
+			// the own msg bytes of the file's inputs up to T + delay - 1 = the oldest kind-3 sends, in order
+			size_t bytes = 0;
+			u8 seq = 0;
+			for (int f = 0; f < t + s_to_delay; f++)
+			{
+				const NetInput& in = PlayRow(f, s_net_me);
+				if (in.seq != seq)
+					bytes += in.len;
+				seq = in.seq;
+			}
+			s_to_out.clear();
+			for (size_t i = 0; i < pos; i++)
+			{
+				const std::vector<u8>& m = s_to_sent[i];
+				if (m.size() < 2 || (m[1] >> 4) != 3)
+					continue;
+				if (s_to_out.empty() && (m.size() > sizeof(NetInput::data) || m.size() <= bytes))
+				{
+					if (m.size() <= sizeof(NetInput::data))
+						bytes -= m.size();
+					continue;
+				}
+				s_to_out.push_back({s_to_sent_at[i], i, m});
+			}
+			s_to_local = PlayRow(t + s_to_delay - 1, s_net_me);
+			s_to_frame = t;
+			s_to_target = PlayOwnB(t);
+			Console.WriteLn("ZdxsvGgpo: replay takeover at frame %d, delay %d, own sends %zu, kind-3 not in an input %zu%s", t,
+				s_to_delay, pos, s_to_out.size(), bytes ? " (msg bytes of the file left over)" : "");
+			return true;
+		}
+
+		// Back to the state before T with the own sent msgs of then. Returns T, or -1.
+		int TakeoverLoad()
+		{
+			PlayKey& k = *s_to_key;
+			if (k.zip.joinable())
+				k.zip.join();
+			Error error;
+			if (!k.ok || !VMManager::LoadState(k.path.c_str(), &error))
+			{
+				Console.Error("ZdxsvGgpo: replay takeover: state load failed: %s", error.GetDescription().c_str());
+				return -1;
+			}
+			PlayKeyApply(k);
+			s_net_sent = s_to_sent;
+			s_net_sent_at = s_to_sent_at;
+			s_net_out.clear();
+			s_to_start_held = true; // a START held now retries on its release + press only
+			return s_to_frame;
+		}
+
+		void TakeoverStart()
+		{
+			s_net_sent = s_to_sent;
+			s_net_sent_at = s_to_sent_at;
+			s_net_out = s_to_out;
+			s_net_local = s_to_local;
+			s_to_queue.clear();
+			for (int i = 0; i < s_to_delay; i++)
+				s_to_queue.push_back(PlayRow(s_to_frame + i, s_net_me));
+			s_to_phase = TO_ON;
+			Console.WriteLn("ZdxsvGgpo: replay takeover starts at frame %d, vsync %u", s_to_frame, g_FrameCount);
+		}
+
+		void TakeoverOff(const char* why)
+		{
+			s_to_phase = TO_OFF;
+			s_to_queue.clear();
+			s_to_key.reset();
+			Console.WriteLn("ZdxsvGgpo: replay takeover %s at frame %d, vsync %u", why, s_net_frame, g_FrameCount);
+		}
+
+		void PlayFrameTakeover(int f)
+		{
+			s_net_frame = f;
+			PlayBarPublish();
+			NetSaved(f);
+			NetInput in[GGPO_MAX_PLAYERS];
+			std::memcpy(in, &PlayRow(std::min(f, s_play_frames - 1), 0), sizeof(NetInput) * s_players);
+			if (f >= s_play_frames)
+				for (int p = 0; p < s_players; p++)
+					std::memset(&in[p].pad, 0, sizeof(u16) * 2); // (A, B); seq unchanged = no new msgs
+			s_to_queue.push_back(NetPack(TakeoverPad(f)));
+			in[s_net_me] = s_to_queue.front();
+			s_to_queue.pop_front();
+			NetApply(in);
+		}
+
 		void PlayFrame(int f)
 		{
+			if (s_to_phase == TO_ON)
+			{
+				PlayFrameTakeover(f);
+				return;
+			}
 			PlayTrackLoads(f);
 			if (f == s_play_target)
 			{
@@ -2961,6 +3151,82 @@ namespace Zdxsv
 			return s_net_frame + 1;
 		}
 
+		// Takeover requests at the frame end before `next` runs (may set it). Returns true: pause after it.
+		bool PlayTakeover(int& next)
+		{
+			int req = s_to_req.exchange(TO_REQ_NONE);
+			if (next == s_to_test_at)
+				s_to_test_at = -1, req = TO_REQ_TAKE;
+			if (next == s_to_test_retry && s_to_phase == TO_ON)
+				s_to_test_retry = -1, req = TO_REQ_RETRY;
+			if (s_to_phase == TO_ON && !s_to_test)
+			{
+				const bool start = s_host[PadDualshock2::Inputs::PAD_START] >= 0.5f;
+				if (start && !s_to_start_held)
+					req = TO_REQ_RETRY;
+				s_to_start_held = start;
+			}
+			const int phase = s_to_phase;
+			const bool aligning = phase == TO_ALIGN || phase == TO_COUNT;
+			const auto align = [] {
+				s_to_phase = TO_ALIGN;
+				s_to_skip = false;
+				s_to_start_held = s_host[PadDualshock2::Inputs::PAD_START] >= 0.5f; // skip needs a new press
+				Console.WriteLn("ZdxsvGgpo: replay takeover: hold the replay's input %04x at frame %d", s_to_target.load(), s_to_frame);
+			};
+			const auto load = [&next] {
+				const int t = TakeoverLoad();
+				if (t < 0)
+					TakeoverOff("failed");
+				else
+					next = t;
+				return t >= 0;
+			};
+			if (req == TO_REQ_TAKE && phase == TO_OFF)
+			{
+				if (s_live_down)
+					Console.Error("ZdxsvGgpo: replay takeover: not while spectating live");
+				else if (TakeoverBegin(next))
+				{
+					PlayRunEnd("cancelled by a takeover", s_net_frame);
+					if (!s_to_test)
+					{
+						align();
+						return true;
+					}
+					TakeoverStart(); // the running state is the one before T
+				}
+			}
+			else if (req == TO_REQ_START && aligning)
+			{
+				if (load())
+					TakeoverStart();
+			}
+			else if (req == TO_REQ_RETRY && phase == TO_ON)
+			{
+				Console.WriteLn("ZdxsvGgpo: replay takeover: retry at frame %d", s_net_frame);
+				if (load())
+				{
+					if (s_to_test)
+						TakeoverStart();
+					else
+					{
+						align();
+						return true;
+					}
+				}
+			}
+			else if (req == TO_REQ_RETURN && phase != TO_OFF)
+			{
+				const bool ok = load();
+				TakeoverOff("back to the replay");
+				return ok;
+			}
+			else if (req == TO_REQ_CANCEL && aligning)
+				TakeoverOff("cancelled");
+			return false;
+		}
+
 		void PlayNext()
 		{
 			s_session_frames++;
@@ -2979,6 +3245,13 @@ namespace Zdxsv
 			{
 				s_play_round_req = s_play_round_at.front().second;
 				s_play_round_at.pop_front();
+			}
+			const bool pause = PlayTakeover(next);
+			if (s_to_phase != TO_OFF) // no seek, round jump or point of view switch
+			{
+				s_play_req = INT_MIN;
+				s_play_pov_req = -1;
+				s_play_round_req = INT_MIN;
 			}
 			int req = s_play_req.exchange(INT_MIN);
 			const int pov = s_play_pov_req.exchange(-1);
@@ -3016,11 +3289,14 @@ namespace Zdxsv
 				LiveNext(next);
 			if (next >= s_play_frames)
 				PlayRunEnd("replay ended first", s_net_frame);
-			if (next < s_play_frames)
+			const char* exit_env = std::getenv("ZDXSV_REPLAY_EXIT");
+			if (next < s_play_frames || (s_to_phase == TO_ON && !(exit_env && exit_env[0] == '1')))
 			{
 				s_play_at_end = false;
 				s_live_wait.reset(); // played on from the end: no move to another battle
 				PlayFrame(next);
+				if (pause)
+					VMManager::SetPaused(true);
 			}
 			else if (s_live_down && !s_play_at_end && LiveAutoNext())
 				s_play_at_end = true;
@@ -3418,8 +3694,91 @@ namespace Zdxsv
 			return;
 		if (s_play_at_end)
 			ReplaySeekTo(0); // play at the end = from the start
+		else if (s_to_phase == TO_ALIGN || s_to_phase == TO_COUNT)
+			ReplayTakeoverCancel();
 		else
 			VMManager::SetPaused(VMManager::GetState() != VMState::Paused);
+	}
+
+	void ReplayTakeover()
+	{
+		if (!s_play_env || s_play_frames <= 0 || !g_ggpo_active)
+			return;
+		if (s_to_phase == TO_OFF || s_to_phase == TO_ON)
+		{
+			s_to_req = s_to_phase == TO_OFF ? TO_REQ_TAKE : TO_REQ_RETRY;
+			if (VMManager::GetState() == VMState::Paused)
+				VMManager::SetPaused(false);
+		}
+	}
+
+	void ReplayTakeoverSkip()
+	{
+		if (s_to_phase != TO_ALIGN && s_to_phase != TO_COUNT)
+			return;
+		s_to_skip = true;
+		s_to_phase = TO_COUNT;
+		s_to_count_t0 = Common::Timer::GetCurrentValue();
+	}
+
+	void ReplayTakeoverCancel()
+	{
+		if (s_to_phase != TO_ALIGN && s_to_phase != TO_COUNT)
+			return;
+		s_to_req = TO_REQ_CANCEL;
+		VMManager::SetPaused(false);
+	}
+
+	void ReplayTakeoverReturn()
+	{
+		if (s_to_phase == TO_OFF)
+			return;
+		s_to_req = TO_REQ_RETURN;
+		VMManager::SetPaused(false);
+	}
+
+	static std::atomic<u16> s_to_current{0};
+	static std::atomic<float> s_to_left{0.0f};
+
+	bool ReplayTakeoverInfo(int& phase, u16& target, u16& current, float& countdown)
+	{
+		if (s_bar_frame < 0)
+			return false;
+		phase = s_to_phase;
+		target = s_to_target;
+		current = s_to_current;
+		countdown = s_to_left;
+		return true;
+	}
+
+	void ReplayTakeoverIdle()
+	{
+		const int phase = s_to_phase;
+		if (phase != TO_ALIGN && phase != TO_COUNT)
+			return;
+		u16 a, b;
+		ZdPadAB(HostInput(), a, b);
+		s_to_current = b;
+		const bool start = s_host[PadDualshock2::Inputs::PAD_START] >= 0.5f;
+		if (start && !s_to_start_held)
+			ReplayTakeoverSkip();
+		s_to_start_held = start;
+		const Common::Timer::Value now = Common::Timer::GetCurrentValue();
+		if (s_to_phase == TO_ALIGN && b == s_to_target)
+		{
+			s_to_phase = TO_COUNT;
+			s_to_count_t0 = now;
+		}
+		else if (s_to_phase == TO_COUNT && !s_to_skip && b != s_to_target)
+			s_to_phase = TO_ALIGN;
+		const double ms = s_to_phase == TO_COUNT ? Common::Timer::ConvertValueToMilliseconds(now - s_to_count_t0) : 0.0;
+		s_to_left = s_to_phase == TO_COUNT ? static_cast<float>(std::max(0.0, 1.0 - ms / 1000.0)) : 1.0f;
+		if (s_to_phase == TO_COUNT && ms >= 1000.0)
+		{
+			Console.WriteLn("ZdxsvGgpo: replay takeover: input %s, starting", s_to_skip ? "matching skipped" : "matched");
+			s_to_req = TO_REQ_START;
+			VMManager::SetPaused(false);
+		}
 	}
 
 	bool ReplayBarInfo(int& frame, int& frames, int& pov, u32& povs, int& target)

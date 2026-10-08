@@ -387,4 +387,9 @@ DEFINE_HOTKEY("ZdxsvReplayNextRound", TRANSLATE_NOOP("Hotkeys", "Zdxsv Replay"),
 		if (!pressed && VMManager::HasValidVM())
 			Zdxsv::ReplayJumpRound(1);
 	})
+DEFINE_HOTKEY("ZdxsvReplayTakeover", TRANSLATE_NOOP("Hotkeys", "Zdxsv Replay"), TRANSLATE_NOOP("Hotkeys", "Take Over / Retry"),
+	[](s32 pressed) {
+		if (!pressed && VMManager::HasValidVM())
+			Zdxsv::ReplayTakeover();
+	})
 END_HOTKEY_LIST()
