@@ -28,6 +28,7 @@ private:
 	struct Request : HTTPDownloader::Request
 	{
 		CURL* handle = nullptr;
+		curl_slist* headers = nullptr;
 	};
 
 	static size_t WriteCallback(char* ptr, size_t size, size_t nmemb, void* userdata);

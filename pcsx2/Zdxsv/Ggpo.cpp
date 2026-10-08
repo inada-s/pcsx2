@@ -25,6 +25,8 @@
 //                local / IPv6 address), so peers reach us through a localhost tools/zdxsv/udprelay.py at P
 //   replay=DIR   net: save the battle to DIR/<battle_code>.pb (frame 0 state + all inputs, ReplayWrite);
 //                lobby=1 saves to <data dir>/replays by default; replay=0 = off
+//   upload=URL   lobby=1: post the saved replay to this uploader (zdxsv infra/uploader) instead of the setting
+//                DEV9/Eth ZdxsvReplayUploadUrl (empty = no upload)
 //   osd=1        net: network status OSD (GgpoOsdLines; 0 = off); its text is also logged every 600 frames
 //   sync=0       no state hashes: checksum 0 (net: always)
 //   start=1500   vsync (counted from boot) the session starts at
@@ -62,6 +64,7 @@
 #include "Zdxsv/MediaHooks.h"
 
 #include "common/FileSystem.h"
+#include "common/HTTPDownloader.h"
 #include "common/Path.h"
 #include "common/Console.h"
 #include "common/Error.h"
@@ -340,6 +343,7 @@ namespace Zdxsv
 		bool s_osd = true; // osd=
 		std::string s_replay_dir; // replay=DIR; without it lobby=1 saves to <data dir>/replays, other net runs none
 		bool s_replay_off = false; // replay=0
+		std::string s_upload_url; // upload=URL (test), else setting DEV9/Eth ZdxsvReplayUploadUrl
 		// network status OSD: user id + name per position (lobby battle info), lines of the last frame
 		std::vector<std::pair<std::string, std::string>> s_lobby_players, s_net_players;
 		std::mutex s_osd_mtx;
@@ -443,6 +447,8 @@ namespace Zdxsv
 					s_bad_session = (n != 0);
 				else if (key == "osd")
 					s_osd = (n != 0);
+				else if (key == "upload")
+					s_upload_url = value;
 				else if (key == "advertise")
 					; // GgpoLobbyAdvertisePort
 				else if (key == "replay")
@@ -966,6 +972,41 @@ namespace Zdxsv
 				s_replay_confirmed = std::max(s_replay_confirmed, confirmed);
 		}
 
+		// As flycast's GdxsvBackendRollback::SaveReplay: every player posts <battle_code>.pb (multipart field "file")
+		// to the uploader, which keeps the first one (409 for the others). Detached: a slow upload blocks neither
+		// the next battle nor the exit.
+		void ReplayUpload(const std::string& name, const std::vector<uint8_t>& pb)
+		{
+			const std::string url = !s_upload_url.empty() ? s_upload_url : Host::GetStringSettingValue("DEV9/Eth", "ZdxsvReplayUploadUrl", "");
+			if (url.empty())
+				return;
+			const std::string boundary = fmt::format("zdxsv{:016x}", XXH64(pb.data(), pb.size(), 0));
+			std::string body = fmt::format("--{}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{}.pb\"\r\n"
+										   "Content-Type: application/octet-stream\r\n\r\n",
+				boundary, name);
+			body.append(reinterpret_cast<const char*>(pb.data()), pb.size());
+			body += fmt::format("\r\n--{}--\r\n", boundary);
+			std::thread([url, body = std::move(body), type = "multipart/form-data; boundary=" + boundary]() mutable {
+				std::unique_ptr<HTTPDownloader> http = HTTPDownloader::Create(Host::GetHTTPUserAgent());
+				if (!http)
+				{
+					Console.Error("ZdxsvGgpo: replay upload: no HTTP client");
+					return;
+				}
+				http->SetTimeout(300.0f);
+				Common::Timer timer;
+				const size_t size = body.size();
+				http->CreatePostRequest(url, std::move(body), [&](s32 status, const std::string&, HTTPDownloader::Request::Data) {
+					if (status == HTTPDownloader::HTTP_STATUS_OK || status == 409)
+						Console.WriteLn("ZdxsvGgpo: replay upload %s: %s, %zu bytes, %.0f ms", url.c_str(),
+							status == 409 ? "already there" : "ok", size, timer.GetTimeMilliseconds());
+					else
+						Console.Error("ZdxsvGgpo: replay upload %s failed: status %d", url.c_str(), status);
+				}, nullptr, std::move(type));
+				http->WaitForAllRequests();
+			}).detach();
+		}
+
 		// <dir>/<battle_code>.pb (without a battle code: rbk-<start_at>-p<position>.pb): a BattleLogFile protobuf,
 		// schema in Zdxsv/replay.proto.
 		void ReplayWrite(const char* what)
@@ -1032,6 +1073,8 @@ namespace Zdxsv
 			}
 			Console.WriteLn("ZdxsvGgpo: replay saved %s frames=%zu state=%zu bytes, file=%zu bytes, %.1f ms", path.c_str(), frames,
 				state->size(), pb.size(), timer.GetTimeMilliseconds());
+			if (!code.empty())
+				ReplayUpload(name, pb);
 		}
 
 		void Stop(const char* what)

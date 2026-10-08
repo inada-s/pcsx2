@@ -54,13 +54,15 @@ void HTTPDownloader::CreateRequest(std::string url, Request::Callback callback, 
 	LockedAddRequest(req);
 }
 
-void HTTPDownloader::CreatePostRequest(std::string url, std::string post_data, Request::Callback callback, ProgressCallback* progress)
+void HTTPDownloader::CreatePostRequest(
+	std::string url, std::string post_data, Request::Callback callback, ProgressCallback* progress, std::string content_type)
 {
 	Request* req = InternalCreateRequest();
 	req->parent = this;
 	req->type = Request::Type::Post;
 	req->url = std::move(url);
 	req->post_data = std::move(post_data);
+	req->post_content_type = std::move(content_type);
 	req->callback = std::move(callback);
 	req->progress = progress;
 	req->start_time = Common::Timer::GetCurrentValue();

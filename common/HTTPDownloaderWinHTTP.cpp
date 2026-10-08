@@ -278,7 +278,9 @@ bool HTTPDownloaderWinHttp::StartRequest(HTTPDownloader::Request* request)
 	BOOL result;
 	if (req->type == HTTPDownloader::Request::Type::Post)
 	{
-		const std::wstring_view additional_headers(L"Content-Type: application/x-www-form-urlencoded\r\n");
+		const std::wstring additional_headers = L"Content-Type: " +
+			(req->post_content_type.empty() ? std::wstring(L"application/x-www-form-urlencoded") :
+											  StringUtil::UTF8StringToWideString(req->post_content_type)) + L"\r\n";
 		result = WinHttpSendRequest(req->hRequest, additional_headers.data(), static_cast<DWORD>(additional_headers.size()),
 			req->post_data.data(), static_cast<DWORD>(req->post_data.size()),
 			static_cast<DWORD>(req->post_data.size()), reinterpret_cast<DWORD_PTR>(req));

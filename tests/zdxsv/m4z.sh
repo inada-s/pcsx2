@@ -15,6 +15,10 @@
 #   the GGPO battle info, ZBIN): the battle runs over GGPO (checks below).
 #   BATTLES=N (CLIENTS="1 3", 1v1): N battles in the same processes (EXIT from 作戦後部屋, Lobby 02 again);
 #   the result and GGPO checks then expect N battle codes and N GGPO battle ends per client.
+#   UPLOAD=1 (GGPO): replay upload as gdxsv. The lobby's ops api on 127.0.0.1:9880 (db migrated first), a local
+#   zdxsv infra/uploader (UPLOADER, default $ZDXSV/bin/uploader.exe) on :8281 storing into OUT/upload, served on
+#   :8282; clients post (ZDXSV_GGPO upload=). Checks per battle code: the stored .pb = one client's saved one,
+#   one client's upload ok + the rest 409, every db record's replay_url = the stored file's url.
 #   GGPO_DEFAULT=K: client K gets no ZDXSV_GGPO (launch.ps1 ZDXSV_GGPO=default), so the ZdxsvGgpo setting
 #   gives its options (port 7001); check: its log names the default options.
 #   BAD_SESSION=K (GDELAY=auto): client K gets badsession=1: every ping test fails,
@@ -63,7 +67,7 @@ cenv() {
   [ -n "${PWTRACE:-}" ] && echo "ZDXSV_PW_HASH=1 ZDXSV_NET_TRACE=$OUT/trace-p$1.txt"
   # GGPO_DEFAULT=K (GGPO, GDELAY=auto): client K has no ZDXSV_GGPO, its GGPO options come from the setting
   [ -n "${GGPO:-}" ] && [ "$1" = "${GGPO_DEFAULT:-}" ] && { echo ZDXSV_GGPO=default; return; }
-  case " ${GGPO_CLIENTS:-$CLIENTS} " in *" $1 "*) [ -n "${GGPO:-}" ] && echo "ZDXSV_GGPO=net=1,lobby=1,port=$((GGPO + $1 - 1))$([ "${GDELAY:-1}" = auto ] || echo ",delay=${GDELAY:-1}")${GMIN:+,mindelay=$GMIN}$([ "$1" = "${BAD_SESSION:-}" ] && echo ,badsession=1)$([ -n "${GGPO_LAT:-}" ] && echo ",advertise=$((7300 + ($1 == 1)))")";; esac  # GDELAY=auto: no delay= (rtt pick, floor GMIN)
+  case " ${GGPO_CLIENTS:-$CLIENTS} " in *" $1 "*) [ -n "${GGPO:-}" ] && echo "ZDXSV_GGPO=net=1,lobby=1,port=$((GGPO + $1 - 1))$([ "${GDELAY:-1}" = auto ] || echo ",delay=${GDELAY:-1}")${GMIN:+,mindelay=$GMIN}${UPLOAD:+,upload=http://127.0.0.1:8281/}$([ "$1" = "${BAD_SESSION:-}" ] && echo ,badsession=1)$([ -n "${GGPO_LAT:-}" ] && echo ",advertise=$((7300 + ($1 == 1)))")";; esac  # GDELAY=auto: no delay= (rtt pick, floor GMIN)
 }
 mkdir -p "$OUT"
 cp "$RUN/zdxsv.db" "$OUT/zdxsv.db" || exit 1
@@ -89,6 +93,14 @@ ZDXSV=$ZDXSV bash "$here/zbincheck.sh" "${ZBIN:-$ZDXSV/bin/zdxsv.exe}" || exit 1
 # -v=2: every lobby frame (entry check below, lobby_trace.py)
 [ -n "${RELAY:-}" ] && export ZDXSV_LOBBY_RELAY_ADDR=:8203
 RELAY_PATH=${RELAY_PATH:-direct}
+if [ -n "${UPLOAD:-}" ]; then
+  [ -n "${GGPO:-}" ] || { echo "FAIL UPLOAD needs GGPO"; exit 1; }
+  export ZDXSV_LOBBY_OPS_ADDR=127.0.0.1:9880 ZDXSV_LOBBY_REPLAY_URL_PREFIX=http://127.0.0.1:8282/replays/
+  ZDXSV_DB_NAME="$OUT/zdxsv.db" "${ZBIN:-$ZDXSV/bin/zdxsv.exe}" migratedb > "$OUT/migratedb.log" 2>&1  # replay_url column
+  FUNCTION_TARGET=FunctionEntryPoint PORT=8281 UPLOADER_LOCAL_DIR="$OUT/upload" UPLOADER_LOCAL_ADDR=127.0.0.1:8282 \
+    UPLOADER_LOCAL_URL=http://127.0.0.1:8282 UPLOADER_LOBBY_URL=http://127.0.0.1:9880/ops/replay_uploaded \
+    "${UPLOADER:-$ZDXSV/bin/uploader.exe}" > "$OUT/uploader.log" 2>&1 & pids+=($!)
+fi
 LOBBY_ARGS=-v=2 RUN="$OUT" bash "$here/stack.sh" "$IP" > "$OUT/stack.out" 2>&1 & pids+=($!)
 if [ -n "${GGPO_LAT:-}" ]; then
   [ "$CLIENTS" = "1 3" ] && [ -n "${GGPO:-}" ] && [ "${GDELAY:-}" = auto ] || { echo "FAIL GGPO_LAT needs CLIENTS=\"1 3\" GGPO GDELAY=auto"; exit 1; }
@@ -236,6 +248,19 @@ if [ -n "${EMU:-}" ] && [ -n "${GGPO:-}" ]; then
     grep -a 'p2p matching report:' "$OUT/lobby.log" | cut -c1-300
     check "no match report without a battle code" "! grep -a -q 'p2p matching report: battle_code=\"\"' '$OUT/lobby.log'"
     check "match report x$ng: battle code $(report_code), result ggpo, net battle end, 0 mismatches" "[ \$(grep -a 'p2p matching report: battle_code=\"$(report_code)\"' '$OUT/lobby.log' | grep 'result=\"ggpo\"' | grep 'close=\"net battle end\"' | grep -c 'mismatches=\"0\"') -eq $ng ]"
+  fi
+  if [ -n "${UPLOAD:-}" ]; then
+    sleep 10  # uploads run detached after the battle end
+    ng=$(echo ${GGPO_CLIENTS:-$CLIENTS} | wc -w)
+    grep -a -h 'replay upload' "$RUN"/p[1-4]/PCSX2/logs/emulog.txt | cut -c1-200
+    for code in $(grep -o 'battle_code:[0-9]*' "$OUT/results.txt" | cut -d: -f2 | sort -u); do
+      pb="$OUT/upload/replays/$code.pb"
+      # each client's file is its own (position, frame 0 state): the first upload is kept
+      same=0; for i in ${GGPO_CLIENTS:-$CLIENTS}; do cmp -s "$pb" "$RUN/p$i/PCSX2/replays/$code.pb" && same=$((same + 1)); done
+      check "$code: stored .pb = exactly one client's saved .pb" "[ $same -eq 1 ]"
+      check "$code: every db record's replay_url = stored url" "[ \"\$('$PY' -I -c 'import sqlite3,sys; print(*sorted(set(r[0] for r in sqlite3.connect(sys.argv[1]).execute(\"select replay_url from battle_record where battle_code=?\", (sys.argv[2],)))), sep=\";\")' '$OUT/zdxsv.db' $code | tr -d '\r')\" = 'http://127.0.0.1:8282/replays/$code.pb' ]"
+    done
+    check "uploads x$((ng * B)): $B ok + $(((ng - 1) * B)) already there, no failure" "[ \$(cat '$RUN'/p[1-4]/PCSX2/logs/emulog.txt | grep -a -c 'replay upload.*: ok') -eq $B ] && [ \$(cat '$RUN'/p[1-4]/PCSX2/logs/emulog.txt | grep -a -c 'replay upload.*: already there') -eq $(((ng - 1) * B)) ] && ! cat '$RUN'/p[1-4]/PCSX2/logs/emulog.txt | grep -a -q 'replay upload.*failed'"
   fi
   if [ -n "${OSD:-}" ]; then
     for i in ${GGPO_CLIENTS:-$CLIENTS}; do

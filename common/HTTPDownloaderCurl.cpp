@@ -177,6 +177,13 @@ bool HTTPDownloaderCurl::StartRequest(HTTPDownloader::Request* request)
 	{
 		curl_easy_setopt(req->handle, CURLOPT_POST, 1L);
 		curl_easy_setopt(req->handle, CURLOPT_POSTFIELDS, request->post_data.c_str());
+		// The body may be binary (a multipart file): its length, not strlen.
+		curl_easy_setopt(req->handle, CURLOPT_POSTFIELDSIZE_LARGE, static_cast<curl_off_t>(request->post_data.size()));
+		if (!request->post_content_type.empty())
+		{
+			req->headers = curl_slist_append(nullptr, ("Content-Type: " + request->post_content_type).c_str());
+			curl_easy_setopt(req->handle, CURLOPT_HTTPHEADER, req->headers);
+		}
 	}
 
 	DevCon.WriteLn(fmt::format("Started HTTP request for '{}'", req->url));
@@ -189,6 +196,7 @@ bool HTTPDownloaderCurl::StartRequest(HTTPDownloader::Request* request)
 		Console.Error(fmt::format("curl_multi_add_handle() returned {}", static_cast<int>(err)));
 		req->callback(HTTP_STATUS_ERROR, std::string(), req->data);
 		curl_easy_cleanup(req->handle);
+		curl_slist_free_all(req->headers);
 		delete req;
 		return false;
 	}
@@ -202,5 +210,6 @@ void HTTPDownloaderCurl::CloseRequest(HTTPDownloader::Request* request)
 	pxAssert(req->handle);
 	curl_multi_remove_handle(m_multi_handle, req->handle);
 	curl_easy_cleanup(req->handle);
+	curl_slist_free_all(req->headers);
 	delete req;
 }
