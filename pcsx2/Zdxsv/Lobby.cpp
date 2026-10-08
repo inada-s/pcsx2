@@ -1606,7 +1606,7 @@ namespace Zdxsv
 		return m->code;
 	}
 
-	std::string LiveDown::Newest(const std::string& hostPort, int timeoutMs)
+	std::string LiveDown::Newest(const std::string& hostPort, const std::vector<std::string>& skip, int timeoutMs)
 	{
 		sockaddr_in to{};
 		sock_t s;
@@ -1615,6 +1615,8 @@ namespace Zdxsv
 		// a subscribe without a cookie only gets the challenge, which names the battle
 		std::vector<uint8_t> m;
 		Pb::PutString(m, 1, std::string());
+		for (const std::string& code : skip)
+			Pb::PutString(m, 5, code);
 		LiveSend(s, to, LIVE_SUBSCRIBE, m);
 		std::string code;
 		std::vector<uint8_t> buf;

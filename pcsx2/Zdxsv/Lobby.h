@@ -120,9 +120,10 @@ namespace Zdxsv
 		// Subscribes and waits up to timeoutMs for the header and a frame (or the close).
 		static std::unique_ptr<LiveDown> Open(const std::string& url, int timeoutMs, std::string& error);
 		std::string Code();
-		// The battle code a subscribe without one gets at hostPort (the newest live battle, running ones
-		// first); "" = none or no answer in timeoutMs.
-		static std::string Newest(const std::string& hostPort, int timeoutMs);
+		// The battle code a subscribe without one gets at hostPort: with skip empty the newest live battle
+		// (running ones first), else the newest running one not in skip (auto-next); "" = none or no answer
+		// in timeoutMs. A lobby older than skip answers as if it were empty.
+		static std::string Newest(const std::string& hostPort, const std::vector<std::string>& skip, int timeoutMs);
 		// Moves the frames received since the last call into s.inputs (with the header on the
 		// first call), sets s.closed / s.close; false = nothing from the lobby for stallMs.
 		bool Take(LiveStreams& s, int stallMs);
