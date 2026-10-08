@@ -25,9 +25,12 @@ A protobuf `BattleLogFile`, schema in
 numbers of gdxsv's replay file (inada-s/gdxsv `gdxsv/proto/gdxsv.proto`) and
 adds the fields a PCSX2 replay needs from 40 on.
 
-A gdxsv replay plays from the game's boot. A PCSX2 replay starts from the
-save state of one battle position at GGPO frame 0 instead, so one file plays
-the point of view of the player who saved it.
+A gdxsv replay starts from a common save state of the game sitting in the
+lobby before any battle (flycast slot 99, one per disc, shared by every
+replay); the recorded battle messages then play the battle start. A PCSX2
+replay starts from the save state of one battle position at GGPO frame 0
+instead (`start_state`), so one file plays the point of view of the player
+who saved it.
 
 | Field | Meaning |
 |---|---|
