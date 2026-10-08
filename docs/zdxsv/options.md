@@ -84,7 +84,7 @@ off. Any other value turns it on. Without `net=1` the session is a synctest. Log
 | `mindelay=N` | 2 | tuning | Lower bound of the picked delay. |
 | `lobby=1` | off | feature | Battles come from the zdxsv lobby. See [lobby.md](lobby.md). |
 | `osd=0` | 1 | feature | Hide the network status OSD. |
-| `replay=DIR` | see meaning | feature | Save every battle to `DIR`. Lobby battles save to `<data dir>/replays` without it. `replay=0` turns saving off. |
+| `replay=DIR` | see meaning | feature | Save every battle to `DIR`. Lobby battles save to `<data dir>/replays` without it. `replay=0` turns saving off (upload and live streaming still run). |
 | `badsession=1` | off | control | The ping test of this client uses another session id, so no peer answers it and every client cuts the battle connection. |
 | `advertise=P` | off | test | The platform info announces only `127.0.0.1:P`, so peers reach this client through a local `udprelay.py` at P that adds latency. |
 
@@ -115,7 +115,7 @@ See [replay.md](replay.md).
 | `ZDXSV_REPLAY=udp://host:port[/code]` | off | feature | Watch a lobby battle live through the lobby (its UDP port; no code = the newest live battle). See `replay.md` Live spectating. |
 | `ZDXSV_REPLAY_POV=P` | position of the first file | feature | Start from the point of view of position P. |
 | `ZDXSV_REPLAY_COMMON=1` | off (on for a file without `start_state`) | feature | Play the battle start from the file's lobby answers on a post-entry save state instead of the file's frame 0 state. One file. See `replay.md` Playing. |
-| `ZDXSV_REPLAY_STATE=url\|path` | setting `[DEV9/Eth] ZdxsvReplayStateUrl` (empty = the booted state) | feature | The post-entry state of a common start; a URL is downloaded once into the cache folder. |
+| `ZDXSV_REPLAY_STATE=url\|path` | setting `[DEV9/Eth] ZdxsvReplayStateUrl` (default the hosted rbk-p1.p2s; empty = the booted state) | feature | The post-entry state of a common start; a URL is downloaded once into the cache folder. |
 | `ZDXSV_REPLAY_BAR=1` / `=0` | automatic | feature | Always show the control bar, or never. |
 | `ZDXSV_REPLAY_KEY_DISPLAY=1` | off | feature | Start with the key display on. |
 | `ZDXSV_REPLAY_SKIP_MS=0` | on | feature | Do not skip the mobile suit selection. |

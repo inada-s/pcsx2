@@ -15,6 +15,7 @@
 #   the GGPO battle info, ZBIN): the battle runs over GGPO (checks below).
 #   BATTLES=N (CLIENTS="1 3", 1v1): N battles in the same processes (EXIT from 作戦後部屋, Lobby 02 again);
 #   the result and GGPO checks then expect N battle codes and N GGPO battle ends per client.
+#   GOPT=opts (GGPO): appended to every ZDXSV_GGPO (e.g. GOPT=replay=0: saving off; live streams anyway).
 #   UPLOAD=1 (GGPO): replay upload as gdxsv. The lobby's ops api on 127.0.0.1:9880 (db migrated first), a local
 #   zdxsv infra/uploader (UPLOADER, default $ZDXSV/bin/uploader.exe) on :8281 storing into OUT/upload, served on
 #   :8282; clients post (ZDXSV_GGPO upload=). Checks per battle code: the stored .pb = one client's saved one,
@@ -78,7 +79,7 @@ cenv() {
   [ -n "${PWTRACE:-}" ] && echo "ZDXSV_PW_HASH=1 ZDXSV_NET_TRACE=$OUT/trace-p$1.txt"
   # GGPO_DEFAULT=K (GGPO, GDELAY=auto): client K has no ZDXSV_GGPO, its GGPO options come from the setting
   [ -n "${GGPO:-}" ] && [ "$1" = "${GGPO_DEFAULT:-}" ] && { echo ZDXSV_GGPO=default; return; }
-  case " ${GGPO_CLIENTS:-$CLIENTS} " in *" $1 "*) [ -n "${GGPO:-}" ] && echo "ZDXSV_GGPO=net=1,lobby=1,port=$((GGPO + $1 - 1))$([ "${GDELAY:-1}" = auto ] || echo ",delay=${GDELAY:-1}")${GMIN:+,mindelay=$GMIN}${UPLOAD:+,upload=http://127.0.0.1:8281/}$([ "$1" = "${BAD_SESSION:-}" ] && echo ,badsession=1)$([ -n "${GGPO_LAT:-}" ] && echo ",advertise=$((7300 + ($1 == 1)))")";; esac  # GDELAY=auto: no delay= (rtt pick, floor GMIN)
+  case " ${GGPO_CLIENTS:-$CLIENTS} " in *" $1 "*) [ -n "${GGPO:-}" ] && echo "ZDXSV_GGPO=net=1,lobby=1,port=$((GGPO + $1 - 1))$([ "${GDELAY:-1}" = auto ] || echo ",delay=${GDELAY:-1}")${GMIN:+,mindelay=$GMIN}${UPLOAD:+,upload=http://127.0.0.1:8281/}${GOPT:+,$GOPT}$([ "$1" = "${BAD_SESSION:-}" ] && echo ,badsession=1)$([ -n "${GGPO_LAT:-}" ] && echo ",advertise=$((7300 + ($1 == 1)))")";; esac  # GDELAY=auto: no delay= (rtt pick, floor GMIN)
 }
 mkdir -p "$OUT"
 cp "$RUN/zdxsv.db" "$OUT/zdxsv.db" || exit 1
@@ -368,6 +369,8 @@ if [ -n "${LIVE:-}" ]; then
     n=$((n + 1)); sf=$(echo $sfs | cut -d' ' -f$n)
     up=$(for i in $CLIENTS; do grep -a -q "live: uplink $code to" "$RUN/p$i/PCSX2/logs/emulog.txt" && echo $i; done)
     fr=$([ -n "$up" ] && grep -a -o "replays.$code.pb frames=[0-9]*" "$RUN/p$up/PCSX2/logs/emulog.txt" | tail -1 | sed 's/.*frames=//')
+    # saving off (GOPT=replay=0): the count the uplink says the lobby acked
+    [ -z "$fr" ] && [ -n "$up" ] && fr=$(grep -a -o "live: uplink $code closed: [0-9]*" "$RUN/p$up/PCSX2/logs/emulog.txt" | tail -1 | sed 's/.* //')
     echo "$code: uplink p${up:-none} saved frames ${fr:-none}, spectator closed at ${sf:-none}"
     check "$code: one client was the live uplink" "[ \$(echo $up | wc -w) = 1 ]"
     check "$code: spectator stream closed at the uplink's saved frame count" "[ -n '$sf' ] && [ '$fr' = '$sf' ]"
