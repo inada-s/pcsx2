@@ -199,13 +199,13 @@ namespace Zdxsv
 		constexpr u32 PW_MASK[] = {0x274, 0x2b4, 0x1e64, 0x1e74, 0x1e84, 0x1e94, 0x214c};
 		// Viewer-team bits: equal on the machines of one side, set for the
 		// other side's players: +0x68 0x300 (119 frames mid-battle), and from time-up on +0x58 0x100,
-		// +0x9c 0x10000, +0x2068 bit 0, +0x2004 (pointer); +0x2074 0x100 on the time-up frame. No other field follows them.
+		// +0x9c 0x10000, +0x2068 bit 0, +0x2004 (pointer); +0x2074 0x101 on the time-up frame. No other field follows them.
 		// +0x9c 0x100000 (an in-play bit, equal in sync): cleared at time-up on the other side, ~67 frames later on the own.
 		// +0x2088 byte (struct +0x130): effect flag, set each frame by 0xe0a1b4, cleared by the MS-kind handler
 		// (0x2a7560 cases 4/6) of the model update 0x1e4340, run for the own player + players in view only.
 		// Own player only: u16 +0xcc set on the own machine, 0 on others;
 		// u16 +0x92 follows u16 +0x90 (gauge 4000, equal on all) on the own machine, stays 4000 on others.
-		constexpr std::pair<u32, u32> PW_MASK_BITS[] = {{0x58, 0x100}, {0x68, 0x300}, {0x9c, 0x110000}, {0x2004, ~0u}, {0x2068, 1}, {0x2074, 0x100}, {0x2088, 0xff},
+		constexpr std::pair<u32, u32> PW_MASK_BITS[] = {{0x58, 0x100}, {0x68, 0x300}, {0x9c, 0x110000}, {0x2004, ~0u}, {0x2068, 1}, {0x2074, 0x101}, {0x2088, 0xff},
 			{0xcc, 0xffff}, {0x90, 0xffff0000}};
 		std::map<int, std::array<u64, 5>> s_pw;
 		// XXH3 of player p's work with the fields above masked (synctest hash=pw).
