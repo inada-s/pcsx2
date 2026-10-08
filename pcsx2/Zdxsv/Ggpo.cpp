@@ -1938,6 +1938,11 @@ namespace Zdxsv
 				return false;
 			}
 			const int local_port = s_lobby ? s_port : s_port + s_net_me;
+			if (s_net_trace) // battle start marker (pwcheck.py --battle): BATTLES=N lobby battles in one process
+			{
+				const std::string code = IdValue(ReplayIds(), "battle_code");
+				std::fprintf(s_net_trace, "%u B %s\n", g_FrameCount, code.empty() ? "-" : code.c_str());
+			}
 			if (ggpo_start_session(&s_session, &cb, "zdxsv", s_players, sizeof(NetInput), static_cast<unsigned short>(local_port), nullptr, 0) != GGPO_OK)
 			{
 				s_session = nullptr;
@@ -2702,15 +2707,20 @@ namespace Zdxsv
 			NetApply(in);
 		}
 
+		void PlayReport(const char* what)
+		{
+			Console.WriteLn("ZdxsvGgpo: replay %s at frame %d of %d, vsync %u", what, s_net_frame, s_play_frames, g_FrameCount);
+			Console.WriteLn("ZdxsvGgpo: replay state check: hashes %d checked, %d differ (first at frame %d); rngs %d checked, %d differ",
+				s_play_hash_checks, s_play_hash_bad, s_play_hash_first_bad, s_play_rng_checks, s_play_rng_bad);
+			NetReport();
+		}
+
 		void PlayStop(const char* what)
 		{
 			g_ggpo_active = false;
 			s_bar_frame = -1;
 			s_net_over = true; // the battle sock goes back to the IOP
-			Console.WriteLn("ZdxsvGgpo: replay %s at frame %d of %d, vsync %u", what, s_net_frame, s_play_frames, g_FrameCount);
-			Console.WriteLn("ZdxsvGgpo: replay state check: hashes %d checked, %d differ (first at frame %d); rngs %d checked, %d differ",
-				s_play_hash_checks, s_play_hash_bad, s_play_hash_first_bad, s_play_rng_checks, s_play_rng_bad);
-			NetReport();
+			PlayReport(what);
 			if (const char* e = std::getenv("ZDXSV_REPLAY_EXIT"); e && e[0] == '1')
 				Host::RunOnCPUThread([] { Host::RequestVMShutdown(false, false, false); });
 			else if (!s_play_at_end)
@@ -3400,6 +3410,8 @@ namespace Zdxsv
 							"%zu lobby answers, state hashes %s, rngs %zu", path.c_str(), me, s_players, frames,
 				rb.net_rx.size(), s_play_answers.size(), r.hashes.empty() ? "no" : "yes",
 				(r.start_rng ? 1 : 0) + std::min(r.load_frames.size(), r.load_rngs.size()));
+			if (s_net_trace) // battle start marker: pwcheck.py --battle splits a multi-battle trace (live auto-next)
+				std::fprintf(s_net_trace, "%u B %s\n", g_FrameCount, r.code.empty() ? "-" : r.code.c_str());
 			return static_cast<int>(me);
 		}
 
@@ -3777,7 +3789,10 @@ namespace Zdxsv
 					VMManager::SetPaused(true);
 			}
 			else if (s_live_down && !s_play_at_end && LiveAutoNext())
+			{
 				s_play_at_end = true;
+				PlayReport("done, auto-next"); // the next battle's VM reset drops this one's stats and pw hashes
+			}
 			else if (const char* e = std::getenv("ZDXSV_REPLAY_EXIT"); s_play_at_end || (e && e[0] == '1'))
 				PlayStop("end");
 			else

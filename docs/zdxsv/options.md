@@ -176,7 +176,7 @@ game pad read, RAM change, present. Log lines start with `ZdxsvLatency`.
 
 | Option | Use | Meaning |
 |---|---|---|
-| `ZDXSV_NET_TRACE=file` | diagnostic | Per-frame trace of the battle socket and the inputs. Read by `tools/zdxsv/zdcheck.py`, `tools/zdxsv/recvcheck.py`. |
+| `ZDXSV_NET_TRACE=file` | diagnostic | Per-frame trace of the battle socket and the inputs; a `B <battle_code>` line at each GGPO session start and replay load. Read by `tools/zdxsv/zdcheck.py`, `tools/zdxsv/recvcheck.py`, `tools/zdxsv/pwcheck.py`. |
 | `ZDXSV_PW_HASH=1` | diagnostic | The sync check: per frame, a hash of each player's x, y, z and the 2 game RNG words, written to the net trace. `pwcheck.py` compares the coordinates and RNG B (`0x6d793c`); RNG A (`0x6d7940`) also takes machine-local sound draws, so it is only reported. |
 | `ZDXSV_PW_DUMP=file` | diagnostic | Work RAM of the players for every saved frame. Read by `pwdiff.py`. |
 | `ZDXSV_RAM_DUMP=dir,start,step,count` | diagnostic | EE RAM (32 MB) to `dir/<frame>.bin`. Read by `tools/zdxsv/ramcount.py`, `tools/zdxsv/ramvals.py`. |

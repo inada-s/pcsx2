@@ -30,7 +30,7 @@
 #   .pb frame count, the lobby logged the close with that count; with PWTRACE=1 its player work + rng = the
 #   players' (pwcheck).
 #   LIVE_NEXT=K (with BATTLES=K+1): the spectator moves on to the next battle K times (ZDXSV_LIVE_NEXT); the
-#   checks above run per watched battle, plus K+1 different battles watched (pwcheck: the last one).
+#   checks above run per watched battle, plus K+1 different battles watched (pwcheck too: --battle <code>).
 #   GGPO_DEFAULT=K: client K gets no ZDXSV_GGPO (launch.ps1 ZDXSV_GGPO=default), so the ZdxsvGgpo setting
 #   gives its options (port 7001); check: its log names the default options.
 #   BAD_SESSION=K (GDELAY=auto): client K gets badsession=1: every ping test fails,
@@ -302,7 +302,7 @@ if [ -n "${EMU:-}" ] && [ -n "${GGPO:-}" ]; then
       check "$code: API replay_url = stored url" "grep -a -q 'replay_url http://127.0.0.1:8282/replays/$code.pb' '$f'"
       check "$code: API replay played to its end, instance exited" "grep -a -o 'ZdxsvGgpo: replay end at frame [0-9]* of [0-9]*' '$f' | awk '{exit !(\$6 + 1 == \$8)}' && ! tasklist //FI 'PID eq ${pid:-0}' | grep -q ' ${pid:-0} '"
       if [ -n "${PWTRACE:-}" ]; then
-        "$PY" -I "$TOOLS/pwcheck.py" --own "$OUT/trace-api.txt" $(for i in $CLIENTS; do echo "$OUT/trace-p$i.txt"; done) > "$OUT/pwcheck-api.txt"
+        "$PY" -I "$TOOLS/pwcheck.py" --own --battle $code "$OUT/trace-api.txt" $(for i in $CLIENTS; do echo "$OUT/trace-p$i.txt"; done) > "$OUT/pwcheck-api.txt"
         grep '^common\|^judged\|^player\|^rng' "$OUT/pwcheck-api.txt" | cut -c1-160
         check "$code: API replay player work + rng = players' (pwcheck)" "awk -v n=$nc '\$1==\"common\" {c = \$3} (\$1==\"player\" && \$2+0 < n) || \$1==\"rng:\" {s += \$(\$1==\"rng:\" ? 3 : 4)} END {exit !(c > 0 && s == 0)}' '$OUT/pwcheck-api.txt'"
       fi
@@ -376,10 +376,11 @@ if [ -n "${LIVE:-}" ]; then
     check "$code: spectator stream closed at the uplink's saved frame count" "[ -n '$sf' ] && [ '$fr' = '$sf' ]"
     check "$code: lobby closed the live battle with that count" "grep -a -q 'live close $code .* frames $fr\$' '$OUT/lobby.log'"
   done
-  if [ -n "${PWTRACE:-}" ]; then
-    "$PY" -I "$TOOLS/pwcheck.py" --own "$OUT/trace-live.txt" $(for i in $CLIENTS; do echo "$OUT/trace-p$i.txt"; done) > "$OUT/pwcheck-live.txt"
-    grep '^common\|^judged\|^player\|^rng' "$OUT/pwcheck-live.txt" | cut -c1-160
-    check "spectator player work + rng = players' (pwcheck)" "awk -v n=$nc '\$1==\"common\" {c = \$3} (\$1==\"player\" && \$2+0 < n) || \$1==\"rng:\" {s += \$(\$1==\"rng:\" ? 3 : 4)} END {exit !(c > 0 && s == 0)}' '$OUT/pwcheck-live.txt'"
-  fi
+  # per watched battle: the traces' lines from its `B <code>` line (pwcheck-live-<code>.txt)
+  [ -n "${PWTRACE:-}" ] && for code in $codes; do
+    "$PY" -I "$TOOLS/pwcheck.py" --own --battle $code "$OUT/trace-live.txt" $(for i in $CLIENTS; do echo "$OUT/trace-p$i.txt"; done) > "$OUT/pwcheck-live-$code.txt" 2>&1
+    grep '^common\|^judged\|^player\|^rng\|no H lines' "$OUT/pwcheck-live-$code.txt" | cut -c1-160
+    check "$code: spectator player work + rng = players' (pwcheck)" "awk -v n=$nc '\$1==\"common\" {c = \$3} (\$1==\"player\" && \$2+0 < n) || \$1==\"rng:\" {s += \$(\$1==\"rng:\" ? 3 : 4)} END {exit !(c > 0 && s == 0)}' '$OUT/pwcheck-live-$code.txt'"
+  done
 fi
 exit $ok
