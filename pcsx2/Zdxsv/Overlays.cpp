@@ -58,29 +58,42 @@ namespace Zdxsv
 
 		// zdxsv replay key display (ZDXSV_REPLAY_KEY_DISPLAY=1 / hotkey): the shown position's last input changes, newest on top,
 		// each with the frames it was held (capped at 99), as in flycast's gdxsv_key_display. Bits: the B word (ZdPadAB).
+		static constexpr struct { u16 bit; const char* icon; } buttons[] = {
+			{0x0200, ICON_PF_BUTTON_SQUARE}, {0x0100, ICON_PF_BUTTON_TRIANGLE}, {0x0040, ICON_PF_BUTTON_CROSS},
+			{0x0020, ICON_PF_BUTTON_CIRCLE}, {0x0080, ICON_PF_LEFT_SHOULDER_L1}, {0x0010, ICON_PF_RIGHT_SHOULDER_R1},
+			{0x0008, ICON_PF_LEFT_TRIGGER_L2}, {0x0004, ICON_PF_RIGHT_TRIGGER_R2}, {0x0002, ICON_PF_LEFT_ANALOG_CLICK},
+			{0x4000, ICON_PF_SELECT_SHARE}};
+		const char* dir(u16 b)
+		{
+			const bool u = b & 0x2000, d = b & 0x1000, l = b & 0x0800, r = b & 0x0400;
+			if (u && l) return ICON_PF_DPAD_LEFT_UP;
+			if (u && r) return ICON_PF_DPAD_UP_RIGHT;
+			if (d && l) return ICON_PF_DPAD_LEFT_DOWN;
+			if (d && r) return ICON_PF_DPAD_RIGHT_DOWN;
+			if (u) return ICON_PF_DPAD_UP;
+			if (d) return ICON_PF_DPAD_DOWN;
+			if (l) return ICON_PF_DPAD_LEFT;
+			if (r) return ICON_PF_DPAD_RIGHT;
+			return nullptr;
+		}
+
+		// B bits as button icons ("-" = none)
+		std::string BIcons(u16 b)
+		{
+			std::string s;
+			if (const char* d = dir(b))
+				s += d;
+			for (const auto& e : buttons)
+				if (b & e.bit)
+					s += s.empty() ? e.icon : fmt::format(" {}", e.icon);
+			return s.empty() ? "-" : s;
+		}
+
 		void DrawReplayKeys(float scale, float margin)
 		{
 			std::vector<std::pair<u16, int>> runs;
 			if (!Zdxsv::g_ggpo_enabled || FullscreenUI::HasActiveWindow() || !Zdxsv::ReplayKeys(runs) || runs.empty())
 				return;
-
-			static constexpr struct { u16 bit; const char* icon; } buttons[] = {
-				{0x0200, ICON_PF_BUTTON_SQUARE}, {0x0100, ICON_PF_BUTTON_TRIANGLE}, {0x0040, ICON_PF_BUTTON_CROSS},
-				{0x0020, ICON_PF_BUTTON_CIRCLE}, {0x0080, ICON_PF_LEFT_SHOULDER_L1}, {0x0010, ICON_PF_RIGHT_SHOULDER_R1},
-				{0x0008, ICON_PF_LEFT_TRIGGER_L2}, {0x0004, ICON_PF_RIGHT_TRIGGER_R2}, {0x0002, ICON_PF_LEFT_ANALOG_CLICK},
-				{0x4000, ICON_PF_SELECT_SHARE}};
-			const auto dir = [](u16 b) -> const char* {
-				const bool u = b & 0x2000, d = b & 0x1000, l = b & 0x0800, r = b & 0x0400;
-				if (u && l) return ICON_PF_DPAD_LEFT_UP;
-				if (u && r) return ICON_PF_DPAD_UP_RIGHT;
-				if (d && l) return ICON_PF_DPAD_LEFT_DOWN;
-				if (d && r) return ICON_PF_DPAD_RIGHT_DOWN;
-				if (u) return ICON_PF_DPAD_UP;
-				if (d) return ICON_PF_DPAD_DOWN;
-				if (l) return ICON_PF_DPAD_LEFT;
-				if (r) return ICON_PF_DPAD_RIGHT;
-				return nullptr;
-			};
 
 			ImFont* const font = ImGuiManager::GetStandardFont();
 			const float font_size = ImGuiManager::GetFontSizeStandard();
@@ -225,6 +238,21 @@ namespace Zdxsv
 					Console.WriteLn("ZdxsvGgpo: replay bar: round +1 at frame %d", frame);
 					Host::RunOnCPUThread([] { Zdxsv::ReplayJumpRound(1); });
 				}
+				// takeover: take over the own position here; while taken over, retry from its frame or back to the replay
+				int to_phase = 0;
+				u16 to_target, to_current;
+				float to_left;
+				Zdxsv::ReplayTakeoverInfo(to_phase, to_target, to_current, to_left);
+				if (button("##takeover", to_phase == 3 ? ICON_FA_ROTATE_LEFT " Retry" : ICON_FA_GAMEPAD " Take over", to_phase == 0 || to_phase == 3))
+				{
+					Console.WriteLn("ZdxsvGgpo: replay bar: takeover at frame %d", frame);
+					Host::RunOnCPUThread([] { Zdxsv::ReplayTakeover(); });
+				}
+				if (to_phase == 3 && button("##toreplay", ICON_FA_FILM " Replay", true))
+				{
+					Console.WriteLn("ZdxsvGgpo: replay bar: back to the replay at frame %d", frame);
+					Host::RunOnCPUThread([] { Zdxsv::ReplayTakeoverReturn(); });
+				}
 				x += pad;
 				text_at(x, time.c_str(), text_col);
 				// fixed width (the longest time text + a margin), so the timeline does not move as digits change
@@ -296,6 +324,52 @@ namespace Zdxsv
 			ImGui::PopFont();
 			ImGui::PopStyleVar(2);
 		}
+
+		// replay takeover input matching (as flycast's RenderTakeoverAlignment / Countdown): the replay's own input
+		// at the takeover frame and the host pad's, then the 1 s countdown
+		void DrawTakeover(float scale)
+		{
+			int phase;
+			u16 target, current;
+			float left;
+			if (!Zdxsv::g_ggpo_enabled || FullscreenUI::HasActiveWindow() || !Zdxsv::ReplayTakeoverInfo(phase, target, current, left) ||
+				(phase != 1 && phase != 2))
+				return;
+			const float w = ImGuiManager::GetWindowWidth(), h = ImGuiManager::GetWindowHeight();
+			ImGui::PushFont(ImGuiManager::GetStandardFont(), ImGuiManager::GetFontSizeStandard());
+			ImGui::SetNextWindowPos(ImVec2(w * 0.5f, h * 0.35f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+			ImGui::SetNextWindowBgAlpha(0.8f);
+			if (ImGui::Begin("##zdxsv_takeover", nullptr,
+					ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings |
+						ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav))
+			{
+				if (phase == 1)
+				{
+					ImGui::TextUnformatted("Takeover: hold the replay's input");
+					ImGui::Text("Replay: %s", BIcons(target).c_str());
+					ImGui::Text("You:    %s", BIcons(current).c_str());
+				}
+				else
+				{
+					ImGui::TextUnformatted("Takeover starts");
+					ImGui::ProgressBar(1.0f - left, ImVec2(300.0f * scale, 0.0f), "");
+				}
+				if (phase == 1 && ImGui::Button("Skip matching (START)"))
+				{
+					Console.WriteLn("ZdxsvGgpo: takeover panel: skip");
+					Host::RunOnCPUThread([] { Zdxsv::ReplayTakeoverSkip(); });
+				}
+				ImGui::SameLine();
+				if (ImGui::Button("Cancel"))
+				{
+					Console.WriteLn("ZdxsvGgpo: takeover panel: cancel");
+					Host::RunOnCPUThread([] { Zdxsv::ReplayTakeoverCancel(); });
+				}
+				ImGui::TextDisabled("While taken over, START retries from the same frame.");
+			}
+			ImGui::End();
+			ImGui::PopFont();
+		}
 	} // namespace
 
 	void DrawOverlays(float scale, float margin, float spacing)
@@ -303,5 +377,6 @@ namespace Zdxsv
 		DrawGgpoOverlay(scale, margin, spacing);
 		DrawReplayKeys(scale, margin);
 		DrawReplayBar(scale, margin);
+		DrawTakeover(scale);
 	}
 } // namespace Zdxsv
