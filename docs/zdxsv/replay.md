@@ -46,6 +46,10 @@ who saved it.
 | `input_size`, `frames`, `inputs` | the synced inputs of all players: `frames` x `players` x `input_size` bytes, frame-major, by battle position |
 | `start_state` | the save state at GGPO frame 0 (a `.p2s` zip) |
 | `lobby_answers` | the lobby's battle-start answers the game got (0x6911..0x6917: player count, side, players, rule, battle code, battle server), each as received (header + body) |
+| `state_hashes` | optional: per frame (before its inputs) a u32 hash of the 4 players' masked work + RNG B; equal in every position's file of one battle. Playback compares it and logs `replay state hash differs at frame F` (first 10) and, at the end, `replay state check: hashes N checked, M differ` |
+| `start_rng`, `load_frames`, `load_rngs` | optional: the game RNGs (u16 RNG A << 16 \| u16 RNG B) at frame 0 and at each battle load end (load 0 MS select, 1 briefing, 1 + N round N), for round skip; the recorder's position's values (RNG A is per machine). Playback of that position logs `replay rng at frame F` |
+
+A file without the optional fields plays the same, unchecked.
 
 `tests/zdxsv/replay_check.py` reads it without a protobuf library;
 `protoc --decode=zdxsv.BattleLogFile pcsx2/Zdxsv/replay.proto < file.pb` prints it.
@@ -199,6 +203,14 @@ lobby's UDP socket, zdxsv `pkg/lobby/spectator.go`).
   close); more than 300 frames behind it runs unlimited until 90 behind
   (flycast's `gdxsv:LiveBufferFrames` and its catch-up edges). Nothing from the
   lobby for 30 s = stream lost.
+- Speed trim (flycast's frame period trim): between those edges the frame
+  limiter's period is trimmed (-4 to +8 ms per frame, nominal speed only) to
+  hold 30 received frames unplayed, instead of running dry and waiting a whole
+  buffer: the stream's measured frame rate (the players run below 59.94 Hz
+  while GGPO waits) plus a correction on the buffer error. Off while catching
+  up, seeking, taking over, after the close, and after 5 frames with nothing
+  received. No effect with the host-refresh vsync pacing (`Sync to Host
+  Refresh Rate` + `Use Host VSync Timing`). Tests: `ZDXSV_LIVE_PACING=0` = off.
 - Auto-next (flycast's `gdxsv:LiveAutoNext`): with `[DEV9/Eth]
   ZdxsvLiveAutoNext` on (Settings → Network & HDD), at the end of a stream the
   spectator pauses and asks the lobby every 5 s for its newest live battle (a
@@ -209,5 +221,6 @@ lobby's UDP socket, zdxsv `pkg/lobby/spectator.go`).
 
 Log lines: `live: uplink CODE to ADDR`, `ZdxsvGgpo: live: battle CODE, N
 frames so far`, `live: N frames behind at frame F: catching up`, `caught up`,
+`live: pace frame F gap G trim T us rate R hz, N waits T ms` (every 600 frames),
 `live: stream closed (REASON) at frame F, N waits T ms`, `live: auto-next:
 waiting for a new battle at HOST (N watched)`, `moving on to CODE after T s`.

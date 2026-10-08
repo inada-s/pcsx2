@@ -15,6 +15,9 @@ namespace Zdxsv
 	extern bool g_ggpo_in_rollback; // rerunning frames: no throttle
 	// GGPO, a replay or ZDXSV_DELTA_TEST in this VM: the MTVU speedhack stays off (VMManager::LoadCoreSettings)
 	extern bool g_mtvu_off;
+	// live spectating (Ggpo.cpp LivePace, CPU thread): microseconds added to the frame limiter's period at nominal
+	// speed, to hold a distance behind the live edge without whole-frame stalls (flycast gdxsv_frame_period_trim_us)
+	extern s32 g_frame_period_trim_us;
 
 	extern bool g_z_game; // the disc is the Z game: serial SLPS-25419 and its ELF CRC (GgpoOnVmInitialize)
 

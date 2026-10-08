@@ -37,8 +37,18 @@ message BattleLogFile {
   int32 input_size = 47;  // bytes per player per frame (Ggpo.cpp NetInput)
   int32 frames = 48;  // GGPO-confirmed frames
   bytes inputs = 49;  // frames * players * input_size: frame-major, by position
-  bytes start_state = 50;  // the PCSX2 save state (.p2s, a zip) at GGPO frame 0
+  bytes start_state = 50;  // older files only: the PCSX2 save state (.p2s, a zip) at GGPO frame 0
   // The lobby's battle-start answers 0x6911..0x6917 as the game got them (whole frames: 12-byte header + body).
   // Without start_state (or ZDXSV_REPLAY_COMMON=1) the replay plays the start from them on any post-entry state.
   repeated bytes lobby_answers = 51;
+  // Optional desync checks (a file without them plays the same). Taken at each frame before its inputs apply.
+  // u32 LE per frame: XXH3 of the 4 players' masked work + RNG B (Ggpo.cpp ReplayStateHash). Equal in the files of
+  // all positions of one battle; a replay logs the frames where it differs.
+  bytes state_hashes = 52;
+  // The game RNGs, u16 RNG A (0x6d7940) << 16 | u16 RNG B (0x6d793c), at frame 0 and at each battle load end
+  // (the tick state 0xc627b4 leaves 8: load 0 = MS select, 1 = briefing, 1 + N = round N start), for round skip.
+  // RNG A takes machine-local draws: these values are the recorder's position's.
+  optional uint32 start_rng = 53;
+  repeated int32 load_frames = 54;
+  repeated uint32 load_rngs = 55;
 }
