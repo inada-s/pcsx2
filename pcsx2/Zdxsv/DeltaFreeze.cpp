@@ -185,13 +185,13 @@ static bool DeltaFreezeAll(SaveStateBase& s, Error* error)
 	s.CommitBlock(voices_size);
 
 	// Not in full states: set when the IOP must run at the next EE event test (pending IOP
-	// interrupt, IOP counter). Left stale, the IOP takes an interrupt at another point (#31).
+	// interrupt, IOP counter). Left stale, the IOP takes an interrupt at another point.
 	mark("iopEventAction");
 	s.Freeze(iopEventAction);
 
 	// The IOP's SMAP driver state is in IOP RAM: without DEV9, a rollback across an SMAP TX
 	// leaves DEV9's TX descriptor index one ahead of the driver's, and after the battle the
-	// IOP spins on "BD_TX was not ready" (ai-automation#54, about 1 battle in 3 at 100 ms).
+	// IOP spins on "BD_TX was not ready" (about 1 battle in 3 at 100 ms).
 	// Frames received since the loaded save are received again (Zdxsv::DeltaStateLoad).
 	mark("DEV9");
 	if (Zdxsv::SaveStateDev9Enabled() && !DeltaFreezeWrapper(s, &DEV9DeltaDoState))

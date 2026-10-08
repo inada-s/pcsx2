@@ -136,7 +136,7 @@ namespace Zdxsv
 			static const char* const s_env = std::getenv("ZDXSV_REPLAY_BAR");
 			static float s_idle = 0.0f;
 			static ImVec2 s_prev_mouse(-1.0f, -1.0f);
-			static std::string s_layout; // logged when it changes: test drivers (zdxsv pcsx2ctl.ps1 bar:) click from it
+			static std::string s_layout; // logged when it changes: test drivers (tests/zdxsv/pcsx2ctl.ps1 bar:) click from it
 			std::string layout;
 			int frame, frames, pov, target;
 			u32 povs;

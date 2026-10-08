@@ -286,7 +286,7 @@ namespace Zdxsv
 		int s_net_me = -1; // local battle position
 		std::vector<std::vector<u8>> s_net_sent; // every msg the game sent since armed, in order
 		// ZDXSV_K3_LAG (default 8): a msg sent at GGPO frame s goes into the local input of frame s + lag. A send
-		// first seen in a rollback rerun (s645 r1: K3 #4 released in a rerun, the reply sent there) used to go
+		// first seen in a rollback rerun (K3 #4 released in a rerun, the reply sent there) used to go
 		// into the next forward frame's input, so the handshake frame depended on input arrival timing. With
 		// lag > GGPO's 6 prediction frames, frame s is final when s + lag is added. 0 = the old behaviour.
 		const int s_k3_lag = [] {
