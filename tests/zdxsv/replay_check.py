@@ -6,7 +6,8 @@ Per file: the fields, input bytes = frames * players * input_size.
 Several files of one battle (one per peer): same players / frames (+-tail), and the inputs of every
 common frame byte-identical (all peers log the same synced inputs); state_hashes, load_frames and RNG B
 (load_rngs & 0xffff) equal where both files have them, except from a game end (the earliest file's) to the next
-play start: peers enter the game end on different frames (play_start_frames, game_end_frames; not a desync).
+play start, and from a round end to the tick's next 6: peers enter the game end and the round load on different
+frames (play_start_frames, game_end_frames, round_end_frames; not a desync).
 State hashes are judged from the play start, as pwcheck.py (earlier differing frames are printed).
 --frames N: frames must be N.
 Exit 1 on any failure.
@@ -17,8 +18,8 @@ import sys
 FIELDS = {3: "battle_code", 4: "version", 5: "game_disk", 11: "users", 20: "start_at", 21: "end_at", 24: "close",
           40: "players", 41: "position", 42: "delay", 43: "battle_info", 45: "rx0", 46: "hle0",
           47: "input_size", 48: "frames", 49: "inputs", 51: "lobby_answers", 52: "hashes", 53: "start_rng", 54: "load_frames",
-          55: "load_rngs", 57: "play_start_frames", 58: "game_end_frames"}
-PACKED = ("hle0", "load_frames", "load_rngs", "play_start_frames", "game_end_frames")
+          55: "load_rngs", 57: "play_start_frames", 58: "game_end_frames", 59: "round_end_frames"}
+PACKED = ("hle0", "load_frames", "load_rngs", "play_start_frames", "game_end_frames", "round_end_frames")
 
 
 def varint(b, i):
@@ -82,15 +83,18 @@ FIELDS_USER = {1: "user_id", 2: "user_name", 12: "pos"}
 
 
 def cuts(*hs):
-    """[game end, next play start) over the files: from the earliest file's end (fields 57, 58)."""
+    """[game end, next play start) over the files: from the earliest file's end (fields 57, 58); and
+    [round end, tick 6) (field 59 pairs), to the latest file's tick 6."""
     starts = sorted({s for h in hs for s in h["play_start_frames"]})
+    last = max(h.get("frames", 0) for h in hs)
+    spans = [[e, next((s for s in starts if s > e), last)] for h in hs for e in h["game_end_frames"]]
+    spans += [list(h["round_end_frames"][i:i + 2]) for h in hs for i in range(0, len(h["round_end_frames"]) - 1, 2)]
     out = []
-    for e in sorted({e for h in hs for e in h["game_end_frames"]}):
-        to = next((s for s in starts if s > e), max(h.get("frames", 0) for h in hs))
-        if out and e < out[-1][1]:
-            out[-1][1] = max(out[-1][1], to)
+    for a, b in sorted(spans):
+        if out and a <= out[-1][1]:
+            out[-1][1] = max(out[-1][1], b)
         else:
-            out.append([e, to])
+            out.append([a, b])
     return out
 
 
@@ -119,7 +123,7 @@ def main():
         if hashes or "start_rng" in h:
             loads = " ".join(f"{f}:{r:08x}" for f, r in zip(h["load_frames"], h["load_rngs"]))
             print(f"  state_hashes={len(hashes) // 4} start_rng={h.get('start_rng', 0):08x} loads={loads} "
-                  f"play_starts={h['play_start_frames']} game_ends={h['game_end_frames']}")
+                  f"play_starts={h['play_start_frames']} game_ends={h['game_end_frames']} round_ends={h['round_end_frames']}")
         if hashes and len(hashes) != frames * 4:
             fails.append(f"{path}: state_hashes {len(hashes)} bytes != {frames}*4")
         if want is not None and frames != want:
@@ -140,7 +144,7 @@ def main():
             # state hashes and load frames + RNG B are the same on every machine (RNG A is not), outside the cut
             cut = cuts(h, h0)
             if cut:
-                print(f"{path} vs {p0}: not judged (game end -> next play start): {cut}")
+                print(f"{path} vs {p0}: not judged (round end -> tick 6, game end -> next play start): {cut}")
             hs, hs0 = h.get("hashes", b""), h0.get("hashes", b"")
             if hs and hs0:
                 # as pwcheck: from the play start (the scene steps before it follow local load timing)
