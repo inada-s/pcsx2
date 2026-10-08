@@ -2782,7 +2782,10 @@ void VMManager::IdlePollUpdate()
 	int frame, frames, pov, target;
 	u32 povs;
 	if (GetState() == VMState::Paused && Zdxsv::ReplayBarInfo(frame, frames, pov, povs, target))
+	{
+		Zdxsv::ReplayTakeoverIdle();
 		MTGS::PresentCurrentFrame();
+	}
 }
 
 void VMManager::SetPaused(bool paused)

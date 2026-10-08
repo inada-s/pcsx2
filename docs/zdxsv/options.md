@@ -124,6 +124,8 @@ See [replay.md](replay.md).
 | `ZDXSV_REPLAY_SEEK=at:to[,at:to...]` | off | test | Seek to frame `to` when frame `at` is reached. |
 | `ZDXSV_REPLAY_POV_AT=frame:P[,...]` | off | test | Switch to position P when that frame is reached. |
 | `ZDXSV_REPLAY_ROUND_AT=frame:N[,...]` | off | test | Jump to round N (0 = the briefing) when that frame is reached. |
+| `ZDXSV_REPLAY_TAKEOVER=frame[:src]` | off | test | Take over at that frame with no input matching. No src: the host pad plays; `replay` = the file's own input `delay` frames ahead (the replay must play unchanged); `rand` = random buttons (a control: differs from the replay soon after the frame). |
+| `ZDXSV_REPLAY_TAKEOVER_RETRY=frame` | off | test | While taken over, retry from the takeover frame when that frame is reached. |
 | `ZDXSV_REPLAY_KEY_NOHLE=1` | off | control | Seek keys restore no battle-socket state. The replay then drifts. |
 
 ## Delta state self-test

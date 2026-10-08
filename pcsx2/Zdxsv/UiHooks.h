@@ -25,6 +25,17 @@ namespace Zdxsv
 	void ReplayToggleKeys();
 	// Replay play: jump to the start of the round `delta` rounds from the current one (round 0 = the briefing).
 	void ReplayJumpRound(int delta);
+	// Replay play: take over the own position from the current frame (hotkey "Take Over"; while taken over:
+	// retry from that frame, as START), skip the input matching, cancel it, or go back to the replay.
+	void ReplayTakeover();
+	void ReplayTakeoverSkip();
+	void ReplayTakeoverCancel();
+	void ReplayTakeoverReturn();
+	// Takeover state for the overlay (GS thread): phase 0 off, 1 matching, 2 countdown, 3 taken over; target /
+	// current = (B) bits of the replay's input at the frame / of the host pad. False when no replay plays.
+	bool ReplayTakeoverInfo(int& phase, u16& target, u16& current, float& countdown);
+	// Paused replay (VMManager idle, CPU thread): the takeover's input matching and countdown.
+	void ReplayTakeoverIdle();
 
 	// GGPO network status, replay keys and replay control bar (ImGuiManager::RenderOverlays). GS thread.
 	void DrawOverlays(float scale, float margin, float spacing);
