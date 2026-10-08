@@ -9,9 +9,9 @@
 # WINDOW=1: windowed, 1x (no turbo). KEYS="secs:seq;..." (needs WINDOW=1): pcsx2ctl.ps1 -Seq at secs after the
 # replay started; binds the seek hotkeys (PageUp back / PageDown forward 10 s), TogglePause (Space), point of
 # view (Home) and key display (End), round jump (Shift+PageUp / Shift+PageDown) in the instance ini. With PCSX2_ENV=ZDXSV_REPLAY_EXIT=0 the replay pauses at its end; Space then ends it (H lines written).
-# FILE="a;b" (point of view) refuses unless a and b each PASSed alone on this exe ($RUN/rplay-ledger.txt); POV_UNTESTED=1 skips.
+# POV=p: plays position p's point of view (ZDXSV_REPLAY_POV; default the recorder's): the lobby answers name it.
 # SKIP_MS=1: skip MS selection (pcsx2's default; off here so KEYS seconds keep their frames).
-# FOUR=1 (FILE="a;b..."): four-screen, the first file's position in pN, one spawned guest per other file's; each
+# FOUR=1: four-screen, the point of view in pN, one spawned guest per other position (PLAYERS); each
 # guest's trace (trace-play-povP.txt) is pwchecked too, and the host's `spread` lines with all members live must stay
 # <= SPREAD (default 4) frames. With PCSX2_ENV=ZDXSV_REPLAY_SYNC=0 (control: no waiting) the spread check FAILs.
 # Control bar: KEYS="15:bar:show,w600,bar:timeline:0.7,shot:$OUT/a.png" (pcsx2ctl.ps1 mouse tokens).
@@ -34,19 +34,6 @@ elif [ -n "$cl" ]; then
   elif [ "$CLAMP" != "$cl" ] && [ "$CLAMP" != none ]; then echo "FAIL CLAMP=$CLAMP but the recording ran with clamp=$cl"; exit 1; fi
 fi
 [ "$CLAMP" = none ] && CLAMP=
-# FILE="a;b" (point of view) needs each file's own single-file run to have PASSed on this exe (ledger below):
-# a switch run on a file never played alone fails exactly like that file alone, and shows nothing new.
-# POV_UNTESTED=1 runs anyway.
-ledger=$RUN/rplay-ledger.txt
-exe=${PCSX2_EXE:-$here/../../bin/pcsx2-qtx64.exe}
-fid() { echo "$(sha1sum < "$1" | cut -c1-16).$(stat -c %s.%Y "$exe")"; }
-if [[ $FILE == *\;* ]] && [ "${POV_UNTESTED:-0}" != 1 ]; then
-  IFS=';' read -ra parts <<< "$FILE"
-  for f in "${parts[@]}"; do
-    r=$(grep -a " $(fid "$f") " "$ledger" 2>/dev/null | tail -1 | cut -d' ' -f1)
-    [ "$r" = PASS ] || { echo "FAIL $f: last single-file rplay on this exe: ${r:-none}; run FILE=$f alone first (POV_UNTESTED=1 skips)"; exit 1; }
-  done
-fi
 t0=$SECONDS
 rm -f "$RUN/p$N/PCSX2/logs/emulog.txt" "$OUT/trace-play.txt" "$RUN/p$N"/PCSX2/logs/emulog-pov*.txt "$OUT"/trace-play-pov*.txt
 ini=$RUN/p$N/PCSX2/inis/PCSX2.ini
@@ -63,14 +50,14 @@ if [ -n "$KEYS" ]; then
       || { cat "$OUT/keycheck.txt"; echo "FAIL KEYS step '$k' before launch"; exit 1; }
   done
 fi
-env ZDXSV_REPLAY="$FILE" ZDXSV_REPLAY_EXIT=1 $([ "$WINDOW" = 1 ] || echo ZDXSV_REPLAY_TURBO=1) ${CLAMP:+ZDXSV_EE_CLAMP=$CLAMP} \
+env ZDXSV_REPLAY="$FILE" ${POV:+ZDXSV_REPLAY_POV=$POV} ZDXSV_REPLAY_EXIT=1 $([ "$WINDOW" = 1 ] || echo ZDXSV_REPLAY_TURBO=1) ${CLAMP:+ZDXSV_EE_CLAMP=$CLAMP} \
   $([ "${FOUR:-0}" = 1 ] && echo ZDXSV_REPLAY_FOUR=1)   ZDXSV_PW_HASH=1 ZDXSV_NET_TRACE="$OUT/trace-play.txt" ZDXSV_REPLAY_SKIP_MS=${SKIP_MS:-0} $PCSX2_ENV \
   powershell -NoProfile -Command "& '$here/launch.ps1' -N $N $([ "$WINDOW" = 1 ] || echo -Headless) -StateFile $STATE" 2>&1 | tail -1
 l=$RUN/p$N/PCSX2/logs/emulog.txt
 # start check: the replay header line within 30 s, else stop
-for t in $(seq 30); do grep -a -q "ZdxsvGgpo: replay .*: \(position\|not a\|bad\)\|replay: state load failed" "$l" 2>/dev/null && break; sleep 1; done
+for t in $(seq 30); do grep -a -q "ZdxsvGgpo: replay .*: \(recorded at position\|not a\|bad\|no lobby answers\)\|replay: state load failed" "$l" 2>/dev/null && break; sleep 1; done
 grep -a "ZdxsvGgpo: replay" "$l" | cut -c1-200
-grep -a -q "ZdxsvGgpo: replay .*: position" "$l" || { echo "FAIL replay did not start"; exit 1; }
+grep -a -q "ZdxsvGgpo: replay .*: recorded at position" "$l" || { echo "FAIL replay did not start"; exit 1; }
 t1=$SECONDS
 IFS=';' read -ra keys <<< "$KEYS"
 while [ $((SECONDS - t0)) -lt "${MAXS:-300}" ]; do
@@ -92,12 +79,13 @@ echo "$((SECONDS - t0)) s: $(tasklist | grep -ci pcsx2) pcsx2 left"
 ok=${ok_keys:-0}
 grep -a "ZdxsvGgpo: \(replay end\|replay:\|replay seek\|net sends\|zd steps\)" "$l" | cut -c1-200
 grep -a -q "ZdxsvGgpo: replay end" "$l" || { echo "FAIL no replay end"; ok=1; }
+# the game's own position at its arm (its first key msg) is the asked point of view
+if [ -n "$POV" ] && ! grep -a -q "net armed at vsync [0-9]*, position $POV\b" "$l"; then echo "FAIL the game did not arm as position $POV"; ok=1; fi
 $PY "$TOOLS/pwcheck.py" $([ "${OWN-1}" = 1 ] && echo --own) "$OUT/trace-play.txt" "$@" > "$OUT/pwcheck.txt"
 grep '^common\|^player\|^rng' "$OUT/pwcheck.txt" | cut -c1-160
 awk -v n=${PLAYERS:-2} '$1=="player" && $2+0 < n {s += $4} $1=="rng:" {s += $3} $1=="common" {c = $3} END {exit !(c > 0 && s == 0)}' "$OUT/pwcheck.txt" \
   || { echo "FAIL coordinates (players < ${PLAYERS:-2}) or RNG differ, or no frames"; ok=1; }
 if [ "${FOUR:-0}" = 1 ]; then
-  IFS=';' read -ra parts <<< "$FILE"
   cp "$RUN/p$N"/PCSX2/logs/emulog-pov*.txt "$OUT/" 2>/dev/null
   nt=0
   for t in "$OUT"/trace-play-pov*.txt; do
@@ -111,12 +99,11 @@ if [ "${FOUR:-0}" = 1 ]; then
     awk -v n=${PLAYERS:-2} '$1=="player" && $2+0 < n {s += $4} $1=="rng:" {s += $3} $1=="common" {c = $3} END {exit !(c > 0 && s == 0)}' "$OUT/pwcheck-pov$p.txt" \
       || { echo "FAIL pov $p: coordinates or RNG differ, or no frames"; ok=1; }
   done
-  [ $nt = $((${#parts[@]} - 1)) ] || { echo "FAIL $nt guest traces for ${#parts[@]} files"; ok=1; }
+  [ $nt = $((${PLAYERS:-2} - 1)) ] || { echo "FAIL $nt guest traces for ${PLAYERS:-2} players"; ok=1; }
   # host's spread lines while all members are live
-  grep -a "four-screen: frame [0-9]*, ${#parts[@]} members" "$l" | awk -v max=${SPREAD:-4} '{n++; match($0, /spread -?[0-9]+/); s = substr($0, RSTART + 7, RLENGTH - 7) + 0; if (s > m) m = s} END {
+  grep -a "four-screen: frame [0-9]*, ${PLAYERS:-2} members" "$l" | awk -v max=${SPREAD:-4} '{n++; match($0, /spread -?[0-9]+/); s = substr($0, RSTART + 7, RLENGTH - 7) + 0; if (s > m) m = s} END {
     printf "spread: %d lines with all members, max %d frames\n", n, m; exit !(n >= 10 && m <= max)}' \
     || { echo "FAIL spread over ${SPREAD:-4} frames or under 10 samples"; ok=1; }
 fi
 echo "rplay $(basename "$FILE"): $((SECONDS - t0)) s, $([ $ok = 0 ] && echo PASS || echo FAIL)"
-[[ $FILE == *\;* ]] || echo "$([ $ok = 0 ] && echo PASS || echo FAIL) $(fid "$FILE") $FILE $(date +%F.%T)" >> "$ledger"
 exit $ok

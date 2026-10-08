@@ -28,9 +28,8 @@ adds the fields a PCSX2 replay needs from 40 on.
 A gdxsv replay starts from a common save state of the game sitting in the
 lobby before any battle (flycast slot 99, one per disc, shared by every
 replay); the recorded battle messages then play the battle start. A PCSX2
-replay starts from the save state of one battle position at GGPO frame 0
-instead (`start_state`), so one file plays the point of view of the player
-who saved it.
+replay does the same from a hosted post-entry state (common start below), so
+one file plays the point of view of any player.
 
 | Field | Meaning |
 |---|---|
@@ -44,7 +43,6 @@ who saved it.
 | `input_delay` | GGPO input delay of the battle |
 | `zds_ps`, `net_rx0`, `hle0` | battle-socket state at frame 0 |
 | `input_size`, `frames`, `inputs` | the synced inputs of all players: `frames` x `players` x `input_size` bytes, frame-major, by battle position |
-| `start_state` | the save state at GGPO frame 0 (a `.p2s` zip) |
 | `lobby_answers` | the lobby's battle-start answers the game got (0x6911..0x6917: player count, side, players, rule, battle code, battle server), each as received (header + body) |
 | `state_hashes` | optional: per frame (before its inputs) a u32 hash of the 4 players' masked work + RNG B; equal in every position's file of one battle. Playback compares it and logs `replay state hash differs at frame F` (first 10) and, at the end, `replay state check: hashes N checked, M differ` |
 | `start_rng`, `load_frames`, `load_rngs` | optional: the game RNGs (u16 RNG A << 16 \| u16 RNG B) at frame 0 and at each battle load end (load 0 MS select, 1 briefing, 1 + N round N), for round skip; the recorder's position's values (RNG A is per machine). Playback of that position logs `replay rng at frame F` |
@@ -61,16 +59,17 @@ works. The first frame loads the frame 0 state of the replay and its
 battle-socket state. Then every frame gets the recorded inputs of all players
 through the same battle-socket emulation as a live GGPO battle, without GGPO.
 
-Common start (as gdxsv): a file without `start_state`, or any file with
-`ZDXSV_REPLAY_COMMON=1`, plays the battle start itself, from a save state of
+Common start (as gdxsv): the replay plays the battle start itself, from a save state of
 the game at the post-entry point (logged in, before the lobby's battle start;
 any user's). That state is hosted, as gdxsv's slot 99: `[DEV9/Eth]
 ZdxsvReplayStateUrl` in `PCSX2.ini` (or `ZDXSV_REPLAY_STATE=<url or path>`)
 is downloaded once into the cache folder and loaded at the first frame; with
-neither set, boot from such a state yourself. The battle start is answered from `lobby_answers` as the
-point of view, menus run turbo, and at GGPO frame 0 that state replaces
-`start_state`. The log line `frame 0 HLE state equals|differs from the file's`
-compares the battle-socket state reached with the recorded one. One file only.
+neither set, boot from such a state yourself. The battle start is answered from `lobby_answers`, with
+0x6912 (own position) = the point of view, picked before the start; menus run turbo, and the state at GGPO
+frame 0 becomes key 0 of that position. The log line `net armed at vsync V, position P` is the position the game
+took. For the recorder's position, `frame 0 HLE state equals|differs from the file's` compares the
+battle-socket state reached with the recorded one. Files with a frame 0 state (`start_state`) and no
+`lobby_answers` are not played.
 
 - `ZDXSV_REPLAY=http(s)://...` downloads it first: a `.pb` URL, or the lobby's
   public API `http://<ZDXSV_LOBBY_API_ADDR>/lbs/replay?battle_code=<code>`
@@ -115,16 +114,14 @@ from the start.
 
 ### Point of view
 
-`ZDXSV_REPLAY=a.pb;b.pb` loads the files that different players saved of
-one battle. The inputs must match on the common frames. Each file adds the
-frame 0 state of its position.
+One file holds the inputs of every position, so it plays any point of view.
+`ZDXSV_REPLAY_POV=P` (default: the recorder's position) is picked before the
+start. Only one file is used (a second one is logged and skipped).
 
-A switch moves to the next position that has a file, at the current frame: it
-loads the newest key of that position at or before the frame and runs to it
-unlimited. Keys are kept per position.
-
-Files saved before the network adapter was kept in replay states (commit
-`bbbe3e9d2`) may hang for a position.
+A switch moves to the next position at the current frame: it loads the newest
+key of that position at or before the frame and runs to it unlimited. A
+position not played yet first runs its own battle start from the common state
+(its key 0), then seeks to the frame. Keys are kept per position.
 
 ### Control bar
 

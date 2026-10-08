@@ -340,6 +340,8 @@ namespace Zdxsv
 		void NetLoaded(int frame);
 		void NetReport();
 		void PlayLoad();
+		bool PlayCommonArm(int pov, int seek = -1);
+		void RbkReset();
 		void PlayCommonStart();
 		void PlayBegin(int me);
 		void PlayNext();
@@ -2196,6 +2198,9 @@ namespace Zdxsv
 		int s_play_hash_checks = 0, s_play_hash_bad = 0, s_play_hash_first_bad = -1, s_play_rng_checks = 0, s_play_rng_bad = 0;
 		int s_play_frames = 0;
 		std::vector<std::vector<u8>> s_play_answers; // common start: the file's lobby answers (RbkBody)
+		int s_play_rearm_seek = -1; // a switch's common start: the frame to seek to from its key 0
+		LimiterModeType s_play_rearm_limiter = LimiterModeType::Nominal; // and the limiter before it
+		bool s_play_booted_saved = false; // ZDXSV_REPLAY_STATE empty: the booted state is in the cache (PlayCommonState)
 
 		// Seek: a key every ZDXSV_REPLAY_KEY=n frames played (default 600, 0 = none): the full state as .p2s in the
 		// cache folder (download here, zip on a thread) + the HLE state outside it. A seek loads the newest key at or
@@ -2716,10 +2721,10 @@ namespace Zdxsv
 				Host::RunOnCPUThread([] { VMManager::SetPaused(true); });
 		}
 
-		// Point of view: ZDXSV_REPLAY=a.pb;b.pb... = files of one battle saved by different players. Their inputs
-		// are the same (checked on the common frames); each brings its own position's frame 0 state + battle-socket
-		// state, kept as key 0 of that position. A switch at frame f loads the new position's newest key <= f and
-		// runs to f unlimited (PlaySeek pov_switch); keys and sent msgs are kept per position.
+		// Point of view: the file holds every position's inputs. ZDXSV_REPLAY_POV=p (default the recorder's) is the position
+		// the lobby answers 0x6912 with before the battle start (PlayCommonArm). A switch at frame f loads the new
+		// position's newest key <= f and runs to f unlimited (PlaySeek pov_switch); a position never played runs its own
+		// battle start first, its key 0 (PlaySwitch). Keys and sent msgs are kept per position.
 		std::atomic<int> s_play_pov_req{-1}; // requested position, -1 = none
 		std::deque<std::pair<int, int>> s_play_pov_at; // ZDXSV_REPLAY_POV_AT=frame:position,...
 		struct PlaySent
@@ -2981,7 +2986,7 @@ namespace Zdxsv
 		}
 
 		// GgpoOnVmShutdown: the key files go; a new VM (or the reset one) loads the files again and plays from the start.
-		// Four-screen (flycast's ReplayFourScreen): ZDXSV_REPLAY_FOUR=1 with files of several positions. The host spawns
+		// Four-screen (flycast's ReplayFourScreen): ZDXSV_REPLAY_FOUR=1: the host spawns
 		// one guest per other position (ZDXSV_REPLAY_POV=p, ZDXSV_REPLAY_GROUP, -logfile emulog-povP.txt, the net trace
 		// as <trace>-povP), tiles the windows 2x2 by position, and all hold each other on the same frame (SpectateSync).
 		// A member more than SYNC_CHASE frames behind the newest seeks to it (a guest boots seconds after the host).
@@ -3183,6 +3188,8 @@ namespace Zdxsv
 			s_play_round_req = INT_MIN;
 			s_play_round_at.clear();
 			std::fill(std::begin(s_play_pov_ok), std::end(s_play_pov_ok), false);
+			s_play_rearm_seek = -1;
+			s_play_booted_saved = false;
 			s_play_pov_req = -1;
 			s_play_pov_at.clear();
 			std::fill(std::begin(s_play_sent), std::end(s_play_sent), PlaySent{});
@@ -3200,7 +3207,7 @@ namespace Zdxsv
 			std::string code;
 			std::vector<u8> rx0;
 			std::vector<int64_t> hle0;
-			std::string_view inputs, state; // into the file's bytes
+			std::string_view inputs; // into the file's bytes
 			std::vector<std::vector<u8>> answers; // lobby frames, 12-byte header + body
 			std::string_view hashes; // u32 per frame, "" = none (older files)
 			std::optional<u32> start_rng;
@@ -3239,8 +3246,6 @@ namespace Zdxsv
 						return Pb::ReadInts(wt, v, b, n, r.hle0);
 					else if (field == 49)
 						r.inputs = bytes;
-					else if (field == 50)
-						r.state = bytes;
 					else if (field == 51 && n >= 12)
 						r.answers.emplace_back(b, b + n);
 					else if (field == 52)
@@ -3320,14 +3325,15 @@ namespace Zdxsv
 			return HttpGet(pb);
 		}
 
-		// Reads one file; returns its position, -1 = not used.
+		// Reads the file; returns its recorder's position, -1 = not used. One file holds every position's inputs, so it
+		// plays any point of view: each starts from the common state with its own lobby answers (PlayCommonStart).
 		int PlayLoadFile(const std::string& path)
 		{
 			const bool live = path.starts_with("udp://");
 			const bool http = path.starts_with("http://") || path.starts_with("https://");
-			if (live && (s_play_frames > 0 || s_live_down))
+			if (s_play_frames > 0 || s_live_down)
 			{
-				Console.Error("ZdxsvGgpo: replay %s: a live stream plays alone", path.c_str());
+				Console.Error("ZdxsvGgpo: replay %s: one file plays every position, a 2nd one is not used", path.c_str());
 				return -1;
 			}
 			const std::optional<std::vector<u8>> file =
@@ -3342,35 +3348,18 @@ namespace Zdxsv
 			const s64 players = r.players, me = r.me, frames = r.frames;
 			// each bound before the next product: the values are any s64
 			if (players < 1 || players > GGPO_MAX_PLAYERS || me < 0 || me >= players || frames < 1 || frames > INT_MAX ||
-				(r.state.empty() && r.answers.empty()) || r.input_size != static_cast<s64>(sizeof(NetInput)) ||
+				r.input_size != static_cast<s64>(sizeof(NetInput)) ||
 				r.inputs.size() != static_cast<u64>(frames) * players * sizeof(NetInput))
 			{
 				Console.Error("ZdxsvGgpo: replay %s: bad header or short file (players %lld position %lld frames %lld)", path.c_str(),
 					players, me, frames);
 				return -1;
 			}
-			const bool zds_ps = r.zds_ps;
-			std::vector<NetInput> inputs(static_cast<size_t>(frames * players));
-			std::memcpy(inputs.data(), r.inputs.data(), r.inputs.size());
-			const NetInput* in = inputs.data();
-			if (s_play_frames > 0)
+			if (r.answers.empty())
 			{
-				// a later file: same battle, another position
-				const size_t common = static_cast<size_t>(std::min<s64>(frames, s_play_frames)) * players;
-				const auto diff = std::mismatch(in, in + common, s_play_inputs.begin(), [](const NetInput& a, const NetInput& b) {
-					return std::memcmp(&a, &b, sizeof(a)) == 0;
-				});
-				if (players != s_players || zds_ps != s_zds_ps || s_play_pov_ok[me] || diff.first != in + common)
-				{
-					Console.Error("ZdxsvGgpo: replay %s: not another position of the first file's battle (players %lld/%d, zds_ps %d/%d, "
-								  "position %lld %s, inputs differ from frame %lld)",
-						path.c_str(), players, s_players, zds_ps ? 1 : 0, s_zds_ps ? 1 : 0, me, s_play_pov_ok[me] ? "taken" : "new",
-						diff.first != in + common ? static_cast<s64>((diff.first - in) / players) : -1);
-					return -1;
-				}
+				Console.Error("ZdxsvGgpo: replay %s: no lobby answers (an older file with a start state is not played)", path.c_str());
+				return -1;
 			}
-			auto key = std::make_unique<PlayKey>();
-			key->rb.net_rx.assign(r.rx0.begin(), r.rx0.end());
 			int h[9] = {};
 			if (r.hle0.size() != std::size(h))
 			{
@@ -3385,50 +3374,40 @@ namespace Zdxsv
 				Console.Error("ZdxsvGgpo: replay %s: hle0 kind-3 counters %d,%d,%d,%d,%d not 0", path.c_str(), h[4], h[5], h[6], h[7], h[8]);
 				return -1;
 			}
-			const char* common_env = std::getenv("ZDXSV_REPLAY_COMMON");
-			const bool common = r.state.empty() || (common_env && common_env[0] == '1');
-			if (common && (s_play_frames > 0 || r.answers.empty()))
-			{
-				Console.Error("ZdxsvGgpo: replay %s: a common start needs the lobby answers and plays one file", path.c_str());
-				return -1;
-			}
-			const std::string state_path = Path::Combine(EmuFolders::Cache, fmt::format("zdxsv-replay-p{}.p2s", me));
-			if (common) // PlayCommonStart saves it
-			{
-				s_play_common = true;
-				s_play_answers = std::move(r.answers);
-			}
-			else if (!FileSystem::WriteBinaryFile(state_path.c_str(), r.state.data(), r.state.size()))
-			{
-				Console.Error("ZdxsvGgpo: replay: cannot write %s", state_path.c_str());
-				return -1;
-			}
-			if (frames > s_play_frames)
-			{
-				s_play_inputs.assign(in, in + frames * players);
-				s_play_frames = static_cast<int>(frames);
-				s_play_hashes.resize(r.hashes.size() == static_cast<u64>(frames) * sizeof(u32) ? static_cast<size_t>(frames) : 0);
-				std::memcpy(s_play_hashes.data(), r.hashes.data(), s_play_hashes.size() * sizeof(u32));
-				s_play_rngs.clear();
-				if (r.start_rng)
-					s_play_rngs[0] = *r.start_rng;
-				for (size_t i = 0; i < r.load_frames.size() && i < r.load_rngs.size(); i++)
-					s_play_rngs[static_cast<int>(r.load_frames[i])] = static_cast<u32>(r.load_rngs[i]);
-				s_play_rng_pos = static_cast<int>(me);
-			}
+			s_play_common = true;
+			s_play_answers = std::move(r.answers);
+			s_play_inputs.resize(static_cast<size_t>(frames * players));
+			std::memcpy(s_play_inputs.data(), r.inputs.data(), r.inputs.size());
+			s_play_frames = static_cast<int>(frames);
+			s_play_hashes.resize(r.hashes.size() == static_cast<u64>(frames) * sizeof(u32) ? static_cast<size_t>(frames) : 0);
+			std::memcpy(s_play_hashes.data(), r.hashes.data(), s_play_hashes.size() * sizeof(u32));
+			s_play_rngs.clear();
+			if (r.start_rng)
+				s_play_rngs[0] = *r.start_rng;
+			for (size_t i = 0; i < r.load_frames.size() && i < r.load_rngs.size(); i++)
+				s_play_rngs[static_cast<int>(r.load_frames[i])] = static_cast<u32>(r.load_rngs[i]);
+			s_play_rng_pos = static_cast<int>(me);
 			s_players = static_cast<int>(players);
-			s_zds_ps = zds_ps;
-			key->path = state_path;
-			key->rb.ps = {static_cast<u8>(h[0]), static_cast<u8>(h[1]), h[2] != 0, h[3] != 0};
+			s_zds_ps = r.zds_ps;
+			// key 0 of each position: its state is saved at its common start's arm (PlayCommonStart); the HLE state
+			// here (the recorder's) is only compared there
+			for (int p = 0; p < s_players; p++)
+			{
+				auto k = std::make_unique<PlayKey>();
+				k->path = Path::Combine(EmuFolders::Cache, fmt::format("zdxsv-replay-p{}.p2s", p));
+				s_play_keys[p].emplace(0, std::move(k));
+				s_play_pov_ok[p] = true;
+			}
+			RollbackState& rb = s_play_keys[me].at(0)->rb;
+			rb.net_rx.assign(r.rx0.begin(), r.rx0.end());
+			rb.ps = {static_cast<u8>(h[0]), static_cast<u8>(h[1]), h[2] != 0, h[3] != 0};
 			for (int p = 0; p < 4; p++)
-				key->rb.zds_seen[p] = h[4 + p];
-			key->rb.zds_rel = h[8];
-			key->ok = !common;
-			Console.WriteLn("ZdxsvGgpo: replay %s: position %lld of %d, %lld frames, zds_ps %d, rx0 %zu bytes, state %zu bytes, "
-							"state hashes %s, rngs %zu", path.c_str(), me, s_players, frames, s_zds_ps ? 1 : 0, key->rb.net_rx.size(),
-				r.state.size(), r.hashes.empty() ? "no" : "yes", (r.start_rng ? 1 : 0) + std::min(r.load_frames.size(), r.load_rngs.size()));
-			s_play_keys[me].emplace(0, std::move(key));
-			s_play_pov_ok[me] = true;
+				rb.zds_seen[p] = h[4 + p];
+			rb.zds_rel = h[8];
+			Console.WriteLn("ZdxsvGgpo: replay %s: recorded at position %lld of %d, %lld frames, zds_ps %d, rx0 %zu bytes, "
+							"%zu lobby answers, state hashes %s, rngs %zu", path.c_str(), me, s_players, frames, s_zds_ps ? 1 : 0,
+				rb.net_rx.size(), s_play_answers.size(), r.hashes.empty() ? "no" : "yes",
+				(r.start_rng ? 1 : 0) + std::min(r.load_frames.size(), r.load_rngs.size()));
 			return static_cast<int>(me);
 		}
 
@@ -3439,9 +3418,22 @@ namespace Zdxsv
 		{
 			const char* env = std::getenv("ZDXSV_REPLAY_STATE");
 			const std::string src = env ? env : Host::GetStringSettingValue("DEV9/Eth", "ZdxsvReplayStateUrl", REPLAY_STATE_URL);
-			if (src.empty())
-				return true;
 			std::string path = src;
+			if (src.empty()) // the booted state, saved at the first start for a switch's start
+			{
+				path = Path::Combine(EmuFolders::Cache, "zdxsv-common-booted.p2s");
+				if (!std::exchange(s_play_booted_saved, true))
+				{
+					Error error;
+					std::unique_ptr<ArchiveEntryList> list = SaveState_DownloadState(&error);
+					if (!list || !SaveState_ZipToDisk(std::move(list), nullptr, path.c_str(), &error))
+					{
+						Console.Error("ZdxsvGgpo: replay: booted state save failed: %s", error.GetDescription().c_str());
+						s_play_booted_saved = false;
+					}
+					return true;
+				}
+			}
 			if (src.starts_with("http://") || src.starts_with("https://"))
 			{
 				path = Path::Combine(EmuFolders::Cache, fmt::format("zdxsv-common-{:016x}.p2s", std::hash<std::string>{}(src)));
@@ -3482,21 +3474,44 @@ namespace Zdxsv
 				if (p >= 0 && p < s_players && s_play_pov_ok[p])
 					me = p;
 				else
-					Console.Error("ZdxsvGgpo: replay: ZDXSV_REPLAY_POV=%s has no file, playing position %d", e, me);
+					Console.Error("ZdxsvGgpo: replay: ZDXSV_REPLAY_POV=%s is not a position of the battle, playing position %d", e, me);
 			}
-			if (s_play_common)
+			PlayCommonArm(me);
+		}
+
+		// The battle start from the common state, the lobby answering 0x6912 (own position) with pov: the game plays that
+		// position from its arm on. PlayLoad, and a switch to a position with no key yet (PlaySwitch), which then seeks.
+		bool PlayCommonArm(int pov, int seek)
+		{
+			if (!PlayCommonState())
+				return false;
+			s_play_common = true;
+			s_play_rearm_seek = seek;
+			if (seek >= 0)
 			{
-				if (!PlayCommonState())
-					return;
-				s_net = true;
-				s_net_me = me;
-				s_rbk = true;
-				s_rbk_me = me;
-				s_rbk_n = s_players;
-				Console.WriteLn("ZdxsvGgpo: replay: common start as position %d of %d, %zu lobby answers", me, s_players, s_play_answers.size());
-				return;
+				s_play_rearm_limiter = s_play_target >= 0 ? s_play_limiter : VMManager::GetLimiterMode();
+				s_play_target = -1;
+				VMManager::SetLimiterMode(LimiterModeType::Unlimited); // the lobby phase up to the arm
 			}
-			PlayBegin(me);
+			s_started = s_net_armed = s_frame_ended = false;
+			g_ggpo_active = false;
+			// the battle socket's HLE state as at the first start (the arm adds the lobby frames to net_rx)
+			s_rb = {};
+			s_rings = {};
+			s_net_frame = 0;
+			s_net_end = -1;
+			s_zd_steps = s_zd_changed = s_zds_echo = s_zds_skip = s_zds_k3rel = 0;
+			for (auto& k3 : s_zds_k3)
+				k3.clear();
+			s_net = true;
+			s_net_me = pov;
+			s_rbk = true;
+			s_rbk_me = pov;
+			s_rbk_n = s_players;
+			RbkReset();
+			Console.WriteLn("ZdxsvGgpo: replay: common start as position %d of %d, %zu lobby answers%s", pov, s_players,
+				s_play_answers.size(), seek >= 0 ? fmt::format(", then seek to {}", seek).c_str() : "");
+			return true;
 		}
 
 		// Returned at the arm of a common start = GGPO frame 0 as ReplayBegin sees it live: this state becomes key 0
@@ -3517,8 +3532,9 @@ namespace Zdxsv
 			}
 			k0.rb = s_rb;
 			k0.ok = true;
-			Console.WriteLn("ZdxsvGgpo: replay: common start armed at vsync %u, frame 0 HLE state %s the file's", g_FrameCount,
-				hle_same ? "equals" : "differs from");
+			// the file's HLE state is its recorder's position's
+			Console.WriteLn("ZdxsvGgpo: replay: common start armed at vsync %u as position %d (asked %d), frame 0 HLE state %s",
+				g_FrameCount, me, s_rbk_me, me != s_play_rng_pos ? "not compared" : hle_same ? "equals the file's" : "differs from the file's");
 			// PlayBegin loads that state as PlayLoad does (recompiler cache rebuilt with g_ps_hook)
 			s_started = false;
 			g_ggpo_active = false;
@@ -3541,6 +3557,15 @@ namespace Zdxsv
 			s_net_armed = true;
 			s_started = true;
 			g_ggpo_active = true;
+			if (const int seek = std::exchange(s_play_rearm_seek, -1); seek >= 0)
+			{
+				// a switch: the rest of the first start (options, four-screen) stays
+				VMManager::SetLimiterMode(s_play_rearm_limiter);
+				Console.WriteLn("ZdxsvGgpo: replay: point of view %d from its key 0, seeking to %d", me, seek);
+				s_play_req = seek;
+				PlayFrame(0);
+				return;
+			}
 			if (const char* e = std::getenv("ZDXSV_REPLAY_TURBO"); e && e[0] == '1')
 				VMManager::SetLimiterMode(LimiterModeType::Turbo);
 			if (s_play_skip_ms)
@@ -3574,7 +3599,7 @@ namespace Zdxsv
 		{
 			if (pov < 0 || pov >= s_players || !s_play_pov_ok[pov])
 			{
-				Console.Error("ZdxsvGgpo: replay: no file for point of view %d", pov);
+				Console.Error("ZdxsvGgpo: replay: no point of view %d in the battle", pov);
 				return s_net_frame + 1;
 			}
 			const int old = s_net_me;
@@ -3587,6 +3612,16 @@ namespace Zdxsv
 			swap_sent(pov);
 			s_net_me = pov;
 			Console.WriteLn("ZdxsvGgpo: replay: point of view %d -> %d at frame %d, vsync %u", old, pov, target, g_FrameCount);
+			if (!s_play_keys[pov].at(0)->ok) // never played: its own battle start first
+			{
+				if (PlayCommonArm(pov, std::clamp(target, 0, s_play_frames - 1)))
+					return -2;
+				Console.Error("ZdxsvGgpo: replay: point of view %d: no common state", pov);
+				swap_sent(pov);
+				swap_sent(old);
+				s_net_me = old;
+				return s_net_frame + 1;
+			}
 			const int next = PlaySeek(target, true);
 			if (next >= 0)
 				return next;
@@ -3726,7 +3761,10 @@ namespace Zdxsv
 			if (req == 0 && s_battle_loads.size() > 1)
 				req = s_battle_loads[1]; // from the start = from the briefing
 			if (pov >= 0 && pov != s_net_me)
-				next = PlaySwitch(pov, req != INT_MIN ? req : next);
+			{
+				if (next = PlaySwitch(pov, req != INT_MIN ? req : next); next == -2)
+					return; // PlayCommonStart plays on
+			}
 			else if (req != INT_MIN)
 				next = PlaySeek(req);
 			if (req == 0 && next == 0 && s_play_skip_ms)
@@ -4136,7 +4174,7 @@ namespace Zdxsv
 				break;
 		if (p == s_net_me)
 		{
-			Console.WriteLn("ZdxsvGgpo: replay: no other point of view (one file per position: ZDXSV_REPLAY=a.pb;b.pb)");
+			Console.WriteLn("ZdxsvGgpo: replay: no other point of view (1 player)");
 			return;
 		}
 		s_play_pov_req = p;
