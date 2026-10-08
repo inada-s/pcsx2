@@ -2,9 +2,9 @@
 // same field numbers, plus the fields a PCSX2 replay needs from 40 on. Written by ReplayWrite, read by PlayLoadFile
 // (pcsx2/Zdxsv/Ggpo.cpp) with the codec in Zdxsv/Proto.h; not compiled into PCSX2.
 //
-// A gdxsv replay starts from a common pre-battle lobby save state (flycast slot 99, one per disc) and plays the
-// battle start from its recorded messages. A PCSX2 replay starts from a save state at GGPO frame 0 of one battle
-// position instead (start_state), so one file plays that position's point of view.
+// Both start from a common post-entry save state (gdxsv: flycast slot 99, one per disc; here ZdxsvReplayStateUrl) and
+// play the battle start from the recorded lobby answers. One file holds every position's inputs: the player picks the
+// point of view before the start, and the lobby answers name it as the own position.
 syntax = "proto3";
 
 package zdxsv;
@@ -27,7 +27,7 @@ message BattleLogFile {
 
   // zdxsv (PCSX2)
   int32 players = 40;
-  int32 position = 41;  // the recorder's battle position: start_state is this position's
+  int32 position = 41;  // the recorder's battle position (its RNG A values below)
   int32 input_delay = 42;  // GGPO frames
   string battle_info = 43;  // the lobby's battle info, key=value lines ("" in a local test)
   // HLE state outside the save state at frame 0: the game's battle socket (Ggpo.cpp NetApply)
@@ -37,9 +37,9 @@ message BattleLogFile {
   int32 input_size = 47;  // bytes per player per frame (Ggpo.cpp NetInput)
   int32 frames = 48;  // GGPO-confirmed frames
   bytes inputs = 49;  // frames * players * input_size: frame-major, by position
-  bytes start_state = 50;  // older files only: the PCSX2 save state (.p2s, a zip) at GGPO frame 0
+  reserved 50;  // was start_state: a save state at GGPO frame 0 (older files, no longer played)
   // The lobby's battle-start answers 0x6911..0x6917 as the game got them (whole frames: 12-byte header + body).
-  // Without start_state (or ZDXSV_REPLAY_COMMON=1) the replay plays the start from them on any post-entry state.
+  // The replay plays the start from them on any post-entry state, 0x6912 (own position) = the chosen point of view.
   repeated bytes lobby_answers = 51;
   // Optional desync checks (a file without them plays the same). Taken at each frame before its inputs apply.
   // u32 LE per frame: XXH3 of the 4 players' masked work + RNG B (Ggpo.cpp ReplayStateHash). Equal in the files of

@@ -44,7 +44,7 @@ with a peer without GGPO is cut, as a connection failure (`docs/zdxsv/lobby.md`)
 - A GGPO battle is saved to a protobuf `.pb` file (gdxsv's replay format plus the lobby's battle-start answers; no save
   state). Playback plays the battle start from those answers on a post-entry save state, as gdxsv's common start state
   (`docs/zdxsv/replay.md`): the hosted one at `[DEV9/Eth] ZdxsvReplayStateUrl` (default
-  `https://storage.googleapis.com/zdxsv/misc/rbk-p1.p2s`, downloaded once; `ZDXSV_REPLAY_STATE=<url or path>` overrides, empty = the booted state). Older files with a frame 0 state (`start_state`) still play from it; `ZDXSV_REPLAY_COMMON=1` ignores it.
+  `https://storage.googleapis.com/zdxsv/misc/rbk-p1.p2s`, downloaded once; `ZDXSV_REPLAY_STATE=<url or path>` overrides, empty = the booted state). Older files with a frame 0 state (`start_state`, no lobby answers) are not played.
 - Desync check (optional in the file): a per-frame state hash (player work + RNG) and the game RNGs at frame 0 and at
   each battle load end (for round skip). Playback logs `replay state hash differs at frame F` and a `replay state
   check` summary; `tests/zdxsv/replay_check.py` compares the hashes of one battle's files. The RNGs are checked on RNG B only (RNG A takes machine-local draws). Older files play unchecked.
@@ -53,12 +53,15 @@ with a peer without GGPO is cut, as a connection failure (`docs/zdxsv/lobby.md`)
 - An uploaded replay plays from the lobby's public API (as gdxsv lbsapi):
   `ZDXSV_REPLAY=http://<lobby api>/lbs/replay?battle_code=<code>`, or straight from a `.pb` URL.
 - Playback with seek, point of view switch, a control bar, key display, a skip of the mobile suit selection, and a round jump.
+  One file plays every position: `ZDXSV_REPLAY_POV=p` (0-based; default the recorder's) is picked before the start and
+  the lobby answers name it as the own position. A switch (bar, hotkey, `ZDXSV_REPLAY_POV_AT=frame:p,...`) to a position
+  not played yet runs its battle start from the common state first, then seeks.
 - Takeover (as gdxsv): the bar's "Take over" button or the hotkey "Zdxsv Replay: Take Over / Retry" plays the shown
   position from the current frame with the host pad (input delay = `mindelay`, default 2). Hold the replay's input
   shown in the panel for 1 s, or press START to skip the matching. START while taken over retries from that frame,
   and the bar's "Replay" button goes back to the replay. Not while spectating live.
-- Four-screen replay (as gdxsv): `ZDXSV_REPLAY_FOUR=1` with `ZDXSV_REPLAY=a.pb;b.pb...` (files of one battle saved by
-  different players) starts one more PCSX2 per other position, tiled 2x2 by position (Windows), all held on the same
+- Four-screen replay (as gdxsv): `ZDXSV_REPLAY_FOUR=1` with one `ZDXSV_REPLAY` file
+  starts one more PCSX2 per other position, tiled 2x2 by position (Windows), all held on the same
   frame; the extra windows follow this one's pause, speed and seeks and close with it. Replays only, not live.
 - Live spectating: the lobby picks one GGPO player per battle to stream it over UDP (lobby `live_uplink=1`);
   `ZDXSV_REPLAY=udp://<lobby host>:8201[/battle code]` watches it (`docs/zdxsv/replay.md`).

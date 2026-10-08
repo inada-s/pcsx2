@@ -111,10 +111,9 @@ See [replay.md](replay.md).
 
 | Option | Default | Use | Meaning |
 |---|---|---|---|
-| `ZDXSV_REPLAY=file.pb` | off | feature | Play a saved replay. `a.pb;b.pb` loads the files that different players saved of one battle. |
+| `ZDXSV_REPLAY=file.pb` | off | feature | Play a saved replay. One file plays every position (a 2nd one is skipped). |
 | `ZDXSV_REPLAY=udp://host:port[/code]` | off | feature | Watch a lobby battle live through the lobby (its UDP port; no code = the newest live battle). See `replay.md` Live spectating. |
-| `ZDXSV_REPLAY_POV=P` | position of the first file | feature | Start from the point of view of position P. |
-| `ZDXSV_REPLAY_COMMON=1` | off (on for a file without `start_state`) | feature | Play the battle start from the file's lobby answers on a post-entry save state instead of the file's frame 0 state. One file. See `replay.md` Playing. |
+| `ZDXSV_REPLAY_POV=P` | the recorder's position | feature | Point of view P, picked before the start: the lobby answers name it as the own position. |
 | `ZDXSV_REPLAY_STATE=url\|path` | setting `[DEV9/Eth] ZdxsvReplayStateUrl` (default the hosted rbk-p1.p2s; empty = the booted state) | feature | The post-entry state of a common start; a URL is downloaded once into the cache folder. |
 | `ZDXSV_REPLAY_BAR=1` / `=0` | automatic | feature | Always show the control bar, or never. |
 | `ZDXSV_REPLAY_KEY_DISPLAY=1` | off | feature | Start with the key display on. |
