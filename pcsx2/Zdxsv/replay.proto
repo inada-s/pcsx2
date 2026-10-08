@@ -1,0 +1,41 @@
+// zdxsv replay file (<battle_code>.pb): gdxsv's BattleLogFile (inada-s/gdxsv gdxsv/proto/gdxsv.proto) with the
+// same field numbers, plus the fields a PCSX2 replay needs from 40 on. Written by ReplayWrite, read by PlayLoadFile
+// (pcsx2/Zdxsv/Ggpo.cpp) with the codec in Zdxsv/Proto.h; not compiled into PCSX2.
+//
+// A gdxsv replay starts from a common pre-battle lobby save state (flycast slot 99, one per disc) and plays the
+// battle start from its recorded messages. A PCSX2 replay starts from a save state at GGPO frame 0 of one battle
+// position instead (start_state), so one file plays that position's point of view.
+syntax = "proto3";
+
+package zdxsv;
+
+message BattleLogUser {
+  string user_id = 1;
+  string user_name = 2;
+  int32 pos = 12;  // battle position (0-based)
+}
+
+message BattleLogFile {
+  string game_disk = 5;  // "zdxsv-ps2"
+  string battle_code = 3;
+  int32 log_file_version = 4;
+  repeated BattleLogUser users = 11;  // by position
+
+  int64 start_at = 20;  // unix seconds
+  int64 end_at = 21;
+  string close_reason = 24;
+
+  // zdxsv (PCSX2)
+  int32 players = 40;
+  int32 position = 41;  // the recorder's battle position: start_state is this position's
+  int32 input_delay = 42;  // GGPO frames
+  string battle_info = 43;  // the lobby's battle info, key=value lines ("" in a local test)
+  // HLE state outside the save state at frame 0: the game's battle socket (Ggpo.cpp NetApply)
+  bool zds_ps = 44;  // play-start msgs on
+  bytes net_rx0 = 45;  // msgs waiting for the game's recv
+  repeated int32 hle0 = 46;  // play-start barrier n, rel, hold, go; kind-3 seen 0..3, rel
+  int32 input_size = 47;  // bytes per player per frame (Ggpo.cpp NetInput)
+  int32 frames = 48;  // GGPO-confirmed frames
+  bytes inputs = 49;  // frames * players * input_size: frame-major, by position
+  bytes start_state = 50;  // the PCSX2 save state (.p2s, a zip) at GGPO frame 0
+}

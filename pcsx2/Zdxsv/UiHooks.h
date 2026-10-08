@@ -19,7 +19,7 @@ namespace Zdxsv
 	bool ReplayBarInfo(int& frame, int& frames, int& pov, u32& povs, int& target);
 	void ReplaySeekTo(int frame);
 	void ReplayTogglePause();
-	// Replay play: switch to the next position that has a file (ZDXSV_REPLAY=a.zdxr;b.zdxr) at the current frame.
+	// Replay play: switch to the next position that has a file (ZDXSV_REPLAY=a.pb;b.pb) at the current frame.
 	void ReplayNextPov();
 	// Replay play: key display on / off.
 	void ReplayToggleKeys();

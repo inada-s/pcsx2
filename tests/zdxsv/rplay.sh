@@ -1,7 +1,7 @@
 #!/bin/bash
-# replay play test (pcsx2 ZDXSV_REPLAY): plays a .zdxr headless in instance pN (turbo, exits at its end) with
+# replay play test (pcsx2 ZDXSV_REPLAY): plays a replay .pb headless in instance pN (turbo, exits at its end) with
 # PW hashes, then pwcheck compares them with the live battle's traces (rbk.sh OUT/trace-p*.txt).
-#   OUT=dir FILE=x.zdxr bash tests/zdxsv/rplay.sh <live trace>...   Exit 0 = replay end logged + player work equal.
+#   OUT=dir FILE=x.pb bash tests/zdxsv/rplay.sh <live trace>...   Exit 0 = replay end logged + player work equal.
 # Env: N (instance, default 1), CLAMP (ZDXSV_EE_CLAMP of the recording: rbk.sh's is in its emulog `rbk env`;
 # a lobby battle has none; unset = read from the `rbk env` lines of emulog-p*.txt next to the live traces, the
 # replay or its parent dir, a CLAMP differing from them FAILs before launch, CLAMP=none plays without one), PLAYERS (players compared, default 2), OWN (default 1: pwcheck --own),
@@ -15,7 +15,7 @@
 here=$(cd "$(dirname "$0")" && pwd -W)
 . "$here/riglock.sh"  # one rig at a time
 OUT=${OUT:?OUT=dir for logs}
-FILE=${FILE:?FILE=replay .zdxr}
+FILE=${FILE:?FILE=replay .pb}
 N=${N:-1}
 STATE=${STATE:-${RBKSTATES:?set STATE or RBKSTATES}/rbk-p1.p2s}
 mkdir -p "$OUT"
