@@ -129,7 +129,10 @@ game RNG instead:
   the peers. RNG A (`0x6d7940`) also takes draws that only one machine makes
   (a sound pick), so `pwcheck.py` reports it but does not judge it. Frames
   before the play start (`PS` line)
-  are not judged: the scene steps there follow local load timing.
+  are not judged: the scene steps there follow local load timing. Nor are the
+  frames from the game end (the last tick state 6 -> 7 before the next play
+  start, earliest peer) to the next play start: the end phase waits on the
+  HLE'd battle socket, so the peers enter it on different frames.
 - `ZDXSV_PW_DUMP` writes the work RAM itself, to find the field behind a
   mismatch.
 - `ZDXSV_NET_TRACE` writes the battle socket traffic and the inputs per frame.

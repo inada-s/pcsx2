@@ -55,4 +55,9 @@ message BattleLogFile {
   repeated int32 load_frames = 54;
   repeated uint32 load_rngs = 55;
   reserved 56;  // was load_start_frames: replay hold of the round-start load step (files without the barrier)
+  // The frames the play-start barrier passes (a game starts), and per game the last tick state 6 -> 7 before the next
+  // play start (the game end; round ends are 6 -> 7 too). Peers enter the game end on different frames (the end phase
+  // waits on the HLE'd battle socket): state checks skip each game end to the next play start.
+  repeated int32 play_start_frames = 57;
+  repeated int32 game_end_frames = 58;
 }
