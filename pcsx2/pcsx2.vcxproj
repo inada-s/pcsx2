@@ -449,6 +449,7 @@
     <ClCompile Include="Zdxsv\Overlays.cpp" />
     <ClCompile Include="Zdxsv\DeltaFreeze.cpp" />
     <ClCompile Include="Zdxsv\Ggpo.cpp" />
+    <ClCompile Include="Zdxsv\SpectateSync.cpp" />
     <ClCompile Include="Zdxsv\RecHooks.cpp" />
     <ClCompile Include="Zdxsv\RecProbe.cpp" />
     <ClCompile Include="VUmicroMem.cpp" />
@@ -909,6 +910,7 @@
     <ClInclude Include="Zdxsv\DeltaState.h" />
     <ClInclude Include="Zdxsv\DeltaFreeze.h" />
     <ClInclude Include="Zdxsv\Ggpo.h" />
+    <ClInclude Include="Zdxsv\SpectateSync.h" />
     <ClInclude Include="Zdxsv\RecHooks.h" />
     <ClInclude Include="Zdxsv\CpuHooks.h" />
     <ClInclude Include="Zdxsv\InputHooks.h" />
