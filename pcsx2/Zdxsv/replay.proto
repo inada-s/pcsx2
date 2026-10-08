@@ -2,8 +2,9 @@
 // same field numbers, plus the fields a PCSX2 replay needs from 40 on. Written by ReplayWrite, read by PlayLoadFile
 // (pcsx2/Zdxsv/Ggpo.cpp) with the codec in Zdxsv/Proto.h; not compiled into PCSX2.
 //
-// A gdxsv replay plays from the game's boot (the inputs drive the lobby too). A PCSX2 replay starts from a save
-// state at GGPO frame 0 of one battle position instead, so one file plays that position's point of view.
+// A gdxsv replay starts from a common pre-battle lobby save state (flycast slot 99, one per disc) and plays the
+// battle start from its recorded messages. A PCSX2 replay starts from a save state at GGPO frame 0 of one battle
+// position instead (start_state), so one file plays that position's point of view.
 syntax = "proto3";
 
 package zdxsv;
