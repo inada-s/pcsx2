@@ -1,6 +1,3 @@
-// SPDX-FileCopyrightText: 2026 zdxsv contributors
-// SPDX-License-Identifier: GPL-3.0+
-
 #include "ggpo_log.h"
 
 #include <atomic>
