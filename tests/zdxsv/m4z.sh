@@ -45,6 +45,9 @@
 #   has its delay and every opponent's user id, name (battle info name_) and ping; names = zdxsv.db (osdname.py).
 #   NAT=open|cone|symmetric|unknown: each GGPO client ran the
 #   connectivity test once (lobby reconnects too) with that result.
+#   HTTPS=1 (GGPO): each client measured the HTTPS latency once (online: the cloud regions) and a later lobby
+#   connection's platform info carried asia-northeast1=<ms> (lobby.log). HTTPS_OFF=K: client K runs with
+#   ZDXSV_HTTPS_LATENCY=0 (control): no region keys in its platform info.
 #   RELAY=1: lobby relay on :8203; each GGPO client registered it and every path
 #   is RELAY_PATH (default direct: a LAN peer is never 16 ms slower than the relay).
 #   GGPO_LAT=D (CLIENTS="1 3", GGPO, GDELAY=auto; pcsx2 ZDXSV_GGPO advertise=): a udprelay.py (D ms one way) on
@@ -79,6 +82,7 @@ cenv() {
   [ -n "${PWTRACE:-}" ] && echo "ZDXSV_PW_HASH=1 ZDXSV_NET_TRACE=$OUT/trace-p$1.txt"
   # PWDUMP=1: player work per saved frame (OUT/pw-p<i>.bin, pwdiff.py)
   [ -n "${PWDUMP:-}" ] && echo "ZDXSV_PW_DUMP=$OUT/pw-p$1.bin"
+  [ "$1" = "${HTTPS_OFF:-}" ] && echo ZDXSV_HTTPS_LATENCY=0
   # GGPO_DEFAULT=K (GGPO, GDELAY=auto): client K has no ZDXSV_GGPO, its GGPO options come from the setting
   [ -n "${GGPO:-}" ] && [ "$1" = "${GGPO_DEFAULT:-}" ] && { echo ZDXSV_GGPO=default; return; }
   case " ${GGPO_CLIENTS:-$CLIENTS} " in *" $1 "*) [ -n "${GGPO:-}" ] && echo "ZDXSV_GGPO=net=1,lobby=1,port=$((GGPO + $1 - 1))$([ "${GDELAY:-1}" = auto ] || echo ",delay=${GDELAY:-1}")${GMIN:+,mindelay=$GMIN}${UPLOAD:+,upload=http://127.0.0.1:8281/}${GOPT:+,$GOPT}$([ "$1" = "${BAD_SESSION:-}" ] && echo ,badsession=1)$([ -n "${GGPO_LAT:-}" ] && echo ",advertise=$((7300 + ($1 == 1)))")";; esac  # GDELAY=auto: no delay= (rtt pick, floor GMIN)
@@ -326,6 +330,19 @@ if [ -n "${NAT:-}" ]; then
     f="$RUN/p$i/PCSX2/logs/emulog.txt"
     grep -a 'udp test: nat=' "$f" | tr -d '\r' | cut -c1-200
     check "p$i udp test: exactly one, nat=$NAT" "[ \$(grep -a -c 'udp test: nat=' '$f') -eq 1 ] && grep -a -q 'udp test: nat=$NAT:' '$f'"
+  done
+fi
+if [ -n "${HTTPS:-}" ]; then
+  for i in $CLIENTS; do
+    f="$RUN/p$i/PCSX2/logs/emulog.txt"
+    grep -a 'ZdxsvHttpsLatency: \(asia-northeast1\|done\|off\)' "$f" | tr -d '\r' | cut -c1-200
+    # the lobby logs each platform info as a Go map; a client's lines carry its GGPO port (ggpo:<port>)
+    p=$((GGPO + i - 1))
+    if [ "$i" = "${HTTPS_OFF:-}" ]; then
+      check "p$i (ZDXSV_HTTPS_LATENCY=0): off, no region in its platform info" "grep -a -q 'ZdxsvHttpsLatency: off' '$f' && grep -a 'platform.*ggpo:$p[] ]' '$OUT/lobby.log' | grep -q . && ! grep -a 'platform.*ggpo:$p[] ]' '$OUT/lobby.log' | grep -q 'asia-northeast1:'"
+    else
+      check "p$i https latency: one run, its platform info has asia-northeast1" "[ \$(grep -a -c 'ZdxsvHttpsLatency: done' '$f') -eq 1 ] && grep -a 'platform.*ggpo:$p[] ]' '$OUT/lobby.log' | grep -q 'asia-northeast1:[0-9]'"
+    fi
   done
 fi
 if [ -n "${RELAY:-}" ]; then
