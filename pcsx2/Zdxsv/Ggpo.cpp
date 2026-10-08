@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2002-2026 PCSX2 Dev Team
+// SPDX-FileCopyrightText: 2026 zdxsv contributors
 // SPDX-License-Identifier: GPL-3.0+
 
 // GGPO for lobby battles of the Z game (DEFAULT_OPTIONS) is on by default: setting DEV9/Eth ZdxsvGgpo.

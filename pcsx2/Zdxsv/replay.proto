@@ -1,3 +1,6 @@
+// SPDX-FileCopyrightText: 2026 zdxsv contributors
+// SPDX-License-Identifier: GPL-3.0+
+
 // zdxsv replay file (<battle_code>.pb): gdxsv's BattleLogFile (inada-s/gdxsv gdxsv/proto/gdxsv.proto) with the
 // same field numbers, plus the fields a PCSX2 replay needs from 40 on. Written by ReplayWrite, read by PlayLoadFile
 // (pcsx2/Zdxsv/Ggpo.cpp) with the codec in Zdxsv/Proto.h; not compiled into PCSX2.
