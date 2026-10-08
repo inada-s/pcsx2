@@ -3,7 +3,11 @@ coordinates x, y, z and the game RNG equal frame by frame). pcsx2 ZDXSV_PW_HASH=
 `0 H frame h0 h1 h2 h3 rng` per GGPO frame (last save wins): h<p> = XXH3 of player p's x, y, z,
 rng = RNG A (u16 0x6d7940) << 16 | RNG B (u16 0x6d793c).
 
-usage: pwcheck.py [--own] TRACE1 TRACE2 [...]   (--own: accepted, no effect; the check has no machine-local fields)
+usage: pwcheck.py [--own] [--battle CODE] TRACE1 TRACE2 [...]   (--own: accepted, no effect; the check has no
+machine-local fields)
+--battle CODE: per trace only the lines from its `B CODE` line (written at each GGPO session start and each replay
+or live battle load) to its next `B` line; for traces of several battles in one process (m4z BATTLES, LIVE_NEXT).
+Without it a multi-battle trace mixes the battles (same frame numbers, last line wins).
 Per player p and for the RNG: frames where the values differ, first differing frame and the runs of differing
 frames, counted from the play start; `pre-play` = differing frames before it. Judged: players + `rng` (RNG B).
 Play start = the first `PS` trace line (play-start barrier frame, equal on all peers); in traces without
@@ -19,10 +23,16 @@ Traces of builds before the coordinate check (no rng column) are refused.
 import sys
 
 
-def load(path):
+def load(path, battle):
     h, ps, load_end, tick = {}, None, None, None
+    on, seen = battle is None, False
     for line in open(path, encoding="utf-8", errors="replace"):
         f = line.split()
+        if len(f) == 3 and f[1] == "B" and battle is not None:
+            on = f[2] == battle and not seen
+            seen = seen or on
+        if not on:
+            continue
         if len(f) >= 3 and f[1] == "H":
             if len(f) != 8:
                 sys.exit("%s: H line without the rng column (pcsx2 before the coordinate + RNG check): %s" % (path, line.strip()))
@@ -36,8 +46,15 @@ def load(path):
     return h, ps if ps is not None else load_end, "play start" if ps is not None else "load end"
 
 
-paths = [a for a in sys.argv[1:] if a != "--own"]
-loaded = [load(p) for p in paths]
+args = [a for a in sys.argv[1:] if a != "--own"]
+battle = None
+if args[:1] == ["--battle"]:
+    battle, args = args[1], args[2:]
+paths = args
+loaded = [load(p, battle) for p in paths]
+for p, (t, _, _) in zip(paths, loaded):
+    if battle is not None and not t:
+        sys.exit("%s: no H lines after a `B %s` line" % (p, battle))
 ts = [t for t, _, _ in loaded]
 for p, (t, ps, how) in zip(paths, loaded):
     print(p, "frames", len(t), min(t) if t else None, max(t) if t else None, how, ps)
