@@ -3,8 +3,8 @@ name: 🖥️ Windows Builds
 # zdxsv fork: one Windows build only, the configuration upstream releases with
 # (release_cut_new.yml: CMake + clang-cl). The other upstream variants (MSVC/clang
 # SSE4/AVX2 msbuild, CMake MSVC) are dropped to keep CI short.
-# Runs on pushes to zdxsv-master / ai/zdxsv and on PRs into them: a PR run
-# restores the base branch caches, a push to a new branch would not.
+# Runs on pushes to zdxsv-master / ai/zdxsv and on PRs into any branch, so a
+# stacked PR is built too and its check stays on the commit when it is retargeted.
 # A draft PR is not built: the build starts when the PR is marked ready for review.
 # No secrets: none are used.
 
@@ -15,9 +15,6 @@ on:
       - "ai/zdxsv"
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
-    branches:
-      - "zdxsv-master"
-      - "ai/zdxsv"
   workflow_dispatch:
 
 jobs:
