@@ -45,6 +45,7 @@ who saved it.
 | `zds_ps`, `net_rx0`, `hle0` | battle-socket state at frame 0 |
 | `input_size`, `frames`, `inputs` | the synced inputs of all players: `frames` x `players` x `input_size` bytes, frame-major, by battle position |
 | `start_state` | the save state at GGPO frame 0 (a `.p2s` zip) |
+| `lobby_answers` | the lobby's battle-start answers the game got (0x6911..0x6917: player count, side, players, rule, battle code, battle server), each as received (header + body) |
 
 `tests/zdxsv/replay_check.py` reads it without a protobuf library;
 `protoc --decode=zdxsv.BattleLogFile pcsx2/Zdxsv/replay.proto < file.pb` prints it.
@@ -55,6 +56,14 @@ who saved it.
 works. The first frame loads the frame 0 state of the replay and its
 battle-socket state. Then every frame gets the recorded inputs of all players
 through the same battle-socket emulation as a live GGPO battle, without GGPO.
+
+Common start (as gdxsv): a file without `start_state`, or any file with
+`ZDXSV_REPLAY_COMMON=1`, plays the battle start itself. Boot from a save state
+of the game at the post-entry point (logged in, before the lobby's battle
+start; any user's). The battle start is answered from `lobby_answers` as the
+point of view, menus run turbo, and at GGPO frame 0 that state replaces
+`start_state`. The log line `frame 0 HLE state equals|differs from the file's`
+compares the battle-socket state reached with the recorded one. One file only.
 
 - `ZDXSV_REPLAY=http(s)://...` downloads it first: a `.pb` URL, or the lobby's
   public API `http://<ZDXSV_LOBBY_API_ADDR>/lbs/replay?battle_code=<code>`
