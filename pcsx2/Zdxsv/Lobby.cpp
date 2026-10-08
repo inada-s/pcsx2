@@ -43,6 +43,7 @@ namespace Zdxsv
 		std::function<void(const std::string&)> g_log;
 		BattleInfo g_info;
 		std::function<void(const BattleInfo&)> g_listener;
+		std::vector<std::vector<uint8_t>> g_startAnswers; // LobbyNoteFrame, under g_mtx
 
 		void Log(const std::string& s)
 		{
@@ -237,6 +238,23 @@ namespace Zdxsv
 		delete filter;
 	}
 
+	void LobbyNoteFrame(const uint8_t* frame, size_t size)
+	{
+		if (size < 12 || frame[0] != 0x18 || frame[2] != 0x69 || frame[3] < 0x10 || frame[3] > 0x17)
+			return;
+		std::lock_guard lock(g_mtx);
+		if (frame[3] == 0x10)
+			g_startAnswers.clear();
+		else
+			g_startAnswers.emplace_back(frame, frame + size);
+	}
+
+	std::vector<std::vector<uint8_t>> LobbyStartAnswers()
+	{
+		std::lock_guard lock(g_mtx);
+		return g_startAnswers;
+	}
+
 	size_t LobbyFilter::Take(uint8_t* dst, size_t max)
 	{
 		const size_t n = std::min(max, ready.size());
@@ -266,7 +284,10 @@ namespace Zdxsv
 					Log("bad battle info notice");
 			}
 			else
+			{
+				LobbyNoteFrame(f, total);
 				out.insert(out.end(), f, f + total);
+			}
 			pos += total;
 		}
 		buf.erase(buf.begin(), buf.begin() + pos);

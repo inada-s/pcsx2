@@ -218,6 +218,12 @@ namespace Zdxsv
 		std::vector<uint8_t> ready; // frames for the game
 	};
 
+	// Battle-start answers 0x6911..0x6917 (whole lobby frames) the game got since the last battle start notice
+	// 0x6910: a replay keeps them (replay.proto lobby_answers) to play the start again from a common state.
+	// LobbyFilter notes the lobby's frames, the rbk test its own (Ggpo.cpp RbkQueue).
+	void LobbyNoteFrame(const uint8_t* frame, size_t size);
+	std::vector<std::vector<uint8_t>> LobbyStartAnswers();
+
 	// Lobby save states (LobbyStateEnabled, LobbyOnStateLoaded, AdoptConnections, IsBattleServer):
 	// Zdxsv/SaveStateHooks.h, Zdxsv/Dev9Hooks.h.
 
