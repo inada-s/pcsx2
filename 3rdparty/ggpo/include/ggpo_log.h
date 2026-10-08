@@ -1,6 +1,3 @@
-// SPDX-FileCopyrightText: 2026 zdxsv contributors
-// SPDX-License-Identifier: GPL-3.0+
-
 #pragma once
 
 // GGPO log sink. GGPO sources come from inada-s/flycast, which logs through
