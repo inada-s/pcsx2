@@ -1,6 +1,3 @@
-// SPDX-FileCopyrightText: 2026 zdxsv contributors
-// SPDX-License-Identifier: GPL-3.0+
-
 #pragma once
 
 // Stand-in for flycast's log/Log.h (included by ggpo_types.h).
