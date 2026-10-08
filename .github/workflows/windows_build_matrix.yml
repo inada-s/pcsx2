@@ -6,6 +6,8 @@ name: 🖥️ Windows Builds
 # Runs on pushes to zdxsv-master / ai/zdxsv and on PRs into them: a PR run
 # restores the base branch caches, a push to a new branch would not.
 # A draft PR is not built: the build starts when the PR is marked ready for review.
+# Enabling auto-merge also builds: a stacked PR retargeted to zdxsv-master gets no
+# other event, so its required check would never run.
 # No secrets: none are used.
 
 on:
@@ -14,7 +16,7 @@ on:
       - "zdxsv-master"
       - "ai/zdxsv"
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    types: [opened, synchronize, reopened, ready_for_review, auto_merge_enabled]
     branches:
       - "zdxsv-master"
       - "ai/zdxsv"
