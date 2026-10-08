@@ -37,4 +37,7 @@ message BattleLogFile {
   int32 frames = 48;  // GGPO-confirmed frames
   bytes inputs = 49;  // frames * players * input_size: frame-major, by position
   bytes start_state = 50;  // the PCSX2 save state (.p2s, a zip) at GGPO frame 0
+  // The lobby's battle-start answers 0x6911..0x6917 as the game got them (whole frames: 12-byte header + body).
+  // Without start_state (or ZDXSV_REPLAY_COMMON=1) the replay plays the start from them on any post-entry state.
+  repeated bytes lobby_answers = 51;
 }
