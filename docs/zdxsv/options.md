@@ -123,6 +123,7 @@ See [replay.md](replay.md).
 | `ZDXSV_REPLAY_TURBO=1` | off | test | Play turbo. |
 | `ZDXSV_REPLAY_EXIT=1` | off | test | Exit at the end instead of pausing. |
 | `ZDXSV_LIVE_NEXT=N` | the setting | test | Live auto-next for N more battles (0 = off), over `ZdxsvLiveAutoNext`. |
+| `ZDXSV_LIVE_PACING=0` | on | test | Live: no speed trim, only the wait for 30 frames at the newest one (control). |
 | `ZDXSV_REPLAY_SEEK=at:to[,at:to...]` | off | test | Seek to frame `to` when frame `at` is reached. |
 | `ZDXSV_REPLAY_POV_AT=frame:P[,...]` | off | test | Switch to position P when that frame is reached. |
 | `ZDXSV_REPLAY_ROUND_AT=frame:N[,...]` | off | test | Jump to round N (0 = the briefing) when that frame is reached. |
