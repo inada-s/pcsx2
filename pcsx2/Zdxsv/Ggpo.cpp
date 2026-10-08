@@ -3256,6 +3256,40 @@ namespace Zdxsv
 			return static_cast<int>(me);
 		}
 
+		// The hosted post-entry state of a common start (as gdxsv's slot 99): ZDXSV_REPLAY_STATE, else the setting
+		// DEV9/Eth ZdxsvReplayStateUrl; a URL is downloaded once into the cache (one file per URL). None set = the
+		// booted state is used as it is.
+		bool PlayCommonState()
+		{
+			const char* env = std::getenv("ZDXSV_REPLAY_STATE");
+			const std::string src = env ? env : Host::GetStringSettingValue("DEV9/Eth", "ZdxsvReplayStateUrl", "");
+			if (src.empty())
+				return true;
+			std::string path = src;
+			if (src.starts_with("http://") || src.starts_with("https://"))
+			{
+				path = Path::Combine(EmuFolders::Cache, fmt::format("zdxsv-common-{:016x}.p2s", std::hash<std::string>{}(src)));
+				if (!FileSystem::FileExists(path.c_str()))
+				{
+					const std::optional<std::vector<u8>> got = HttpGet(src);
+					if (!got || !FileSystem::WriteBinaryFile(path.c_str(), got->data(), got->size()))
+					{
+						Console.Error("ZdxsvGgpo: replay: common state %s: download to %s failed", src.c_str(), path.c_str());
+						return false;
+					}
+					Console.WriteLn("ZdxsvGgpo: replay: common state %s: %zu bytes into %s", src.c_str(), got->size(), path.c_str());
+				}
+			}
+			Error error;
+			if (!VMManager::LoadState(path.c_str(), &error))
+			{
+				Console.Error("ZdxsvGgpo: replay: common state %s: load failed: %s", path.c_str(), error.GetDescription().c_str());
+				return false;
+			}
+			Console.WriteLn("ZdxsvGgpo: replay: common state %s loaded", path.c_str());
+			return true;
+		}
+
 		// CPU thread, queued at the first vsync.
 		void PlayLoad()
 		{
@@ -3276,6 +3310,8 @@ namespace Zdxsv
 			}
 			if (s_play_common)
 			{
+				if (!PlayCommonState())
+					return;
 				s_net = true;
 				s_net_me = me;
 				s_rbk = true;
