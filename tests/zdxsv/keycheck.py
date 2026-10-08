@@ -38,7 +38,7 @@ def main():
         i = args.index("--min")
         need = int(args[i + 1])
         del args[i:i + 2]
-    h, state, inputs, players, frames, isz = load(args[0])
+    h, inputs, players, frames, isz = load(args[0])
     seen = bad = 0
     for line in open(args[1], encoding="utf-8", errors="replace"):
         m = LINE.search(line)
