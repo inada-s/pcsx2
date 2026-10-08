@@ -41,10 +41,10 @@ with a peer without GGPO is cut, as a connection failure (`docs/zdxsv/lobby.md`)
 
 ### Replays
 
-- A GGPO battle is saved to a protobuf `.pb` file (gdxsv's replay format plus the frame 0 save state
-  and the lobby's battle-start answers). `ZDXSV_REPLAY_COMMON=1` (or a file without the state) plays the battle start
-  from those answers on a post-entry save state, as gdxsv's common start state (`docs/zdxsv/replay.md`): the hosted one
-  at `[DEV9/Eth] ZdxsvReplayStateUrl` (downloaded once; `ZDXSV_REPLAY_STATE=<url or path>` overrides), else the booted one.
+- A GGPO battle is saved to a protobuf `.pb` file (gdxsv's replay format plus the lobby's battle-start answers; no save
+  state). Playback plays the battle start from those answers on a post-entry save state, as gdxsv's common start state
+  (`docs/zdxsv/replay.md`): the hosted one at `[DEV9/Eth] ZdxsvReplayStateUrl` (default
+  `https://storage.googleapis.com/zdxsv/misc/rbk-p1.p2s`, downloaded once; `ZDXSV_REPLAY_STATE=<url or path>` overrides, empty = the booted state). Older files with a frame 0 state (`start_state`) still play from it; `ZDXSV_REPLAY_COMMON=1` ignores it.
 - Desync check (optional in the file): a per-frame state hash (player work + RNG) and the game RNGs at frame 0 and at
   each battle load end (for round skip). Playback logs `replay state hash differs at frame F` and a `replay state
   check` summary; `tests/zdxsv/replay_check.py` compares the hashes of one battle's files. Older files play unchecked.
@@ -62,6 +62,7 @@ with a peer without GGPO is cut, as a connection failure (`docs/zdxsv/lobby.md`)
   frame; the extra windows follow this one's pause, speed and seeks and close with it. Replays only, not live.
 - Live spectating: the lobby picks one GGPO player per battle to stream it over UDP (lobby `live_uplink=1`);
   `ZDXSV_REPLAY=udp://<lobby host>:8201[/battle code]` watches it (`docs/zdxsv/replay.md`).
+  The stream has no save state (spectators start from the hosted one) and runs whether saving (`replay=0`) or upload is on or not.
   Setting `[DEV9/Eth] ZdxsvLiveAutoNext` (off; Settings → Network & HDD) moves on to the next live battle when one ends.
   The spectator trims the frame limiter's period (a few ms per frame) to stay 30 frames behind the live edge without
   stalls (`VMManager::Internal::Throttle`, `Zdxsv::g_frame_period_trim_us`); `ZDXSV_LIVE_PACING=0` turns it off.

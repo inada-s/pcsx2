@@ -1351,10 +1351,10 @@ namespace Zdxsv
 		uint32_t session = 0;
 		int frameBytes = 0;
 		std::mutex mtx;
-		std::vector<uint8_t> header, state, inputs;
-		bool stateSet = false, closeSet = false, headerAck = false, closeAck = false;
+		std::vector<uint8_t> header, inputs;
+		bool closeSet = false, headerAck = false, closeAck = false;
 		std::string close;
-		LiveWindow st, in;
+		LiveWindow in;
 		Clock::time_point headerSent{}, closeSent{}, closeAt{};
 		std::atomic<bool> quit{false}, done{false};
 		std::thread t;
@@ -1382,14 +1382,13 @@ namespace Zdxsv
 				if (type == LIVE_ACK && LiveFields(msg, nums, bytes) && bytes[1] == code)
 				{
 					headerAck = headerAck || nums[40] != 0;
-					st.Ack(nums[41], now);
 					in.Ack(nums[2], now);
 					closeAck = closeAck || nums[42] != 0;
 				}
 				if (closeAck || (closeSet && now - closeAt > LIVE_CLOSE_GIVEUP))
 				{
-					Log("live: uplink " + code + (closeAck ? " closed: " : " gave up on the close: ") + std::to_string(in.acked) + " frames, state " +
-						std::to_string(st.acked) + " bytes, " + std::to_string(sent) + " datagrams");
+					Log("live: uplink " + code + (closeAck ? " closed: " : " gave up on the close: ") + std::to_string(in.acked) + " frames, " +
+						std::to_string(sent) + " datagrams");
 					break;
 				}
 				if (!headerAck && now - headerSent >= LIVE_RESEND)
@@ -1400,15 +1399,6 @@ namespace Zdxsv
 					headerSent = now;
 					sent++;
 				}
-				if (stateSet)
-					st.Send(now, state.size(), LIVE_CHUNK, [&](size_t off, size_t n) {
-						std::vector<uint8_t> m = Push();
-						Pb::PutBytes(m, 42, state.data() + off, n);
-						Pb::PutInt(m, 43, static_cast<int64_t>(off));
-						Pb::PutInt(m, 44, static_cast<int64_t>(state.size()));
-						LiveSend(s, to, LIVE_PUSH, m);
-						sent++;
-					});
 				const size_t fb = static_cast<size_t>(frameBytes);
 				const size_t frames = inputs.size() / fb;
 				in.Send(now, frames, std::min(LIVE_MAX_FRAMES_PER_PUSH, LIVE_CHUNK / fb), [&](size_t f, size_t n) {
@@ -1419,7 +1409,7 @@ namespace Zdxsv
 					LiveSend(s, to, LIVE_PUSH, m);
 					sent++;
 				});
-				if (closeSet && headerAck && stateSet && st.acked == state.size() && in.acked == frames && now - closeSent >= LIVE_RESEND)
+				if (closeSet && headerAck && in.acked == frames && now - closeSent >= LIVE_RESEND)
 				{
 					std::vector<uint8_t> m = Push();
 					Pb::PutInt(m, 3, static_cast<int64_t>(frames));
@@ -1460,13 +1450,6 @@ namespace Zdxsv
 			closesocket(m->s);
 	}
 
-	void LiveUp::SetState(std::vector<uint8_t> state)
-	{
-		std::lock_guard lock(m->mtx);
-		m->state = std::move(state);
-		m->stateSet = true;
-	}
-
 	void LiveUp::AddFrames(const void* data, size_t frames)
 	{
 		std::lock_guard lock(m->mtx);
@@ -1501,7 +1484,7 @@ namespace Zdxsv
 		std::mutex mtx;
 		std::string code;
 		std::vector<uint8_t> cookie = std::vector<uint8_t>(LIVE_COOKIE);
-		LiveStreams got; // header + state until the first Take, then the frames not taken yet
+		LiveStreams got; // the header until the first Take, then the frames not taken yet
 		bool headerTaken = false;
 		size_t frames = 0; // received in a row
 		Clock::time_point rx = Clock::now(), subscribed{};
@@ -1541,13 +1524,6 @@ namespace Zdxsv
 					LiveStreams& g = got;
 					if (const auto h = bytes.find(10); h != bytes.end() && !headerTaken && g.header.empty())
 						g.header.assign(h->second.begin(), h->second.end());
-					if (const size_t total = nums[44]; total > 0 && (g.stateTotal == 0 || g.stateTotal == total))
-					{
-						g.stateTotal = total;
-						const std::string_view chunk = bytes[42];
-						if (nums[43] == g.state.size() && g.state.size() + chunk.size() <= total)
-							g.state.insert(g.state.end(), chunk.begin(), chunk.end());
-					}
 					const size_t fb = nums[41];
 					if (fb > 0 && (g.frameBytes == 0 || static_cast<size_t>(g.frameBytes) == fb))
 					{
@@ -1569,7 +1545,6 @@ namespace Zdxsv
 					Pb::PutString(ack, 1, code);
 					Pb::PutInt(ack, 2, static_cast<int64_t>(frames));
 					Pb::PutInt(ack, 40, headerTaken || !g.header.empty() ? 1 : 0);
-					Pb::PutInt(ack, 41, static_cast<int64_t>(headerTaken ? g.stateTotal : g.state.size()));
 					Pb::PutInt(ack, 42, g.closed ? 1 : 0);
 					LiveSend(s, to, LIVE_ACK, ack);
 				}
@@ -1612,7 +1587,7 @@ namespace Zdxsv
 			{
 				std::lock_guard lock(d->m->mtx);
 				const LiveStreams& g = d->m->got;
-				if (!g.header.empty() && g.stateTotal > 0 && g.state.size() == g.stateTotal && (d->m->frames > 0 || g.closed))
+				if (!g.header.empty() && (d->m->frames > 0 || g.closed))
 					return d;
 			}
 			std::this_thread::sleep_for(std::chrono::milliseconds(10));
@@ -1620,8 +1595,7 @@ namespace Zdxsv
 		std::lock_guard lock(d->m->mtx);
 		const LiveStreams& g = d->m->got;
 		error = d->m->code.empty() ? "no live battle there (no challenge)" :
-									 "battle " + d->m->code + ": header " + std::to_string(g.header.size()) + " bytes, state " +
-										 std::to_string(g.state.size()) + "/" + std::to_string(g.stateTotal) + ", " +
+									 "battle " + d->m->code + ": header " + std::to_string(g.header.size()) + " bytes, " +
 										 std::to_string(d->m->frames) + " frames after " + std::to_string(timeoutMs) + " ms";
 		return nullptr;
 	}
@@ -1665,8 +1639,6 @@ namespace Zdxsv
 		{
 			m->headerTaken = true;
 			s.header = std::move(g.header);
-			s.state = std::move(g.state);
-			s.stateTotal = g.stateTotal;
 		}
 		s.inputs.insert(s.inputs.end(), g.inputs.begin(), g.inputs.end());
 		g.inputs.clear();
