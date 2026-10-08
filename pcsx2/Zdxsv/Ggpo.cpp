@@ -3767,6 +3767,14 @@ namespace Zdxsv
 		bool s_rbk_started = false; // 0x6910 (battle start) queued
 		u32 s_rbk_calls[0x50] = {};
 		constexpr u32 RBK_FNO_RECV_LOBBY = 0x13;
+
+		// A reset VM (live auto-next) starts its battle from the lobby phase again.
+		void RbkReset()
+		{
+			s_rbk_rx.clear();
+			s_rbk_started = false;
+			std::fill(std::begin(s_rbk_calls), std::end(s_rbk_calls), 0u);
+		}
 		const char* const RBK_USERS[4] = {
 			"010100064a3953584e4d000682a082a082a000000064834a837e815b838681458372835f839300000000000097b989f081490000000000000000000000000000000082bb82bf82e782cc94ed8a518ff38bb582cd8148000093478b408c82946a814900000000000000000000000089b482c9944382b982eb814901",
 			"02010006554a4239414d000682a282a282a200000064834a837e815b838681458372835f839300000000000097b989f081490000000000000000000000000000000082bb82bf82e782cc94ed8a518ff38bb582cd8148000093478b408c82946a814900000000000000000000000089b482c9944382b982eb814902",
@@ -4469,6 +4477,7 @@ namespace Zdxsv
 		}
 		Zdxsv::DeltaStateClear();
 		NetReset();
+		RbkReset();
 		g_ggpo_in_rollback = false;
 		s_vsyncs = 0; // the next VM start or the reset VM parses the options again (and loads a replay again)
 	}
