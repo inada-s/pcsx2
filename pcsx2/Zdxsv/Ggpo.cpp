@@ -233,6 +233,29 @@ namespace Zdxsv
 			std::memcpy(&b[50], &eeMem->Main[RNG_B], 2);
 			return b;
 		}
+		// The replay file's per-frame state hash (replay.proto state_hashes): the 4 masked player works (PwHash) and
+		// RNG B. RNG A is left out: its machine-local draws would make the files of one battle's positions differ.
+		u32 ReplayStateHash()
+		{
+			u64 h[5];
+			for (u32 p = 0; p < 4; p++)
+				h[p] = PwHash(p);
+			u16 b;
+			std::memcpy(&b, &eeMem->Main[RNG_B], 2);
+			h[4] = b;
+			const u64 x = XXH3_64bits(h, sizeof(h));
+			return static_cast<u32>(x ^ (x >> 32));
+		}
+		// u16 RNG A << 16 | u16 RNG B (replay.proto start_rng, load_rngs)
+		u32 GameRng()
+		{
+			u16 a, b;
+			std::memcpy(&a, &eeMem->Main[RNG_A], 2);
+			std::memcpy(&b, &eeMem->Main[RNG_B], 2);
+			return (static_cast<u32>(a) << 16) | b;
+		}
+		static constexpr u32 TICK_STATE = 0xc627b4; // u8 game phase; 8 = battle load
+		static constexpr u8 TICK_LOAD = 8;
 		// ZDXSV_PW_DUMP=file: every save appends (s32 frame, 4 * PW_SIZE bytes of player work); rollback
 		// re-saves a frame, the last record wins (`tests/zdxsv/pwdiff.py` finds the fields behind H mismatches).
 		std::FILE* s_pw_dump = [] {
@@ -910,6 +933,9 @@ namespace Zdxsv
 			}
 		} s_replay_zip;
 		std::vector<NetInput> s_replay_inputs; // [frame * s_players + position]
+		// per frame, before its inputs: ReplayStateHash, GameRng, the tick state (load ends -> load_frames)
+		std::vector<u32> s_replay_hashes, s_replay_rngs;
+		std::vector<u8> s_replay_ticks;
 		s64 s_replay_start_at = 0; // unix seconds
 		int s_replay_confirmed = -1; // GGPO's last confirmed frame: the frames after it (predicted inputs) are not written
 		constexpr int REPLAY_FILE_VERSION = 20261008; // BattleLogFile.log_file_version of the files written here
@@ -1012,6 +1038,9 @@ namespace Zdxsv
 			s_replay_start_at = static_cast<s64>(std::time(nullptr));
 			s_replay_state = Path::Combine(dir, fmt::format(".replay-{}-p{}.p2s", s_replay_start_at, s_net_me));
 			s_replay_inputs.clear();
+			s_replay_hashes.clear();
+			s_replay_rngs.clear();
+			s_replay_ticks.clear();
 			s_replay_confirmed = -1;
 			// HLE state outside the save state at frame 0 (PlayLoad restores it): msgs waiting for the game's recv,
 			// play-start barrier, kind-3 barrier
@@ -1046,6 +1075,12 @@ namespace Zdxsv
 				return;
 			s_replay_inputs.resize(static_cast<size_t>(f) * s_players);
 			s_replay_inputs.insert(s_replay_inputs.end(), in, in + s_players);
+			s_replay_hashes.resize(f);
+			s_replay_hashes.push_back(ReplayStateHash());
+			s_replay_rngs.resize(f);
+			s_replay_rngs.push_back(GameRng());
+			s_replay_ticks.resize(f);
+			s_replay_ticks.push_back(eeMem->Main[TICK_STATE]);
 			int confirmed = -1;
 			if (s_session && ggpo_get_last_confirmed_frame(s_session, &confirmed) == GGPO_OK)
 				s_replay_confirmed = std::max(s_replay_confirmed, confirmed);
@@ -1125,6 +1160,20 @@ namespace Zdxsv
 			PutInt(pb, 48, static_cast<int64_t>(frames));
 			PutBytes(pb, 49, s_replay_inputs.data(), frames * s_players * sizeof(NetInput));
 			PutBytes(pb, 50, state->data(), state->size());
+			PutBytes(pb, 52, s_replay_hashes.data(), frames * sizeof(u32));
+			if (frames > 0)
+				PutUint(pb, 53, s_replay_rngs[0]);
+			std::vector<int64_t> load_frames, load_rngs;
+			for (size_t f = 1; f < frames; f++)
+			{
+				if (s_replay_ticks[f - 1] == TICK_LOAD && s_replay_ticks[f] != TICK_LOAD)
+				{
+					load_frames.push_back(static_cast<int64_t>(f));
+					load_rngs.push_back(s_replay_rngs[f]);
+				}
+			}
+			PutPackedInts(pb, 54, load_frames);
+			PutPackedInts(pb, 55, load_rngs);
 			const std::string path = Path::Combine(Path::GetDirectory(state_path), name + ".pb");
 			if (!FileSystem::WriteBinaryFile(path.c_str(), pb.data(), pb.size()))
 			{
@@ -2163,6 +2212,12 @@ namespace Zdxsv
 		// end (else pause); ZDXSV_REPLAY_TURBO=1: turbo limiter. With ZDXSV_PW_HASH + ZDXSV_NET_TRACE the H lines
 		// compare to the live battle's (zdxsv/pwcheck.py).
 		std::vector<NetInput> s_play_inputs;
+		// The file's state checks (replay.proto 52..55, optional): ReplayStateHash per frame, GameRng at frame 0 and at
+		// each load end, of position s_play_rng_pos (RNG A is per machine). Checked before a frame's inputs (PlayFrame).
+		std::vector<u32> s_play_hashes;
+		std::map<int, u32> s_play_rngs; // frame -> GameRng
+		int s_play_rng_pos = -1;
+		int s_play_hash_checks = 0, s_play_hash_bad = 0, s_play_hash_first_bad = -1, s_play_rng_checks = 0, s_play_rng_bad = 0;
 		int s_play_frames = 0;
 		std::vector<std::vector<u8>> s_play_answers; // common start: the file's lobby answers (RbkBody)
 
@@ -2208,8 +2263,6 @@ namespace Zdxsv
 		// frames for both positions). Frames are played in order up to s_play_hi (a forward seek runs every frame between), so
 		// the list is complete up to it. Round jump (ZDXSV_REPLAY_ROUND_AT, hotkeys, control bar): a known round
 		// start is a seek; an unknown one runs unlimited from s_play_hi until that load ends.
-		static constexpr u32 TICK_STATE = 0xc627b4; // u8 game phase; 8 = battle load
-		static constexpr u8 TICK_LOAD = 8;
 		std::mutex s_battle_loads_mtx;
 		std::vector<int> s_battle_loads; // written on the CPU thread; the GS thread reads it under s_battle_loads_mtx
 		int s_play_hi = -1, s_tick_f = -1;
@@ -2618,6 +2671,30 @@ namespace Zdxsv
 			NetApply(in);
 		}
 
+		// The file's state hash and RNGs of frame f against the emulated state (a desync check; nothing changes).
+		void PlayCheckState(int f)
+		{
+			if (f < static_cast<int>(s_play_hashes.size()))
+			{
+				s_play_hash_checks++;
+				if (const u32 h = ReplayStateHash(); h != s_play_hashes[f])
+				{
+					if (s_play_hash_bad++ < 10)
+						Console.Warning("ZdxsvGgpo: replay state hash differs at frame %d: file %08x, here %08x", f, s_play_hashes[f], h);
+					if (s_play_hash_first_bad < 0)
+						s_play_hash_first_bad = f;
+				}
+			}
+			if (const auto it = s_play_rngs.find(f); it != s_play_rngs.end() && s_net_me == s_play_rng_pos)
+			{
+				s_play_rng_checks++;
+				const u32 rng = GameRng();
+				if (rng != it->second)
+					s_play_rng_bad++;
+				Console.WriteLn("ZdxsvGgpo: replay rng at frame %d: file %08x, here %08x%s", f, it->second, rng, rng != it->second ? " DIFFERS" : "");
+			}
+		}
+
 		void PlayFrame(int f)
 		{
 			if (s_to_phase == TO_ON)
@@ -2642,6 +2719,7 @@ namespace Zdxsv
 			u16 ab[2];
 			std::memcpy(ab, &in[s_net_me].pad, sizeof(ab));
 			s_rings.zd_pad[f & 127] = PadFromB(ab[1]);
+			PlayCheckState(f);
 			NetApply(in);
 		}
 
@@ -2651,6 +2729,8 @@ namespace Zdxsv
 			s_bar_frame = -1;
 			s_net_over = true; // the battle sock goes back to the IOP
 			Console.WriteLn("ZdxsvGgpo: replay %s at frame %d of %d, vsync %u", what, s_net_frame, s_play_frames, g_FrameCount);
+			Console.WriteLn("ZdxsvGgpo: replay state check: hashes %d checked, %d differ (first at frame %d); rngs %d checked, %d differ",
+				s_play_hash_checks, s_play_hash_bad, s_play_hash_first_bad, s_play_rng_checks, s_play_rng_bad);
 			NetReport();
 			if (const char* e = std::getenv("ZDXSV_REPLAY_EXIT"); e && e[0] == '1')
 				Host::RunOnCPUThread([] { Host::RequestVMShutdown(false, false, false); });
@@ -3098,6 +3178,11 @@ namespace Zdxsv
 			s_live_wait_ms = 0;
 			s_play_inputs.clear();
 			s_play_frames = 0;
+			s_play_hashes.clear();
+			s_play_rngs.clear();
+			s_play_rng_pos = -1;
+			s_play_hash_checks = s_play_hash_bad = s_play_rng_checks = s_play_rng_bad = 0;
+			s_play_hash_first_bad = -1;
 			s_play_seeks.clear();
 			s_play_req = INT_MIN;
 			s_play_at_end = false;
@@ -3129,6 +3214,9 @@ namespace Zdxsv
 			std::vector<int64_t> hle0;
 			std::string_view inputs, state; // into the file's bytes
 			std::vector<std::vector<u8>> answers; // lobby frames, 12-byte header + body
+			std::string_view hashes; // u32 per frame, "" = none (older files)
+			std::optional<u32> start_rng;
+			std::vector<int64_t> load_frames, load_rngs;
 		};
 
 		bool ReplayParse(std::string_view all, ReplayFile& r)
@@ -3146,6 +3234,12 @@ namespace Zdxsv
 						r.zds_ps = v != 0;
 					else if (field == 46)
 						r.hle0.push_back(static_cast<int64_t>(v));
+					else if (field == 53)
+						r.start_rng = static_cast<u32>(v);
+					else if (field == 54)
+						r.load_frames.push_back(static_cast<int64_t>(v));
+					else if (field == 55)
+						r.load_rngs.push_back(static_cast<int64_t>(v));
 				}
 				else if (wt == 2)
 				{
@@ -3161,6 +3255,12 @@ namespace Zdxsv
 						r.state = bytes;
 					else if (field == 51 && n >= 12)
 						r.answers.emplace_back(b, b + n);
+					else if (field == 52)
+						r.hashes = bytes;
+					else if (field == 54)
+						return Pb::ReadInts(wt, v, b, n, r.load_frames);
+					else if (field == 55)
+						return Pb::ReadInts(wt, v, b, n, r.load_rngs);
 				}
 				return true;
 			});
@@ -3319,6 +3419,14 @@ namespace Zdxsv
 			{
 				s_play_inputs.assign(in, in + frames * players);
 				s_play_frames = static_cast<int>(frames);
+				s_play_hashes.resize(r.hashes.size() == static_cast<u64>(frames) * sizeof(u32) ? static_cast<size_t>(frames) : 0);
+				std::memcpy(s_play_hashes.data(), r.hashes.data(), s_play_hashes.size() * sizeof(u32));
+				s_play_rngs.clear();
+				if (r.start_rng)
+					s_play_rngs[0] = *r.start_rng;
+				for (size_t i = 0; i < r.load_frames.size() && i < r.load_rngs.size(); i++)
+					s_play_rngs[static_cast<int>(r.load_frames[i])] = static_cast<u32>(r.load_rngs[i]);
+				s_play_rng_pos = static_cast<int>(me);
 			}
 			s_players = static_cast<int>(players);
 			s_zds_ps = zds_ps;
@@ -3328,8 +3436,9 @@ namespace Zdxsv
 				key->rb.zds_seen[p] = h[4 + p];
 			key->rb.zds_rel = h[8];
 			key->ok = !common;
-			Console.WriteLn("ZdxsvGgpo: replay %s: position %lld of %d, %lld frames, zds_ps %d, rx0 %zu bytes, state %zu bytes", path.c_str(),
-				me, s_players, frames, s_zds_ps ? 1 : 0, key->rb.net_rx.size(), r.state.size());
+			Console.WriteLn("ZdxsvGgpo: replay %s: position %lld of %d, %lld frames, zds_ps %d, rx0 %zu bytes, state %zu bytes, "
+							"state hashes %s, rngs %zu", path.c_str(), me, s_players, frames, s_zds_ps ? 1 : 0, key->rb.net_rx.size(),
+				r.state.size(), r.hashes.empty() ? "no" : "yes", (r.start_rng ? 1 : 0) + std::min(r.load_frames.size(), r.load_rngs.size()));
 			s_play_keys[me].emplace(0, std::move(key));
 			s_play_pov_ok[me] = true;
 			return static_cast<int>(me);
