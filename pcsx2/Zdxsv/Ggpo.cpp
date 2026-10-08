@@ -269,12 +269,12 @@ namespace Zdxsv
 		// and the n-th kind 3 of every remote goes to recv once all peers' n-th is in the synced stream.
 		std::vector<std::vector<u8>> s_zds_k3[GGPO_MAX_PLAYERS]; // per sender, by index
 		u32 s_zds_k3rel = 0;
-		// ZDXSV_ZDS_PS=1: play start. The battle load step 0x2b1d60 (scene step: waits for the load-busy
+		// Play start (always on with GGPO; a replay takes the file's zds_ps). The battle load step 0x2b1d60 (scene step: waits for the load-busy
 		// flag via 0x214260, then inits the per-battle work and sets tick state 8) passes 0x2b1d80 when this
 		// machine's load is done: local timing (player work can be initialized 1 frame apart). The rec hook
 		// there counts the wish, returns 0 (step retried next frame) until every peer's synced count in
 		// Input::unused[1] reaches n, then lets the n-th pass. Rollback state (RollbackState::ps).
-		bool s_zds_ps = Zdxsv::TestEnv("ZDXSV_ZDS_PS") != nullptr; // replay: the file's zds_ps
+		bool s_zds_ps = true; // replay: the file's zds_ps
 		// Replay of a battle without zds_ps: the file's load_start_frames. Its load step passes on the recorder's
 		// frames (this machine's load can be done earlier: player work and RNG B would start a frame apart).
 		std::vector<int64_t> s_play_load_starts;
@@ -1288,8 +1288,8 @@ namespace Zdxsv
 		{
 			rbk_env_logged = true;
 			const auto env = [](const char* k) { const char* v = std::getenv(k); return v && *v ? v : "-"; };
-			Console.WriteLn("ZdxsvGgpo: rbk env pos=%d/%d rand=%s turbo=%s ps=%s clamp=%s ggpo=%s", s_rbk_me, s_rbk_n,
-				env("ZDXSV_RAND_INPUT"), env("ZDXSV_RBK_TURBO"), env("ZDXSV_ZDS_PS"), env("ZDXSV_EE_CLAMP"), env("ZDXSV_GGPO"));
+			Console.WriteLn("ZdxsvGgpo: rbk env pos=%d/%d rand=%s turbo=%s clamp=%s ggpo=%s", s_rbk_me, s_rbk_n,
+				env("ZDXSV_RAND_INPUT"), env("ZDXSV_RBK_TURBO"), env("ZDXSV_EE_CLAMP"), env("ZDXSV_GGPO"));
 		}
 		// ZDXSV_VM_TEST=frame:shutdown|reset (tests of GgpoOnVmShutdown): once, when a session or replay reaches GGPO frame `frame`
 		static const char* vm_test = std::getenv("ZDXSV_VM_TEST");
