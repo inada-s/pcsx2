@@ -58,9 +58,12 @@ battle-socket state. Then every frame gets the recorded inputs of all players
 through the same battle-socket emulation as a live GGPO battle, without GGPO.
 
 Common start (as gdxsv): a file without `start_state`, or any file with
-`ZDXSV_REPLAY_COMMON=1`, plays the battle start itself. Boot from a save state
-of the game at the post-entry point (logged in, before the lobby's battle
-start; any user's). The battle start is answered from `lobby_answers` as the
+`ZDXSV_REPLAY_COMMON=1`, plays the battle start itself, from a save state of
+the game at the post-entry point (logged in, before the lobby's battle start;
+any user's). That state is hosted, as gdxsv's slot 99: `[DEV9/Eth]
+ZdxsvReplayStateUrl` in `PCSX2.ini` (or `ZDXSV_REPLAY_STATE=<url or path>`)
+is downloaded once into the cache folder and loaded at the first frame; with
+neither set, boot from such a state yourself. The battle start is answered from `lobby_answers` as the
 point of view, menus run turbo, and at GGPO frame 0 that state replaces
 `start_state`. The log line `frame 0 HLE state equals|differs from the file's`
 compares the battle-socket state reached with the recorded one. One file only.
