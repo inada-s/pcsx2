@@ -24,6 +24,8 @@
 #   (OUT/trace-live.txt). Checks: one client was the uplink, the spectator's stream closed at the uplink's saved
 #   .pb frame count, the lobby logged the close with that count; with PWTRACE=1 its player work + rng = the
 #   players' (pwcheck).
+#   LIVE_NEXT=K (with BATTLES=K+1): the spectator moves on to the next battle K times (ZDXSV_LIVE_NEXT); the
+#   checks above run per watched battle, plus K+1 different battles watched (pwcheck: the last one).
 #   GGPO_DEFAULT=K: client K gets no ZDXSV_GGPO (launch.ps1 ZDXSV_GGPO=default), so the ZdxsvGgpo setting
 #   gives its options (port 7001); check: its log names the default options.
 #   BAD_SESSION=K (GDELAY=auto): client K gets badsession=1: every ping test fails,
@@ -126,7 +128,7 @@ if [ -n "${LIVE:-}" ]; then
     for t in $(seq 1800); do grep -a -q 'live uplink' "$OUT/lobby.log" 2>/dev/null && break; sleep 2; done
     grep -a -q 'live uplink' "$OUT/lobby.log" || { echo "no live uplink in $((SECONDS - t1)) s"; exit 0; }
     echo "live uplink after $((SECONDS - t1)) s: spectator p$LIVE"
-    env ZDXSV_REPLAY="udp://127.0.0.1:8201" ZDXSV_REPLAY_EXIT=1 ZDXSV_PW_HASH=1 ZDXSV_NET_TRACE="$OUT/trace-live.txt" \
+    env ZDXSV_REPLAY="udp://127.0.0.1:8201" ZDXSV_LIVE_NEXT=${LIVE_NEXT:-0} ZDXSV_REPLAY_EXIT=1 ZDXSV_PW_HASH=1 ZDXSV_NET_TRACE="$OUT/trace-live.txt" \
       powershell -NoProfile -Command "& '$here/launch.ps1' -N $LIVE -Headless -StateFile ${LIVE_STATE:-$RBKSTATES/rbk-p1.p2s}" 2>&1 | tail -1
   ) > "$OUT/live-launch.txt" 2>&1 & pids+=($!)
 fi
@@ -318,19 +320,31 @@ fi
 if [ -n "${LIVE:-}" ]; then
   f=$RUN/p$LIVE/PCSX2/logs/emulog.txt
   # the spectator trails the players (buffer wait; the close goes out after the replay write)
-  for t in $(seq 60); do grep -a -q 'ZdxsvGgpo: live: stream closed\|ZdxsvGgpo: live .*: \|ZdxsvGgpo: replay end' "$f" 2>/dev/null && break; sleep 5; done
+  nw=$((${LIVE_NEXT:-0} + 1))
+  for t in $(seq $((60 * nw))); do
+    [ "$(grep -a -c 'ZdxsvGgpo: live: stream closed' "$f" 2>/dev/null)" -ge $nw ] && break
+    grep -a -q 'ZdxsvGgpo: live .*: \|ZdxsvGgpo: replay end' "$f" 2>/dev/null && break
+    sleep 5
+  done
   sleep 5
   cat "$OUT/live-launch.txt"
-  grep -a -h 'live: \|ZdxsvGgpo: live' "$RUN"/p[1-4]/PCSX2/logs/emulog.txt 2>/dev/null | tr -d '\r' | cut -c1-200 | head -12
-  grep -a 'live \(open\|uplink\|subscribe\|close\|drop\)' "$OUT/lobby.log" | cut -c1-200 | head -8
-  up=$(for i in $CLIENTS; do grep -a -q 'live: uplink' "$RUN/p$i/PCSX2/logs/emulog.txt" && echo $i; done)
-  fr=$([ -n "$up" ] && grep -a -o "replays.$(report_code).pb frames=[0-9]*" "$RUN/p$up/PCSX2/logs/emulog.txt" | tail -1 | sed 's/.*frames=//')
-  sf=$(grep -a -o 'ZdxsvGgpo: live: stream closed ([^)]*) at frame [0-9]*' "$f" | tail -1 | sed 's/.* //')
-  echo "uplink p${up:-none} saved frames ${fr:-none}, spectator closed at ${sf:-none}"
-  check "one client was the live uplink" "[ \$(echo $up | wc -w) = 1 ]"
-  check "spectator watched the live battle" "grep -a -q 'ZdxsvGgpo: live: battle $(report_code)' '$f'"
-  check "spectator stream closed at the uplink's saved frame count" "[ -n '$sf' ] && [ '$fr' = '$sf' ]"
-  check "lobby closed the live battle with that count" "grep -a -q 'live close $(report_code) .* frames $fr\$' '$OUT/lobby.log'"
+  grep -a -h 'live: \|ZdxsvGgpo: live' "$RUN"/p[1-4]/PCSX2/logs/emulog.txt 2>/dev/null | tr -d '\r' | cut -c1-200 | head -$((12 * nw))
+  grep -a 'live \(open\|uplink\|subscribe\|close\|drop\)' "$OUT/lobby.log" | cut -c1-200 | head -$((8 * nw))
+  # per watched battle, in order: its code and the frame its stream closed at
+  codes=$(grep -a -o 'ZdxsvGgpo: live: battle [0-9]*' "$f" | sed 's/.* //')
+  sfs=$(grep -a -o 'ZdxsvGgpo: live: stream closed ([^)]*) at frame [0-9]*' "$f" | sed 's/.* //')
+  check "spectator watched $nw different live battle(s)" "[ $(echo $codes | wc -w) -eq $nw ] && [ $(echo $codes | tr ' ' '\n' | sort -u | wc -l) -eq $nw ]"
+  [ $nw = 1 ] && check "spectator watched the live battle" "grep -a -q 'ZdxsvGgpo: live: battle $(report_code)' '$f'"
+  n=0
+  for code in $codes; do
+    n=$((n + 1)); sf=$(echo $sfs | cut -d' ' -f$n)
+    up=$(for i in $CLIENTS; do grep -a -q "live: uplink $code to" "$RUN/p$i/PCSX2/logs/emulog.txt" && echo $i; done)
+    fr=$([ -n "$up" ] && grep -a -o "replays.$code.pb frames=[0-9]*" "$RUN/p$up/PCSX2/logs/emulog.txt" | tail -1 | sed 's/.*frames=//')
+    echo "$code: uplink p${up:-none} saved frames ${fr:-none}, spectator closed at ${sf:-none}"
+    check "$code: one client was the live uplink" "[ \$(echo $up | wc -w) = 1 ]"
+    check "$code: spectator stream closed at the uplink's saved frame count" "[ -n '$sf' ] && [ '$fr' = '$sf' ]"
+    check "$code: lobby closed the live battle with that count" "grep -a -q 'live close $code .* frames $fr\$' '$OUT/lobby.log'"
+  done
   if [ -n "${PWTRACE:-}" ]; then
     "$PY" -I "$TOOLS/pwcheck.py" --own "$OUT/trace-live.txt" $(for i in $CLIENTS; do echo "$OUT/trace-p$i.txt"; done) > "$OUT/pwcheck-live.txt"
     grep '^common\|^judged\|^player\|^rng' "$OUT/pwcheck-live.txt" | cut -c1-160

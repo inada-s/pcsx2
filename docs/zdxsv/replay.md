@@ -183,7 +183,15 @@ lobby's UDP socket, zdxsv `pkg/lobby/spectator.go`).
   close); more than 300 frames behind it runs unlimited until 90 behind
   (flycast's `gdxsv:LiveBufferFrames` and its catch-up edges). Nothing from the
   lobby for 30 s = stream lost.
+- Auto-next (flycast's `gdxsv:LiveAutoNext`): with `[DEV9/Eth]
+  ZdxsvLiveAutoNext` on (Settings → Network & HDD), at the end of a stream the
+  spectator pauses and asks the lobby every 5 s for its newest live battle (a
+  subscribe without code or cookie: the challenge names it, running battles
+  first). One not watched yet resets the VM and is watched from its start
+  (catching up if far along). A seek from the end cancels the move. Tests:
+  `ZDXSV_LIVE_NEXT=N` = N more battles, 0 = off.
 
 Log lines: `live: uplink CODE to ADDR`, `ZdxsvGgpo: live: battle CODE, N
 frames so far`, `live: N frames behind at frame F: catching up`, `caught up`,
-`live: stream closed (REASON) at frame F, N waits T ms`.
+`live: stream closed (REASON) at frame F, N waits T ms`, `live: auto-next:
+waiting for a new battle at HOST (N watched)`, `moving on to CODE after T s`.
