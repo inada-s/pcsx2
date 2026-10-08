@@ -51,6 +51,9 @@ with a peer without GGPO is cut, as a connection failure (`docs/zdxsv/lobby.md`)
   position from the current frame with the host pad (input delay = `mindelay`, default 2). Hold the replay's input
   shown in the panel for 1 s, or press START to skip the matching. START while taken over retries from that frame,
   and the bar's "Replay" button goes back to the replay. Not while spectating live.
+- Four-screen replay (as gdxsv): `ZDXSV_REPLAY_FOUR=1` with `ZDXSV_REPLAY=a.pb;b.pb...` (files of one battle saved by
+  different players) starts one more PCSX2 per other position, tiled 2x2 by position (Windows), all held on the same
+  frame; the extra windows follow this one's pause, speed and seeks and close with it. Replays only, not live.
 - Live spectating: the lobby picks one GGPO player per battle to stream it over UDP (lobby `live_uplink=1`);
   `ZDXSV_REPLAY=udp://<lobby host>:8201[/battle code]` watches it (`docs/zdxsv/replay.md`).
   Setting `[DEV9/Eth] ZdxsvLiveAutoNext` (off; Settings → Network & HDD) moves on to the next live battle when one ends.

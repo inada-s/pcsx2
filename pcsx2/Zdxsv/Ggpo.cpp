@@ -48,6 +48,7 @@
 #include "Zdxsv/DeltaFreeze.h"
 #include "Zdxsv/Lobby.h"
 #include "Zdxsv/Proto.h"
+#include "Zdxsv/SpectateSync.h"
 #include "Zdxsv/TestOptions.h"
 #include "Config.h"
 #include "Counters.h"
@@ -2823,8 +2824,171 @@ namespace Zdxsv
 		}
 
 		// GgpoOnVmShutdown: the key files go; a new VM (or the reset one) loads the files again and plays from the start.
+		// Four-screen (flycast's ReplayFourScreen): ZDXSV_REPLAY_FOUR=1 with files of several positions. The host spawns
+		// one guest per other position (ZDXSV_REPLAY_POV=p, ZDXSV_REPLAY_GROUP, -logfile emulog-povP.txt, the net trace
+		// as <trace>-povP), tiles the windows 2x2 by position, and all hold each other on the same frame (SpectateSync).
+		// A member more than SYNC_CHASE frames behind the newest seeks to it (a guest boots seconds after the host).
+		// The guests follow the host's pause, speed and seeks, and quit with it. Replays only: a live stream carries
+		// one position's state.
+		constexpr int SYNC_WAIT_MS = 200, SYNC_CHASE = 30;
+		std::thread s_sync_thread;
+		std::atomic<bool> s_sync_quit{false};
+		u32 s_sync_seek_gen = 0;
+		int s_sync_pids[Zdxsv::SpectateSync::GRID] = {};
+		bool s_sync_chase = false; // s_play_req is a chase, not a host seek for the guests
+		// ZDXSV_REPLAY_SYNC=0 (test control): members publish their frame but neither wait nor chase
+		const bool s_sync_test_off = [] { const char* e = std::getenv("ZDXSV_REPLAY_SYNC"); return e && e[0] == '0'; }();
+
+		bool PlayCatchingUp() { return s_run_load >= 0 || s_play_target >= 0 || s_live_catchup; }
+
+		// Not the CPU thread. Host: publishes its pause, tiles the windows; guest: follows the pause, quits with the host.
+		void SyncWatch(bool host)
+		{
+			int want = 0;
+			for (const int pid : s_sync_pids)
+				want += pid != 0;
+			bool tiled = false, quit = false;
+			std::optional<bool> paused;
+			for (int i = 0; !s_sync_quit; i++)
+			{
+				if (host)
+				{
+					Zdxsv::SpectateSync::HostPaused(VMManager::GetState() == VMState::Paused);
+					if (!tiled && i % 25 == 0 && i < 3000) // 60 s
+						tiled = Zdxsv::SpectateSync::TileWindows(s_sync_pids) == want;
+				}
+				else
+				{
+					Zdxsv::SpectateSync::Control c;
+					if (!quit && Zdxsv::SpectateSync::HostGone())
+					{
+						quit = true;
+						Console.WriteLn("ZdxsvGgpo: replay four-screen: the host is gone, quitting");
+						Host::RequestVMShutdown(false, false, false);
+					}
+					if (Zdxsv::SpectateSync::ReadControl(c) && paused != c.paused)
+					{
+						paused = c.paused;
+						Host::RunOnCPUThread([p = c.paused] {
+							if (VMManager::HasValidVM())
+								VMManager::SetPaused(p);
+						});
+					}
+				}
+				std::this_thread::sleep_for(std::chrono::milliseconds(20));
+			}
+		}
+
+		void SyncStop()
+		{
+			s_sync_quit = true;
+			if (s_sync_thread.joinable())
+				s_sync_thread.join();
+			Zdxsv::SpectateSync::Leave();
+			std::fill(std::begin(s_sync_pids), std::end(s_sync_pids), 0);
+		}
+
+		// CPU thread, after the replay loaded as position `me`.
+		void SyncStart(int me)
+		{
+			const char* group = std::getenv("ZDXSV_REPLAY_GROUP");
+			const char* four = std::getenv("ZDXSV_REPLAY_FOUR");
+			const bool host = !group && four && four[0] == '1';
+			if (!group && !host)
+				return;
+			if (s_live_down)
+			{
+				Console.Error("ZdxsvGgpo: replay four-screen: replays only, not live spectating");
+				return;
+			}
+			std::random_device rd;
+			const std::string g = group ? group : fmt::format("{:08x}{:08x}", rd(), rd());
+			if (!Zdxsv::SpectateSync::Join(g, host))
+				return;
+			Zdxsv::SpectateSync::Control c;
+			Zdxsv::SpectateSync::ReadControl(c);
+			s_sync_seek_gen = c.seek_gen;
+			if (host)
+			{
+				Zdxsv::SpectateSync::HostLimiter(static_cast<int>(VMManager::GetLimiterMode()));
+				s_sync_pids[me] = Zdxsv::SpectateSync::SelfPid();
+				const std::string trace = std::getenv("ZDXSV_NET_TRACE") ? std::getenv("ZDXSV_NET_TRACE") : "";
+				for (int p = 0; p < s_players && p < Zdxsv::SpectateSync::GRID; p++)
+				{
+					if (p == me || !s_play_pov_ok[p])
+						continue;
+					std::vector<std::pair<std::string, std::string>> env = {
+						{"ZDXSV_REPLAY_POV", std::to_string(p)}, {"ZDXSV_REPLAY_GROUP", g}, {"ZDXSV_REPLAY_FOUR", "0"}};
+					if (!trace.empty())
+					{
+						const size_t dot = trace.find_last_of("./\\");
+						const bool ext = dot != std::string::npos && trace[dot] == '.';
+						env.emplace_back("ZDXSV_NET_TRACE", ext ? fmt::format("{}-pov{}{}", trace.substr(0, dot), p, trace.substr(dot)) :
+						                                          fmt::format("{}-pov{}", trace, p));
+					}
+					s_sync_pids[p] = Zdxsv::SpectateSync::SpawnGuest(env, {"-logfile", Path::Combine(EmuFolders::Logs, fmt::format("emulog-pov{}.txt", p))});
+					Console.WriteLn("ZdxsvGgpo: replay four-screen: group %s, point of view %d in pid %d", g.c_str(), p, s_sync_pids[p]);
+				}
+			}
+			s_sync_quit = false;
+			s_sync_thread = std::thread(SyncWatch, host);
+		}
+
+		// CPU thread, PlayNext: the host's seek and speed for a guest; a seek to the newest member when far behind.
+		void SyncFollow(int next)
+		{
+			if (!Zdxsv::SpectateSync::Active())
+				return;
+			Zdxsv::SpectateSync::Control c;
+			if (!Zdxsv::SpectateSync::IsHost() && Zdxsv::SpectateSync::ReadControl(c))
+			{
+				if (c.seek_gen != s_sync_seek_gen)
+				{
+					s_sync_seek_gen = c.seek_gen;
+					s_play_req = c.seek_target;
+					Console.WriteLn("ZdxsvGgpo: replay four-screen: the host seeked to frame %d", c.seek_target);
+				}
+				if (!PlayCatchingUp() && c.limiter >= 0 && c.limiter != static_cast<int>(VMManager::GetLimiterMode()))
+					VMManager::SetLimiterMode(static_cast<LimiterModeType>(c.limiter));
+			}
+			if (const int lead = Zdxsv::SpectateSync::Leader();
+				!s_sync_test_off && !PlayCatchingUp() && s_to_phase == TO_OFF && s_play_req == INT_MIN && lead - next > SYNC_CHASE)
+			{
+				Console.WriteLn("ZdxsvGgpo: replay four-screen: frame %d, %d behind: seeking to %d", next, lead - next, lead + SYNC_CHASE / 3);
+				s_sync_chase = true;
+				s_play_req = lead + SYNC_CHASE / 3; // the newest goes on during the seek
+			}
+		}
+
+		// CPU thread, before frame `next` plays: holds it for a member behind, publishes the host's speed.
+		void SyncFrame(int next)
+		{
+			if (!Zdxsv::SpectateSync::Active())
+				return;
+			if (PlayCatchingUp())
+			{
+				Zdxsv::SpectateSync::Publish(next, true);
+				return;
+			}
+			if (Zdxsv::SpectateSync::IsHost())
+				Zdxsv::SpectateSync::HostLimiter(static_cast<int>(VMManager::GetLimiterMode()));
+			if (!s_sync_test_off)
+				Zdxsv::SpectateSync::WaitForPeers(next, SYNC_WAIT_MS);
+			else
+				Zdxsv::SpectateSync::Publish(next, false);
+			if (next % 300 == 0)
+			{
+				int slowest, newest;
+				const int n = Zdxsv::SpectateSync::Members(slowest, newest);
+				Console.WriteLn("ZdxsvGgpo: replay four-screen: frame %d, %d members, spread %d (%d..%d)", next, n,
+					newest >= 0 ? newest - slowest : -1, slowest, newest);
+			}
+		}
+
 		void PlayReset()
 		{
+			SyncStop();
+			s_sync_chase = false;
 			for (auto& keys : s_play_keys)
 			{
 				for (auto& [f, k] : keys)
@@ -3070,7 +3234,8 @@ namespace Zdxsv
 		void PlayLoad()
 		{
 			int me = -1;
-			for (const std::string_view path : StringUtil::SplitString(s_live_next_url.empty() ? s_play_env : s_live_next_url, ';'))
+			const std::string paths = s_live_next_url.empty() ? s_play_env : s_live_next_url; // the split's views point into it
+			for (const std::string_view path : StringUtil::SplitString(paths, ';'))
 				if (const int p = PlayLoadFile(std::string(path)); me < 0)
 					me = p;
 			if (me < 0)
@@ -3121,6 +3286,7 @@ namespace Zdxsv
 				if (s_play_pov_ok[p])
 					povs += fmt::format("{}{}", povs.empty() ? "" : ",", p);
 			Console.WriteLn("ZdxsvGgpo: replay: point of view %d (positions with a file: %s), %d frames", s_net_me, povs.c_str(), s_play_frames);
+			SyncStart(me);
 			PlayFrame(0);
 		}
 
@@ -3253,6 +3419,7 @@ namespace Zdxsv
 				s_play_pov_req = -1;
 				s_play_round_req = INT_MIN;
 			}
+			SyncFollow(next);
 			int req = s_play_req.exchange(INT_MIN);
 			const int pov = s_play_pov_req.exchange(-1);
 			int run = -1; // load to run to after the seek
@@ -3270,6 +3437,8 @@ namespace Zdxsv
 					run = load;
 				}
 			}
+			if (const bool chase = std::exchange(s_sync_chase, false); req != INT_MIN && !chase && Zdxsv::SpectateSync::IsHost())
+				Zdxsv::SpectateSync::HostSeek(req);
 			if (req != INT_MIN || run >= 0 || (pov >= 0 && pov != s_net_me))
 			{
 				PlayRunEnd("cancelled by a seek", s_net_frame);
@@ -3294,6 +3463,7 @@ namespace Zdxsv
 			{
 				s_play_at_end = false;
 				s_live_wait.reset(); // played on from the end: no move to another battle
+				SyncFrame(next);
 				PlayFrame(next);
 				if (pause)
 					VMManager::SetPaused(true);

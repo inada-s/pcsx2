@@ -126,6 +126,9 @@ See [replay.md](replay.md).
 | `ZDXSV_REPLAY_ROUND_AT=frame:N[,...]` | off | test | Jump to round N (0 = the briefing) when that frame is reached. |
 | `ZDXSV_REPLAY_TAKEOVER=frame[:src]` | off | test | Take over at that frame with no input matching. No src: the host pad plays; `replay` = the file's own input `delay` frames ahead (the replay must play unchanged); `rand` = random buttons (a control: differs from the replay soon after the frame). |
 | `ZDXSV_REPLAY_TAKEOVER_RETRY=frame` | off | test | While taken over, retry from the takeover frame when that frame is reached. |
+| `ZDXSV_REPLAY_FOUR=1` | off | feature | Four-screen: one more PCSX2 per other position with a file, 2x2, held on one frame (SpectateSync.h). |
+| `ZDXSV_REPLAY_GROUP=id` | - | internal | Set by the four-screen host for its guests (with `ZDXSV_REPLAY_POV`). |
+| `ZDXSV_REPLAY_SYNC=0` | on | test | Four-screen control: members publish their frame but neither wait nor seek to the newest. |
 | `ZDXSV_REPLAY_KEY_NOHLE=1` | off | control | Seek keys restore no battle-socket state. The replay then drifts. |
 
 ## Delta state self-test
