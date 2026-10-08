@@ -47,7 +47,7 @@ namespace Zdxsv
 	constexpr u32 STEP_COPY_PC = 0x312bf4;
 	extern bool g_zd_hook;
 	void OnStepCopy();
-	// ZDXSV_ZDS_PS=1: battle load step past its load-busy check; true = held (v0 = 0, pc = epilogue).
+	// Play start: battle load step past its load-busy check; true = held (v0 = 0, pc = epilogue).
 	constexpr u32 LOAD_STEP_PC = 0x2b1d80;
 	extern bool g_ps_hook;
 	bool OnLoadStep();

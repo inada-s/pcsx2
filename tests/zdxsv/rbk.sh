@@ -6,7 +6,7 @@
 #   OUT=<dir> bash tests/zdxsv/rbk.sh [N] [seed]   (N 2|4, default 4: arguments, not env; no seed: host pad = no input)
 # Env: RBKSTATES (dir of rbk-p1..p4.p2s), TIME (rule 作戦時間 s, menu 90..270, 30 works too; default 90),
 # COUNT (連続対戦数, default 1; 0 = rematch picked by input), GAUGE (戦力ゲージ, default 1: first shoot-down ends the battle, recorded 600), MAXS (default 900),
-# SELECT (出撃準備 timer frames via ZDXSV_EE_CLAMP, default 300; SELECT= off: N=2 seed 1 5381 -> 7781 frames, 71 -> 99 s), BATTLE (battle timer frames, u16 0x838f66, default off = TIME; 600 frames saves 1200 frames), BRIEF (pre-play 600-frame countdown, u32 0x6f2b50 from select end, default 1: play start frame 1581 -> 1299, BRIEF= off), TAIL (frames run after the end msg, ZDXSV_NET_TAIL, default 60; pcsx2 300), PS (default 1: ZDXSV_ZDS_PS play-start barrier, needed with SELECT; PS= off), TURBO (default 1: battle turbo too, frame-identical; TURBO= nominal), PWDUMP=1 (player-work dumps $OUT/pw-p*.bin for pwdiff.py), PCSX2_ENV (extra env for all), ENV0 (extra env for position 0 only: controls), DELAY (GGPO input delay, default 2 as flycast's local rbk test: 85 s vs 133 s at 0, rollback frames ~100 vs ~1300 per peer), GGPO (ZDXSV_GGPO value, default net=1,players=N,zd=1,zdp=1,zds=1,delay=DELAY).
+# SELECT (出撃準備 timer frames via ZDXSV_EE_CLAMP, default 300; SELECT= off: N=2 seed 1 5381 -> 7781 frames, 71 -> 99 s), BATTLE (battle timer frames, u16 0x838f66, default off = TIME; 600 frames saves 1200 frames), BRIEF (pre-play 600-frame countdown, u32 0x6f2b50 from select end, default 1: play start frame 1581 -> 1299, BRIEF= off), TAIL (frames run after the end msg, ZDXSV_NET_TAIL, default 60; pcsx2 300), TURBO (default 1: battle turbo too, frame-identical; TURBO= nominal), PWDUMP=1 (player-work dumps $OUT/pw-p*.bin for pwdiff.py), PCSX2_ENV (extra env for all), ENV0 (extra env for position 0 only: controls), DELAY (GGPO input delay, default 2 as flycast's local rbk test: 85 s vs 133 s at 0, rollback frames ~100 vs ~1300 per peer), GGPO (ZDXSV_GGPO value, default net=1,players=N,zd=1,zdp=1,zds=1,delay=DELAY).
 # TSCALE (turbo cap, default 4; TSCALE= = pcsx2 default 2). N=4 plays p1..p4 (CPU-bound on a 4-core host: ~67 fps). N=2 plays p1 (position 0) + p3 (position 1).
 # Sync check (inada-s/ai-automation#62): pwcheck compares each player's x, y, z and game RNG B (0x6d793c) on every frame (RNG A takes machine-local sound draws: reported, not judged; OWN: no effect).
 # s724: `N=2 bash rbk.sh` ran the default N=4 for 149 s: an env N/SEED the arguments do not match is refused
@@ -45,7 +45,6 @@ trap 'cleanup; rig_release' EXIT
 t0=$SECONDS
 turbo=${TURBO-1}
 select=${SELECT-300}
-ps=${PS-1}
 battle=${BATTLE-}
 brief=${BRIEF-1}
 # TSCALE: turbo speed cap (ini [Framerate] TurboScalar; pcsx2 default 2.0, max 10). Seed 1: N=2 2x 54 s
@@ -71,7 +70,7 @@ clamp="${select:+117f566,$select,2000,3600}${brief:+;6f2b50,$brief,$((brief + 1)
 for i in $(seq 0 $((N - 1))); do
   p=${P[$i]}
   rm -f "$RUN/p$p/PCSX2/logs/emulog.txt" "$OUT/trace-p$p.txt"
-  env ZDXSV_GGPO="$GGPO" ZDXSV_RBK=$i/$N ZDXSV_RBK_TIME=${TIME:-90} ZDXSV_RBK_COUNT=${COUNT:-1} ZDXSV_RBK_GAUGE=${GAUGE:-1} ${turbo:+ZDXSV_RBK_TURBO=1} ${clamp:+ZDXSV_EE_CLAMP=$clamp} ${ps:+ZDXSV_ZDS_PS=1} ZDXSV_NET_TAIL=${TAIL:-60} ${SEED:+ZDXSV_RAND_INPUT=$((SEED + i))} \
+  env ZDXSV_GGPO="$GGPO" ZDXSV_RBK=$i/$N ZDXSV_RBK_TIME=${TIME:-90} ZDXSV_RBK_COUNT=${COUNT:-1} ZDXSV_RBK_GAUGE=${GAUGE:-1} ${turbo:+ZDXSV_RBK_TURBO=1} ${clamp:+ZDXSV_EE_CLAMP=$clamp} ZDXSV_NET_TAIL=${TAIL:-60} ${SEED:+ZDXSV_RAND_INPUT=$((SEED + i))} \
     ZDXSV_PW_HASH=1 ZDXSV_NET_TRACE=$OUT/trace-p$p.txt ${PWDUMP:+ZDXSV_PW_DUMP=$OUT/pw-p$p.bin} $PCSX2_ENV $([ "$i" -eq 0 ] && echo "$ENV0") \
     powershell -NoProfile -Command "& '$here/launch.ps1' -N $p -Headless -LobbyState -StateFile $RBKSTATES/rbk-p$p.p2s" 2>&1 | tail -1 &
   lpids="$lpids $!"
@@ -85,7 +84,7 @@ wait $lpids
 for i in $(seq 0 $((N - 1))); do
   p=${P[$i]}
   l=$RUN/p$p/PCSX2/logs/emulog.txt
-  want="pos=$i/$N rand=${SEED:+$((SEED + i))} turbo=${turbo:+1} ps=${ps:+1} clamp=${clamp} ggpo=$GGPO"
+  want="pos=$i/$N rand=${SEED:+$((SEED + i))} turbo=${turbo:+1} clamp=${clamp} ggpo=$GGPO"
   want=$(echo "$want" | sed 's/=\( \|$\)/=-\1/g')
   got=
   for t in $(seq 30); do

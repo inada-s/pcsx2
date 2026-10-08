@@ -102,7 +102,7 @@ local tests, picked from the ping test in lobby battles.
 
 Two mechanisms keep the peers on the same frame:
 
-- **Play-start barrier** (`ZDXSV_ZDS_PS=1`): each machine finishes loading the
+- **Play-start barrier** (always on with GGPO): each machine finishes loading the
   battle at its own time. The barrier holds the game until every peer is
   ready, so all start the battle on the same GGPO frame.
 - **Round handshake lag** (`ZDXSV_K3_LAG`, default 8): a round-handshake
@@ -128,7 +128,7 @@ game RNG instead:
   the net trace. In sync, the coordinates and RNG B (`0x6d793c`) agree across
   the peers. RNG A (`0x6d7940`) also takes draws that only one machine makes
   (a sound pick), so `pwcheck.py` reports it but does not judge it. Frames
-  before the play start (`PS` line; without one, the end of the battle load)
+  before the play start (`PS` line)
   are not judged: the scene steps there follow local load timing.
 - `ZDXSV_PW_DUMP` writes the work RAM itself, to find the field behind a
   mismatch.

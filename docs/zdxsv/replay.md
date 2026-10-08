@@ -41,7 +41,7 @@ one file plays the point of view of any player.
 | `close_reason` | why the session ended |
 | `players`, `position` | player count, and the battle position of the recording player |
 | `input_delay` | GGPO input delay of the battle |
-| `zds_ps`, `net_rx0`, `hle0` | battle-socket state at frame 0 |
+| `net_rx0`, `hle0` | battle-socket state at frame 0 |
 | `input_size`, `frames`, `inputs` | the synced inputs of all players: `frames` x `players` x `input_size` bytes, frame-major, by battle position |
 | `lobby_answers` | the lobby's battle-start answers the game got (0x6911..0x6917: player count, side, players, rule, battle code, battle server), each as received (header + body) |
 | `state_hashes` | optional: per frame (before its inputs) a u32 hash of the 4 players' masked work + RNG B; equal in every position's file of one battle. Playback compares it and logs `replay state hash differs at frame F` (first 10) and, at the end, `replay state check: hashes N checked, M differ` |

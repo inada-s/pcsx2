@@ -220,11 +220,10 @@ def rbk_state(idx: int) -> Path:
 
 def rbk_env(idx: int, random_input: bool) -> dict:
     # No rule overrides (ZDXSV_RBK_TIME/COUNT/GAUGE, ZDXSV_EE_CLAMP): the battle keeps the rules saved
-    # in the state. ZDXSV_ZDS_PS makes every peer start the battle on the same GGPO frame.
+    # in the state.
     env = {
         "ZDXSV_GGPO": f"net=1,players={N},delay={DELAY}" + (f",relay={RELAY_PORT}" if LAT else ""),
         "ZDXSV_RBK": f"{idx}/{N}",
-        "ZDXSV_ZDS_PS": "1",
         "ZDXSV_LOBBY_STATE": "1",
     }
     if random_input:
