@@ -80,6 +80,9 @@ the agent's context.
 - zdxsv code: `pcsx2/Zdxsv/` (Qt: `pcsx2-qt/Zdxsv/`), never next to upstream
   sources.
 - `pcsx2/Zdxsv/README.md`: glossary and file map; update on add, split, rename.
+- New fork files start with `// SPDX-FileCopyrightText: 2026 zdxsv contributors`
+  and `// SPDX-License-Identifier: GPL-3.0+`. Upstream files keep the PCSX2 Dev
+  Team header.
 - Keep `pcsx2/CMakeLists.txt` and `pcsx2/pcsx2.vcxproj` (+ `.filters`) in sync.
 
 ### Naming
