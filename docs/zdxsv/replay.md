@@ -56,6 +56,10 @@ works. The first frame loads the frame 0 state of the replay and its
 battle-socket state. Then every frame gets the recorded inputs of all players
 through the same battle-socket emulation as a live GGPO battle, without GGPO.
 
+- `ZDXSV_REPLAY=http(s)://...` downloads it first: a `.pb` URL, or the lobby's
+  public API `http://<ZDXSV_LOBBY_API_ADDR>/lbs/replay?battle_code=<code>`
+  (a JSON list, as gdxsv lbsapi), whose first battle's `replay_url` is then
+  downloaded. Rig: `tests/zdxsv/m4z.sh UPLOAD=1 REPLAY_API=N`.
 - The replay is shown from the side of the recording player.
 - At the end the emulator pauses. A seek then plays on; resuming without one
   ends the replay.
