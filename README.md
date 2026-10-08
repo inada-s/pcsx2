@@ -60,6 +60,8 @@ with a peer without GGPO is cut, as a connection failure (`docs/zdxsv/lobby.md`)
 - Live spectating: the lobby picks one GGPO player per battle to stream it over UDP (lobby `live_uplink=1`);
   `ZDXSV_REPLAY=udp://<lobby host>:8201[/battle code]` watches it (`docs/zdxsv/replay.md`).
   Setting `[DEV9/Eth] ZdxsvLiveAutoNext` (off; Settings → Network & HDD) moves on to the next live battle when one ends.
+  The spectator trims the frame limiter's period (a few ms per frame) to stay 30 frames behind the live edge without
+  stalls (`VMManager::Internal::Throttle`, `Zdxsv::g_frame_period_trim_us`); `ZDXSV_LIVE_PACING=0` turns it off.
 
 ### Releases and tools
 

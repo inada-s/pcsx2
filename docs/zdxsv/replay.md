@@ -199,6 +199,14 @@ lobby's UDP socket, zdxsv `pkg/lobby/spectator.go`).
   close); more than 300 frames behind it runs unlimited until 90 behind
   (flycast's `gdxsv:LiveBufferFrames` and its catch-up edges). Nothing from the
   lobby for 30 s = stream lost.
+- Speed trim (flycast's frame period trim): between those edges the frame
+  limiter's period is trimmed (-4 to +8 ms per frame, nominal speed only) to
+  hold 30 received frames unplayed, instead of running dry and waiting a whole
+  buffer: the stream's measured frame rate (the players run below 59.94 Hz
+  while GGPO waits) plus a correction on the buffer error. Off while catching
+  up, seeking, taking over, after the close, and after 5 frames with nothing
+  received. No effect with the host-refresh vsync pacing (`Sync to Host
+  Refresh Rate` + `Use Host VSync Timing`). Tests: `ZDXSV_LIVE_PACING=0` = off.
 - Auto-next (flycast's `gdxsv:LiveAutoNext`): with `[DEV9/Eth]
   ZdxsvLiveAutoNext` on (Settings → Network & HDD), at the end of a stream the
   spectator pauses and asks the lobby every 5 s for its newest live battle (a
@@ -209,5 +217,6 @@ lobby's UDP socket, zdxsv `pkg/lobby/spectator.go`).
 
 Log lines: `live: uplink CODE to ADDR`, `ZdxsvGgpo: live: battle CODE, N
 frames so far`, `live: N frames behind at frame F: catching up`, `caught up`,
+`live: pace frame F gap G trim T us rate R hz, N waits T ms` (every 600 frames),
 `live: stream closed (REASON) at frame F, N waits T ms`, `live: auto-next:
 waiting for a new battle at HOST (N watched)`, `moving on to CODE after T s`.

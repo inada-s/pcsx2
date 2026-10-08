@@ -2280,17 +2280,22 @@ void VMManager::Internal::Throttle()
 	if (s_target_speed == 0.0f || s_use_vsync_for_timing)
 		return;
 
+	s64 ticks_per_frame = s_limiter_ticks_per_frame;
+	if (Zdxsv::g_frame_period_trim_us != 0 && s_limiter_mode == LimiterModeType::Nominal)
+		ticks_per_frame = std::max<s64>(ticks_per_frame + static_cast<s64>(Zdxsv::g_frame_period_trim_us) *
+			static_cast<s64>(GetTickFrequency()) / 1000000, ticks_per_frame / 2);
+
 	const u64 uExpectedEnd =
 		s_limiter_frame_start +
-		s_limiter_ticks_per_frame; // Compute when we would expect this frame to end, assuming everything goes perfectly perfect.
+		ticks_per_frame; // Compute when we would expect this frame to end, assuming everything goes perfectly perfect.
 	const u64 iEnd = GetCPUTicks(); // The current tick we actually stopped on.
 	const s64 sDeltaTime = iEnd - uExpectedEnd; // The diff between when we stopped and when we expected to.
 
 	// If frame ran too long...
-	if (sDeltaTime >= s_limiter_ticks_per_frame)
+	if (sDeltaTime >= ticks_per_frame)
 	{
 		// ... Fudge the next frame start over a bit. Prevents fast forward zoomies.
-		s_limiter_frame_start += (sDeltaTime / s_limiter_ticks_per_frame) * s_limiter_ticks_per_frame;
+		s_limiter_frame_start += (sDeltaTime / ticks_per_frame) * ticks_per_frame;
 		return;
 	}
 
