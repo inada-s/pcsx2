@@ -6,8 +6,8 @@ rng = RNG A (u16 0x6d7940) << 16 | RNG B (u16 0x6d793c).
 usage: pwcheck.py [--own] TRACE1 TRACE2 [...]   (--own: accepted, no effect; the check has no machine-local fields)
 Per player p and for the RNG: frames where the values differ, first differing frame and the runs of differing
 frames, counted from the play start; `pre-play` = differing frames before it. Judged: players + `rng` (RNG B).
-Play start = the first `PS` trace line (ZDXSV_ZDS_PS barrier frame, equal on all peers); in traces without
-one (lobby battles, replays) the first frame the tick state 0xc627b4 (`L` lines, last column) leaves 8 =
+Play start = the first `PS` trace line (play-start barrier frame, equal on all peers); in traces without
+one (older builds) the first frame the tick state 0xc627b4 (`L` lines, last column) leaves 8 =
 battle load end; the latest over the traces. All frames if a trace has neither.
 - RNG A also takes machine-local draws (s759 rbk 2 1 ZDXSV_EE_WATCH: sound pick 0x23abec on one peer only,
   71 of 73 differing frames; RNG B callers equal on all 828 frames): `rng_a` is printed, not judged.

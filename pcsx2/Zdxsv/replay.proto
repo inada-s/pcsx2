@@ -31,7 +31,7 @@ message BattleLogFile {
   int32 input_delay = 42;  // GGPO frames
   string battle_info = 43;  // the lobby's battle info, key=value lines ("" in a local test)
   // HLE state outside the save state at frame 0: the game's battle socket (Ggpo.cpp NetApply)
-  bool zds_ps = 44;  // play-start msgs on
+  reserved 44;  // was zds_ps: the play-start barrier is always on
   bytes net_rx0 = 45;  // msgs waiting for the game's recv
   repeated int32 hle0 = 46;  // play-start barrier n, rel, hold, go; kind-3 seen 0..3, rel
   int32 input_size = 47;  // bytes per player per frame (Ggpo.cpp NetInput)
@@ -51,8 +51,5 @@ message BattleLogFile {
   optional uint32 start_rng = 53;
   repeated int32 load_frames = 54;
   repeated uint32 load_rngs = 55;
-  // The frames where the tick state enters 8: the battle load step passed and initialized the per-battle player
-  // work. Without zds_ps this pass is local load timing; a replay holds the step to these frames (else player work
-  // and RNG B can start a frame apart from the recording). Optional: a file without them plays at local timing.
-  repeated int32 load_start_frames = 56;
+  reserved 56;  // was load_start_frames: replay hold of the round-start load step (files without the barrier)
 }

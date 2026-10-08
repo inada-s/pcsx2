@@ -48,9 +48,6 @@ with a peer without GGPO is cut, as a connection failure (`docs/zdxsv/lobby.md`)
 - Desync check (optional in the file): a per-frame state hash (player work + RNG) and the game RNGs at frame 0 and at
   each battle load end (for round skip). Playback logs `replay state hash differs at frame F` and a `replay state
   check` summary; `tests/zdxsv/replay_check.py` compares the hashes of one battle's files. The RNGs are checked on RNG B only (RNG A takes machine-local draws). Older files play unchecked.
-- Round start timing (`load_start_frames`, optional): a lobby battle's round-start load step passes at local load
-  timing, so playback could init the player work and draw RNG B a frame or two apart from the recording. The file
-  keeps the recorded frames and playback holds the step to them (log `replay: load step passes at frame F (recorded R)`).
 - A lobby battle's `.pb` is posted (multipart, as flycast) to the replay uploader (zdxsv `infra/uploader`) at
   `[DEV9/Eth] ZdxsvReplayUploadUrl` in `PCSX2.ini` (empty = no upload; `ZDXSV_GGPO` `upload=URL` overrides it).
 - An uploaded replay plays from the lobby's public API (as gdxsv lbsapi):
