@@ -2719,17 +2719,84 @@ namespace Zdxsv
 			});
 		}
 
+		std::optional<std::vector<u8>> HttpGet(const std::string& url)
+		{
+			std::unique_ptr<HTTPDownloader> http = HTTPDownloader::Create(Host::GetHTTPUserAgent());
+			if (!http)
+			{
+				Console.Error("ZdxsvGgpo: replay %s: no HTTP client", url.c_str());
+				return std::nullopt;
+			}
+			http->SetTimeout(120.0f);
+			std::optional<std::vector<u8>> got;
+			http->CreateRequest(url, [&](s32 status, const std::string&, HTTPDownloader::Request::Data data) {
+				if (status == HTTPDownloader::HTTP_STATUS_OK)
+					got = std::move(data);
+				else
+					Console.Error("ZdxsvGgpo: replay %s: status %d", url.c_str(), status); // 204: no such battle
+			});
+			http->WaitForAllRequests();
+			return got;
+		}
+
+		// The first "replay_url" string of a JSON text (Go's encoder: \" \\ \/ and \u00XX escapes), empty if none.
+		std::string JsonReplayUrl(std::string_view json)
+		{
+			const size_t key = json.find("\"replay_url\"");
+			if (key == std::string_view::npos)
+				return {};
+			size_t i = json.find_first_not_of(" \t\r\n", key + 12);
+			if (i == std::string_view::npos || json[i] != ':' || (i = json.find_first_not_of(" \t\r\n", i + 1)) == std::string_view::npos ||
+				json[i] != '"')
+				return {};
+			std::string url;
+			for (i++; i < json.size() && json[i] != '"'; i++)
+			{
+				if (json[i] != '\\')
+					url += json[i];
+				else if (i + 1 < json.size() && json[i + 1] == 'u' && i + 5 < json.size())
+				{
+					const std::optional<u32> c = StringUtil::FromChars<u32>(json.substr(i + 2, 4), 16);
+					if (!c || *c >= 0x80) // a URL is ASCII
+						return {};
+					url += static_cast<char>(*c);
+					i += 5;
+				}
+				else if (i + 1 < json.size())
+					url += json[++i];
+			}
+			return i < json.size() ? url : std::string();
+		}
+
+		// ZDXSV_REPLAY=http(s)://...: a replay file, or the lobby's /lbs/replay?battle_code=C answer (as gdxsv
+		// lbsapi: a JSON list, newest first), whose first battle's replay_url is then fetched.
+		std::optional<std::vector<u8>> HttpOpen(const std::string& url)
+		{
+			std::optional<std::vector<u8>> got = HttpGet(url);
+			if (!got || got->empty() || got->front() != '[') // a .pb starts with field 1 (0x08)
+				return got;
+			const std::string pb = JsonReplayUrl(std::string_view(reinterpret_cast<const char*>(got->data()), got->size()));
+			if (pb.empty())
+			{
+				Console.Error("ZdxsvGgpo: replay %s: no replay_url in the answer", url.c_str());
+				return std::nullopt;
+			}
+			Console.WriteLn("ZdxsvGgpo: replay %s: replay_url %s", url.c_str(), pb.c_str());
+			return HttpGet(pb);
+		}
+
 		// Reads one file; returns its position, -1 = not used.
 		int PlayLoadFile(const std::string& path)
 		{
 			const bool live = path.starts_with("udp://");
+			const bool http = path.starts_with("http://") || path.starts_with("https://");
 			if (live && (s_play_frames > 0 || s_live_down))
 			{
 				Console.Error("ZdxsvGgpo: replay %s: a live stream plays alone", path.c_str());
 				return -1;
 			}
 			const std::optional<std::vector<u8>> file =
-				live ? LiveOpen(path.substr(6)) : FileSystem::ReadBinaryFile(Path::ToNativePath(path).c_str()); // '/' fails on Windows
+				live ? LiveOpen(path.substr(6)) : http ? HttpOpen(path) : FileSystem::ReadBinaryFile(Path::ToNativePath(path).c_str()); // '/' fails on Windows
 			const std::string_view all = file ? std::string_view(reinterpret_cast<const char*>(file->data()), file->size()) : std::string_view();
 			ReplayFile r;
 			if (all.empty() || !ReplayParse(all, r) || r.version <= 0)
