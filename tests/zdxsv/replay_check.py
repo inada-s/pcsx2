@@ -2,20 +2,18 @@
 
   python replay_check.py A.pb [B.pb ...] [--frames N]
 
-Per file: the fields, state = a zip holding a pcsx2 save state, input bytes = frames * players * input_size.
+Per file: the fields, input bytes = frames * players * input_size.
 Several files of one battle (one per peer): same players / frames (+-tail), and the inputs of every
 common frame byte-identical (all peers log the same synced inputs); state_hashes, load_frames and RNG B
 (load_rngs & 0xffff) equal where both files have them. --frames N: frames must be N.
 Exit 1 on any failure.
 """
-import io
 import sys
-import zipfile
 
 # replay.proto BattleLogFile: field number -> key
 FIELDS = {3: "battle_code", 4: "version", 5: "game_disk", 11: "users", 20: "start_at", 21: "end_at", 24: "close",
-          40: "players", 41: "position", 42: "delay", 43: "battle_info", 44: "zds_ps", 45: "rx0", 46: "hle0",
-          47: "input_size", 48: "frames", 49: "inputs", 50: "state", 52: "hashes", 53: "start_rng", 54: "load_frames",
+          40: "players", 41: "position", 42: "delay", 43: "battle_info", 45: "rx0", 46: "hle0",
+          47: "input_size", 48: "frames", 49: "inputs", 51: "lobby_answers", 52: "hashes", 53: "start_rng", 54: "load_frames",
           55: "load_rngs"}
 PACKED = ("hle0", "load_frames", "load_rngs")
 
@@ -53,10 +51,12 @@ def fields(b):
 
 
 def load(path):
-    h = {"users": [], **{k: [] for k in PACKED}}
+    h = {"users": [], "lobby_answers": [], **{k: [] for k in PACKED}}
     for f, wt, v in fields(open(path, "rb").read()):
         k = FIELDS.get(f)
-        if k == "users":
+        if k == "lobby_answers":
+            h[k].append(v)
+        elif k == "users":
             u = {FIELDS_USER.get(uf, uf): uv for uf, _, uv in fields(v)}
             h["users"].append({k2: v2.decode("utf-8") if isinstance(v2, bytes) else v2 for k2, v2 in u.items()})
         elif k in PACKED:
@@ -71,8 +71,8 @@ def load(path):
             h[k] = v.decode("utf-8") if isinstance(v, bytes) and k in ("battle_code", "game_disk", "close", "battle_info") else v
     if not h.get("version"):
         raise ValueError("no log_file_version: not a replay file")
-    state, inputs = h.pop("state", b""), h.pop("inputs", b"")
-    return h, state, inputs, h.get("players", 0), h.get("frames", 0), h.get("input_size", 0)
+    inputs = h.pop("inputs", b"")
+    return h, inputs, h.get("players", 0), h.get("frames", 0), h.get("input_size", 0)
 
 
 FIELDS_USER = {1: "user_id", 2: "user_name", 12: "pos"}
@@ -86,15 +86,11 @@ def main():
     fails = []
     reps = []
     for path in args:
-        h, state, inputs, players, frames, isz = load(path)
-        names = zipfile.ZipFile(io.BytesIO(state)).namelist()
-        ok_zip = {"pcsx2 savestate version.id", "eememory.bin"} <= {n.lower() for n in names}
+        h, inputs, players, frames, isz = load(path)
         distinct = len({inputs[i:i + isz] for i in range(0, len(inputs), isz)})
         print(f"{path}: position={h.get('position', 0)} players={players} frames={frames} delay={h.get('delay', 0)} close={h.get('close', '')} "
-              f"state={len(state)} bytes ({len(names)} zip entries) inputs={len(inputs)} bytes, {distinct} distinct"
+              f"lobby_answers={len(h['lobby_answers'])} inputs={len(inputs)} bytes, {distinct} distinct"
               f"{' battle_code=' + h['battle_code'] if 'battle_code' in h else ''}")
-        if not ok_zip:
-            fails.append(f"{path}: state zip has no save state entries: {names[:5]}")
         if len(inputs) != frames * players * isz:
             fails.append(f"{path}: input bytes {len(inputs)} != {frames}*{players}*{isz}")
         hashes = h.get("hashes", b"")
