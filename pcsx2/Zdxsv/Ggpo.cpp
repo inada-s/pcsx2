@@ -2663,11 +2663,13 @@ namespace Zdxsv
 			}
 			if (const auto it = s_play_rngs.find(f); it != s_play_rngs.end() && s_net_me == s_play_rng_pos)
 			{
+				// judged on RNG B (low half): RNG A also differs from the recorder's under the common start
 				s_play_rng_checks++;
 				const u32 rng = GameRng();
-				if (rng != it->second)
+				const bool bad = static_cast<u16>(rng) != static_cast<u16>(it->second);
+				if (bad)
 					s_play_rng_bad++;
-				Console.WriteLn("ZdxsvGgpo: replay rng at frame %d: file %08x, here %08x%s", f, it->second, rng, rng != it->second ? " DIFFERS" : "");
+				Console.WriteLn("ZdxsvGgpo: replay rng at frame %d: file %08x, here %08x%s", f, it->second, rng, bad ? " DIFFERS" : "");
 			}
 		}
 
