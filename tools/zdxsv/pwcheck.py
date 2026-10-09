@@ -1,4 +1,4 @@
-"""Sync check across peers (@inada-s, inada-s/ai-automation#62: in sync = during the game, each player's
+"""Sync check across peers (in sync = during the game, each player's
 coordinates x, y, z and the game RNG equal frame by frame). pcsx2 ZDXSV_PW_HASH=1 writes NET_TRACE
 `0 H frame h0 h1 h2 h3 rng` per GGPO frame (last save wins): h<p> = XXH3 of player p's x, y, z,
 rng = RNG A (u16 0x6d7940) << 16 | RNG B (u16 0x6d793c).

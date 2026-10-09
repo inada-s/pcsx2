@@ -1,23 +1,9 @@
 // SPDX-FileCopyrightText: 2026 zdxsv contributors
 // SPDX-License-Identifier: GPL-3.0+
 
-// ZDXSV_DELTA_TEST="key=value,..." (any value, even empty, turns it on): synctest in a running
-// game. Every frame from start: save; every `every` frames: load the frame `depth` back and run
-// those frames again, `replays` times. Each pass is compared with the one before it (EE RAM per
-// page, the rest of the state byte by byte). Pass 1 (first run vs first rerun) differs by the code
-// cache: the recompilers end a block where the next PC is already compiled, so the first run and
-// the rerun test events at other cycles (an IOP event start cycle off by 4 in most of them). Pass 2
-// runs from the same load with the same code cache, so it must match pass 1 exactly: the result line
-// (PASS/FAIL) counts pass 2+ only.
-//   start=3000   vsync (counted from boot) of the first save
-//   frames=1800  frames to test
-//   depth=8      frames rolled back
-//   every=20     frames from one rollback to the next
-//   replays=2    reruns of each window (1: pass 1 only, no result)
-//   break=ee     control: a load does not restore EE RAM (the result must be FAIL)
-//   gap=0        frames before each rollback window that are not saved, older saves still
-//                discarded (GGPO's confirmed-frame save skip; gap > depth drops all of them)
-// Results go to the log, lines start with "ZdxsvDelta".
+// ZDXSV_DELTA_TEST (docs/zdxsv/options.md): rolls back at a fixed interval and compares each rerun with the one
+// before. Only reruns 2+ are judged: the first rerun can differ from the first run because the recompilers end
+// blocks where the next PC is already compiled, so events land at other cycles.
 
 #include "Zdxsv/DeltaState.h"
 #include "Zdxsv/DeltaFreeze.h"
@@ -76,10 +62,9 @@ namespace Zdxsv
 		int s_save_calls = 0;
 		double s_watch_ms = 0, s_state_ms = 0, s_total_ms = 0; // DeltaStateTimes()
 
-		// Hot pages: written in HOT_AFTER save intervals in a row. They stay writable and get a
-		// copy in s_open at every save and load instead (= their data as of that save, like a
-		// fault copy), which saves the protect calls (one per fastmem alias, ~17 us a page) and the
-		// fault. Unchanged for COLD_AFTER intervals: watched again. ZDXSV_DELTA_HOT=0: off.
+		// Hot pages: written in HOT_AFTER save intervals in a row. They stay writable and are copied at
+		// every save and load instead, which saves the protect calls and the fault. Unchanged for
+		// COLD_AFTER intervals: watched again.
 		constexpr u8 HOT_AFTER = 2, COLD_AFTER = 8;
 		constexpr u32 EE_PAGES = Ps2MemSize::TotalRam / PAGE_BYTES;
 		int s_hot_enabled = -1;

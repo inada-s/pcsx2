@@ -1,20 +1,7 @@
 // SPDX-FileCopyrightText: 2026 zdxsv contributors
 // SPDX-License-Identifier: GPL-3.0+
 
-// ZDXSV_INPUT_LATENCY="key=value,..." (any value, even empty, turns it on):
-//   btn=down     button pressed on even presses (up/down/left/right/circle/cross/triangle/square/start/select)
-//   back=up      button pressed on odd presses, so a cursor returns; none = always btn
-//   addr=0x...   EE address of the byte the press changes; omitted = search mode
-//   count=20     presses
-//   start=600    vsync (counted from boot) of the first press
-//   go=path      instead of start: first press 60 vsyncs after this file appears (e.g. in battle)
-//   held=1       search for bytes that differ only while the button is held (a pad buffer),
-//                not bytes that stay changed after the press (a cursor)
-//   hold=4       frames each press is held
-//   gap=60       frames from one press to the next (>= hold + 20)
-//   seed=1       seed of the press time inside the frame before its poll
-//   out=path     also write one CSV line per press there
-// Results go to the log, lines start with "ZdxsvLatency".
+// ZDXSV_INPUT_LATENCY (docs/zdxsv/options.md). Log lines start with "ZdxsvLatency".
 
 #include "Zdxsv/InputLatency.h"
 #include "Zdxsv/CpuHooks.h"

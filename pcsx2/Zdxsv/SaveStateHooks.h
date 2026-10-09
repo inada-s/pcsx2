@@ -24,8 +24,7 @@ namespace Zdxsv
 	bool LobbyStateEnabled();
 
 	// DEV9 state in full and delta states. Only with ZDXSV_LOBBY_STATE=1, ZDXSV_GGPO or ZDXSV_REPLAY;
-	// otherwise nothing is written (an empty entry is not added to the zip) and a DEV9.bin in a state
-	// is ignored, as upstream. Replay states need it: without it the IOP's SMAP driver (restored) and
-	// DEV9 (not) disagree on the next TX buffer, the IOP spins on TXDNV and the game's net RPCs never return.
+	// otherwise a DEV9.bin in a state is ignored, as upstream. Replay states need it: the IOP's SMAP
+	// driver (restored) and DEV9 must agree on the next TX buffer.
 	inline bool SaveStateDev9Enabled() { return LobbyStateEnabled() || g_ggpo_enabled; }
 } // namespace Zdxsv

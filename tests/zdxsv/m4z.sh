@@ -1,8 +1,8 @@
 #!/bin/bash
 # M4 real-zproxy case: real stack (stack.sh: battle + lobby + login + dnas), 4 pcsx2 clients from a
 # fresh boot (top + login + entry, no lobby states), all 4 act as real PS2s
-# (ZDXSV_PLATFORM_INFO=0: no platform info). The lobby splits lobbies by platform
-# (inada-s/zdxsv#47): a console never meets an emulator, so all 4 must be consoles (else e.g.
+# (ZDXSV_PLATFORM_INFO=0: no platform info). The lobby splits lobbies by platform:
+# a console never meets an emulator, so all 4 must be consoles (else e.g.
 # p2 alone in the console ジャブロー2). Clients in $ZP run behind their own zproxy (port 8250+i):
 # the lobby hands the PS2 zproxy's address in 0x6916, zproxy relays over UDP to the battle server
 # and pings the other zproxies (P2P); the rest dial the battle server over TCP.
@@ -175,7 +175,7 @@ for i in $CLIENTS; do
 done
 for t in $(seq 30); do [ "$(grep -c 'join udp peer\|join success' "$OUT/battle.log")" -ge "$nc" ] && break; sleep 4; done
 grep "zproxy user" "$OUT/lobby.log" | cut -c1-160
-# zproxy before inada-s/zdxsv#50 ignored -upnp=false and mapped its UDP port on the router (24 h lease)
+# zproxy must honor -upnp=false: no UDP port mapped on the router
 check "zproxy no UPnP" "! cat '$OUT'/zproxy-p*.log 2>/dev/null | grep -q 'Router(s) found\|UPnP'"
 for i in $ZP; do
   u=${USERS[i-1]}; zl="$OUT/zproxy-p$i.log"
@@ -244,7 +244,7 @@ B=${BATTLES:-1}
 for b in $(seq "$B"); do
   if [ "$b" -gt 1 ]; then
     # the results come at the post-battle login, in 作戦後部屋 (待機 / EXIT): EXIT -> 戦場選択 (map up
-    # < 12 s later, s728 shots), then Lobby 02 from the map
+    # < 12 s later), then Lobby 02 from the map
     for i in $CLIENTS; do
       $DRIVE seq "$i" "Down,w500,C,w12000" exit$b 2>&1 | grep -v memgate | tail -1
       entry2p_retry "$i" remap2p || { echo "FAIL client $i entry $b (no Lobby 02)"; exit 1; }

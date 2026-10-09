@@ -1133,12 +1133,10 @@ void DEV9async(u32 cycles)
 }
 
 // zdxsv: registers, SMAP buffers and FIFO, so a state saved while the game is
-// online keeps its network adapter (without it SMAP TX stalls after a load).
-// Host pointers are not saved: ata and eeprom keep the ones of this process, and
-// an IOP DMA in progress is saved as its offset in IOP RAM. The HDD image is not
-// saved. States from other builds and other players (replays) are untrusted: the
-// FIFO and descriptor indices are checked before the state is used.
-// Needs proper testing with a state saved during an IOP DMA to DEV9.
+// online keeps its network adapter. Host pointers and the HDD image are not saved;
+// an IOP DMA in progress is saved as its offset in IOP RAM. States from other builds
+// and other players (replays) are untrusted: the FIFO and descriptor indices are
+// checked before the state is used.
 namespace
 {
 	// Fields from dev9R up to eeprom_dir, and from rxbdi up to dma_iop_ptr.

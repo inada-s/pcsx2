@@ -35,19 +35,19 @@ namespace Zdxsv
 		bool operator==(const PeerAddr& o) const { return ip == o.ip && port == o.port; }
 	};
 
-	// Longest ping test a battle info can ask for (zdxsv sends 7500; flycast has no bound).
+	// Longest ping test a battle info can ask for.
 	constexpr int MAX_PING_MS = 10000;
 
 	struct BattleInfo
 	{
 		std::string sessionId;
 		std::string userId;
-		std::string battleCode; // "battle_code=" (zdxsv since inada-s/zdxsv ai/ggpo-report), for the report
+		std::string battleCode; // "battle_code=", for the report
 		uint32_t serverIP = 0; // network byte order
 		uint16_t serverPort = 0;
 		std::vector<std::string> users; // every player, self included
-		std::map<std::string, std::string> names; // "name_<user>=" (UTF-8, zdxsv since ai/ggpo-osd): network status OSD
-		std::map<std::string, std::string> pilots; // "pilot_<user>=" (UTF-8, zdxsv since ai/osd-pilot-name): pilot name, OSD
+		std::map<std::string, std::string> names; // "name_<user>=" (UTF-8): network status OSD
+		std::map<std::string, std::string> pilots; // "pilot_<user>=" (UTF-8): pilot name, OSD
 		// "p2p_<user>=ip:port,ip:port,[ip6]:port": UDP addresses of peers that reported them
 		// (udp_addr public, udp_local, udp_addr6); GgpoPeers takes the IPs.
 		struct Peer
@@ -59,14 +59,14 @@ namespace Zdxsv
 		// "ggpo_<user>=port": GGPO UDP port of peers that announced one (platform info ggpo=).
 		std::map<std::string, uint16_t> ggpo;
 		// "ggpo_session=": the battle's id in GGPO ping test packets (0 = none: no GGPO);
-		// "ggpo_ping_ms=": ping test length (zdxsv sends 7500, gdxsv's P2PMatching value), clamped to
+		// "ggpo_ping_ms=": ping test length, clamped to
 		// [0, MAX_PING_MS]: the CPU thread waits for the whole test (LobbyArm).
 		uint32_t ggpoSession = 0;
 		int ggpoPingMs = 0;
 		// "live_uplink=1": this client streams the battle to live spectators (LiveUp)
 		bool liveUplink = false;
 		// "relay_<k>=<token hex>,<ip:port>[,<[ip6]:port>]" (k = 0..3): relay servers
-		// of the battle (gdxsv P2PMatching.relays), in the lobby's order.
+		// of the battle, in the lobby's order.
 		struct Relay
 		{
 			uint64_t token = 0;
@@ -74,22 +74,17 @@ namespace Zdxsv
 		};
 		std::vector<Relay> relays;
 	};
-	// Asks the lobby's UDP STUN (zdxsv ServeUDPStunServer) at stunIP:stunPort for
-	// our public address, from a UDP socket on bindPort (0 = any) that is closed after.
-	// Waits up to 200 ms for each of 3 tries. Once per process after STUN answered: later calls return
-	// that answer (same address after a battle); without an answer the next call asks again.
+	// Asks the lobby's UDP STUN at stunIP:stunPort for our public address, from a UDP socket on
+	// bindPort (0 = any). The first answer is cached for the process.
 	// Returns platform info lines "udp_addr=..\nudp_local=..\nudp_addr6=[..]:..\n" (udp_addr only if
-	// STUN answered; udp_addr6 = our global IPv6 address, only if we have one: IPv6 has no NAT, so
-	// the source address of a route to the internet is the public one); "" if the socket can't be opened.
+	// STUN answered, udp_addr6 only with a global IPv6 address); "" if the socket can't be opened.
 	std::string OpenUdp(uint32_t stunIP, uint16_t stunPort, uint16_t bindPort = 0);
 
 	// "ip:port" of the lobby UDP socket OpenUdp asked (live spectating goes there too), "" before.
 	std::string LobbyUdpAddr();
 
-	// Live spectating over the lobby's UDP socket (inada-s/zdxsv pkg/lobby/spectator.go, gdxsv's
-	// SpectatorInputPush/Ack/Subscribe): every stream (header, inputs) goes in 1000-byte
-	// datagrams, go-back-N from the receiver's ack. Each runs a thread.
-	// No start state: a spectator plays the battle start from the hosted common state.
+	// Live spectating over the lobby's UDP socket: each stream (header, inputs) goes in 1000-byte
+	// datagrams, go-back-N from the receiver's ack, on its own thread.
 	struct LiveStreams
 	{
 		std::vector<uint8_t> header; // a replay BattleLogFile without inputs
@@ -134,10 +129,9 @@ namespace Zdxsv
 		std::unique_ptr<Impl> m;
 	};
 
-	// Connectivity test of bindPort against zdxsv's STUN (stunPort) and its test socket (stunPort + 1), as
-	// flycast's P2P feasibility test: returns the platform info line "nat=open|cone|symmetric|unknown\n";
-	// summary = the result for people (OSD, log). Takes up to ~2 s without answers; stop (optional) set
-	// ends it within 50 ms with nat=unknown.
+	// Connectivity test of bindPort against the lobby's STUN (stunPort) and its test socket (stunPort + 1):
+	// returns the platform info line "nat=open|cone|symmetric|unknown\n"; summary = the result for people.
+	// stop (optional) set ends it with nat=unknown.
 	std::string UdpTest(uint32_t stunIP, uint16_t stunPort, uint16_t bindPort, std::string& summary,
 		const std::atomic<bool>* stop = nullptr);
 	// UdpTest on its own thread: returns at once; done(natLine, summary) is called from that thread
@@ -160,28 +154,18 @@ namespace Zdxsv
 	// Called by SetBattleInfo (DEV9 thread) with every battle info (pcsx2: GGPO lobby peers).
 	void SetBattleInfoListener(std::function<void(const BattleInfo&)> listener);
 
-	// GGPO address candidates of every player by battle position (users order), every IP of the
-	// peer's p2p addresses (IPv4 and IPv6) with its ggpo_ port; own position empty. The first one is
-	// the default (no ping test): the public IPv4, or the local one when that IP is our own public
-	// one (same NAT), or the IPv6 one when the peer has no IPv4. ownPublicIP "" = unknown. False when
-	// another player has no GGPO port or no p2p address: the battle connection is cut (no GGPO session).
+	// GGPO address candidates of every player by battle position (own position empty); the first one is
+	// the default without a ping test. ownPublicIP "" = unknown. False when another player has no GGPO
+	// port or no p2p address.
 	bool GgpoPeers(const BattleInfo& info, const std::string& ownPublicIP, std::vector<std::vector<PeerAddr>>& byPosition);
 
-	// GGPO ping test before a lobby GGPO battle, as flycast's UdpPingPong (same packet: magic,
-	// session id, from / to peer = battle position, candidate, timestamps): binds the GGPO port on
-	// IPv4 and IPv6, pings every candidate of every peer of byPosition (own position empty) every
-	// 100 ms and answers its pings, for durationMs (pings stop 500 ms before the end). Packets with
-	// another magic or session, not to us, or not from one of that position's candidates are dropped.
-	// Every player shares its rtts to the others (and to the relays) in the packets' rtt matrix, as
-	// flycast. relays (the battle info's): each is pinged over IPv4 and IPv6 (gdxsv relay.go ping:
-	// session, position, token), which also joins us to its session. A running test is cancelled
-	// first; so is a running StartUdpTest (same port).
+	// GGPO ping test before a lobby GGPO battle, packet-compatible with flycast's: pings every candidate
+	// of every peer of byPosition and every relay for durationMs on the GGPO port, and answers their
+	// pings. A ping also joins us to the relay's session. Cancels a running test or StartUdpTest first.
 	void StartPingTest(uint32_t session, const std::vector<std::vector<PeerAddr>>& byPosition, uint16_t port, int durationMs,
 		const std::vector<BattleInfo::Relay>& relays = {});
-	// Per battle position, the path picked as flycast's rollback backend: the direct candidate of
-	// UdpPingPong::GetAvailableAddress (lowest rtt; loopback, private, IPv6 get a bonus), unless a
-	// relaying peer is 32 ms faster or a relay server 16 ms faster (or direct got no answer); of those
-	// two the lower rtt wins. rtt in ms (the whole path), -1 = unreachable (and own position), addr empty.
+	// Per battle position, the path picked as flycast picks it: direct, unless a relaying peer is 32 ms
+	// or a relay server 16 ms faster. rtt in ms (the whole path), -1 = unreachable (and own position).
 	struct PingResult
 	{
 		int rtt = -1;
@@ -199,9 +183,8 @@ namespace Zdxsv
 	// servers (optional): every relay of the test, in order. error (optional): why the last
 	// StartPingTest ran no test (bind failure), "" otherwise.
 	std::vector<PingResult> FinishPingTest(std::vector<RelayServerAddr>* servers = nullptr, std::string* error = nullptr);
-	// Ping test packet's relay rtt matrix ([peer][relay], 0 = unknown) from position from into dst, as flycast
-	// UdpPingPong::MergeRelayRtt: from's row as is, other rows when non-zero, own row (self) kept. Rows of peers
-	// we never reach directly (symmetric NAT) come only this way; without them no relay server is picked for them.
+	// Merges a ping packet's relay rtt matrix ([peer][relay], 0 = unknown) from position from into dst:
+	// from's row as is, other rows when non-zero, own row kept.
 	void MergeRelayRtt(uint8_t dst[4][4], const uint8_t src[4][4], int self, int from);
 
 	// Our public IPv4 from the lobby's STUN (OpenUdp); "" if unknown.
@@ -224,14 +207,13 @@ namespace Zdxsv
 
 	// Battle-start answers 0x6911..0x6917 (whole lobby frames) the game got since the last battle start notice
 	// 0x6910: a replay keeps them (replay.proto lobby_answers) to play the start again from a common state.
-	// LobbyFilter notes the lobby's frames, the rbk test its own (Ggpo.cpp RbkQueue).
 	void LobbyNoteFrame(const uint8_t* frame, size_t size);
 	std::vector<std::vector<uint8_t>> LobbyStartAnswers();
 
 	// Lobby save states (LobbyStateEnabled, LobbyOnStateLoaded, AdoptConnections, IsBattleServer):
 	// Zdxsv/SaveStateHooks.h, Zdxsv/Dev9Hooks.h.
 
-	// STUN codec (zdxsv/pkg/proto/zdxsv.proto Ping / Pong), exposed for tests.
+	// STUN codec (the lobby's Ping / Pong messages), exposed for tests.
 	enum ProtoMessageType : uint32_t
 	{
 		ProtoPing = 2,

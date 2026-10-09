@@ -10,11 +10,8 @@ namespace Zdxsv
 	namespace
 	{
 
-		// Live spectating: ZDXSV_REPLAY=udp://host:port[/battle code] (no code: the newest live battle there), the lobby's
-		// relay of the battle's uplink (Lobby.h LiveDown). PlayLoadFile opens it, PlayNext takes the frames in (LiveNext)
-		// and waits at the newest frame, as a GGPO frame waits for a peer, until LIVE_BUFFER more are there or the stream
-		// is closed. More than LIVE_BUFFER + LIVE_CATCHUP frames behind (a late join) it runs unlimited until
-		// LIVE_BUFFER + LIVE_EDGE (flycast's gdxsv:LiveBufferFrames and its catch-up edges).
+		// Live: at the newest frame, wait until LIVE_BUFFER more are there or the stream is closed. More than
+		// LIVE_BUFFER + LIVE_CATCHUP frames behind, run unlimited until LIVE_BUFFER + LIVE_EDGE.
 		constexpr int LIVE_BUFFER = 30, LIVE_CATCHUP = 270, LIVE_EDGE = 60, LIVE_STALL_MS = 30000, LIVE_OPEN_MS = 15000;
 		LimiterModeType s_live_limiter = LimiterModeType::Nominal;
 		std::vector<std::string> s_live_seen; // battle codes watched, oldest first, kept across the resets
@@ -53,11 +50,8 @@ namespace Zdxsv
 			}
 		}
 
-		// Pacing (flycast GdxsvBackendReplay::UpdateFramePacing): while following the edge, g_frame_period_trim_us holds
-		// the received, unplayed frames at LIVE_BUFFER instead of whole-frame waits: feedforward at the stream's
-		// measured rate, plus proportional (outside a deadband) and integral terms on the buffer error. 0 while
-		// catching up, seeking, taking over, after the stream closed, or with nothing received for PACE_STALL frames.
-		// ZDXSV_LIVE_PACING=0 (test control): off. Every PACE_LOG frames: the gap, trim and rate in the log.
+		// Pacing: while following the edge, g_frame_period_trim_us holds the unplayed frames at LIVE_BUFFER:
+		// feedforward at the stream's rate plus PI terms on the buffer error (P outside a deadband).
 		constexpr int PACE_DEADBAND_MAX = 2, PACE_US_PER_FRAME = 40, PACE_STALL = 5, PACE_LOG = 600;
 		constexpr double PACE_I_GAIN = 0.25, PACE_I_LIMIT = 600, PACE_FLOOR_US = -4000, PACE_CEIL_US = 8000;
 		constexpr double PACE_WINDOW_S = 1, PACE_ALPHA = 0.25, PACE_MIN_HZ = 30, PACE_MAX_HZ = 65, PACE_IDLE_S = 0.1;
@@ -121,12 +115,8 @@ namespace Zdxsv
 		}
 
 		// GgpoOnVmShutdown: the key files go; a new VM (or the reset one) loads the files again and plays from the start.
-		// Four-screen (flycast's ReplayFourScreen): ZDXSV_REPLAY_FOUR=1: the host spawns
-		// one guest per other position (ZDXSV_REPLAY_POV=p, ZDXSV_REPLAY_GROUP, -logfile emulog-povP.txt, the net trace
-		// as <trace>-povP), tiles the windows 2x2 by position, and all hold each other on the same frame (SpectateSync).
-		// A member more than SYNC_CHASE frames behind the newest seeks to it (a guest boots seconds after the host).
-		// The guests follow the host's pause, speed and seeks, and quit with it. Replays only: a live stream carries
-		// one position's state.
+		// Four-screen: the host spawns one guest per other position; all hold each other on the same frame
+		// (SpectateSync). A member more than SYNC_CHASE frames behind the newest seeks to it.
 		constexpr int SYNC_WAIT_MS = 200, SYNC_CHASE = 30;
 		std::thread s_sync_thread;
 		std::atomic<bool> s_sync_quit{false};
@@ -177,10 +167,8 @@ namespace Zdxsv
 	} // namespace
 
 
-	// Point of view: the file holds every position's inputs. ZDXSV_REPLAY_POV=p (default the recorder's) is the position
-	// the lobby answers 0x6912 with before the battle start (PlayCommonArm). A switch at frame f loads the new
-	// position's newest key <= f and runs to f unlimited (PlaySeek pov_switch); a position never played runs its own
-	// battle start first, its key 0 (PlaySwitch). Keys and sent msgs are kept per position.
+	// Point of view: a switch at frame f loads the new position's newest key <= f and runs to f unlimited; a
+	// position never played runs its own battle start first. Keys and sent msgs are kept per position.
 	std::atomic<int> s_play_pov_req{-1}; // requested position, -1 = none
 	std::deque<std::pair<int, int>> s_play_pov_at; // ZDXSV_REPLAY_POV_AT=frame:position,...
 	PlaySent s_play_sent[GGPO_MAX_PLAYERS];
