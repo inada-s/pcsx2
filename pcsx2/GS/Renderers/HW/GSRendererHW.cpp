@@ -3,6 +3,7 @@
 
 #include "GS/Renderers/HW/GSRendererHW.h"
 #include "GS/Renderers/HW/GSTextureReplacements.h"
+#include "Zdxsv/MediaHooks.h"
 #include "GS/GSGL.h"
 #include "GS/GSPerfMon.h"
 #include "GS/GSUtil.h"
@@ -2770,7 +2771,7 @@ void GSRendererHW::Draw()
 	m_cached_ctx.FRAME = context->FRAME;
 	m_cached_ctx.ZBUF = context->ZBUF;
 
-	if (IsBadFrame())
+	if (IsBadFrame() || Zdxsv::g_gs_skip_draws)
 	{
 		GL_INS("HW: Warning skipping a draw call (%lld)", s_n);
 		return;

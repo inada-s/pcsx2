@@ -17,6 +17,9 @@ namespace Zdxsv
 	// g_ggpo_in_rollback into the packet). GSRenderer::VSync skips its present, as for a duplicate frame:
 	// a rollback of N frames shows the corrected frame once, not N + 1 frames.
 	extern bool g_gs_rerun_frame;
+	// GS thread: in a rollback rerun frame (set and cleared by MTGS::RunOnGSThread): GSRendererHW::Draw
+	// returns at once. Texture uploads and register writes still run.
+	extern bool g_gs_skip_draws;
 
 	// spu2Output while a session runs: counts the sample; true = drop it (a rerun frame), so a rollback
 	// does not play its frames' sound again.

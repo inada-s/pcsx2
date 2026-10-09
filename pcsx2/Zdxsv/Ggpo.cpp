@@ -45,6 +45,7 @@
 // Results go to the log, lines start with "ZdxsvGgpo".
 
 #include "Zdxsv/GgpoShared.h"
+#include "MTGS.h"
 
 namespace Zdxsv
 {
@@ -99,6 +100,12 @@ namespace Zdxsv
 			return e && e[0] == '1';
 		}();
 		int s_save_skipped = 0;
+		// ZDXSV_RERUN_DRAW=0: the GS drops the draw calls of rollback rerun frames (g_gs_skip_draws): they
+		// are not presented, and the next frame draws over them. Default: drawn.
+		const bool s_rerun_draw = [] {
+			const char* e = std::getenv("ZDXSV_RERUN_DRAW");
+			return !(e && e[0] == '0');
+		}();
 		GGPOPlayerHandle s_handles[GGPO_MAX_PLAYERS] = {};
 		bool s_vm_closing = false; // in GgpoOnVmShutdown: Stop does not shut the VM down (rbk)
 		int s_vsyncs = 0;
@@ -443,7 +450,11 @@ namespace Zdxsv
 				return false;
 			g_ggpo_in_rollback = true;
 			Common::Timer timer;
+			if (!s_rerun_draw)
+				MTGS::RunOnGSThread([]() { g_gs_skip_draws = true; });
 			const bool ok = RunFrame();
+			if (!s_rerun_draw)
+				MTGS::RunOnGSThread([]() { g_gs_skip_draws = false; });
 			s_rerun_ms.Add(timer.GetTimeMilliseconds());
 			g_ggpo_in_rollback = false;
 			s_rerun = true;
@@ -662,6 +673,7 @@ namespace Zdxsv
 	bool g_ggpo_active = false;
 	bool g_ggpo_in_rollback = false;
 	bool g_gs_rerun_frame = false;
+	bool g_gs_skip_draws = false;
 	bool s_net_env = false; // net=1 in s_options, or a replay plays (GgpoOnVmInitialize)
 	// ZDXSV_RBK=i/N (net=1; flycast rbk_test): started from a post-entry state (tests/zdxsv/rbkprep.sh)
 	// as battle position i (0-based) of N. Until GGPO arms, every lobby / battle connect RPC is
