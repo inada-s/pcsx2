@@ -128,6 +128,9 @@
     <ClCompile Include="Settings\DEV9SettingsWidget.cpp">
       <Filter>Settings</Filter>
     </ClCompile>
+    <ClCompile Include="Settings\ZdxsvSettingsWidget.cpp">
+      <Filter>Settings</Filter>
+    </ClCompile>
     <ClCompile Include="Settings\DEV9UiCommon.cpp">
       <Filter>Settings</Filter>
     </ClCompile>
@@ -386,6 +389,9 @@
       <Filter>Settings</Filter>
     </QtMoc>
     <QtMoc Include="Settings\DEV9SettingsWidget.h">
+      <Filter>Settings</Filter>
+    </QtMoc>
+    <QtMoc Include="Settings\ZdxsvSettingsWidget.h">
       <Filter>Settings</Filter>
     </QtMoc>
     <QtMoc Include="Settings\DEV9UiCommon.h">
@@ -657,6 +663,9 @@
       <Filter>Settings</Filter>
     </QtUi>
     <QtUi Include="Settings\DEV9SettingsWidget.ui">
+      <Filter>Settings</Filter>
+    </QtUi>
+    <QtUi Include="Settings\ZdxsvSettingsWidget.ui">
       <Filter>Settings</Filter>
     </QtUi>
     <QtUi Include="Settings\EmulationSettingsWidget.ui">

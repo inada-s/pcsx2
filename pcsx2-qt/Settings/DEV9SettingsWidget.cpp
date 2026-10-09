@@ -59,15 +59,6 @@ DEV9SettingsWidget::DEV9SettingsWidget(SettingsWindow* settings_dialog, QWidget*
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.ethEnabled, "DEV9/Eth", "EthEnable", false);
 	connect(m_ui.ethEnabled, &QCheckBox::checkStateChanged, this, &DEV9SettingsWidget::onEthEnabledChanged);
 
-	// zdxsv: GGPO for battles of the Z game (read by Zdxsv::GgpoOnVmInitialize)
-	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvGgpo, "DEV9/Eth", "ZdxsvGgpo", true);
-	// zdxsv: lower bound of the GGPO input delay (read by Zdxsv::GgpoOnVmInitialize)
-	SettingWidgetBinder::BindWidgetToIntSetting(sif, m_ui.zdxsvGgpoMinDelay, "DEV9/Eth", "ZdxsvGgpoMinDelay", 2);
-	// zdxsv: low-latency vsync, Z game only
-	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvLowLatencyVsync, "EmuCore/GS", "ZdxsvLowLatencyVsync", true);
-	// zdxsv: live spectating moves on to the next battle (read by Zdxsv LiveAutoNext)
-	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvLiveAutoNext, "DEV9/Eth", "ZdxsvLiveAutoNext", false);
-
 	//////////////////////////////////////////////////////////////////////////
 	// Eth Device Settings
 	//////////////////////////////////////////////////////////////////////////

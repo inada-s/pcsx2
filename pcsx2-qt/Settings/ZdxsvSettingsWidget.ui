@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>ZdxsvSettingsWidget</class>
+ <widget class="QWidget" name="ZdxsvSettingsWidget">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>700</width>
+    <height>600</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string/>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <widget class="QGroupBox" name="battleGroupBox">
+     <property name="title">
+      <string>Online Battles</string>
+     </property>
+     <layout class="QVBoxLayout" name="battleLayout">
+      <item>
+       <widget class="QCheckBox" name="zdxsvGgpo">
+        <property name="text">
+         <string>Rollback netcode (GGPO) for online battles. Takes effect at the next game start.</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="zdxsvGgpoMinDelayLayout">
+        <item>
+         <widget class="QLabel" name="zdxsvGgpoMinDelayLabel">
+          <property name="text">
+           <string>Minimum input delay (frames). The delay is picked from the ping to the opponents, never below this. Takes effect at the next game start.</string>
+          </property>
+          <property name="wordWrap">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QSpinBox" name="zdxsvGgpoMinDelay">
+          <property name="minimum">
+           <number>2</number>
+          </property>
+          <property name="maximum">
+           <number>6</number>
+          </property>
+          <property name="value">
+           <number>2</number>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="zdxsvNetOsd">
+        <property name="text">
+         <string>Show the network status overlay during online battles. Takes effect at the next game start.</string>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <widget class="QCheckBox" name="zdxsvLowLatencyVsync">
+        <property name="text">
+         <string>Low-latency vsync: show each frame before the frame limiter waits (shorter input lag).</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QGroupBox" name="replayGroupBox">
+     <property name="title">
+      <string>Replays and Live Spectating</string>
+     </property>
+     <layout class="QFormLayout" name="replayLayout">
+      <item row="0" column="0" colspan="2">
+       <widget class="QCheckBox" name="zdxsvLiveAutoNext">
+        <property name="text">
+         <string>Live spectating: watch the next live battle automatically.</string>
+        </property>
+       </widget>
+      </item>
+      <item row="1" column="0" colspan="2">
+       <widget class="QCheckBox" name="zdxsvReplaySkipMs">
+        <property name="text">
+         <string>Skip the mobile suit selection.</string>
+        </property>
+       </widget>
+      </item>
+      <item row="2" column="0" colspan="2">
+       <widget class="QCheckBox" name="zdxsvReplayKeyDisplay">
+        <property name="text">
+         <string>Start with the key display on.</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="0">
+       <widget class="QLabel" name="zdxsvReplayBarLabel">
+        <property name="text">
+         <string>Control bar:</string>
+        </property>
+       </widget>
+      </item>
+      <item row="3" column="1">
+       <widget class="QComboBox" name="zdxsvReplayBar">
+        <item>
+         <property name="text">
+          <string>When paused or the mouse moves</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Always</string>
+         </property>
+        </item>
+        <item>
+         <property name="text">
+          <string>Never</string>
+         </property>
+        </item>
+       </widget>
+      </item>
+      <item row="4" column="0">
+       <widget class="QLabel" name="zdxsvReplayStateUrlLabel">
+        <property name="text">
+         <string>Start state (URL or file):</string>
+        </property>
+       </widget>
+      </item>
+      <item row="4" column="1">
+       <widget class="QLineEdit" name="zdxsvReplayStateUrl"/>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
+    <widget class="QLabel" name="envNote">
+     <property name="text">
+      <string>An environment variable overrides the setting it names: such a setting is greyed out here, and its tooltip names the variable.</string>
+     </property>
+     <property name="wordWrap">
+      <bool>true</bool>
+     </property>
+    </widget>
+   </item>
+   <item>
+    <spacer name="verticalSpacer">
+     <property name="orientation">
+      <enum>Qt::Orientation::Vertical</enum>
+     </property>
+     <property name="sizeHint" stdset="0">
+      <size>
+       <width>20</width>
+       <height>40</height>
+      </size>
+     </property>
+    </spacer>
+   </item>
+  </layout>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

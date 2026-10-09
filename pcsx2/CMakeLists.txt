@@ -220,6 +220,7 @@ set(pcsx2Headers
 	Zdxsv/SaveStateHooks.h
 	Zdxsv/MediaHooks.h
 	Zdxsv/UiHooks.h
+	Zdxsv/Settings.h
 	Zdxsv/TestOptions.h
 	VUops.h)
 

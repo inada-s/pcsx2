@@ -3,7 +3,7 @@
 Every option this fork adds. Features are described in the topic documents;
 this file is the reference for names, values and defaults.
 
-All options except the one setting below are environment variables, read once
+All options except the settings below are environment variables, read once
 at startup. None is needed to play.
 
 The **Use** column says what an option is for:
@@ -31,14 +31,24 @@ only log `ZdxsvGgpo: off: not the Z game (serial .. CRC ..)`. A lobby-style
 server of another game gets no platform info
 (`DEV9: TCP: zdxsv lobby question, but not the Z game`).
 
-## Setting in PCSX2.ini
+## Settings in PCSX2.ini
+
+Set on the settings page Settings → zdxsv (global or per game). Order: the
+environment variable named in a row, if set, then the setting, then the
+default. The page greys out a setting an environment variable overrides; its
+tooltip names the variable.
 
 | Setting | Default | Use | Meaning |
 |---|---|---|---|
-| `[DEV9/Eth] ZdxsvGgpo` | `true` | feature | Lobby battles of the game run over GGPO (`ZDXSV_GGPO` options `net=1,lobby=1`). Read when the game starts; Settings → Network & HDD. Other games are never affected. |
-| `[DEV9/Eth] ZdxsvGgpoMinDelay` | `2` | feature | Lowest GGPO input delay (frames, 2..6) a lobby battle picks from the ping test, and the replay takeover delay; as gdxsv's `MinDelay`. Read when the game starts; Settings → Network & HDD. `mindelay=` overrides it. |
-| `[EmuCore/GS] ZdxsvLowLatencyVsync` | `true` | feature | Present the finished frame before the frame limiter sleeps, and poll input right before the next frame runs. Settings → Network & HDD. Other games are never affected. |
-| `[DEV9/Eth] ZdxsvLiveAutoNext` | `false` | feature | Live spectating: when a stream ends, watch the lobby's next live battle ([replay.md](replay.md), Live spectating). Settings → Network & HDD. |
+| `[DEV9/Eth] ZdxsvGgpo` | `true` | feature | Lobby battles of the game run over GGPO (`ZDXSV_GGPO` options `net=1,lobby=1`). Read when the game starts; Settings → zdxsv. Other games are never affected. |
+| `[DEV9/Eth] ZdxsvGgpoMinDelay` | `2` | feature | Lowest GGPO input delay (frames, 2..6) a lobby battle picks from the ping test, and the replay takeover delay; as gdxsv's `MinDelay`. Read when the game starts; Settings → zdxsv. `mindelay=` overrides it. |
+| `[EmuCore/GS] ZdxsvLowLatencyVsync` | `true` | feature | Present the finished frame before the frame limiter sleeps, and poll input right before the next frame runs. Settings → zdxsv. Other games are never affected. |
+| `[DEV9/Eth] ZdxsvLiveAutoNext` | `false` | feature | Live spectating: when a stream ends, watch the lobby's next live battle ([replay.md](replay.md), Live spectating). Settings → zdxsv. `ZDXSV_LIVE_NEXT` overrides it. |
+| `[DEV9/Eth] ZdxsvNetOsd` | `true` | feature | Network status OSD in GGPO battles. Read when the game starts. `ZDXSV_GGPO` `osd=` overrides it. |
+| `[DEV9/Eth] ZdxsvReplaySkipMs` | `true` | feature | A replay skips the mobile suit selection. Read at each replay start. `ZDXSV_REPLAY_SKIP_MS` overrides it. |
+| `[DEV9/Eth] ZdxsvReplayKeyDisplay` | `false` | feature | Replays start with the key display on. Read at the first replay start; the hotkey switches it. `ZDXSV_REPLAY_KEY_DISPLAY` overrides it. |
+| `[DEV9/Eth] ZdxsvReplayBar` | `0` | feature | Replay control bar: `0` shown while paused and for 3 s after the mouse moves over the bottom quarter, `1` always, `2` never. `ZDXSV_REPLAY_BAR` overrides it. |
+| `[DEV9/Eth] ZdxsvReplayStateUrl` | the hosted rbk-p1.p2s | feature | The post-entry state a replay or live battle starts from: URL (downloaded once into the cache folder) or file; empty = the booted state. `ZDXSV_REPLAY_STATE` overrides it. |
 
 ## Network
 
@@ -85,7 +95,7 @@ off. Any other value turns it on. Without `net=1` the session is a synctest. Log
 | `delay=N` | 0 | tuning | Fixed GGPO input delay in frames. Without it a lobby battle picks the delay from the ping test. |
 | `mindelay=N` | the setting | tuning | Lower bound of the picked delay and the replay takeover delay. Overrides `ZdxsvGgpoMinDelay`. |
 | `lobby=1` | off | feature | Battles come from the zdxsv lobby. See [lobby.md](lobby.md). |
-| `osd=0` | 1 | feature | Hide the network status OSD. |
+| `osd=0` / `osd=1` | the setting | feature | Hide or show the network status OSD, over `ZdxsvNetOsd`. |
 | `replay=DIR` | see meaning | feature | Save every battle to `DIR`. Lobby battles save to `<data dir>/replays` without it. `replay=0` turns saving off (upload and live streaming still run). |
 | `badsession=1` | off | control | The ping test of this client uses another session id, so no peer answers it and every client cuts the battle connection. |
 | `advertise=P` | off | test | The platform info announces only `127.0.0.1:P`, so peers reach this client through a local `udprelay.py` at P that adds latency. |
@@ -116,9 +126,9 @@ See [replay.md](replay.md).
 | `ZDXSV_REPLAY=udp://host:port[/code]` | off | feature | Watch a lobby battle live through the lobby (its UDP port; no code = the newest live battle). See `replay.md` Live spectating. |
 | `ZDXSV_REPLAY_POV=P` | the recorder's position | feature | Point of view P, picked before the start: the lobby answers name it as the own position. |
 | `ZDXSV_REPLAY_STATE=url\|path` | setting `[DEV9/Eth] ZdxsvReplayStateUrl` (default the hosted rbk-p1.p2s; empty = the booted state) | feature | The post-entry state of a common start; a URL is downloaded once into the cache folder. |
-| `ZDXSV_REPLAY_BAR=1` / `=0` | automatic | feature | Always show the control bar, or never. |
-| `ZDXSV_REPLAY_KEY_DISPLAY=1` | off | feature | Start with the key display on. |
-| `ZDXSV_REPLAY_SKIP_MS=0` | on | feature | Do not skip the mobile suit selection. |
+| `ZDXSV_REPLAY_BAR=1` / `=0` | the setting | feature | Always show the control bar, or never, over `ZdxsvReplayBar`. |
+| `ZDXSV_REPLAY_KEY_DISPLAY=1` / `=0` | the setting | feature | Start with the key display on or off, over `ZdxsvReplayKeyDisplay`. |
+| `ZDXSV_REPLAY_SKIP_MS=0` / `=1` | the setting | feature | Do not skip / skip the mobile suit selection, over `ZdxsvReplaySkipMs`. |
 | `ZDXSV_REPLAY_KEY=n` | 600 | tuning | Interval of the seek keys in frames. 0 = none: no backward seek. |
 | `ZDXSV_REPLAY_TURBO=1` | off | test | Play turbo. |
 | `ZDXSV_REPLAY_EXIT=1` | off | test | Exit at the end instead of pausing. |
