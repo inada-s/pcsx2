@@ -25,6 +25,7 @@
 #include "common/Timer.h"
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <map>
 #include <thread>
@@ -213,6 +214,7 @@ namespace Zdxsv
 			std::map<std::string, u32> hist;
 			std::map<uptr, u32> native; // host pc outside recompiled code
 			std::map<std::pair<u32, uptr>, u32> native_at; // (EE pc, host pc) of the same samples
+			std::map<std::array<uptr, 3>, u32> chains; // host pc and its two callers
 			u32 n = 0;
 			for (;;)
 			{
@@ -221,9 +223,31 @@ namespace Zdxsv
 					continue;
 				// No allocation while the thread is suspended: it may hold the heap lock.
 				CONTEXT c = {};
-				c.ContextFlags = CONTEXT_CONTROL;
+				c.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER;
 				const bool ok = GetThreadContext(th, &c) && g_ggpo_in_rollback;
 				const uptr ip = ok ? c.Rip : 0;
+				// Native callers by unwind data, up to recompiled code (no unwind data there).
+				std::array<uptr, 3> chain = {ip, 0, 0};
+				CONTEXT u = c;
+				for (size_t i = 1; ok && i < chain.size(); i++)
+				{
+					DWORD64 image;
+					const PRUNTIME_FUNCTION fe = RtlLookupFunctionEntry(u.Rip, &image, nullptr);
+					if (!fe && i == 1)
+					{
+						// Leaf function (no unwind data): the return address is at rsp.
+						u.Rip = *reinterpret_cast<const DWORD64*>(u.Rsp);
+						u.Rsp += 8;
+						chain[i] = u.Rip;
+						continue;
+					}
+					if (!fe)
+						break;
+					void* handler;
+					DWORD64 frame;
+					RtlVirtualUnwind(UNW_FLAG_NHANDLER, image, u.Rip, fe, &u, &handler, &frame, nullptr);
+					chain[i] = u.Rip;
+				}
 				const u32 pc = cpuRegs.pc;
 				const u32 sp = cpuRegs.GPR.n.sp.UL[0];
 				const bool ee = ok && in(ip, SysMemory::GetEERec(), SysMemory::GetEERecEnd());
@@ -259,6 +283,7 @@ namespace Zdxsv
 				{
 					native[ip]++;
 					native_at[{pc, ip}]++;
+					chains[chain]++;
 					std::snprintf(key, sizeof(key), "native pc %08x", pc);
 				}
 				hist[key]++;
@@ -282,6 +307,13 @@ namespace Zdxsv
 					char at[24];
 					std::snprintf(at, sizeof(at), "at %08x fn ", k.first);
 					fns[at + HostSymbol(k.second)] += c;
+				}
+				for (const auto& [k, c] : chains)
+				{
+					std::string s = "ch " + HostSymbol(k[0]);
+					for (size_t i = 1; i < k.size() && k[i]; i++)
+						s += " < " + HostSymbol(k[i]);
+					fns[s] += c;
 				}
 				std::vector<std::pair<std::string, u32>> v(hist.begin(), hist.end());
 				v.insert(v.end(), fns.begin(), fns.end());
