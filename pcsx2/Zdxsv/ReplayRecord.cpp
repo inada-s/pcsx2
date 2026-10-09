@@ -120,9 +120,8 @@ namespace Zdxsv
 
 		// replay.proto play_start_frames / game_end_frames of the first `frames` frames: a play start = the frame the
 		// play-start barrier passes; a game end = the last tick state 6 -> 7 before the next play start (or the file end).
-		// The peers enter the game end on different frames (the end phase waits on the HLE'd battle socket), so sync
-		// checks stop there. Earlier 6 -> 7 after the same play start are round ends (replay.proto round_end_frames):
-		// pairs (6 -> 7, the tick's next 6), the peers enter the load between them on different frames.
+		// Earlier 6 -> 7 after the same play start are round ends (pairs: 6 -> 7, the next 6). Peers differ inside
+		// these spans, so sync checks skip them.
 		void ReplayGameEnds(size_t frames, std::vector<int64_t>& starts, std::vector<int64_t>& ends, std::vector<int64_t>& rounds)
 		{
 			frames = std::min({frames, s_replay_ticks.size(), s_replay_ps.size()});

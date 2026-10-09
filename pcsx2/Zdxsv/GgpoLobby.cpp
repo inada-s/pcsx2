@@ -136,9 +136,8 @@ namespace Zdxsv
 		return true;
 	}
 	// lobby=1, no GGPO session (LobbyArm): a connection failure, no fallback to the battle server.
-	// Sends are dropped, nothing to recv, and the poll fails (-1). The battle's net pump (0x3133f0) sets
-	// its net state to 9 (error) on a failed poll, so the game closes the sock and goes back to the lobby
-	// at once instead of after its no-response timeout. That close goes to the IOP and ends the cut.
+	// Sends are dropped, nothing to recv, and the poll fails, so the game closes the sock and goes back to
+	// the lobby at once instead of after its timeout. That close goes to the IOP and ends the cut.
 	bool LobbyCutCall(u32 fno, s16 sock, s16 len)
 	{
 		u8* ram = eeMem->Main;

@@ -62,10 +62,9 @@ namespace Zdxsv
 		int s_save_calls = 0;
 		double s_watch_ms = 0, s_state_ms = 0, s_total_ms = 0; // DeltaStateTimes()
 
-		// Hot pages: written in HOT_AFTER save intervals in a row. They stay writable and get a
-		// copy in s_open at every save and load instead (= their data as of that save, like a
-		// fault copy), which saves the protect calls (one per fastmem alias, ~17 us a page) and the
-		// fault. Unchanged for COLD_AFTER intervals: watched again. ZDXSV_DELTA_HOT=0: off.
+		// Hot pages: written in HOT_AFTER save intervals in a row. They stay writable and are copied at
+		// every save and load instead, which saves the protect calls and the fault. Unchanged for
+		// COLD_AFTER intervals: watched again.
 		constexpr u8 HOT_AFTER = 2, COLD_AFTER = 8;
 		constexpr u32 EE_PAGES = Ps2MemSize::TotalRam / PAGE_BYTES;
 		int s_hot_enabled = -1;

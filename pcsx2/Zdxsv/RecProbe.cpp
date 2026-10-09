@@ -1,11 +1,7 @@
 // SPDX-FileCopyrightText: 2026 zdxsv contributors
 // SPDX-License-Identifier: GPL-3.0+
 
-// EE recompiler tracing (diagnostics), emitted through RecEmitHooks:
-// ZDXSV_EE_PROBE=pc,pc,... logs regs + 48 bytes at ZDXSV_EE_PROBE_MEM (default 0xc22c98)
-// to ZDXSV_EE_PROBE_OUT-<pid>.txt each time the EE reaches one of the PCs.
-// ZDXSV_EE_WATCH=addr:len,... (hex) logs every EE store into a range (pc, address, rt value,
-// ra, 128 stack bytes, GGPO frame) to ZDXSV_EE_PROBE_OUT-w<pid>.txt. Inline range compare per store.
+// EE recompiler tracing (ZDXSV_EE_PROBE, ZDXSV_EE_WATCH), emitted through RecEmitHooks.
 
 #include "Zdxsv/CpuHooks.h"
 #include "Zdxsv/RecHooks.h"

@@ -624,12 +624,7 @@ namespace Zdxsv
 	bool g_ggpo_in_rollback = false;
 	bool g_gs_rerun_frame = false;
 	bool s_net_env = false; // net=1 in s_options, or a replay plays (GgpoOnVmInitialize)
-	// ZDXSV_RBK=i/N (net=1; flycast rbk_test): started from a post-entry state (tests/zdxsv/rbkprep.sh)
-	// as battle position i (0-based) of N. Until GGPO arms, every lobby / battle connect RPC is
-	// answered here (RbkCall: built-in battle start, recorded connect results, own battle msgs
-	// echoed per remote position) and the limiter runs turbo; the process exits at the session end.
-	// ZDXSV_RBK_TIME=s: rule time limit (recorded 210). ZDXSV_RBK_COUNT=n: battles (recorded 0 =
-	// rematch by input). ZDXSV_RBK_GAUGE=v: 戦力ゲージ (recorded 600). ZDXSV_RAND_INPUT=seed: pad input.
+	// ZDXSV_RBK=i/N: until GGPO arms, every lobby / battle connect RPC is answered here (RbkCall).
 	int s_rbk_me = -1, s_rbk_n = 0;
 	bool s_rbk = [] { // also set by a replay's common start (PlayLoad)
 		const char* e = Zdxsv::TestEnv("ZDXSV_RBK");
@@ -650,10 +645,9 @@ namespace Zdxsv
 	u32 s_cut_sends = 0;
 	int s_net_me = -1; // local battle position
 	std::vector<std::vector<u8>> s_net_sent; // every msg the game sent since armed, in order
-	// ZDXSV_K3_LAG (default 8): a msg sent at GGPO frame s goes into the local input of frame s + lag. A send
-	// first seen in a rollback rerun (K3 #4 released in a rerun, the reply sent there) used to go
-	// into the next forward frame's input, so the handshake frame depended on input arrival timing. With
-	// lag > GGPO's 6 prediction frames, frame s is final when s + lag is added. 0 = the old behaviour.
+	// ZDXSV_K3_LAG: a msg sent at GGPO frame s goes into the local input of frame s + lag. With lag above
+	// GGPO's 6 prediction frames, frame s is final when s + lag is added, so a send first made in a rerun
+	// still lands on a fixed frame.
 	const int s_k3_lag = [] {
 		const char* e = Zdxsv::TestEnv("ZDXSV_K3_LAG");
 		return e ? std::max(0, std::atoi(e)) : 8;

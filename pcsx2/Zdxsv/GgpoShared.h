@@ -85,16 +85,8 @@ namespace Zdxsv
 	};
 	static_assert(sizeof(Input) == 8);
 
-	// net=1: the Z battle runs over GGPO, game-side input delay 0.
-	// Armed by the game's first key msg send on the battle sock: from then on that sock's send /
-	// recv / poll RPCs are answered on the EE side (OnNetCall) and never reach the IOP.
-	// Input of frame f = (A, B) of the host pad (ZdPadAB) + the kind-3 msgs the game sent at frame f - K3_LAG.
-	// The own pad goes to the game undelayed; the lockstep step reads every position's synced (A, B)
-	// of the running GGPO frame (OnStepCopy). Every other own battle msg goes back to the game's recv
-	// once per remote position (sender nibble rewritten): k, X, B bit 0 and the kind 7/9/f msgs are
-	// game-wide. Kind 3 (round handshake) is the barrier: its n-th of each remote goes to recv once
-	// all peers' n-th is in the synced stream. A rerun's sends are re-echoed, never transmitted
-	// (compared: senddiff). GGPO player = battle position + 1.
+	// GGPO input of one frame: the host pad's (A, B) plus the kind-3 msgs the game sent K3_LAG frames
+	// earlier. GGPO player = battle position + 1.
 	struct NetInput
 	{
 		Input pad; // that player's pad 0
@@ -113,8 +105,7 @@ namespace Zdxsv
 	extern const bool s_pw_hash;
 	constexpr u32 PW_BASE = 0x8395d8, PW_SIZE = 0x2200;
 	extern std::map<int, std::array<u64, 5>> s_pw;
-	// Synctest hash=pos: x, y, z (3 floats at player work + 0x2a8) of the 4
-	// players, then u16 0x6d7940 and u16 0x6d793c (the game RNGs, generators 0x20f4b0 / 0x20f4f0).
+	// Player position (3 floats in the player work) and the 2 game RNGs (u16), hashed by synctest hash=pos.
 	constexpr u32 PW_POS = 0x2a8, RNG_A = 0x6d7940, RNG_B = 0x6d793c;
 	u32 ReplayStateHash();
 	u32 GameRng();
@@ -126,11 +117,8 @@ namespace Zdxsv
 	extern std::FILE* s_pw_dump;
 	extern std::vector<std::vector<u8>> s_zds_k3[GGPO_MAX_PLAYERS]; // per sender, by index
 	extern u32 s_zds_k3rel;
-	// Play start (always on with GGPO, replays included). The battle load step 0x2b1d60 (scene step: waits for the load-busy
-	// flag via 0x214260, then inits the per-battle work and sets tick state 8) passes 0x2b1d80 when this
-	// machine's load is done: local timing (player work can be initialized 1 frame apart). The rec hook
-	// there counts the wish, returns 0 (step retried next frame) until every peer's synced count in
-	// Input::unused[1] reaches n, then lets the n-th pass. Rollback state (RollbackState::ps).
+	// Play-start barrier: the n-th battle load passes once every peer's synced count (Input::unused[1])
+	// reaches n. Part of the rollback state.
 	struct PS
 	{
 		u8 n, rel;
@@ -267,11 +255,8 @@ namespace Zdxsv
 	extern LimiterModeType s_play_rearm_limiter; // and the limiter before it
 	extern bool s_play_booted_saved; // ZDXSV_REPLAY_STATE empty: the booted state is in the cache (PlayCommonState)
 
-	// Seek: a key every ZDXSV_REPLAY_KEY=n frames played (default 600, 0 = none): the full state as .p2s in the
-	// cache folder (download here, zip on a thread) + the HLE state outside it. A seek loads the newest key at or
-	// before the target (none when running on from the current frame is closer) and runs up to the target
-	// unlimited. ZDXSV_REPLAY_SEEK=at:to[,at:to...]: seek to `to` when frame `at` is reached (tests).
-	// ZDXSV_REPLAY_KEY_NOHLE=1: control, keys restore no HLE state.
+	// Seek key: the full state as .p2s in the cache folder (zipped on a thread) plus the HLE state outside it.
+	// A seek loads the newest key at or before the target and runs up to it unlimited.
 	struct PlayKey
 	{
 		std::string path;
@@ -306,14 +291,8 @@ namespace Zdxsv
 	void PlayRunBegin(int load);
 	void PlayRunEnd(const char* why, int f);
 
-	// Takeover (as flycast's GdxsvBackendReplay): from frame T the own position plays the host pad, packed as in a
-	// live battle (NetPack) with an input delay of mindelay= frames; the other positions keep the file's inputs
-	// (past its end: no buttons, no new msgs). The first `delay` own inputs are the file's (added before T). It
-	// starts paused at T: the host pad must hold the replay's own input at T, then keep it for 1 s (START skips
-	// the matching). START while taken over = retry from T. Keys and battle loads stay the replay's.
-	// ZDXSV_REPLAY_TAKEOVER=frame[:replay|:rand] (tests): take over at `frame` with no matching; `replay` = the host
-	// pad is the file's own input `delay` frames ahead (plays the replay unchanged), `rand` = random buttons.
-	// ZDXSV_REPLAY_TAKEOVER_RETRY=frame: retry at that frame.
+	// Takeover: from frame T the own position plays the host pad, packed as in a live battle (NetPack) with
+	// mindelay= frames of input delay; the other positions keep the file's inputs.
 	enum : int { TO_OFF, TO_ALIGN, TO_COUNT, TO_ON };
 	enum : int { TO_REQ_NONE, TO_REQ_TAKE, TO_REQ_START, TO_REQ_RETRY, TO_REQ_RETURN, TO_REQ_CANCEL };
 	extern std::atomic<int> s_to_phase;
@@ -347,10 +326,7 @@ namespace Zdxsv
 	extern int s_live_waits;
 	extern double s_live_wait_ms;
 
-	// Auto-next (flycast's gdxsv:LiveAutoNext; setting ZdxsvLiveAutoNext, ZDXSV_LIVE_NEXT=N: N more battles, 0 = off):
-	// at the end of a closed stream a thread asks the lobby every LIVE_NEXT_POLL_S for the newest running battle not
-	// watched yet (LiveDown::Newest with the last LIVE_NEXT_SKIP watched; gdxsv's live_autoplay_pick), which resets the VM,
-	// and PlayLoad opens it instead of ZDXSV_REPLAY. A battle moved on to counts as watched even if it fails to open.
+	// Live auto-next: after a closed stream, a thread polls the lobby for the newest battle not watched yet.
 	struct LiveWait
 	{
 		std::atomic<bool> quit{false};
