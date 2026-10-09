@@ -83,6 +83,8 @@ cenv() {
   # PWDUMP=1: player work per saved frame (OUT/pw-p<i>.bin, pwdiff.py)
   [ -n "${PWDUMP:-}" ] && echo "ZDXSV_PW_DUMP=$OUT/pw-p$1.bin"
   [ "$1" = "${HTTPS_OFF:-}" ] && echo ZDXSV_HTTPS_LATENCY=0
+  # CENV="K=V ...": extra env for every emulator client (e.g. a battle timer ZDXSV_EE_CLAMP for a time-up)
+  [ -n "${CENV:-}" ] && echo "$CENV"
   # GGPO_DEFAULT=K (GGPO, GDELAY=auto): client K has no ZDXSV_GGPO, its GGPO options come from the setting
   [ -n "${GGPO:-}" ] && [ "$1" = "${GGPO_DEFAULT:-}" ] && { echo ZDXSV_GGPO=default; return; }
   case " ${GGPO_CLIENTS:-$CLIENTS} " in *" $1 "*) [ -n "${GGPO:-}" ] && echo "ZDXSV_GGPO=net=1,lobby=1,port=$((GGPO + $1 - 1))$([ "${GDELAY:-1}" = auto ] || echo ",delay=${GDELAY:-1}")${GMIN:+,mindelay=$GMIN}${UPLOAD:+,upload=http://127.0.0.1:8281/}${GOPT:+,$GOPT}$([ "$1" = "${BAD_SESSION:-}" ] && echo ,badsession=1)$([ -n "${GGPO_LAT:-}" ] && echo ",advertise=$((7300 + ($1 == 1)))")";; esac  # GDELAY=auto: no delay= (rtt pick, floor GMIN)

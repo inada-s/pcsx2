@@ -50,7 +50,9 @@ with a peer without GGPO is cut, as a connection failure (`docs/zdxsv/lobby.md`)
   each battle load end (for round skip). Playback logs `replay state hash differs at frame F` and a `replay state
   check` summary; `tests/zdxsv/replay_check.py` compares the hashes of one battle's files. The RNGs are checked on RNG B only (RNG A takes machine-local draws). Older files play unchecked.
   The file also lists each game's play start and game end; from a game end to the next play start nothing is checked
-  (the peers enter the game end on different frames: local battle-socket timing, not a desync). `pwcheck.py` skips the same window.
+  (the peers enter the game end on different frames: local battle-socket timing, not a desync). It also lists each earlier
+  round end of the same play start (6 -> 7) with the frame the tick next enters 6: that round load is not checked either
+  (the peers enter it 1-2 frames apart, RNG B is drawn there). `pwcheck.py` skips the same windows.
 - A lobby battle's `.pb` is posted (multipart, as flycast) to the replay uploader (zdxsv `infra/uploader`) at
   `[DEV9/Eth] ZdxsvReplayUploadUrl` in `PCSX2.ini` (empty = no upload; `ZDXSV_GGPO` `upload=URL` overrides it).
 - An uploaded replay plays from the lobby's public API (as gdxsv lbsapi):

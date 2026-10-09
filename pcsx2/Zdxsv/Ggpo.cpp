@@ -199,12 +199,13 @@ namespace Zdxsv
 		constexpr u32 PW_MASK[] = {0x274, 0x2b4, 0x1e64, 0x1e74, 0x1e84, 0x1e94, 0x214c};
 		// Viewer-team bits: equal on the machines of one side, set for the
 		// other side's players: +0x68 0x300 (119 frames mid-battle), and from time-up on +0x58 0x100,
-		// +0x9c 0x10000, +0x2068 bit 0, +0x2004 (pointer); +0x2074 0x100 on the time-up frame. No other field follows them.
+		// +0x9c 0x10000, +0x2068 bit 0, +0x2004 (pointer); +0x2074 0x101 on the time-up frame. No other field follows them.
+		// +0x9c 0x100000 (an in-play bit, equal in sync): cleared at time-up on the other side, ~67 frames later on the own.
 		// +0x2088 byte (struct +0x130): effect flag, set each frame by 0xe0a1b4, cleared by the MS-kind handler
 		// (0x2a7560 cases 4/6) of the model update 0x1e4340, run for the own player + players in view only.
 		// Own player only: u16 +0xcc set on the own machine, 0 on others;
 		// u16 +0x92 follows u16 +0x90 (gauge 4000, equal on all) on the own machine, stays 4000 on others.
-		constexpr std::pair<u32, u32> PW_MASK_BITS[] = {{0x58, 0x100}, {0x68, 0x300}, {0x9c, 0x10000}, {0x2004, ~0u}, {0x2068, 1}, {0x2074, 0x100}, {0x2088, 0xff},
+		constexpr std::pair<u32, u32> PW_MASK_BITS[] = {{0x58, 0x100}, {0x68, 0x300}, {0x9c, 0x110000}, {0x2004, ~0u}, {0x2068, 1}, {0x2074, 0x101}, {0x2088, 0xff},
 			{0xcc, 0xffff}, {0x90, 0xffff0000}};
 		std::map<int, std::array<u64, 5>> s_pw;
 		// XXH3 of player p's work with the fields above masked (synctest hash=pw).
@@ -1111,12 +1112,13 @@ namespace Zdxsv
 
 		// replay.proto play_start_frames / game_end_frames of the first `frames` frames: a play start = the frame the
 		// play-start barrier passes; a game end = the last tick state 6 -> 7 before the next play start (or the file end).
-		// Round ends are 6 -> 7 too, but the peers enter them on the same frame; the game end they do not (the end phase
-		// waits on the HLE'd battle socket), so sync checks stop there.
-		void ReplayGameEnds(size_t frames, std::vector<int64_t>& starts, std::vector<int64_t>& ends)
+		// The peers enter the game end on different frames (the end phase waits on the HLE'd battle socket), so sync
+		// checks stop there. Earlier 6 -> 7 after the same play start are round ends (replay.proto round_end_frames):
+		// pairs (6 -> 7, the tick's next 6), the peers enter the load between them on different frames.
+		void ReplayGameEnds(size_t frames, std::vector<int64_t>& starts, std::vector<int64_t>& ends, std::vector<int64_t>& rounds)
 		{
 			frames = std::min({frames, s_replay_ticks.size(), s_replay_ps.size()});
-			int64_t end = -1;
+			int64_t end = -1, round_to = -1;
 			for (size_t f = 1; f < frames; f++)
 			{
 				if (s_replay_ps[f] != s_replay_ps[f - 1])
@@ -1128,7 +1130,17 @@ namespace Zdxsv
 				}
 				// f - 1: the frame whose step enters 7 (the trace's `L` frame); the peers' state hashes differ from there
 				if (!starts.empty() && s_replay_ticks[f - 1] == TICK_PLAY && s_replay_ticks[f] == TICK_END)
+				{
+					if (end >= 0 && round_to >= 0)
+					{
+						rounds.push_back(end);
+						rounds.push_back(round_to);
+					}
 					end = static_cast<int64_t>(f - 1);
+					round_to = -1;
+				}
+				else if (end >= 0 && round_to < 0 && s_replay_ticks[f - 1] != TICK_PLAY && s_replay_ticks[f] == TICK_PLAY)
+					round_to = static_cast<int64_t>(f - 1);
 			}
 			if (end >= 0)
 				ends.push_back(end);
@@ -1176,10 +1188,11 @@ namespace Zdxsv
 			}
 			PutPackedInts(pb, 54, load_frames);
 			PutPackedInts(pb, 55, load_rngs);
-			std::vector<int64_t> starts, ends;
-			ReplayGameEnds(frames, starts, ends);
+			std::vector<int64_t> starts, ends, rounds;
+			ReplayGameEnds(frames, starts, ends, rounds);
 			PutPackedInts(pb, 57, starts);
 			PutPackedInts(pb, 58, ends);
+			PutPackedInts(pb, 59, rounds);
 			if (!dir.empty())
 			{
 				const std::string path = Path::Combine(dir, name + ".pb");
@@ -2230,7 +2243,7 @@ namespace Zdxsv
 		std::map<int, u32> s_play_rngs; // frame -> GameRng
 		int s_play_rng_pos = -1;
 		int s_play_hash_checks = 0, s_play_hash_bad = 0, s_play_hash_first_bad = -1, s_play_rng_checks = 0, s_play_rng_bad = 0;
-		// [game end, next play start) of the file (replay.proto 57, 58): not checked, the peers' end phases differ
+		// [game end, next play start) and [round end, tick 6) of the file (replay.proto 57..59): not checked, the peers differ there
 		std::vector<std::pair<int, int>> s_play_cut;
 		int s_play_hash_cut = 0;
 		int s_play_frames = 0;
@@ -2750,7 +2763,7 @@ namespace Zdxsv
 		{
 			Console.WriteLn("ZdxsvGgpo: replay %s at frame %d of %d, vsync %u", what, s_net_frame, s_play_frames, g_FrameCount);
 			Console.WriteLn("ZdxsvGgpo: replay state check: hashes %d checked, %d differ (first at frame %d); rngs %d checked, %d differ; "
-							"%d frames after a game end not checked",
+							"%d frames after a round or game end not checked",
 				s_play_hash_checks, s_play_hash_bad, s_play_hash_first_bad, s_play_rng_checks, s_play_rng_bad, s_play_hash_cut);
 			NetReport();
 		}
@@ -3258,7 +3271,7 @@ namespace Zdxsv
 			std::string_view hashes; // u32 per frame, "" = none (older files)
 			std::optional<u32> start_rng;
 			std::vector<int64_t> load_frames, load_rngs;
-			std::vector<int64_t> play_starts, game_ends;
+			std::vector<int64_t> play_starts, game_ends, round_ends;
 		};
 
 		bool ReplayParse(std::string_view all, ReplayFile& r)
@@ -3284,6 +3297,8 @@ namespace Zdxsv
 						r.play_starts.push_back(static_cast<int64_t>(v));
 					else if (field == 58)
 						r.game_ends.push_back(static_cast<int64_t>(v));
+					else if (field == 59)
+						r.round_ends.push_back(static_cast<int64_t>(v));
 				}
 				else if (wt == 2)
 				{
@@ -3307,6 +3322,8 @@ namespace Zdxsv
 						return Pb::ReadInts(wt, v, b, n, r.play_starts);
 					else if (field == 58)
 						return Pb::ReadInts(wt, v, b, n, r.game_ends);
+					else if (field == 59)
+						return Pb::ReadInts(wt, v, b, n, r.round_ends);
 				}
 				return true;
 			});
@@ -3448,6 +3465,8 @@ namespace Zdxsv
 						to = std::min(to, s);
 				s_play_cut.emplace_back(static_cast<int>(e), static_cast<int>(to));
 			}
+			for (size_t i = 0; i + 1 < r.round_ends.size(); i += 2)
+				s_play_cut.emplace_back(static_cast<int>(r.round_ends[i]), static_cast<int>(r.round_ends[i + 1]));
 			s_play_rng_pos = static_cast<int>(me);
 			s_players = static_cast<int>(players);
 			// key 0 of each position: its state is saved at its common start's arm (PlayCommonStart); the HLE state

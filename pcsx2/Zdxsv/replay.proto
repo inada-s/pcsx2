@@ -60,4 +60,7 @@ message BattleLogFile {
   // waits on the HLE'd battle socket): state checks skip each game end to the next play start.
   repeated int32 play_start_frames = 57;
   repeated int32 game_end_frames = 58;
+  // Pairs: each earlier tick state 6 -> 7 after the same play start (a round end) and the frame the tick next enters 6.
+  // The peers enter the round's load between them on different frames (RNG B is drawn there): state checks skip it.
+  repeated int32 round_end_frames = 59;
 }
