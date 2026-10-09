@@ -9,7 +9,7 @@
 #include <utility>
 #include <vector>
 
-// zdxsv delta state (#31): everything but EE RAM and the GS thread, in memory. CPU thread, vsync.
+// zdxsv delta state: everything but EE RAM and the GS thread, in memory. CPU thread, vsync.
 // Used by Zdxsv/DeltaState.cpp; g_SaveStateDeltaLoad, SaveState_DeltaMarkScratch: Zdxsv/SaveStateHooks.h.
 bool SaveState_DeltaSave(std::vector<u8>& buffer);
 bool SaveState_DeltaLoad(const std::vector<u8>& buffer);

@@ -79,7 +79,7 @@ namespace Zdxsv
 			// reconnects after every battle and the result does not change in between. It runs on its own
 			// thread (up to ~2 s without answers; on this DEV9 rx thread it stalled the network), so its
 			// nat= line goes out from the first lobby connection after it ended. Not on an adopted
-			// connection (s701: 3 of 3 adoptions after a state load never reached the lobby while it ran
+			// connection (3 of 3 adoptions after a state load never reached the lobby while it ran
 			// there; no platform info goes out there anyway).
 			static std::mutex natMutex;
 			static std::string natLine;
