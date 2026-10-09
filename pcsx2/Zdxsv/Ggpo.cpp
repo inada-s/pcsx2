@@ -208,8 +208,9 @@ namespace Zdxsv
 			const double ours = s_ours_ms.sum / n, split = (s_save_ms.sum + s_hash_ms.sum + s_load_ms.sum + s_rerun_ms.sum + s_wait_ms.sum) / n;
 			Console.WriteLn("ZdxsvGgpo: %s between frames ms per frame %.2f: save %.2f hash %.2f load %.2f rerun %.2f wait %.2f rest (ggpo) %.2f | sync=%d",
 				what, ours, s_save_ms.sum / n, s_hash_ms.sum / n, s_load_ms.sum / n, s_rerun_ms.sum / n, s_wait_ms.sum / n, ours - split, s_sync);
-			Console.WriteLn("ZdxsvGgpo: %s rerun frame split: vu1 ms %.2f, ee Mcycles %.3f", what,
-				Common::Timer::ConvertValueToMilliseconds(g_rerun_vu1_ticks) / std::max(s_rollback_frames, 1), s_rerun_mcycles.Mean());
+			Console.WriteLn("ZdxsvGgpo: %s rerun frame split: vu1 ms %.2f, spu2 ms %.3f, ee Mcycles %.3f", what,
+				Common::Timer::ConvertValueToMilliseconds(g_rerun_vu1_ticks) / std::max(s_rollback_frames, 1),
+				Common::Timer::ConvertValueToMilliseconds(g_rerun_spu2_ticks) / std::max(s_rollback_frames, 1), s_rerun_mcycles.Mean());
 			Console.WriteLn("ZdxsvGgpo: %s delta %s | %s", what, Zdxsv::DeltaStateTimes().c_str(), SaveState_DeltaTimes().c_str());
 			Console.WriteLn("ZdxsvGgpo: %s output: presented frames %d | audio samples played %lld dropped (rerun) %lld",
 				what, g_perfmon.GetFrame() - s_gs_frame0, static_cast<long long>(s_spu_played), static_cast<long long>(s_spu_dropped));
@@ -679,6 +680,7 @@ namespace Zdxsv
 	bool g_ggpo_active = false;
 	bool g_ggpo_in_rollback = false;
 	u64 g_rerun_vu1_ticks = 0;
+	u64 g_rerun_spu2_ticks = 0;
 	bool g_gs_rerun_frame = false;
 	bool g_gs_skip_draws = false;
 	bool s_net_env = false; // net=1 in s_options, or a replay plays (GgpoOnVmInitialize)
@@ -791,7 +793,7 @@ namespace Zdxsv
 		s_rollback_frames = s_loads = s_mismatches = s_ggpo_warnings = s_diff_logged = 0;
 		s_save_ms = s_hash_ms = s_load_ms = s_rerun_ms = s_wait_ms = s_emu_ms = s_exit_ms = s_ours_ms = {};
 		s_rerun_mcycles = {};
-		g_rerun_vu1_ticks = 0;
+		g_rerun_vu1_ticks = g_rerun_spu2_ticks = 0;
 		s_t_vsync = s_t_returned = 0;
 		s_spu_played = s_spu_dropped = 0;
 	}

@@ -12,6 +12,7 @@ namespace Zdxsv
 {
 	extern bool g_ggpo_active; // a session runs
 	extern bool g_ggpo_in_rollback; // rerunning frames
+	extern u64 g_rerun_spu2_ticks; // Common::Timer ticks in the SPU2 mixer during rerun frames (spu2sys.cpp TimeUpdate)
 
 	// GS thread: the vsync packet being handled ends a rollback rerun frame (MTGS::PostVsyncStart copies
 	// g_ggpo_in_rollback into the packet). GSRenderer::VSync skips its present, as for a duplicate frame:

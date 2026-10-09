@@ -17,7 +17,10 @@
 #include "SPU2/regs.h"
 #include "SPU2/spu2.h"
 
+#include "Zdxsv/MediaHooks.h"
 #include "common/Console.h"
+#include "common/ScopedGuard.h"
+#include "common/Timer.h"
 
 s16 spu2regs[0x010000 / sizeof(s16)];
 s16 _spu2mem[0x200000 / sizeof(s16)];
@@ -336,6 +339,12 @@ __forceinline void TimeUpdate(u64 cClocks)
 		dClocks = TickInterval * SanityInterval;
 		lClocks = cClocks - dClocks;
 	}
+
+	const u64 zdxsv_t0 = (Zdxsv::g_ggpo_in_rollback && dClocks >= TickInterval) ? Common::Timer::GetCurrentValue() : 0;
+	ScopedGuard zdxsv_time([zdxsv_t0]() {
+		if (zdxsv_t0)
+			Zdxsv::g_rerun_spu2_ticks += Common::Timer::GetCurrentValue() - zdxsv_t0;
+	});
 
 	//Update Mixing Progress
 	while (dClocks >= TickInterval)
