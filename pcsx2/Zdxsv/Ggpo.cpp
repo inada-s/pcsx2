@@ -269,6 +269,15 @@ namespace Zdxsv
 				v |= static_cast<u32>(eeMem->Main[TEAM_RECORD[t]] | eeMem->Main[TEAM_RECORD[t] + 1] << 8) << (t * 16);
 			return v;
 		}
+		// u8 MS id per player work (= position; 0 = Gundam), set from the battle setup at each round start (0x2bc6d0)
+		static constexpr u32 PW_MS_ID = 0x1f2a;
+		u32 MsIds()
+		{
+			u32 v = 0;
+			for (int p = 0; p < 4; p++)
+				v |= static_cast<u32>(eeMem->Main[PW_BASE + PW_SIZE * p + PW_MS_ID]) << (p * 8);
+			return v;
+		}
 		// The round ended between records a and b: the winning team 1 / 2, -1 = a draw (losses only); 0 = none
 		int RoundResult(u32 a, u32 b)
 		{
@@ -968,8 +977,8 @@ namespace Zdxsv
 		std::string s_replay_rec_dir; // where it is saved, "" = not saved
 		std::vector<NetInput> s_replay_inputs; // [frame * s_players + position]
 		// per frame, before its inputs: ReplayStateHash, GameRng, the tick state (load ends -> load_frames), the play
-		// starts passed (-> play_start_frames, game_end_frames), RoundRecord (-> round_data)
-		std::vector<u32> s_replay_hashes, s_replay_rngs, s_replay_records;
+		// starts passed (-> play_start_frames, game_end_frames), RoundRecord and MsIds (-> round_data)
+		std::vector<u32> s_replay_hashes, s_replay_rngs, s_replay_records, s_replay_ms;
 		std::vector<u8> s_replay_ticks, s_replay_ps;
 		s64 s_replay_start_at = 0; // unix seconds
 		int s_replay_confirmed = -1; // GGPO's last confirmed frame: the frames after it (predicted inputs) are not written
@@ -1079,6 +1088,7 @@ namespace Zdxsv
 			s_replay_hashes.clear();
 			s_replay_rngs.clear();
 			s_replay_records.clear();
+			s_replay_ms.clear();
 			s_replay_ticks.clear();
 			s_replay_ps.clear();
 			s_replay_confirmed = -1;
@@ -1108,6 +1118,8 @@ namespace Zdxsv
 			s_replay_rngs.push_back(GameRng());
 			s_replay_records.resize(f);
 			s_replay_records.push_back(RoundRecord());
+			s_replay_ms.resize(f);
+			s_replay_ms.push_back(MsIds());
 			s_replay_ticks.resize(f);
 			s_replay_ticks.push_back(eeMem->Main[TICK_STATE]);
 			s_replay_ps.resize(f);
@@ -1242,8 +1254,12 @@ namespace Zdxsv
 				{
 					std::vector<uint8_t> round;
 					PutInt(round, 1, win);
+					std::vector<int64_t> used_ms; // by position, 1-based as gdxsv's
+					for (int p = 0; p < s_players; p++)
+						used_ms.push_back(((s_replay_ms[f] >> (p * 8)) & 0xff) + 1);
+					PutPackedInts(round, 2, used_ms);
 					PutBytes(pb, 18, round.data(), round.size());
-					Console.WriteLn("ZdxsvGgpo: replay round result: win_team %d at frame %zu", win, f - 1);
+					Console.WriteLn("ZdxsvGgpo: replay round result: win_team %d at frame %zu, MS ids %08x", win, f - 1, s_replay_ms[f]);
 				}
 			}
 			if (!dir.empty())
@@ -2594,7 +2610,7 @@ namespace Zdxsv
 						std::lock_guard lock(s_battle_loads_mtx);
 						const size_t i = s_round_results.size();
 						s_round_results.push_back(win);
-						Console.WriteLn("ZdxsvGgpo: replay: round result %zu: win_team %d at frame %d", i + 1, win, f - 1);
+						Console.WriteLn("ZdxsvGgpo: replay: round result %zu: win_team %d at frame %d, MS ids %08x", i + 1, win, f - 1, MsIds());
 						if (i < s_play_file_rounds.size() && s_play_file_rounds[i] != win)
 							Console.Error("ZdxsvGgpo: replay: round result %zu differs from the file's win_team %d", i + 1, s_play_file_rounds[i]);
 					}

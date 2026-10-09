@@ -54,14 +54,25 @@ def fields(b):
         yield f, wt, v
 
 
+def packed(b):
+    """The varints of a packed repeated field."""
+    out, i = [], 0
+    while i < len(b):
+        x, i = varint(b, i)
+        out.append(x)
+    return out
+
+
 def load(path):
-    h = {"users": [], "lobby_answers": [], "round_data": [], **{k: [] for k in PACKED}}
+    h = {"users": [], "lobby_answers": [], "round_data": [], "used_ms": [], **{k: [] for k in PACKED}}
     for f, wt, v in fields(open(path, "rb").read()):
         k = FIELDS.get(f)
         if k == "round_data":
             # BattleLogRound.win_team: int32, -1 = a 10-byte varint
             w = next((x for rf, _, x in fields(v) if rf == 1), 0)
             h[k].append(w - (1 << 64) if w >= 1 << 63 else w)
+            ms = next((x for rf, _, x in fields(v) if rf == 2), b"")  # used_ms, packed
+            h["used_ms"].append(packed(ms))
         elif k == "lobby_answers":
             h[k].append(v)
         elif k == "users":
@@ -128,7 +139,7 @@ def main():
             loads = " ".join(f"{f}:{r:08x}" for f, r in zip(h["load_frames"], h["load_rngs"]))
             print(f"  state_hashes={len(hashes) // 4} start_rng={h.get('start_rng', 0):08x} loads={loads} "
                   f"play_starts={h['play_start_frames']} game_ends={h['game_end_frames']} round_ends={h['round_end_frames']}"
-                  f" round_data={h['round_data']}")
+                  f" round_data={h['round_data']} used_ms={h['used_ms']}")
         if hashes and len(hashes) != frames * 4:
             fails.append(f"{path}: state_hashes {len(hashes)} bytes != {frames}*4")
         if want is not None and frames != want:
@@ -169,6 +180,8 @@ def main():
                 fails.append(f"{path} vs {p0}: load frames / RNG B differ: {lf} {lf0}")
             if h["round_data"] != h0["round_data"]:
                 fails.append(f"{path} vs {p0}: round_data (win_team per round) differ: {h['round_data']} {h0['round_data']}")
+            if h["used_ms"] != h0["used_ms"]:
+                fails.append(f"{path} vs {p0}: used_ms per round differ: {h['used_ms']} {h0['used_ms']}")
             if h.get("battle_code") != h0.get("battle_code"):
                 fails.append(f"{path}: battle_code {h.get('battle_code')} != {h0.get('battle_code')}")
     for f in fails:
