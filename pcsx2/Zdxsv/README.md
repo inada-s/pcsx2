@@ -41,7 +41,17 @@ options: `docs/zdxsv/`.
 
 | File | Contents |
 |---|---|
-| `Ggpo.cpp`, `Ggpo.h` | GGPO rollback session, the game's battle socket emulated over GGPO, arming from the lobby, replay recording and playback, debug traces and the local rollback test harness |
+| `Ggpo.cpp`, `Ggpo.h` | GGPO rollback session: options, frame loop, GGPO callbacks, start and stop, VM hooks, network status OSD |
+| `GgpoShared.h` | Types, state and functions shared by the `Ggpo*.cpp` and `Replay*.cpp` files; included by them only |
+| `GgpoBattle.cpp` | The game's battle socket emulated over GGPO; built-in battle start of a rig run (`ZDXSV_RBK`) |
+| `GgpoLobby.cpp` | Arming a GGPO battle from the lobby: battle info, frame delay, the cut connection |
+| `GgpoGameState.cpp` | Game RAM reads for sync checks and replays: player work hash, RNG, tick state, round records |
+| `GgpoTrace.cpp` | Debug: `NET_TRACE` lines of the pad and the battle msgs' key slots |
+| `GgpoTest.cpp` | Local rollback test harness (synctest): state diffs of rerun frames, random pad input |
+| `ReplayRecord.cpp` | Replay recording, upload and live stream of a GGPO battle |
+| `ReplayPlay.cpp` | Replay playback: frame loop, seek keys, point of view, takeover, control bar and hotkeys |
+| `ReplayLive.cpp` | Playback of a live stream; spectator sync of several viewers |
+| `ReplayLoad.cpp` | Replay files: parse, load, common start, start of playback, position switch, next battle |
 | `DeltaState.cpp`, `DeltaState.h` | Fast per-frame save and load of the VM for rollback (copy-on-write EE RAM pages) |
 | `DeltaFreeze.cpp`, `DeltaFreeze.h` | The non-EE-RAM part of a delta state: CPU, IOP, VU, SPU2, DEV9, pad; section timing and offset names for reports |
 | `Lobby.cpp`, `Lobby.h` | Lobby side of a GGPO battle: platform info, battle info notice, STUN, ping test, relay, match report |
