@@ -192,7 +192,7 @@ flycast:
 - `Delay Nfr`: yellow from 5, orange from 10, red from 13
 - `Roll`: rollback frames. `Wait`: frames that waited for a peer
 - per opponent: position and user id, name (HN), pilot name, `Ping` (GGPO RTT, in the colors of
-  flycast) and `P` (frames predicted for it), or `Interrupted` /
+  flycast) and `P` (frames predicted for it), `Interrupted` in place of `Ping`, or
   `Disconnected`
 
 The lines are logged every 600 frames as `ZdxsvGgpo: osd frame F: ...`.

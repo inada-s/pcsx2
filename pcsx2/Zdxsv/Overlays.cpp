@@ -40,9 +40,10 @@ namespace Zdxsv
 			const float font_size = ImGuiManager::GetFontSizeStandard();
 			const float line_height = ImGuiFullscreen::GetLineHeight({font, font_size});
 			const float pad = std::ceil(4.0f * scale);
-			float width = 0.0f;
-			for (const Zdxsv::GgpoOsdLine& l : lines)
-				width = std::max(width, font->CalcTextSizeA(font_size, std::numeric_limits<float>::max(), -1.0f, l.text.c_str()).x);
+			// fixed width, whatever the lines hold: a longer line (a long name, a huge Wait) is cut and ends in "..."
+			const auto text_w = [&](const char* s) { return font->CalcTextSizeA(font_size, std::numeric_limits<float>::max(), -1.0f, s).x; };
+			const float width = std::max(text_w(" Ping 000ms (R)  P -00"), text_w("Roll 00  Wait 00000"));
+			const float dots_w = text_w("...");
 
 			ImDrawList* dl = ImGui::GetBackgroundDrawList();
 			const float x = margin;
@@ -51,7 +52,23 @@ namespace Zdxsv
 			y += pad;
 			for (const Zdxsv::GgpoOsdLine& l : lines)
 			{
-				dl->AddText(font, font_size, ImVec2(x + pad, y), l.color, l.text.c_str());
+				std::string text = l.text;
+				if (text_w(text.c_str()) > width)
+				{
+					// drop whole UTF-8 characters from the end until the rest and "..." fit
+					while (!text.empty() && text_w(text.c_str()) + dots_w > width)
+					{
+						// continuation bytes (10xxxxxx), then the lead or ASCII byte
+						u8 c;
+						do
+						{
+							c = static_cast<u8>(text.back());
+							text.pop_back();
+						} while (!text.empty() && (c & 0xC0) == 0x80);
+					}
+					text += "...";
+				}
+				dl->AddText(font, font_size, ImVec2(x + pad, y), l.color, text.c_str());
 				y += line_height;
 			}
 		}
