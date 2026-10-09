@@ -267,12 +267,8 @@ namespace Zdxsv
 	} // namespace
 
 
-	// ZDXSV_REPLAY (s_play_env): the file's frame 0 state is loaded, the HLE state of frame 0 restored
-	// (net_rx0 / hle0), then each frame gets the file's synced inputs (NetApply, as a live frame without
-	// rollback): the battle sock HLE, zd step copy and both barriers run as live. Own pad 0 = the own
-	// position's B bits mapped back to buttons (no sticks in the file). ZDXSV_REPLAY_EXIT=1: exit at the
-	// end (else pause); ZDXSV_REPLAY_TURBO=1: turbo limiter. With ZDXSV_PW_HASH + ZDXSV_NET_TRACE the H lines
-	// compare to the live battle's (zdxsv/pwcheck.py).
+	// Replay play: from the start state, each frame gets the file's synced inputs as a live frame without
+	// rollback, so the battle socket HLE and both barriers run as live.
 	std::vector<NetInput> s_play_inputs;
 	// The file's state checks (replay.proto 52..55, optional): ReplayStateHash per frame, GameRng at frame 0 and at
 	// each load end, of position s_play_rng_pos (RNG A is per machine). Checked before a frame's inputs (PlayFrame).
@@ -292,18 +288,12 @@ namespace Zdxsv
 	bool s_play_at_end = false; // paused after the last frame (no ZDXSV_REPLAY_EXIT)
 	int s_play_target = -1; // seeking: frames run unlimited up to this one
 	LimiterModeType s_play_limiter = LimiterModeType::Nominal;
-	// skip MS selection (setting ZdxsvReplaySkipMs, ZDXSV_REPLAY_SKIP_MS; default on as flycast's
-	// gdxsv:ReplaySkipMsSelection; read at each replay start in PlayBegin): from
-	// frame 0 the replay runs unlimited to the briefing = the frame tick state 0xc627b4 leaves 8 (battle load) the
-	// 2nd time (load 1 below; round 2 loads again with no MS select). Playing from frame 0 again jumps to the
-	// briefing.
+	// Skip MS selection: from frame 0 the replay runs unlimited to the briefing (the end of battle load 1).
 	bool s_play_skip_ms = true;
 	std::atomic<bool> s_keys_on{false}; // setting ZdxsvReplayKeyDisplay at the first PlayBegin, then the hotkey
 	// Battle loads: the frames where the tick state leaves 8, in order. Load 0 ends at MS select, load 1 at the
-	// briefing, load 1 + N at the start of round N (a 2-round 1v1: 216, 4184, 4945, 16103, the same
-	// frames for both positions). Frames are played in order up to s_play_hi (a forward seek runs every frame between), so
-	// the list is complete up to it. Round jump (ZDXSV_REPLAY_ROUND_AT, hotkeys, control bar): a known round
-	// start is a seek; an unknown one runs unlimited from s_play_hi until that load ends.
+	// briefing, load 1 + N at the start of round N. Complete up to s_play_hi. A round jump to a known start
+	// is a seek; to an unknown one it runs unlimited from s_play_hi until that load ends.
 	std::mutex s_battle_loads_mtx;
 	std::vector<int> s_battle_loads; // written on the CPU thread; the GS thread reads it under s_battle_loads_mtx
 	int s_play_hi = -1, s_tick_f = -1;

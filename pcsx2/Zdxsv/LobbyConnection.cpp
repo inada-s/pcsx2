@@ -62,10 +62,8 @@ namespace Zdxsv
 			return port;
 		}
 
-		// ZDXSV_GGPO net=1,lobby=1 on a lobby connection: battle infos go to GGPO (ListenGgpo), the
-		// lobby's UDP STUN gives our public address. Returns platform info lines "udp_addr=..\nudp_local=..\n"
-		// (+ "udp_addr6=[..]:..\n" with a global IPv6 address) and our GGPO port (0 = off: nothing done, the
-		// connection is plain TCP). filter: the connection's lobby filter when on.
+		// lobby=1: battle infos go to GGPO. Returns the platform info lines of OpenUdp and our GGPO port
+		// (0 = off: the connection is plain TCP). filter: the connection's lobby filter when on.
 		std::string OpenLobby(u32 serverIp, int& ggpoPort, LobbyFilter*& filter, bool natTest = true)
 		{
 			ggpoPort = ListenGgpo();
@@ -77,12 +75,9 @@ namespace Zdxsv
 			const char* stunPortEnv = std::getenv("ZDXSV_STUN_PORT");
 			const u16 stunPort = stunPortEnv ? static_cast<u16>(std::atoi(stunPortEnv)) : 8201;
 			std::string lines = OpenUdp(serverIp, stunPort);
-			// Connectivity test of the GGPO port (flycast's P2P feasibility test), once per run: the lobby
-			// reconnects after every battle and the result does not change in between. It runs on its own
-			// thread (up to ~2 s without answers; on this DEV9 rx thread it stalled the network), so its
-			// nat= line goes out from the first lobby connection after it ended. Not on an adopted
-			// connection (3 of 3 adoptions after a state load never reached the lobby while it ran
-			// there; no platform info goes out there anyway).
+			// Connectivity test of the GGPO port, once per run, on its own thread so the DEV9 rx thread does
+			// not stall: its nat= line goes out from the first lobby connection after it ended. Not on an
+			// adopted connection: it sends no platform info.
 			static std::mutex natMutex;
 			static std::string natLine;
 			static bool natStarted = false;
@@ -109,12 +104,9 @@ namespace Zdxsv
 		return filter;
 	}
 
-	// The zdxsv lobby server opens every connection with a key pair question
-	// (dir 0x18, category 0x01, command 0x6101). On such a connection, send the
-	// server a custom message (dir 0x81, category 0xFF, command 0x9950) with
-	// "key=value" lines, before the game answers. Real PS2 never sends it, so the
-	// server can keep emulator and console players apart (as gdxsv does).
-	// The PS2 side never sees this message.
+	// On a connection the lobby opens with the key pair question (0x6101), send the platform info
+	// (custom command 0x9950, "key=value" lines) before the game answers, so the lobby can tell
+	// emulator players apart. The game never sees it.
 	LobbyFilter* LobbyOnFirstData(uptr socket, u32 serverIp, const u8* data, int len)
 	{
 		const sock_t client = static_cast<sock_t>(socket);
@@ -151,10 +143,7 @@ namespace Zdxsv
 #else
 		body += "cpu=unknown\n";
 #endif
-		// ZDXSV_GGPO net=1,lobby=1: udp=1 makes the lobby send battle info (0x9951) with every player's
-		// address (udp_addr/udp_local/udp_addr6) and ggpo=port; when every other player has one the battle runs over
-		// GGPO (Zdxsv/Ggpo.cpp), else on the battle server. The game always connects to the battle server by TCP.
-		// relay_server=1: we can route GGPO through the lobby's relay servers (battle info relay_<k>), as flycast.
+		// lobby=1: udp=1 asks the lobby for battle info (0x9951); relay_server=1: GGPO may go through its relay servers.
 		int ggpoPort;
 		LobbyFilter* filter = nullptr;
 		const std::string udpLines = OpenLobby(serverIp, ggpoPort, filter);

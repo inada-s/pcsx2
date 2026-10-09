@@ -1,16 +1,8 @@
 // SPDX-FileCopyrightText: 2026 zdxsv contributors
 // SPDX-License-Identifier: GPL-3.0+
 
-// EE recompiler tracing (diagnostics), emitted through RecEmitHooks:
-// ZDXSV_EE_PROBE=pc,pc,... logs regs + 48 bytes at ZDXSV_EE_PROBE_MEM (default 0xc22c98)
-// to ZDXSV_EE_PROBE_OUT-<pid>.txt each time the EE reaches one of the PCs.
-// ZDXSV_EE_WATCH=addr:len,... (hex) logs every EE store into a range (pc, address, rt value,
-// ra, 128 stack bytes, GGPO frame) to ZDXSV_EE_PROBE_OUT-w<pid>.txt. Inline range compare per store.
-// ZDXSV_EE_PROFILE=prefix (Windows): while rollback frames rerun, samples the CPU thread every ~0.2 ms and counts
-// where it is: EE block start pc, VU1/VU0/IOP/VIF-unpack recompiled code, or native code
-// (by function via DbgHelp, by cpuRegs.pc, and "at <pc> fn <function>" for both); also by EE sp >> 12
-// ("sp <page> ee/other": which game thread stack the time belongs to), and "ra <addr>" per return address
-// found on the EE stack (inclusive time of a call); rewritten to prefix-<pid>.txt every 2000 samples.
+// EE recompiler tracing (ZDXSV_EE_PROBE, ZDXSV_EE_WATCH) emitted through RecEmitHooks, and the
+// rerun-frame sampling profiler (ZDXSV_EE_PROFILE); see docs/zdxsv/options.md.
 
 #ifdef _WIN32
 #ifndef NOMINMAX

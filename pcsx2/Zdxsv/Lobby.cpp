@@ -1074,10 +1074,8 @@ namespace Zdxsv
 	std::string UdpTest(uint32_t stunIP, uint16_t stunPort, uint16_t bindPort, std::string& summary, const std::atomic<bool>* stop)
 	{
 		const auto stopped = [stop] { return stop && stop->load(); };
-		// zdxsv's STUN test socket is at stunPort + 1. On bindPort (the GGPO port, as flycast tests
-		// GdxLocalPort): a "udptest" Ping makes the server answer from both sockets; the test socket's
-		// Pong arrives only if the port takes packets from a source it never sent to (open). Then a
-		// Ping to the test socket: the same mapped port as the main one = cone NAT, another = symmetric.
+		// A "udptest" Ping makes the server answer from both sockets: the test socket's Pong arrives only
+		// if the port is open. Then a Ping to the test socket: the same mapped port = cone NAT, else symmetric.
 		summary = "unknown";
 		sock_t s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 		sockaddr_in addr = MakeAddr(0, bindPort);
@@ -1206,7 +1204,7 @@ namespace Zdxsv
 		return ip == g_info.serverIP && port == g_info.serverPort;
 	}
 
-	// Live spectating (Lobby.h LiveUp / LiveDown; the lobby side is inada-s/zdxsv pkg/lobby/spectator.go).
+	// Live spectating (Lobby.h LiveUp / LiveDown).
 	namespace
 	{
 		// Packet.type and its message field (gdxsv's numbers)
