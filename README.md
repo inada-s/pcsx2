@@ -32,7 +32,8 @@ with a peer without GGPO is cut, as a connection failure (`docs/zdxsv/lobby.md`)
 - Delta save states: fast enough to save the whole machine every frame.
 - GGPO battles: the battle of the game runs over GGPO instead of the battle server.
 - Lobby battles: peers, addresses and input delay come from the lobby and a ping test. Relay servers, a match
-  report to the lobby, a P2P connectivity test and a network status OSD.
+  report to the lobby, a P2P connectivity test, an HTTPS latency test to the cloud regions (sent to the lobby)
+  and a network status OSD.
 - A VM shutdown or reset during a GGPO battle ends it like a disconnect (replay saved, state dropped).
 - The MTVU speedhack is turned off for a VM with GGPO or a replay: delta states copy VU1 memory, which the
   MTVU thread may still be writing. The setting itself is not changed.

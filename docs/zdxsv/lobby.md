@@ -50,6 +50,7 @@ It lets the server tell emulators from real PS2s.
 | `ggpo=P` | lobby GGPO on | GGPO UDP port |
 | `relay_server=1` | lobby GGPO on | the client can route GGPO through relay servers |
 | `nat=` | lobby GGPO on, after the connectivity test ended | result of the connectivity test |
+| `<region>=ms` (e.g. `asia-northeast1=12`) | after the HTTPS latency test ended | HTTPS round trip to that cloud region (gdxsv's keys) |
 
 "Lobby GGPO on" means `ZDXSV_GGPO` with `net=1,lobby=1`.
 
@@ -165,6 +166,19 @@ platform info. It runs on its own thread (up to about 2 s), so `nat=` goes out
 from the first lobby connection after it ended. A ping test cancels it (both
 use the GGPO port). A missing STUN answer is not kept: the next lobby
 connection asks again.
+
+## HTTPS latency test
+
+When the game goes online (the first lookup of a game host, else the first
+lobby connection), the emulator measures the HTTPS latency to 13 cloud regions,
+as the ping test of flycast (gcping hosts, `Zdxsv/HttpsLatency.cpp`): per
+region a warm-up `HEAD /api/ping` opens the connection, then 3 more on it; the
+fastest is the region's latency. 6 regions at a time, on their own threads.
+Each region's attempts go to the log (`ZdxsvHttpsLatency:`), the best region to
+an OSD message. Once every region ended, each lobby connection's platform info
+carries `<region>=ms` for the regions that answered (gdxsv's lobby picks the
+battle region from these keys; the zdxsv lobby keeps them in the peer's
+platform info). Once per run. `ZDXSV_HTTPS_LATENCY=0` turns it off.
 
 ## Network status OSD
 

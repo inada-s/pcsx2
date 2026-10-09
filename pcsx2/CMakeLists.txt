@@ -335,6 +335,7 @@ set(pcsx2DEV9Sources
 	Zdxsv/Lobby.cpp
 	Zdxsv/LobbyConnection.cpp
 	Zdxsv/ServerHosts.cpp
+	Zdxsv/HttpsLatency.cpp
 	DEV9/smap.cpp
 	DEV9/sockets.cpp
 	DEV9/DEV9.cpp
@@ -1227,6 +1228,7 @@ if(WIN32)
 else()
 	target_link_libraries(PCSX2_FLAGS INTERFACE
 		PCAP::PCAP
+		CURL::libcurl # Zdxsv/HttpsLatency.cpp
 	)
 endif()
 

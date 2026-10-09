@@ -8,6 +8,8 @@
 
 #include "common/Pcsx2Defs.h"
 
+#include <string>
+
 namespace Zdxsv
 {
 	// A save state was loaded: from now on DEV9 adopts TCP connections the PS2
@@ -50,4 +52,10 @@ namespace Zdxsv
 	// url -> address is a game host mapped to the fixed address the defaults once held. The config drops
 	// such entries on load, so the lookup above applies.
 	bool DnsIsStaleHostEntry(const char* url, const u8* address);
+
+	// Zdxsv/HttpsLatency.cpp. HTTPS latency to the cloud regions (flycast's ping test), once per run, on its own
+	// threads. Started when the game goes online (a game host lookup or the first lobby connection).
+	void HttpsLatencyStart();
+	// "<region>=<ms>\n" platform info lines once every region ended, else "".
+	std::string HttpsLatencyLines();
 } // namespace Zdxsv

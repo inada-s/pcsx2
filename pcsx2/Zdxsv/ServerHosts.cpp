@@ -40,6 +40,7 @@ namespace Zdxsv
 		if (!IsGameHost(url))
 			return url;
 		Console.WriteLn("DEV9: DNS: %s looked up as %s", url, kServerHost);
+		HttpsLatencyStart();
 		return kServerHost;
 	}
 

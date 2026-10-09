@@ -165,6 +165,9 @@ namespace Zdxsv
 		}
 		else if (ggpoPort > 0)
 			body += "udp=1\n" + udpLines + "ggpo=" + std::to_string(ggpoPort) + "\nrelay_server=1\n";
+		// From the first lobby connection after the test ended (a reconnect follows every battle).
+		HttpsLatencyStart();
+		body += HttpsLatencyLines();
 
 		std::vector<u8> msg;
 		const auto append = [&msg](u8 command, const std::string& b) {
