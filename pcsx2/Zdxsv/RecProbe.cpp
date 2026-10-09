@@ -6,6 +6,17 @@
 // to ZDXSV_EE_PROBE_OUT-<pid>.txt each time the EE reaches one of the PCs.
 // ZDXSV_EE_WATCH=addr:len,... (hex) logs every EE store into a range (pc, address, rt value,
 // ra, 128 stack bytes, GGPO frame) to ZDXSV_EE_PROBE_OUT-w<pid>.txt. Inline range compare per store.
+// ZDXSV_EE_PROFILE=prefix (Windows): while rollback frames rerun, samples the CPU thread every ~0.2 ms and counts
+// where it is: EE block start pc, VU1/VU0/IOP/VIF-unpack recompiled code, or native code
+// (by function via DbgHelp, and by cpuRegs.pc); rewritten to prefix-<pid>.txt every 2000 samples.
+
+#ifdef _WIN32
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
+#include <windows.h>
+#include <dbghelp.h>
+#endif
 
 #include "Zdxsv/CpuHooks.h"
 #include "Zdxsv/RecHooks.h"
@@ -20,6 +31,9 @@
 #include "common/Timer.h"
 
 #include <algorithm>
+#include <chrono>
+#include <map>
+#include <thread>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -157,4 +171,106 @@ namespace Zdxsv
 		if (GetInstruction(op).flags & IS_BRANCH)
 			EmitWatchOp(memRead32(pc + 4));
 	}
+
+#ifdef _WIN32
+	namespace
+	{
+		// "module!symbol" of a host address (DbgHelp, loaded on first use; the exe's PDB sits next to it).
+		std::string HostSymbol(uptr ip)
+		{
+			using SymInitializeFn = BOOL(WINAPI*)(HANDLE, PCSTR, BOOL);
+			using SymFromAddrFn = BOOL(WINAPI*)(HANDLE, DWORD64, PDWORD64, PSYMBOL_INFO);
+			static SymFromAddrFn from_addr = [] {
+				const HMODULE m = LoadLibraryW(L"dbghelp.dll");
+				const auto init = m ? reinterpret_cast<SymInitializeFn>(GetProcAddress(m, "SymInitialize")) : nullptr;
+				return init && init(GetCurrentProcess(), nullptr, TRUE) ? reinterpret_cast<SymFromAddrFn>(GetProcAddress(m, "SymFromAddr")) : nullptr;
+			}();
+			char module[MAX_PATH] = "?";
+			HMODULE hm;
+			if (GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+					reinterpret_cast<LPCSTR>(ip), &hm))
+				GetModuleFileNameA(hm, module, sizeof(module));
+			const char* base = std::strrchr(module, '\\');
+			std::string s = base ? base + 1 : module;
+			alignas(SYMBOL_INFO) char buf[sizeof(SYMBOL_INFO) + 256] = {};
+			auto* sym = reinterpret_cast<SYMBOL_INFO*>(buf);
+			sym->SizeOfStruct = sizeof(SYMBOL_INFO);
+			sym->MaxNameLen = 255;
+			DWORD64 disp;
+			return s + "!" + (from_addr && from_addr(GetCurrentProcess(), ip, &disp, sym) ? sym->Name : "?");
+		}
+
+	} // namespace
+
+	// ZDXSV_EE_PROFILE: started by the first rerun frame, on the CPU thread.
+	void EeProfileOnRerun()
+	{
+		static bool started = false;
+		if (std::exchange(started, true))
+			return;
+		const char* out = TestEnv("ZDXSV_EE_PROFILE");
+		if (!out || !*out)
+			return;
+		const HANDLE th = OpenThread(THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT, FALSE, GetCurrentThreadId());
+		if (!th)
+			return;
+		std::thread([th, path = std::string(out) + "-" + std::to_string(GetCurrentProcessId()) + ".txt"] {
+			auto in = [](uptr ip, const u8* a, const u8* b) { return ip >= reinterpret_cast<uptr>(a) && ip < reinterpret_cast<uptr>(b); };
+			std::map<std::string, u32> hist;
+			std::map<uptr, u32> native; // host pc outside recompiled code
+			u32 n = 0;
+			for (;;)
+			{
+				std::this_thread::sleep_for(std::chrono::microseconds(200));
+				if (!g_ggpo_in_rollback || SuspendThread(th) == static_cast<DWORD>(-1))
+					continue;
+				// No allocation while the thread is suspended: it may hold the heap lock.
+				CONTEXT c = {};
+				c.ContextFlags = CONTEXT_CONTROL;
+				const bool ok = GetThreadContext(th, &c) && g_ggpo_in_rollback;
+				const uptr ip = ok ? c.Rip : 0;
+				const u32 pc = cpuRegs.pc;
+				const bool ee = ok && in(ip, SysMemory::GetEERec(), SysMemory::GetEERecEnd());
+				const u32 block = ee ? recEeBlockPc(ip) : 0;
+				ResumeThread(th);
+				if (!ok)
+					continue;
+				char key[64];
+				if (ee)
+					std::snprintf(key, sizeof(key), "ee %08x", block);
+				else if (in(ip, SysMemory::GetVU1Rec(), SysMemory::GetVU1RecEnd()))
+					std::snprintf(key, sizeof(key), "vu1");
+				else if (in(ip, SysMemory::GetVU0Rec(), SysMemory::GetVU0RecEnd()))
+					std::snprintf(key, sizeof(key), "vu0");
+				else if (in(ip, SysMemory::GetIOPRec(), SysMemory::GetIOPRecEnd()))
+					std::snprintf(key, sizeof(key), "iop");
+				else if (in(ip, SysMemory::GetVIFUnpackRec(), SysMemory::GetVIFUnpackRecEnd()))
+					std::snprintf(key, sizeof(key), "vifunpack");
+				else
+				{
+					native[ip]++;
+					std::snprintf(key, sizeof(key), "native pc %08x", pc);
+				}
+				hist[key]++;
+				if (++n % 2000 != 0)
+					continue;
+				std::map<std::string, u32> fns;
+				for (const auto& [a, c] : native)
+					fns["fn " + HostSymbol(a)] += c;
+				std::vector<std::pair<std::string, u32>> v(hist.begin(), hist.end());
+				v.insert(v.end(), fns.begin(), fns.end());
+				std::sort(v.begin(), v.end(), [](const auto& a, const auto& b) { return a.second > b.second; });
+				if (FILE* f = std::fopen(path.c_str(), "w"))
+				{
+					std::fprintf(f, "samples %u\n", n);
+					for (const auto& [k, c] : v)
+						std::fprintf(f, "%u %s\n", c, k.c_str());
+					std::fclose(f);
+				}
+			}
+		}).detach();
+	}
+#else
+	void EeProfileOnRerun() {}
+#endif
 } // namespace Zdxsv
