@@ -157,6 +157,7 @@ The 2nd rerun of a window must hash like the 1st. Log lines start with
 | `gap=N` | 0 | test | The N frames before each rollback window are not saved; older saves are still discarded. This is the save skip GGPO does for confirmed frames. A gap above `depth` drops every save before the window. At most `every - depth - 1`. |
 | `break=ee` | off | control | A load does not restore EE RAM. Mismatches must be reported. |
 | `ZDXSV_DELTA_HOT=0` | on | control | Every written page is write-protected each frame; no hot-page copy. |
+| `ZDXSV_DELTA_HOT=h,c` | `1,32` | test | A page becomes hot (copied at every save and load, not write-protected) after writes in `h` save intervals in a row, and is watched again after `c` intervals without a change. The battle report's `faults` = write faults per save. |
 
 ## Input latency measurement
 

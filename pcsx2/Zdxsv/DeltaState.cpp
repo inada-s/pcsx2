@@ -79,8 +79,10 @@ namespace Zdxsv
 		// Hot pages: written in HOT_AFTER save intervals in a row. They stay writable and get a
 		// copy in s_open at every save and load instead (= their data as of that save, like a
 		// fault copy), which saves the protect calls (one per fastmem alias, ~17 us a page) and the
-		// fault. Unchanged for COLD_AFTER intervals: watched again. ZDXSV_DELTA_HOT=0: off.
-		constexpr u8 HOT_AFTER = 2, COLD_AFTER = 8;
+		// fault. Unchanged for COLD_AFTER intervals: watched again. ZDXSV_DELTA_HOT=0: off;
+		// =<hot after>,<cold after>: other thresholds. A copy and compare of a page costs far less
+		// than its protect and fault: one write makes it hot.
+		u8 HOT_AFTER = 1, COLD_AFTER = 32;
 		constexpr u32 EE_PAGES = Ps2MemSize::TotalRam / PAGE_BYTES;
 		int s_hot_enabled = -1;
 		bool s_is_hot[EE_PAGES] = {};
@@ -88,6 +90,7 @@ namespace Zdxsv
 		int s_last_write[EE_PAGES] = {}; // cold: s_save_calls of the last interval with a write
 		std::vector<u32> s_hot;
 		double s_hot_pages = 0; // DeltaStateTimes(): mean hot pages per save
+		u64 s_faults = 0; // DeltaStateTimes(): write faults (each one unprotect, later one protect)
 		u32 s_restored[EE_PAGES] = {}; // s_load_calls of the load that restored the page
 		int s_load_calls = 0;
 		double s_lrestore_ms = 0, s_lwatch_ms = 0, s_lstate_ms = 0, s_lpages = 0; // DeltaStateTimes()
@@ -114,6 +117,7 @@ namespace Zdxsv
 			std::unique_ptr<u8[]> data = TakePage();
 			std::memcpy(data.get(), &eeMem->Main[page * PAGE_BYTES], PAGE_BYTES);
 			s_open.push_back({page, std::move(data)});
+			s_faults++;
 		}
 
 		void RestoreDelta(Delta& delta, std::vector<u32>& touched)
@@ -244,8 +248,8 @@ namespace Zdxsv
 	std::string DeltaStateTimes()
 	{
 		const double n = std::max(s_save_calls, 1), l = std::max(s_load_calls, 1);
-		return fmt::format("Save ms: watch {:.3f} state {:.3f} total {:.3f} hot pages {:.1f}", s_watch_ms / n, s_state_ms / n,
-			s_total_ms / n, s_hot_pages / n) +
+		return fmt::format("Save ms: watch {:.3f} state {:.3f} total {:.3f} hot pages {:.1f} faults {:.1f}", s_watch_ms / n, s_state_ms / n,
+			s_total_ms / n, s_hot_pages / n, s_faults / n) +
 			fmt::format(" | Load ms: pages {:.3f} watch {:.3f} state {:.3f} pages restored {:.1f}", s_lrestore_ms / l,
 				s_lwatch_ms / l, s_lstate_ms / l, s_lpages / l);
 	}
@@ -259,6 +263,14 @@ namespace Zdxsv
 		{
 			const char* env = std::getenv("ZDXSV_DELTA_HOT");
 			s_hot_enabled = !(env && env[0] == '0');
+			if (env && s_hot_enabled)
+			{
+				const std::vector<std::string_view> v = StringUtil::SplitString(env, ',');
+				HOT_AFTER = static_cast<u8>(std::clamp(StringUtil::FromChars<int>(v[0]).value_or(HOT_AFTER), 1, 255));
+				if (v.size() > 1)
+					COLD_AFTER = static_cast<u8>(std::clamp(StringUtil::FromChars<int>(v[1]).value_or(COLD_AFTER), 1, 255));
+				Console.WriteLn("ZdxsvDelta: hot after %d, cold after %d", HOT_AFTER, COLD_AFTER);
+			}
 		}
 		if (!s_states.empty())
 		{

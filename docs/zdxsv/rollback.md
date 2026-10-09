@@ -28,7 +28,10 @@ fork:
 ## Delta save states
 
 A save copies only the EE RAM pages written since the last save, found with
-host page write protection, plus the rest of the state.
+host page write protection, plus the rest of the state. A page once written
+becomes hot: it stays writable and is copied at every save and load, until
+32 saves in a row find it unchanged (a protect and fault cost far more than
+a page copy).
 
 Supporting changes in the core:
 
@@ -55,7 +58,9 @@ rolls back and reruns frames when GGPO asks for it, then applies the synced
 inputs of the next frame. Host pad input goes through GGPO.
 
 Rerun frames are not throttled, presented or heard: a rollback of N frames
-shows and plays the live frame once.
+shows and plays the live frame once. SPU2 reverb is not computed in rerun
+frames (unless an SPU2 IRQ address lies in the reverb work area): it only
+feeds their dropped sound.
 
 ### Synctest
 
