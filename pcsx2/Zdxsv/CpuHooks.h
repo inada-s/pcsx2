@@ -51,6 +51,9 @@ namespace Zdxsv
 	constexpr u32 LOAD_STEP_PC = 0x2b1d80;
 	extern bool g_ps_hook;
 	bool OnLoadStep();
+	// MS-select load step past its load-busy check (same hold, under g_ps_hook).
+	constexpr u32 MS_STEP_PC = 0x2b8698;
+	bool OnMsStep();
 	int ProbeFrame(); // GGPO frame being run (EE probe lines)
 
 	extern bool g_ee_probe; // ZDXSV_EE_PROBE or ZDXSV_EE_WATCH is set

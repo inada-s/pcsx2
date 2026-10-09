@@ -36,10 +36,10 @@ namespace Zdxsv
 			iFlushCall(FLUSH_EVERYTHING | FLUSH_PC);
 			xFastCall((void*)OnStepCopy);
 		}
-		if (g_ps_hook && pc == LOAD_STEP_PC)
+		if (g_ps_hook && (pc == LOAD_STEP_PC || pc == MS_STEP_PC))
 		{
 			iFlushCall(FLUSH_EVERYTHING | FLUSH_PC);
-			xFastCall((void*)OnLoadStep);
+			xFastCall(pc == LOAD_STEP_PC ? (void*)OnLoadStep : (void*)OnMsStep);
 			xTEST(al, al);
 			xForwardJZ32 run_step;
 			xJMP(dispatcher);

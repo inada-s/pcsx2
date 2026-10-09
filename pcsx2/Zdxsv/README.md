@@ -23,7 +23,7 @@ options: `docs/zdxsv/`.
 | (A, B) | The two 16-bit words of the game's input record of one position |
 | lockstep step | The game's per-frame routine that reads every position's (A, B) from its ring |
 | zd, zds | zd: the hook at the lockstep step's ring read that feeds it the GGPO input (`OnStepCopy`). zds: the msg sync around it (K3 barrier, echo of own msgs) |
-| ps, load step | Play start: the battle load step waits until every peer finished loading (`OnLoadStep`) |
+| ps, load step | Play start: the battle load step waits until every peer finished loading (`OnLoadStep`); the MS-select load step the same (`OnMsStep`) |
 | player work | The game's per-player struct, `0x2200` bytes each from `0x8395d8`; synctest `hash=pw` hashes it masked |
 | H line | `H frame h0 h1 h2 h3 rng` in `ZDXSV_NET_TRACE` (`ZDXSV_PW_HASH`): per frame, a hash of each player's x, y, z and the game RNG |
 | arm | GGPO takes over the battle: from the first key msg of a battle |
@@ -32,8 +32,9 @@ options: `docs/zdxsv/`.
 | battle info | The lobby's notice before a battle: players and their GGPO addresses |
 | ping test | UDP round trips to every peer on the GGPO port before arming; picks the delay, a peer that never answers cuts the battle |
 | relay | A relay server of the battle (from the battle info) that forwards GGPO packets between peers that cannot reach each other |
-| cut | A lobby battle that cannot run over GGPO: the battle sock stays silent and the game's timeout returns to the lobby (`LobbyCutCall`) |
-| `.pb` replay | Replay file (`replay.proto`): frame 0 state + every input of a battle |
+| cut | A lobby battle that cannot run over GGPO: battle sock sends are dropped and its poll fails, so the game returns to the lobby (`LobbyCutCall`) |
+| `.pb` replay | Replay file (`replay.proto`): the lobby's battle-start answers + every input of a battle |
+| common start | The hosted post-entry save state every replay starts from; the game then plays the battle start from the file |
 | replay key | Full state (`.p2s`) + HLE state saved every `ZDXSV_REPLAY_KEY` frames while a replay plays; a seek loads the newest key at or before the target |
 | rbk | Local rollback test: N clients started from a saved state after entry (`ZDXSV_RBK`, `tests/zdxsv/rbk.sh`) |
 
@@ -58,6 +59,8 @@ options: `docs/zdxsv/`.
 | `Proto.h` | Minimal protobuf wire codec: the lobby's Ping / Pong, replay files |
 | `replay.proto` | Replay file schema (gdxsv's BattleLogFile + PCSX2 fields); documentation, not compiled |
 | `LobbyConnection.cpp` | A DEV9 TCP connection to the lobby: platform info message, GGPO lobby setup, lobby filter |
+| `HttpsLatency.cpp` | HTTPS latency test to the cloud regions, sent in the platform info |
+| `SpectateSync.cpp`, `SpectateSync.h` | Four-screen replay: one PCSX2 per position, kept on the same frame through shared memory |
 | `ServerHosts.cpp` | The game's server hosts, looked up as the zdxsv server's hostname by the internal DNS server |
 | `InputLatency.cpp`, `InputLatency.h` | Debug: pad input latency measurement |
 | `RecHooks.cpp`, `RecHooks.h` | EE recompiler: emits the hook calls (net RPC, recv, step copy, load step) before an instruction |

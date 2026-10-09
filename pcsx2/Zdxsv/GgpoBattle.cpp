@@ -431,6 +431,7 @@ namespace Zdxsv
 			std::fprintf(s_net_trace, "%u Q %d %04x %04x\n", g_FrameCount, s_net_frame, ab[0], ab[1]);
 		in.pad = {};
 		std::memcpy(&in.pad, ab, sizeof(ab));
+		in.pad.unused[0] = s_rb.ms.n;
 		in.pad.unused[1] = s_rb.ps.n;
 		std::vector<u8> data;
 		while (!s_net_out.empty() && (s_k3_lag == 0 || s_net_out.front().frame + s_k3_lag <= s_net_frame))
@@ -501,19 +502,20 @@ namespace Zdxsv
 				s_zds_k3rel++;
 			s_rb.zds_rel++;
 		}
-		if (s_rb.ps.hold && !s_rb.ps.go)
-		{
-			bool all = true;
+		const auto release = [&](PS& b, int k, char tag) {
+			if (!b.hold || b.go)
+				return;
 			for (int p = 0; p < s_players; p++)
-				all = all && static_cast<u8>(in[p].pad.unused[1] - s_rb.ps.rel) >= 1 && static_cast<u8>(in[p].pad.unused[1] - s_rb.ps.rel) < 128;
-			if (all)
-			{
-				s_rb.ps.go = true;
-				s_rb.ps.rel++;
-				if (s_net_trace)
-					std::fprintf(s_net_trace, "%u PS%s %d %d\n", g_FrameCount, g_ggpo_in_rollback ? "r" : "", f, s_rb.ps.rel);
-			}
-		}
+				if (static_cast<u8>(in[p].pad.unused[k] - b.rel) < 1 || static_cast<u8>(in[p].pad.unused[k] - b.rel) >= 128)
+					return;
+			b.go = true;
+			b.rel++;
+			if (s_net_trace)
+				std::fprintf(s_net_trace, "%u %cS%s %d %d\n", g_FrameCount, tag, g_ggpo_in_rollback ? "r" : "", f, b.rel);
+		};
+		release(s_rb.ps, 1, 'P');
+		if (s_ms_on)
+			release(s_rb.ms, 0, 'M');
 	}
 
 	// A reset VM (live auto-next) starts its battle from the lobby phase again.
