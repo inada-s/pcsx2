@@ -146,8 +146,8 @@ namespace Zdxsv
 		}
 
 		// zdxsv replay control bar (ZDXSV_REPLAY): play/pause, seek -10 s / +10 s, time and frame, a timeline (click or
-		// drag, seek on release), point of view. Shown while paused and for 3 s after the mouse moves over the bottom
-		// quarter; ZDXSV_REPLAY_BAR=1 always shows it, =0 never.
+		// drag, seek on release), point of view. Setting ZdxsvReplayBar: 0 = shown while paused and for 3 s after the
+		// mouse moves over the bottom quarter, 1 = always, 2 = never; ZDXSV_REPLAY_BAR=1 / =0 overrides it (always / never).
 		void DrawReplayBar(float scale, float margin)
 		{
 			static const char* const s_env = std::getenv("ZDXSV_REPLAY_BAR");
@@ -157,8 +157,11 @@ namespace Zdxsv
 			std::string layout;
 			int frame, frames, pov, target;
 			u32 povs;
-			if (!Zdxsv::g_ggpo_enabled || (s_env && s_env[0] == '0') || FullscreenUI::HasActiveWindow() ||
-				!Zdxsv::ReplayBarInfo(frame, frames, pov, povs, target) || frames <= 0)
+			if (!Zdxsv::g_ggpo_enabled || FullscreenUI::HasActiveWindow() || !Zdxsv::ReplayBarInfo(frame, frames, pov, povs, target) ||
+				frames <= 0)
+				return;
+			const int mode = s_env ? (s_env[0] == '0' ? 2 : 1) : Host::GetIntSettingValue("DEV9/Eth", "ZdxsvReplayBar", 0);
+			if (mode == 2)
 				return;
 
 			const ImGuiIO& io = ImGui::GetIO();
@@ -170,7 +173,7 @@ namespace Zdxsv
 			s_prev_mouse = mouse;
 			s_idle = std::max(0.0f, s_idle - io.DeltaTime);
 			const bool paused = VMManager::GetState() == VMState::Paused;
-			if (s_idle <= 0.0f && !paused && !(s_env && s_env[0] == '1'))
+			if (s_idle <= 0.0f && !paused && mode != 1)
 				return;
 
 			ImFont* const font = ImGuiManager::GetStandardFont();

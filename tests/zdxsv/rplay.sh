@@ -11,6 +11,7 @@
 # view (Home) and key display (End), round jump (Shift+PageUp / Shift+PageDown) in the instance ini. With PCSX2_ENV=ZDXSV_REPLAY_EXIT=0 the replay pauses at its end; Space then ends it (H lines written).
 # POV=p: plays position p's point of view (ZDXSV_REPLAY_POV; default the recorder's): the lobby answers name it.
 # SKIP_MS=1: skip MS selection (pcsx2's default; off here so KEYS seconds keep their frames).
+# SKIP_MS=ini: no ZDXSV_REPLAY_SKIP_MS, the instance ini's ZdxsvReplaySkipMs decides.
 # FOUR=1: four-screen, the point of view in pN, one spawned guest per other position (PLAYERS); each
 # guest's trace (trace-play-povP.txt) is pwchecked too, and the host's `spread` lines with all members live must stay
 # <= SPREAD (default 4) frames. With PCSX2_ENV=ZDXSV_REPLAY_SYNC=0 (control: no waiting) the spread check FAILs.
@@ -58,7 +59,7 @@ if [ "${API:-}" = 1 ]; then
   play="http://127.0.0.1:${API_PORT:-9891}/lbs/replay?battle_code=$(basename "$FILE" .pb)"
 fi
 env ZDXSV_REPLAY="$play" ${POV:+ZDXSV_REPLAY_POV=$POV} ZDXSV_REPLAY_EXIT=1 $([ "$WINDOW" = 1 ] || echo ZDXSV_REPLAY_TURBO=1) ${CLAMP:+ZDXSV_EE_CLAMP=$CLAMP} \
-  $([ "${FOUR:-0}" = 1 ] && echo ZDXSV_REPLAY_FOUR=1)   ZDXSV_PW_HASH=1 ZDXSV_NET_TRACE="$OUT/trace-play.txt" ZDXSV_REPLAY_SKIP_MS=${SKIP_MS:-0} $PCSX2_ENV \
+  $([ "${FOUR:-0}" = 1 ] && echo ZDXSV_REPLAY_FOUR=1)   ZDXSV_PW_HASH=1 ZDXSV_NET_TRACE="$OUT/trace-play.txt" $([ "$SKIP_MS" = ini ] || echo ZDXSV_REPLAY_SKIP_MS=${SKIP_MS:-0}) $PCSX2_ENV \
   powershell -NoProfile -Command "& '$here/launch.ps1' -N $N $([ "$WINDOW" = 1 ] || echo -Headless) -StateFile $STATE" 2>&1 | tail -1
 l=$RUN/p$N/PCSX2/logs/emulog.txt
 # start check: the replay header line within 30 s, else stop

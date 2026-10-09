@@ -17,15 +17,18 @@ One line per feature. Each feature and its tests are listed in
 - Network defaults point at the zdxsv server.
 - Platform info: the emulator tells the lobby that it is an emulator, so the server can tell it from a real PS2.
 - Lobby save states (opt-in, for debugging): save states made online keep working after a load.
+- Settings page Settings → zdxsv (global or per game): the game's settings (GGPO, minimum delay, network
+  status OSD, low-latency vsync, live auto-next, replay MS-select skip, key display, control bar, start state).
+  An environment variable overrides its setting and greys it out there (`docs/zdxsv/options.md`).
 
 ### Input latency
 
 - Low-latency vsync, on by default, for the Z game only: the finished frame is presented before the frame
-  limiter sleeps (about -14 ms from button press to screen). Settings → Network & HDD → zdxsv.
+  limiter sleeps (about -14 ms from button press to screen). Settings → zdxsv.
 
 ### Rollback netcode (GGPO)
 
-In development. On by default for lobby battles of the game (setting under Settings → Network & HDD); a battle
+In development. On by default for lobby battles of the game (setting under Settings → zdxsv); a battle
 with a peer without GGPO is cut, as a connection failure (`docs/zdxsv/lobby.md`). Battles run over GGPO only.
 
 - GGPO library in `3rdparty/ggpo`; its MIT notice is in `bin/docs/ThirdPartyLicenses.html`.
@@ -34,7 +37,7 @@ with a peer without GGPO is cut, as a connection failure (`docs/zdxsv/lobby.md`)
   game's own input words built from the pad: the buttons, START and both sticks (left = d-pad, right = its own bits).
 - Lobby battles: peers, addresses and input delay come from the lobby and a ping test. Relay servers, a match
   report to the lobby, a P2P connectivity test, an HTTPS latency test to the cloud regions (sent to the lobby)
-  and a network status OSD (fixed width; a longer line, e.g. a long name, is cut with `...`). Setting `[DEV9/Eth] ZdxsvGgpoMinDelay` (2..6, default 2; Settings → Network & HDD) is
+  and a network status OSD (fixed width; a longer line, e.g. a long name, is cut with `...`). Setting `[DEV9/Eth] ZdxsvGgpoMinDelay` (2..6, default 2; Settings → zdxsv) is
   the lowest input delay picked (as gdxsv's `MinDelay`); `ZDXSV_GGPO` `mindelay=N` overrides it.
 - A VM shutdown or reset during a GGPO battle ends it like a disconnect (replay saved, state dropped).
 - The MTVU speedhack is turned off for a VM with GGPO or a replay: delta states copy VU1 memory, which the
@@ -76,7 +79,7 @@ with a peer without GGPO is cut, as a connection failure (`docs/zdxsv/lobby.md`)
 - Live spectating: the lobby picks one GGPO player per battle to stream it over UDP (lobby `live_uplink=1`);
   `ZDXSV_REPLAY=udp://<lobby host>:8201[/battle code]` watches it (`docs/zdxsv/replay.md`).
   The stream has no save state (spectators start from the hosted one) and runs whether saving (`replay=0`) or upload is on or not.
-  Setting `[DEV9/Eth] ZdxsvLiveAutoNext` (off; Settings → Network & HDD) moves on to the next live battle when one ends
+  Setting `[DEV9/Eth] ZdxsvLiveAutoNext` (off; Settings → zdxsv) moves on to the next live battle when one ends
   (as gdxsv: the newest running battle not watched yet; the lobby picks it from the watched list the spectator sends).
   The spectator trims the frame limiter's period (a few ms per frame) to stay 30 frames behind the live edge without
   stalls (`VMManager::Internal::Throttle`, `Zdxsv::g_frame_period_trim_us`); `ZDXSV_LIVE_PACING=0` turns it off.

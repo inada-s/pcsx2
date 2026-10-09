@@ -50,6 +50,7 @@
 #include "Zdxsv/Lobby.h"
 #include "Zdxsv/Proto.h"
 #include "Zdxsv/SpectateSync.h"
+#include "Zdxsv/Settings.h"
 #include "Zdxsv/TestOptions.h"
 #include "Config.h"
 #include "Counters.h"
@@ -124,8 +125,6 @@ namespace Zdxsv
 		constexpr const char* GAME_SERIAL = "SLPS-25419";
 		constexpr u32 GAME_CRC = 0x435D8236; // ELF CRC of SLPS_254.19: the hooks' fixed guest addresses are this build's
 		constexpr const char* DEFAULT_OPTIONS = "net=1,lobby=1";
-		// The hosted post-entry save state a replay or live battle starts from (PlayCommonState)
-		constexpr const char* REPLAY_STATE_URL = "https://storage.googleapis.com/zdxsv/misc/rbk-p1.p2s";
 	} // namespace
 	bool g_z_game = false;
 	bool g_ggpo_active = false;
@@ -455,6 +454,7 @@ namespace Zdxsv
 
 		void Parse()
 		{
+			s_osd = Host::GetBoolSettingValue("DEV9/Eth", "ZdxsvNetOsd", true); // osd= overrides it
 			for (const std::string_view item : StringUtil::SplitString(s_options, ','))
 			{
 				const size_t eq = item.find('=');
@@ -2343,14 +2343,12 @@ namespace Zdxsv
 		bool s_play_at_end = false; // paused after the last frame (no ZDXSV_REPLAY_EXIT)
 		int s_play_target = -1; // seeking: frames run unlimited up to this one
 		LimiterModeType s_play_limiter = LimiterModeType::Nominal;
-		// skip MS selection (ZDXSV_REPLAY_SKIP_MS, default on as flycast's gdxsv:ReplaySkipMsSelection, 0 = off): from
+		// skip MS selection (setting ZdxsvReplaySkipMs, ZDXSV_REPLAY_SKIP_MS; default on as flycast's
+		// gdxsv:ReplaySkipMsSelection; read at each replay start in PlayBegin): from
 		// frame 0 the replay runs unlimited to the briefing = the frame tick state 0xc627b4 leaves 8 (battle load) the
 		// 2nd time (load 1 below; round 2 loads again with no MS select). Playing from frame 0 again jumps to the
 		// briefing.
-		const bool s_play_skip_ms = [] {
-			const char* e = std::getenv("ZDXSV_REPLAY_SKIP_MS");
-			return !e || e[0] != '0';
-		}();
+		bool s_play_skip_ms = true;
 		// Battle loads: the frames where the tick state leaves 8, in order. Load 0 ends at MS select, load 1 at the
 		// briefing, load 1 + N at the start of round N (a 2-round 1v1: 216, 4184, 4945, 16103, the same
 		// frames for both positions). Frames are played in order up to s_play_hi (a forward seek runs every frame between), so
@@ -2388,10 +2386,7 @@ namespace Zdxsv
 		// key display (ReplayKeys): runs of the shown position's B word (ZdPadAB) up to the played frame, newest
 		// first, with their frame counts. Per frame one more frame; after a seek or a switch, rebuilt from the file.
 		static constexpr size_t KEY_RUNS = 14;
-		std::atomic<bool> s_keys_on{[] {
-			const char* e = std::getenv("ZDXSV_REPLAY_KEY_DISPLAY");
-			return e && e[0] == '1';
-		}()};
+		std::atomic<bool> s_keys_on{false}; // setting ZdxsvReplayKeyDisplay at the first PlayBegin, then the hotkey
 		std::mutex s_keys_mtx;
 		std::deque<std::pair<u16, int>> s_keys; // guarded by s_keys_mtx (the GS thread draws it)
 		int s_keys_f = -1, s_keys_me = -1; // frame and position s_keys ends at
@@ -3748,6 +3743,12 @@ namespace Zdxsv
 			}
 			if (const char* e = std::getenv("ZDXSV_REPLAY_TURBO"); e && e[0] == '1')
 				VMManager::SetLimiterMode(LimiterModeType::Turbo);
+			static const bool keys_once = [] {
+				s_keys_on = BoolSetting("ZdxsvReplayKeyDisplay", false, "ZDXSV_REPLAY_KEY_DISPLAY");
+				return true;
+			}();
+			(void)keys_once;
+			s_play_skip_ms = BoolSetting("ZdxsvReplaySkipMs", true, "ZDXSV_REPLAY_SKIP_MS");
 			if (s_play_skip_ms)
 				PlayRunBegin(1);
 			if (const char* e = std::getenv("ZDXSV_REPLAY_ROUND_AT"))

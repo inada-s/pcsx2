@@ -210,7 +210,7 @@ lobby's UDP socket, zdxsv `pkg/lobby/spectator.go`).
   received. No effect with the host-refresh vsync pacing (`Sync to Host
   Refresh Rate` + `Use Host VSync Timing`). Tests: `ZDXSV_LIVE_PACING=0` = off.
 - Auto-next (flycast's `gdxsv:LiveAutoNext`): with `[DEV9/Eth]
-  ZdxsvLiveAutoNext` on (Settings → Network & HDD), at the end of a stream the
+  ZdxsvLiveAutoNext` on (Settings → zdxsv), at the end of a stream the
   spectator pauses and asks the lobby every 5 s for its newest live battle (a
   subscribe without code or cookie: the challenge names it, running battles
   first). One not watched yet resets the VM and is watched from its start

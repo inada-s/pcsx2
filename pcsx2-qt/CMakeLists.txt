@@ -161,6 +161,9 @@ target_sources(pcsx2-qt PRIVATE
 	Settings/DEV9SettingsWidget.cpp
 	Settings/DEV9SettingsWidget.h
 	Settings/DEV9SettingsWidget.ui
+	Settings/ZdxsvSettingsWidget.cpp
+	Settings/ZdxsvSettingsWidget.h
+	Settings/ZdxsvSettingsWidget.ui
 	Settings/DEV9UiCommon.cpp
 	Settings/DEV9UiCommon.h
 	Settings/HddCreateQt.cpp
