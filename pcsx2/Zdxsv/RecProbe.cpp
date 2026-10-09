@@ -8,7 +8,9 @@
 // ra, 128 stack bytes, GGPO frame) to ZDXSV_EE_PROBE_OUT-w<pid>.txt. Inline range compare per store.
 // ZDXSV_EE_PROFILE=prefix (Windows): while rollback frames rerun, samples the CPU thread every ~0.2 ms and counts
 // where it is: EE block start pc, VU1/VU0/IOP/VIF-unpack recompiled code, or native code
-// (by function via DbgHelp, and by cpuRegs.pc); rewritten to prefix-<pid>.txt every 2000 samples.
+// (by function via DbgHelp, by cpuRegs.pc, and "at <pc> fn <function>" for both); also by EE sp >> 12
+// ("sp <page> ee/other": which game thread stack the time belongs to), and "ra <addr>" per return address
+// found on the EE stack (inclusive time of a call); rewritten to prefix-<pid>.txt every 2000 samples.
 
 #ifdef _WIN32
 #ifndef NOMINMAX
@@ -218,6 +220,7 @@ namespace Zdxsv
 			auto in = [](uptr ip, const u8* a, const u8* b) { return ip >= reinterpret_cast<uptr>(a) && ip < reinterpret_cast<uptr>(b); };
 			std::map<std::string, u32> hist;
 			std::map<uptr, u32> native; // host pc outside recompiled code
+			std::map<std::pair<u32, uptr>, u32> native_at; // (EE pc, host pc) of the same samples
 			u32 n = 0;
 			for (;;)
 			{
@@ -230,8 +233,22 @@ namespace Zdxsv
 				const bool ok = GetThreadContext(th, &c) && g_ggpo_in_rollback;
 				const uptr ip = ok ? c.Rip : 0;
 				const u32 pc = cpuRegs.pc;
+				const u32 sp = cpuRegs.GPR.n.sp.UL[0];
 				const bool ee = ok && in(ip, SysMemory::GetEERec(), SysMemory::GetEERecEnd());
 				const u32 block = ee ? recEeBlockPc(ip) : 0;
+				// Return addresses on the EE stack: words in sp..sp+8 KB whose call site (word - 8) is a
+				// jal/jalr; "ra <addr>" counts each once per sample = inclusive time of that call.
+				u32 ras[64];
+				u32 nras = 0;
+				for (u32 a = sp & ~3u; ok && a < (sp & ~3u) + 0x2000 && a + 4 <= Ps2MemSize::MainRam && nras < std::size(ras); a += 4)
+				{
+					const u32 v = *reinterpret_cast<const u32*>(eeMem->Main + a);
+					if (v < 0x100008 || v >= Ps2MemSize::MainRam || (v & 3))
+						continue;
+					const u32 op = *reinterpret_cast<const u32*>(eeMem->Main + v - 8);
+					if ((op >> 26) == 3 || ((op >> 26) == 0 && (op & 0x3f) == 9))
+						ras[nras++] = v;
+				}
 				ResumeThread(th);
 				if (!ok)
 					continue;
@@ -249,14 +266,31 @@ namespace Zdxsv
 				else
 				{
 					native[ip]++;
+					native_at[{pc, ip}]++;
 					std::snprintf(key, sizeof(key), "native pc %08x", pc);
 				}
 				hist[key]++;
+				std::snprintf(key, sizeof(key), "sp %05x %s", sp >> 12, ee ? "ee" : "other");
+				hist[key]++;
+				std::sort(ras, ras + nras);
+				for (u32 i = 0; i < nras; i++)
+				{
+					if (i > 0 && ras[i] == ras[i - 1])
+						continue;
+					std::snprintf(key, sizeof(key), "ra %08x", ras[i]);
+					hist[key]++;
+				}
 				if (++n % 2000 != 0)
 					continue;
 				std::map<std::string, u32> fns;
 				for (const auto& [a, c] : native)
 					fns["fn " + HostSymbol(a)] += c;
+				for (const auto& [k, c] : native_at)
+				{
+					char at[24];
+					std::snprintf(at, sizeof(at), "at %08x fn ", k.first);
+					fns[at + HostSymbol(k.second)] += c;
+				}
 				std::vector<std::pair<std::string, u32>> v(hist.begin(), hist.end());
 				v.insert(v.end(), fns.begin(), fns.end());
 				std::sort(v.begin(), v.end(), [](const auto& a, const auto& b) { return a.second > b.second; });
