@@ -40,10 +40,6 @@ namespace Zdxsv
 		// key display (ReplayKeys): runs of the shown position's B word (ZdPadAB) up to the played frame, newest
 		// first, with their frame counts. Per frame one more frame; after a seek or a switch, rebuilt from the file.
 		static constexpr size_t KEY_RUNS = 14;
-		std::atomic<bool> s_keys_on{[] {
-			const char* e = std::getenv("ZDXSV_REPLAY_KEY_DISPLAY");
-			return e && e[0] == '1';
-		}()};
 		std::mutex s_keys_mtx;
 		std::deque<std::pair<u16, int>> s_keys; // guarded by s_keys_mtx (the GS thread draws it)
 		int s_keys_f = -1, s_keys_me = -1; // frame and position s_keys ends at
@@ -296,14 +292,13 @@ namespace Zdxsv
 	bool s_play_at_end = false; // paused after the last frame (no ZDXSV_REPLAY_EXIT)
 	int s_play_target = -1; // seeking: frames run unlimited up to this one
 	LimiterModeType s_play_limiter = LimiterModeType::Nominal;
-	// skip MS selection (ZDXSV_REPLAY_SKIP_MS, default on as flycast's gdxsv:ReplaySkipMsSelection, 0 = off): from
+	// skip MS selection (setting ZdxsvReplaySkipMs, ZDXSV_REPLAY_SKIP_MS; default on as flycast's
+	// gdxsv:ReplaySkipMsSelection; read at each replay start in PlayBegin): from
 	// frame 0 the replay runs unlimited to the briefing = the frame tick state 0xc627b4 leaves 8 (battle load) the
 	// 2nd time (load 1 below; round 2 loads again with no MS select). Playing from frame 0 again jumps to the
 	// briefing.
-	const bool s_play_skip_ms = [] {
-		const char* e = std::getenv("ZDXSV_REPLAY_SKIP_MS");
-		return !e || e[0] != '0';
-	}();
+	bool s_play_skip_ms = true;
+	std::atomic<bool> s_keys_on{false}; // setting ZdxsvReplayKeyDisplay at the first PlayBegin, then the hotkey
 	// Battle loads: the frames where the tick state leaves 8, in order. Load 0 ends at MS select, load 1 at the
 	// briefing, load 1 + N at the start of round N (a 2-round 1v1: 216, 4184, 4945, 16103, the same
 	// frames for both positions). Frames are played in order up to s_play_hi (a forward seek runs every frame between), so

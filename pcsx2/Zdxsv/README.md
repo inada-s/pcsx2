@@ -69,4 +69,5 @@ options: `docs/zdxsv/`.
 | `Dev9Hooks.h` | Hook header: DEV9 network code |
 | `MediaHooks.h` | Hook header: GS present, SPU2 output |
 | `UiHooks.h` | Hook header: hotkeys, replay control bar |
+| `Settings.h` | `BoolSetting()`: a `[DEV9/Eth] Zdxsv*` setting, overridden by its environment variable; default replay state URL |
 | `TestOptions.h` | `TestEnv()`: environment options meant for tests and diagnostics; every build reads them |

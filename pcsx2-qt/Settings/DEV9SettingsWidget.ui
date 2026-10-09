@@ -296,63 +296,6 @@
     </widget>
    </item>
    <item>
-    <widget class="QGroupBox" name="zdxsvGroupBox">
-     <property name="title">
-      <string>zdxsv</string>
-     </property>
-     <layout class="QVBoxLayout" name="zdxsvLayout">
-      <item>
-       <widget class="QCheckBox" name="zdxsvGgpo">
-        <property name="text">
-         <string>Rollback netcode (GGPO) for online battles. Takes effect at the next game start.</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <layout class="QHBoxLayout" name="zdxsvGgpoMinDelayLayout">
-        <item>
-         <widget class="QLabel" name="zdxsvGgpoMinDelayLabel">
-          <property name="text">
-           <string>Minimum input delay (frames). The delay is picked from the ping to the opponents, never below this. Takes effect at the next game start.</string>
-          </property>
-          <property name="wordWrap">
-           <bool>true</bool>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QSpinBox" name="zdxsvGgpoMinDelay">
-          <property name="minimum">
-           <number>2</number>
-          </property>
-          <property name="maximum">
-           <number>6</number>
-          </property>
-          <property name="value">
-           <number>2</number>
-          </property>
-         </widget>
-        </item>
-       </layout>
-      </item>
-      <item>
-       <widget class="QCheckBox" name="zdxsvLowLatencyVsync">
-        <property name="text">
-         <string>Low-latency vsync: show each frame before the frame limiter waits (shorter input lag).</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QCheckBox" name="zdxsvLiveAutoNext">
-        <property name="text">
-         <string>Live spectating: watch the next live battle automatically.</string>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
-   </item>
-   <item>
     <widget class="QGroupBox" name="groupBox_2">
      <property name="title">
       <string>Hard Disk Drive</string>

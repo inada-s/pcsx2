@@ -11,6 +11,7 @@
 #include "Zdxsv/Lobby.h"
 #include "Zdxsv/Proto.h"
 #include "Zdxsv/SpectateSync.h"
+#include "Zdxsv/Settings.h"
 #include "Zdxsv/TestOptions.h"
 #include "Config.h"
 #include "Counters.h"
@@ -72,8 +73,6 @@ namespace Zdxsv
 	extern bool s_play_common;
 	extern s32 g_frame_period_trim_us;
 	extern std::string s_options;
-	// The hosted post-entry save state a replay or live battle starts from (PlayCommonState)
-	constexpr const char* REPLAY_STATE_URL = "https://storage.googleapis.com/zdxsv/misc/rbk-p1.p2s";
 	extern bool g_ggpo_active;
 	extern bool g_ggpo_in_rollback;
 	constexpr u32 BUTTONS = 16; // PadDualshock2::Inputs PAD_UP .. PAD_R3
@@ -291,7 +290,8 @@ namespace Zdxsv
 	extern bool s_play_at_end; // paused after the last frame (no ZDXSV_REPLAY_EXIT)
 	extern int s_play_target; // seeking: frames run unlimited up to this one
 	extern LimiterModeType s_play_limiter;
-	extern const bool s_play_skip_ms;
+	extern bool s_play_skip_ms;
+	extern std::atomic<bool> s_keys_on; // replay key display
 	extern std::mutex s_battle_loads_mtx;
 	extern std::vector<int> s_battle_loads; // written on the CPU thread; the GS thread reads it under s_battle_loads_mtx
 	extern int s_play_hi, s_tick_f;

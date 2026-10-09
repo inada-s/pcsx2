@@ -532,6 +532,12 @@ namespace Zdxsv
 		}
 		if (const char* e = std::getenv("ZDXSV_REPLAY_TURBO"); e && e[0] == '1')
 			VMManager::SetLimiterMode(LimiterModeType::Turbo);
+		static const bool keys_once = [] {
+			s_keys_on = BoolSetting("ZdxsvReplayKeyDisplay", false, "ZDXSV_REPLAY_KEY_DISPLAY");
+			return true;
+		}();
+		(void)keys_once;
+		s_play_skip_ms = BoolSetting("ZdxsvReplaySkipMs", true, "ZDXSV_REPLAY_SKIP_MS");
 		if (s_play_skip_ms)
 			PlayRunBegin(1);
 		if (const char* e = std::getenv("ZDXSV_REPLAY_ROUND_AT"))

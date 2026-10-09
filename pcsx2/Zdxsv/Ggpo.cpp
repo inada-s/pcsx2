@@ -117,6 +117,7 @@ namespace Zdxsv
 
 		void Parse()
 		{
+			s_osd = Host::GetBoolSettingValue("DEV9/Eth", "ZdxsvNetOsd", true); // osd= overrides it
 			for (const std::string_view item : StringUtil::SplitString(s_options, ','))
 			{
 				const size_t eq = item.find('=');
