@@ -195,6 +195,23 @@ namespace Zdxsv
 			return s + "!" + (from_addr && from_addr(GetCurrentProcess(), ip, &disp, sym) ? sym->Name : "?");
 		}
 
+		// "file:line" of a host address, "?" without line info. Call after HostSymbol (it initializes DbgHelp).
+		std::string HostLine(uptr ip)
+		{
+			using SymGetLineFromAddr64Fn = BOOL(WINAPI*)(HANDLE, DWORD64, PDWORD, PIMAGEHLP_LINE64);
+			static const auto get_line = [] {
+				const HMODULE m = GetModuleHandleW(L"dbghelp.dll");
+				return m ? reinterpret_cast<SymGetLineFromAddr64Fn>(GetProcAddress(m, "SymGetLineFromAddr64")) : nullptr;
+			}();
+			IMAGEHLP_LINE64 line = {};
+			line.SizeOfStruct = sizeof(line);
+			DWORD disp;
+			if (!get_line || !get_line(GetCurrentProcess(), ip, &disp, &line) || !line.FileName)
+				return "?";
+			const char* base = std::strrchr(line.FileName, '\\');
+			return std::string(base ? base + 1 : line.FileName) + ":" + std::to_string(line.LineNumber);
+		}
+
 	} // namespace
 
 	// ZDXSV_EE_PROFILE: started by the first rerun frame, on the CPU thread.
@@ -301,7 +318,10 @@ namespace Zdxsv
 					continue;
 				std::map<std::string, u32> fns;
 				for (const auto& [a, c] : native)
+				{
 					fns["fn " + HostSymbol(a)] += c;
+					fns["ln " + HostLine(a)] += c;
+				}
 				for (const auto& [k, c] : native_at)
 				{
 					char at[24];
