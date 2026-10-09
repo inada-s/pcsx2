@@ -74,6 +74,11 @@ s32 SPU2freeze(FreezeAction mode, freezeData* data);
 size_t SPU2DeltaVoicesSize();
 void SPU2DeltaSaveVoices(u8* out);
 void SPU2DeltaLoadVoices(const u8* in);
+// zdxsv delta state with paged RAM (g_SaveStateDeltaPagedRam): SPU2 RAM, the offset of its copy
+// in the SPU2 block (left unwritten), and a restore of part of it that keeps the decode cache valid.
+u8* SPU2DeltaMem();
+size_t SPU2DeltaMemOffset();
+void SPU2DeltaRestoreMem(u32 offset, const u8* data, u32 size);
 
 void SPU2readDMA4Mem(u16* pMem, u32 size);
 void SPU2writeDMA4Mem(u16* pMem, u32 size);

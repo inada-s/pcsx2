@@ -23,7 +23,7 @@
 #include "common/Timer.h"
 
 s16 spu2regs[0x010000 / sizeof(s16)];
-s16 _spu2mem[0x200000 / sizeof(s16)];
+alignas(__pagesize) s16 _spu2mem[0x200000 / sizeof(s16)]; // zdxsv delta state protects its pages
 
 V_CoreDebug DebugCores[2];
 V_Core Cores[2];

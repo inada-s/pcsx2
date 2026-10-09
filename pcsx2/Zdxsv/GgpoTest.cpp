@@ -39,7 +39,7 @@ namespace Zdxsv
 		{
 			if (first.pages[i] != pages[i])
 			{
-				Console.WriteLn("ZdxsvGgpo: DIFF frame %d EE page 0x%08zx", frame, i * PAGE_SIZE);
+				Console.WriteLn("ZdxsvGgpo: DIFF frame %d page %s", frame, Zdxsv::DeltaStateRamPageName(i).c_str());
 				s_diff_logged++;
 			}
 		}

@@ -24,20 +24,23 @@ namespace SPU2Savestate
 
 	// zdxsv delta load: a cache line is a decode of its block for the Prev1/Prev2 it holds, so only
 	// the lines whose block differs from the loaded memory go stale (the 7 MB wipe took ~1 ms).
+	static void delta_restore_words(u32 w, u32 words, const u16* src)
+	{
+		if (std::memcmp(_spu2mem + w, src, words * 2) == 0)
+			return;
+		for (u32 b = 0; b < words; b += pcm_WordsPerBlock)
+		{
+			if (std::memcmp(_spu2mem + w + b, src + b, pcm_WordsPerBlock * 2) != 0)
+				pcm_cache_data[(w + b) / pcm_WordsPerBlock].Validated = false;
+		}
+		std::memcpy(_spu2mem + w, src, words * 2);
+	}
+
 	static void delta_restore_mem(const u16* mem)
 	{
 		constexpr u32 chunk = 2048; // words
 		for (u32 w = 0; w < 0x100000; w += chunk)
-		{
-			if (std::memcmp(_spu2mem + w, mem + w, chunk * 2) == 0)
-				continue;
-			for (u32 b = w; b < w + chunk; b += pcm_WordsPerBlock)
-			{
-				if (std::memcmp(_spu2mem + b, mem + b, pcm_WordsPerBlock * 2) != 0)
-					pcm_cache_data[b / pcm_WordsPerBlock].Validated = false;
-			}
-			std::memcpy(_spu2mem + w, mem + w, chunk * 2);
-		}
+			delta_restore_words(w, chunk, mem + w);
 	}
 } // namespace SPU2Savestate
 
@@ -63,7 +66,8 @@ s32 SPU2Savestate::FreezeIt(DataBlock& spud)
 	spud.version = SAVE_VERSION;
 
 	memcpy(spud.unkregs, spu2regs, sizeof(spud.unkregs));
-	memcpy(spud.mem, _spu2mem, sizeof(spud.mem));
+	if (!g_SaveStateDeltaPagedRam)
+		memcpy(spud.mem, _spu2mem, sizeof(spud.mem));
 
 	memcpy(spud.Cores, Cores, sizeof(Cores));
 	memcpy(&spud.Spdif, &Spdif, sizeof(Spdif));
@@ -131,7 +135,10 @@ s32 SPU2Savestate::ThawIt(DataBlock& spud)
 	{
 		memcpy(spu2regs, spud.unkregs, sizeof(spud.unkregs));
 		if (g_SaveStateDeltaLoad)
-			delta_restore_mem(reinterpret_cast<const u16*>(spud.mem));
+		{
+			if (!g_SaveStateDeltaPagedRam)
+				delta_restore_mem(reinterpret_cast<const u16*>(spud.mem));
+		}
 		else
 			memcpy(_spu2mem, spud.mem, sizeof(spud.mem));
 
@@ -247,4 +254,19 @@ void SPU2DeltaLoadVoices(const u8* in)
 	}
 	has_to_call_irq_dma[0] = in[SPU2DeltaVoicesBytes] != 0;
 	has_to_call_irq_dma[1] = in[SPU2DeltaVoicesBytes + 1] != 0;
+}
+
+u8* SPU2DeltaMem()
+{
+	return reinterpret_cast<u8*>(_spu2mem);
+}
+
+size_t SPU2DeltaMemOffset()
+{
+	return offsetof(SPU2Savestate::DataBlock, mem);
+}
+
+void SPU2DeltaRestoreMem(u32 offset, const u8* data, u32 size)
+{
+	SPU2Savestate::delta_restore_words(offset / 2, size / 2, reinterpret_cast<const u16*>(data));
 }

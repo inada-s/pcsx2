@@ -244,6 +244,10 @@ extern void mmap_DeltaWatchPage(u32 page);
 extern void mmap_DeltaWatchPages(const std::vector<u32>& pages); // same, adjacent pages in one call
 // Writes a page without calling the hook; the page stays unwatched. Clears recompiled code in it.
 extern void mmap_DeltaRestorePage(u32 page, const u8* data);
+// Called first on every fault (any host address, e.g. IOP or SPU2 RAM watched by the caller):
+// true = handled, execution continues. nullptr: off.
+using mmap_DeltaFaultHook = bool (*)(uptr addr);
+extern void mmap_DeltaSetFaultHook(mmap_DeltaFaultHook hook);
 
 // --------------------------------------------------------------------------------------
 //  Goemon game fix

@@ -11,6 +11,8 @@
 // True while SaveState_DeltaLoad (Zdxsv/DeltaFreeze.h) runs: it loads at the point the state was saved
 // (vsync, mid rcntUpdate), so freeze functions skip their load-time fix-ups to restore the state exactly.
 extern bool g_SaveStateDeltaLoad;
+// During a delta save/load: IOP RAM and SPU2 RAM are left out (Zdxsv::DeltaState restores them page by page).
+extern bool g_SaveStateDeltaPagedRam;
 // Freeze functions: the next size bytes at pos are scratch (recorded only by a delta save).
 extern void SaveState_DeltaMarkScratch(size_t pos, size_t size);
 

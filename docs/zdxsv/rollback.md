@@ -27,11 +27,13 @@ fork:
 
 ## Delta save states
 
-A save copies only the EE RAM pages written since the last save, found with
-host page write protection, plus the rest of the state. A page once written
-becomes hot: it stays writable and is copied at every save and load, until
-32 saves in a row find it unchanged (a protect and fault cost far more than
-a page copy).
+A save copies only the EE, IOP and SPU2 RAM pages written since the last save,
+found with host page write protection, plus the rest of the state. A page once
+written becomes hot: it stays writable and is copied at every save and load,
+until 32 saves in a row find it unchanged (a protect and fault cost far more
+than a page copy). A restored IOP RAM page clears the recompiled IOP code over
+the words that differ; a restored SPU2 RAM page drops the decoded sample cache
+of the blocks that differ.
 
 Supporting changes in the core:
 
