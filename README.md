@@ -29,6 +29,7 @@ Everything is on only for the one game build it was made for; any other disc run
 - Delta save states: the whole machine saved and loaded every frame.
 - Lobby battles over GGPO (in development, on by default): ping test, relay servers, match report,
   connectivity and HTTPS latency tests, network status OSD.
+- Load barriers: battle start and MS select wait for every peer's load (every peer needs a build with both).
 
 ### Replays
 

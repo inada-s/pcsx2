@@ -995,27 +995,41 @@ namespace Zdxsv
 		a |= dirs(in.rx, in.ry);
 	}
 
-	// ps: rec hook at LOAD_STEP_PC (0x2b1d80, battle load step past its load-busy check). true = held:
-	// v0 = 0 (step not done, the scene retries it next frame), pc = the epilogue 0x2b1fa8. Trace `P frame n`.
-	bool OnLoadStep()
+	bool s_ms_on = true;
+
+	// A load step's pass: count the wish, then hold until NetApply sets go. true = held: v0 = 0 (step not done,
+	// the scene retries it next frame), pc = the step's epilogue. Trace `<tag>H frame n`.
+	static bool BarrierHold(PS& b, char tag, u32 epilogue)
 	{
 		if (!g_ggpo_active || !s_net_armed || s_net_over)
 			return false;
-		if (!s_rb.ps.hold)
+		if (!b.hold)
 		{
-			s_rb.ps.hold = true;
-			s_rb.ps.n++;
+			b.hold = true;
+			b.n++;
 			if (s_net_trace)
-				std::fprintf(s_net_trace, "%u PH%s %d %d\n", g_FrameCount, g_ggpo_in_rollback ? "r" : "", s_net_frame, s_rb.ps.n);
+				std::fprintf(s_net_trace, "%u %cH%s %d %d\n", g_FrameCount, tag, g_ggpo_in_rollback ? "r" : "", s_net_frame, b.n);
 		}
-		if (s_rb.ps.go)
+		if (b.go)
 		{
-			s_rb.ps.hold = s_rb.ps.go = false;
+			b.hold = b.go = false;
 			return false;
 		}
 		cpuRegs.GPR.n.v0.UD[0] = 0;
-		cpuRegs.pc = 0x2b1fa8;
+		cpuRegs.pc = epilogue;
 		return true;
+	}
+
+	// ps: rec hook at LOAD_STEP_PC (0x2b1d80, battle load step past its load-busy check), epilogue 0x2b1fa8.
+	bool OnLoadStep()
+	{
+		return BarrierHold(s_rb.ps, 'P', 0x2b1fa8);
+	}
+
+	// ms: rec hook at MS_STEP_PC (0x2b8698, MS-select load step past its load-busy check), epilogue 0x2b8ab8.
+	bool OnMsStep()
+	{
+		return s_ms_on && BarrierHold(s_rb.ms, 'M', 0x2b8ab8);
 	}
 
 	// zd: rec hook at the lockstep step's ring read (0x312bf4, per active position: s0 = position,

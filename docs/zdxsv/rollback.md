@@ -82,10 +82,13 @@ The game runs with its own input delay 0; GGPO adds the input delay.
 - A VM shutdown or reset ends the session at once, as a disconnect: the
   replay is saved, the old VM's states are dropped.
 
-Two mechanisms keep the peers on the same frame:
+Three mechanisms keep the peers on the same frame:
 
 - **Play-start barrier**: each machine finishes loading the battle at its own
   time; the barrier holds the game until every peer is ready.
+- **MS-select barrier**: the same for the load before MS select, which draws
+  the game RNG. A peer without it never reports ready; the others wait at MS
+  select. Replays without it (`hle0` of 9 values) play without it.
 - **Round handshake lag** (`ZDXSV_K3_LAG`): a round-handshake message goes
   into the input a fixed number of GGPO frames after the game sent it, more
   than GGPO's prediction window, so it does not depend on network timing.
