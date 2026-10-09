@@ -44,7 +44,7 @@ message BattleLogFile {
   // HLE state outside the save state at frame 0: the game's battle socket (Ggpo.cpp NetApply)
   reserved 44;  // was zds_ps: the play-start barrier is always on
   bytes net_rx0 = 45;  // msgs waiting for the game's recv
-  repeated int32 hle0 = 46;  // play-start barrier n, rel, hold, go; kind-3 seen 0..3, rel
+  repeated int32 hle0 = 46;  // play-start barrier n, rel, hold, go; kind-3 seen 0..3, rel; MS-select barrier n, rel, hold, go (absent before 20261009: played without it)
   int32 input_size = 47;  // bytes per player per frame (Ggpo.cpp NetInput)
   int32 frames = 48;  // GGPO-confirmed frames
   bytes inputs = 49;  // frames * players * input_size: frame-major, by position

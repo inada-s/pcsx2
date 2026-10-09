@@ -23,7 +23,7 @@ options: `docs/zdxsv/`.
 | (A, B) | The two 16-bit words of the game's input record of one position |
 | lockstep step | The game's per-frame routine that reads every position's (A, B) from its ring |
 | zd, zds | zd: the hook at the lockstep step's ring read that feeds it the GGPO input (`OnStepCopy`). zds: the msg sync around it (K3 barrier, echo of own msgs) |
-| ps, load step | Play start: the battle load step waits until every peer finished loading (`OnLoadStep`) |
+| ps, load step | Play start: the battle load step waits until every peer finished loading (`OnLoadStep`); the MS-select load step the same (`OnMsStep`) |
 | player work | The game's per-player struct, `0x2200` bytes each from `0x8395d8`; synctest `hash=pw` hashes it masked |
 | H line | `H frame h0 h1 h2 h3 rng` in `ZDXSV_NET_TRACE` (`ZDXSV_PW_HASH`): per frame, a hash of each player's x, y, z and the game RNG |
 | arm | GGPO takes over the battle: from the first key msg of a battle |

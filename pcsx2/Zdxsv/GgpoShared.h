@@ -131,11 +131,15 @@ namespace Zdxsv
 	// machine's load is done: local timing (player work can be initialized 1 frame apart). The rec hook
 	// there counts the wish, returns 0 (step retried next frame) until every peer's synced count in
 	// Input::unused[1] reaches n, then lets the n-th pass. Rollback state (RollbackState::ps).
+	// MS select: the same barrier at the MS-select load step's pass 0x2b8698 (it draws RNG B there), count in
+	// Input::unused[0] (RollbackState::ms). Off (s_ms_on) when playing a file recorded without it (hle0 of 9).
 	struct PS
 	{
 		u8 n, rel;
 		bool hold, go;
+		bool operator==(const PS&) const = default;
 	};
+	extern bool s_ms_on;
 	extern u32 s_zd_steps, s_zd_changed;
 	extern bool s_net_armed, s_net_over;
 	extern bool s_lobby_cut; // lobby=1 ping test failed: the battle connection is silent (LobbyCutCall)
@@ -160,7 +164,7 @@ namespace Zdxsv
 		size_t net_pos = 0; // msgs sent so far in the current timeline
 		std::vector<u8> net_rx; // remote msgs not yet given to the game's recv
 		int zds_seen[GGPO_MAX_PLAYERS] = {}, zds_rel = 0; // zds kind-3 barrier counters
-		PS ps = {};
+		PS ps = {}, ms = {};
 	};
 	extern RollbackState s_rb;
 	// Per-frame rings that a rollback leaves in place (they hold every frame it can go back to) and a

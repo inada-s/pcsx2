@@ -100,11 +100,16 @@ local tests, picked from the ping test in lobby battles.
   rollbacks loaded the old VM's states. Log line:
   `ZdxsvGgpo: vm shutdown|vm reset: session 1, ...`.
 
-Two mechanisms keep the peers on the same frame:
+Three mechanisms keep the peers on the same frame:
 
 - **Play-start barrier** (always on with GGPO): each machine finishes loading the
   battle at its own time. The barrier holds the game until every peer is
   ready, so all start the battle on the same GGPO frame.
+- **MS-select barrier** (always on with GGPO): the same for the load before
+  MS select, which draws the game RNG. Every peer needs a build with it: a
+  peer without it never reports ready, and the others wait at MS select.
+  Replays recorded before it (`log_file_version` below 20261009) play without
+  it.
 - **Round handshake lag** (`ZDXSV_K3_LAG`, default 8): a round-handshake
   message goes into the input a fixed number of GGPO frames after the game
   sent it. The number is above the 6 prediction frames of GGPO, so the frame

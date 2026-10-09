@@ -39,6 +39,9 @@ with a peer without GGPO is cut, as a connection failure (`docs/zdxsv/lobby.md`)
   report to the lobby, a P2P connectivity test, an HTTPS latency test to the cloud regions (sent to the lobby)
   and a network status OSD (fixed width; a longer line, e.g. a long name, is cut with `...`). Setting `[DEV9/Eth] ZdxsvGgpoMinDelay` (2..6, default 2; Settings → zdxsv) is
   the lowest input delay picked (as gdxsv's `MinDelay`); `ZDXSV_GGPO` `mindelay=N` overrides it.
+- Load barriers: the battle start and the MS-select screen wait until every peer finished loading, so all peers
+  run them from the same frame (the game draws its RNG there). Every peer needs a build with both
+  (`docs/zdxsv/rollback.md`).
 - A VM shutdown or reset during a GGPO battle ends it like a disconnect (replay saved, state dropped).
 - The MTVU speedhack is turned off for a VM with GGPO or a replay: delta states copy VU1 memory, which the
   MTVU thread may still be writing. The setting itself is not changed.
