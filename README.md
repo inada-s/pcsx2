@@ -58,6 +58,7 @@ with a peer without GGPO is cut, as a connection failure (`docs/zdxsv/lobby.md`)
 - Each round's result (as gdxsv `round_data`: winning team 1 / 2, -1 = a time-up draw) is saved from the game's team
   win/loss records. The control bar shows it after the round label as W / L / D for the shown position's team
   (the file's list; live, the rounds played so far). Playback logs a round whose result differs from the file's.
+  Each round also holds `used_ms`: every position's MS id at the round end, 1-based as gdxsv's (player work `+0x1f2a`).
 - A lobby battle's `.pb` is posted (multipart, as flycast) to the replay uploader (zdxsv `infra/uploader`) at
   `[DEV9/Eth] ZdxsvReplayUploadUrl` in `PCSX2.ini` (empty = no upload; `ZDXSV_GGPO` `upload=URL` overrides it).
 - An uploaded replay plays from the lobby's public API (as gdxsv lbsapi):

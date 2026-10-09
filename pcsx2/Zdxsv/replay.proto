@@ -22,6 +22,7 @@ message BattleLogUser {
 // gdxsv BattleLogRound: one per round, in order.
 message BattleLogRound {
   int32 win_team = 1;  // 1 or 2 (team 1 = position 0's side); -1 = draw (time-up: both teams take a loss)
+  repeated int32 used_ms = 2;  // by position: the MS id at the round end + 1 (player work +0x1f2a; 1 = Gundam)
 }
 
 message BattleLogFile {
