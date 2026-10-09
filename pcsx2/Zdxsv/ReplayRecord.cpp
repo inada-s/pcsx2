@@ -17,7 +17,7 @@ namespace Zdxsv
 		std::vector<u8> s_replay_ticks, s_replay_ps;
 		s64 s_replay_start_at = 0; // unix seconds
 		int s_replay_confirmed = -1; // GGPO's last confirmed frame: the frames after it (predicted inputs) are not written
-		constexpr int REPLAY_FILE_VERSION = 20261008; // BattleLogFile.log_file_version of the files written here
+		constexpr int REPLAY_FILE_VERSION = 20261009; // BattleLogFile.log_file_version of the files written here
 		// HLE state outside the save state at frame 0 (ReplayBegin; replay.proto net_rx0, hle0)
 		struct ReplayHle0
 		{
@@ -204,10 +204,10 @@ namespace Zdxsv
 		s_replay_ps.clear();
 		s_replay_confirmed = -1;
 		// HLE state outside the save state at frame 0 (PlayLoad restores it): msgs waiting for the game's recv,
-		// play-start barrier, kind-3 barrier
+		// play-start barrier, kind-3 barrier, MS-select barrier
 		s_replay_hle0.rx.assign(s_rb.net_rx.begin(), s_rb.net_rx.end());
 		s_replay_hle0.hle = {s_rb.ps.n, s_rb.ps.rel, s_rb.ps.hold ? 1 : 0, s_rb.ps.go ? 1 : 0, s_rb.zds_seen[0], s_rb.zds_seen[1],
-			s_rb.zds_seen[2], s_rb.zds_seen[3], s_rb.zds_rel};
+			s_rb.zds_seen[2], s_rb.zds_seen[3], s_rb.zds_rel, s_rb.ms.n, s_rb.ms.rel, s_rb.ms.hold ? 1 : 0, s_rb.ms.go ? 1 : 0};
 		s_replay_answers = Zdxsv::LobbyStartAnswers();
 		s_live.reset();
 		if (!to.empty())

@@ -118,12 +118,15 @@ namespace Zdxsv
 	extern std::vector<std::vector<u8>> s_zds_k3[GGPO_MAX_PLAYERS]; // per sender, by index
 	extern u32 s_zds_k3rel;
 	// Play-start barrier: the n-th battle load passes once every peer's synced count (Input::unused[1])
-	// reaches n. Part of the rollback state.
+	// reaches n. The MS-select load has the same barrier (count in Input::unused[0]), off when a file
+	// recorded without it plays. Part of the rollback state.
 	struct PS
 	{
 		u8 n, rel;
 		bool hold, go;
+		bool operator==(const PS&) const = default;
 	};
+	extern bool s_ms_on;
 	extern u32 s_zd_steps, s_zd_changed;
 	extern bool s_net_armed, s_net_over;
 	extern bool s_lobby_cut; // lobby=1 ping test failed: the battle connection is silent (LobbyCutCall)
@@ -148,7 +151,7 @@ namespace Zdxsv
 		size_t net_pos = 0; // msgs sent so far in the current timeline
 		std::vector<u8> net_rx; // remote msgs not yet given to the game's recv
 		int zds_seen[GGPO_MAX_PLAYERS] = {}, zds_rel = 0; // zds kind-3 barrier counters
-		PS ps = {};
+		PS ps = {}, ms = {};
 	};
 	extern RollbackState s_rb;
 	// Per-frame rings that a rollback leaves in place (they hold every frame it can go back to) and a

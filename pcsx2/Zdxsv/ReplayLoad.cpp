@@ -194,12 +194,14 @@ namespace Zdxsv
 				Console.Error("ZdxsvGgpo: replay %s: no lobby answers (an older file with a start state is not played)", path.c_str());
 				return -1;
 			}
-			int h[9] = {};
-			if (r.hle0.size() != std::size(h))
+			// 9 values: recorded without the MS-select barrier (its inputs carry no MS-select count)
+			int h[13] = {};
+			if (r.hle0.size() != std::size(h) && r.hle0.size() != 9)
 			{
-				Console.Error("ZdxsvGgpo: replay %s: hle0 has %zu values, not %zu", path.c_str(), r.hle0.size(), std::size(h));
+				Console.Error("ZdxsvGgpo: replay %s: hle0 has %zu values, not 9 or %zu", path.c_str(), r.hle0.size(), std::size(h));
 				return -1;
 			}
+			s_ms_on = r.hle0.size() == std::size(h);
 			std::copy(r.hle0.begin(), r.hle0.end(), h);
 			// The kind-3 counters index s_zds_k3 (NetApply) and the file holds no kind-3 bodies: only the empty barrier
 			// the recorder writes (ReplayBegin, right after the session reset) can be played.
@@ -252,6 +254,7 @@ namespace Zdxsv
 			for (int p = 0; p < 4; p++)
 				rb.zds_seen[p] = h[4 + p];
 			rb.zds_rel = h[8];
+			rb.ms = {static_cast<u8>(h[9]), static_cast<u8>(h[10]), h[11] != 0, h[12] != 0};
 			Console.WriteLn("ZdxsvGgpo: replay %s: recorded at position %lld of %d, %lld frames, rx0 %zu bytes, "
 							"%zu lobby answers, state hashes %s, rngs %zu", path.c_str(), me, s_players, frames,
 				rb.net_rx.size(), s_play_answers.size(), r.hashes.empty() ? "no" : "yes",
@@ -486,8 +489,7 @@ namespace Zdxsv
 		s_play_common = false;
 		const int me = s_net_me;
 		PlayKey& k0 = *s_play_keys[me].at(0);
-		const bool hle_same = k0.rb.net_rx == s_rb.net_rx && k0.rb.ps.n == s_rb.ps.n && k0.rb.ps.rel == s_rb.ps.rel &&
-							  k0.rb.ps.hold == s_rb.ps.hold && k0.rb.ps.go == s_rb.ps.go;
+		const bool hle_same = k0.rb.net_rx == s_rb.net_rx && k0.rb.ps == s_rb.ps && k0.rb.ms == s_rb.ms;
 		Error error;
 		std::unique_ptr<ArchiveEntryList> list = SaveState_DownloadState(&error);
 		if (!list || !SaveState_ZipToDisk(std::move(list), nullptr, k0.path.c_str(), &error))

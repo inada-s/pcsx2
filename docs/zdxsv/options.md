@@ -16,39 +16,34 @@ The **Use** column says what an option is for:
 | control | makes a test fail on purpose, to show the test detects the problem |
 | diagnostic | writes traces, dumps or screenshots |
 
-## Test options
-
-Every build reads every option: a released build must be able to take part in
-the rig tests, as a peer of a newer build.
+Every build reads every option, so a released build can be a peer in the rig
+tests.
 
 ## Game check
 
-The fork's hooks patch fixed addresses of one game build: serial `SLPS-25419`
-with ELF CRC `435D8236`. With any other disc (another game, or a patched or
-other build of this one) everything is off in every build: GGPO, replays, the
-recompiler hooks and the platform info. `ZDXSV_GGPO` or `ZDXSV_REPLAY` then
-only log `ZdxsvGgpo: off: not the Z game (serial .. CRC ..)`. A lobby-style
-server of another game gets no platform info
-(`DEV9: TCP: zdxsv lobby question, but not the Z game`).
+Everything is on only for serial `SLPS-25419` with ELF CRC `435D8236`: the
+hooks patch fixed addresses of that build. With any other disc GGPO, replays,
+the recompiler hooks and the platform info are off, and `ZDXSV_GGPO` or
+`ZDXSV_REPLAY` only log `ZdxsvGgpo: off: not the Z game`.
 
 ## Settings in PCSX2.ini
 
-Set on the settings page Settings → zdxsv (global or per game). Order: the
-environment variable named in a row, if set, then the setting, then the
-default. The page greys out a setting an environment variable overrides; its
-tooltip names the variable.
+All but `ZdxsvReplayUploadUrl` are on the page Settings → zdxsv (global or
+per game). An environment variable named in a row overrides the setting; the
+page greys it out and its tooltip names the variable.
 
 | Setting | Default | Use | Meaning |
 |---|---|---|---|
-| `[DEV9/Eth] ZdxsvGgpo` | `true` | feature | Lobby battles of the game run over GGPO (`ZDXSV_GGPO` options `net=1,lobby=1`). Read when the game starts; Settings → zdxsv. Other games are never affected. |
-| `[DEV9/Eth] ZdxsvGgpoMinDelay` | `2` | feature | Lowest GGPO input delay (frames, 2..6) a lobby battle picks from the ping test, and the replay takeover delay; as gdxsv's `MinDelay`. Read when the game starts; Settings → zdxsv. `mindelay=` overrides it. |
-| `[EmuCore/GS] ZdxsvLowLatencyVsync` | `true` | feature | Present the finished frame before the frame limiter sleeps, and poll input right before the next frame runs. Settings → zdxsv. Other games are never affected. |
-| `[DEV9/Eth] ZdxsvLiveAutoNext` | `false` | feature | Live spectating: when a stream ends, watch the lobby's next live battle ([replay.md](replay.md), Live spectating). Settings → zdxsv. `ZDXSV_LIVE_NEXT` overrides it. |
-| `[DEV9/Eth] ZdxsvNetOsd` | `true` | feature | Network status OSD in GGPO battles. Read when the game starts. `ZDXSV_GGPO` `osd=` overrides it. |
-| `[DEV9/Eth] ZdxsvReplaySkipMs` | `true` | feature | A replay skips the mobile suit selection. Read at each replay start. `ZDXSV_REPLAY_SKIP_MS` overrides it. |
-| `[DEV9/Eth] ZdxsvReplayKeyDisplay` | `false` | feature | Replays start with the key display on. Read at the first replay start; the hotkey switches it. `ZDXSV_REPLAY_KEY_DISPLAY` overrides it. |
+| `[DEV9/Eth] ZdxsvGgpo` | `true` | feature | Lobby battles run over GGPO (`ZDXSV_GGPO` options `net=1,lobby=1`). Read when the game starts. |
+| `[DEV9/Eth] ZdxsvGgpoMinDelay` | `2` | feature | Lowest GGPO input delay (frames, 2..6) a lobby battle picks, and the replay takeover delay; as gdxsv's `MinDelay`. Read when the game starts. `mindelay=` overrides it. |
+| `[EmuCore/GS] ZdxsvLowLatencyVsync` | `true` | feature | Present the finished frame before the frame limiter sleeps, and poll input right before the next frame runs. |
+| `[DEV9/Eth] ZdxsvLiveAutoNext` | `false` | feature | Live spectating: when a stream ends, watch the lobby's next live battle. `ZDXSV_LIVE_NEXT` overrides it. |
+| `[DEV9/Eth] ZdxsvNetOsd` | `true` | feature | Network status OSD in GGPO battles. Read when the game starts. `osd=` overrides it. |
+| `[DEV9/Eth] ZdxsvReplaySkipMs` | `true` | feature | A replay skips the mobile suit selection. `ZDXSV_REPLAY_SKIP_MS` overrides it. |
+| `[DEV9/Eth] ZdxsvReplayKeyDisplay` | `false` | feature | Replays start with the key display on. `ZDXSV_REPLAY_KEY_DISPLAY` overrides it. |
 | `[DEV9/Eth] ZdxsvReplayBar` | `0` | feature | Replay control bar: `0` shown while paused and for 3 s after the mouse moves over the bottom quarter, `1` always, `2` never. `ZDXSV_REPLAY_BAR` overrides it. |
-| `[DEV9/Eth] ZdxsvReplayStateUrl` | the hosted rbk-p1.p2s | feature | The post-entry state a replay or live battle starts from: URL (downloaded once into the cache folder) or file; empty = the booted state. `ZDXSV_REPLAY_STATE` overrides it. |
+| `[DEV9/Eth] ZdxsvReplayStateUrl` | the hosted `rbk-p1.p2s` | feature | The post-entry state a replay or live battle starts from: URL (downloaded once into the cache folder) or file; empty = the booted state. `ZDXSV_REPLAY_STATE` overrides it. |
+| `[DEV9/Eth] ZdxsvReplayUploadUrl` | empty | feature | Replay uploader a lobby battle's `.pb` is posted to; empty = no upload. `upload=` overrides it. |
 
 ## Network
 
@@ -79,7 +74,7 @@ off. Any other value turns it on. Without `net=1` the session is a synctest. Log
 | `input=host` | random | test | Pad 1 comes from the host pad; pad 2 stays random. |
 | `input=none` | random | test | No buttons, sticks centered. |
 | `mask=hex` | `ffff` | test | Random buttons are limited to these bits. `fcff` leaves out Select and Start. |
-| `hash=pw` | `pw` | test | What the synctest compares. `pw`: the player work of all 4 players (with machine-local fields masked) and the 2 game RNG words. `pos`: x, y, z of the 4 players and the RNG words. `full`: EE RAM and delta state; a rerun's IOP/event cycles differ (code cache), so it always reports mismatches. |
+| `hash=pw` | `pw` | test | What the synctest compares. `pw`: the 4 players' work (machine-local fields masked) and the 2 game RNG words. `pos`: x, y, z of the 4 players and the RNG words. `full`: EE RAM and delta state; always reports mismatches (rerun timing differs). |
 | `sync=0` | 1 | test | No state hashes. Always the case with `net=1`. |
 | `control=input` | off | control | Reruns get other inputs. The synctest must report mismatches. |
 
@@ -97,6 +92,7 @@ off. Any other value turns it on. Without `net=1` the session is a synctest. Log
 | `lobby=1` | off | feature | Battles come from the zdxsv lobby. See [lobby.md](lobby.md). |
 | `osd=0` / `osd=1` | the setting | feature | Hide or show the network status OSD, over `ZdxsvNetOsd`. |
 | `replay=DIR` | see meaning | feature | Save every battle to `DIR`. Lobby battles save to `<data dir>/replays` without it. `replay=0` turns saving off (upload and live streaming still run). |
+| `upload=URL` | the setting | test | Replay uploader, over `ZdxsvReplayUploadUrl`. |
 | `badsession=1` | off | control | The ping test of this client uses another session id, so no peer answers it and every client cuts the battle connection. |
 | `advertise=P` | off | test | The platform info announces only `127.0.0.1:P`, so peers reach this client through a local `udprelay.py` at P that adds latency. |
 
@@ -125,7 +121,7 @@ See [replay.md](replay.md).
 | `ZDXSV_REPLAY=file.pb` | off | feature | Play a saved replay. One file plays every position (a 2nd one is skipped). |
 | `ZDXSV_REPLAY=udp://host:port[/code]` | off | feature | Watch a lobby battle live through the lobby (its UDP port; no code = the newest live battle). See `replay.md` Live spectating. |
 | `ZDXSV_REPLAY_POV=P` | the recorder's position | feature | Point of view P, picked before the start: the lobby answers name it as the own position. |
-| `ZDXSV_REPLAY_STATE=url\|path` | setting `[DEV9/Eth] ZdxsvReplayStateUrl` (default the hosted rbk-p1.p2s; empty = the booted state) | feature | The post-entry state of a common start; a URL is downloaded once into the cache folder. |
+| `ZDXSV_REPLAY_STATE=url\|path` | the setting | feature | The post-entry state a replay starts from, over `ZdxsvReplayStateUrl`. |
 | `ZDXSV_REPLAY_BAR=1` / `=0` | the setting | feature | Always show the control bar, or never, over `ZdxsvReplayBar`. |
 | `ZDXSV_REPLAY_KEY_DISPLAY=1` / `=0` | the setting | feature | Start with the key display on or off, over `ZdxsvReplayKeyDisplay`. |
 | `ZDXSV_REPLAY_SKIP_MS=0` / `=1` | the setting | feature | Do not skip / skip the mobile suit selection, over `ZdxsvReplaySkipMs`. |
@@ -139,7 +135,7 @@ See [replay.md](replay.md).
 | `ZDXSV_REPLAY_ROUND_AT=frame:N[,...]` | off | test | Jump to round N (0 = the briefing) when that frame is reached. |
 | `ZDXSV_REPLAY_TAKEOVER=frame[:src]` | off | test | Take over at that frame with no input matching. No src: the host pad plays; `replay` = the file's own input `delay` frames ahead (the replay must play unchanged); `rand` = random buttons (a control: differs from the replay soon after the frame). |
 | `ZDXSV_REPLAY_TAKEOVER_RETRY=frame` | off | test | While taken over, retry from the takeover frame when that frame is reached. |
-| `ZDXSV_REPLAY_FOUR=1` | off | feature | Four-screen: one more PCSX2 per other position with a file, 2x2, held on one frame (SpectateSync.h). |
+| `ZDXSV_REPLAY_FOUR=1` | off | feature | Four-screen replay: one more PCSX2 per other position, 2x2, held on one frame. |
 | `ZDXSV_REPLAY_GROUP=id` | - | internal | Set by the four-screen host for its guests (with `ZDXSV_REPLAY_POV`). |
 | `ZDXSV_REPLAY_SYNC=0` | on | test | Four-screen control: members publish their frame but neither wait nor seek to the newest. |
 | `ZDXSV_REPLAY_KEY_NOHLE=1` | off | control | Seek keys restore no battle-socket state. The replay then drifts. |
@@ -148,9 +144,7 @@ See [replay.md](replay.md).
 
 `ZDXSV_DELTA_TEST="key=value,..."` (any value turns it on): from vsync `start`,
 save every frame; every `every` frames load the frame `depth` back and rerun.
-The 2nd rerun of a window must hash like the 1st: both start from the same load with the same
-recompiler code cache. The 1st rerun can differ from the first run: the recompilers end a block
-where the next PC is already compiled, so events land at other cycles. Log lines start with
+The 2nd rerun of a window must hash like the 1st. Log lines start with
 `ZdxsvDelta`.
 
 | Key or option | Default | Use | Meaning |
@@ -189,7 +183,7 @@ game pad read, RAM change, present. Log lines start with `ZdxsvLatency`.
 | Option | Use | Meaning |
 |---|---|---|
 | `ZDXSV_NET_TRACE=file` | diagnostic | Per-frame trace of the battle socket and the inputs; a `B <battle_code>` line at each GGPO session start and replay load. Read by `tools/zdxsv/zdcheck.py`, `tools/zdxsv/recvcheck.py`, `tools/zdxsv/pwcheck.py`. |
-| `ZDXSV_PW_HASH=1` | diagnostic | The sync check: per frame, a hash of each player's x, y, z and the 2 game RNG words, written to the net trace. `pwcheck.py` compares the coordinates and RNG B (`0x6d793c`); RNG A (`0x6d7940`) also takes machine-local sound draws, so it is only reported. |
+| `ZDXSV_PW_HASH=1` | diagnostic | Per frame, a hash of each player's x, y, z and the 2 game RNG words, written to the net trace (`H` lines). |
 | `ZDXSV_PW_DUMP=file` | diagnostic | Work RAM of the players for every saved frame. Read by `pwdiff.py`. |
 | `ZDXSV_RAM_DUMP=dir,start,step,count` | diagnostic | EE RAM (32 MB) to `dir/<frame>.bin`. Read by `tools/zdxsv/ramcount.py`, `tools/zdxsv/ramvals.py`. |
 | `ZDXSV_SNAP=dir,n` | diagnostic | GS screenshot `dir/v<vsync>.png` every n vsyncs. Needs a renderer; not in headless runs. |
