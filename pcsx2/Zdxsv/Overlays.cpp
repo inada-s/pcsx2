@@ -238,6 +238,12 @@ namespace Zdxsv
 					Console.WriteLn("ZdxsvGgpo: replay bar: round +1 at frame %d", frame);
 					Host::RunOnCPUThread([] { Zdxsv::ReplayJumpRound(1); });
 				}
+				if (const std::string results = Zdxsv::ReplayRoundResults(); !results.empty())
+				{
+					const float tw = text_at(x, results.c_str(), text_col);
+					layout += fmt::format(" results:{} {:.0f}-{:.0f}", results, x, x + tw);
+					x += tw + pad;
+				}
 				// takeover: take over the own position here; while taken over, retry from its frame or back to the replay
 				int to_phase = 0;
 				u16 to_target, to_current;

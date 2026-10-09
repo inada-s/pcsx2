@@ -42,6 +42,8 @@ namespace Zdxsv
 	std::string TakeLobbyReport();
 	// Replay play (ZDXSV_REPLAY): start frames of the rounds played so far (control bar marks).
 	std::vector<int> ReplayRoundStarts();
+	// Replay play: per round, W / L / D (draw) for the shown position's team; the file's round_data, else the rounds played so far.
+	std::string ReplayRoundResults();
 	// Replay play: the key display's input runs of the shown position (buttons, held frames); false when off.
 	bool ReplayKeys(std::vector<std::pair<u16, int>>& runs);
 

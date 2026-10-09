@@ -52,6 +52,9 @@ with a peer without GGPO is cut, as a connection failure (`docs/zdxsv/lobby.md`)
   (the peers enter the game end on different frames: local battle-socket timing, not a desync). It also lists each earlier
   round end of the same play start (6 -> 7) with the frame the tick next enters 6: that round load is not checked either
   (the peers enter it 1-2 frames apart, RNG B is drawn there). `pwcheck.py` skips the same windows.
+- Each round's result (as gdxsv `round_data`: winning team 1 / 2, -1 = a time-up draw) is saved from the game's team
+  win/loss records. The control bar shows it after the round label as W / L / D for the shown position's team
+  (the file's list; live, the rounds played so far). Playback logs a round whose result differs from the file's.
 - A lobby battle's `.pb` is posted (multipart, as flycast) to the replay uploader (zdxsv `infra/uploader`) at
   `[DEV9/Eth] ZdxsvReplayUploadUrl` in `PCSX2.ini` (empty = no upload; `ZDXSV_GGPO` `upload=URL` overrides it).
 - An uploaded replay plays from the lobby's public API (as gdxsv lbsapi):

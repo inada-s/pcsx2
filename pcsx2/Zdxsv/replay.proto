@@ -18,6 +18,11 @@ message BattleLogUser {
   int32 pos = 12;  // battle position (0-based)
 }
 
+// gdxsv BattleLogRound: one per round, in order.
+message BattleLogRound {
+  int32 win_team = 1;  // 1 or 2 (team 1 = position 0's side); -1 = draw (time-up: both teams take a loss)
+}
+
 message BattleLogFile {
   string game_disk = 5;  // "zdxsv-ps2"
   string battle_code = 3;
@@ -27,6 +32,7 @@ message BattleLogFile {
   int64 start_at = 20;  // unix seconds
   int64 end_at = 21;
   string close_reason = 24;
+  repeated BattleLogRound round_data = 18;  // from the team result records (0xc227f0, 0xc22804)
 
   // zdxsv (PCSX2)
   int32 players = 40;
