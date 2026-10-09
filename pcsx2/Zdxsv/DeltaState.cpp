@@ -122,6 +122,7 @@ namespace Zdxsv
 		double s_hot_pages = 0; // DeltaStateTimes(): mean hot pages per save
 		u64 s_faults = 0; // DeltaStateTimes(): write faults (each one unprotect, later one protect)
 		u32 s_restored[ALL_PAGES] = {}; // s_load_calls of the load that restored the page
+		u32 s_reused[ALL_PAGES] = {}; // s_load_calls of the load whose s_open took the page's restored buffer
 		int s_load_calls = 0;
 		double s_lrestore_ms = 0, s_lwatch_ms = 0, s_lstate_ms = 0, s_lpages = 0; // DeltaStateTimes()
 
@@ -137,7 +138,10 @@ namespace Zdxsv
 		void ReleaseDelta(Delta& delta)
 		{
 			for (SavedPage& p : delta)
-				s_page_pool.push_back(std::move(p.data));
+			{
+				if (p.data)
+					s_page_pool.push_back(std::move(p.data));
+			}
 			delta.clear();
 		}
 
@@ -232,16 +236,24 @@ namespace Zdxsv
 				SPU2DeltaRestoreMem((page - SPU_FIRST) * PAGE_BYTES, data, PAGE_BYTES);
 		}
 
-		void RestoreDelta(Delta& delta, std::vector<u32>& touched)
+		// A restored hot page's buffer holds the page as of the load: it moves to reuse, the next
+		// s_open, instead of a copy of the page (~365 hot pages a load).
+		void RestoreDelta(Delta& delta, std::vector<u32>& touched, Delta& reuse)
 		{
-			for (const SavedPage& p : delta)
+			for (SavedPage& p : delta)
 			{
 				if (s_restored[p.page] == static_cast<u32>(s_load_calls))
 					continue;
 				s_restored[p.page] = s_load_calls;
-				if (p.page < IOP_FIRST ? !s_break_ee : !s_break_host)
-					RestorePage(p.page, p.data.get());
 				touched.push_back(p.page);
+				if (p.page < IOP_FIRST ? s_break_ee : s_break_host)
+					continue;
+				RestorePage(p.page, p.data.get());
+				if (s_is_hot[p.page])
+				{
+					s_reused[p.page] = s_load_calls;
+					reuse.push_back(std::move(p));
+				}
 			}
 			ReleaseDelta(delta);
 		}
@@ -442,16 +454,26 @@ namespace Zdxsv
 		Common::Timer timer;
 		s_load_calls++;
 		std::vector<u32> touched;
+		Delta reuse;
 		for (auto it = s_deltas.lower_bound(frame); it != s_deltas.end(); ++it)
-			RestoreDelta(it->second, touched);
-		RestoreDelta(s_open, touched);
+			RestoreDelta(it->second, touched, reuse);
+		RestoreDelta(s_open, touched, reuse);
 		s_deltas.erase(s_deltas.lower_bound(frame), s_deltas.end());
 		s_lpages += touched.size();
 		s_lrestore_ms += timer.GetTimeMilliseconds();
 		timer.Reset();
 		touched.erase(std::remove_if(touched.begin(), touched.end(), [](u32 page) { return s_is_hot[page]; }), touched.end());
 		WatchPages(touched);
-		SnapshotHot();
+		s_open = std::move(reuse);
+		for (u32 page : s_hot)
+		{
+			if (s_reused[page] != static_cast<u32>(s_load_calls))
+			{
+				std::unique_ptr<u8[]> data = TakePage();
+				std::memcpy(data.get(), PagePtr(page), PAGE_BYTES);
+				s_open.push_back({page, std::move(data)});
+			}
+		}
 		s_lwatch_ms += timer.GetTimeMilliseconds();
 
 		while (s_states.rbegin()->first > frame)
