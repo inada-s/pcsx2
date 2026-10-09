@@ -83,7 +83,7 @@ def load(path):
     return h, inputs, h.get("players", 0), h.get("frames", 0), h.get("input_size", 0)
 
 
-FIELDS_USER = {1: "user_id", 2: "user_name", 12: "pos"}
+FIELDS_USER = {1: "user_id", 2: "user_name", 3: "pilot_name", 12: "pos"}
 
 
 def cuts(*hs):

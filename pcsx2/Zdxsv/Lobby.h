@@ -47,6 +47,7 @@ namespace Zdxsv
 		uint16_t serverPort = 0;
 		std::vector<std::string> users; // every player, self included
 		std::map<std::string, std::string> names; // "name_<user>=" (UTF-8, zdxsv since ai/ggpo-osd): network status OSD
+		std::map<std::string, std::string> pilots; // "pilot_<user>=" (UTF-8, zdxsv since ai/osd-pilot-name): pilot name, OSD
 		// "p2p_<user>=ip:port,ip:port,[ip6]:port": UDP addresses of peers that reported them
 		// (udp_addr public, udp_local, udp_addr6); GgpoPeers takes the IPs.
 		struct Peer

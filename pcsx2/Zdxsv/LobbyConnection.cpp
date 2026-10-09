@@ -46,11 +46,13 @@ namespace Zdxsv
 				SetBattleInfoListener([](const BattleInfo& info) {
 					std::vector<std::vector<PeerAddr>> byPosition;
 					const bool ok = GgpoPeers(info, PublicIP(), byPosition);
-					std::vector<std::pair<std::string, std::string>> players;
+					std::vector<LobbyPlayer> players;
 					for (const std::string& u : info.users)
 					{
 						const auto name = info.names.find(u);
-						players.emplace_back(u, name == info.names.end() ? std::string() : name->second);
+						const auto pilot = info.pilots.find(u);
+						players.push_back({u, name == info.names.end() ? std::string() : name->second,
+							pilot == info.pilots.end() ? std::string() : pilot->second});
 					}
 					std::string ids = "battle_code=" + info.battleCode + "\nuser_id=" + info.userId + "\n";
 					if (info.liveUplink && !LobbyUdpAddr().empty())

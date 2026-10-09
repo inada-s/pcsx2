@@ -15,6 +15,7 @@ package zdxsv;
 message BattleLogUser {
   string user_id = 1;
   string user_name = 2;
+  string pilot_name = 3;  // lobby battle info pilot_<user>= ("" if none)
   int32 pos = 12;  // battle position (0-based)
 }
 

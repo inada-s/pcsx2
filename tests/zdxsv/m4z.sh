@@ -44,7 +44,8 @@
 #   REPORT=1: the lobby logged one 0x9952 match report per
 #   client for the results' battle code: result=ggpo + close=net battle end + 0 mismatches (cut: result=cut).
 #   OSD=1: each GGPO client's last `osd frame` log line (-> osd-pN.txt)
-#   has its delay and every opponent's user id, name (battle info name_) and ping; names = zdxsv.db (osdname.py).
+#   has its delay and every opponent's user id, name (battle info name_), pilot name (pilot_) and ping;
+#   names, pilot names = zdxsv.db (osdname.py).
 #   NAT=open|cone|symmetric|unknown: each GGPO client ran the
 #   connectivity test once (lobby reconnects too) with that result.
 #   HTTPS=1 (GGPO): each client measured the HTTPS latency once (online: the cloud regions) and a later lobby
@@ -324,9 +325,9 @@ if [ -n "${EMU:-}" ] && [ -n "${GGPO:-}" ]; then
       grep -a -o 'ZdxsvGgpo: osd frame .*' "$f" | tail -1 | tr -d '\r' > "$OUT/osd-p$i.txt"
       cut -c1-300 "$OUT/osd-p$i.txt"
       d=$(grep -a -o 'lobby delay [0-9]*' "$f" | tail -1 | awk '{print $3}'); d=${d:-${GDELAY:-1}}
-      check "p$i osd: Delay ${d}fr, $((nc - 1)) opponents with user id + name + ping" "grep -q 'Delay ${d}fr |' '$OUT/osd-p$i.txt' && [ \$(grep -o '|[1-4]P [A-Z0-9]\{6\} | [^|]*[^ |] | Ping [0-9]*ms' '$OUT/osd-p$i.txt' | wc -l) -eq $((nc - 1)) ]"
+      check "p$i osd: Delay ${d}fr, $((nc - 1)) opponents with user id + name + pilot name + ping" "grep -q 'Delay ${d}fr |' '$OUT/osd-p$i.txt' && [ \$(grep -o '|[1-4]P [A-Z0-9]\{6\} | [^|]*[^ |] | [^|]*[^ |] | Ping [0-9]*ms' '$OUT/osd-p$i.txt' | wc -l) -eq $((nc - 1)) ]"
     done
-    check "osd names = zdxsv.db names (UTF-8, not garbled)" "'$PY' -I '$here/osdname.py' '$OUT/zdxsv.db' $(for i in ${GGPO_CLIENTS:-$CLIENTS}; do printf "'%s' " "$OUT/osd-p$i.txt"; done)"
+    check "osd names, pilot names = zdxsv.db (UTF-8, not garbled)" "'$PY' -I '$here/osdname.py' '$OUT/zdxsv.db' $(for i in ${GGPO_CLIENTS:-$CLIENTS}; do printf "'%s' " "$OUT/osd-p$i.txt"; done)"
   fi
 fi
 if [ -n "${NAT:-}" ]; then

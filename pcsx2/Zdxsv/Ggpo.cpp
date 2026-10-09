@@ -404,8 +404,8 @@ namespace Zdxsv
 		std::string s_replay_dir; // replay=DIR; without it lobby=1 saves to <data dir>/replays, other net runs none
 		bool s_replay_off = false; // replay=0
 		std::string s_upload_url; // upload=URL (test), else setting DEV9/Eth ZdxsvReplayUploadUrl
-		// network status OSD: user id + name per position (lobby battle info), lines of the last frame
-		std::vector<std::pair<std::string, std::string>> s_lobby_players, s_net_players;
+		// network status OSD: user id, name + pilot name per position (lobby battle info), lines of the last frame
+		std::vector<LobbyPlayer> s_lobby_players, s_net_players;
 		std::mutex s_osd_mtx;
 		std::vector<GgpoOsdLine> s_osd_lines;
 		// lobby=1: peers of the last battle info (SetLobbyPeers, DEV9 thread)
@@ -756,10 +756,12 @@ namespace Zdxsv
 			{
 				if (p == s_net_me)
 					continue;
-				const auto& who = p < static_cast<int>(s_net_players.size()) ? s_net_players[p] : std::pair<std::string, std::string>{};
-				lines.push_back({fmt::format("{}P {}", p + 1, who.first), OSD_TEXT});
-				if (!who.second.empty())
-					lines.push_back({" " + who.second, OSD_TEXT});
+				const LobbyPlayer who = p < static_cast<int>(s_net_players.size()) ? s_net_players[p] : LobbyPlayer{};
+				lines.push_back({fmt::format("{}P {}", p + 1, who.id), OSD_TEXT});
+				if (!who.name.empty())
+					lines.push_back({" " + who.name, OSD_TEXT});
+				if (!who.pilot.empty())
+					lines.push_back({" " + who.pilot, OSD_TEXT});
 				GGPONetworkStats st{};
 				if (s_peer_state[p] == 2)
 					lines.push_back({" Disconnected", OsdPingColor(999)});
@@ -1005,8 +1007,9 @@ namespace Zdxsv
 			for (size_t p = 0; p < s_net_players.size(); p++)
 			{
 				std::vector<uint8_t> user;
-				PutString(user, 1, s_net_players[p].first);
-				PutString(user, 2, s_net_players[p].second);
+				PutString(user, 1, s_net_players[p].id);
+				PutString(user, 2, s_net_players[p].name);
+				PutString(user, 3, s_net_players[p].pilot);
 				PutInt(user, 12, static_cast<int64_t>(p));
 				PutBytes(pb, 11, user.data(), user.size());
 			}
@@ -4545,7 +4548,7 @@ namespace Zdxsv
 	}
 
 	void SetLobbyPeers(bool ok, std::vector<std::vector<Zdxsv::PeerAddr>> byPosition, u32 session, int pingMs, std::string ids,
-		std::vector<std::pair<std::string, std::string>> players, std::vector<Zdxsv::BattleInfo::Relay> relays)
+		std::vector<LobbyPlayer> players, std::vector<Zdxsv::BattleInfo::Relay> relays)
 	{
 		std::lock_guard lock(s_lobby_mtx);
 		s_report_ids = std::move(ids);

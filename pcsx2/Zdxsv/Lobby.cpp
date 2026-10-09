@@ -161,8 +161,12 @@ namespace Zdxsv
 		info.ggpoPingMs = std::clamp(std::atoi(kv["ggpo_ping_ms"].c_str()), 0, MAX_PING_MS);
 		info.liveUplink = kv["live_uplink"] == "1";
 		for (const std::string& u : info.users)
+		{
 			if (auto it = kv.find("name_" + u); it != kv.end())
 				info.names[u] = it->second;
+			if (auto it = kv.find("pilot_" + u); it != kv.end())
+				info.pilots[u] = it->second;
+		}
 		// relay_0.. in order; a malformed one ends the list, so the indexes stay the lobby's
 		for (int k = 0; k < 4; k++)
 		{
