@@ -1,224 +1,112 @@
 # Replays
 
-A GGPO battle can be saved to a file and played back later. Option names and
-defaults are in [options.md](options.md).
+A GGPO battle can be saved to a file and played back later, as in gdxsv.
+Option names and defaults are in [options.md](options.md).
 
 ## Saving
 
-`replay=DIR` in `ZDXSV_GGPO` saves every `net=1` battle to `DIR`. Lobby battles
-save to `<data dir>/replays` without it. `replay=0` turns saving off.
+`replay=DIR` in `ZDXSV_GGPO` saves every `net=1` battle to `DIR`; lobby
+battles save to `<data dir>/replays` without it.
 
-- The file name is `<battle_code>.pb`. Without a battle code it is
-  `rbk-<start time>-p<position>.pb`.
-- The full save state is taken at GGPO frame 0 and zipped on a thread during
-  the battle. The file is written when the session stops, also when the VM
-  is shut down or reset during the battle.
-- Only frames GGPO confirmed are written, so the files that the peers save of
-  one battle hold the same inputs.
-
-Log line: `ZdxsvGgpo: replay saved <path> frames=N ...`.
+- The file name is `<battle_code>.pb`, else `rbk-<start time>-p<position>.pb`.
+- Only frames GGPO confirmed are written, so every peer's file of one battle
+  holds the same inputs.
+- The file is written when the session stops, also on a VM shutdown or reset.
+- A lobby battle's file is posted (multipart, as flycast) to the replay
+  uploader (zdxsv `infra/uploader`) at `ZdxsvReplayUploadUrl`.
 
 ## File format
 
-A protobuf `BattleLogFile`, schema in
-[`pcsx2/Zdxsv/replay.proto`](../../pcsx2/Zdxsv/replay.proto). It keeps the field
-numbers of gdxsv's replay file (inada-s/gdxsv `gdxsv/proto/gdxsv.proto`) and
-adds the fields a PCSX2 replay needs from 40 on.
-
-A gdxsv replay starts from a common save state of the game sitting in the
-lobby before any battle (flycast slot 99, one per disc, shared by every
-replay); the recorded battle messages then play the battle start. A PCSX2
-replay does the same from a hosted post-entry state (common start below), so
-one file plays the point of view of any player.
-
-| Field | Meaning |
-|---|---|
-| `battle_code`, `battle_info` | the battle code, and the lobby's battle info (`key=value` lines) |
-| `log_file_version` | format version (20261008) |
-| `game_disk` | `zdxsv-ps2` |
-| `users` | user id, name and battle position per player |
-| `start_at`, `end_at` | unix seconds |
-| `close_reason` | why the session ended |
-| `players`, `position` | player count, and the battle position of the recording player |
-| `input_delay` | GGPO input delay of the battle |
-| `net_rx0`, `hle0` | battle-socket state at frame 0 |
-| `input_size`, `frames`, `inputs` | the synced inputs of all players: `frames` x `players` x `input_size` bytes, frame-major, by battle position |
-| `lobby_answers` | the lobby's battle-start answers the game got (0x6911..0x6917: player count, side, players, rule, battle code, battle server), each as received (header + body) |
-| `state_hashes` | optional: per frame (before its inputs) a u32 hash of the 4 players' masked work + RNG B; equal in every position's file of one battle. Playback compares it and logs `replay state hash differs at frame F` (first 10) and, at the end, `replay state check: hashes N checked, M differ` |
-| `start_rng`, `load_frames`, `load_rngs` | optional: the game RNGs (u16 RNG A << 16 \| u16 RNG B) at frame 0 and at each battle load end (load 0 MS select, 1 briefing, 1 + N round N), for round skip; the recorder's position's values (RNG A is per machine). Playback of that position logs `replay rng at frame F` |
-| `play_start_frames`, `game_end_frames` | optional: the frames the play-start barrier passed (a game's start), and per game its end (the last tick state 6 -> 7 before the next play start). Peers enter the game end on different frames (local battle-socket timing, not a desync), so sync checks (playback, `replay_check.py`, `pwcheck.py`) skip each game end to the next play start |
-
-A file without the optional fields plays the same, unchecked.
-
-`tests/zdxsv/replay_check.py` reads it without a protobuf library;
-`protoc --decode=zdxsv.BattleLogFile pcsx2/Zdxsv/replay.proto < file.pb` prints it.
+A protobuf `BattleLogFile`: [`pcsx2/Zdxsv/replay.proto`](../../pcsx2/Zdxsv/replay.proto).
+It keeps the field numbers of gdxsv's replay file and adds the PCSX2 fields.
+The file holds no save state: the lobby's battle-start answers, the
+battle-socket state at frame 0, the synced inputs of every position, and
+the round results. Optional per-frame state hashes and the game RNGs at
+each load end let playback detect a desync; a file without them plays
+unchecked. `tests/zdxsv/replay_check.py` compares the files of one battle.
 
 ## Playing
 
-`ZDXSV_REPLAY=<file.pb>` plays a replay. Boot the game; any save state of it
-works. The first frame loads the frame 0 state of the replay and its
-battle-socket state. Then every frame gets the recorded inputs of all players
-through the same battle-socket emulation as a live GGPO battle, without GGPO.
+`ZDXSV_REPLAY=<file.pb>` plays a replay; `http(s)://` downloads a `.pb`, or
+the first battle of the lobby's public API
+`http://<lobby api>/lbs/replay?battle_code=<code>` (as gdxsv lbsapi).
 
-Common start (as gdxsv): the replay plays the battle start itself, from a save state of
-the game at the post-entry point (logged in, before the lobby's battle start;
-any user's). That state is hosted, as gdxsv's slot 99: `[DEV9/Eth]
-ZdxsvReplayStateUrl` in `PCSX2.ini` (or `ZDXSV_REPLAY_STATE=<url or path>`)
-is downloaded once into the cache folder and loaded at the first frame; with
-neither set, boot from such a state yourself. The battle start is answered from `lobby_answers`, with
-0x6912 (own position) = the point of view, picked before the start; menus run turbo, and the state at GGPO
-frame 0 becomes key 0 of that position. The log line `net armed at vsync V, position P` is the position the game
-took. For the recorder's position, `frame 0 HLE state equals|differs from the file's` compares the
-battle-socket state reached with the recorded one. Files with a frame 0 state (`start_state`) and no
-`lobby_answers` are not played.
+Common start (as gdxsv's slot 99): playback loads a save state of the game
+at the post-entry point (logged in, before the lobby's battle start; any
+user's), from `ZdxsvReplayStateUrl` (downloaded once into the cache
+folder). The game then plays the battle start from the recorded lobby
+answers, menus turbo, with the chosen point of view as the own position.
+From GGPO frame 0 every frame gets the recorded inputs through the same
+battle-socket emulation as a live battle, without GGPO.
 
-- `ZDXSV_REPLAY=http(s)://...` downloads it first: a `.pb` URL, or the lobby's
-  public API `http://<ZDXSV_LOBBY_API_ADDR>/lbs/replay?battle_code=<code>`
-  (a JSON list, as gdxsv lbsapi), whose first battle's `replay_url` is then
-  downloaded. Rig: `tests/zdxsv/m4z.sh UPLOAD=1 REPLAY_API=N`.
-- The replay is shown from the side of the recording player.
-- At the end the emulator pauses. A seek then plays on; resuming without one
+- At the end the emulator pauses. A seek plays on; resuming without one
   ends the replay.
-- Files saved before the battle-socket keys existed play with an empty state
-  and may drift.
-- A replay of a `ZDXSV_RBK` battle needs the `ZDXSV_EE_CLAMP` of the recording
-  (`tests/zdxsv/rplay.sh` reads it from the recording's `rbk env` log line).
-
-Log lines: `ZdxsvGgpo: replay <file>: position P of N, F frames ...`,
-`ZdxsvGgpo: replay end at frame ...`.
+- A replay of a `ZDXSV_RBK` battle needs the recording's `ZDXSV_EE_CLAMP`.
+- A VM reset plays the replay again from the start.
 
 ## Controls
 
 | Action | Hotkey (default) | Control bar |
 |---|---|---|
-| Seek back 10 s | PageUp | yes |
-| Seek forward 10 s | PageDown | yes |
+| Seek back / forward 10 s | PageUp / PageDown | yes |
 | Seek to a frame | | timeline: click or drag, seeks on release |
 | Play or pause | | yes |
 | Switch point of view | Home | eye button |
 | Toggle key display | End | |
-| Previous round / next round | Shift+PageUp / Shift+PageDown | step buttons around the round number (`R0` = before round 1); the timeline marks round starts |
+| Previous / next round | Shift+PageUp / Shift+PageDown | step buttons around the round number (`R0` = the briefing) |
+| Take over / retry | "Take Over / Retry" | "Take over", "Retry", "Replay" |
 
-The hotkeys are under Settings > Hotkeys, group "Zdxsv Replay". The defaults
-apply when hotkeys are reset to defaults.
+Hotkeys are under Settings > Hotkeys, group "Zdxsv Replay".
 
-### Seek
-
-Every 600 played frames a key is kept: the full state as
-`cache/zdxsv-replay-key-p<P>-<frame>.p2s`, zipped on a thread, plus the
-battle-socket state. A seek loads the newest key at or before the target,
-unless running on from the current frame is as close, then runs to the target
-unlimited. Forward seeks past the played part run every frame.
-The key files, and `cache/zdxsv-replay-p<P>.p2s` of the frame 0 state, are
-deleted when the VM is shut down or reset; the reset VM plays the replay again
-from the start.
-
-### Point of view
-
-One file holds the inputs of every position, so it plays any point of view.
-`ZDXSV_REPLAY_POV=P` (default: the recorder's position) is picked before the
-start. Only one file is used (a second one is logged and skipped).
-
-A switch moves to the next position at the current frame: it loads the newest
-key of that position at or before the frame and runs to it unlimited. A
-position not played yet first runs its own battle start from the common state
-(its key 0), then seeks to the frame. Keys are kept per position.
-
-### Control bar
-
-The bar is at the bottom of the window: play or pause, seek -10 s and +10 s,
-time and frame of the length, a timeline, the point of view button. The point
-of view button is enabled with a second file.
-
-- It is shown while paused and for 3 s after the mouse moves over the bottom
-  quarter of the window.
-- A seek from the bar plays on from a pause. Play at the end restarts from
-  frame 0.
-- While paused, the window redraws at 10 Hz so the bar sees the mouse.
-
-Log lines: `ZdxsvGgpo: replay bar: <action>`, and `replay bar: layout` with
-the x range of each element in window pixels.
-
-### Key display
-
-As `gdxsv:ReplayKeyDisplay` of flycast. The left edge shows the last 14 input
-changes of the shown position, newest on top. Each has the number of frames it
-was held (shown up to 99) and its d-pad and button glyphs, from the recorded
-game input word. It follows seeks and point of view switches.
-
-While on, it logs `ZdxsvGgpo: replay keys frame F pos P: <word>*<frames> ...`
-every 600 frames.
-
-### Skip mobile suit selection
-
-On by default, as `gdxsv:ReplaySkipMsSelection` of flycast. The replay runs
-unlimited from frame 0 to the briefing, then plays at the normal speed. The
-briefing is the frame at which the tick state of the game leaves the battle
-load for the second time.
-
-- A seek or a switch during the skip ends it.
-- Playing from frame 0 again jumps to the briefing.
-
-Log lines: `ZdxsvGgpo: replay skip MS selection: briefing at frame F`, or
-`cancelled by a seek`, or `replay ended first`.
-
-### Round jump
-
-A round starts at the frame at which the tick state of the game leaves the
-battle load. Load 0 ends at the mobile suit selection, load 1 at the briefing,
-load 1 + N at the start of round N. Round 0 is the briefing.
-
-- Loads are recorded as frames are played. Frames always play in order up to
-  the furthest played frame (a forward seek runs every frame between), so the
-  list is complete up to that frame.
-- A jump to a known round start is a seek. A jump to an unknown one seeks to
-  the furthest played frame and runs unlimited until that load ends.
-- Previous round goes to the round before the one shown, not to the start of
-  the shown round.
-
-Log lines: `ZdxsvGgpo: replay: load K ends at frame F`,
-`replay round N: starts at frame F` (known) or `replay round N: start at frame
-F` (after the run), `cancelled by a seek`, or `replay ended first`.
+- **Seek**: a key (full state + battle-socket state) is kept every
+  `ZDXSV_REPLAY_KEY` played frames, per position. A seek loads the newest
+  key at or before the target and runs to it unthrottled. Forward seeks run
+  every frame. Key files are deleted on a VM shutdown or reset.
+- **Point of view**: one file plays every position. A switch loads that
+  position's newest key at or before the current frame; a position not
+  played yet first runs its own battle start from the common state.
+- **Control bar**: play or pause, seek -10 s and +10 s, time, timeline,
+  point of view, round steps, takeover. When it shows: setting
+  `ZdxsvReplayBar`.
+- **Key display** (as flycast `gdxsv:ReplayKeyDisplay`): the last 14 input
+  changes of the shown position, each with the frames it was held.
+- **Skip mobile suit selection** (as flycast
+  `gdxsv:ReplaySkipMsSelection`): runs unthrottled from frame 0 to the
+  briefing. A seek or a switch ends it.
+- **Round jump**: a round starts when the game's tick state leaves the
+  battle load (load 0 = mobile suit selection, 1 = briefing, 1 + N =
+  round N). A jump to a round not reached yet runs unthrottled to it.
+  Previous round goes to the round before the one shown.
+- **Round results**: the bar shows each round's W / L / D for the shown
+  position's team; playback logs a round whose result differs from the file.
+- **Takeover** (as gdxsv): the shown position plays from the current frame
+  with the host pad, input delay `mindelay`. Hold the replay's input shown
+  in the panel for 1 s, or press START to skip the matching. START while
+  taken over retries from the takeover frame and is not sent to the game;
+  "Replay" goes back to the replay. Not while spectating live.
+- **Four-screen** (as gdxsv, Windows, files only): `ZDXSV_REPLAY_FOUR=1`
+  starts one more PCSX2 per other position, tiled 2x2, all held on the same
+  frame; they follow this one's pause, speed and seeks and close with it.
 
 ## Live spectating
 
 A lobby GGPO battle is streamed to the lobby while it runs, as gdxsv does
-(`SpectatorInputPush` / `Ack` / `SubscribeRequest` / `Challenge` on the
-lobby's UDP socket, zdxsv `pkg/lobby/spectator.go`).
+(zdxsv `pkg/lobby/spectator.go`).
 
 - Uplink: the lobby marks one GGPO player per battle (`live_uplink=1` in the
-  battle info, the lowest `udp_rtt`). That client sends the replay header, the
-  frame 0 state and every confirmed frame to the lobby's UDP address, then the
-  close. It needs replay saving on (the default for lobby battles).
-- Transfer: 1000-byte datagrams, go-back-N from the receiver's ack (window 32,
-  resent after 200 ms without progress), both uplink to lobby and lobby to
-  spectator.
-- Spectator: `ZDXSV_REPLAY=udp://host:port[/battle code]` (the lobby's UDP
-  port, 8201 by default; no code = the newest live battle there). Boot the
-  game as for a file. It waits up to 15 s for the header, the state and a
-  frame, then plays as a replay (seek, point of view of the uplink, keys).
-- Pacing: at the newest frame it waits until 30 more frames are there (or the
-  close); more than 300 frames behind it runs unlimited until 90 behind
-  (flycast's `gdxsv:LiveBufferFrames` and its catch-up edges). Nothing from the
-  lobby for 30 s = stream lost.
-- Speed trim (flycast's frame period trim): between those edges the frame
-  limiter's period is trimmed (-4 to +8 ms per frame, nominal speed only) to
-  hold 30 received frames unplayed, instead of running dry and waiting a whole
-  buffer: the stream's measured frame rate (the players run below 59.94 Hz
-  while GGPO waits) plus a correction on the buffer error. Off while catching
-  up, seeking, taking over, after the close, and after 5 frames with nothing
-  received. No effect with the host-refresh vsync pacing (`Sync to Host
-  Refresh Rate` + `Use Host VSync Timing`). Tests: `ZDXSV_LIVE_PACING=0` = off.
-- Auto-next (flycast's `gdxsv:LiveAutoNext`): with `[DEV9/Eth]
-  ZdxsvLiveAutoNext` on (Settings → zdxsv), at the end of a stream the
-  spectator pauses and asks the lobby every 5 s for its newest live battle (a
-  subscribe without code or cookie: the challenge names it, running battles
-  first). One not watched yet resets the VM and is watched from its start
-  (catching up if far along). A seek from the end cancels the move. Tests:
-  `ZDXSV_LIVE_NEXT=N` = N more battles, 0 = off.
-
-Log lines: `live: uplink CODE to ADDR`, `ZdxsvGgpo: live: battle CODE, N
-frames so far`, `live: N frames behind at frame F: catching up`, `caught up`,
-`live: pace frame F gap G trim T us rate R hz, N waits T ms` (every 600 frames),
-`live: stream closed (REASON) at frame F, N waits T ms`, `live: auto-next:
-waiting for a new battle at HOST (N watched)`, `moving on to CODE after T s`.
+  battle info). That client sends the replay header and every confirmed
+  frame to the lobby's UDP address, then the close; whether saving or
+  upload is on or not.
+- Transfer: 1000-byte datagrams, go-back-N on the receiver's ack, both
+  uplink to lobby and lobby to spectator.
+- Spectator: `ZDXSV_REPLAY=udp://host:port[/battle code]` (no code = the
+  newest live battle). It starts from the common state and plays as a
+  replay from the uplink's point of view.
+- Pacing (as flycast `gdxsv:LiveBufferFrames`): at the newest frame it waits
+  until 30 more frames are there; far behind it runs unthrottled to catch
+  up. In between the frame limiter's period is trimmed by a few ms per frame
+  to stay 30 frames behind without stalls. Nothing from the lobby for 30 s =
+  stream lost.
+- Auto-next (as flycast `gdxsv:LiveAutoNext`, setting `ZdxsvLiveAutoNext`):
+  at the end of a stream the spectator asks the lobby for its newest live
+  battle not watched yet, resets the VM and watches it from its start.

@@ -1,13 +1,8 @@
 // SPDX-FileCopyrightText: 2026 zdxsv contributors
 // SPDX-License-Identifier: GPL-3.0+
 
-// zdxsv replay file (<battle_code>.pb): gdxsv's BattleLogFile (inada-s/gdxsv gdxsv/proto/gdxsv.proto) with the
-// same field numbers, plus the fields a PCSX2 replay needs from 40 on. Written by ReplayWrite, read by PlayLoadFile
-// (pcsx2/Zdxsv/Ggpo.cpp) with the codec in Zdxsv/Proto.h; not compiled into PCSX2.
-//
-// Both start from a common post-entry save state (gdxsv: flycast slot 99, one per disc; here ZdxsvReplayStateUrl) and
-// play the battle start from the recorded lobby answers. One file holds every position's inputs: the player picks the
-// point of view before the start, and the lobby answers name it as the own position.
+// zdxsv replay file (<battle_code>.pb): gdxsv's BattleLogFile with the same field numbers, plus the PCSX2 fields
+// from 40 on. Written by ReplayWrite, read by PlayLoadFile with the codec in Proto.h; not compiled into PCSX2.
 syntax = "proto3";
 
 package zdxsv;
@@ -41,20 +36,19 @@ message BattleLogFile {
   int32 position = 41;  // the recorder's battle position (its RNG A values below)
   int32 input_delay = 42;  // GGPO frames
   string battle_info = 43;  // the lobby's battle info, key=value lines ("" in a local test)
-  // HLE state outside the save state at frame 0: the game's battle socket (Ggpo.cpp NetApply)
-  reserved 44;  // was zds_ps: the play-start barrier is always on
+  // battle socket emulation state at frame 0
+  reserved 44;  // was zds_ps
   bytes net_rx0 = 45;  // msgs waiting for the game's recv
   repeated int32 hle0 = 46;  // play-start barrier n, rel, hold, go; kind-3 seen 0..3, rel
-  int32 input_size = 47;  // bytes per player per frame (Ggpo.cpp NetInput)
+  int32 input_size = 47;  // bytes per player per frame (NetInput)
   int32 frames = 48;  // GGPO-confirmed frames
   bytes inputs = 49;  // frames * players * input_size: frame-major, by position
-  reserved 50;  // was start_state: a save state at GGPO frame 0 (older files, no longer played)
+  reserved 50;  // was start_state
   // The lobby's battle-start answers 0x6911..0x6917 as the game got them (whole frames: 12-byte header + body).
   // The replay plays the start from them on any post-entry state, 0x6912 (own position) = the chosen point of view.
   repeated bytes lobby_answers = 51;
   // Optional desync checks (a file without them plays the same). Taken at each frame before its inputs apply.
-  // u32 LE per frame: XXH3 of the 4 players' masked work + RNG B (Ggpo.cpp ReplayStateHash). Equal in the files of
-  // all positions of one battle; a replay logs the frames where it differs.
+  // u32 LE per frame: ReplayStateHash (4 players' masked work + RNG B). Equal in every position's file of a battle.
   bytes state_hashes = 52;
   // The game RNGs, u16 RNG A (0x6d7940) << 16 | u16 RNG B (0x6d793c), at frame 0 and at each battle load end
   // (the tick state 0xc627b4 leaves 8: load 0 = MS select, 1 = briefing, 1 + N = round N start), for round skip.
@@ -62,10 +56,10 @@ message BattleLogFile {
   optional uint32 start_rng = 53;
   repeated int32 load_frames = 54;
   repeated uint32 load_rngs = 55;
-  reserved 56;  // was load_start_frames: replay hold of the round-start load step (files without the barrier)
+  reserved 56;  // was load_start_frames
   // The frames the play-start barrier passes (a game starts), and per game the last tick state 6 -> 7 before the next
-  // play start (the game end; round ends are 6 -> 7 too). Peers enter the game end on different frames (the end phase
-  // waits on the HLE'd battle socket): state checks skip each game end to the next play start.
+  // play start (the game end). Peers enter the game end on different frames: state checks skip each game end to the
+  // next play start.
   repeated int32 play_start_frames = 57;
   repeated int32 game_end_frames = 58;
   // Pairs: each earlier tick state 6 -> 7 after the same play start (a round end) and the frame the tick next enters 6.
