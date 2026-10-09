@@ -30,7 +30,8 @@ with a peer without GGPO is cut, as a connection failure (`docs/zdxsv/lobby.md`)
 
 - GGPO library in `3rdparty/ggpo`; its MIT notice is in `bin/docs/ThirdPartyLicenses.html`.
 - Delta save states: fast enough to save the whole machine every frame.
-- GGPO battles: the battle of the game runs over GGPO instead of the battle server.
+- GGPO battles: the battle of the game runs over GGPO instead of the battle server. Each player's input is the
+  game's own input words built from the pad: the buttons, START and both sticks (left = d-pad, right = its own bits).
 - Lobby battles: peers, addresses and input delay come from the lobby and a ping test. Relay servers, a match
   report to the lobby, a P2P connectivity test, an HTTPS latency test to the cloud regions (sent to the lobby)
   and a network status OSD.
@@ -67,7 +68,7 @@ with a peer without GGPO is cut, as a connection failure (`docs/zdxsv/lobby.md`)
 - Takeover (as gdxsv): the bar's "Take over" button or the hotkey "Zdxsv Replay: Take Over / Retry" plays the shown
   position from the current frame with the host pad (input delay = `mindelay`, default 2). Hold the replay's input
   shown in the panel for 1 s, or press START to skip the matching. START while taken over retries from that frame,
-  and the bar's "Replay" button goes back to the replay. Not while spectating live.
+  and the bar's "Replay" button goes back to the replay; START is not sent to the game. Not while spectating live.
 - Four-screen replay (as gdxsv): `ZDXSV_REPLAY_FOUR=1` with one `ZDXSV_REPLAY` file
   starts one more PCSX2 per other position, tiled 2x2 by position (Windows), all held on the same
   frame; the extra windows follow this one's pause, speed and seeks and close with it. Replays only, not live.
