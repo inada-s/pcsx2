@@ -1,48 +1,9 @@
 // SPDX-FileCopyrightText: 2026 zdxsv contributors
 // SPDX-License-Identifier: GPL-3.0+
 
-// GGPO for lobby battles of the Z game (DEFAULT_OPTIONS) is on by default: setting DEV9/Eth ZdxsvGgpo.
-// ZDXSV_GGPO replaces it (GgpoOnVmInitialize); ZDXSV_GGPO=0 = off.
-// ZDXSV_GGPO="key=value,...": a GGPO session in a running game. Synctest by default:
-// every frame is saved, and every `check` frames GGPO loads the frame `check` back, reruns the
-// frames with the same inputs and compares the state checksums (hash=).
-// With net=1 a battle of players= peers instead (see NetInput): the session starts when the game
-// arms its battle sock, every peer runs its own position, no state hashes.
-//   net=1        GGPO battle session (tests/zdxsv/rbk.sh, m4relay.sh)
-//   players=4    peers (2..4); GGPO player = battle position + 1
-//   port=7001    UDP port of position 0; position p listens on port + p, peers on host= (default 127.0.0.1)
-//   relay=R      remote p is at R + 8 * me + p (tools/zdxsv/udprelay.py per pair)
-//   lobby=1      battles from the zdxsv lobby: platform info announces ggpo=port, the lobby's battle
-//                info gives players and peer addresses; listen on port itself. A peer without GGPO or
-//                one that did not answer the ping test: connection failure, no fallback to the battle
-//                server (LobbyCutCall).
-//   delay=0      GGPO frame delay of the local input (fixed). Without it a lobby battle picks
-//                max(mindelay, ceil(slowest peer's rtt / 2 / 16 ms)) when GGPO arms; rtt from a ping
-//                test on the GGPO port (flycast UdpPingPong packets, Zdxsv::StartPingTest)
-//   mindelay=2   lower bound of that pick and the replay takeover delay; default: setting DEV9/Eth
-//                ZdxsvGgpoMinDelay (2..6)
-//   badsession=1 test: this client's ping test uses another session id, so no peer answers it (the cut)
-//   advertise=P  lobby test: the platform info announces 127.0.0.1 and GGPO port P only (no STUN /
-//                local / IPv6 address), so peers reach us through a localhost tools/zdxsv/udprelay.py at P
-//   replay=DIR   net: save the battle to DIR/<battle_code>.pb (frame 0 state + all inputs, ReplayWrite);
-//                lobby=1 saves to <data dir>/replays by default; replay=0 = off
-//   upload=URL   lobby=1: post the saved replay to this uploader (zdxsv infra/uploader) instead of the setting
-//                DEV9/Eth ZdxsvReplayUploadUrl (empty = no upload)
-//   osd=1        net: network status OSD (GgpoOsdLines; 0 = off); its text is also logged every 600 frames
-//   sync=0       no state hashes: checksum 0 (net: always)
-//   start=1500   vsync (counted from boot) the session starts at
-//   frames=3000  frames the session runs, then it is closed and reported
-//   check=6      synctest check distance (1..6)
-//   hash=pw      synctest checksum: the player work of all 4 players, masked as the H lines (PwHash),
-//                and the game RNG words (without them a rerun with other inputs can go unseen);
-//                pos = the 4 players' x, y, z + game RNG (PosRng); full = EE RAM + delta state (code-cache
-//                noise: the rerun's IOP/event cycles differ, so it always reports mismatches)
-//   seed=1       random pad input (both pads; a new input every 5 frames)
-//   input=host   pad 1 from the host pad instead of random (pad 2 stays random)
-//   input=none   no buttons, sticks centered
-//   mask=fcff    random buttons limited to these bits (hex, PadDualshock2::Inputs; fcff = no Select/Start)
-//   control=input  control run: reruns get other inputs (must report mismatches)
-// Results go to the log, lines start with "ZdxsvGgpo".
+// The GGPO session: options, frame loop, GGPO callbacks, start and stop, VM hooks, network status OSD.
+// ZDXSV_GGPO="key=value,..." (docs/zdxsv/options.md) replaces the ZdxsvGgpo setting's DEFAULT_OPTIONS.
+// Without net=1 the session is a synctest; log lines start with "ZdxsvGgpo".
 
 #include "Zdxsv/GgpoShared.h"
 
