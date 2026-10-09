@@ -8,6 +8,7 @@
 #include <cmath>
 #include "VUmicro.h"
 #include "MTVU.h"
+#include "Zdxsv/CpuHooks.h"
 
 #ifdef PCSX2_DEBUG
 u32 vudump = 0;
@@ -64,6 +65,13 @@ void vu1ExecMicro(u32 addr)
 	}
 	static int count = 0;
 	vu1Finish(false);
+	if (Zdxsv::g_rerun_vu1_skip)
+	{
+		// as if the microprogram ended at once
+		VU0.VI[REG_VPU_STAT].UL &= ~0xFF00;
+		if ((s32)addr != -1) VU1.VI[REG_TPC].UL = addr & 0x7FF;
+		return;
+	}
 
 	VUM_LOG("vu1ExecMicro %x (count=%d)", addr, count++);
 	VU1.cycle = cpuRegs.cycle;

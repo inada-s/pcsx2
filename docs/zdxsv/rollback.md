@@ -60,7 +60,9 @@ inputs of the next frame. Host pad input goes through GGPO.
 Rerun frames are not throttled, presented or heard: a rollback of N frames
 shows and plays the live frame once. SPU2 reverb is not computed in rerun
 frames (unless an SPU2 IRQ address lies in the reverb work area): it only
-feeds their dropped sound.
+feeds their dropped sound. VU1 microprograms run only in the last rerun frame
+of a rollback: the game kicks a frame's draw list in the next frame, so the
+live frame presents what the last rerun frame drew; VU1 only feeds the GS.
 
 ### Synctest
 

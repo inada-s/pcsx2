@@ -4,7 +4,7 @@
 #pragma once
 
 // zdxsv hooks of the CPU and timing code: recompilers (iR5900.cpp, iR3000A.cpp), Counters.cpp,
-// MTGS.cpp, VMManager.cpp. Only flags and declarations (AGENTS.md, Seams With Upstream Code).
+// MTGS.cpp, VMManager.cpp, VU1micro.cpp. Only flags and declarations (AGENTS.md, Seams With Upstream Code).
 
 #include "common/Pcsx2Defs.h"
 
@@ -14,6 +14,8 @@ namespace Zdxsv
 	extern bool g_ggpo_active; // a session runs
 	extern bool g_ggpo_in_rollback; // rerunning frames: no throttle
 	extern u64 g_rerun_vu1_ticks; // Common::Timer ticks in VU1 microcode during rerun frames (microVU.cpp)
+	// this rerun frame starts no VU1 microprogram (vu1ExecMicro; Ggpo.cpp AdvanceFrame, ZDXSV_RERUN_VU1)
+	extern bool g_rerun_vu1_skip;
 	// GGPO, a replay or ZDXSV_DELTA_TEST in this VM: the MTVU speedhack stays off (VMManager::LoadCoreSettings)
 	extern bool g_mtvu_off;
 	// live spectating (Ggpo.cpp LivePace, CPU thread): microseconds added to the frame limiter's period at nominal

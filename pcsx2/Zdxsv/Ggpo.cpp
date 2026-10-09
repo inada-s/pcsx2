@@ -106,6 +106,15 @@ namespace Zdxsv
 			const char* e = std::getenv("ZDXSV_RERUN_DRAW");
 			return !(e && e[0] == '0');
 		}();
+		// Rerun frames but the last of a rollback start no VU1 microprogram (g_rerun_vu1_skip): VU1 only
+		// feeds the GS. The last one runs VU1: the game kicks a frame's draw list in the next frame and the
+		// live frame presents what the last rerun frame drew. ZDXSV_RERUN_VU1=1: VU1 in every rerun frame.
+		const bool s_rerun_vu1 = [] {
+			const char* e = std::getenv("ZDXSV_RERUN_VU1");
+			return e && e[0] == '1';
+		}();
+		int s_top_frame = 0; // the frame of the last save outside a rollback
+		int s_reruns_left = 0; // rerun frames left in this rollback
 		GGPOPlayerHandle s_handles[GGPO_MAX_PLAYERS] = {};
 		bool s_vm_closing = false; // in GgpoOnVmShutdown: Stop does not shut the VM down (rbk)
 		int s_vsyncs = 0;
@@ -411,6 +420,8 @@ namespace Zdxsv
 			if (s_sync)
 				HashSave(frame, checksum);
 			s_hash_ms.Add(timer.GetTimeMilliseconds());
+			if (!s_rerun)
+				s_top_frame = frame;
 			int* saved = new int(frame);
 			*buffer = reinterpret_cast<unsigned char*>(saved);
 			*len = sizeof(int);
@@ -425,6 +436,7 @@ namespace Zdxsv
 				return false;
 			Common::Timer timer;
 			const bool ok = Zdxsv::DeltaStateLoad(*reinterpret_cast<int*>(buffer));
+			s_reruns_left = s_top_frame - *reinterpret_cast<int*>(buffer);
 			if (s_net)
 				NetLoaded(*reinterpret_cast<int*>(buffer));
 			s_load_ms.Add(timer.GetTimeMilliseconds());
@@ -458,7 +470,9 @@ namespace Zdxsv
 			const u64 cycle0 = cpuRegs.cycle;
 			if (!s_rerun_draw)
 				MTGS::RunOnGSThread([]() { g_gs_skip_draws = true; });
+			g_rerun_vu1_skip = !s_rerun_vu1 && --s_reruns_left > 0;
 			const bool ok = RunFrame();
+			g_rerun_vu1_skip = false;
 			s_rerun_mcycles.Add((cpuRegs.cycle - cycle0) / 1e6);
 			if (!s_rerun_draw)
 				MTGS::RunOnGSThread([]() { g_gs_skip_draws = false; });
@@ -680,6 +694,7 @@ namespace Zdxsv
 	bool g_ggpo_active = false;
 	bool g_ggpo_in_rollback = false;
 	u64 g_rerun_vu1_ticks = 0;
+	bool g_rerun_vu1_skip = false;
 	u64 g_rerun_spu2_ticks = 0;
 	bool g_gs_rerun_frame = false;
 	bool g_gs_skip_draws = false;
@@ -789,7 +804,7 @@ namespace Zdxsv
 		s_pw.clear();
 		std::fill(std::begin(s_peer_state), std::end(s_peer_state), 0);
 		std::fill(std::begin(s_handles), std::end(s_handles), GGPOPlayerHandle{});
-		s_frames_ahead = s_waits = s_save_skipped = s_session_frames = 0;
+		s_frames_ahead = s_waits = s_save_skipped = s_session_frames = s_top_frame = s_reruns_left = 0;
 		s_rollback_frames = s_loads = s_mismatches = s_ggpo_warnings = s_diff_logged = 0;
 		s_save_ms = s_hash_ms = s_load_ms = s_rerun_ms = s_wait_ms = s_emu_ms = s_exit_ms = s_ours_ms = {};
 		s_rerun_mcycles = {};
