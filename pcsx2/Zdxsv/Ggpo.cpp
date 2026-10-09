@@ -19,7 +19,8 @@
 //   delay=0      GGPO frame delay of the local input (fixed). Without it a lobby battle picks
 //                max(mindelay, ceil(slowest peer's rtt / 2 / 16 ms)) when GGPO arms; rtt from a ping
 //                test on the GGPO port (flycast UdpPingPong packets, Zdxsv::StartPingTest)
-//   mindelay=2   lower bound of that pick
+//   mindelay=2   lower bound of that pick and the replay takeover delay; default: setting DEV9/Eth
+//                ZdxsvGgpoMinDelay (2..6)
 //   badsession=1 test: this client's ping test uses another session id, so no peer answers it (the cut)
 //   advertise=P  lobby test: the platform info announces 127.0.0.1 and GGPO port P only (no STUN /
 //                local / IPv6 address), so peers reach us through a localhost tools/zdxsv/udprelay.py at P
@@ -395,7 +396,7 @@ namespace Zdxsv
 		} s_hash = Hash::Pw; // hash= (synctest checksum)
 		int s_port = 7001, s_delay = 0;
 		bool s_delay_set = false; // delay= given: fixed; else a lobby battle picks it from the peers' rtt
-		int s_min_delay = 2; // mindelay=
+		int s_min_delay = 2; // mindelay=, else setting DEV9/Eth ZdxsvGgpoMinDelay
 		std::string s_peer_host = "127.0.0.1";
 		bool s_lobby = false; // lobby=1
 		bool s_bad_session = false; // badsession=1 (test): the ping test uses another session id
@@ -1546,6 +1547,8 @@ namespace Zdxsv
 			s_options.clear();
 		else
 			s_options = e ? e : lobby_default ? DEFAULT_OPTIONS : "";
+		// as flycast's gdxsv:MinDelay (2..6); mindelay= overrides it
+		s_min_delay = std::clamp(Host::GetIntSettingValue("DEV9/Eth", "ZdxsvGgpoMinDelay", 2), 2, 6);
 		g_ggpo_enabled = !s_options.empty() || s_play_env;
 		s_net_env = s_options.find("net=1") != std::string::npos || s_play_env;
 		g_net_hook = s_net_trace != nullptr || s_net_env;
