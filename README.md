@@ -33,7 +33,8 @@ with a peer without GGPO is cut, as a connection failure (`docs/zdxsv/lobby.md`)
 - GGPO battles: the battle of the game runs over GGPO instead of the battle server.
 - Lobby battles: peers, addresses and input delay come from the lobby and a ping test. Relay servers, a match
   report to the lobby, a P2P connectivity test, an HTTPS latency test to the cloud regions (sent to the lobby)
-  and a network status OSD.
+  and a network status OSD. Setting `[DEV9/Eth] ZdxsvGgpoMinDelay` (2..6, default 2; Settings → Network & HDD) is
+  the lowest input delay picked (as gdxsv's `MinDelay`); `ZDXSV_GGPO` `mindelay=N` overrides it.
 - A VM shutdown or reset during a GGPO battle ends it like a disconnect (replay saved, state dropped).
 - The MTVU speedhack is turned off for a VM with GGPO or a replay: delta states copy VU1 memory, which the
   MTVU thread may still be writing. The setting itself is not changed.
@@ -65,7 +66,7 @@ with a peer without GGPO is cut, as a connection failure (`docs/zdxsv/lobby.md`)
   the lobby answers name it as the own position. A switch (bar, hotkey, `ZDXSV_REPLAY_POV_AT=frame:p,...`) to a position
   not played yet runs its battle start from the common state first, then seeks.
 - Takeover (as gdxsv): the bar's "Take over" button or the hotkey "Zdxsv Replay: Take Over / Retry" plays the shown
-  position from the current frame with the host pad (input delay = `mindelay`, default 2). Hold the replay's input
+  position from the current frame with the host pad (input delay = `mindelay`, default the `ZdxsvGgpoMinDelay` setting). Hold the replay's input
   shown in the panel for 1 s, or press START to skip the matching. START while taken over retries from that frame,
   and the bar's "Replay" button goes back to the replay. Not while spectating live.
 - Four-screen replay (as gdxsv): `ZDXSV_REPLAY_FOUR=1` with one `ZDXSV_REPLAY` file

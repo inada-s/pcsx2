@@ -36,6 +36,7 @@ server of another game gets no platform info
 | Setting | Default | Use | Meaning |
 |---|---|---|---|
 | `[DEV9/Eth] ZdxsvGgpo` | `true` | feature | Lobby battles of the game run over GGPO (`ZDXSV_GGPO` options `net=1,lobby=1`). Read when the game starts; Settings → Network & HDD. Other games are never affected. |
+| `[DEV9/Eth] ZdxsvGgpoMinDelay` | `2` | feature | Lowest GGPO input delay (frames, 2..6) a lobby battle picks from the ping test, and the replay takeover delay; as gdxsv's `MinDelay`. Read when the game starts; Settings → Network & HDD. `mindelay=` overrides it. |
 | `[EmuCore/GS] ZdxsvLowLatencyVsync` | `true` | feature | Present the finished frame before the frame limiter sleeps, and poll input right before the next frame runs. Settings → Network & HDD. Other games are never affected. |
 | `[DEV9/Eth] ZdxsvLiveAutoNext` | `false` | feature | Live spectating: when a stream ends, watch the lobby's next live battle ([replay.md](replay.md), Live spectating). Settings → Network & HDD. |
 
@@ -82,7 +83,7 @@ off. Any other value turns it on. Without `net=1` the session is a synctest. Log
 | `host=H` | 127.0.0.1 | test | Address of the peers. Not used with `lobby=1`. |
 | `relay=R` | off | test | Remote position p is at port R + 8 * own position + p, so each pair can go through its own `udprelay.py`. |
 | `delay=N` | 0 | tuning | Fixed GGPO input delay in frames. Without it a lobby battle picks the delay from the ping test. |
-| `mindelay=N` | 2 | tuning | Lower bound of the picked delay. |
+| `mindelay=N` | the setting | tuning | Lower bound of the picked delay and the replay takeover delay. Overrides `ZdxsvGgpoMinDelay`. |
 | `lobby=1` | off | feature | Battles come from the zdxsv lobby. See [lobby.md](lobby.md). |
 | `osd=0` | 1 | feature | Hide the network status OSD. |
 | `replay=DIR` | see meaning | feature | Save every battle to `DIR`. Lobby battles save to `<data dir>/replays` without it. `replay=0` turns saving off (upload and live streaming still run). |

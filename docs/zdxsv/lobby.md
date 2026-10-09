@@ -117,7 +117,8 @@ candidate with the best score: lowest RTT, plus 100 for loopback, 50 for a
 private address, 20 for IPv6.
 
 The GGPO input delay is max(`mindelay`, ceil(mean RTT of the slowest peer / 2
-/ 16 ms)), as the rollback backend of flycast. `delay=` keeps the delay fixed
+/ 16 ms)), as the rollback backend of flycast. `mindelay` defaults to the
+setting `ZdxsvGgpoMinDelay` (2..6, default 2). `delay=` keeps the delay fixed
 and skips the test.
 
 Log lines: `zdxsv: ping test: ...` (RTT per peer), `ZdxsvGgpo: lobby delay D`,
