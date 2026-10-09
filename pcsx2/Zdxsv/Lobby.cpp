@@ -460,6 +460,18 @@ namespace Zdxsv
 	} // namespace
 
 	// ---- GGPO ping test ----
+	void MergeRelayRtt(uint8_t dst[4][4], const uint8_t src[4][4], int self, int from)
+	{
+		for (int p = 0; p < 4; p++)
+		{
+			if (p == self)
+				continue;
+			for (int k = 0; k < 4; k++)
+				if (p == from || src[p][k] != 0)
+					dst[p][k] = src[p][k];
+		}
+	}
+
 	namespace
 	{
 		// flycast core/gdxsv/gdxsv_network.h UdpPingPong::Packet, byte for byte
@@ -786,11 +798,11 @@ namespace Zdxsv
 				}
 				else
 					m_dropped++;
-				if (ok) // the sender's own rows of the matrices
+				if (ok) // the sender's own row of the rtt matrix, the relay rows it knows
 				{
 					std::memcpy(m_rtt[pk.fromPeer], pk.rttMatrix[pk.fromPeer], sizeof(m_rtt[0]));
 					if (got >= static_cast<int>(sizeof(PingPacketRelays)))
-						std::memcpy(m_relayRtt[pk.fromPeer], pk.relayRttMatrix[pk.fromPeer], sizeof(m_relayRtt[0]));
+						MergeRelayRtt(m_relayRtt, pk.relayRttMatrix, m_me, pk.fromPeer);
 				}
 			}
 

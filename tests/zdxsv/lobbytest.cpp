@@ -164,6 +164,20 @@ int main()
 		Zdxsv::FinishPingTest(nullptr, &err);
 		Check(ms < 200 && err.empty() && !called, "ping test on the port cancels the connectivity test, done not called (ms)", ms);
 	}
+	// relay rtts of a peer behind a symmetric NAT reach us only through the peer that reaches it (peer 3)
+	{
+		uint8_t mine[4][4] = {{18, 67}};
+		const uint8_t from3[4][4] = {{17, 66}, {4, 55}, {60, 5}, {53, 4}};
+		Zdxsv::MergeRelayRtt(mine, from3, 0, 3);
+		Check(mine[0][0] == 18 && mine[0][1] == 67, "relay rtt merge: own row kept", mine[0][0]);
+		Check(mine[1][0] == 4 && mine[1][1] == 55 && mine[2][0] == 60 && mine[3][0] == 53, "relay rtt merge: rows of others taken", mine[1][0]);
+		const uint8_t from2[4][4] = {{0}, {0}, {61}, {0}};
+		Zdxsv::MergeRelayRtt(mine, from2, 0, 2);
+		Check(mine[1][0] == 4 && mine[2][0] == 61 && mine[3][0] == 53, "relay rtt merge: unknown rows do not erase known ones", mine[1][0]);
+		const uint8_t lost3[4][4] = {};
+		Zdxsv::MergeRelayRtt(mine, lost3, 0, 3);
+		Check(mine[3][0] == 0 && mine[1][0] == 4, "relay rtt merge: sender's own row taken as is", mine[3][0]);
+	}
 	std::printf("%d failed\n", g_fails);
 	return g_fails ? 1 : 0;
 }
