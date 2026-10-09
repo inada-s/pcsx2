@@ -31,11 +31,16 @@ namespace Zdxsv
 	// position empty; session = ggpo_session (0 = none: the battle connection is cut), pingMs = ggpo_ping_ms.
 	// Without delay=, starts the ping test (Zdxsv::StartPingTest) on our GGPO port; GGPO arms after it
 	// ended, at the candidate it picked per peer; else (or nothing answered) at the first candidate.
-	// ids = report lines naming the battle ("battle_code=..\nuser_id=..\n"); players = user id and name
-	// per position (network status OSD); relays = the battle info's relay servers (pinged by the ping test,
-	// registered with GGPO in order; a peer is reached through one when the ping test picked it).
+	// ids = report lines naming the battle ("battle_code=..\nuser_id=..\n"); players = user id, name and
+	// pilot name per position (network status OSD, replay header); relays = the battle info's relay servers
+	// (pinged by the ping test, registered with GGPO in order; a peer is reached through one when the ping
+	// test picked it).
+	struct LobbyPlayer
+	{
+		std::string id, name, pilot; // name, pilot: UTF-8, "" if none
+	};
 	void SetLobbyPeers(bool ok, std::vector<std::vector<Zdxsv::PeerAddr>> byPosition, u32 session, int pingMs, std::string ids,
-		std::vector<std::pair<std::string, std::string>> players, std::vector<Zdxsv::BattleInfo::Relay> relays = {});
+		std::vector<LobbyPlayer> players, std::vector<Zdxsv::BattleInfo::Relay> relays = {});
 	// The last lobby battle's P2PMatchingReport body ("key=value" lines: result=ggpo/cut/server, ping test
 	// rtt and address per peer, delay, frames, close reason), then cleared; "" if none. The lobby connection
 	// sends it (0x9952) after the next platform info, as flycast after its next login.

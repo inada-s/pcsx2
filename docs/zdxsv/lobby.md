@@ -62,7 +62,8 @@ It lets the server tell emulators from real PS2s.
 | `p2p_<user>=addr,...` | UDP addresses of each player |
 | `ggpo_session=` | id of the battle. zdxsv sends the FNV-1 32 hash of the battle code, as gdxsv. Without it there is no GGPO. |
 | `ggpo_ping_ms=` | length of the ping test, at most 10000 (`MAX_PING_MS`). zdxsv sends 7500. |
-| `name_<user>=` | player name, for the OSD |
+| `name_<user>=` | player name (HN), for the OSD |
+| `pilot_<user>=` | pilot name (first field of the game's user binary, 0x6143), for the OSD and replay header |
 | `relay_<k>=<hex token>,<ip:port>[,<[ip6]:port>]` | relay servers of the battle, k = 0 to 3 |
 | `battle_code=`, `user_id=` | name the battle in the match report and the replay file |
 
@@ -188,7 +189,7 @@ flycast:
 
 - `Delay Nfr`: yellow from 5, orange from 10, red from 13
 - `Roll`: rollback frames. `Wait`: frames that waited for a peer
-- per opponent: position and user id, name, `Ping` (GGPO RTT, in the colors of
+- per opponent: position and user id, name (HN), pilot name, `Ping` (GGPO RTT, in the colors of
   flycast) and `P` (frames predicted for it), or `Interrupted` /
   `Disconnected`
 
