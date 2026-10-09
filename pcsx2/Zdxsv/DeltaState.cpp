@@ -258,9 +258,9 @@ namespace Zdxsv
 			ReleaseDelta(delta);
 		}
 
-		void SnapshotHot()
+		void SnapshotHot(const std::vector<u32>& pages)
 		{
-			for (u32 page : s_hot)
+			for (u32 page : pages)
 			{
 				std::unique_ptr<u8[]> data = TakePage();
 				std::memcpy(data.get(), PagePtr(page), PAGE_BYTES);
@@ -269,25 +269,33 @@ namespace Zdxsv
 		}
 
 		// At a save: updates the hot set from s_open (the interval that ends) and returns the
-		// pages to watch again.
-		std::vector<u32> UpdateHot()
+		// pages to watch again. A hot page unchanged over the interval needs no delta entry (a
+		// load takes it from a later one): its buffer moves to next, the new s_open, as its
+		// snapshot. snapshot gets the hot pages that need a copy.
+		std::vector<u32> UpdateHot(Delta& next, std::vector<u32>& snapshot)
 		{
 			std::vector<u32> watch;
 			watch.reserve(s_open.size());
-			for (const SavedPage& p : s_open)
+			for (SavedPage& p : s_open)
 			{
 				const u32 page = p.page;
 				if (s_is_hot[page])
 				{
 					if (std::memcmp(p.data.get(), PagePtr(page), PAGE_BYTES) != 0)
+					{
 						s_run[page] = 0;
+						snapshot.push_back(page);
+					}
 					else if (++s_run[page] >= COLD_AFTER)
 					{
 						s_is_hot[page] = false;
 						s_run[page] = 0;
 						s_hot.erase(std::find(s_hot.begin(), s_hot.end(), page));
 						watch.push_back(page);
+						s_page_pool.push_back(std::move(p.data));
 					}
+					else
+						next.push_back(std::move(p));
 					continue;
 				}
 				s_run[page] = (s_last_write[page] == s_save_calls - 1) ? static_cast<u8>(std::min(s_run[page] + 1, 255)) : 1;
@@ -297,10 +305,12 @@ namespace Zdxsv
 					s_is_hot[page] = true;
 					s_run[page] = 0;
 					s_hot.push_back(page);
+					snapshot.push_back(page);
 				}
 				else
 					watch.push_back(page);
 			}
+			s_open.erase(std::remove_if(s_open.begin(), s_open.end(), [](const SavedPage& p) { return !p.data; }), s_open.end());
 			return watch;
 		}
 
@@ -405,11 +415,13 @@ namespace Zdxsv
 				return false;
 			}
 			Common::Timer watch;
-			std::vector<u32> pages = UpdateHot();
+			Delta next;
+			std::vector<u32> snapshot;
+			std::vector<u32> pages = UpdateHot(next, snapshot);
 			WatchPages(pages);
 			s_deltas[last] = std::move(s_open);
-			s_open = Delta();
-			SnapshotHot();
+			s_open = std::move(next);
+			SnapshotHot(snapshot);
 			s_hot_pages += s_hot.size();
 			s_watch_ms += watch.GetTimeMilliseconds();
 		}
