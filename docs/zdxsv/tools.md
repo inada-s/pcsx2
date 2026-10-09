@@ -23,10 +23,10 @@
 
 | Script | What it does |
 |---|---|
-| `build-local.sh` | Builds PCSX2 on Windows from Git Bash, as the MSBuild path of the Windows CI. `--run` launches the build. The first run builds the third-party dependencies into `deps/`. |
-| `run.py` | Launches several local instances side by side, each with its own data directory under `work/`. Modes: `rom`, `state`, `rbk_test`, `rbk_test_random`. Settings are environment variables listed at the top of the script; `ROM` and `BIOS` have no default. The `rbk_test` save state is downloaded when missing and used only if its SHA-256 is `RBK_STATE_SHA256`. |
+| `build-local.sh` | Builds PCSX2 on Windows from Git Bash, as the Windows CI's MSBuild path; the first run builds `deps/`. `--run` launches the build. |
+| `run.py` | Launches several local instances side by side, each with its own data directory under `work/`. Modes: `rom`, `state`, `rbk_test`, `rbk_test_random`. Settings: environment variables listed at the top of the script. |
 | `tools/zdxsv/udprelay.py` | UDP relay that adds latency, jitter and loss between two GGPO peers. |
-| `tools/zdxsv/pwcheck.py` | Sync check across peers or a replay and its live traces: per frame from the play start (`PS` line, else battle load end) up to the game end (the earliest trace's last tick state 6 -> 7 before the next play start; judging resumes there), each player's x, y, z and game RNG B; mismatch counts per player. `--battle CODE`: only that battle of a multi-battle trace (from its `B CODE` line). |
+| `tools/zdxsv/pwcheck.py` | Sync check across the net traces of peers, or of a replay and its live battle ([rollback.md](rollback.md), Sync checks). `--battle CODE`: one battle of a multi-battle trace. |
 | `tools/zdxsv/zdcheck.py` | Checks the `zd=1` lines (`Z`) of a `ZDXSV_NET_TRACE` file. |
 | `tools/zdxsv/recvcheck.py` | Checks the receive slots (`R` lines) of a `ZDXSV_NET_TRACE` file. |
 | `tools/zdxsv/ramcount.py` | Finds EE RAM values that count down or up linearly across `ZDXSV_RAM_DUMP` dumps. |

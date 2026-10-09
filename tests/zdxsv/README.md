@@ -42,12 +42,12 @@ fails with exit 2 and names it.
 Example `local.env`:
 
 ```
-RUN=G:/zdxsv-run
-ISO=G:/rom/game.iso
-ZDXSV=G:/src/zdxsv
-IP=192.168.1.8
-STATES=G:/zdxsv-run/states
-RBKSTATES=G:/zdxsv-run/prep
+RUN=D:/zdxsv-run
+ISO=D:/games/gvsz.iso
+ZDXSV=D:/src/zdxsv
+IP=192.168.0.10
+STATES=D:/zdxsv-run/states
+RBKSTATES=D:/zdxsv-run/prep
 CARDS=card-p1 card-p2 card-p3 card-p4
 USERS=AAAAAA BBBBBB CCCCCC DDDDDD
 ```
@@ -60,7 +60,7 @@ USERS=AAAAAA BBBBBB CCCCCC DDDDDD
   whatever the `ZdxsvGgpo` setting); `ZDXSV_GGPO=default` leaves it to the setting.
 - `launch.ps1` runs `probelint.py` first and refuses a PCSX2 build older than
   its sources.
-- Run from the repository root, e.g. `OUT=G:/zdxsv-run/out bash tests/zdxsv/rbk.sh 2 1`.
+- Run from the repository root, e.g. `OUT=D:/zdxsv-run/out bash tests/zdxsv/rbk.sh 2 1`.
   Exit 0 = every check passed; a failed check prints `FAIL` and its reason.
   `rbk.sh` takes N and seed as arguments; an `N=` or `SEED=` in the environment
   that differs from them is refused (exit 2).
