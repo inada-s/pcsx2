@@ -145,7 +145,9 @@ RPC 0xd`.
 Relay servers work as in flycast with the `relay` of gdxsv. The ping test also
 pings each relay server of the battle info over IPv4 and IPv6, with the 28-byte
 relay ping of gdxsv, and shares the RTT and relay-RTT matrices with the peers
-(`PacketWithRelays` of flycast).
+(`PacketWithRelays` of flycast). From each packet it takes every relay-RTT row
+the sender knows, not only the sender's own, so a peer reached only through
+another peer (symmetric NAT) still gets a relay server path.
 
 A peer is reached through:
 

@@ -199,6 +199,10 @@ namespace Zdxsv
 	// servers (optional): every relay of the test, in order. error (optional): why the last
 	// StartPingTest ran no test (bind failure), "" otherwise.
 	std::vector<PingResult> FinishPingTest(std::vector<RelayServerAddr>* servers = nullptr, std::string* error = nullptr);
+	// Ping test packet's relay rtt matrix ([peer][relay], 0 = unknown) from position from into dst, as flycast
+	// UdpPingPong::MergeRelayRtt: from's row as is, other rows when non-zero, own row (self) kept. Rows of peers
+	// we never reach directly (symmetric NAT) come only this way; without them no relay server is picked for them.
+	void MergeRelayRtt(uint8_t dst[4][4], const uint8_t src[4][4], int self, int from);
 
 	// Our public IPv4 from the lobby's STUN (OpenUdp); "" if unknown.
 	std::string PublicIP();
