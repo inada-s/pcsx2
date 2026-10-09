@@ -31,6 +31,8 @@
 #   players' (pwcheck).
 #   LIVE_NEXT=K (with BATTLES=K+1): the spectator moves on to the next battle K times (ZDXSV_LIVE_NEXT); the
 #   checks above run per watched battle, plus K+1 different battles watched (pwcheck too: --battle <code>).
+#   LIVE_SPEED=X: the spectator runs at normal speed X (launch.ps1 -Speed), off the stream's rate: a pacing
+#   test (the pace lines' gap and waits, with and without ZDXSV_LIVE_PACING=0).
 #   GGPO_DEFAULT=K: client K gets no ZDXSV_GGPO (launch.ps1 ZDXSV_GGPO=default), so the ZdxsvGgpo setting
 #   gives its options (port 7001); check: its log names the default options.
 #   BAD_SESSION=K (GDELAY=auto): client K gets badsession=1: every ping test fails,
@@ -139,7 +141,7 @@ if [ -n "${LIVE:-}" ]; then
     grep -a -q 'live uplink' "$OUT/lobby.log" || { echo "no live uplink in $((SECONDS - t1)) s"; exit 0; }
     echo "live uplink after $((SECONDS - t1)) s: spectator p$LIVE"
     env ZDXSV_REPLAY="udp://127.0.0.1:8201" ZDXSV_LIVE_NEXT=${LIVE_NEXT:-0} ZDXSV_REPLAY_EXIT=1 ZDXSV_PW_HASH=1 ZDXSV_NET_TRACE="$OUT/trace-live.txt" \
-      powershell -NoProfile -Command "& '$here/launch.ps1' -N $LIVE -Headless -StateFile ${LIVE_STATE:-$RBKSTATES/rbk-p1.p2s}" 2>&1 | tail -1
+      powershell -NoProfile -Command "& '$here/launch.ps1' -N $LIVE -Headless -StateFile ${LIVE_STATE:-$RBKSTATES/rbk-p1.p2s}${LIVE_SPEED:+ -Speed $LIVE_SPEED}" 2>&1 | tail -1
   ) > "$OUT/live-launch.txt" 2>&1 & pids+=($!)
 fi
 for i in $CLIENTS; do
