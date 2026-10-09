@@ -4,6 +4,7 @@
 #include "SPU2/defs.h"
 #include "SPU2/spu2.h" // hopefully temporary, until I resolve lClocks depdendency
 #include "IopMem.h"
+#include "Zdxsv/SaveStateHooks.h"
 
 #include <cstring>
 
@@ -19,6 +20,24 @@ namespace SPU2Savestate
 	static void wipe_the_cache()
 	{
 		memset(pcm_cache_data, 0, pcm_BlockCount * sizeof(PcmCacheEntry));
+	}
+
+	// zdxsv delta load: a cache line is a decode of its block for the Prev1/Prev2 it holds, so only
+	// the lines whose block differs from the loaded memory go stale (the 7 MB wipe took ~1 ms).
+	static void delta_restore_mem(const u16* mem)
+	{
+		constexpr u32 chunk = 2048; // words
+		for (u32 w = 0; w < 0x100000; w += chunk)
+		{
+			if (std::memcmp(_spu2mem + w, mem + w, chunk * 2) == 0)
+				continue;
+			for (u32 b = w; b < w + chunk; b += pcm_WordsPerBlock)
+			{
+				if (std::memcmp(_spu2mem + b, mem + b, pcm_WordsPerBlock * 2) != 0)
+					pcm_cache_data[b / pcm_WordsPerBlock].Validated = false;
+			}
+			std::memcpy(_spu2mem + w, mem + w, chunk * 2);
+		}
 	}
 } // namespace SPU2Savestate
 
@@ -111,7 +130,10 @@ s32 SPU2Savestate::ThawIt(DataBlock& spud)
 	else
 	{
 		memcpy(spu2regs, spud.unkregs, sizeof(spud.unkregs));
-		memcpy(_spu2mem, spud.mem, sizeof(spud.mem));
+		if (g_SaveStateDeltaLoad)
+			delta_restore_mem(reinterpret_cast<const u16*>(spud.mem));
+		else
+			memcpy(_spu2mem, spud.mem, sizeof(spud.mem));
 
 		memcpy(Cores, spud.Cores, sizeof(Cores));
 		memcpy(&Spdif, &spud.Spdif, sizeof(Spdif));
@@ -143,7 +165,8 @@ s32 SPU2Savestate::ThawIt(DataBlock& spud)
 		lClocks = spud.lClocks;
 		PlayMode = spud.PlayMode;
 
-		wipe_the_cache();
+		if (!g_SaveStateDeltaLoad)
+			wipe_the_cache();
 
 		// Go through the V_Voice structs and recalculate SBuffer pointer from
 		// the NextA setting.

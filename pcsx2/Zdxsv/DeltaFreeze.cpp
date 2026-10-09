@@ -30,7 +30,26 @@ using namespace R5900;
 // output device, not rolled back). In memory, no zip. Loaded on the CPU thread at the point
 // it was saved (vsync), like a hotkey load.
 
-// Code memory: on load only the 4 KB chunks that differ are written and their blocks cleared.
+// Code memory: on load only the 4 KB chunks that differ are written, and blocks are cleared over
+// the words that differ. Code pages also hold data: clearing the whole chunk recompiled its code
+// on every rollback (IOP RAM: ~5 ms a load).
+template <typename ClearFn>
+static void ClearDiffering(const u8* cur, const u8* src, u32 base, u32 n, ClearFn clear)
+{
+	u32 run = n;
+	for (u32 i = 0; i <= n; i += 4)
+	{
+		const bool differs = i < n && std::memcmp(cur + i, src + i, 4) != 0;
+		if (differs && run == n)
+			run = i;
+		else if (!differs && run != n)
+		{
+			clear(base + run, i - run);
+			run = n;
+		}
+	}
+}
+
 template <typename ClearFn>
 static void DeltaFreezeCode(SaveStateBase& s, u8* mem, u32 size, ClearFn clear)
 {
@@ -50,8 +69,8 @@ static void DeltaFreezeCode(SaveStateBase& s, u8* mem, u32 size, ClearFn clear)
 		const u32 n = std::min<u32>(4096, size - off);
 		if (std::memcmp(mem + off, src + off, n) != 0)
 		{
+			ClearDiffering(mem + off, src + off, off, n, clear);
 			std::memcpy(mem + off, src + off, n);
-			clear(off, n);
 		}
 	}
 	s.CommitBlock(size);
