@@ -559,6 +559,14 @@ namespace Zdxsv
 			return in;
 		}
 
+		// The host pad in a replay takeover: START is the takeover's retry / skip key, not game input.
+		Input TakeoverHostInput()
+		{
+			Input in = HostInput();
+			in.buttons &= static_cast<u16>(~(1u << PadDualshock2::Inputs::PAD_START));
+			return in;
+		}
+
 		void ApplyPad(int p, const Input& in)
 		{
 			PadBase* pad = Pad::GetPad(static_cast<u8>(p));
@@ -1567,6 +1575,8 @@ namespace Zdxsv
 	}
 
 	// The game's input record (A, B) of a host pad: its button bind table (OR-linear; B bit 0 = game state, left 0).
+	// A stick counts as a direction at axis <= 0x40 / >= 0xc0: the left stick sets the D-pad's B bits, the right
+	// stick the same bits in A.
 	static void ZdPadAB(const Input& in, u16& a, u16& b)
 	{
 		using I = PadDualshock2::Inputs;
@@ -1575,11 +1585,16 @@ namespace Zdxsv
 			{I::PAD_R1, 0x0300, 0x0010}, {I::PAD_CIRCLE, 0x0040, 0x0020}, {I::PAD_CROSS, 0x0080, 0x0040},
 			{I::PAD_L1, 0x0020, 0x0080}, {I::PAD_TRIANGLE, 0x0100, 0x0100}, {I::PAD_SQUARE, 0x0200, 0x0200},
 			{I::PAD_RIGHT, 0, 0x0400}, {I::PAD_LEFT, 0, 0x0800}, {I::PAD_DOWN, 0, 0x1000},
-			{I::PAD_UP, 0, 0x2000}, {I::PAD_SELECT, 0, 0x4000}};
+			{I::PAD_UP, 0, 0x2000}, {I::PAD_SELECT, 0, 0x4000}, {I::PAD_START, 0x8000, 0x8000}};
 		a = b = 0;
 		for (const auto& e : bind)
 			if ((in.buttons >> e.i) & 1)
 				a |= e.a, b |= e.b;
+		const auto dirs = [](u8 x, u8 y) {
+			return static_cast<u16>((x >= 0xc0 ? 0x0400 : 0) | (x <= 0x40 ? 0x0800 : 0) | (y >= 0xc0 ? 0x1000 : 0) | (y <= 0x40 ? 0x2000 : 0));
+		};
+		b |= dirs(in.lx, in.ly);
+		a |= dirs(in.rx, in.ry);
 	}
 
 	// ps: rec hook at LOAD_STEP_PC (0x2b1d80, battle load step past its load-busy check). true = held:
@@ -2521,7 +2536,7 @@ namespace Zdxsv
 			in.lx = in.ly = in.rx = in.ry = Pad::ANALOG_NEUTRAL_POSITION;
 			for (u32 i = 0; i < BUTTONS; i++)
 			{
-				Input one = {};
+				Input one = in;
 				one.buttons = static_cast<u16>(1u << i);
 				u16 a1, b1;
 				ZdPadAB(one, a1, b1);
@@ -2651,7 +2666,7 @@ namespace Zdxsv
 				}
 				return in;
 			}
-			return HostInput();
+			return TakeoverHostInput();
 		}
 
 		// At T = the next frame (the running state = before T): keeps the state and the own sent msgs.
@@ -4422,7 +4437,7 @@ namespace Zdxsv
 		if (phase != TO_ALIGN && phase != TO_COUNT)
 			return;
 		u16 a, b;
-		ZdPadAB(HostInput(), a, b);
+		ZdPadAB(TakeoverHostInput(), a, b);
 		s_to_current = b;
 		const bool start = s_host[PadDualshock2::Inputs::PAD_START] >= 0.5f;
 		if (start && !s_to_start_held)
