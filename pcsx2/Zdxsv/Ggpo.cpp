@@ -766,10 +766,15 @@ namespace Zdxsv
 				if (s_peer_state[p] == 2)
 					lines.push_back({" Disconnected", OsdPingColor(999)});
 				else if (ggpo_get_network_stats(s_session, s_handles[p], &st) == GGPO_OK)
-					lines.push_back({fmt::format(" Ping {}ms{}  P {}{}", st.network.ping,
-					                     p < static_cast<int>(s_net_via.size()) && s_net_via[p] ? " (R)" : "", st.sync.predicted_frames,
-					                     s_peer_state[p] == 1 ? "  Interrupted" : ""),
-						s_peer_state[p] == 1 ? OsdPingColor(999) : OsdPingColor(st.network.ping)});
+				{
+					// Interrupted in place of the ping, so the line fits the OSD's fixed width
+					if (s_peer_state[p] == 1)
+						lines.push_back({fmt::format(" Interrupted  P {}", st.sync.predicted_frames), OsdPingColor(999)});
+					else
+						lines.push_back({fmt::format(" Ping {}ms{}  P {}", st.network.ping,
+						                     p < static_cast<int>(s_net_via.size()) && s_net_via[p] ? " (R)" : "", st.sync.predicted_frames),
+							OsdPingColor(st.network.ping)});
+				}
 			}
 			if (log)
 			{

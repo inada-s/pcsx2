@@ -34,7 +34,7 @@ with a peer without GGPO is cut, as a connection failure (`docs/zdxsv/lobby.md`)
   game's own input words built from the pad: the buttons, START and both sticks (left = d-pad, right = its own bits).
 - Lobby battles: peers, addresses and input delay come from the lobby and a ping test. Relay servers, a match
   report to the lobby, a P2P connectivity test, an HTTPS latency test to the cloud regions (sent to the lobby)
-  and a network status OSD. Setting `[DEV9/Eth] ZdxsvGgpoMinDelay` (2..6, default 2; Settings → Network & HDD) is
+  and a network status OSD (fixed width; a longer line, e.g. a long name, is cut with `...`). Setting `[DEV9/Eth] ZdxsvGgpoMinDelay` (2..6, default 2; Settings → Network & HDD) is
   the lowest input delay picked (as gdxsv's `MinDelay`); `ZDXSV_GGPO` `mindelay=N` overrides it.
 - A VM shutdown or reset during a GGPO battle ends it like a disconnect (replay saved, state dropped).
 - The MTVU speedhack is turned off for a VM with GGPO or a replay: delta states copy VU1 memory, which the
