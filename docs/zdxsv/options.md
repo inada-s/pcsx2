@@ -109,6 +109,7 @@ off. Any other value turns it on. Without `net=1` the session is a synctest. Log
 | `ZDXSV_K3_LAG=n` | 8 | tuning | GGPO frames between the game sending a round-handshake message and the input that carries it. `0` is a control: the battle then depends on network timing. |
 | `ZDXSV_SAVE_ALL=1` | off | control | Delta-save every GGPO frame, also frames that can no longer be rolled back. |
 | `ZDXSV_RERUN_VU1=1` | off | control | VU1 microprograms run in every rerun frame. Default: only in the last rerun frame of a rollback, whose drawing the live frame presents. |
+| `ZDXSV_RERUN_EE_DRAW=1` | off | control | The game's render callbacks run in every rerun frame. Default: not in rerun frames but the last two (see rollback.md). |
 | `ZDXSV_NET_TAIL=n` | 300 | tuning | Frames run after the battle end message before the session stops. |
 | `ZDXSV_NET_DISCONNECT_MS=ms` | 5000 | tuning | GGPO disconnect timeout. |
 | `ZDXSV_VM_TEST=frame:shutdown` or `frame:reset` | off | test | Shut down or reset the VM once a session or replay reaches that GGPO frame. |
