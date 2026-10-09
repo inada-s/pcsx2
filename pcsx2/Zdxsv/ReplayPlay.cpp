@@ -164,7 +164,7 @@ namespace Zdxsv
 						std::lock_guard lock(s_battle_loads_mtx);
 						const size_t i = s_round_results.size();
 						s_round_results.push_back(win);
-						Console.WriteLn("ZdxsvGgpo: replay: round result %zu: win_team %d at frame %d", i + 1, win, f - 1);
+						Console.WriteLn("ZdxsvGgpo: replay: round result %zu: win_team %d at frame %d, MS ids %08x", i + 1, win, f - 1, MsIds());
 						if (i < s_play_file_rounds.size() && s_play_file_rounds[i] != win)
 							Console.Error("ZdxsvGgpo: replay: round result %zu differs from the file's win_team %d", i + 1, s_play_file_rounds[i]);
 					}

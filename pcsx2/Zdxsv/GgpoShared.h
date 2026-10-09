@@ -121,6 +121,7 @@ namespace Zdxsv
 	static constexpr u32 TICK_STATE = 0xc627b4; // u8 game phase; 8 = battle load
 	static constexpr u8 TICK_LOAD = 8, TICK_PLAY = 6, TICK_END = 7; // 7 = round or game end phase
 	u32 RoundRecord();
+	u32 MsIds();
 	int RoundResult(u32 a, u32 b);
 	extern std::FILE* s_pw_dump;
 	extern std::vector<std::vector<u8>> s_zds_k3[GGPO_MAX_PLAYERS]; // per sender, by index

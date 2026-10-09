@@ -95,6 +95,15 @@ namespace Zdxsv
 			v |= static_cast<u32>(eeMem->Main[TEAM_RECORD[t]] | eeMem->Main[TEAM_RECORD[t] + 1] << 8) << (t * 16);
 		return v;
 	}
+	// u8 MS id per player work (= position; 0 = Gundam), set from the battle setup at each round start (0x2bc6d0)
+	static constexpr u32 PW_MS_ID = 0x1f2a;
+	u32 MsIds()
+	{
+		u32 v = 0;
+		for (int p = 0; p < 4; p++)
+			v |= static_cast<u32>(eeMem->Main[PW_BASE + PW_SIZE * p + PW_MS_ID]) << (p * 8);
+		return v;
+	}
 	// The round ended between records a and b: the winning team 1 / 2, -1 = a draw (losses only); 0 = none
 	int RoundResult(u32 a, u32 b)
 	{
