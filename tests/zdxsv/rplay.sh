@@ -15,6 +15,8 @@
 # guest's trace (trace-play-povP.txt) is pwchecked too, and the host's `spread` lines with all members live must stay
 # <= SPREAD (default 4) frames. With PCSX2_ENV=ZDXSV_REPLAY_SYNC=0 (control: no waiting) the spread check FAILs.
 # Control bar: KEYS="15:bar:show,w600,bar:timeline:0.7,shot:$OUT/a.png" (pcsx2ctl.ps1 mouse tokens).
+# API=1: plays ZDXSV_REPLAY=http://127.0.0.1:API_PORT/lbs/replay?battle_code=<FILE's name> from apiserve.py (API_PORT,
+# default 9891), whose replay_url serves FILE; checks the replay_url line too.
 here=$(cd "$(dirname "$0")" && pwd -W)
 . "$here/riglock.sh"  # one rig at a time
 OUT=${OUT:?OUT=dir for logs}
@@ -22,7 +24,7 @@ FILE=${FILE:?FILE=replay .pb}
 N=${N:-1}
 STATE=${STATE:-${RBKSTATES:?set STATE or RBKSTATES}/rbk-p1.p2s}
 mkdir -p "$OUT"
-trap 'powershell -NoProfile -Command "Get-Process pcsx2* -EA 0 | Stop-Process -Force"; cp "$RUN/p$N/PCSX2/logs/emulog.txt" "$OUT/emulog-play.txt" 2>/dev/null; cp "$RUN/p$N"/PCSX2/logs/emulog-pov*.txt "$OUT/" 2>/dev/null; rig_release' EXIT
+trap 'powershell -NoProfile -Command "Get-Process pcsx2* -EA 0 | Stop-Process -Force"; cp "$RUN/p$N/PCSX2/logs/emulog.txt" "$OUT/emulog-play.txt" 2>/dev/null; cp "$RUN/p$N"/PCSX2/logs/emulog-pov*.txt "$OUT/" 2>/dev/null; [ -n "$api" ] && kill $api; rig_release' EXIT
 # the recording's clamp (a play without it differs from the live battle at the first clamped frame)
 rec=$(dirname "$FILE")
 cl=$( { for f in "$@"; do ls "$(dirname "$f")"/emulog-p*.txt; done; ls "$rec"/emulog-p*.txt "$rec"/../emulog-p*.txt; } 2>/dev/null \
@@ -50,7 +52,12 @@ if [ -n "$KEYS" ]; then
       || { cat "$OUT/keycheck.txt"; echo "FAIL KEYS step '$k' before launch"; exit 1; }
   done
 fi
-env ZDXSV_REPLAY="$FILE" ${POV:+ZDXSV_REPLAY_POV=$POV} ZDXSV_REPLAY_EXIT=1 $([ "$WINDOW" = 1 ] || echo ZDXSV_REPLAY_TURBO=1) ${CLAMP:+ZDXSV_EE_CLAMP=$CLAMP} \
+play=$FILE api=
+if [ "${API:-}" = 1 ]; then
+  "$PY" -I "$here/apiserve.py" ${API_PORT:-9891} "$FILE" > "$OUT/apiserve.log" 2>&1 & api=$!
+  play="http://127.0.0.1:${API_PORT:-9891}/lbs/replay?battle_code=$(basename "$FILE" .pb)"
+fi
+env ZDXSV_REPLAY="$play" ${POV:+ZDXSV_REPLAY_POV=$POV} ZDXSV_REPLAY_EXIT=1 $([ "$WINDOW" = 1 ] || echo ZDXSV_REPLAY_TURBO=1) ${CLAMP:+ZDXSV_EE_CLAMP=$CLAMP} \
   $([ "${FOUR:-0}" = 1 ] && echo ZDXSV_REPLAY_FOUR=1)   ZDXSV_PW_HASH=1 ZDXSV_NET_TRACE="$OUT/trace-play.txt" ZDXSV_REPLAY_SKIP_MS=${SKIP_MS:-0} $PCSX2_ENV \
   powershell -NoProfile -Command "& '$here/launch.ps1' -N $N $([ "$WINDOW" = 1 ] || echo -Headless) -StateFile $STATE" 2>&1 | tail -1
 l=$RUN/p$N/PCSX2/logs/emulog.txt
@@ -58,6 +65,7 @@ l=$RUN/p$N/PCSX2/logs/emulog.txt
 for t in $(seq 30); do grep -a -q "ZdxsvGgpo: replay .*: \(recorded at position\|not a\|bad\|no lobby answers\)\|replay: state load failed" "$l" 2>/dev/null && break; sleep 1; done
 grep -a "ZdxsvGgpo: replay" "$l" | cut -c1-200
 grep -a -q "ZdxsvGgpo: replay .*: recorded at position" "$l" || { echo "FAIL replay did not start"; exit 1; }
+[ -z "$api" ] || grep -a -q "replay_url http://127.0.0.1:${API_PORT:-9891}/pb" "$l" || { echo "FAIL no replay_url line"; exit 1; }
 t1=$SECONDS
 IFS=';' read -ra keys <<< "$KEYS"
 while [ $((SECONDS - t0)) -lt "${MAXS:-300}" ]; do
