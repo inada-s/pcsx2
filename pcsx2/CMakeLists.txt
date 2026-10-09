@@ -134,6 +134,15 @@ set(pcsx2Sources
 	Zdxsv/Overlays.cpp
 	Zdxsv/DeltaFreeze.cpp
 	Zdxsv/Ggpo.cpp
+	Zdxsv/GgpoBattle.cpp
+	Zdxsv/GgpoGameState.cpp
+	Zdxsv/GgpoLobby.cpp
+	Zdxsv/GgpoTest.cpp
+	Zdxsv/GgpoTrace.cpp
+	Zdxsv/ReplayLive.cpp
+	Zdxsv/ReplayLoad.cpp
+	Zdxsv/ReplayPlay.cpp
+	Zdxsv/ReplayRecord.cpp
 	Zdxsv/SpectateSync.cpp
 	Zdxsv/RecHooks.cpp
 	Zdxsv/RecProbe.cpp
@@ -213,6 +222,7 @@ set(pcsx2Headers
 	Zdxsv/DeltaState.h
 	Zdxsv/DeltaFreeze.h
 	Zdxsv/Ggpo.h
+	Zdxsv/GgpoShared.h
 	Zdxsv/SpectateSync.h
 	Zdxsv/RecHooks.h
 	Zdxsv/CpuHooks.h
