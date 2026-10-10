@@ -27,7 +27,8 @@ GDELAY=${GDELAY:-1}
 # RELAY checks assume the ping test (GDELAY=auto); a fixed delay skips it
 [ -n "${RELAY:-}" ] && [ "$GDELAY" != auto ] && { echo "m4ggpo: RELAY needs GDELAY=auto (got $GDELAY)"; exit 2; }
 for i in $GC; do
-  export PCSX2_ENV_P$i="ZDXSV_GGPO=net=1,lobby=1,port=$((PORT + i - 1))$([ "$GDELAY" = auto ] || echo ",delay=$GDELAY")${GMIN:+,mindelay=$GMIN}"
+  eval "prev=\${PCSX2_ENV_P$i:-}"  # keep a caller's per-client env (m4lat.sh)
+  export PCSX2_ENV_P$i="${prev:+$prev }ZDXSV_GGPO=net=1,lobby=1,port=$((PORT + i - 1))$([ "$GDELAY" = auto ] || echo ",delay=$GDELAY")${GMIN:+,mindelay=$GMIN}"
 done
 P2P=${P2P:-v4}
 BAD=${BAD_SESSION:-}

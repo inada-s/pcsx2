@@ -168,6 +168,11 @@ The 2nd rerun of a window must hash like the 1st. Log lines start with
 `ZDXSV_INPUT_LATENCY="key=value,..."` (any value, even empty, turns it on):
 presses a button on pad 1 and logs the time of each stage: press, host poll,
 game pad read, RAM change, present. Log lines start with `ZdxsvLatency`.
+While presses run it also logs frame pacing per shown frame (present -> present,
+and each frame-end interval split into push, limiter sleep, GGPO rollback, emulation)
+and lists late presents (> 1.5x the mean) with their split. A rollback's rerun frames
+are not shown, so they are no samples: their time (state load + reruns) is the
+`rollback` stage of the shown frame they delay.
 
 | Key | Default | Use | Meaning |
 |---|---|---|---|

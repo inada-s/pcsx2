@@ -5,6 +5,7 @@
 
 #include "Zdxsv/InputLatency.h"
 #include "Zdxsv/CpuHooks.h"
+#include "Zdxsv/MediaHooks.h"
 #include "Zdxsv/TestOptions.h"
 
 #include "Config.h"
@@ -120,13 +121,19 @@ namespace Zdxsv
 		Common::Timer::Value s_pace_prev = 0;
 		std::vector<double> s_end_ms; // frame end -> frame end, CPU thread
 		double s_end_prev = 0;
-		// Same intervals split: [emulation of this frame, push and limiter sleep of the one before].
+		// Same intervals split: [emulation of this frame, push and limiter sleep of the one before, GGPO
+		// rollback (state load + rerun frames) since the frame before]. Rerun frames are not shown (GSRenderer
+		// skips their present), so they are no pacing samples of their own.
 		struct Split
 		{
-			double emu, push, sleep;
+			double emu, push, sleep, rerun;
 		};
 		std::vector<Split> s_split;
 		double s_t_push0 = 0, s_push_ms = 0, s_t_resume = 0;
+		// Rollback time since s_end_prev, and the part of it after the input poll (inside "emulation"): a
+		// rollback runs either after a frame end (before its push) or right after the poll.
+		double s_t_any_end = 0, s_rerun_ms = 0, s_rerun_since_poll = 0;
+		size_t s_rerun_frames = 0;
 
 		// Search mode: candidate bytes and snapshots of EE main RAM.
 		std::vector<u8> s_cand, s_idle, s_pre, s_prev_pre, s_post, s_rel;
@@ -391,19 +398,38 @@ namespace Zdxsv
 			std::lock_guard lock(s_pace_mutex);
 			Pacing("present->present", s_pace_ms);
 			Pacing("frameend->frameend", s_end_ms); // CPU thread: emulated frame done
-			std::vector<double> gq, gv, sl;
+			std::vector<double> gq, gv, sl, em, rr;
 			for (const GsSplit& g : s_gs_split)
 			{
 				gq.push_back(g.queue);
 				gv.push_back(g.vsync);
 			}
 			for (const Split& s : s_split)
+			{
 				sl.push_back(s.sleep);
+				em.push_back(s.emu);
+				rr.push_back(s.rerun);
+			}
 			Pacing("push->GS at vsync", gq);
 			Pacing("GSvsync", gv);
 			Pacing("limiter sleep", sl);
-			// Late presents with the frame-end intervals around them (stall in emulation or in present).
+			Pacing("emulation", em); // input poll -> frame end: the stalls a late present comes from
+			Pacing("rollback", rr);
+			// Late presents with the frame-end intervals around them (stall in emulation or in present),
+			// counted by cause: a rollback in that frame-end interval, else emulation.
 			const double m = s_pace_ms.empty() ? 0 : mean(s_pace_ms);
+			size_t late = 0, late_rb = 0;
+			for (size_t i = 0; i < s_pace_ms.size() && i < s_split.size(); i++)
+			{
+				late += s_pace_ms[i] > 1.5 * m;
+				// split i + 1 holds a rollback before push i (LowLatencyVsync), split i - 1 one before the
+				// sleep that present i follows (default order)
+				bool rb = false;
+				for (size_t j = i ? i - 1 : 0; j <= i + 1 && j < s_split.size(); j++)
+					rb |= s_split[j].rerun > 0;
+				late_rb += s_pace_ms[i] > 1.5 * m && rb;
+			}
+			Console.WriteLn("ZdxsvLatency: rerun frames %zu, late presents %zu, with a rollback %zu", s_rerun_frames, late, late_rb);
 			for (size_t i = 0, shown = 0; i < s_pace_ms.size() && shown < 8; i++)
 			{
 				if (s_pace_ms[i] <= 1.5 * m)
@@ -415,8 +441,8 @@ namespace Zdxsv
 				for (size_t j = i - 1; j <= i + 1; j++)
 				{
 					if (j < s_split.size())
-						Console.WriteLn("ZdxsvLatency:   frame end %zu: %.2f ms = push %.2f + sleep %.2f + emulation %.2f",
-							j, end(j), s_split[j].push, s_split[j].sleep, s_split[j].emu);
+						Console.WriteLn("ZdxsvLatency:   frame end %zu: %.2f ms = push %.2f + sleep %.2f + rollback %.2f + emulation %.2f",
+							j, end(j), s_split[j].push, s_split[j].sleep, s_split[j].rerun, s_split[j].emu);
 					if (j < s_gs_split.size())
 						Console.WriteLn("ZdxsvLatency:   present %zu: %.2f ms, push -> GS thread at vsync %.2f, GSvsync %.2f",
 							j, s_pace_ms[j], s_gs_split[j].queue, s_gs_split[j].vsync);
@@ -447,7 +473,7 @@ namespace Zdxsv
 			s_push_t[(s_frames_pushed + 1) % RING].store(Common::Timer::GetCurrentValue(), std::memory_order_relaxed);
 			s_t_push0 = Now();
 		}
-		else
+		else if (!g_ggpo_in_rollback) // a rerun frame's push is part of the rollback
 			s_push_ms = Now() - s_t_push0;
 	}
 
@@ -457,8 +483,11 @@ namespace Zdxsv
 			Parse();
 		if (s_done)
 			return;
+		s_frames_pushed++; // rerun frames are pushed too (present ring by frame number)
+		if (g_ggpo_in_rollback)
+			return; // presses and vsyncs count shown frames only
 		s_t_resume = Now();
-		s_frames_pushed++;
+		s_rerun_since_poll = 0;
 		s_vsync++;
 		const double now = Now();
 		const double prev_poll = s_t_prev_poll;
@@ -540,17 +569,29 @@ namespace Zdxsv
 	{
 		if (!s_parsed || s_done)
 			return;
+		const double now = Now();
+		if (g_ggpo_in_rollback)
+		{
+			// The first rerun frame's time includes the state load.
+			const double d = now - std::max(s_t_any_end, s_t_resume);
+			s_rerun_ms += d;
+			s_rerun_since_poll += d; // the next poll clears it
+			s_t_any_end = now;
+			s_rerun_frames += s_pace_on.load(std::memory_order_relaxed);
+			return;
+		}
+		s_t_any_end = now;
 		if (s_pace_on.load(std::memory_order_relaxed))
 		{
-			const double now = Now();
 			if (s_end_prev > 0)
 			{
 				s_end_ms.push_back(now - s_end_prev);
-				const double emu = now - s_t_resume;
-				s_split.push_back({emu, s_push_ms, now - s_end_prev - s_push_ms - emu});
+				const double emu = now - s_t_resume - s_rerun_since_poll;
+				s_split.push_back({emu, s_push_ms, now - s_end_prev - s_push_ms - s_rerun_ms - emu, s_rerun_ms});
 			}
 			s_end_prev = now;
 		}
+		s_rerun_ms = 0;
 		if (!s_cfg.has_addr || s_presses.empty())
 			return;
 		// The frame emulated since the last poll ends here, before it is pushed; with the
@@ -582,7 +623,7 @@ namespace Zdxsv
 		s_present_t[n % RING].store(Common::Timer::GetCurrentValue(), std::memory_order_relaxed);
 		s_presented.store(n, std::memory_order_release);
 		const Common::Timer::Value t = s_present_t[n % RING].load(std::memory_order_relaxed);
-		if (s_pace_on.load(std::memory_order_acquire))
+		if (s_pace_on.load(std::memory_order_acquire) && !g_gs_rerun_frame) // a rerun frame is not shown
 		{
 			if (s_pace_prev)
 			{
