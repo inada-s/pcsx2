@@ -47,6 +47,7 @@ zdxsv checkout, save states): `tests/zdxsv/README.md`.
 | Feature | How to turn on | Test | Control |
 |---|---|---|---|
 | GGPO library (`3rdparty/ggpo`) | linked always | unit: `GGPO.*` in `tests/ctest/core/ggpo_tests.cpp` | `GGPO.SyncTestCatchesStateOutsideSave` |
+| GGPO pump thread (sockets every 1 ms) | `net=1` | `TRACE=0 rbk.sh 2 1` x2: `pump thread started` per peer, logged OSD pings 0-5 ms | `PCSX2_ENV=ZDXSV_NET_PUMP=0`: no such line, pings 2-23 ms |
 | Delta save states | used by GGPO; self-test `ZDXSV_DELTA_TEST` | `deltatest.ps1` exit 0 (`result PASS`): the 2nd rerun of each window hashes like the 1st (same code cache) | `break=ee`: `result FAIL`, exit 1 |
 | GGPO synctest in a running game | `ZDXSV_GGPO` without `net=1` | `deltatest.ps1 -Var ZDXSV_GGPO -Spec start=9000,frames=3000,mask=fcff -Route arcade -End 12300`: 0 of 3000 frames mismatch in an arcade battle (`hash=pw`) | `control=input`: mismatches |
 | GGPO on by default for lobby battles | setting `ZdxsvGgpo` (on) | `CLIENTS="1 3" EMU=1 GGPO=7101 GDELAY=auto GGPO_DEFAULT=1 m4z.sh`: client 1 has no `ZDXSV_GGPO`, logs the default options, GGPO battle with 0 mismatches | the same with `ZdxsvGgpo = false` in client 1's ini: client 3 cuts the battle connection, the checks fail |
