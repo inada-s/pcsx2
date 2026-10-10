@@ -709,8 +709,8 @@ void GSRenderer::VSync(u32 field, bool registers_written, bool idle_frame)
 		PerformanceMetrics::Update(registers_written, fb_sprite_frame, false);
 	}
 
-	// snapshot
-	if (!m_snapshot.empty())
+	// snapshot (zdxsv: of a shown frame, not a rollback rerun frame)
+	if (!m_snapshot.empty() && !Zdxsv::g_gs_rerun_frame)
 	{
 		u32 screenshot_width, screenshot_height;
 		std::vector<u32> screenshot_pixels;

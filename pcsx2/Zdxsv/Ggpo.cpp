@@ -67,15 +67,21 @@ namespace Zdxsv
 			const char* e = std::getenv("ZDXSV_RERUN_DRAW");
 			return !(e && e[0] == '0');
 		}();
-		// Rerun frames but the last of a rollback start no VU1 microprogram (g_rerun_vu1_skip): VU1 only
-		// feeds the GS. The last one runs VU1: the game kicks a frame's draw list in the next frame and the
-		// live frame presents what the last rerun frame drew. ZDXSV_RERUN_VU1=1: VU1 in every rerun frame.
+		// The game builds a frame's draw list in its render callbacks, VU1 draws it in the next frame, and
+		// the picture is shown one vblank later: the first present after a rollback shows what VU1 drew in
+		// the last rerun frame, from the list of the one before. So only the last two rerun frames run the
+		// render callbacks (g_rerun_draw_skip) and only the last starts VU1 microprograms (g_rerun_vu1_skip).
+		// ZDXSV_RERUN_TAIL=n: the last n rerun frames run the callbacks and the last n - 1 VU1 (default 2;
+		// 1 breaks the picture after each rollback, tests/zdxsv/rerunpic.sh).
+		const int s_rerun_tail = [] {
+			const char* e = std::getenv("ZDXSV_RERUN_TAIL");
+			return e ? std::atoi(e) : 2;
+		}();
+		// ZDXSV_RERUN_VU1=1: VU1 in every rerun frame.
 		const bool s_rerun_vu1 = [] {
 			const char* e = std::getenv("ZDXSV_RERUN_VU1");
 			return e && e[0] == '1';
 		}();
-		// Rerun frames but the last two do not run the game's render callbacks (g_rerun_draw_skip): the
-		// next frame kicks their draw lists, and only the last rerun frame runs VU1 on them.
 		// ZDXSV_RERUN_EE_DRAW=1: render callbacks in every rerun frame.
 		const bool s_rerun_ee_draw = [] {
 			const char* e = std::getenv("ZDXSV_RERUN_EE_DRAW");
@@ -449,8 +455,8 @@ namespace Zdxsv
 			if (!s_rerun_draw)
 				MTGS::RunOnGSThread([]() { g_gs_skip_draws = true; });
 			--s_reruns_left;
-			g_rerun_vu1_skip = !s_rerun_vu1 && s_reruns_left > 0;
-			g_rerun_draw_skip = !s_rerun_ee_draw && s_reruns_left > 1;
+			g_rerun_vu1_skip = !s_rerun_vu1 && s_reruns_left >= s_rerun_tail - 1;
+			g_rerun_draw_skip = !s_rerun_ee_draw && s_reruns_left >= s_rerun_tail;
 			const bool ok = RunFrame();
 			g_rerun_vu1_skip = g_rerun_draw_skip = false;
 			s_rerun_mcycles.Add((cpuRegs.cycle - cycle0) / 1e6);
@@ -815,10 +821,13 @@ namespace Zdxsv
 		}
 		TracePad();
 		TraceInputs();
-		// ZDXSV_SNAP=dir,n: GS screenshot dir/v<vsync>.png every n vsyncs (needs a real renderer, not -Headless)
+		// ZDXSV_SNAP=dir,n[,from]: GS screenshot dir/v<vsync>.png every n vsyncs from vsync `from` (needs a
+		// real renderer, not -Headless)
 		static const char* snap = Zdxsv::TestEnv("ZDXSV_SNAP");
-		static const int snap_n = snap && std::strchr(snap, ',') ? std::atoi(std::strchr(snap, ',') + 1) : 0;
-		if (snap_n > 0 && !g_ggpo_in_rollback && g_FrameCount % snap_n == 0)
+		static const char* snap_c = snap ? std::strchr(snap, ',') : nullptr;
+		static const int snap_n = snap_c ? std::atoi(snap_c + 1) : 0;
+		static const u32 snap_from = snap_c && std::strchr(snap_c + 1, ',') ? std::atoi(std::strchr(snap_c + 1, ',') + 1) : 0;
+		if (snap_n > 0 && !g_ggpo_in_rollback && g_FrameCount >= snap_from && g_FrameCount % snap_n == 0)
 			GSQueueSnapshot(fmt::format("{}\\v{}.png", std::string(snap, std::strchr(snap, ',')), g_FrameCount));
 		if (!g_ggpo_enabled)
 			return;

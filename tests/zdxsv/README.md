@@ -69,5 +69,9 @@ USERS=AAAAAA BBBBBB CCCCCC DDDDDD
   switched by its control env (e.g. `"" "ZDXSV_RERUN_REVERB=1"`). It prints each report part's
   mean and min-max per side, `differs` only when the ranges do not overlap. `R=0` re-summarizes
   the logs already in `OUT`.
+- Pictures after rollbacks: `OUT=<dir> bash tests/zdxsv/rerunpic.sh ["<env>"]` runs a GGPO
+  synctest with check=2 in the arcade battle, snapshots every shown frame and judges them with
+  `tools/zdxsv/rerunpic.py` (exit 0 PASS). For changes to what rerun frames skip;
+  `"ZDXSV_RERUN_TAIL=1"` is its FAIL control. ~4 min, ~0.5 GB of snapshots.
 - `lobbytest.sh` is not a rig: a unit test of `pcsx2/Zdxsv/Lobby.cpp` built with
   MinGW `g++`. It needs no PCSX2 build, game, lock or server.
