@@ -6,14 +6,13 @@
 // Without net=1 the session is a synctest; log lines start with "ZdxsvGgpo".
 
 #include "Zdxsv/GgpoShared.h"
+#include "Zdxsv/ReplayList.h"
 #include "MTGS.h"
 
 namespace Zdxsv
 {
 	namespace
 	{
-		constexpr const char* GAME_SERIAL = "SLPS-25419";
-		constexpr u32 GAME_CRC = 0x435D8236; // ELF CRC of SLPS_254.19: the hooks' fixed guest addresses are this build's
 		constexpr const char* DEFAULT_OPTIONS = "net=1,lobby=1";
 		constexpr int PLAYERS = 2;
 		int s_relay = 0; // relay=R (net): remote p is at port R + 8 * me + p (tools/zdxsv/udprelay.py per pair), not port + p
@@ -705,8 +704,11 @@ namespace Zdxsv
 		}
 	} // namespace
 
-	// ZDXSV_REPLAY=file.pb: plays a saved replay (PlayLoad), the net=1 hooks on, no GGPO session
-	const char* const s_play_env = std::getenv("ZDXSV_REPLAY");
+	// ZDXSV_REPLAY=file.pb: plays a saved replay (PlayLoad), the net=1 hooks on, no GGPO session. Else the replay
+	// list's pick (s_play_picked) for one VM. Set by GgpoOnVmInitialize.
+	const char* s_play_env = nullptr;
+	std::string s_play_picked;
+	int s_play_picked_pov = -1;
 	// Common start: the replay has no start state (or ZDXSV_REPLAY_COMMON=1). The booted state (any post-entry
 	// state, tests/zdxsv/rbkprep.sh) plays the battle start with the file's lobby answers through RbkCall up to the
 	// arm, which is GGPO frame 0 (PlayCommonStart).
@@ -1019,6 +1021,9 @@ namespace Zdxsv
 
 	void GgpoOnVmInitialize(const char* serial, u32 crc)
 	{
+		TakeNextReplay(s_play_picked, s_play_picked_pov);
+		const char* play = std::getenv("ZDXSV_REPLAY");
+		s_play_env = play ? play : s_play_picked.empty() ? nullptr : s_play_picked.c_str();
 		const char* e = std::getenv("ZDXSV_GGPO");
 		// Read here only, so not a config field: a change takes effect at the next VM start.
 		const bool setting = Host::GetBoolSettingValue("DEV9/Eth", "ZdxsvGgpo", true);

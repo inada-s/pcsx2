@@ -69,7 +69,8 @@
 
 namespace Zdxsv
 {
-	extern const char* const s_play_env;
+	extern const char* s_play_env;
+	extern int s_play_picked_pov; // the replay list's point of view, -1 = none
 	extern bool s_play_common;
 	extern s32 g_frame_period_trim_us;
 	extern std::string s_options;

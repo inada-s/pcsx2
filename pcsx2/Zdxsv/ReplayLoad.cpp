@@ -436,13 +436,14 @@ namespace Zdxsv
 				me = p;
 		if (me < 0)
 			return;
-		if (const char* e = std::getenv("ZDXSV_REPLAY_POV"))
+		const char* e = std::getenv("ZDXSV_REPLAY_POV");
+		if (const std::string pov = e ? e : s_play_picked_pov >= 0 ? std::to_string(s_play_picked_pov) : ""; !pov.empty())
 		{
-			const int p = std::atoi(e);
+			const int p = std::atoi(pov.c_str());
 			if (p >= 0 && p < s_players && s_play_pov_ok[p])
 				me = p;
 			else
-				Console.Error("ZdxsvGgpo: replay: ZDXSV_REPLAY_POV=%s is not a position of the battle, playing position %d", e, me);
+				Console.Error("ZdxsvGgpo: replay: point of view %s is not a position of the battle, playing position %d", pov.c_str(), me);
 		}
 		PlayCommonArm(me);
 	}

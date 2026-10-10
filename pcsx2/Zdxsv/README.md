@@ -52,6 +52,7 @@ options: `docs/zdxsv/`.
 | `ReplayRecord.cpp` | Replay recording, upload and live stream of a GGPO battle |
 | `ReplayPlay.cpp` | Replay playback: frame loop, seek keys, point of view, takeover, control bar and hotkeys |
 | `ReplayLive.cpp` | Playback of a live stream; spectator sync of several viewers |
+| `ReplayList.cpp` | Replay window support: the replay picked for the next boot, local file info, lobby API and live URLs (UI: `pcsx2-qt/Tools/ZdxsvReplayDialog.cpp`) |
 | `ReplayLoad.cpp` | Replay files: parse, load, common start, start of playback, position switch, next battle |
 | `DeltaState.cpp`, `DeltaState.h` | Fast per-frame save and load of the VM for rollback (copy-on-write EE RAM pages) |
 | `DeltaFreeze.cpp`, `DeltaFreeze.h` | The non-EE-RAM part of a delta state: CPU, IOP, VU, SPU2, DEV9, pad; section timing and offset names for reports |

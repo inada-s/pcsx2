@@ -44,6 +44,23 @@ battle-socket emulation as a live battle, without GGPO.
 - A replay of a `ZDXSV_RBK` battle needs the recording's `ZDXSV_EE_CLAMP`.
 - A VM reset plays the replay again from the start.
 
+## Replay window
+
+Tools → zdxsv Replays, as flycast's replay lists:
+
+- **Local**: the `.pb` files in the `replays` folder (date, battle code,
+  players, rounds, length); Browse... plays any file.
+- **Remote**: the lobby's `/lbs/replay` search by battle code, player name or
+  pilot name (a part of the name matches), newest first, 100 per page.
+  Plays the row's `replay_url`.
+- **Live**: the lobby's `/lbs/live` (running battles first, refreshed every 10 s
+  while the tab is shown). Plays `udp://<API host>:8201/<code>`.
+- **Lobby API** (Remote, Live): setting `ZdxsvLobbyApiUrl`, empty by default.
+- **Point of view**: the recorder's or a position (`ZDXSV_REPLAY_POV`).
+- **Play** (or a double click) boots the game from the game list (it must
+  hold the Z game) with the pick; it applies to that boot only: the next
+  boot is a normal one. `ZDXSV_REPLAY` in the environment wins over it.
+
 ## Controls
 
 | Action | Hotkey (default) | Control bar |
