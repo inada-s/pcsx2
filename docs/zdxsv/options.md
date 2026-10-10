@@ -43,7 +43,7 @@ page greys it out and its tooltip names the variable.
 | `[DEV9/Eth] ZdxsvReplayKeyDisplay` | `false` | feature | Replays start with the key display on. `ZDXSV_REPLAY_KEY_DISPLAY` overrides it. |
 | `[DEV9/Eth] ZdxsvReplayBar` | `0` | feature | Replay control bar: `0` shown while paused and for 3 s after the mouse moves over the bottom quarter, `1` always, `2` never. `ZDXSV_REPLAY_BAR` overrides it. |
 | `[DEV9/Eth] ZdxsvReplayStateUrl` | the hosted `rbk-p1.p2s` | feature | The post-entry state a replay or live battle starts from: URL (downloaded once into the cache folder) or file; empty = the booted state. `ZDXSV_REPLAY_STATE` overrides it. |
-| `[DEV9/Eth] ZdxsvLobbyApiUrl` | empty | feature | The lobby's public API (`http://host:port`, zdxsv `ZDXSV_LOBBY_API_ADDR`) the replay window's Remote (`/lbs/replay`) and Live (`/lbs/live`) tabs ask; edited in the window. A live battle is watched at `udp://<its host>:8201/<code>` (`ZDXSV_STUN_PORT` overrides the port). |
+| `[DEV9/Eth] ZdxsvLobbyApiUrl` | `https://zdxsv.net` | feature | The lobby's public API (`http://host:port`, zdxsv `ZDXSV_LOBBY_API_ADDR`) the replay window's Remote (`/lbs/replay`) and Live (`/lbs/live`) tabs ask; edited in the window; empty = none. A live battle is watched at `udp://<its host>:8201/<code>` (`ZDXSV_STUN_PORT` overrides the port). |
 | `[DEV9/Eth] ZdxsvReplayUploadUrl` | empty | feature | Replay uploader a lobby battle's `.pb` is posted to; empty = no upload. `upload=` overrides it. |
 
 ## Network
