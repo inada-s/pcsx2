@@ -6,6 +6,7 @@
 // Without net=1 the session is a synctest; log lines start with "ZdxsvGgpo".
 
 #include "Zdxsv/GgpoShared.h"
+#include "MTGS.h"
 
 namespace Zdxsv
 {
@@ -60,6 +61,21 @@ namespace Zdxsv
 			return e && e[0] == '1';
 		}();
 		int s_save_skipped = 0;
+		// ZDXSV_RERUN_DRAW=0: the GS drops the draw calls of rollback rerun frames (g_gs_skip_draws): they
+		// are not presented, and the next frame draws over them. Default: drawn.
+		const bool s_rerun_draw = [] {
+			const char* e = std::getenv("ZDXSV_RERUN_DRAW");
+			return !(e && e[0] == '0');
+		}();
+		// Rerun frames but the last of a rollback start no VU1 microprogram (g_rerun_vu1_skip): VU1 only
+		// feeds the GS. The last one runs VU1: the game kicks a frame's draw list in the next frame and the
+		// live frame presents what the last rerun frame drew. ZDXSV_RERUN_VU1=1: VU1 in every rerun frame.
+		const bool s_rerun_vu1 = [] {
+			const char* e = std::getenv("ZDXSV_RERUN_VU1");
+			return e && e[0] == '1';
+		}();
+		int s_top_frame = 0; // the frame of the last save outside a rollback
+		int s_reruns_left = 0; // rerun frames left in this rollback
 		GGPOPlayerHandle s_handles[GGPO_MAX_PLAYERS] = {};
 		bool s_vm_closing = false; // in GgpoOnVmShutdown: Stop does not shut the VM down (rbk)
 		int s_vsyncs = 0;
@@ -69,6 +85,7 @@ namespace Zdxsv
 		int s_rollback_frames = 0, s_loads = 0, s_mismatches = 0, s_ggpo_warnings = 0;
 		Stat s_save_ms, s_hash_ms, s_load_ms;
 		Stat s_rerun_ms, s_wait_ms; // between frames: rollback rerun emulation, net wait for a peer
+		Stat s_rerun_mcycles; // EE cycles (millions) per rerun frame
 		Stat s_emu_ms, s_exit_ms, s_ours_ms; // wall: last GgpoOnExecuteReturned end -> GgpoOnVsync -> GgpoOnExecuteReturned start -> its end
 		Common::Timer::Value s_t_vsync = 0, s_t_returned = 0;
 		// Output of the session: GS frames presented (g_perfmon, GS thread; read here for the report only)
@@ -155,12 +172,15 @@ namespace Zdxsv
 			Console.WriteLn("ZdxsvGgpo: %s frames %d rollback frames %d loads %d mismatches %d ggpo warnings %d | save ms mean %.3f max %.3f skipped %d | hash ms mean %.3f | load ms mean %.3f max %.3f",
 				what, s_session_frames, s_rollback_frames, s_loads, s_mismatches, s_ggpo_warnings, s_save_ms.Mean(), s_save_ms.max, s_save_skipped,
 				s_hash_ms.Mean(), s_load_ms.Mean(), s_load_ms.max);
-			Console.WriteLn("ZdxsvGgpo: %s wall ms per frame: emulate mean %.2f max %.1f | exit %.2f | between frames (save, ggpo, rollbacks) mean %.2f max %.1f",
-				what, s_emu_ms.Mean(), s_emu_ms.max, s_exit_ms.Mean(), s_ours_ms.Mean(), s_ours_ms.max);
+			Console.WriteLn("ZdxsvGgpo: %s wall ms per frame: emulate mean %.2f max %.1f | exit %.2f | between frames (save, ggpo, rollbacks) mean %.2f max %.1f | rerun frame mean %.2f max %.1f",
+				what, s_emu_ms.Mean(), s_emu_ms.max, s_exit_ms.Mean(), s_ours_ms.Mean(), s_ours_ms.max, s_rerun_ms.Mean(), s_rerun_ms.max);
 			const double n = std::max(s_session_frames, 1);
 			const double ours = s_ours_ms.sum / n, split = (s_save_ms.sum + s_hash_ms.sum + s_load_ms.sum + s_rerun_ms.sum + s_wait_ms.sum) / n;
 			Console.WriteLn("ZdxsvGgpo: %s between frames ms per frame %.2f: save %.2f hash %.2f load %.2f rerun %.2f wait %.2f rest (ggpo) %.2f | sync=%d",
 				what, ours, s_save_ms.sum / n, s_hash_ms.sum / n, s_load_ms.sum / n, s_rerun_ms.sum / n, s_wait_ms.sum / n, ours - split, s_sync);
+			Console.WriteLn("ZdxsvGgpo: %s rerun frame split: vu1 ms %.2f, spu2 ms %.3f, ee Mcycles %.3f", what,
+				Common::Timer::ConvertValueToMilliseconds(g_rerun_vu1_ticks) / std::max(s_rollback_frames, 1),
+				Common::Timer::ConvertValueToMilliseconds(g_rerun_spu2_ticks) / std::max(s_rollback_frames, 1), s_rerun_mcycles.Mean());
 			Console.WriteLn("ZdxsvGgpo: %s delta %s | %s", what, Zdxsv::DeltaStateTimes().c_str(), SaveState_DeltaTimes().c_str());
 			Console.WriteLn("ZdxsvGgpo: %s output: presented frames %d | audio samples played %lld dropped (rerun) %lld",
 				what, g_perfmon.GetFrame() - s_gs_frame0, static_cast<long long>(s_spu_played), static_cast<long long>(s_spu_dropped));
@@ -361,6 +381,8 @@ namespace Zdxsv
 			if (s_sync)
 				HashSave(frame, checksum);
 			s_hash_ms.Add(timer.GetTimeMilliseconds());
+			if (!s_rerun)
+				s_top_frame = frame;
 			int* saved = new int(frame);
 			*buffer = reinterpret_cast<unsigned char*>(saved);
 			*len = sizeof(int);
@@ -375,6 +397,7 @@ namespace Zdxsv
 				return false;
 			Common::Timer timer;
 			const bool ok = Zdxsv::DeltaStateLoad(*reinterpret_cast<int*>(buffer));
+			s_reruns_left = s_top_frame - *reinterpret_cast<int*>(buffer);
 			if (s_net)
 				NetLoaded(*reinterpret_cast<int*>(buffer));
 			s_load_ms.Add(timer.GetTimeMilliseconds());
@@ -404,7 +427,16 @@ namespace Zdxsv
 				return false;
 			g_ggpo_in_rollback = true;
 			Common::Timer timer;
+			EeProfileOnRerun();
+			const u64 cycle0 = cpuRegs.cycle;
+			if (!s_rerun_draw)
+				MTGS::RunOnGSThread([]() { g_gs_skip_draws = true; });
+			g_rerun_vu1_skip = !s_rerun_vu1 && --s_reruns_left > 0;
 			const bool ok = RunFrame();
+			g_rerun_vu1_skip = false;
+			s_rerun_mcycles.Add((cpuRegs.cycle - cycle0) / 1e6);
+			if (!s_rerun_draw)
+				MTGS::RunOnGSThread([]() { g_gs_skip_draws = false; });
 			s_rerun_ms.Add(timer.GetTimeMilliseconds());
 			g_ggpo_in_rollback = false;
 			s_rerun = true;
@@ -622,7 +654,11 @@ namespace Zdxsv
 	bool g_z_game = false;
 	bool g_ggpo_active = false;
 	bool g_ggpo_in_rollback = false;
+	u64 g_rerun_vu1_ticks = 0;
+	bool g_rerun_vu1_skip = false;
+	u64 g_rerun_spu2_ticks = 0;
 	bool g_gs_rerun_frame = false;
+	bool g_gs_skip_draws = false;
 	bool s_net_env = false; // net=1 in s_options, or a replay plays (GgpoOnVmInitialize)
 	// ZDXSV_RBK=i/N: until GGPO arms, every lobby / battle connect RPC is answered here (RbkCall).
 	int s_rbk_me = -1, s_rbk_n = 0;
@@ -723,9 +759,11 @@ namespace Zdxsv
 		s_pw.clear();
 		std::fill(std::begin(s_peer_state), std::end(s_peer_state), 0);
 		std::fill(std::begin(s_handles), std::end(s_handles), GGPOPlayerHandle{});
-		s_frames_ahead = s_waits = s_save_skipped = s_session_frames = 0;
+		s_frames_ahead = s_waits = s_save_skipped = s_session_frames = s_top_frame = s_reruns_left = 0;
 		s_rollback_frames = s_loads = s_mismatches = s_ggpo_warnings = s_diff_logged = 0;
 		s_save_ms = s_hash_ms = s_load_ms = s_rerun_ms = s_wait_ms = s_emu_ms = s_exit_ms = s_ours_ms = {};
+		s_rerun_mcycles = {};
+		g_rerun_vu1_ticks = g_rerun_spu2_ticks = 0;
 		s_t_vsync = s_t_returned = 0;
 		s_spu_played = s_spu_dropped = 0;
 	}

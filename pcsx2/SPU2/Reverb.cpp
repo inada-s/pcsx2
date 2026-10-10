@@ -3,6 +3,7 @@
 
 #include "SPU2/defs.h"
 #include "GS/GSVector.h"
+#include "Zdxsv/MediaHooks.h"
 
 #include "common/Console.h"
 
@@ -68,6 +69,16 @@ StereoOut32 V_Core::DoReverb(StereoOut32 Input)
 	RevbDownBuf[1][RevbSampleBufPos] = Input.Right;
 	RevbDownBuf[0][RevbSampleBufPos | 64] = Input.Left;
 	RevbDownBuf[1][RevbSampleBufPos | 64] = Input.Right;
+
+	// zdxsv: a rollback rerun frame's sound is dropped; its reverb only feeds that sound and the
+	// reverb work area in SPU2 RAM. Skipped unless an IRQ address lies in that area (tested below).
+	if (Zdxsv::g_ggpo_active && Zdxsv::g_ggpo_in_rollback &&
+		!(FxEnable && ((Cores[0].IRQEnable && Cores[0].IRQA >= EffectsStartA && Cores[0].IRQA <= EffectsEndA) ||
+						  (Cores[1].IRQEnable && Cores[1].IRQA >= EffectsStartA && Cores[1].IRQA <= EffectsEndA))))
+	{
+		RevbSampleBufPos = (RevbSampleBufPos + 1) & 63;
+		return StereoOut32::Empty;
+	}
 
 	bool R = Cycles & 1;
 

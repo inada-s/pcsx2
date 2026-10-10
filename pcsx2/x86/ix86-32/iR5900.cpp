@@ -5,6 +5,7 @@
 #include "CDVD/CDVD.h"
 #include "DebugTools/Breakpoints.h"
 #include "Zdxsv/CpuHooks.h"
+#include "Zdxsv/RecHooks.h"
 #include "Elfheader.h"
 #include "GS.h"
 #include "Host.h"
@@ -2781,3 +2782,15 @@ R5900cpu recCpu = {
 	recSafeExitExecution,
 	recCancelInstruction,
 	recClear};
+
+u32 Zdxsv::recEeBlockPc(uptr p)
+{
+	for (int i = 0;; i++)
+	{
+		const BASEBLOCKEX* b = recBlocks[i];
+		if (!b)
+			return 0;
+		if (p >= b->fnptr && p < b->fnptr + b->x86size)
+			return b->startpc;
+	}
+}

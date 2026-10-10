@@ -108,6 +108,7 @@ off. Any other value turns it on. Without `net=1` the session is a synctest. Log
 | `ZDXSV_RAND_INPUT=seed` | off | test | Seeded random pad input. |
 | `ZDXSV_K3_LAG=n` | 8 | tuning | GGPO frames between the game sending a round-handshake message and the input that carries it. `0` is a control: the battle then depends on network timing. |
 | `ZDXSV_SAVE_ALL=1` | off | control | Delta-save every GGPO frame, also frames that can no longer be rolled back. |
+| `ZDXSV_RERUN_VU1=1` | off | control | VU1 microprograms run in every rerun frame. Default: only in the last rerun frame of a rollback, whose drawing the live frame presents. |
 | `ZDXSV_NET_TAIL=n` | 300 | tuning | Frames run after the battle end message before the session stops. |
 | `ZDXSV_NET_DISCONNECT_MS=ms` | 5000 | tuning | GGPO disconnect timeout. |
 | `ZDXSV_VM_TEST=frame:shutdown` or `frame:reset` | off | test | Shut down or reset the VM once a session or replay reaches that GGPO frame. |
@@ -156,7 +157,10 @@ The 2nd rerun of a window must hash like the 1st. Log lines start with
 | `replays=N` | 2 | test | Reruns of each window, each compared with the one before. The result (PASS/FAIL) counts reruns 2 and later; 1 = no result. |
 | `gap=N` | 0 | test | The N frames before each rollback window are not saved; older saves are still discarded. This is the save skip GGPO does for confirmed frames. A gap above `depth` drops every save before the window. At most `every - depth - 1`. |
 | `break=ee` | off | control | A load does not restore EE RAM. Mismatches must be reported. |
+| `break=host` | off | control | A load does not restore IOP and SPU2 RAM pages. Mismatches must be reported. |
+| `ZDXSV_DELTA_PAGED=0` | on | control | IOP RAM and SPU2 RAM are copied whole in each delta state (and compared whole on load) instead of page by page like EE RAM. |
 | `ZDXSV_DELTA_HOT=0` | on | control | Every written page is write-protected each frame; no hot-page copy. |
+| `ZDXSV_DELTA_HOT=h,c` | `1,32` | test | A page becomes hot (copied at every save and load, not write-protected) after writes in `h` save intervals in a row, and is watched again after `c` intervals without a change. The battle report's `faults` = write faults per save. |
 
 ## Input latency measurement
 
@@ -198,4 +202,5 @@ Addresses and PCs are hexadecimal.
 | `ZDXSV_EE_PROBE_OUT=prefix` | diagnostic | Prefix of the probe and watch files. Default `eeprobe`. |
 | `ZDXSV_EE_PROBE_MEM=addr` | diagnostic | Memory a probe logs: 48 bytes at `addr` (default `0xc22c98`), or `sp` for 128 bytes from the stack pointer. |
 | `ZDXSV_EE_WATCH=addr[:len],..` | diagnostic | Log every EE store into these ranges (pc, address, value, ra, stack, GGPO frame) to `<prefix>-w<n>.txt`. |
+| `ZDXSV_EE_PROFILE=prefix` | diagnostic | Windows. While rollback frames rerun, sample the CPU thread every ~0.2 ms: counts by EE block pc, VU1/VU0/IOP/VIF-unpack recompiled code, native function (DbgHelp, PDB next to the exe) and `cpuRegs.pc`, both (`at <pc> fn <function>`), EE stack page (`sp <sp / 4096> ee/other`: which game thread stack) and each return address found on the EE stack (`ra <addr>`: inclusive time of that call; a heuristic, stale stack words count too), rewritten to `<prefix>-<pid>.txt` every 2000 samples. |
 | `ZDXSV_EE_CLAMP=addr,max[,lo,hi][;..]` | test | Keep a u16 at `addr` at or below `max`, only while it is in `lo..hi`. Used to shorten the sortie preparation (出撃準備) timer in rollback tests. A replay of such a battle needs the same value. |

@@ -150,9 +150,7 @@ namespace Zdxsv
 		}
 		const std::vector<u8>* state = Zdxsv::DeltaStateGetState(frame);
 		Sample sample;
-		sample.pages.resize(Ps2MemSize::ExposedRam / PAGE_SIZE);
-		for (size_t i = 0; i < sample.pages.size(); i++)
-			sample.pages[i] = XXH3_64bits(&eeMem->Main[i * PAGE_SIZE], PAGE_SIZE);
+		Zdxsv::DeltaStateHashRam(sample.pages);
 		const u64 ram_hash = XXH3_64bits(sample.pages.data(), sample.pages.size() * sizeof(u64));
 		const u64 state_hash = Zdxsv::DeltaStateHash(*state);
 		const u64 hash = ram_hash ^ state_hash;

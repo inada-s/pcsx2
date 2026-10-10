@@ -27,8 +27,14 @@ fork:
 
 ## Delta save states
 
-A save copies only the EE RAM pages written since the last save, found with
-host page write protection, plus the rest of the state.
+A save copies only the EE, IOP and SPU2 RAM pages written since the last save,
+found with host page write protection, plus the rest of the state. A page once
+written becomes hot: it stays writable and is compared and copied at every
+save and load, until 32 saves in a row find it unchanged (a protect and fault
+cost far more than a page copy). A hot page unchanged since the last save
+keeps its copy for the next interval and adds nothing to the saved delta. A restored IOP RAM page clears the recompiled IOP code over
+the words that differ; a restored SPU2 RAM page drops the decoded sample cache
+of the blocks that differ.
 
 Supporting changes in the core:
 
@@ -43,6 +49,8 @@ Supporting changes in the core:
 - DEV9 (network adapter) is part of a delta state when DEV9 is in save
   states. Host connections are kept on a load; frames the adapter received
   after the loaded save are received again.
+- SPU2 checks a voice's volume slide flag inline (the slide step stays out of
+  line): the call ran twice per voice per sample, mostly with no slide.
 
 `ZDXSV_DELTA_TEST` saves every frame, rolls back at a fixed interval, and
 checks that reruns hash alike.
@@ -55,7 +63,11 @@ rolls back and reruns frames when GGPO asks for it, then applies the synced
 inputs of the next frame. Host pad input goes through GGPO.
 
 Rerun frames are not throttled, presented or heard: a rollback of N frames
-shows and plays the live frame once.
+shows and plays the live frame once. SPU2 reverb is not computed in rerun
+frames (unless an SPU2 IRQ address lies in the reverb work area): it only
+feeds their dropped sound. VU1 microprograms run only in the last rerun frame
+of a rollback: the game kicks a frame's draw list in the next frame, so the
+live frame presents what the last rerun frame drew; VU1 only feeds the GS.
 
 ### Synctest
 

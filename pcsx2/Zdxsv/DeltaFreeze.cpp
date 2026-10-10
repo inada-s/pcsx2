@@ -30,7 +30,39 @@ using namespace R5900;
 // output device, not rolled back). In memory, no zip. Loaded on the CPU thread at the point
 // it was saved (vsync), like a hotkey load.
 
-// Code memory: on load only the 4 KB chunks that differ are written and their blocks cleared.
+// Code memory: on load only the 4 KB chunks that differ are written, and blocks are cleared over
+// the words that differ. Code pages also hold data: clearing the whole chunk recompiled its code
+// on every rollback (IOP RAM: ~5 ms a load).
+template <typename ClearFn>
+static void ClearDiffering(const u8* cur, const u8* src, u32 base, u32 n, ClearFn clear)
+{
+	u32 run = n;
+	for (u32 i = 0; i <= n; i += 4)
+	{
+		const bool differs = i < n && std::memcmp(cur + i, src + i, 4) != 0;
+		if (differs && run == n)
+			run = i;
+		else if (!differs && run != n)
+		{
+			clear(base + run, i - run);
+			run = n;
+		}
+	}
+}
+
+static void ClearIop(u32 addr, u32 n)
+{
+	psxCpu->Clear(addr, n / 4);
+}
+
+void SaveState_DeltaRestoreIopPage(u32 offset, const u8* data, u32 size)
+{
+	if (std::memcmp(iopMem->Main + offset, data, size) == 0)
+		return;
+	ClearDiffering(iopMem->Main + offset, data, offset, size, ClearIop);
+	std::memcpy(iopMem->Main + offset, data, size);
+}
+
 template <typename ClearFn>
 static void DeltaFreezeCode(SaveStateBase& s, u8* mem, u32 size, ClearFn clear)
 {
@@ -50,8 +82,8 @@ static void DeltaFreezeCode(SaveStateBase& s, u8* mem, u32 size, ClearFn clear)
 		const u32 n = std::min<u32>(4096, size - off);
 		if (std::memcmp(mem + off, src + off, n) != 0)
 		{
+			ClearDiffering(mem + off, src + off, off, n, clear);
 			std::memcpy(mem + off, src + off, n);
-			clear(off, n);
 		}
 	}
 	s.CommitBlock(size);
@@ -91,6 +123,13 @@ static tlbs s_tlb_backup[std::size(tlb)];
 static std::vector<std::pair<const char*, size_t>> s_delta_marks;
 
 bool g_SaveStateDeltaLoad = false;
+bool g_SaveStateDeltaPagedRam = false;
+static bool s_delta_paged_ram = false;
+
+void SaveState_DeltaSetPagedRam(bool on)
+{
+	s_delta_paged_ram = on;
+}
 
 static bool s_delta_saving = false;
 static std::vector<std::pair<size_t, size_t>> s_delta_scratch;
@@ -146,7 +185,8 @@ static bool DeltaFreezeAll(SaveStateBase& s, Error* error)
 		return false;
 
 	mark("iopMem");
-	DeltaFreezeCode(s, iopMem->Main, Ps2MemSize::ExposedIopRam, [](u32 addr, u32 n) { psxCpu->Clear(addr, n / 4); });
+	if (!g_SaveStateDeltaPagedRam)
+		DeltaFreezeCode(s, iopMem->Main, Ps2MemSize::ExposedIopRam, ClearIop);
 	mark("eeHw");
 	s.FreezeMem(eeHw, sizeof(eeHw));
 	mark("iopHw");
@@ -171,6 +211,8 @@ static bool DeltaFreezeAll(SaveStateBase& s, Error* error)
 	fP.data = s.GetBlockPtr();
 	if (SPU2freeze(s.IsSaving() ? FreezeAction::Save : FreezeAction::Load, &fP) != 0)
 		return false;
+	if (g_SaveStateDeltaPagedRam)
+		SaveState_DeltaMarkScratch(s.GetCurrentPos() + SPU2DeltaMemOffset(), 0x200000);
 	s.CommitBlock(fP.size);
 
 	mark("SPU2Voices");
@@ -208,8 +250,10 @@ bool SaveState_DeltaSave(std::vector<u8>& buffer)
 	Error error;
 	s_delta_scratch.clear();
 	s_delta_saving = true;
+	g_SaveStateDeltaPagedRam = s_delta_paged_ram;
 	const bool saved = DeltaFreezeAll(s, &error);
 	s_delta_saving = false;
+	g_SaveStateDeltaPagedRam = false;
 	if (!saved)
 	{
 		Console.Error(fmt::format("(ZdxsvDelta) save failed: {}", error.GetDescription()));
@@ -228,8 +272,10 @@ bool SaveState_DeltaLoad(const std::vector<u8>& buffer)
 	memLoadingState s(buffer);
 	Error error;
 	g_SaveStateDeltaLoad = true;
+	g_SaveStateDeltaPagedRam = s_delta_paged_ram;
 	const bool loaded = DeltaFreezeAll(s, &error);
 	g_SaveStateDeltaLoad = false;
+	g_SaveStateDeltaPagedRam = false;
 	if (!loaded)
 	{
 		Console.Error(fmt::format("(ZdxsvDelta) load failed: {}", error.GetDescription()));

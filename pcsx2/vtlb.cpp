@@ -1609,9 +1609,19 @@ void mmap_DeltaRestorePage(u32 page, const u8* data)
 	std::memcpy(&eeMem->Main[page << __pageshift], data, __pagesize);
 }
 
+static mmap_DeltaFaultHook s_delta_fault_hook = nullptr;
+
+void mmap_DeltaSetFaultHook(mmap_DeltaFaultHook hook)
+{
+	s_delta_fault_hook = hook;
+}
+
 PageFaultHandler::HandlerResult PageFaultHandler::HandlePageFault(void* exception_pc, void* fault_address, bool is_write)
 {
 	pxAssert(eeMem);
+
+	if (s_delta_fault_hook && s_delta_fault_hook(reinterpret_cast<uptr>(fault_address)))
+		return HandlerResult::ContinueExecution;
 
 	u32 vaddr;
 	if (CHECK_FASTMEM && vtlb_GetGuestAddress(reinterpret_cast<uptr>(fault_address), &vaddr))

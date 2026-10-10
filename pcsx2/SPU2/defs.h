@@ -134,7 +134,13 @@ public:
 	{
 	}
 
-	void Update();
+	// Inline check: called twice per voice per sample, mostly with no slide.
+	void Update()
+	{
+		if (Enable)
+			UpdateSlide();
+	}
+	void UpdateSlide();
 	void RegSet(u16 src); // used to set the volume from a register source
 
 #ifdef PCSX2_DEVBUILD

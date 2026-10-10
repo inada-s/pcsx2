@@ -6,7 +6,7 @@
 #   OUT=<dir> bash tests/zdxsv/rbk.sh [N] [seed]   (N 2|4, default 4: arguments, not env; no seed: host pad = no input)
 # Env: RBKSTATES (dir of rbk-p1..p4.p2s), TIME (rule 作戦時間 s, menu 90..270, 30 works too; default 90),
 # COUNT (連続対戦数, default 1; 0 = rematch picked by input), GAUGE (戦力ゲージ, default 1: first shoot-down ends the battle, recorded 600), MAXS (default 900),
-# SELECT (出撃準備 timer frames via ZDXSV_EE_CLAMP, default 300; SELECT= off: N=2 seed 1 5381 -> 7781 frames, 71 -> 99 s), BATTLE (battle timer frames, u16 0x838f66, default off = TIME; 600 frames saves 1200 frames), BRIEF (pre-play 600-frame countdown, u32 0x6f2b50 from select end, default 1: play start frame 1581 -> 1299, BRIEF= off), TAIL (frames run after the end msg, ZDXSV_NET_TAIL, default 60; pcsx2 300), TURBO (default 1: battle turbo too, frame-identical; TURBO= nominal), PWDUMP=1 (player-work dumps $OUT/pw-p*.bin for pwdiff.py), PCSX2_ENV (extra env for all), ENV0 (extra env for position 0 only: controls), DELAY (GGPO input delay, default 2 as flycast's local rbk test: 85 s vs 133 s at 0, rollback frames ~100 vs ~1300 per peer), GGPO (ZDXSV_GGPO value, default net=1,players=N,zd=1,zdp=1,zds=1,delay=DELAY).
+# SELECT (出撃準備 timer frames via ZDXSV_EE_CLAMP, default 300; SELECT= off: N=2 seed 1 5381 -> 7781 frames, 71 -> 99 s), BATTLE (battle timer frames, u16 0x838f66, default off = TIME; 600 frames saves 1200 frames), BRIEF (pre-play 600-frame countdown, u32 0x6f2b50 from select end, default 1: play start frame 1581 -> 1299, BRIEF= off), TAIL (frames run after the end msg, ZDXSV_NET_TAIL, default 60; pcsx2 300), TURBO (default 1: battle turbo too, frame-identical; TURBO= nominal), PWDUMP=1 (player-work dumps $OUT/pw-p*.bin for pwdiff.py), TRACE=0 (no ZDXSV_NET_TRACE / PW_HASH: timing bench as production, sync not judged; rerun frame 5.0-5.4 ms vs 5.6-5.7 with the unbuffered trace writes), PCSX2_ENV (extra env for all), ENV0 (extra env for position 0 only: controls), DELAY (GGPO input delay, default 2 as flycast's local rbk test: 85 s vs 133 s at 0, rollback frames ~100 vs ~1300 per peer), GGPO (ZDXSV_GGPO value, default net=1,players=N,zd=1,zdp=1,zds=1,delay=DELAY).
 # TSCALE (turbo cap, default 4; TSCALE= = pcsx2 default 2). N=4 plays p1..p4 (CPU-bound on a 4-core host: ~67 fps). N=2 plays p1 (position 0) + p3 (position 1).
 # Sync check: pwcheck compares each player's x, y, z and game RNG B (0x6d793c) on every frame (RNG A takes machine-local sound draws: reported, not judged; OWN: no effect).
 # An env N/SEED the arguments do not match is refused (it would be ignored)
@@ -71,7 +71,7 @@ for i in $(seq 0 $((N - 1))); do
   p=${P[$i]}
   rm -f "$RUN/p$p/PCSX2/logs/emulog.txt" "$OUT/trace-p$p.txt"
   env ZDXSV_GGPO="$GGPO" ZDXSV_RBK=$i/$N ZDXSV_RBK_TIME=${TIME:-90} ZDXSV_RBK_COUNT=${COUNT:-1} ZDXSV_RBK_GAUGE=${GAUGE:-1} ${turbo:+ZDXSV_RBK_TURBO=1} ${clamp:+ZDXSV_EE_CLAMP=$clamp} ZDXSV_NET_TAIL=${TAIL:-60} ${SEED:+ZDXSV_RAND_INPUT=$((SEED + i))} \
-    ZDXSV_PW_HASH=1 ZDXSV_NET_TRACE=$OUT/trace-p$p.txt ${PWDUMP:+ZDXSV_PW_DUMP=$OUT/pw-p$p.bin} $PCSX2_ENV $([ "$i" -eq 0 ] && echo "$ENV0") \
+    $([ "${TRACE-1}" = 0 ] || echo "ZDXSV_PW_HASH=1 ZDXSV_NET_TRACE=$OUT/trace-p$p.txt") ${PWDUMP:+ZDXSV_PW_DUMP=$OUT/pw-p$p.bin} $PCSX2_ENV $([ "$i" -eq 0 ] && echo "$ENV0") \
     powershell -NoProfile -Command "& '$here/launch.ps1' -N $p -Headless -LobbyState -StateFile $RBKSTATES/rbk-p$p.p2s" 2>&1 | tail -1 &
   lpids="$lpids $!"
 done
@@ -114,12 +114,16 @@ for p in "${P[@]}"; do
   [ "$w" = 0 ] || { echo "FAIL p$p: $w state saves/loads with MTVU on"; ok=1; }
   [ "${MTVU-}" != 1 ] || grep -a -q "ZdxsvGgpo: MTVU speedhack off" "$l" || { echo "FAIL p$p: MTVU=1 not turned off"; ok=1; }
 done
+if [ "${TRACE-1}" = 0 ]; then
+  echo "TRACE=0: sync not checked"
+else
 traces=(); for p in "${P[@]}"; do traces+=("$OUT/trace-p$p.txt"); done
 $PY "$TOOLS/pwcheck.py" $([ "${OWN-1}" = 1 ] && echo --own) "${traces[@]}" > "$OUT/pwcheck.txt"
 grep '^common\|^player\|^rng' "$OUT/pwcheck.txt" | cut -c1-160
+fi
 [ -n "$rpids" ] && { for t in $(seq 15); do kill -0 $rpids 2>/dev/null || break; sleep 1; done; grep -h 'relay end' "$OUT"/relay-*.txt | tr -d '\r'; }
 # players >= N have no player work in this battle (their slots differ by start state)
-awk -v n=$N '$1=="player" && $2+0 < n {s += $4} $1=="rng:" {s += $3} $1=="common" {c = $3} END {exit !(c > 0 && s == 0)}' "$OUT/pwcheck.txt" \
+[ "${TRACE-1}" = 0 ] || awk -v n=$N '$1=="player" && $2+0 < n {s += $4} $1=="rng:" {s += $3} $1=="common" {c = $3} END {exit !(c > 0 && s == 0)}' "$OUT/pwcheck.txt" \
   || { echo "FAIL coordinates (players < $N) or RNG differ, or no frames"; ok=1; }
 echo "rbk N=$N seed=${SEED:-none}: $((SECONDS - t0)) s, $([ $ok = 0 ] && echo PASS || echo FAIL)"
 exit $ok

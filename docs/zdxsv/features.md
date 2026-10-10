@@ -95,5 +95,5 @@ zdxsv checkout, save states): `tests/zdxsv/README.md`.
 | Release workflow (a `zdxsv-X.Y.Z` tag builds the release) | push a tag | none | none |
 | Windows CI build | every push and PR | the workflow itself; it also runs the unit tests | none |
 | PINE opcodes `0x30` to `0x32` (pad input, screenshot, frame count) | PINE enabled | no test of its own; the rig scripts drive the emulator through them (`pine.py`) | none |
-| EE probe and watch (`ZDXSV_EE_PROBE`, `ZDXSV_EE_WATCH`) | environment variables | `probelint.py`: refuses a bad or stale probe list | none |
+| EE probe, watch and rerun profile (`ZDXSV_EE_PROBE`, `ZDXSV_EE_WATCH`, `ZDXSV_EE_PROFILE`) | environment variables | `probelint.py`: refuses a bad or stale probe list | none |
 | `run.py` (several local instances side by side) | `python run.py rom`, `state`, `rbk_test` | `rbk_test` ends with the sync check of `pwcheck.py` | none |
