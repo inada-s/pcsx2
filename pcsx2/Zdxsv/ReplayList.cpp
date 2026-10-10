@@ -86,7 +86,7 @@ namespace Zdxsv
 
 	std::string LobbyApiUrl()
 	{
-		std::string url = Host::GetStringSettingValue("DEV9/Eth", "ZdxsvLobbyApiUrl", "");
+		std::string url = Host::GetStringSettingValue("DEV9/Eth", "ZdxsvLobbyApiUrl", "https://zdxsv.net");
 		while (!url.empty() && (url.back() == '/' || url.back() == ' '))
 			url.pop_back();
 		return url;

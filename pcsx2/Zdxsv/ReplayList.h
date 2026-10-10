@@ -39,7 +39,7 @@ namespace Zdxsv
 	// The header fields of a .pb (replay.proto BattleLogFile); false = not readable.
 	bool ReadReplayInfo(const std::string& path, ReplayFileInfo* info);
 
-	// [DEV9/Eth] ZdxsvLobbyApiUrl: the lobby's public API (http://host:port, /lbs/replay and /lbs/live); "" = none.
+	// [DEV9/Eth] ZdxsvLobbyApiUrl: the lobby's public API (http://host:port, /lbs/replay and /lbs/live); default https://zdxsv.net, "" = none.
 	std::string LobbyApiUrl();
 	// udp://<API host>:<STUN port>/<code>: the live stream of a /lbs/live battle; "" without an API URL.
 	std::string LiveReplaySource(const std::string& battle_code);
