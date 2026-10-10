@@ -14,6 +14,10 @@ public:
 	ZdxsvSettingsWidget(SettingsWindow* settings_dialog, QWidget* parent);
 	~ZdxsvSettingsWidget();
 
+	// SettingsWindow: the widgets of settings the Z game forces (pcsx2/Zdxsv/SyncSettings.cpp) are greyed out with
+	// a tooltip while forced; checked once a second.
+	static void markSyncForced(QWidget* window);
+
 private:
 	Ui::ZdxsvSettingsWidget m_ui;
 };

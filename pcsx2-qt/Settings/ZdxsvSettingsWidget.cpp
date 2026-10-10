@@ -3,12 +3,17 @@
 
 #include "ZdxsvSettingsWidget.h"
 #include "SettingWidgetBinder.h"
+#include "GameFixSettingsWidget.h"
 #include "SettingsWindow.h"
 
 #include "pcsx2/Zdxsv/Settings.h"
+#include "pcsx2/Zdxsv/SyncSettings.h"
+
+#include <QtCore/QTimer>
 
 #include <cstdlib>
 #include <cstring>
+#include <vector>
 
 // The environment wins over a setting (pcsx2/Zdxsv/Settings.h): a widget whose setting is overridden is disabled
 // and says by what.
@@ -70,5 +75,46 @@ ZdxsvSettingsWidget::ZdxsvSettingsWidget(SettingsWindow* settings_dialog, QWidge
 }
 
 ZdxsvSettingsWidget::~ZdxsvSettingsWidget() = default;
+
+void ZdxsvSettingsWidget::markSyncForced(QWidget* window)
+{
+	// object names of the upstream pages' widgets; battle: forced only during battles, replays and live spectating
+	static constexpr struct
+	{
+		const char* name;
+		bool battle;
+	} widgets[] = {{"cheats", false}, {"pineEnable", false}, {"pineSlot", false}, {"eeRecompiler", false},
+		{"iopRecompiler", false}, {"vu0Recompiler", false}, {"vu1Recompiler", false}, {"eeCache", false}, {"eeFastmem", false},
+		{"pauseOnTLBMiss", false}, {"eeRoundingMode", false}, {"eeDivRoundingMode", false}, {"vu0RoundingMode", false},
+		{"vu1RoundingMode", false}, {"eeClampMode", false}, {"vu0ClampMode", false}, {"vu1ClampMode", false},
+		{"extraMemory", false}, {"gameFixes", false}, {"gsDownloadMode", false}, {"eeCycleRate", true},
+		{"eeCycleSkipping", true}, {"MTVU", true}, {"fastCDVD", true}, {"eeINTCSpinDetection", true},
+		{"eeWaitLoopDetection", true}, {"vuFlagHack", true}, {"instantVU1", true}, {"normalSpeed", true}};
+	std::vector<std::pair<QWidget*, bool>> found;
+	for (const auto& w : widgets)
+		if (QWidget* widget = window->findChild<QWidget*>(QString::fromUtf8(w.name)))
+			found.emplace_back(widget, w.battle);
+	if (GameFixSettingsWidget* fixes = window->findChild<GameFixSettingsWidget*>())
+		found.emplace_back(fixes, false);
+	const auto update = [found]() {
+		for (const auto& [widget, battle] : found)
+		{
+			const bool forced = Zdxsv::SyncSettingsForced(battle);
+			if (forced == widget->property("zdxsvSyncForced").toBool())
+				continue;
+			widget->setProperty("zdxsvSyncForced", forced);
+			widget->setEnabled(!forced);
+			widget->setToolTip(!forced ? QString() :
+			                   battle  ? tr("Set to the default during online battles, replays and live spectating "
+			                                "(the same on every player's emulator).") :
+			                             tr("Set to the default while Gundam vs. Z Gundam runs (the same on every "
+			                                "player's emulator)."));
+		}
+	};
+	update();
+	QTimer* timer = new QTimer(window);
+	connect(timer, &QTimer::timeout, window, update);
+	timer->start(1000);
+}
 
 #include "moc_ZdxsvSettingsWidget.cpp"

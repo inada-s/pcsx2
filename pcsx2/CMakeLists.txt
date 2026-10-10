@@ -144,6 +144,7 @@ set(pcsx2Sources
 	Zdxsv/ReplayPlay.cpp
 	Zdxsv/ReplayRecord.cpp
 	Zdxsv/SpectateSync.cpp
+	Zdxsv/SyncSettings.cpp
 	Zdxsv/RecHooks.cpp
 	Zdxsv/RecProbe.cpp
 	VU0micro.cpp
@@ -224,6 +225,7 @@ set(pcsx2Headers
 	Zdxsv/Ggpo.h
 	Zdxsv/GgpoShared.h
 	Zdxsv/SpectateSync.h
+	Zdxsv/SyncSettings.h
 	Zdxsv/RecHooks.h
 	Zdxsv/CpuHooks.h
 	Zdxsv/InputHooks.h
