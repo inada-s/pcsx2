@@ -81,6 +81,13 @@ namespace Zdxsv
 			const char* e = std::getenv("ZDXSV_RERUN_EE_DRAW");
 			return e && e[0] == '1';
 		}();
+		// LowLatencyVsync: present, rollback, then sleep and poll input (GgpoDeferThrottle). A corrected frame
+		// shows one frame later. ZDXSV_PRESENT_FIRST=0: sleep and poll in VSyncStart, the rollback after them.
+		const bool s_present_first = [] {
+			const char* e = std::getenv("ZDXSV_PRESENT_FIRST");
+			return !(e && e[0] == '0');
+		}();
+		bool s_throttle_deferred = false;
 		int s_top_frame = 0; // the frame of the last save outside a rollback
 		int s_reruns_left = 0; // rerun frames left in this rollback
 		GGPOPlayerHandle s_handles[GGPO_MAX_PLAYERS] = {};
@@ -92,6 +99,7 @@ namespace Zdxsv
 		int s_rollback_frames = 0, s_loads = 0, s_mismatches = 0, s_ggpo_warnings = 0;
 		Stat s_save_ms, s_hash_ms, s_load_ms;
 		Stat s_rerun_ms, s_wait_ms; // between frames: rollback rerun emulation, net wait for a peer
+		Stat s_sleep_ms; // between frames: limiter sleep and input poll deferred by GgpoDeferThrottle
 		Stat s_rerun_mcycles; // EE cycles (millions) per rerun frame
 		Stat s_emu_ms, s_exit_ms, s_ours_ms; // wall: last GgpoOnExecuteReturned end -> GgpoOnVsync -> GgpoOnExecuteReturned start -> its end
 		Common::Timer::Value s_t_vsync = 0, s_t_returned = 0;
@@ -182,9 +190,11 @@ namespace Zdxsv
 			Console.WriteLn("ZdxsvGgpo: %s wall ms per frame: emulate mean %.2f max %.1f | exit %.2f | between frames (save, ggpo, rollbacks) mean %.2f max %.1f | rerun frame mean %.2f max %.1f",
 				what, s_emu_ms.Mean(), s_emu_ms.max, s_exit_ms.Mean(), s_ours_ms.Mean(), s_ours_ms.max, s_rerun_ms.Mean(), s_rerun_ms.max);
 			const double n = std::max(s_session_frames, 1);
-			const double ours = s_ours_ms.sum / n, split = (s_save_ms.sum + s_hash_ms.sum + s_load_ms.sum + s_rerun_ms.sum + s_wait_ms.sum) / n;
-			Console.WriteLn("ZdxsvGgpo: %s between frames ms per frame %.2f: save %.2f hash %.2f load %.2f rerun %.2f wait %.2f rest (ggpo) %.2f | sync=%d",
-				what, ours, s_save_ms.sum / n, s_hash_ms.sum / n, s_load_ms.sum / n, s_rerun_ms.sum / n, s_wait_ms.sum / n, ours - split, s_sync);
+			const double ours = s_ours_ms.sum / n,
+				split = (s_save_ms.sum + s_hash_ms.sum + s_load_ms.sum + s_rerun_ms.sum + s_wait_ms.sum + s_sleep_ms.sum) / n;
+			Console.WriteLn("ZdxsvGgpo: %s between frames ms per frame %.2f: save %.2f hash %.2f load %.2f rerun %.2f wait %.2f sleep %.2f rest (ggpo) %.2f | sync=%d present_first=%d",
+				what, ours, s_save_ms.sum / n, s_hash_ms.sum / n, s_load_ms.sum / n, s_rerun_ms.sum / n, s_wait_ms.sum / n, s_sleep_ms.sum / n,
+				ours - split, s_sync, s_present_first);
 			Console.WriteLn("ZdxsvGgpo: %s rerun frame split: vu1 ms %.2f, spu2 ms %.3f, ee Mcycles %.3f", what,
 				Common::Timer::ConvertValueToMilliseconds(g_rerun_vu1_ticks) / std::max(s_rollback_frames, 1),
 				Common::Timer::ConvertValueToMilliseconds(g_rerun_spu2_ticks) / std::max(s_rollback_frames, 1), s_rerun_mcycles.Mean());
@@ -771,7 +781,8 @@ namespace Zdxsv
 		std::fill(std::begin(s_handles), std::end(s_handles), GGPOPlayerHandle{});
 		s_frames_ahead = s_waits = s_save_skipped = s_session_frames = s_top_frame = s_reruns_left = 0;
 		s_rollback_frames = s_loads = s_mismatches = s_ggpo_warnings = s_diff_logged = 0;
-		s_save_ms = s_hash_ms = s_load_ms = s_rerun_ms = s_wait_ms = s_emu_ms = s_exit_ms = s_ours_ms = {};
+		s_save_ms = s_hash_ms = s_load_ms = s_rerun_ms = s_wait_ms = s_sleep_ms = s_emu_ms = s_exit_ms = s_ours_ms = {};
+		s_throttle_deferred = false;
 		s_rerun_mcycles = {};
 		g_rerun_vu1_ticks = g_rerun_spu2_ticks = 0;
 		s_t_vsync = s_t_returned = 0;
@@ -839,6 +850,24 @@ namespace Zdxsv
 		Cpu->ExitExecution();
 	}
 
+	bool GgpoDeferThrottle()
+	{
+		s_throttle_deferred = s_present_first && g_ggpo_active && s_session && !s_play_env && s_frame_ended;
+		return s_throttle_deferred;
+	}
+
+	// The limiter sleep and input poll that VSyncStart left for after the rollback.
+	static void DeferredThrottle()
+	{
+		if (!std::exchange(s_throttle_deferred, false))
+			return;
+		Common::Timer timer;
+		if (!VMManager::Internal::IsExecutionInterrupted())
+			VMManager::Internal::Throttle();
+		VMManager::Internal::PollInputOnCPUThread();
+		s_sleep_ms.Add(timer.GetTimeMilliseconds());
+	}
+
 	static void Returned();
 
 	bool SpuOnOutput()
@@ -855,6 +884,7 @@ namespace Zdxsv
 		if (s_t_vsync)
 			s_exit_ms.Add(Common::Timer::ConvertValueToMilliseconds(t0 - s_t_vsync));
 		Returned();
+		DeferredThrottle(); // a Returned that ended the session
 		s_t_returned = Common::Timer::GetCurrentValue();
 		s_ours_ms.Add(Common::Timer::ConvertValueToMilliseconds(s_t_returned - t0));
 	}
@@ -916,6 +946,9 @@ namespace Zdxsv
 		if (s_session_frames % 600 == 0)
 			Report("progress");
 		UpdateOsd(s_session_frames % 600 == 0);
+		DeferredThrottle();
+		if (!s_session) // the input poll ran a VM shutdown or reset
+			return;
 		if (!NextInputs())
 			Stop("failed");
 	}

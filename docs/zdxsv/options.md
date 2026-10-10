@@ -110,6 +110,7 @@ off. Any other value turns it on. Without `net=1` the session is a synctest. Log
 | `ZDXSV_SAVE_ALL=1` | off | control | Delta-save every GGPO frame, also frames that can no longer be rolled back. |
 | `ZDXSV_RERUN_REVERB=1` | off | control | SPU2 reverb runs in rerun frames. Default: skipped (their sound is dropped) unless an SPU2 IRQ address lies in the reverb work area. |
 | `ZDXSV_RERUN_VU1=1` | off | control | VU1 microprograms run in every rerun frame. Default: only in the last rerun frame of a rollback, whose drawing the live frame presents. |
+| `ZDXSV_PRESENT_FIRST=0` | on | control | With `ZdxsvLowLatencyVsync` in a GGPO session: the limiter sleep and the input poll come before the rollback. Default: present, rollback, then sleep and poll, so a rollback shorter than the sleep does not delay the next present; a corrected frame shows one frame later. |
 | `ZDXSV_RERUN_EE_DRAW=1` | off | control | The game's render callbacks run in every rerun frame. Default: not in rerun frames but the last two (see rollback.md). |
 | `ZDXSV_NET_TAIL=n` | 300 | tuning | Frames run after the battle end message before the session stops. |
 | `ZDXSV_NET_DISCONNECT_MS=ms` | 5000 | tuning | GGPO disconnect timeout. |
