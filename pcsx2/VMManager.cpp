@@ -660,6 +660,8 @@ void VMManager::LoadCoreSettings(SettingsInterface& si)
 
 	// Achievements hardcore mode disallows setting some configuration options.
 	EnforceAchievementsChallengeModeSettings();
+	if (Zdxsv::g_z_game)
+		Zdxsv::SyncSettingsEnforce();
 
 	// Remove any user-specified hacks in the config (we don't want stale/conflicting values when it's globally disabled).
 	EmuConfig.GS.MaskUserHacks();

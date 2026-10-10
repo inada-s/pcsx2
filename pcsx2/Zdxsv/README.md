@@ -59,6 +59,7 @@ options: `docs/zdxsv/`.
 | `Lobby.cpp`, `Lobby.h` | Lobby side of a GGPO battle: platform info, battle info notice, STUN, ping test, relay, match report |
 | `Proto.h` | Minimal protobuf wire codec: the lobby's Ping / Pong, replay files |
 | `replay.proto` | Replay file schema (gdxsv's BattleLogFile + PCSX2 fields); documentation, not compiled |
+| `SyncSettings.cpp`, `SyncSettings.h` | Sync-relevant settings forced while the Z game runs (speedhacks during battles only), their fingerprint for the lobby (UI: `ZdxsvSettingsWidget::markSyncForced`) |
 | `LobbyConnection.cpp` | A DEV9 TCP connection to the lobby: platform info message, GGPO lobby setup, lobby filter |
 | `HttpsLatency.cpp` | HTTPS latency test to the cloud regions, sent in the platform info |
 | `SpectateSync.cpp`, `SpectateSync.h` | Four-screen replay: one PCSX2 per position, kept on the same frame through shared memory |

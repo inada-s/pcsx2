@@ -6,6 +6,7 @@
 // Without net=1 the session is a synctest; log lines start with "ZdxsvGgpo".
 
 #include "Zdxsv/GgpoShared.h"
+#include "Zdxsv/SyncSettings.h"
 #include "Zdxsv/ReplayList.h"
 #include "MTGS.h"
 
@@ -525,6 +526,8 @@ namespace Zdxsv
 			s_session = nullptr;
 			ggpo_set_log_function(nullptr);
 			g_ggpo_active = false;
+			if (!s_vm_closing)
+				Host::RunOnCPUThread([] { SyncSettingsOnBattle(false); });
 			Zdxsv::DeltaStateClear();
 			Report(what);
 			{
@@ -935,6 +938,7 @@ namespace Zdxsv
 		const Common::Timer::Value t0 = Common::Timer::GetCurrentValue();
 		if (s_t_vsync)
 			s_exit_ms.Add(Common::Timer::ConvertValueToMilliseconds(t0 - s_t_vsync));
+		SyncSettingsOnBattle(true); // before the session's first frame
 		Returned();
 		DeferredThrottle(); // a Returned that ended the session
 		s_t_returned = Common::Timer::GetCurrentValue();
@@ -1041,6 +1045,7 @@ namespace Zdxsv
 				Console.Warning("ZdxsvGgpo: off: not the Z game (serial %s CRC %08X, need %s %08X)", serial, crc, GAME_SERIAL, want);
 			return;
 		}
+		SyncSettingsEnforce(); // LoadSettings ran before the game was known
 		if (e && std::strcmp(e, "0") == 0) // off whatever the setting (rigs without GGPO)
 			s_options.clear();
 		else
@@ -1216,6 +1221,7 @@ namespace Zdxsv
 	{
 		if (std::strcmp(what, "vm shutdown") == 0)
 			g_mtvu_off = false; // the next VM decides again (a reset VM keeps it off)
+		SyncSettingsReset();
 		if (!g_ggpo_enabled)
 			return;
 		size_t keys = 0;

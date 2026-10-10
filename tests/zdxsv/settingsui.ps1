@@ -1,23 +1,26 @@
-# settingsui.ps1 [-Exe pcsx2-qtx64.exe] [-Page zdxsv] [-Match regex] [-Shot out.png]
-# Start a portable PCSX2 (portable.ini or portable.txt next to the exe, no game), open Settings -> page -Page,
+# settingsui.ps1 [-Exe pcsx2-qtx64.exe] [-DataPath dir] [-Iso game.iso [-Boot 30]] [-Page zdxsv] [-Match regex] [-Shot out.png]
+# Start a portable PCSX2 (portable.ini or portable.txt next to the exe; -DataPath: -datapath dir instead), open Settings -> page -Page,
 # print each control whose AutomationId or name matches -Match (default: the page name) with its enabled
 # state and value, save a PrintWindow capture of the settings window to -Shot, close PCSX2.
 # Env overrides (ZDXSV_*) set by the caller apply, e.g. to see env-overridden settings greyed out.
+# -Iso: boots the game first and opens Settings -Boot s later (e.g. the Z game: sync-forced items greyed out).
+#   With a game running, Alt+N Enter opens its Game Properties (the same settings window, per-game ini).
+#   Pages Advanced and Game Fixes are listed only with ini [UI] ShowAdvancedSettings = true.
 # - inis\PCSX2.ini [UI] gets SetupWizardIncomplete = false, SettingsVersion = 1 (else a "Settings failed to
 #   load" reset dialog) and Language = en-US (else menus in the system language) when missing.
 # - Qt menus do not answer UIA Invoke: Settings opens by keyboard (Alt+N, Enter); the page item is clicked
 #   with the mouse at its UIA rectangle.
 # Exit 1 with the visible element names when a step finds nothing.
 param([string]$Exe = (Join-Path $PSScriptRoot '..\..\bin\pcsx2-qtx64.exe'), [string]$Page = 'zdxsv',
-      [string]$Match = '', [string]$Shot = '')
+      [string]$Match = '', [string]$Shot = '', [string]$DataPath = '', [string]$Iso = '', [int]$Boot = 30)
 $ErrorActionPreference = 'Stop'
 if (-not $Match) { $Match = $Page }
 $dir = Split-Path -Parent (Resolve-Path $Exe)
-if (-not ((Test-Path "$dir\portable.ini") -or (Test-Path "$dir\portable.txt"))) {
+if (-not $DataPath -and -not ((Test-Path "$dir\portable.ini") -or (Test-Path "$dir\portable.txt"))) {
   "FAIL: $dir has no portable.ini/portable.txt: PCSX2 would use the user's Documents settings"; exit 1
 }
-$ini = "$dir\inis\PCSX2.ini"
-$lines = if (Test-Path $ini) { @(Get-Content $ini) } else { New-Item -ItemType Directory -Force "$dir\inis" | Out-Null; @() }
+$ini = if ($DataPath) { "$DataPath\PCSX2\inis\PCSX2.ini" } else { "$dir\inis\PCSX2.ini" }
+$lines = if (Test-Path $ini) { @(Get-Content $ini) } else { New-Item -ItemType Directory -Force (Split-Path $ini) | Out-Null; @() }
 $want = [ordered]@{ SetupWizardIncomplete = 'false'; SettingsVersion = '1'; Language = 'en-US'; StartFullscreen = 'false' }
 $ui = [Array]::IndexOf($lines, '[UI]')
 if ($ui -lt 0) { $lines = @('[UI]') + $lines; $ui = 0 }
@@ -47,7 +50,8 @@ public static class SUI {
 [void][SUI]::SetProcessDPIAware()
 $A = [System.Windows.Automation.AutomationElement]
 $all = [System.Windows.Automation.Condition]::TrueCondition
-$p = Start-Process -FilePath $Exe -WorkingDirectory $dir -PassThru
+$args_ = @(); if ($DataPath) { $args_ += @('-datapath', $DataPath) }; if ($Iso) { $args_ += @('--', $Iso) }
+$p = if ($args_) { Start-Process -FilePath $Exe -WorkingDirectory $dir -ArgumentList $args_ -PassThru } else { Start-Process -FilePath $Exe -WorkingDirectory $dir -PassThru }
 try {
   $root = $A::RootElement
   $pidCond = New-Object System.Windows.Automation.PropertyCondition($A::ProcessIdProperty, $p.Id)
@@ -59,8 +63,9 @@ try {
   $main = $null
   for ($i = 0; $i -lt 60 -and -not $main; $i++) { Start-Sleep -Milliseconds 500; $main = (Wins) | Select-Object -First 1 }
   if (-not $main) { "FAIL: no PCSX2 window in 30 s"; exit 1 }
-  Start-Sleep 2
-  if ((Wins).Count -gt 1 -or $main.Current.Name -notmatch 'PCSX2') {
+  Start-Sleep $(if ($Iso) { $Boot } else { 2 })
+  if ($Iso) { $main = (Wins) | Select-Object -First 1; "main window: $($main.Current.Name)" }
+  if ((Wins).Count -gt 1 -or $main.Current.Name -notmatch $(if ($Iso) { '.' } else { 'PCSX2' })) {
     "FAIL: a dialog instead of the main window: $(foreach ($w in Wins) { "[$($w.Current.Name)] $(Names $w)" })"; exit 1
   }
   [void][SUI]::SetForegroundWindow([IntPtr]$main.Current.NativeWindowHandle); $main.SetFocus()
@@ -70,7 +75,7 @@ try {
   $win = $null
   for ($i = 0; $i -lt 30 -and -not $win; $i++) {
     Start-Sleep -Milliseconds 300
-    foreach ($w in Wins) { if ($w.Current.Name -match 'Settings') { $win = $w } }
+    foreach ($w in Wins) { if ($w.Current.Name -match 'Settings|\.ini\]$') { $win = $w } }
   }
   if (-not $win) { "FAIL: no settings window; windows: $(foreach ($w in Wins) { "[$($w.Current.Name)]" })"; exit 1 }
   "settings window: $($win.Current.Name)"

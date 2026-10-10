@@ -5,6 +5,9 @@
 // connection of a battle that cannot run (LobbyCutCall).
 
 #include "Zdxsv/GgpoShared.h"
+#include "Zdxsv/SyncSettings.h"
+
+#include "IconsFontAwesome.h"
 
 namespace Zdxsv
 {
@@ -38,7 +41,18 @@ namespace Zdxsv
 	{
 		std::lock_guard lock(s_lobby_mtx);
 		const int n = static_cast<int>(s_lobby_peers.size());
+		// sync_<user> of the battle info: every player's must be ours; none at all = a lobby without them, no check
+		const std::string sync = SyncFingerprint();
+		std::string sync_bad;
+		int syncs = 0;
+		for (const LobbyPlayer& p : s_lobby_players)
+			syncs += !p.sync.empty();
+		for (size_t p = 0; syncs > 0 && p < s_lobby_players.size(); p++)
+			if (s_lobby_players[p].sync != sync)
+				sync_bad += (sync_bad.empty() ? "" : " ") + std::to_string(p) + ":" +
+				            (s_lobby_players[p].sync.empty() ? "none" : s_lobby_players[p].sync);
 		const char* why = !s_lobby_info ? "no battle info" :
+		                  !sync_bad.empty() ? "settings or build differ (sync fingerprint)" :
 		                  !s_lobby_ok ? "a peer has no GGPO address" :
 		                  s_lobby_unreachable ? "a peer did not answer the ping test" :
 		                  !s_lobby_session ? "no ggpo_session" :
@@ -58,6 +72,14 @@ namespace Zdxsv
 				s_cut_sends = 0;
 				report("cut");
 				s_report += std::string("reason=") + why + "\n";
+				if (!sync_bad.empty())
+				{
+					Console.WriteLn("ZdxsvGgpo: sync fingerprint %s, differing positions %s", sync.empty() ? "none" : sync.c_str(), sync_bad.c_str());
+					s_report += "sync=" + sync + "\nsync_differ=" + sync_bad + "\n";
+					Host::AddIconOSDMessage("ZdxsvSyncDiffer", ICON_FA_TRIANGLE_EXCLAMATION,
+						TRANSLATE_STR("Zdxsv", "No battle: an opponent's emulator build or settings differ from yours."),
+						Host::OSD_ERROR_DURATION);
+				}
 			}
 			s_lobby_logged = true;
 			return false;

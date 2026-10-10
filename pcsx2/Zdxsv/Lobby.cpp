@@ -166,6 +166,9 @@ namespace Zdxsv
 				info.names[u] = it->second;
 			if (auto it = kv.find("pilot_" + u); it != kv.end())
 				info.pilots[u] = it->second;
+			if (auto it = kv.find("sync_" + u); it != kv.end() && it->second.size() == 16 &&
+				it->second.find_first_not_of("0123456789abcdef") == std::string::npos)
+				info.syncs[u] = it->second;
 		}
 		// relay_0.. in order; a malformed one ends the list, so the indexes stay the lobby's
 		for (int k = 0; k < 4; k++)

@@ -461,6 +461,7 @@
     <ClCompile Include="Zdxsv\ReplayPlay.cpp" />
     <ClCompile Include="Zdxsv\ReplayRecord.cpp" />
     <ClCompile Include="Zdxsv\SpectateSync.cpp" />
+    <ClCompile Include="Zdxsv\SyncSettings.cpp" />
     <ClCompile Include="Zdxsv\RecHooks.cpp" />
     <ClCompile Include="Zdxsv\RecProbe.cpp" />
     <ClCompile Include="VUmicroMem.cpp" />
@@ -924,6 +925,7 @@
     <ClInclude Include="Zdxsv\GgpoShared.h" />
     <ClInclude Include="Zdxsv\ReplayList.h" />
     <ClInclude Include="Zdxsv\SpectateSync.h" />
+    <ClInclude Include="Zdxsv\SyncSettings.h" />
     <ClInclude Include="Zdxsv\RecHooks.h" />
     <ClInclude Include="Zdxsv\CpuHooks.h" />
     <ClInclude Include="Zdxsv\InputHooks.h" />

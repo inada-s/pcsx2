@@ -18,6 +18,12 @@ Everything is on only for the one game build it was made for; any other disc run
 - Platform info: the lobby can tell an emulator from a real PS2.
 - Lobby save states (opt-in, for debugging): save states made online keep working after a load.
 - Settings page Settings → zdxsv (global or per game).
+- Sync-safe settings while the game runs, as in RetroAchievements hardcore mode: cheats off; recompilers,
+  EE/VU rounding and clamping, game fixes (GameDB only), extra memory, GS hardware download mode at
+  their defaults; speedhacks, emulation speed and frame rate at their defaults during battles, replays
+  and live spectating. An OSD message names the overridden settings; the settings page greys them out.
+- Sync fingerprint (build + those settings, not the BIOS) in the platform info: a lobby battle whose
+  players' fingerprints differ is cut, and the players return to the lobby.
 
 ### Input latency
 

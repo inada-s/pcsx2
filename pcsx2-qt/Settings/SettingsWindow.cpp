@@ -233,6 +233,7 @@ void SettingsWindow::setupUi(const GameList::Entry* game)
 		connect(m_ui.copyGlobalSettingsButton, &QPushButton::clicked, this, &SettingsWindow::onCopyGlobalSettingsClicked);
 	if (m_ui.clearGameSettingsButton)
 		connect(m_ui.clearGameSettingsButton, &QPushButton::clicked, this, &SettingsWindow::onClearSettingsClicked);
+	ZdxsvSettingsWidget::markSyncForced(this);
 }
 
 SettingsWindow::~SettingsWindow()

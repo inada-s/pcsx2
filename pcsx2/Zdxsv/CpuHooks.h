@@ -23,6 +23,9 @@ namespace Zdxsv
 	extern s32 g_frame_period_trim_us;
 
 	extern bool g_z_game; // the disc is the Z game: serial SLPS-25419 and its ELF CRC (GgpoOnVmInitialize)
+	// In VMManager::LoadCoreSettings, the Z game: settings that change emulation results to PCSX2's defaults, the
+	// speedhacks too in a battle; an OSD message names the overridden ones (SyncSettings.cpp)
+	void SyncSettingsEnforce();
 
 	// In VMManager::Initialize, once the disc serial and CRC are known and before the CPU runs: the GGPO options
 	// of this VM (ZDXSV_GGPO, else the ZdxsvGgpo setting) and the flags above that follow them. Any other
