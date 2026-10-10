@@ -64,5 +64,10 @@ USERS=AAAAAA BBBBBB CCCCCC DDDDDD
   Exit 0 = every check passed; a failed check prints `FAIL` and its reason.
   `rbk.sh` takes N and seed as arguments; an `N=` or `SEED=` in the environment
   that differs from them is refused (exit 2).
+- Speed A/B: `OUT=<dir> bash tests/zdxsv/benchab.sh "<A env>" "<B env>" [R]` runs `rbk.sh 2 1`
+  (TRACE=0 LAT=40 JITTER=8) R times per side, alternating, on one build: a speed change is
+  switched by its control env (e.g. `"" "ZDXSV_RERUN_REVERB=1"`). It prints each report part's
+  mean and min-max per side, `differs` only when the ranges do not overlap. `R=0` re-summarizes
+  the logs already in `OUT`.
 - `lobbytest.sh` is not a rig: a unit test of `pcsx2/Zdxsv/Lobby.cpp` built with
   MinGW `g++`. It needs no PCSX2 build, game, lock or server.

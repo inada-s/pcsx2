@@ -8,6 +8,13 @@
 #include "common/Console.h"
 
 #include <array>
+#include <cstdlib>
+
+// ZDXSV_RERUN_REVERB=1: reverb in rollback rerun frames too (the control for the skip in DoReverb).
+static const bool s_rerun_reverb = [] {
+	const char* e = std::getenv("ZDXSV_RERUN_REVERB");
+	return e && e[0] == '1';
+}();
 
 void V_Core::AnalyzeReverbPreset()
 {
@@ -72,7 +79,7 @@ StereoOut32 V_Core::DoReverb(StereoOut32 Input)
 
 	// zdxsv: a rollback rerun frame's sound is dropped; its reverb only feeds that sound and the
 	// reverb work area in SPU2 RAM. Skipped unless an IRQ address lies in that area (tested below).
-	if (Zdxsv::g_ggpo_active && Zdxsv::g_ggpo_in_rollback &&
+	if (!s_rerun_reverb && Zdxsv::g_ggpo_active && Zdxsv::g_ggpo_in_rollback &&
 		!(FxEnable && ((Cores[0].IRQEnable && Cores[0].IRQA >= EffectsStartA && Cores[0].IRQA <= EffectsEndA) ||
 						  (Cores[1].IRQEnable && Cores[1].IRQA >= EffectsStartA && Cores[1].IRQA <= EffectsEndA))))
 	{
