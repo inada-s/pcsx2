@@ -507,13 +507,19 @@ static __fi void VSyncStart(u64 sCycle)
 	if (Zdxsv::g_ggpo_enabled || Zdxsv::g_net_hook)
 		Zdxsv::GgpoOnVsync();
 
+	bool deferred = false;
 	if (EmuConfig.EmulationSpeed.LowLatencyVsync && Zdxsv::g_z_game)
 	{
 		// zdxsv: present the finished frame now, sleep, then poll input right before the next
-		// frame is emulated. Press -> present loses the limiter sleep.
+		// frame is emulated. Press -> present loses the limiter sleep. In a GGPO session the
+		// sleep and the poll come after the rollback (GgpoDeferThrottle).
 		ZdxsvPostVsyncStart();
 		if (!VMManager::Internal::IsExecutionInterrupted() && !Zdxsv::g_ggpo_in_rollback)
-			VMManager::Internal::Throttle();
+		{
+			deferred = Zdxsv::GgpoDeferThrottle();
+			if (!deferred)
+				VMManager::Internal::Throttle();
+		}
 	}
 	else
 	{
@@ -525,7 +531,8 @@ static __fi void VSyncStart(u64 sCycle)
 	}
 
 	// Poll input after MTGS frame push, just in case it has to stall to catch up.
-	VMManager::Internal::PollInputOnCPUThread();
+	if (!deferred)
+		VMManager::Internal::PollInputOnCPUThread();
 
 	EECNT_LOG("    ================  EE COUNTER VSYNC START (frame: %d)  ================", g_FrameCount);
 

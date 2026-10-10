@@ -34,6 +34,10 @@ namespace Zdxsv
 	void GgpoOnVmShutdown(const char* what);
 	// In VSyncStart.
 	void GgpoOnVsync();
+	// In VSyncStart with LowLatencyVsync, after the present. true: a session frame ended, and
+	// GgpoOnExecuteReturned does the limiter sleep and the input poll after the rollback, so a
+	// rollback shorter than the sleep does not delay the next present (ZDXSV_PRESENT_FIRST=0: false).
+	bool GgpoDeferThrottle();
 	// In VMManager::Execute, after the CPU returned.
 	void GgpoOnExecuteReturned();
 
