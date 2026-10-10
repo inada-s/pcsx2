@@ -19,6 +19,7 @@
 #include "Settings/InterfaceSettingsWidget.h"
 #include "Settings/MemoryCardCreateDialog.h"
 #include "Tools/InputRecording/InputRecordingViewer.h"
+#include "Tools/ZdxsvReplayDialog.h"
 #include "Tools/InputRecording/NewInputRecordingDlg.h"
 
 #if !defined(__APPLE__)
@@ -543,6 +544,7 @@ void MainWindow::connectSignals()
 	connect(m_ui.actionAbout, &QAction::triggered, this, &MainWindow::onAboutActionTriggered);
 	connect(m_ui.actionCheckForUpdates, &QAction::triggered, this, [this]() { checkForUpdates(true, true); });
 	connect(m_ui.actionOpenDataDirectory, &QAction::triggered, this, &MainWindow::onToolsOpenDataDirectoryTriggered);
+	connect(m_ui.menuTools->addAction(tr("zdxsv Replays...")), &QAction::triggered, this, [this]() { ZdxsvReplayDialog::openDialog(this); });
 	connect(m_ui.actionCoverDownloader, &QAction::triggered, this, &MainWindow::onToolsCoverDownloaderTriggered);
 	connect(m_ui.actionGridViewShowTitles, &QAction::triggered, m_game_list_widget, &GameListWidget::setShowCoverTitles);
 	connect(m_ui.actionGridViewShowFullTitles, &QAction::triggered, m_game_list_widget, &GameListWidget::setShowFullCoverTitles);

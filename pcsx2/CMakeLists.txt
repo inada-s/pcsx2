@@ -141,6 +141,7 @@ set(pcsx2Sources
 	Zdxsv/GgpoTrace.cpp
 	Zdxsv/ReplayLive.cpp
 	Zdxsv/ReplayLoad.cpp
+	Zdxsv/ReplayList.cpp
 	Zdxsv/ReplayPlay.cpp
 	Zdxsv/ReplayRecord.cpp
 	Zdxsv/SpectateSync.cpp
@@ -224,6 +225,7 @@ set(pcsx2Headers
 	Zdxsv/DeltaFreeze.h
 	Zdxsv/Ggpo.h
 	Zdxsv/GgpoShared.h
+	Zdxsv/ReplayList.h
 	Zdxsv/SpectateSync.h
 	Zdxsv/SyncSettings.h
 	Zdxsv/RecHooks.h

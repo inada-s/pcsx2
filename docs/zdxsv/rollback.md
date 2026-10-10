@@ -100,6 +100,10 @@ The game runs with its own input delay 0; GGPO adds the input delay.
 - Without the lobby, the peer at position p listens on UDP `port` + p.
   `relay=R` routes each pair through its own `udprelay.py` (latency, jitter,
   loss).
+- Once synchronized, a thread pumps the GGPO sockets every 1 ms
+  (`ggpo_idle(-1)`: receive, send, relay forwarding; no callbacks), as
+  flycast's `ggpoIdleLoop`. A mutex keeps it off GGPO while the frame loop
+  runs its GGPO calls.
 - The session ends `ZDXSV_NET_TAIL` frames after the battle end message, or
   when a peer disconnects.
 - A VM shutdown or reset ends the session at once, as a disconnect: the
