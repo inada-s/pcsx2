@@ -4,6 +4,7 @@
 # p2-p4 headless and mashing. Stops everything once p1 reported.
 #   OUT=dir LOWLAT=0|1 SPEC='held=1,count=12' bash tests/zdxsv/m4lat.sh   -> search (pad buffer byte)
 #   OUT=dir LOWLAT=0|1 SPEC='addr=0x...,count=40' bash tests/zdxsv/m4lat.sh
+#   M4=m4ggpo.sh: the battle over GGPO (as the product default), its env (GDELAY, ..) passes through.
 # Needs a pcsx2 build with ZdxsvInputLatency go=/held=.
 here=$(cd "$(dirname "$0")" && pwd)
 . "$here/riglock.sh"  # one rig at a time
@@ -16,7 +17,7 @@ grep -a "ZdxsvLowLatencyVsync" "$ini"
 GO=$OUT/go; rm -f "$GO"
 SHOW=1 MASHP="2 3 4" GO=$GO GODELAY=${GODELAY:-30} \
   PCSX2_ENV_P1="ZDXSV_INPUT_LATENCY=btn=${BTN:-down},back=${BACK:-up},go=$GO,seed=${SEED:-1},out=$OUT/lat.csv,${SPEC:?SPEC}" \
-  OUT=$OUT bash "$here/m4.sh" > "$OUT/m4.out" 2>&1 &
+  OUT=$OUT bash "$here/${M4:-m4.sh}" > "$OUT/m4.out" 2>&1 &
 m4=$!
 log=$RUN/p1/PCSX2/logs/emulog.txt
 t0=$SECONDS

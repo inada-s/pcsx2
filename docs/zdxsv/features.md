@@ -40,7 +40,7 @@ zdxsv checkout, save states): `tests/zdxsv/README.md`.
 | Feature | How to turn on | Test | Control |
 |---|---|---|---|
 | Low-latency vsync (present before the limiter sleep) | setting `ZdxsvLowLatencyVsync` | `latency.ps1 -LowLatency 1`: press-to-present time on the main menu | `latency.ps1 -LowLatency 0`, or `ZDXSV_GAME_CRC=0` (not the Z game): the time is longer |
-| Input latency measurement | `ZDXSV_INPUT_LATENCY` | it is the tool of the test above; `m4lat.sh` uses it in a battle | none |
+| Input latency measurement | `ZDXSV_INPUT_LATENCY` | it is the tool of the test above; `m4lat.sh` uses it in a battle (`M4=m4ggpo.sh`: over GGPO, frame pacing split by rollback) | none |
 
 ## Rollback netcode (GGPO)
 
