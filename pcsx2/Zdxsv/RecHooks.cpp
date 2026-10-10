@@ -45,5 +45,14 @@ namespace Zdxsv
 			xJMP(dispatcher);
 			run_step.SetTarget();
 		}
+		if (g_ps_hook && (pc == DRAW_RUN_PC || pc == DRAW_RUN2_PC))
+		{
+			iFlushCall(FLUSH_EVERYTHING | FLUSH_PC);
+			xFastCall((void*)OnDrawRun);
+			xTEST(al, al);
+			xForwardJZ32 run_draw;
+			xJMP(dispatcher);
+			run_draw.SetTarget();
+		}
 	}
 } // namespace Zdxsv

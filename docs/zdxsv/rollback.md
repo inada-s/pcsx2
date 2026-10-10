@@ -68,6 +68,12 @@ frames (unless an SPU2 IRQ address lies in the reverb work area): it only
 feeds their dropped sound. VU1 microprograms run only in the last rerun frame
 of a rollback: the game kicks a frame's draw list in the next frame, so the
 live frame presents what the last rerun frame drew; VU1 only feeds the GS.
+Rerun frames but the last two skip the game's render callback runners
+(0x20ff30, 0x20ff90, called by the battle frame step 0x2124f0 after the
+logic): their draw lists are never kicked. Those callbacks also draw from
+RNG A (u16 0x6d7940, ~40 draws a battle frame), so after such a rollback
+RNG A differs from a run without one. RNG A is already peer-local (sound
+picks draw from it) and the players and RNG B stay in sync (rbk N=2 and N=4).
 
 ### Synctest
 

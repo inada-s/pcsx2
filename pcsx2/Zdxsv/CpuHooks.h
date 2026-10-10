@@ -57,6 +57,11 @@ namespace Zdxsv
 	// MS-select load step past its load-busy check (same hold, under g_ps_hook).
 	constexpr u32 MS_STEP_PC = 0x2b8698;
 	bool OnMsStep();
+	// Render callback runners of the battle frame step 0x2124f0 (it runs both after the frame logic).
+	// true = skipped in this rerun frame (pc = ra), see g_rerun_draw_skip.
+	constexpr u32 DRAW_RUN_PC = 0x20ff30, DRAW_RUN2_PC = 0x20ff90;
+	extern bool g_rerun_draw_skip;
+	bool OnDrawRun();
 	int ProbeFrame(); // GGPO frame being run (EE probe lines)
 
 	extern bool g_ee_probe; // ZDXSV_EE_PROBE or ZDXSV_EE_WATCH is set

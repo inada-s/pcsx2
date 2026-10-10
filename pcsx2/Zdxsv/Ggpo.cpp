@@ -74,6 +74,13 @@ namespace Zdxsv
 			const char* e = std::getenv("ZDXSV_RERUN_VU1");
 			return e && e[0] == '1';
 		}();
+		// Rerun frames but the last two do not run the game's render callbacks (g_rerun_draw_skip): the
+		// next frame kicks their draw lists, and only the last rerun frame runs VU1 on them.
+		// ZDXSV_RERUN_EE_DRAW=1: render callbacks in every rerun frame.
+		const bool s_rerun_ee_draw = [] {
+			const char* e = std::getenv("ZDXSV_RERUN_EE_DRAW");
+			return e && e[0] == '1';
+		}();
 		int s_top_frame = 0; // the frame of the last save outside a rollback
 		int s_reruns_left = 0; // rerun frames left in this rollback
 		GGPOPlayerHandle s_handles[GGPO_MAX_PLAYERS] = {};
@@ -431,9 +438,11 @@ namespace Zdxsv
 			const u64 cycle0 = cpuRegs.cycle;
 			if (!s_rerun_draw)
 				MTGS::RunOnGSThread([]() { g_gs_skip_draws = true; });
-			g_rerun_vu1_skip = !s_rerun_vu1 && --s_reruns_left > 0;
+			--s_reruns_left;
+			g_rerun_vu1_skip = !s_rerun_vu1 && s_reruns_left > 0;
+			g_rerun_draw_skip = !s_rerun_ee_draw && s_reruns_left > 1;
 			const bool ok = RunFrame();
-			g_rerun_vu1_skip = false;
+			g_rerun_vu1_skip = g_rerun_draw_skip = false;
 			s_rerun_mcycles.Add((cpuRegs.cycle - cycle0) / 1e6);
 			if (!s_rerun_draw)
 				MTGS::RunOnGSThread([]() { g_gs_skip_draws = false; });
@@ -656,6 +665,7 @@ namespace Zdxsv
 	bool g_ggpo_in_rollback = false;
 	u64 g_rerun_vu1_ticks = 0;
 	bool g_rerun_vu1_skip = false;
+	bool g_rerun_draw_skip = false;
 	u64 g_rerun_spu2_ticks = 0;
 	bool g_gs_rerun_frame = false;
 	bool g_gs_skip_draws = false;
@@ -1020,6 +1030,14 @@ namespace Zdxsv
 	}
 
 	// ms: rec hook at MS_STEP_PC (0x2b8698, MS-select load step past its load-busy check), epilogue 0x2b8ab8.
+	bool OnDrawRun()
+	{
+		if (!g_rerun_draw_skip)
+			return false;
+		cpuRegs.pc = cpuRegs.GPR.n.ra.UL[0];
+		return true;
+	}
+
 	bool OnMsStep()
 	{
 		return s_ms_on && BarrierHold(s_rb.ms, 'M', 0x2b8ab8);
