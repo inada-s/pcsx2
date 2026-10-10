@@ -5,7 +5,16 @@
 #   OUT=dir LOWLAT=0|1 SPEC='held=1,count=12' bash tests/zdxsv/m4lat.sh   -> search (pad buffer byte)
 #   OUT=dir LOWLAT=0|1 SPEC='addr=0x...,count=40' bash tests/zdxsv/m4lat.sh
 #   M4=m4ggpo.sh: the battle over GGPO (as the product default), its env (GDELAY, ..) passes through.
+#   LOG=p1-emulog.txt bash tests/zdxsv/m4lat.sh: print a past run's result, no rig.
 # Needs a pcsx2 build with ZdxsvInputLatency go=/held=.
+# Prints the last TAILN (40) per-frame lines, then every summary line: many late presents
+# used to push the summaries out of a plain tail.
+summary() {
+  local each='ZdxsvLatency: ( |press [0-9]|late present [0-9])'
+  grep -aE "$each" "$1" | cut -c1-200 | tail -${TAILN:-40}
+  grep -a "ZdxsvLatency:" "$1" | grep -avE "$each" | cut -c1-200
+}
+[ -n "$LOG" ] && { summary "$LOG"; exit; }
 here=$(cd "$(dirname "$0")" && pwd)
 . "$here/riglock.sh"  # one rig at a time
 OUT=${OUT:?OUT=dir}
@@ -27,7 +36,7 @@ while [ $((SECONDS - t0)) -lt "${MAXS:-540}" ]; do
   grep -q "^FAIL" "$OUT/m4.out" && break
 done
 echo "$((SECONDS - t0)) s"; grep "^FAIL\|^PASS\|client" "$OUT/m4.out" | head -12
-grep -a "ZdxsvLatency" "$log" | cut -c1-200 | tail -${TAILN:-40}
+summary "$log"
 kill $m4 2>/dev/null
 taskkill //F //IM pcsx2-qtx64.exe > /dev/null 2>&1
 taskkill //F //IM zdxsv.exe > /dev/null 2>&1
