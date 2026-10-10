@@ -65,12 +65,17 @@ inputs of the next frame. Host pad input goes through GGPO.
 Rerun frames are not throttled, presented or heard: a rollback of N frames
 shows and plays the live frame once. SPU2 reverb is not computed in rerun
 frames (unless an SPU2 IRQ address lies in the reverb work area): it only
-feeds their dropped sound. VU1 microprograms run only in the last rerun frame
-of a rollback: the game kicks a frame's draw list in the next frame, so the
-live frame presents what the last rerun frame drew; VU1 only feeds the GS.
-Rerun frames but the last two skip the game's render callback runners
+feeds their dropped sound. The game builds a frame's draw list in its render
+callbacks, VU1 draws it in the next frame, and that picture is shown one
+vblank later. The present comes before the rollback, so the first present
+after it shows what VU1 drew in the last rerun frame, from the list of the
+rerun frame before. So VU1 microprograms run only in the last rerun frame,
+and rerun frames but the last two skip the game's render callback runners
 (0x20ff30, 0x20ff90, called by the battle frame step 0x2124f0 after the
-logic): their draw lists are never kicked. Those callbacks also draw from
+logic): their draw lists are never kicked. Skipping one more frame of either
+breaks that picture (`tests/zdxsv/rerunpic.sh`, `ZDXSV_RERUN_TAIL`): without
+the last frame's VU1 it lacks all VU1 geometry, without the callbacks of the
+frame before it repeats the picture shown before the rollback. Those callbacks also draw from
 RNG A (u16 0x6d7940, ~40 draws a battle frame), so after such a rollback
 RNG A differs from a run without one. RNG A is already peer-local (sound
 picks draw from it) and the players and RNG B stay in sync (rbk N=2 and N=4).

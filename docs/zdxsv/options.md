@@ -109,7 +109,8 @@ off. Any other value turns it on. Without `net=1` the session is a synctest. Log
 | `ZDXSV_K3_LAG=n` | 8 | tuning | GGPO frames between the game sending a round-handshake message and the input that carries it. `0` is a control: the battle then depends on network timing. |
 | `ZDXSV_SAVE_ALL=1` | off | control | Delta-save every GGPO frame, also frames that can no longer be rolled back. |
 | `ZDXSV_RERUN_REVERB=1` | off | control | SPU2 reverb runs in rerun frames. Default: skipped (their sound is dropped) unless an SPU2 IRQ address lies in the reverb work area. |
-| `ZDXSV_RERUN_VU1=1` | off | control | VU1 microprograms run in every rerun frame. Default: only in the last rerun frame of a rollback, whose drawing the live frame presents. |
+| `ZDXSV_RERUN_VU1=1` | off | control | VU1 microprograms run in every rerun frame. Default: only in the last rerun frame of a rollback, whose drawing the first present after the rollback shows. |
+| `ZDXSV_RERUN_TAIL=n` | 2 | control | The last n rerun frames of a rollback run the game's render callbacks, the last n - 1 VU1 microprograms. Below 2 the picture after a rollback breaks (`tests/zdxsv/rerunpic.sh` FAIL control). |
 | `ZDXSV_PRESENT_FIRST=0` | on | control | With `ZdxsvLowLatencyVsync` in a GGPO session: the limiter sleep and the input poll come before the rollback. Default: present, rollback, then sleep and poll, so a rollback shorter than the sleep does not delay the next present; a corrected frame shows one frame later. |
 | `ZDXSV_RERUN_EE_DRAW=1` | off | control | The game's render callbacks run in every rerun frame. Default: not in rerun frames but the last two (see rollback.md). |
 | `ZDXSV_NET_TAIL=n` | 300 | tuning | Frames run after the battle end message before the session stops. |
@@ -198,7 +199,7 @@ are not shown, so they are no samples: their time (state load + reruns) is the
 | `ZDXSV_PW_HASH=1` | diagnostic | Per frame, a hash of each player's x, y, z and the 2 game RNG words, written to the net trace (`H` lines). |
 | `ZDXSV_PW_DUMP=file` | diagnostic | Work RAM of the players for every saved frame. Read by `pwdiff.py`. |
 | `ZDXSV_RAM_DUMP=dir,start,step,count` | diagnostic | EE RAM (32 MB) to `dir/<frame>.bin`. Read by `tools/zdxsv/ramcount.py`, `tools/zdxsv/ramvals.py`. |
-| `ZDXSV_SNAP=dir,n` | diagnostic | GS screenshot `dir/v<vsync>.png` every n vsyncs. Needs a renderer; not in headless runs. |
+| `ZDXSV_SNAP=dir,n[,from]` | diagnostic | GS screenshot `dir/v<vsync>.png` every n vsyncs, from vsync `from`. Only shown frames: a request in a rollback goes to the next present. Needs a renderer; not in headless runs. |
 
 ## Game investigation (EE recompiler)
 
