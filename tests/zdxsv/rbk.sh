@@ -66,13 +66,33 @@ for p in "${P[@]}"; do
   grep -aq '^\[EmuCore/Speedhacks\]' "$ini" || printf '\r\n[EmuCore/Speedhacks]\r\n' >> "$ini"
   sed -i "s/^\[EmuCore\/Speedhacks\]\r\?$/&\nvuThread = true\r/" "$ini"
 done
+# INI0="Section:Key=Value;..." (syncset.sh): ini entries for peer 0 only; its ini before them is kept
+# in PCSX2.ini.rbk0 and put back by the next run. SPEED0=X: peer 0 runs at speed X (launch.ps1 -Speed: launch.ps1 rewrites NominalScalar).
+for p in "${P[@]}"; do
+  ini=$RUN/p$p/PCSX2/inis/PCSX2.ini
+  [ -f "$ini.rbk0" ] && mv -f "$ini.rbk0" "$ini"
+done
+if [ -n "${INI0:-}" ]; then
+  ini=$RUN/p${P[0]}/PCSX2/inis/PCSX2.ini
+  cp -p "$ini" "$ini.rbk0"
+  IFS=';' read -ra kvs <<< "$INI0"
+  for kv in "${kvs[@]}"; do
+    sec=${kv%%:*}; key=${kv#*:}; key=${key%%=*}; val=${kv#*=}
+    [ "$sec" != "$kv" ] && [ "$key" != "$val" ] || { echo "rbk.sh: INI0 entry '$kv' is not Section:Key=Value"; exit 2; }
+    re=$(printf '%s' "$sec" | sed 's/[]\/.[]/\\&/g')
+    sed -i "/^\[$re\]\r\?$/,/^\[/{/^$key *=/d}" "$ini"
+    grep -aq "^\[$re\]" "$ini" || printf '\r\n[%s]\r\n' "$sec" >> "$ini"
+    sed -i "s/^\[$re\]\r\?$/&\n$key = $val\r/" "$ini"
+  done
+  echo "p${P[0]} INI0: $(echo "$INI0" | tr ';' ' ')"
+fi
 clamp="${select:+117f566,$select,2000,3600}${brief:+;6f2b50,$brief,$((brief + 1)),600}${battle:+;838f66,$battle,$((battle + 1)),$((60 * ${TIME:-90}))}"
 for i in $(seq 0 $((N - 1))); do
   p=${P[$i]}
   rm -f "$RUN/p$p/PCSX2/logs/emulog.txt" "$OUT/trace-p$p.txt"
   env ZDXSV_GGPO="$GGPO" ZDXSV_RBK=$i/$N ZDXSV_RBK_TIME=${TIME:-90} ZDXSV_RBK_COUNT=${COUNT:-1} ZDXSV_RBK_GAUGE=${GAUGE:-1} ${turbo:+ZDXSV_RBK_TURBO=1} ${clamp:+ZDXSV_EE_CLAMP=$clamp} ZDXSV_NET_TAIL=${TAIL:-60} ${SEED:+ZDXSV_RAND_INPUT=$((SEED + i))} \
     $([ "${TRACE-1}" = 0 ] || echo "ZDXSV_PW_HASH=1 ZDXSV_NET_TRACE=$OUT/trace-p$p.txt") ${PWDUMP:+ZDXSV_PW_DUMP=$OUT/pw-p$p.bin} $PCSX2_ENV $([ "$i" -eq 0 ] && echo "$ENV0") \
-    powershell -NoProfile -Command "& '$here/launch.ps1' -N $p -Headless -LobbyState -StateFile $RBKSTATES/rbk-p$p.p2s" 2>&1 | tail -1 &
+    powershell -NoProfile -Command "& '$here/launch.ps1' -N $p -Headless -LobbyState -StateFile $RBKSTATES/rbk-p$p.p2s$([ "$i" -eq 0 ] && [ -n "${SPEED0:-}" ] && echo " -Speed $SPEED0")" 2>&1 | tail -1 &
   lpids="$lpids $!"
 done
 # parallel launches: serial ones put p4 ~7.5 s behind p1. Only these: a bare wait also waits for

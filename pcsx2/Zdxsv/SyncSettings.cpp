@@ -52,8 +52,6 @@ namespace Zdxsv
 			const Pcsx2Config::CpuOptions cpu;
 			note(c.EnableCheats, "cheats");
 			c.EnableCheats = false;
-			note(c.EnablePINE, "PINE");
-			c.EnablePINE = false;
 			const Pcsx2Config::RecompilerOptions& rec = cpu.Recompiler;
 			const bool recs = c.Cpu.Recompiler.EnableEE != rec.EnableEE || c.Cpu.Recompiler.EnableIOP != rec.EnableIOP ||
 			                  c.Cpu.Recompiler.EnableVU0 != rec.EnableVU0 || c.Cpu.Recompiler.EnableVU1 != rec.EnableVU1 ||
@@ -132,9 +130,16 @@ namespace Zdxsv
 			std::lock_guard lock(s_sync.mtx);
 			s_sync.fingerprint = Fingerprint(copy);
 		}
-		if (ForceOff())
-			return;
 		std::string changed;
+		if (ForceOff())
+		{
+			// the control run's proof that its setting reached the VM
+			Pcsx2Config probe = EmuConfig;
+			Force(probe, true, &changed);
+			if (!changed.empty())
+				Console.WriteLn("ZdxsvSync: ZDXSV_SYNC_FORCE=0, not forced: %s", changed.c_str());
+			return;
+		}
 		Force(EmuConfig, s_sync.battle, &changed);
 		if (changed.empty())
 			return;

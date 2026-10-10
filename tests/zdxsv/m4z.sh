@@ -40,6 +40,8 @@
 #   checks: cut + cut ended per client, no GGPO session, no result with frames.
 #   GGPO_CLIENTS without a client of CLIENTS (GGPO): that client has no GGPO port (ZDXSV_GGPO=0), so every
 #   GGPO client cuts (`a peer has no GGPO address`); the same wait and checks as BAD_SESSION.
+#   SYNC_SALT=K (GGPO): client K gets ZDXSV_SYNC_SALT=m4z (another sync fingerprint, as another build): every
+#   GGPO client cuts (`settings or build differ`); the same wait and checks as BAD_SESSION.
 #   Both: CUTMAX=V fails a cut that took more than V vsyncs to end.
 #   REPORT=1: the lobby logged one 0x9952 match report per
 #   client for the results' battle code: result=ggpo + close=net battle end + 0 mismatches (cut: result=cut).
@@ -88,6 +90,7 @@ cenv() {
   [ "$1" = "${HTTPS_OFF:-}" ] && echo ZDXSV_HTTPS_LATENCY=0
   # CENV="K=V ...": extra env for every emulator client (e.g. a battle timer ZDXSV_EE_CLAMP for a time-up)
   [ -n "${CENV:-}" ] && echo "$CENV"
+  [ "$1" = "${SYNC_SALT:-}" ] && echo ZDXSV_SYNC_SALT=m4z
   # GGPO_DEFAULT=K (GGPO, GDELAY=auto): client K has no ZDXSV_GGPO, its GGPO options come from the setting
   [ -n "${GGPO:-}" ] && [ "$1" = "${GGPO_DEFAULT:-}" ] && { echo ZDXSV_GGPO=default; return; }
   case " ${GGPO_CLIENTS:-$CLIENTS} " in *" $1 "*) [ -n "${GGPO:-}" ] && echo "ZDXSV_GGPO=net=1,lobby=1,port=$((GGPO + $1 - 1))$([ "${GDELAY:-1}" = auto ] || echo ",delay=${GDELAY:-1}")${GMIN:+,mindelay=$GMIN}${UPLOAD:+,upload=http://127.0.0.1:8281/}${GOPT:+,$GOPT}$([ "$1" = "${BAD_SESSION:-}" ] && echo ,badsession=1)$([ -n "${GGPO_LAT:-}" ] && echo ",advertise=$((7300 + ($1 == 1)))")";; esac  # GDELAY=auto: no delay= (rtt pick, floor GMIN)
@@ -199,8 +202,8 @@ results() {
   awk '/== BattleResult ==/{n++; b=1; next} /==================/{b=0} b&&/\] ID:/{id[n]=$NF} b&&/"battle_code": "[0-9]/{gsub(/[",]/,""); c[n]=$NF} b&&/"(total_frame|kill_count|death_count|win_count|lose_count)"/{gsub(/[",]/,""); v[n]=v[n]" "$(NF-1)$NF} END{for(i=1;i<=n;i++) if (c[i] != "") print "result", id[i], "battle_code:" c[i] v[i]}' "$OUT/lobby.log" > "$OUT/results.txt"
 }
 gc=${GGPO_CLIENTS:-$CLIENTS}; ngc=$(echo $gc | wc -w)
-# a cut: BAD_SESSION, or a client without GGPO (not in GGPO_CLIENTS)
-CUT=; [ -n "${BAD_SESSION:-}" ] && CUT=ping; [ -n "${GGPO:-}" ] && [ "$ngc" -lt "$nc" ] && CUT=noport
+# a cut: BAD_SESSION, SYNC_SALT, or a client without GGPO (not in GGPO_CLIENTS)
+CUT=; [ -n "${BAD_SESSION:-}" ] && CUT=ping; [ -n "${GGPO:-}" ] && [ "$ngc" -lt "$nc" ] && CUT=noport; [ -n "${SYNC_SALT:-}" ] && CUT=sync
 # vsyncs from the cut to its end (the game closed the battle sock), "?" if a line is missing
 cutlen() {
   local a b
@@ -223,6 +226,8 @@ if [ -n "$CUT" ]; then
     f="$RUN/p$i/PCSX2/logs/emulog.txt"
     if [ "$CUT" = ping ]; then
       check "p$i connection cut (unanswered ping test), no ggpo session" "grep -a -q 'ZdxsvGgpo: lobby battle connection cut: [0-9] of $((nc - 1)) peers answered the ping test' '$f' && ! grep -a -q 'ZdxsvGgpo: net player' '$f'"
+    elif [ "$CUT" = sync ]; then
+      check "p$i connection cut (sync fingerprints differ), no ggpo session" "grep -a -q 'ZdxsvGgpo: lobby battle connection cut: settings or build differ' '$f' && ! grep -a -q 'ZdxsvGgpo: net player' '$f'"
     else
       check "p$i connection cut (a peer has no GGPO port), no ggpo session" "grep -a -q 'ZdxsvGgpo: lobby battle connection cut: a peer has no GGPO address' '$f' && ! grep -a -q 'ZdxsvGgpo: net player' '$f'"
     fi

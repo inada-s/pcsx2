@@ -117,6 +117,8 @@ off. Any other value turns it on. Without `net=1` the session is a synctest. Log
 | `ZDXSV_NET_TAIL=n` | 300 | tuning | Frames run after the battle end message before the session stops. |
 | `ZDXSV_NET_DISCONNECT_MS=ms` | 5000 | tuning | GGPO disconnect timeout. |
 | `ZDXSV_NET_PUMP=0` | on | control | No GGPO pump thread: the sockets are polled only by the frame loop, so pings and relayed packets wait up to a frame. |
+| `ZDXSV_SYNC_FORCE=0` | forced | control | Sync-relevant settings are not forced (`Zdxsv/SyncSettings.cpp`); the log names those that would have been (`ZdxsvSync: ZDXSV_SYNC_FORCE=0, not forced:`). The fingerprint is sent anyway. |
+| `ZDXSV_SYNC_SALT=s` | none | test | s is mixed into the sync fingerprint, as another build would be: a lobby battle with this client is cut. |
 | `ZDXSV_VM_TEST=frame:shutdown` or `frame:reset` | off | test | Shut down or reset the VM once a session or replay reaches that GGPO frame. |
 
 ## Replay playback
