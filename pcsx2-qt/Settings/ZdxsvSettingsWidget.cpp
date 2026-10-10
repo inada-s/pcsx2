@@ -10,6 +10,7 @@
 #include "pcsx2/Zdxsv/SyncSettings.h"
 
 #include <QtCore/QTimer>
+#include <QtWidgets/QLineEdit>
 
 #include <cstdlib>
 #include <cstring>
@@ -83,7 +84,7 @@ void ZdxsvSettingsWidget::markSyncForced(QWidget* window)
 	{
 		const char* name;
 		bool battle;
-	} widgets[] = {{"cheats", false}, {"pineEnable", false}, {"pineSlot", false}, {"eeRecompiler", false},
+	} widgets[] = {{"cheats", false}, {"enableCheats", false}, {"eeRecompiler", false},
 		{"iopRecompiler", false}, {"vu0Recompiler", false}, {"vu1Recompiler", false}, {"eeCache", false}, {"eeFastmem", false},
 		{"pauseOnTLBMiss", false}, {"eeRoundingMode", false}, {"eeDivRoundingMode", false}, {"vu0RoundingMode", false},
 		{"vu1RoundingMode", false}, {"eeClampMode", false}, {"vu0ClampMode", false}, {"vu1ClampMode", false},
@@ -92,8 +93,10 @@ void ZdxsvSettingsWidget::markSyncForced(QWidget* window)
 		{"eeWaitLoopDetection", true}, {"vuFlagHack", true}, {"instantVU1", true}, {"normalSpeed", true}};
 	std::vector<std::pair<QWidget*, bool>> found;
 	for (const auto& w : widgets)
-		if (QWidget* widget = window->findChild<QWidget*>(QString::fromUtf8(w.name)))
-			found.emplace_back(widget, w.battle);
+		// findChildren: the Folders page has a QLineEdit "cheats" (a path, never forced)
+		for (QWidget* widget : window->findChildren<QWidget*>(QString::fromUtf8(w.name)))
+			if (!qobject_cast<QLineEdit*>(widget))
+				found.emplace_back(widget, w.battle);
 	if (GameFixSettingsWidget* fixes = window->findChild<GameFixSettingsWidget*>())
 		found.emplace_back(fixes, false);
 	const auto update = [found]() {
