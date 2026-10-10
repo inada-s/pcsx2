@@ -167,6 +167,7 @@
     <ClCompile Include="Settings\DEV9DnsHostDialog.cpp" />
     <ClCompile Include="Settings\DEV9SettingsWidget.cpp" />
     <ClCompile Include="Settings\ZdxsvSettingsWidget.cpp" />
+    <ClCompile Include="Tools\ZdxsvReplayDialog.cpp" />
     <ClCompile Include="Settings\DEV9UiCommon.cpp" />
     <ClCompile Include="Settings\HddCreateQt.cpp" />
     <ClCompile Include="Settings\GameSummaryWidget.cpp" />
@@ -213,6 +214,7 @@
     <QtMoc Include="Settings\DEV9DnsHostDialog.h" />
     <QtMoc Include="Settings\DEV9SettingsWidget.h" />
     <QtMoc Include="Settings\ZdxsvSettingsWidget.h" />
+    <QtMoc Include="Tools\ZdxsvReplayDialog.h" />
     <QtMoc Include="Settings\DEV9UiCommon.h" />
     <QtMoc Include="QtProgressCallback.h" />
     <QtMoc Include="ColorPickerButton.h" />

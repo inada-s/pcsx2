@@ -457,6 +457,7 @@
     <ClCompile Include="Zdxsv\GgpoTrace.cpp" />
     <ClCompile Include="Zdxsv\ReplayLive.cpp" />
     <ClCompile Include="Zdxsv\ReplayLoad.cpp" />
+    <ClCompile Include="Zdxsv\ReplayList.cpp" />
     <ClCompile Include="Zdxsv\ReplayPlay.cpp" />
     <ClCompile Include="Zdxsv\ReplayRecord.cpp" />
     <ClCompile Include="Zdxsv\SpectateSync.cpp" />
@@ -921,6 +922,7 @@
     <ClInclude Include="Zdxsv\DeltaFreeze.h" />
     <ClInclude Include="Zdxsv\Ggpo.h" />
     <ClInclude Include="Zdxsv\GgpoShared.h" />
+    <ClInclude Include="Zdxsv\ReplayList.h" />
     <ClInclude Include="Zdxsv\SpectateSync.h" />
     <ClInclude Include="Zdxsv\RecHooks.h" />
     <ClInclude Include="Zdxsv\CpuHooks.h" />
