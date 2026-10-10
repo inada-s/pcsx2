@@ -479,8 +479,48 @@ namespace Zdxsv
 				Console.Warning("ZdxsvGgpo: ggpo: %s", msg);
 		}
 
+		// net: a thread pumps GGPO's sockets every 1 ms (ggpo_idle -1: receive and send only, no callbacks), as
+		// flycast's ggpoIdleLoop, so pings, input acks and relayed packets do not wait for the next vsync.
+		// ZDXSV_NET_PUMP=0: no thread (GGPO polled only by the frame loop).
+		// s_ggpo_mtx guards every GGPO call: the frame loop holds it through Returned, the thread per pump.
+		std::recursive_mutex s_ggpo_mtx;
+		std::atomic<bool> s_pump_run{false};
+		struct PumpThread
+		{
+			std::thread t;
+			void Stop()
+			{
+				s_pump_run = false;
+				if (t.joinable())
+					t.join();
+			}
+			~PumpThread() { Stop(); }
+		} s_pump;
+
+		void PumpStart()
+		{
+			const char* e = Zdxsv::TestEnv("ZDXSV_NET_PUMP");
+			if (e && std::strcmp(e, "0") == 0)
+				return;
+			s_pump.Stop();
+			s_pump_run = true;
+			s_pump.t = std::thread([] {
+				Threading::SetNameOfCurrentThread("ZdxsvGgpoPump");
+				while (s_pump_run)
+				{
+					// try_lock: Stop joins this thread while it holds the lock
+					if (std::unique_lock lock(s_ggpo_mtx, std::try_to_lock); lock.owns_lock() && s_session)
+						ggpo_idle(s_session, -1);
+					Threading::Sleep(1);
+				}
+			});
+			Console.WriteLn("ZdxsvGgpo: pump thread started");
+		}
+
 		void Stop(const char* what)
 		{
+			s_pump.Stop();
+			std::lock_guard ggpo_lock(s_ggpo_mtx);
 			if (s_session)
 				ggpo_close_session(s_session);
 			s_session = nullptr;
@@ -620,6 +660,7 @@ namespace Zdxsv
 			}
 			Console.WriteLn("ZdxsvGgpo: net player %d of %d port %d delay %d, %zu msgs sent before the start, waited %.1f s",
 				s_net_me + 1, s_players, local_port, s_delay, s_net_sent.size(), wait.GetTimeSeconds());
+			PumpStart();
 			return true;
 		}
 
@@ -900,6 +941,7 @@ namespace Zdxsv
 
 	static void Returned()
 	{
+		std::lock_guard ggpo_lock(s_ggpo_mtx);
 		if (s_play_env)
 		{
 			s_play_common ? PlayCommonStart() : PlayNext();

@@ -37,6 +37,8 @@ Everything is on only for the one game build it was made for; any other disc run
 - Lobby battles over GGPO (in development, on by default): ping test, relay servers, match report,
   connectivity and HTTPS latency tests, network status OSD.
 - Load barriers: battle start and MS select wait for every peer's load (every peer needs a build with both).
+- GGPO network pump thread: sockets are read and written every 1 ms, not once per frame, as flycast
+  (`ZDXSV_NET_PUMP=0`: off, docs/zdxsv/options.md).
 
 ### Replays
 
