@@ -74,7 +74,8 @@ namespace
 		for (const QJsonObject& u : us)
 		{
 			const int team = u["team"].toInt();
-			teams[team == 1 || team == 2 ? team : 0].append(PlayerName(u["user_name"].toString(), u["pilot_name"].toString()));
+			const QString name = u["user_name"].toString();
+			teams[team == 1 || team == 2 ? team : 0].append(PlayerName(name.isEmpty() ? u["user_id"].toString() : name, u["pilot_name"].toString()));
 		}
 		QStringList sides;
 		for (const QStringList& t : teams)

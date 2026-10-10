@@ -44,6 +44,8 @@ Everything is on only for the one game build it was made for; any other disc run
 - Playback from a file, a URL or a battle code: seek, point of view, control bar, key display, mobile suit
   selection skip, round jump, takeover, four-screen view.
 - Live spectating of lobby battles.
+- Replay window (Tools → zdxsv Replays): local replay files, the lobby's replay search and its live battles; Play
+  boots the game from the game list with the chosen replay and point of view.
 
 ### Releases and tools
 
