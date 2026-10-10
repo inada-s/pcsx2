@@ -6,8 +6,16 @@
           mash (in battle), after (result screen -> 作戦後部屋)
 4-player battle: top 1 2 3 4; login 1 2 3 4; entry 1 2 3 4; mash 1 2 3 4 (x2); after 1 2 3 4.
 Headless (launch.ps1 -Headless): same routes blind, mash x3, then after; result ~65 s later.
-Each route ends with a snap to $RUN/pN/<route>.png (half size).
+Each route ends with a snap to $RUN/pN/<route>.png (half size). "no snap" only on a Null-renderer instance
+(Renderer = 11 in its ini); a failed snap of a rendering instance stops the run (winshot.ps1 captures windows).
 Timings measured with 4 instances at 60 fps on one 4-core host.
+
+  drive.py seq <N> <tokens> <name>        ad-hoc keys, one snap pN/<name>.png
+  drive.py trace <route> <N> [start end]  route token by token, snap pN/trace_XX.png after each wait
+  drive.py sweep <N> <name> <tokens> [x0,y0,x1,y1]
+      a snap after each wait token, all in one contact sheet pN/<name>.png (tile = index: tokens since the
+      previous snap); optional crop in fractions of the screen (e.g. 0,0.83,0.25,0.92 = the map's text line).
+      Grid search of a cursor: "Up:3000,Left:6000,w500," then rows of "Right:350,w600" (s672: 128 cells, 5 min).
 """
 import os
 import sys
@@ -84,15 +92,62 @@ def route_text(route, n):
     return ROUTES[route].format(h=n - 1, s=s)
 
 
+def headless(n):
+    """Renderer = 11 (Null, launch.ps1 -Headless) in the instance's ini: no GS snapshot to expect."""
+    ini = os.path.join(RUN, "p%d" % n, "PCSX2", "inis", "PCSX2.ini")
+    try:
+        with open(ini, encoding="utf-8", errors="replace") as f:
+            return any(line.replace(" ", "").strip() == "Renderer=11" for line in f)
+    except OSError:
+        return False
+
+
 def run(route, n, log):
     p = Pine(28010 + n)
     p.seq(route_text(route, n))
     path = os.path.join(RUN, "p%d" % n, "%s.png" % route)  # GS snapshot ignores forward-slash paths
     try:
         shrink(p.snap(path, 3), 0.5)
-    except TimeoutError:  # Null renderer (launch.ps1 -Headless): no GS snapshot
+    except TimeoutError:
+        if not headless(n):
+            log.append("FAIL p%d %s: no GS snapshot from a rendering instance (Renderer != 11): snaps are broken, "
+                       "not headless; capture the window with winshot.ps1 / pcsx2ctl.ps1 -Shot" % (n, route))
+            return
         path = "no snap"
     log.append("p%d %s frame %d -> %s" % (n, route, p.frame(), path))
+
+
+def sweep(n, name, tokens, crop=None):
+    """tokens with a snap after each wait token -> one labelled contact sheet pN/<name>.png."""
+    from PIL import Image, ImageDraw
+    p = Pine(28010 + n)
+    tmp = os.path.join(RUN, "p%d" % n, "sweep_tmp.png")
+    tiles, since, lines = [], [], []
+    for tok in tokens.split(","):
+        p.seq(tok)
+        since.append(tok)
+        if tok[0] not in "wf":
+            continue
+        im = Image.open(p.snap(tmp, 3)).convert("RGB")
+        w, h = im.size
+        if crop:
+            im = im.crop(tuple(int(v * (w, h)[i % 2]) for i, v in enumerate(crop)))
+        else:
+            im = im.resize((w // 4, h // 4))
+        ImageDraw.Draw(im).text((2, 2), str(len(tiles)), fill=(255, 255, 0))
+        lines.append("%d %s" % (len(tiles), ",".join(since)))
+        tiles.append(im)
+        since = []
+    os.remove(tmp)
+    cols = 8 if crop is None else 4
+    tw, th = tiles[0].size
+    out = Image.new("RGB", (tw * cols, th * ((len(tiles) + cols - 1) // cols)))
+    for k, t in enumerate(tiles):
+        out.paste(t, ((k % cols) * tw, (k // cols) * th))
+    path = os.path.join(RUN, "p%d" % n, "%s.png" % name)
+    out.save(path)
+    print("\n".join(lines))
+    print("p%d %s: %d tiles, frame %d -> %s" % (n, name, len(tiles), p.frame(), path))
 
 
 def trace(route, n, start=0, end=9999):
@@ -111,6 +166,9 @@ def trace(route, n, start=0, end=9999):
 def main():
     if sys.argv[1] == "trace":  # trace <route> <N> [start token] [end token]
         return trace(sys.argv[2], int(sys.argv[3]), *[int(x) for x in sys.argv[4:6]])
+    if sys.argv[1] == "sweep":  # sweep <N> <name> <tokens> [x0,y0,x1,y1]
+        crop = [float(v) for v in sys.argv[5].split(",")] if len(sys.argv) > 5 else None
+        return sweep(int(sys.argv[2]), sys.argv[3], sys.argv[4], crop)
     if sys.argv[1] == "seq":  # seq <N> <tokens> <name>: ad-hoc keys (route search), snap pN/<name>.png
         ROUTES[sys.argv[4]] = sys.argv[3]
         sys.argv[1:] = [sys.argv[4], sys.argv[2]]
@@ -122,6 +180,8 @@ def main():
     for t in ts:
         t.join()
     print("\n".join(log))
+    if any(line.startswith("FAIL") for line in log):
+        sys.exit(1)
 
 
 if __name__ == "__main__":
