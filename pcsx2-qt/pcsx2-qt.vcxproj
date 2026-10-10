@@ -51,7 +51,7 @@
       <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(SolutionDir)3rdparty\rapidjson\include</AdditionalIncludeDirectories>
       <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(SolutionDir)pcsx2</AdditionalIncludeDirectories>
       <!-- Needed for moc pch -->
-      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(ProjectDir)Settings;$(ProjectDir)GameList;$(ProjectDir)Tools\InputRecording;$(ProjectDir)Debugger;$(ProjectDir)Debugger\Breakpoints;$(ProjectDir)\Debugger\Docking;$(ProjectDir)Debugger\Memory;$(ProjectDir)Debugger\SymbolTree;$(IntDir)Settings;$(IntDir)GameList;$(IntDir)Tools\InputRecording;$(IntDir)Debugger;$(IntDir)Debugger\Breakpoints;$(IntDir)\Debugger\Docking;$(IntDir)Debugger\Memory;$(IntDir)Debugger\SymbolTree</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>%(AdditionalIncludeDirectories);$(ProjectDir)Settings;$(ProjectDir)GameList;$(ProjectDir)Tools\InputRecording;$(ProjectDir)Debugger;$(ProjectDir)Debugger\Breakpoints;$(ProjectDir)\Debugger\Docking;$(ProjectDir)Debugger\Memory;$(ProjectDir)Debugger\SymbolTree;$(IntDir)Settings;$(IntDir)GameList;$(IntDir)Tools;$(IntDir)Tools\InputRecording;$(IntDir)Debugger;$(IntDir)Debugger\Breakpoints;$(IntDir)\Debugger\Docking;$(IntDir)Debugger\Memory;$(IntDir)Debugger\SymbolTree</AdditionalIncludeDirectories>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>PrecompiledHeader.h</PrecompiledHeaderFile>
       <ForcedIncludeFiles>PrecompiledHeader.h;%(ForcedIncludeFiles)</ForcedIncludeFiles>

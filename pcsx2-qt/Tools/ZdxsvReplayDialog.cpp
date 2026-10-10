@@ -498,3 +498,5 @@ void ZdxsvReplayDialog::play(const QString& src)
 		BootReplay(disc, src, pov);
 	close();
 }
+
+#include "moc_ZdxsvReplayDialog.cpp"
