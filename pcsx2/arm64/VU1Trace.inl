@@ -105,15 +105,17 @@ static void _vu1Decode(VU1DecodedPair& d, const u32* ptr)
 // At run time only their effects are applied: the new cycle and how many entries retire.
 // Pairs with E/D/T bits or XGKICK end a trace; the interpreter steps them.
 
+// Pipeline state at trace entry, the trace lookup key. Bytes keep it at 32 so the compare is inline.
 struct VU1PipeSig
 {
-	u32 fmac[4][5]; // remaining cycles, regupper, xyzwupper, reglower, xyzwlower
-	u32 ialu[4][2]; // remaining cycles, reg
-	u32 fdiv; // remaining cycles + 1, 0 = off
-	u32 efu;
-	u32 fmaccount;
-	u32 ialucount;
+	u8 fmac[4][5]; // remaining cycles, regupper, xyzwupper, reglower, xyzwlower
+	u8 ialu[4][2]; // remaining cycles, reg
+	u8 fdiv; // remaining cycles + 1, 0 = off
+	u8 efu;
+	u8 fmaccount;
+	u8 ialucount;
 };
+static_assert(sizeof(VU1PipeSig) == 32);
 
 struct VU1TraceStep
 {
@@ -172,12 +174,12 @@ static bool _vu1PipeSig(const VURegs* VU, VU1PipeSig* s)
 	for (u32 i = 0, p = VU->fmacreadpos; i < VU->fmaccount; i++, p = (p + 1) & 3)
 	{
 		const u64 r = remaining(VU->fmac[p].sCycle, VU->fmac[p].Cycle);
-		if (r > 0xffff)
+		if (r > 0xff || (VU->fmac[p].regupper | VU->fmac[p].reglower | VU->fmac[p].xyzwupper | VU->fmac[p].xyzwlower) > 0xff)
 			return false;
 		// A ready entry never stalls: only its place in the queue matters.
 		if (r == 0)
 			continue;
-		s->fmac[i][0] = static_cast<u32>(r);
+		s->fmac[i][0] = static_cast<u8>(r);
 		s->fmac[i][1] = VU->fmac[p].regupper;
 		s->fmac[i][2] = VU->fmac[p].xyzwupper;
 		s->fmac[i][3] = VU->fmac[p].reglower;
@@ -186,26 +188,26 @@ static bool _vu1PipeSig(const VURegs* VU, VU1PipeSig* s)
 	for (u32 i = 0, p = VU->ialureadpos; i < VU->ialucount; i++, p = (p + 1) & 3)
 	{
 		const u64 r = remaining(VU->ialu[p].sCycle, VU->ialu[p].Cycle);
-		if (r > 0xffff)
+		if (r > 0xff || static_cast<u32>(VU->ialu[p].reg) > 0xff)
 			return false;
 		if (r == 0)
 			continue;
-		s->ialu[i][0] = static_cast<u32>(r);
-		s->ialu[i][1] = static_cast<u32>(VU->ialu[p].reg);
+		s->ialu[i][0] = static_cast<u8>(r);
+		s->ialu[i][1] = static_cast<u8>(VU->ialu[p].reg);
 	}
 	if (VU->fdiv.enable)
 	{
 		const u64 r = remaining(VU->fdiv.sCycle, VU->fdiv.Cycle);
-		if (r > 0xffff)
+		if (r > 0xfe)
 			return false;
-		s->fdiv = static_cast<u32>(r) + 1;
+		s->fdiv = static_cast<u8>(r + 1);
 	}
 	if (VU->efu.enable)
 	{
 		const u64 r = remaining(VU->efu.sCycle, VU->efu.Cycle);
-		if (r > 0xffff)
+		if (r > 0xfe)
 			return false;
-		s->efu = static_cast<u32>(r) + 1;
+		s->efu = static_cast<u8>(r + 1);
 	}
 	s->fmaccount = VU->fmaccount;
 	s->ialucount = VU->ialucount;
