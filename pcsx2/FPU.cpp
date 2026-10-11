@@ -259,7 +259,11 @@ void CVT_W() {
 
 void DIV_S() {
 	if (checkDivideByZero( _FdValUl_, _FtValUl_, _FsValUl_, FPUflagD | FPUflagSD, FPUflagI | FPUflagSI)) return;
-	_FdValf_ = fpuDouble( _FsValUl_ ) / fpuDouble( _FtValUl_ );
+	{
+		// the divide rounding mode, as the recompiler (recDIV_S_xmm)
+		const FPControlRegisterBackup fpcr(EmuConfig.Cpu.FPUDivFPCR);
+		_FdValf_ = fpuDouble( _FsValUl_ ) / fpuDouble( _FtValUl_ );
+	}
 	if (checkOverflow( _FdValUl_, 0)) return;
 	checkUnderflow( _FdValUl_, 0);
 }
@@ -358,6 +362,8 @@ void RSQRT_S() {
 
 void SQRT_S() {
 	clearFPUFlags(FPUflagI | FPUflagD);
+	// round to nearest, as the recompiler (recSQRT_S_xmm)
+	const FPControlRegisterBackup fpcr(FPControlRegister(EmuConfig.Cpu.FPUFPCR).SetRoundMode(FPRoundMode::Nearest));
 
 	if ( ( _FtValUl_ & 0x7F800000 ) == 0 ) // If Ft = +/-0
 		_FdValUl_ = _FtValUl_ & 0x80000000;// result is 0
