@@ -67,6 +67,9 @@ Everything is on only for the one game build it was made for; any other disc run
   interpreter's handlers, so it computes what the EE interpreter computes, faster. On when the EE
   recompiler setting is on (`EmuCore/CPU/Recompiler` `EnableEE`, the default); off = EE interpreter.
   IOP and VU stay interpreters on ARM64.
+  Integer ALU, shift, HI/LO move and MOVZ/MOVN ops are emitted as native code, computed as the x86
+  recompiler does: ADD/SUB/ADDI/DADD/DSUB/DADDI write their result on overflow (the interpreter skips
+  the write). Env `PCSX2_ARM64_EE_NATIVE=0`: every op calls its interpreter handler (A/B check).
 - Options for tests, traces and game investigation; every build reads them.
 
 ## Documentation
