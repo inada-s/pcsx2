@@ -22,7 +22,9 @@ Everything is on only for the one game build it was made for; any other disc run
   EE/VU rounding and clamping, game fixes (GameDB only), extra memory, GS hardware download mode at
   their defaults; speedhacks, emulation speed and frame rate at their defaults during battles, replays
   and live spectating. An OSD message names the overridden settings; the settings page greys them out.
-- Sync fingerprint (build + those settings, not the BIOS) in the platform info: a lobby battle whose
+- Sync fingerprint (build, those settings and the CPU cores in use, not the BIOS; an ARM64 build runs
+  the interpreters, so it never matches an x86 one) in the platform info, logged as
+  `ZdxsvSync: fingerprint <hex>`: a lobby battle whose
   players' fingerprints differ is cut, and the players return to the lobby.
 
 ### Input latency
