@@ -2686,6 +2686,7 @@ void VMManager::InitializeCPUProviders()
 	// we still need the thread alive. Otherwise the read and write positions
 	// of the ring buffer wont match, and various systems in the emulator end up deadlocked.
 	vu1Thread.Open();
+	recCpu.Reserve();
 #endif
 
 	VifUnpackSSE_Init();
@@ -2710,6 +2711,8 @@ void VMManager::ShutdownCPUProviders()
 	// still need to manage the MTVU thread.
 	if (vu1Thread.IsOpen())
 		vu1Thread.WaitVU();
+
+	recCpu.Shutdown();
 #endif
 }
 
@@ -2731,7 +2734,7 @@ void VMManager::UpdateCPUImplementations()
 	CpuVU0 = EmuConfig.Cpu.Recompiler.EnableVU0 ? static_cast<BaseVUmicroCPU*>(&CpuMicroVU0) : static_cast<BaseVUmicroCPU*>(&CpuIntVU0);
 	CpuVU1 = EmuConfig.Cpu.Recompiler.EnableVU1 ? static_cast<BaseVUmicroCPU*>(&CpuMicroVU1) : static_cast<BaseVUmicroCPU*>(&CpuIntVU1);
 #else
-	Cpu = &intCpu;
+	Cpu = CHECK_EEREC ? &recCpu : &intCpu;
 	psxCpu = &psxInt;
 
 	CpuVU0 = &CpuIntVU0;
