@@ -356,6 +356,23 @@ extern R5900cpu *Cpu;
 extern R5900cpu intCpu;
 extern R5900cpu recCpu;
 
+// True when branches, TLB misses and wait loops take the interpreter's paths: the interpreter, or the
+// ARM64 EE recompiler, which runs interpreter code for them (arm64/iR5900.cpp).
+static __fi bool CpuRunsIntBranches()
+{
+#ifdef _M_ARM64
+	return true;
+#else
+	return Cpu == &intCpu;
+#endif
+}
+
+// Interpreter internals the ARM64 EE recompiler shares.
+extern u32 cpuBlockCycles;
+void intSafeExitExecution();
+void intCancelInstruction();
+void intExecuteBlocks(void (*run_block)());
+
 enum EE_intProcessStatus
 {
 	INT_NOT_RUNNING = 0,

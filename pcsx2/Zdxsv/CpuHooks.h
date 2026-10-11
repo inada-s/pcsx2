@@ -81,6 +81,12 @@ namespace Zdxsv
 	inline bool IntHooksOn() { return g_net_hook || g_zd_hook || g_ps_hook; }
 	// true = a hook answered and moved the pc: the instruction at pc does not run (IntHooks.cpp).
 	bool IntRunHooks(u32 pc);
+	// The pcs IntRunHooks acts on (the ARM64 EE recompiler calls it before these only).
+	constexpr bool IsIntHookPc(u32 pc)
+	{
+		return pc == NET_RPC_PC || pc == NET_RECV_RET_PC || pc == STEP_COPY_PC || pc == LOAD_STEP_PC ||
+			   pc == MS_STEP_PC || pc == DRAW_RUN_PC || pc == DRAW_RUN2_PC;
+	}
 
 	// ZDXSV_DELTA_TEST: synctest in a running game, see Zdxsv/DeltaState.cpp.
 	extern bool g_delta_state_test_enabled;

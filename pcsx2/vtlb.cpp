@@ -522,7 +522,7 @@ static __ri void vtlb_Miss(u32 addr, u32 mode)
 		GoemonTlbMissDebug();
 
 	// Hack to handle expected tlb miss by some games.
-	if (Cpu == &intCpu)
+	if (CpuRunsIntBranches())
 	{
 		if (mode)
 			cpuTlbMissW(addr, cpuRegs.branch);
