@@ -288,7 +288,7 @@ static u8* s_vu1_jit_start;
 static u8* s_vu1_jit_ptr;
 static u8* s_vu1_jit_end;
 static constexpr u32 VU1_JIT_POOL_SIZE = 64 * 1024;
-static constexpr u32 VU1_JIT_MAX_STEP_CODE = 512;
+static constexpr u32 VU1_JIT_MAX_STEP_CODE = 1024;
 // PCSX2_VU1_JIT: 0 = interpreter only, check = see _vu1TraceCheck, unset = traces.
 enum class VU1JitMode { Off, On, Check };
 static const VU1JitMode s_vu1_jit_mode = [] {
@@ -334,7 +334,7 @@ static s64 _vu1Off(const T& field)
 	return reinterpret_cast<const u8*>(&field) - reinterpret_cast<const u8*>(&VU1);
 }
 
-// The JIT keeps &VU1 in x19 and the cycle at trace entry in x20.
+// The JIT keeps &VU1 in x19, the cycle at trace entry in x20 and s_vu1_jit_fconst in x21.
 static const a64::Register& s_vu1_jit_rvu = a64::x19;
 
 static a64::MemOperand _vu1JitMem(s64 off)
@@ -450,6 +450,173 @@ static void _vu1JitEmitAddIALU(const _VURegsNum& r, const a64::Register& rbase, 
 	_vu1JitEmitPosStep(_vu1Off(VU1.ialuwritepos), _vu1Off(VU1.ialucount), 1);
 }
 
+// Upper FMAC ops emitted natively (applyBinaryMACOp/applyTernaryMACOp in VUops.cpp).
+// ADDi is left out (TriAce hack), so are Fd = 0 forms (they write RDzero).
+enum class VU1FmacOp : u8 { Add, Sub, Mul, Madd, Msub };
+static constexpr u8 VU1_BC_VEC = 4, VU1_BC_I = 5, VU1_BC_Q = 6; // 0..3: Ft.x..w
+struct VU1FmacDesc
+{
+	FnPtr_VuVoid fn;
+	VU1FmacOp op;
+	bool acc;
+	u8 bc;
+};
+#define VU1_FMAC_BC(name, op, acc) \
+	{VU1MI_##name##x, op, acc, 0}, {VU1MI_##name##y, op, acc, 1}, {VU1MI_##name##z, op, acc, 2}, \
+		{VU1MI_##name##w, op, acc, 3}, {VU1MI_##name##q, op, acc, VU1_BC_Q}, {VU1MI_##name, op, acc, VU1_BC_VEC}
+#define VU1_FMAC_ALL(name, op) \
+	VU1_FMAC_BC(name, op, false), {VU1MI_##name##i, op, false, VU1_BC_I}, VU1_FMAC_BC(name##A, op, true), \
+		{VU1MI_##name##Ai, op, true, VU1_BC_I}
+static const VU1FmacDesc s_vu1_fmac_ops[] = {
+	VU1_FMAC_BC(ADD, VU1FmacOp::Add, false), VU1_FMAC_BC(ADDA, VU1FmacOp::Add, true),
+	{VU1MI_ADDAi, VU1FmacOp::Add, true, VU1_BC_I}, VU1_FMAC_ALL(SUB, VU1FmacOp::Sub),
+	VU1_FMAC_ALL(MUL, VU1FmacOp::Mul), VU1_FMAC_ALL(MADD, VU1FmacOp::Madd), VU1_FMAC_ALL(MSUB, VU1FmacOp::Msub)};
+#undef VU1_FMAC_ALL
+#undef VU1_FMAC_BC
+
+// x21 points here in JIT code: exponent, sign, max float, MAC flag bits Z/S/U/O of x y z w.
+alignas(16) static const u32 s_vu1_jit_fconst[7][4] = {
+	{0x7f800000, 0x7f800000, 0x7f800000, 0x7f800000}, {0x80000000, 0x80000000, 0x80000000, 0x80000000},
+	{0x7f7fffff, 0x7f7fffff, 0x7f7fffff, 0x7f7fffff}, {0x0008, 0x0004, 0x0002, 0x0001},
+	{0x0080, 0x0040, 0x0020, 0x0010}, {0x0800, 0x0400, 0x0200, 0x0100}, {0x8000, 0x4000, 0x2000, 0x1000}};
+
+// Overflow clamp settings the JIT code was compiled for (bit 0: vu0Overflow, bit 1: vu1Overflow).
+static u8 s_vu1_jit_ovf = 0xff;
+static u8 _vu1JitOvf()
+{
+	return (EmuConfig.Cpu.Recompiler.vu0Overflow ? 1 : 0) | (EmuConfig.Cpu.Recompiler.vu1Overflow ? 2 : 0);
+}
+
+// vuDouble on 4 lanes: exponent 0 -> signed 0, exponent 255 -> signed max float.
+static void _vu1JitEmitVuDouble(const a64::VRegister& v)
+{
+	armAsm->And(a64::v24.V16B(), v.V16B(), a64::v16.V16B());
+	armAsm->Cmeq(a64::v25.V4S(), a64::v24.V4S(), 0);
+	armAsm->Cmeq(a64::v24.V4S(), a64::v24.V4S(), a64::v16.V4S());
+	armAsm->And(a64::v26.V16B(), v.V16B(), a64::v17.V16B());
+	armAsm->Orr(a64::v27.V16B(), a64::v26.V16B(), a64::v18.V16B());
+	armAsm->Bsl(a64::v24.V16B(), a64::v27.V16B(), v.V16B());
+	armAsm->Bsl(a64::v25.V16B(), a64::v26.V16B(), a64::v24.V16B());
+	armAsm->Mov(v.V16B(), a64::v25.V16B());
+}
+
+// Emits the upper op natively when it is in s_vu1_fmac_ops and the inputs are clamped
+// (vu0Overflow, as vuDouble tests): then no NaN can arise and the result does not depend on
+// the operand order the compiler picked. Returns false when the handler must be called.
+static bool _vu1JitEmitFmac(FnPtr_VuVoid f, u32 code)
+{
+	if (!EmuConfig.Cpu.Recompiler.vu0Overflow)
+		return false;
+	const VU1FmacDesc* desc = nullptr;
+	for (const VU1FmacDesc& o : s_vu1_fmac_ops)
+		if (o.fn == f)
+			desc = &o;
+	const u32 ft = (code >> 16) & 0x1f, fs = (code >> 11) & 0x1f, fd = (code >> 6) & 0x1f;
+	if (!desc || (!desc->acc && fd == 0))
+		return false;
+
+	armAsm->Ldp(a64::q16, a64::q17, a64::MemOperand(a64::x21, 0));
+	armAsm->Ldp(a64::q18, a64::q19, a64::MemOperand(a64::x21, 32));
+	armAsm->Ldp(a64::q20, a64::q21, a64::MemOperand(a64::x21, 64));
+	armAsm->Ldr(a64::q22, a64::MemOperand(a64::x21, 96));
+
+	armAsm->Ldr(a64::q0, _vu1JitMem(_vu1Off(VU1.VF[fs])));
+	if (desc->bc == VU1_BC_VEC)
+		armAsm->Ldr(a64::q1, _vu1JitMem(_vu1Off(VU1.VF[ft])));
+	else
+	{
+		const s64 off = desc->bc == VU1_BC_I ? _vu1Off(VU1.VI[REG_I].UL) :
+						desc->bc == VU1_BC_Q ? _vu1Off(VU1.VI[REG_Q].UL) :
+											   _vu1Off(VU1.VF[ft].UL[desc->bc]);
+		armAsm->Ldr(a64::s1, _vu1JitMem(off));
+		armAsm->Dup(a64::v1.V4S(), a64::v1.V4S(), 0);
+	}
+	_vu1JitEmitVuDouble(a64::v0);
+	_vu1JitEmitVuDouble(a64::v1);
+	const bool ternary = desc->op == VU1FmacOp::Madd || desc->op == VU1FmacOp::Msub;
+	if (ternary)
+	{
+		armAsm->Ldr(a64::q2, _vu1JitMem(_vu1Off(VU1.ACC)));
+		_vu1JitEmitVuDouble(a64::v2);
+	}
+	switch (desc->op)
+	{
+		case VU1FmacOp::Add: armAsm->Fadd(a64::v3.V4S(), a64::v0.V4S(), a64::v1.V4S()); break;
+		case VU1FmacOp::Sub: armAsm->Fsub(a64::v3.V4S(), a64::v0.V4S(), a64::v1.V4S()); break;
+		case VU1FmacOp::Mul: armAsm->Fmul(a64::v3.V4S(), a64::v0.V4S(), a64::v1.V4S()); break;
+		case VU1FmacOp::Madd:
+			armAsm->Fmul(a64::v3.V4S(), a64::v0.V4S(), a64::v1.V4S());
+			armAsm->Fadd(a64::v3.V4S(), a64::v2.V4S(), a64::v3.V4S());
+			break;
+		case VU1FmacOp::Msub:
+			armAsm->Fmul(a64::v3.V4S(), a64::v0.V4S(), a64::v1.V4S());
+			armAsm->Fsub(a64::v3.V4S(), a64::v2.V4S(), a64::v3.V4S());
+			break;
+	}
+
+	// VU_MAC_UPDATE: an enabled lane's 4 MAC bits depend on its result only, others are cleared.
+	// Z = (f == 0) or exponent 0, U = exponent 0 and f != 0, O = exponent 255, S = sign.
+	armAsm->And(a64::v24.V16B(), a64::v3.V16B(), a64::v16.V16B());
+	armAsm->Cmeq(a64::v25.V4S(), a64::v24.V4S(), 0);
+	armAsm->Cmeq(a64::v24.V4S(), a64::v24.V4S(), a64::v16.V4S());
+	armAsm->Fcmeq(a64::v26.V4S(), a64::v3.V4S(), 0.0);
+	armAsm->Sshr(a64::v27.V4S(), a64::v3.V4S(), 31);
+	armAsm->Orr(a64::v28.V16B(), a64::v26.V16B(), a64::v25.V16B());
+	armAsm->Bic(a64::v25.V16B(), a64::v25.V16B(), a64::v26.V16B());
+	armAsm->And(a64::v28.V16B(), a64::v28.V16B(), a64::v19.V16B());
+	armAsm->And(a64::v29.V16B(), a64::v27.V16B(), a64::v20.V16B());
+	armAsm->Orr(a64::v28.V16B(), a64::v28.V16B(), a64::v29.V16B());
+	armAsm->And(a64::v29.V16B(), a64::v25.V16B(), a64::v21.V16B());
+	armAsm->Orr(a64::v28.V16B(), a64::v28.V16B(), a64::v29.V16B());
+	armAsm->And(a64::v29.V16B(), a64::v24.V16B(), a64::v22.V16B());
+	armAsm->Orr(a64::v28.V16B(), a64::v28.V16B(), a64::v29.V16B());
+	const u32 lanes = (code >> 21) & 0xf; // bit 3 = x
+	for (int i = 0; i < 4; i++)
+		if (!(lanes & (8 >> i)))
+			armAsm->Mov(a64::v28.V4S(), i, a64::wzr);
+	armAsm->Addv(a64::s28, a64::v28.V4S());
+	armAsm->Fmov(a64::w0, a64::s28);
+	armAsm->Str(a64::w0, _vu1JitMem(_vu1Off(VU1.macflag)));
+	// VU_STAT_UPDATE: bit n = any bit in MAC nibble n.
+	armAsm->Orr(a64::w1, a64::w0, a64::Operand(a64::w0, a64::LSR, 1));
+	armAsm->Orr(a64::w1, a64::w1, a64::Operand(a64::w1, a64::LSR, 2));
+	armAsm->And(a64::w1, a64::w1, 0x1111);
+	armAsm->Orr(a64::w1, a64::w1, a64::Operand(a64::w1, a64::LSR, 3));
+	armAsm->And(a64::w1, a64::w1, 0x0303);
+	armAsm->Orr(a64::w1, a64::w1, a64::Operand(a64::w1, a64::LSR, 6));
+	armAsm->And(a64::w1, a64::w1, 0xf);
+	armAsm->Str(a64::w1, _vu1JitMem(_vu1Off(VU1.statusflag)));
+
+	// Value: U -> signed 0, O -> signed max float if vu1Overflow.
+	armAsm->And(a64::v26.V16B(), a64::v3.V16B(), a64::v17.V16B());
+	armAsm->Bsl(a64::v25.V16B(), a64::v26.V16B(), a64::v3.V16B());
+	a64::VRegister res = a64::v25;
+	if (EmuConfig.Cpu.Recompiler.vu1Overflow)
+	{
+		armAsm->Orr(a64::v27.V16B(), a64::v26.V16B(), a64::v18.V16B());
+		armAsm->Bsl(a64::v24.V16B(), a64::v27.V16B(), a64::v25.V16B());
+		res = a64::v24;
+	}
+	const s64 off_dst = desc->acc ? _vu1Off(VU1.ACC) : _vu1Off(VU1.VF[fd]);
+	if (lanes != 0xf)
+	{
+		armAsm->Ldr(a64::q4, _vu1JitMem(off_dst));
+		for (int i = 0; i < 4; i++)
+			if (lanes & (8 >> i))
+				armAsm->Mov(a64::v4.V4S(), i, res.V4S(), i);
+		res = a64::v4;
+	}
+	if (lanes != 0)
+		armAsm->Str(res.Q(), _vu1JitMem(off_dst));
+	return true;
+}
+
+static void _vu1JitEmitUpper(FnPtr_VuVoid f, u32 code)
+{
+	if (!_vu1JitEmitFmac(f, code))
+		_vu1JitEmitHandler(f);
+}
+
 static void _vu1JitReset()
 {
 	if (!s_vu1_jit_start)
@@ -482,8 +649,10 @@ static void _vu1JitCompile(VU1Trace& t)
 	const s64 off_code = _vu1Off(VU1.code);
 	const s64 off_cycle = _vu1Off(VU1.cycle);
 
-	armAsm->Stp(a64::x29, a64::lr, a64::MemOperand(a64::sp, -96, a64::PreIndex));
+	armAsm->Stp(a64::x29, a64::lr, a64::MemOperand(a64::sp, -112, a64::PreIndex));
 	armAsm->Stp(rvu, rbase, a64::MemOperand(a64::sp, 16));
+	armAsm->Str(a64::x21, a64::MemOperand(a64::sp, 96));
+	armMoveAddressToReg(a64::x21, s_vu1_jit_fconst);
 	armMoveAddressToReg(rvu, &VU1);
 	armAsm->Ldr(rbase, vu(off_cycle));
 
@@ -541,7 +710,7 @@ static void _vu1JitCompile(VU1Trace& t)
 		{
 			armAsm->Mov(a64::w0, hi);
 			armAsm->Str(a64::w0, vu(off_code));
-			_vu1JitEmitHandler(d.upper);
+			_vu1JitEmitUpper(d.upper, hi);
 			armAsm->Mov(a64::w0, lo);
 			armAsm->Str(a64::w0, vu(_vu1Off(VU1.VI[REG_I].UL)));
 		}
@@ -561,7 +730,7 @@ static void _vu1JitCompile(VU1Trace& t)
 			}
 			armAsm->Mov(a64::w0, hi);
 			armAsm->Str(a64::w0, vu(off_code));
-			_vu1JitEmitHandler(d.upper);
+			_vu1JitEmitUpper(d.upper, hi);
 			if (d.discard == 0)
 			{
 				if (d.vfreg)
@@ -625,7 +794,8 @@ static void _vu1JitCompile(VU1Trace& t)
 	}
 
 	armAsm->Ldp(rvu, rbase, a64::MemOperand(a64::sp, 16));
-	armAsm->Ldp(a64::x29, a64::lr, a64::MemOperand(a64::sp, 96, a64::PostIndex));
+	armAsm->Ldr(a64::x21, a64::MemOperand(a64::sp, 96));
+	armAsm->Ldp(a64::x29, a64::lr, a64::MemOperand(a64::sp, 112, a64::PostIndex));
 	armAsm->Ret();
 
 	s_vu1_jit_ptr = armEndBlock();
@@ -634,6 +804,11 @@ static void _vu1JitCompile(VU1Trace& t)
 
 static void _vu1TraceExec(VU1Trace& t)
 {
+	if (s_vu1_jit_ovf != _vu1JitOvf())
+	{
+		_vu1JitReset();
+		s_vu1_jit_ovf = _vu1JitOvf();
+	}
 	if (!t.code)
 		_vu1JitCompile(t);
 	t.code();
