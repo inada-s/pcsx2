@@ -137,6 +137,7 @@ See [replay.md](replay.md).
 | `ZDXSV_REPLAY_KEY=n` | 600 | tuning | Interval of the seek keys in frames. 0 = none: no backward seek. |
 | `ZDXSV_REPLAY_TURBO=1` | off | test | Play turbo. |
 | `ZDXSV_REPLAY_EXIT=1` | off | test | Exit at the end instead of pausing. |
+| `ZDXSV_CYCLE_LOG=n` | off | test | Log `ZdxsvGgpo: cycles at frame f: ee .. iop ..` every n played frames. Two builds that differ in the CPU core must log the same values; the state hash does not catch an EE cycle shift. |
 | `ZDXSV_LIVE_NEXT=N` | the setting | test | Live auto-next for N more battles (0 = off), over `ZdxsvLiveAutoNext`. |
 | `ZDXSV_LIVE_PACING=0` | on | test | Live: no speed trim, only the wait for 30 frames at the newest one (control). |
 | `ZDXSV_REPLAY_SEEK=at:to[,at:to...]` | off | test | Seek to frame `to` when frame `at` is reached. |

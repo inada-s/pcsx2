@@ -271,6 +271,48 @@ static bool IsNativeBranch(u32 code)
 	}
 }
 
+static void EmitEpilogue(const a64::Register& rregs, const a64::Register& rcycles)
+{
+	armAsm->Ldr(a64::x21, a64::MemOperand(a64::sp, 32));
+	armAsm->Ldp(rregs, rcycles, a64::MemOperand(a64::sp, 16));
+	armAsm->Ldp(a64::x29, a64::lr, a64::MemOperand(a64::sp, 48, a64::PostIndex));
+}
+
+// Tail call of the block at the pc in wpc, as recRunBlock would run it next; exit when it is not
+// compiled yet or the pc is unmapped or misaligned.
+static void EmitDispatch(const a64::Register& wpc, const a64::Register& rregs, const a64::Register& rcycles,
+	a64::Label& exit)
+{
+	armAsm->Tst(wpc, 3);
+	armAsm->B(a64::ne, &exit);
+	armMoveAddressToReg(a64::x13, s_lut);
+	armAsm->Lsr(a64::w14, wpc, 16);
+	armAsm->Ldr(a64::x13, a64::MemOperand(a64::x13, a64::x14, a64::LSL, 3));
+	armAsm->Cbz(a64::x13, &exit);
+	armAsm->Ubfx(a64::w14, wpc, 2, 14);
+	armAsm->Ldr(a64::x13, a64::MemOperand(a64::x13, a64::x14, a64::LSL, 3));
+	armAsm->Cbz(a64::x13, &exit);
+	armAsm->Mov(RXARG1, rregs);
+	armAsm->Mov(RXARG2, rcycles);
+	EmitEpilogue(rregs, rcycles);
+	armAsm->Br(a64::x13);
+}
+
+// intEventTest (which returns at once before the cycle target), then the next block.
+static void EmitEventTestAndDispatch(const a64::Register& wpc, const a64::Register& rregs,
+	const a64::Register& rcycles, a64::Label& exit)
+{
+	a64::Label no_event;
+	armAsm->Ldr(a64::x13, a64::MemOperand(rregs, offsetof(cpuRegisters, cycle)));
+	armAsm->Ldr(a64::x14, a64::MemOperand(rregs, offsetof(cpuRegisters, nextEventCycle)));
+	armAsm->Sub(a64::x13, a64::x13, a64::x14);
+	armAsm->Tbnz(a64::x13, 63, &no_event);
+	armEmitCall(reinterpret_cast<const void*>(&intEventTest));
+	armAsm->B(&exit);
+	armAsm->Bind(&no_event);
+	EmitDispatch(wpc, rregs, rcycles, exit);
+}
+
 // What the branch's handler and doBranch do, with pc, code and cpuBlockCycles already set for the branch.
 // The delay slot runs with cpuRegs.branch set (no hooks; an exception clears it and ends the block).
 static void EmitBranch(u32 code, u32 pc, const a64::Register& rregs, const a64::Register& rcycles,
@@ -336,22 +378,69 @@ static void EmitBranch(u32 code, u32 pc, const a64::Register& rregs, const a64::
 		armAsm->Cbz(a64::w9, &exit);
 	}
 
-	if (reg_jump)
-		armAsm->Mov(RWARG1, a64::w21);
-	else
-		armAsm->Mov(RWARG1, target);
+	// The rest of doBranch, inline at the default EE cycle rate. Speedhack changes recompile all blocks.
+	// A taken branch to the last taken target is a wait loop candidate: it runs intUpdateCPUCycles once
+	// more (one more cycle, as cpuBlockCycles < 8 then) and may skip to the next event, which only
+	// intBranchAfterDelaySlot does. PSM reads the fixed physical map, so whether the skip test can pass
+	// is known here for a constant target.
+	const a64::Register& wtarget = a64::w21;
+	if (!reg_jump)
+		armAsm->Mov(wtarget, target);
+	const bool wait_loop = CpuRunsIntBranches() && EmuConfig.Speedhacks.WaitLoop;
+	bool may_skip = reg_jump || target == 0x81fc0;
+	if (!may_skip && (pc + 8 - target) < 4 * 10)
+	{
+		may_skip = true;
+		for (u32 i = target; i < pc + 8; i += 4)
+		{
+			if (PSM(i) != 0)
+			{
+				may_skip = false;
+				break;
+			}
+		}
+	}
+	a64::Label slow;
+	if (EmuConfig.Speedhacks.EECycleRate != 0)
+		armAsm->B(&slow);
+	armMoveAddressToReg(a64::x15, &intLastBranchTo);
+	armAsm->Ldr(a64::w13, a64::MemOperand(a64::x15));
+	armAsm->Cmp(a64::w13, wtarget);
+	if (wait_loop && may_skip)
+		armAsm->B(a64::eq, &slow);
+	if (wait_loop)
+		armAsm->Cset(a64::w16, a64::eq);
+	armAsm->Str(wtarget, a64::MemOperand(a64::x15));
+	armAsm->Str(wtarget, a64::MemOperand(rregs, offsetof(cpuRegisters, pc)));
+	armAsm->Str(a64::wzr, a64::MemOperand(rregs, off_branch));
+	// intUpdateCPUCycles: cycle += max(cpuBlockCycles >> 3, 1), cpuBlockCycles &= 7.
+	armAsm->Ldr(a64::w13, a64::MemOperand(rcycles));
+	armAsm->Lsr(a64::w14, a64::w13, 3);
+	armAsm->Cmp(a64::w14, 1);
+	armAsm->Csinc(a64::w14, a64::w14, a64::wzr, a64::hs);
+	if (wait_loop)
+		armAsm->Add(a64::w14, a64::w14, a64::w16);
+	armAsm->Ldr(a64::x15, a64::MemOperand(rregs, offsetof(cpuRegisters, cycle)));
+	armAsm->Add(a64::x15, a64::x15, a64::x14);
+	armAsm->Str(a64::x15, a64::MemOperand(rregs, offsetof(cpuRegisters, cycle)));
+	armAsm->And(a64::w13, a64::w13, 7);
+	armAsm->Str(a64::w13, a64::MemOperand(rcycles));
+	EmitEventTestAndDispatch(wtarget, rregs, rcycles, exit);
+
+	armAsm->Bind(&slow);
+	armAsm->Mov(RWARG1, wtarget);
 	armEmitCall(reinterpret_cast<const void*>(&intBranchAfterDelaySlot));
 	armAsm->B(&exit);
 
 	armAsm->Bind(&not_taken);
+	armAsm->Mov(wtarget, likely ? pc + 8 : pc + 4);
 	if (likely)
-	{
-		armAsm->Mov(a64::w9, pc + 8);
-		armAsm->Str(a64::w9, a64::MemOperand(rregs, offsetof(cpuRegisters, pc)));
-	}
+		armAsm->Str(wtarget, a64::MemOperand(rregs, offsetof(cpuRegisters, pc)));
 	// BLEZ, BGTZ, BLTZ and BGEZ do not test events when not taken.
 	if (likely || op == 0x04 || op == 0x05)
-		armEmitCall(reinterpret_cast<const void*>(&intEventTest));
+		EmitEventTestAndDispatch(wtarget, rregs, rcycles, exit);
+	else
+		EmitDispatch(wtarget, rregs, rcycles, exit);
 }
 
 static BlockFn Compile(u32 startpc, BlockFn* entry)
@@ -483,9 +572,7 @@ static BlockFn Compile(u32 startpc, BlockFn* entry)
 	}
 
 	armAsm->Bind(&exit);
-	armAsm->Ldr(a64::x21, a64::MemOperand(a64::sp, 32));
-	armAsm->Ldp(rregs, rcycles, a64::MemOperand(a64::sp, 16));
-	armAsm->Ldp(a64::x29, a64::lr, a64::MemOperand(a64::sp, 48, a64::PostIndex));
+	EmitEpilogue(rregs, rcycles);
 	armAsm->Ret();
 
 	if (check_code)
