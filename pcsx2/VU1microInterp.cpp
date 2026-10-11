@@ -9,9 +9,18 @@
 #include "MTVU.h"
 
 #include <cfenv>
+#include <cstdlib>
+#include <cstring>
 
 extern void _vuFlushAll(VURegs* VU);
 extern void _vuXGKICKFlush(VURegs* VU);
+extern void _vu1ExecDecoded();
+
+// PCSX2_VU1_DECODE_CACHE=0: decode every pair on every step (A/B check of the decode cache).
+static const bool s_vu1_decode_cache = [] {
+	const char* env = std::getenv("PCSX2_VU1_DECODE_CACHE");
+	return !env || std::strcmp(env, "0") != 0;
+}();
 
 void _vu1ExecUpper(VURegs* VU, u32* ptr)
 {
@@ -212,7 +221,10 @@ static void _vu1Exec(VURegs* VU)
 void vu1Exec(VURegs* VU)
 {
 	VU->cycle++;
-	_vu1Exec(VU);
+	if (VU == &VU1 && s_vu1_decode_cache)
+		_vu1ExecDecoded();
+	else
+		_vu1Exec(VU);
 
 	if (VU->VI[0].UL != 0)
 		DbgCon.Error("VI[0] != 0!!!!\n");

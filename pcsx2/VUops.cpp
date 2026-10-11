@@ -4047,3 +4047,197 @@ void VFCSET()  { VU0.code = cpuRegs.code; _vuFCSET(&VU0); SYNCCLIPFLAG(); }
 void VFCGET()  { VU0.code = cpuRegs.code; _vuFCGET(&VU0); }
 void VXITOP()  { VU0.code = cpuRegs.code; _vuXITOP(&VU0); }
 
+
+// VU1 interpreter step with a per-pair decode cache. Same steps and order as _vu1Exec in
+// VU1microInterp.cpp; only the opcode table lookups and register-usage decode are cached.
+// An entry is re-decoded when the micro memory under it changes (the code words are compared).
+struct VU1DecodedPair
+{
+	u64 code;
+	FnPtr_VuVoid upper;
+	FnPtr_VuVoid lower;
+	_VURegsNum uregs;
+	_VURegsNum lregs;
+	u8 valid;
+	u8 ibit;
+	u8 discard;
+	u8 vfreg;
+	u8 vireg;
+	u8 fmac;
+};
+
+static VU1DecodedPair s_vu1_decoded[VU1_PROGSIZE / 8];
+
+static void _vu1Decode(VU1DecodedPair& d, const u32* ptr)
+{
+	VURegs* VU = &VU1;
+	std::memset(&d, 0, sizeof(d));
+	d.code = static_cast<u64>(ptr[0]) | (static_cast<u64>(ptr[1]) << 32);
+	d.upper = VU1_UPPER_OPCODE[ptr[1] & 0x3f];
+	d.lower = VU1_LOWER_OPCODE[ptr[0] >> 25];
+	VU->code = ptr[1];
+	VU1regs_UPPER_OPCODE[VU->code & 0x3f](&d.uregs);
+	d.ibit = (ptr[1] & 0x80000000) != 0;
+	if (!d.ibit)
+	{
+		VU->code = ptr[0];
+		VU1regs_LOWER_OPCODE[VU->code >> 25](&d.lregs);
+		if (d.uregs.VFwrite)
+		{
+			if (d.lregs.VFwrite == d.uregs.VFwrite)
+				d.discard = 1;
+			if (d.lregs.VFread0 == d.uregs.VFwrite || d.lregs.VFread1 == d.uregs.VFwrite)
+				d.vfreg = d.uregs.VFwrite;
+		}
+		if (d.uregs.VIwrite & (1 << REG_CLIP_FLAG))
+		{
+			if (d.lregs.VIwrite & (1 << REG_CLIP_FLAG))
+				d.discard = 1;
+			if (d.lregs.VIread & (1 << REG_CLIP_FLAG))
+				d.vireg = REG_CLIP_FLAG;
+		}
+	}
+	d.fmac = d.uregs.pipe == VUPIPE_FMAC || d.lregs.pipe == VUPIPE_FMAC;
+	d.valid = 1;
+}
+
+void _vu1ExecDecoded()
+{
+	VURegs* VU = &VU1;
+	const u32 pc = VU->VI[REG_TPC].UL;
+	u32* ptr = (u32*)&VU->Micro[pc];
+	VU->VI[REG_TPC].UL += 8;
+
+	VU1DecodedPair& d = s_vu1_decoded[pc >> 3];
+	const u64 code = static_cast<u64>(ptr[0]) | (static_cast<u64>(ptr[1]) << 32);
+	if (!d.valid || d.code != code) [[unlikely]]
+		_vu1Decode(d, ptr);
+
+	if (ptr[1] & 0x40000000) // E flag
+	{
+		VU->ebit = 2;
+	}
+	if (ptr[1] & 0x10000000) // D flag
+	{
+		if (VU0.VI[REG_FBRST].UL & 0x400)
+		{
+			VU0.VI[REG_VPU_STAT].UL |= 0x200;
+			hwIntcIrq(INTC_VU1);
+			VU->ebit = 1;
+		}
+	}
+	if (ptr[1] & 0x08000000) // T flag
+	{
+		if (VU0.VI[REG_FBRST].UL & 0x800)
+		{
+			VU0.VI[REG_VPU_STAT].UL |= 0x400;
+			hwIntcIrq(INTC_VU1);
+			VU->ebit = 1;
+		}
+	}
+
+	VU->code = ptr[1];
+
+	u32 cyclesBeforeOp = VU1.cycle - 1;
+
+	_vuTestUpperStalls(VU, &d.uregs);
+
+	if (d.ibit)
+	{
+		_vuTestPipes(VU);
+
+		if (VU->VIBackupCycles > 0)
+			VU->VIBackupCycles -= std::min((u8)(VU1.cycle - cyclesBeforeOp), VU->VIBackupCycles);
+
+		VU->code = ptr[1];
+		d.upper();
+
+		VU->VI[REG_I].UL = ptr[0];
+	}
+	else
+	{
+		VECTOR _VF;
+		VECTOR _VFc;
+		REG_VI _VI;
+		REG_VI _VIc;
+
+		VU->code = ptr[0];
+
+		_vuTestLowerStalls(VU, &d.lregs);
+		_vuTestPipes(VU);
+
+		if (VU->VIBackupCycles > 0)
+			VU->VIBackupCycles -= std::min((u8)(VU1.cycle - cyclesBeforeOp), VU->VIBackupCycles);
+
+		if (d.vfreg)
+			_VF = VU->VF[d.vfreg];
+		if (d.vireg)
+			_VI = VU->VI[d.vireg];
+
+		VU->code = ptr[1];
+		d.upper();
+
+		if (d.discard == 0)
+		{
+			if (d.vfreg)
+			{
+				_VFc = VU->VF[d.vfreg];
+				VU->VF[d.vfreg] = _VF;
+			}
+			if (d.vireg)
+			{
+				_VIc = VU->VI[d.vireg];
+				VU->VI[d.vireg] = _VI;
+			}
+
+			VU->code = ptr[0];
+			d.lower();
+
+			if (d.vfreg)
+				VU->VF[d.vfreg] = _VFc;
+			if (d.vireg)
+				VU->VI[d.vireg] = _VIc;
+		}
+	}
+	// Clear an FMAC read for use
+	if (d.fmac)
+		_vuClearFMAC(VU);
+
+	_vuAddUpperStalls(VU, &d.uregs);
+	_vuAddLowerStalls(VU, &d.lregs);
+
+	if (VU->branch > 0)
+	{
+		if (VU->branch-- == 1)
+		{
+			VU->VI[REG_TPC].UL = VU->branchpc;
+
+			if (VU->takedelaybranch)
+			{
+				VU->branch = 1;
+				VU->branchpc = VU->delaybranchpc;
+				VU->takedelaybranch = false;
+			}
+		}
+	}
+
+	if (VU->ebit > 0)
+	{
+		if (VU->ebit-- == 1)
+		{
+			VU->VIBackupCycles = 0;
+			_vuFlushAll(VU);
+			VU0.VI[REG_VPU_STAT].UL &= ~0x100;
+			vif1Regs.stat.VEW = false;
+
+			if (VU1.xgkickenable)
+				_vuXGKICKTransfer(0, true);
+			if (INSTANT_VU1)
+				VU1.xgkicklastcycle = cpuRegs.cycle;
+		}
+	}
+
+	// Progress the write position of the FMAC pipeline by one place
+	if (d.fmac)
+		VU->fmacwritepos = (VU->fmacwritepos + 1) & 3;
+}
