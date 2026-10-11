@@ -485,6 +485,9 @@
     <ClCompile Include="VU1microInterp.cpp">
       <Filter>System\Ps2\EmotionEngine\VU\Interpreter</Filter>
     </ClCompile>
+    <ClCompile Include="VUflags.cpp">
+      <Filter>System\Ps2\EmotionEngine\VU\Interpreter</Filter>
+    </ClCompile>
     <ClCompile Include="VUops.cpp">
       <Filter>System\Ps2\EmotionEngine\VU\Interpreter</Filter>
     </ClCompile>

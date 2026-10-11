@@ -157,6 +157,7 @@ set(pcsx2Sources
 	VU0microInterp.cpp
 	VU1micro.cpp
 	VU1microInterp.cpp
+	VUflags.cpp
 	VUmicroMem.cpp
 	VUops.cpp
 )
