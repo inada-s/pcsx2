@@ -70,7 +70,7 @@ Everything is on only for the one game build it was made for; any other disc run
   whose stall and pipeline-flush decisions are worked out at compile time per pipeline state at
   entry; pairs with E/D/T bits or XGKICK run through the interpreter. Upper ADD/SUB/MUL/MADD/MSUB
   (all A/bc/i/q forms but ADDi; not Fd = 0) are NEON code with MAC/status flags when VU0 overflow
-  clamping is on, other ops call the interpreter handlers. A trace re-reads its code only after a
+  clamping is on; lower MOVE/LQ/SQ are native too; other ops call the interpreter handlers. A trace re-reads its code only after a
   VU1 micro memory write (`InterpVU1::Clear`) or reset. Same results as the interpreter. Env `PCSX2_VU1_JIT`: `0` = interpreter only, `check` = every trace is also run by the
   interpreter from the same start and the VU1 registers and memory compared (log
   `VU1 trace check`), unset = traces.

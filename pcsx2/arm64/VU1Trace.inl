@@ -627,6 +627,85 @@ static void _vu1JitEmitUpper(FnPtr_VuVoid f, u32 code)
 		_vu1JitEmitHandler(f);
 }
 
+// VF[ft] = v0 on the lanes of xyzw (8 = x).
+static void _vu1JitEmitStoreVF(u32 ft, u32 xyzw)
+{
+	const s64 off = _vu1Off(VU1.VF[ft]);
+	if (xyzw != 0xf)
+	{
+		armAsm->Ldr(a64::q1, _vu1JitMem(off));
+		for (int i = 0; i < 4; i++)
+			if (xyzw & (8 >> i))
+				armAsm->Mov(a64::v1.V4S(), i, a64::v0.V4S(), i);
+		armAsm->Mov(a64::v0.V16B(), a64::v1.V16B());
+	}
+	armAsm->Str(a64::q0, _vu1JitMem(off));
+}
+
+// x1 = VU1.Mem + ((VI[reg] + imm11) & 0x3ff) * 16, as GET_VU_MEM for VU1 after the u16 truncation.
+static void _vu1JitEmitMemAddr(u32 reg, u32 code)
+{
+	const s32 imm = (code & 0x400) ? static_cast<s32>(code & 0x3ff) - 0x400 : static_cast<s32>(code & 0x3ff);
+	armAsm->Ldrh(a64::w0, _vu1JitMem(_vu1Off(VU1.VI[reg])));
+	if (imm)
+		armAsm->Add(a64::w0, a64::w0, imm);
+	armAsm->And(a64::w0, a64::w0, 0x3ff);
+	armAsm->Ldr(a64::x1, _vu1JitMem(_vu1Off(VU1.Mem)));
+	armAsm->Add(a64::x1, a64::x1, a64::Operand(a64::x0, a64::LSL, 4));
+}
+
+// MOVE, LQ and SQ as native code; other lower ops call the interpreter handler.
+static void _vu1JitEmitLower(FnPtr_VuVoid f, u32 code)
+{
+	const u32 xyzw = (code >> 21) & 0xf;
+	const u32 ft = (code >> 16) & 0x1f;
+	const u32 fs = (code >> 11) & 0x1f;
+	if (f == VU1MI_MOVE)
+	{
+		if (ft != 0 && xyzw != 0)
+		{
+			armAsm->Ldr(a64::q0, _vu1JitMem(_vu1Off(VU1.VF[fs])));
+			_vu1JitEmitStoreVF(ft, xyzw);
+		}
+	}
+	else if (f == VU1MI_LQ)
+	{
+		if (ft != 0 && xyzw != 0)
+		{
+			_vu1JitEmitMemAddr(fs, code);
+			armAsm->Ldr(a64::q0, a64::MemOperand(a64::x1));
+			_vu1JitEmitStoreVF(ft, xyzw);
+		}
+	}
+	else if (f == VU1MI_SQ)
+	{
+		if (xyzw != 0)
+		{
+			_vu1JitEmitMemAddr(ft, code);
+			if (xyzw == 0xf)
+			{
+				armAsm->Ldr(a64::q0, _vu1JitMem(_vu1Off(VU1.VF[fs])));
+				armAsm->Str(a64::q0, a64::MemOperand(a64::x1));
+			}
+			else
+			{
+				for (int i = 0; i < 4; i++)
+				{
+					if (xyzw & (8 >> i))
+					{
+						armAsm->Ldr(a64::w2, _vu1JitMem(_vu1Off(VU1.VF[fs].UL[i])));
+						armAsm->Str(a64::w2, a64::MemOperand(a64::x1, i * 4));
+					}
+				}
+			}
+		}
+	}
+	else
+	{
+		_vu1JitEmitHandler(f);
+	}
+}
+
 static void _vu1JitReset()
 {
 	if (!s_vu1_jit_start)
@@ -759,7 +838,7 @@ static void _vu1JitCompile(VU1Trace& t)
 				}
 				armAsm->Mov(a64::w0, lo);
 				armAsm->Str(a64::w0, vu(off_code));
-				_vu1JitEmitHandler(d.lower);
+				_vu1JitEmitLower(d.lower, lo);
 				if (d.vfreg)
 				{
 					armAsm->Ldr(a64::q0, slot(1));
