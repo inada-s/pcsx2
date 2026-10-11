@@ -133,6 +133,7 @@ struct VU1Trace
 	u32 last_start_rel; // cycle before the last step, relative to the cycle at trace entry
 	std::vector<VU1TraceStep> steps;
 	void (*code)() = nullptr; // native code, compiled on first run
+	u32 micro_gen = 0; // s_vu1_micro_gen when the steps were last compared with VU1.Micro
 };
 
 static constexpr u32 VU1_TRACE_VARIANTS = 4;
@@ -145,6 +146,15 @@ struct VU1TraceSlot
 };
 
 static VU1TraceSlot s_vu1_traces[VU1_PROGSIZE / 8];
+
+// Bumped by every VU1 micro memory write (InterpVU1::Clear) and reset: a trace compares its
+// steps with VU1.Micro once per generation instead of on every run.
+static u32 s_vu1_micro_gen = 1;
+
+void _vu1TraceClear()
+{
+	s_vu1_micro_gen++;
+}
 
 static bool _vu1PipeSig(const VURegs* VU, VU1PipeSig* s)
 {
@@ -912,7 +922,7 @@ bool _vu1TraceStep(u64 startcycles, u32 cycles)
 		}
 	}
 
-	if (t)
+	if (t && t->micro_gen != s_vu1_micro_gen)
 	{
 		u32 p = pc;
 		for (const VU1TraceStep& s : t->steps)
@@ -925,6 +935,8 @@ bool _vu1TraceStep(u64 startcycles, u32 cycles)
 			}
 			p += 8;
 		}
+		if (t)
+			t->micro_gen = s_vu1_micro_gen;
 	}
 	if (!t)
 	{
@@ -940,6 +952,7 @@ bool _vu1TraceStep(u64 startcycles, u32 cycles)
 		}
 		*it = std::move(nt);
 		t = it->get();
+		t->micro_gen = s_vu1_micro_gen;
 	}
 
 	if ((VU1.cycle + t->last_start_rel - startcycles) >= cycles)
