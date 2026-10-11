@@ -289,6 +289,7 @@ void intSetBranch();
 // This is a special form of the interpreter's doBranch that is run from various
 // parts of the Recs (namely COP0's branch codes and stuff).
 void intDoBranch(u32 target);
+void intBranchAfterDelaySlot(u32 target);
 
 // modules loaded at hardcoded addresses by the kernel
 const u32 EEKERNEL_START	= 0;

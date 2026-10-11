@@ -80,7 +80,9 @@ Everything is on only for the one game build it was made for; any other disc run
   IOP and VU stay interpreters on ARM64.
   Integer ALU, shift, HI/LO move and MOVZ/MOVN ops are emitted as native code, computed as the x86
   recompiler does: ADD/SUB/ADDI/DADD/DSUB/DADDI write their result on overflow (the interpreter skips
-  the write). Env `PCSX2_ARM64_EE_NATIVE=0`: every op calls its interpreter handler (A/B check).
+  the write). Jumps and branches (J/JAL/JR/JALR, BEQ/BNE/BLEZ/BGTZ/BLTZ/BGEZ and likely forms) are
+  compiled with their delay slot; the interpreter's doBranch tail (wait loop, cycles, events) runs
+  after it. Env `PCSX2_ARM64_EE_NATIVE=0`: every op calls its interpreter handler (A/B check).
   Events (counters, interrupts, IOP and VU runs) are tested only once the cycle target is reached, as
   the x86 recompiler does (the EE interpreter tests them at every branch).
 - Options for tests, traces and game investigation; every build reads them.
