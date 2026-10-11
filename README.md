@@ -69,6 +69,10 @@ Everything is on only for the one game build it was made for; any other disc run
   Env `PCSX2_VU1_INTERP`: `0` = upstream steps, `decode` = decode cache only, `check` = every trace
   is also run by the interpreter from the same start and the VU1 registers and memory compared
   (log `VU1 trace check`), unset = traces.
+- ARM64 VU1 trace JIT: each trace becomes native code with the pipeline bookkeeping (FMAC/IALU
+  entries and retires) inlined and the instruction handlers called directly; the decode resolves
+  the sub-table dispatchers to the final handler (`pcsx2/VUops.cpp`). Env `PCSX2_VU1_JIT=0`: C
+  traces instead. `PCSX2_VU1_INTERP=check` checks the native traces the same way.
 - Options for tests, traces and game investigation; every build reads them.
 
 ## Documentation
