@@ -26,6 +26,8 @@ Everything is on only for the one game build it was made for; any other disc run
   the interpreters, so it never matches an x86 one) in the platform info, logged as
   `ZdxsvSync: fingerprint <hex>`: a lobby battle whose
   players' fingerprints differ is cut, and the players return to the lobby.
+- EE FPU interpreter computes as the EE recompiler: add/sub cut the smaller operand's mantissa, DIV.S
+  uses the divide rounding mode, SQRT.S rounds to nearest (an interpreter peer, e.g. ARM64, stays in sync longer).
 
 ### Input latency
 
