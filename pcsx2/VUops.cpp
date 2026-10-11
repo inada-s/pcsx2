@@ -8,6 +8,13 @@
 #include "MTVU.h"
 
 #include <cmath>
+#include <cstdlib>
+#include <cstring>
+
+#ifdef ARCH_ARM64
+#include <arm_neon.h>
+#endif
+
 u32 laststall = 0;
 //Lower/Upper instructions can use that..
 #define _Ft_ ((VU->code >> 16) & 0x1F)  // The rt part of the instruction register
@@ -527,8 +534,143 @@ static __fi VECTOR* _getDst(VURegs* VU)
 		return &VU->VF[_Fd_];
 }
 
+#ifdef ARCH_ARM64
+// ARM64: ADD/SUB/MUL/MADD/MSUB (and their ACC and broadcast forms) on the four lanes at once.
+// Scalar and AdvSIMD float ops share FPCR (rounding, flush to zero), so the results and flags are
+// those of the scalar code bit for bit.
+// PCSX2_VU_FMAC_CHECK=1: each op also runs the scalar code, which is kept; differences are logged.
+// The first op also runs every FMAC handler on random inputs (special values, both clamp modes).
+static float _vuOpADD(u32 fs, u32 ft);
+static float _vuOpSUB(u32 fs, u32 ft);
+static float _vuOpMUL(u32 fs, u32 ft);
+static float _vuOpMADD(u32 acc, u32 fs, u32 ft);
+static float _vuOpMSUB(u32 acc, u32 fs, u32 ft);
+static void _vuFMACCheckFuzz();
+
+enum class VUNeonOp { None, Add, Sub, Mul, Madd, Msub };
+
+template <float (*Fn)(u32, u32)>
+static constexpr VUNeonOp _vuNeonOp2 = Fn == &_vuOpADD ? VUNeonOp::Add :
+                                       Fn == &_vuOpSUB ? VUNeonOp::Sub :
+                                       Fn == &_vuOpMUL ? VUNeonOp::Mul :
+                                                         VUNeonOp::None;
+
+template <float (*Fn)(u32, u32, u32)>
+static constexpr VUNeonOp _vuNeonOp3 = Fn == &_vuOpMADD ? VUNeonOp::Madd :
+                                       Fn == &_vuOpMSUB ? VUNeonOp::Msub :
+                                                          VUNeonOp::None;
+
+static bool s_vu_fmac_fuzzed;
+static const bool s_vu_fmac_check = [] {
+	const char* env = std::getenv("PCSX2_VU_FMAC_CHECK");
+	return env && std::strcmp(env, "1") == 0;
+}();
+
+// vuDouble
+static __fi uint32x4_t _vuDouble4(uint32x4_t v)
+{
+	const uint32x4_t exp = vandq_u32(v, vdupq_n_u32(0x7f800000));
+	const uint32x4_t sign = vandq_u32(v, vdupq_n_u32(0x80000000));
+	v = vbslq_u32(vceqzq_u32(exp), sign, v);
+	if (CHECK_VU_OVERFLOW(0))
+		v = vbslq_u32(vceqq_u32(exp, vdupq_n_u32(0x7f800000)), vorrq_u32(sign, vdupq_n_u32(0x7f7fffff)), v);
+	return v;
+}
+
+// VU_MAC*_UPDATE / VU_MAC*_CLEAR of the four lanes and VU_STAT_UPDATE; writes the enabled lanes.
+static __fi void _vuMACWrite4(VURegs* VU, VECTOR* dst, float32x4_t f)
+{
+	alignas(16) static constexpr u32 lane_bits[4] = {8, 4, 2, 1}; // x..w = MAC flag shift 3..0
+	const uint32x4_t bit = vld1q_u32(lane_bits);
+	const uint32x4_t en = vtstq_u32(vdupq_n_u32((VU->code >> 21) & 0xf), bit);
+	const uint32x4_t v = vreinterpretq_u32_f32(f);
+	const uint32x4_t exp = vandq_u32(v, vdupq_n_u32(0x7f800000));
+	const uint32x4_t sign = vandq_u32(v, vdupq_n_u32(0x80000000));
+	const uint32x4_t zero = vceqzq_f32(f); // as the scalar f == 0, under the same flush to zero
+	const uint32x4_t exp0 = vceqzq_u32(exp);
+	const uint32x4_t under = vbicq_u32(exp0, zero);
+	const uint32x4_t over = vceqq_u32(exp, vdupq_n_u32(0x7f800000));
+
+	uint32x4_t r = vbslq_u32(under, sign, v);
+	if (CHECK_VU_OVERFLOW((VU == &VU1) ? 1 : 0))
+		r = vbslq_u32(over, vorrq_u32(sign, vdupq_n_u32(0x7f7fffff)), r);
+
+	uint32x4_t flags = vandq_u32(exp0, bit);
+	flags = vorrq_u32(flags, vandq_u32(vtstq_u32(v, vdupq_n_u32(0x80000000)), vshlq_n_u32(bit, 4)));
+	flags = vorrq_u32(flags, vandq_u32(under, vshlq_n_u32(bit, 8)));
+	flags = vorrq_u32(flags, vandq_u32(over, vshlq_n_u32(bit, 12)));
+	const u32 mac = vaddvq_u32(vandq_u32(flags, en));
+	VU->macflag = (VU->macflag & ~0xffffu) | mac;
+	VU->statusflag = ((mac & 0x000f) ? 0x1 : 0) | ((mac & 0x00f0) ? 0x2 : 0) | ((mac & 0x0f00) ? 0x4 : 0) | ((mac & 0xf000) ? 0x8 : 0);
+
+	u32* d = &dst->i.x;
+	vst1q_u32(d, vbslq_u32(en, r, vld1q_u32(d)));
+}
+
+template <VUNeonOp Op, MACOpDst Dst>
+static __fi void _vuNeonMACOp(VURegs* VU, uint32x4_t ft)
+{
+	const float32x4_t a = vreinterpretq_f32_u32(_vuDouble4(vld1q_u32(&VU->VF[_Fs_].i.x)));
+	const float32x4_t b = vreinterpretq_f32_u32(_vuDouble4(ft));
+	float32x4_t f;
+	if constexpr (Op == VUNeonOp::Add)
+		f = vaddq_f32(a, b);
+	else if constexpr (Op == VUNeonOp::Sub)
+		f = vsubq_f32(a, b);
+	else if constexpr (Op == VUNeonOp::Mul)
+		f = vmulq_f32(a, b);
+	else
+	{
+		const float32x4_t acc = vreinterpretq_f32_u32(_vuDouble4(vld1q_u32(&VU->ACC.i.x)));
+		if constexpr (Op == VUNeonOp::Madd)
+			f = vaddq_f32(acc, vmulq_f32(a, b));
+		else
+			f = vsubq_f32(acc, vmulq_f32(a, b));
+	}
+	_vuMACWrite4(VU, _getDst<Dst>(VU), f);
+}
+
+static void _vuFMACCheckReport(VURegs* VU, const VECTOR& neon, u32 neon_mac, u32 neon_stat, const VECTOR& scalar)
+{
+	static u64 checked, differ;
+	checked++;
+	if (std::memcmp(&neon, &scalar, sizeof(VECTOR)) == 0 && neon_mac == VU->macflag && neon_stat == VU->statusflag)
+		return;
+	if (++differ <= 20)
+		Console.Error("VU FMAC check: code %08x differs (NEON %08x %08x %08x %08x mac %04x stat %x, scalar %08x %08x %08x %08x mac %04x stat %x) after %llu",
+			VU->code, neon.i.x, neon.i.y, neon.i.z, neon.i.w, neon_mac, neon_stat,
+			scalar.i.x, scalar.i.y, scalar.i.z, scalar.i.w, VU->macflag, VU->statusflag, checked);
+}
+
+// Without PCSX2_VU_FMAC_CHECK: the NEON form only. With it: NEON, then the scalar form from the same state.
+template <typename Neon, typename Scalar>
+static __fi void _vuFMACRun(VURegs* VU, VECTOR* dst, Neon neon, Scalar scalar)
+{
+	if (!s_vu_fmac_check)
+	{
+		neon();
+		return;
+	}
+	if (!s_vu_fmac_fuzzed)
+	{
+		s_vu_fmac_fuzzed = true;
+		_vuFMACCheckFuzz();
+	}
+	const VECTOR old = *dst;
+	const u32 mac = VU->macflag, stat = VU->statusflag;
+	neon();
+	const VECTOR neon_res = *dst;
+	const u32 neon_mac = VU->macflag, neon_stat = VU->statusflag;
+	*dst = old;
+	VU->macflag = mac;
+	VU->statusflag = stat;
+	scalar();
+	_vuFMACCheckReport(VU, neon_res, neon_mac, neon_stat, *dst);
+}
+#endif
+
 template <float(*Fn)(u32, u32), MACOpDst Dst>
-static __fi void applyBinaryMACOp(VURegs* VU)
+static __fi void applyBinaryMACOpScalar(VURegs* VU)
 {
 	VECTOR* dst = _getDst<Dst>(VU);
 	if (_X) { dst->i.x = VU_MACx_UPDATE(VU, Fn(VU->VF[_Fs_].i.x, VU->VF[_Ft_].i.x)); } else VU_MACx_CLEAR(VU);
@@ -539,7 +681,7 @@ static __fi void applyBinaryMACOp(VURegs* VU)
 }
 
 template <float(*Fn)(u32, u32), MACOpDst Dst>
-static __fi void applyBinaryMACOpBroadcast(VURegs* VU, u32 bc)
+static __fi void applyBinaryMACOpBroadcastScalar(VURegs* VU, u32 bc)
 {
 	VECTOR* dst = _getDst<Dst>(VU);
 	if (_X) { dst->i.x = VU_MACx_UPDATE(VU, Fn(VU->VF[_Fs_].i.x, bc)); } else VU_MACx_CLEAR(VU);
@@ -547,6 +689,36 @@ static __fi void applyBinaryMACOpBroadcast(VURegs* VU, u32 bc)
 	if (_Z) { dst->i.z = VU_MACz_UPDATE(VU, Fn(VU->VF[_Fs_].i.z, bc)); } else VU_MACz_CLEAR(VU);
 	if (_W) { dst->i.w = VU_MACw_UPDATE(VU, Fn(VU->VF[_Fs_].i.w, bc)); } else VU_MACw_CLEAR(VU);
 	VU_STAT_UPDATE(VU);
+}
+
+template <float(*Fn)(u32, u32), MACOpDst Dst>
+static __fi void applyBinaryMACOp(VURegs* VU)
+{
+#ifdef ARCH_ARM64
+	if constexpr (_vuNeonOp2<Fn> != VUNeonOp::None)
+	{
+		_vuFMACRun(VU, _getDst<Dst>(VU),
+			[VU] { _vuNeonMACOp<_vuNeonOp2<Fn>, Dst>(VU, vld1q_u32(&VU->VF[_Ft_].i.x)); },
+			[VU] { applyBinaryMACOpScalar<Fn, Dst>(VU); });
+		return;
+	}
+#endif
+	applyBinaryMACOpScalar<Fn, Dst>(VU);
+}
+
+template <float(*Fn)(u32, u32), MACOpDst Dst>
+static __fi void applyBinaryMACOpBroadcast(VURegs* VU, u32 bc)
+{
+#ifdef ARCH_ARM64
+	if constexpr (_vuNeonOp2<Fn> != VUNeonOp::None)
+	{
+		_vuFMACRun(VU, _getDst<Dst>(VU),
+			[VU, bc] { _vuNeonMACOp<_vuNeonOp2<Fn>, Dst>(VU, vdupq_n_u32(bc)); },
+			[VU, bc] { applyBinaryMACOpBroadcastScalar<Fn, Dst>(VU, bc); });
+		return;
+	}
+#endif
+	applyBinaryMACOpBroadcastScalar<Fn, Dst>(VU, bc);
 }
 
 static __fi float _vuOpADD(u32 fs, u32 ft)
@@ -680,7 +852,7 @@ static __fi void _vuMULAz(VURegs* VU) { vuMULAbc(VU, VU->VF[_Ft_].i.z); }
 static __fi void _vuMULAw(VURegs* VU) { vuMULAbc(VU, VU->VF[_Ft_].i.w); }
 
 template <float(*Fn)(u32, u32, u32), MACOpDst Dst>
-static __fi void applyTernaryMACOp(VURegs* VU)
+static __fi void applyTernaryMACOpScalar(VURegs* VU)
 {
 	VECTOR* dst = _getDst<Dst>(VU);
 	if (_X) { dst->i.x = VU_MACx_UPDATE(VU, Fn(VU->ACC.i.x, VU->VF[_Fs_].i.x, VU->VF[_Ft_].i.x)); } else VU_MACx_CLEAR(VU);
@@ -691,7 +863,7 @@ static __fi void applyTernaryMACOp(VURegs* VU)
 }
 
 template <float(*Fn)(u32, u32, u32), MACOpDst Dst>
-static __fi void applyTernaryMACOpBroadcast(VURegs* VU, u32 bc)
+static __fi void applyTernaryMACOpBroadcastScalar(VURegs* VU, u32 bc)
 {
 	VECTOR* dst = _getDst<Dst>(VU);
 	if (_X) { dst->i.x = VU_MACx_UPDATE(VU, Fn(VU->ACC.i.x, VU->VF[_Fs_].i.x, bc)); } else VU_MACx_CLEAR(VU);
@@ -699,6 +871,36 @@ static __fi void applyTernaryMACOpBroadcast(VURegs* VU, u32 bc)
 	if (_Z) { dst->i.z = VU_MACz_UPDATE(VU, Fn(VU->ACC.i.z, VU->VF[_Fs_].i.z, bc)); } else VU_MACz_CLEAR(VU);
 	if (_W) { dst->i.w = VU_MACw_UPDATE(VU, Fn(VU->ACC.i.w, VU->VF[_Fs_].i.w, bc)); } else VU_MACw_CLEAR(VU);
 	VU_STAT_UPDATE(VU);
+}
+
+template <float(*Fn)(u32, u32, u32), MACOpDst Dst>
+static __fi void applyTernaryMACOp(VURegs* VU)
+{
+#ifdef ARCH_ARM64
+	if constexpr (_vuNeonOp3<Fn> != VUNeonOp::None)
+	{
+		_vuFMACRun(VU, _getDst<Dst>(VU),
+			[VU] { _vuNeonMACOp<_vuNeonOp3<Fn>, Dst>(VU, vld1q_u32(&VU->VF[_Ft_].i.x)); },
+			[VU] { applyTernaryMACOpScalar<Fn, Dst>(VU); });
+		return;
+	}
+#endif
+	applyTernaryMACOpScalar<Fn, Dst>(VU);
+}
+
+template <float(*Fn)(u32, u32, u32), MACOpDst Dst>
+static __fi void applyTernaryMACOpBroadcast(VURegs* VU, u32 bc)
+{
+#ifdef ARCH_ARM64
+	if constexpr (_vuNeonOp3<Fn> != VUNeonOp::None)
+	{
+		_vuFMACRun(VU, _getDst<Dst>(VU),
+			[VU, bc] { _vuNeonMACOp<_vuNeonOp3<Fn>, Dst>(VU, vdupq_n_u32(bc)); },
+			[VU, bc] { applyTernaryMACOpBroadcastScalar<Fn, Dst>(VU, bc); });
+		return;
+	}
+#endif
+	applyTernaryMACOpBroadcastScalar<Fn, Dst>(VU, bc);
 }
 
 static __fi float _vuOpMADD(u32 acc, u32 fs, u32 ft)
@@ -778,6 +980,77 @@ static __fi void _vuMSUBAx(VURegs* VU) { vuMSUBAbc(VU, VU->VF[_Ft_].i.x); }
 static __fi void _vuMSUBAy(VURegs* VU) { vuMSUBAbc(VU, VU->VF[_Ft_].i.y); }
 static __fi void _vuMSUBAz(VURegs* VU) { vuMSUBAbc(VU, VU->VF[_Ft_].i.z); }
 static __fi void _vuMSUBAw(VURegs* VU) { vuMSUBAbc(VU, VU->VF[_Ft_].i.w); }
+
+#ifdef ARCH_ARM64
+// PCSX2_VU_FMAC_CHECK: every FMAC handler on random VU1 registers, under each clamp mode, rounding
+// mode and flush to zero setting; _vuFMACRun compares each run. VU1 and FPCR are restored after.
+static void _vuFMACCheckFuzz()
+{
+	static void (*const ops[])(VURegs*) = {
+		_vuADD, _vuADDi, _vuADDq, _vuADDx, _vuADDy, _vuADDz, _vuADDw, _vuADDA, _vuADDAi, _vuADDAq, _vuADDAx, _vuADDAy, _vuADDAz, _vuADDAw,
+		_vuSUB, _vuSUBi, _vuSUBq, _vuSUBx, _vuSUBy, _vuSUBz, _vuSUBw, _vuSUBA, _vuSUBAi, _vuSUBAq, _vuSUBAx, _vuSUBAy, _vuSUBAz, _vuSUBAw,
+		_vuMUL, _vuMULi, _vuMULq, _vuMULx, _vuMULy, _vuMULz, _vuMULw, _vuMULA, _vuMULAi, _vuMULAq, _vuMULAx, _vuMULAy, _vuMULAz, _vuMULAw,
+		_vuMADD, _vuMADDi, _vuMADDq, _vuMADDx, _vuMADDy, _vuMADDz, _vuMADDw, _vuMADDA, _vuMADDAi, _vuMADDAq, _vuMADDAx, _vuMADDAy, _vuMADDAz, _vuMADDAw,
+		_vuMSUB, _vuMSUBi, _vuMSUBq, _vuMSUBx, _vuMSUBy, _vuMSUBz, _vuMSUBw, _vuMSUBA, _vuMSUBAi, _vuMSUBAq, _vuMSUBAx, _vuMSUBAy, _vuMSUBAz, _vuMSUBAw,
+	};
+	static constexpr u32 specials[] = {0, 0x80000000, 1, 0x807fffff, 0x00800000, 0x80800000, 0x7f7fffff, 0xff7fffff,
+		0x7f800000, 0xff800000, 0x7fc00000, 0xffffffff, 0x3f800000, 0xbf800000, 0x00ffffff, 0x0d000000, 0x72000000};
+	alignas(16) static VURegs saved;
+	std::memcpy(&saved, &VU1, sizeof(VURegs));
+	const FPControlRegister fpcr = FPControlRegister::GetCurrent();
+	const bool vu0o = EmuConfig.Cpu.Recompiler.vu0Overflow, vu1o = EmuConfig.Cpu.Recompiler.vu1Overflow;
+
+	u64 x = 0x9e3779b97f4a7c15ull;
+	const auto rnd = [&x] {
+		x ^= x << 13;
+		x ^= x >> 7;
+		x ^= x << 17;
+		return x;
+	};
+	// Random bits, special values, or exponents near both ends (products and sums over/underflow).
+	const auto val = [&]() -> u32 {
+		const u64 r = rnd();
+		switch (r & 3)
+		{
+			case 0: return specials[(r >> 8) % std::size(specials)];
+			case 1: return (static_cast<u32>(r >> 32) & 0x807fffff) | ((((r >> 16) & 7) + ((r & 0x100) ? 0 : 247)) << 23);
+			default: return static_cast<u32>(r >> 32);
+		}
+	};
+
+	for (u32 mode = 0; mode < 2 * 4 * 4; mode++)
+	{
+		EmuConfig.Cpu.Recompiler.vu0Overflow = mode & 1;
+		EmuConfig.Cpu.Recompiler.vu1Overflow = (mode >> 1) & 1;
+		FPControlRegister::SetCurrent(FPControlRegister(fpcr)
+			.SetRoundMode(static_cast<FPRoundMode>((mode >> 2) & 3))
+			.SetFlushToZero((mode >> 4) ? !fpcr.GetFlushToZero() : fpcr.GetFlushToZero()));
+		for (u32 i = 0; i < 40000; i++)
+		{
+			for (u32 r = 0; r < 33; r++)
+			{
+				VECTOR& v = (r < 32) ? VU1.VF[r] : VU1.ACC;
+				v.i.x = val();
+				v.i.y = val();
+				v.i.z = val();
+				v.i.w = val();
+			}
+			VU1.VI[REG_I].UL = val();
+			VU1.VI[REG_Q].UL = val();
+			VU1.macflag = static_cast<u32>(rnd());
+			VU1.statusflag = static_cast<u32>(rnd());
+			VU1.code = static_cast<u32>(rnd());
+			ops[rnd() % std::size(ops)](&VU1);
+		}
+	}
+
+	FPControlRegister::SetCurrent(fpcr);
+	EmuConfig.Cpu.Recompiler.vu0Overflow = vu0o;
+	EmuConfig.Cpu.Recompiler.vu1Overflow = vu1o;
+	std::memcpy(&VU1, &saved, sizeof(VURegs));
+	Console.WriteLn("VU FMAC check: random inputs done (1.28 M ops)");
+}
+#endif
 
 // The functions below are floating point semantics min/max on integer representations to get
 // the effect of a floating point min/max without issues with denormal and special numbers.
