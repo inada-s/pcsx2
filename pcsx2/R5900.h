@@ -360,7 +360,7 @@ extern R5900cpu recCpu;
 // ARM64 EE recompiler, which runs interpreter code for them (arm64/iR5900.cpp).
 static __fi bool CpuRunsIntBranches()
 {
-#ifdef _M_ARM64
+#ifdef ARCH_ARM64
 	return true;
 #else
 	return Cpu == &intCpu;

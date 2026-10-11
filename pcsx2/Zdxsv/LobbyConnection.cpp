@@ -144,7 +144,7 @@ namespace Zdxsv
 #endif
 #if defined(_M_X86)
 		body += "cpu=x86/64\n";
-#elif defined(_M_ARM64)
+#elif defined(ARCH_ARM64)
 		body += "cpu=arm64\n";
 #else
 		body += "cpu=unknown\n";
