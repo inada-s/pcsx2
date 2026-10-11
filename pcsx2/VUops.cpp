@@ -561,6 +561,7 @@ static constexpr VUNeonOp _vuNeonOp3 = Fn == &_vuOpMADD ? VUNeonOp::Madd :
                                                           VUNeonOp::None;
 
 static bool s_vu_fmac_fuzzed;
+static u64 s_vu_fmac_checked, s_vu_fmac_differ;
 static const bool s_vu_fmac_check = [] {
 	const char* env = std::getenv("PCSX2_VU_FMAC_CHECK");
 	return env && std::strcmp(env, "1") == 0;
@@ -632,14 +633,14 @@ static __fi void _vuNeonMACOp(VURegs* VU, uint32x4_t ft)
 
 static void _vuFMACCheckReport(VURegs* VU, const VECTOR& neon, u32 neon_mac, u32 neon_stat, const VECTOR& scalar)
 {
-	static u64 checked, differ;
-	checked++;
+	if ((++s_vu_fmac_checked & ((1u << 24) - 1)) == 0)
+		Console.WriteLn("VU FMAC check: %llu ops, %llu differ", s_vu_fmac_checked, s_vu_fmac_differ);
 	if (std::memcmp(&neon, &scalar, sizeof(VECTOR)) == 0 && neon_mac == VU->macflag && neon_stat == VU->statusflag)
 		return;
-	if (++differ <= 20)
+	if (++s_vu_fmac_differ <= 3)
 		Console.Error("VU FMAC check: code %08x differs (NEON %08x %08x %08x %08x mac %04x stat %x, scalar %08x %08x %08x %08x mac %04x stat %x) after %llu",
 			VU->code, neon.i.x, neon.i.y, neon.i.z, neon.i.w, neon_mac, neon_stat,
-			scalar.i.x, scalar.i.y, scalar.i.z, scalar.i.w, VU->macflag, VU->statusflag, checked);
+			scalar.i.x, scalar.i.y, scalar.i.z, scalar.i.w, VU->macflag, VU->statusflag, s_vu_fmac_checked);
 }
 
 // Without PCSX2_VU_FMAC_CHECK: the NEON form only. With it: NEON, then the scalar form from the same state.
@@ -1018,37 +1019,45 @@ static void _vuFMACCheckFuzz()
 		}
 	};
 
-	for (u32 mode = 0; mode < 2 * 4 * 4; mode++)
+	// Clamp modes outside: with input clamping (vu0Overflow, the default) no FMAC op can make a NaN;
+	// without it, which NaN operand a scalar op keeps is the compiler's choice (it may swap operands).
+	for (u32 clamp = 0; clamp < 4; clamp++)
 	{
-		EmuConfig.Cpu.Recompiler.vu0Overflow = mode & 1;
-		EmuConfig.Cpu.Recompiler.vu1Overflow = (mode >> 1) & 1;
-		FPControlRegister::SetCurrent(FPControlRegister(fpcr)
-			.SetRoundMode(static_cast<FPRoundMode>((mode >> 2) & 3))
-			.SetFlushToZero((mode >> 4) ? !fpcr.GetFlushToZero() : fpcr.GetFlushToZero()));
-		for (u32 i = 0; i < 40000; i++)
+		EmuConfig.Cpu.Recompiler.vu0Overflow = clamp & 1;
+		EmuConfig.Cpu.Recompiler.vu1Overflow = clamp >> 1;
+		s_vu_fmac_checked = s_vu_fmac_differ = 0;
+		for (u32 mode = 0; mode < 8; mode++)
 		{
-			for (u32 r = 0; r < 33; r++)
+			FPControlRegister::SetCurrent(FPControlRegister(fpcr)
+				.SetRoundMode(static_cast<FPRoundMode>(mode & 3))
+				.SetFlushToZero((mode >> 2) ? !fpcr.GetFlushToZero() : fpcr.GetFlushToZero()));
+			for (u32 i = 0; i < 40000; i++)
 			{
-				VECTOR& v = (r < 32) ? VU1.VF[r] : VU1.ACC;
-				v.i.x = val();
-				v.i.y = val();
-				v.i.z = val();
-				v.i.w = val();
+				for (u32 r = 0; r < 33; r++)
+				{
+					VECTOR& v = (r < 32) ? VU1.VF[r] : VU1.ACC;
+					v.i.x = val();
+					v.i.y = val();
+					v.i.z = val();
+					v.i.w = val();
+				}
+				VU1.VI[REG_I].UL = val();
+				VU1.VI[REG_Q].UL = val();
+				VU1.macflag = static_cast<u32>(rnd());
+				VU1.statusflag = static_cast<u32>(rnd());
+				VU1.code = static_cast<u32>(rnd());
+				ops[rnd() % std::size(ops)](&VU1);
 			}
-			VU1.VI[REG_I].UL = val();
-			VU1.VI[REG_Q].UL = val();
-			VU1.macflag = static_cast<u32>(rnd());
-			VU1.statusflag = static_cast<u32>(rnd());
-			VU1.code = static_cast<u32>(rnd());
-			ops[rnd() % std::size(ops)](&VU1);
 		}
+		Console.WriteLn("VU FMAC check: random inputs, clamp vu0 %u vu1 %u, 4 rounding modes x FTZ on/off: %llu ops, %llu differ",
+			clamp & 1, clamp >> 1, s_vu_fmac_checked, s_vu_fmac_differ);
 	}
+	s_vu_fmac_checked = s_vu_fmac_differ = 0;
 
 	FPControlRegister::SetCurrent(fpcr);
 	EmuConfig.Cpu.Recompiler.vu0Overflow = vu0o;
 	EmuConfig.Cpu.Recompiler.vu1Overflow = vu1o;
 	std::memcpy(&VU1, &saved, sizeof(VURegs));
-	Console.WriteLn("VU FMAC check: random inputs done (1.28 M ops)");
 }
 #endif
 
