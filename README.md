@@ -26,6 +26,7 @@ Everything is on only for the one game build it was made for; any other disc run
   is not refused for its interpreter cores) in the platform info, logged as
   `ZdxsvSync: fingerprint <hex>`: a lobby battle whose
   players' fingerprints differ is cut, and the players return to the lobby.
+- VU interpreter: the MAC/status flag updates are inline (same results, faster; every game).
 - EE FPU interpreter computes as the EE recompiler: add/sub cut the smaller operand's mantissa, DIV.S
   uses the divide rounding mode, SQRT.S rounds to nearest (an interpreter peer, e.g. ARM64, stays in sync longer).
 
