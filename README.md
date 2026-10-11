@@ -65,12 +65,13 @@ Everything is on only for the one game build it was made for; any other disc run
 - Scripts for local builds and for running several instances side by side.
 - macOS deps scripts: no `qt110-xcode264.patch` (Qt 6.11.1 already has it; Apple `patch` reverted it,
   which broke arm64 Qt builds on Xcode 26.6).
-- VU1 interpreter (ARM64 has no VU1 recompiler), same results as upstream's: each instruction pair's
-  decode is cached, and runs of pairs up to a branch delay slot become traces whose stall and
-  pipeline-flush decisions are worked out once per pipeline state at entry (`pcsx2/VUops.cpp`).
-  Env `PCSX2_VU1_INTERP`: `0` = upstream steps, `decode` = decode cache only, `check` = every trace
-  is also run by the interpreter from the same start and the VU1 registers and memory compared
-  (log `VU1 trace check`), unset = traces.
+- ARM64 VU1 recompiler (`pcsx2/arm64/VU1Trace.inl`, included by `pcsx2/VUops.cpp`; the VU1
+  interpreter itself is upstream's): runs of pairs up to a branch delay slot become native traces
+  whose stall and pipeline-flush decisions are worked out at compile time per pipeline state at
+  entry; pairs with E/D/T bits or XGKICK run through the interpreter. Same results as the
+  interpreter. Env `PCSX2_VU1_JIT`: `0` = interpreter only, `check` = every trace is also run by the
+  interpreter from the same start and the VU1 registers and memory compared (log
+  `VU1 trace check`), unset = traces.
 - ARM64 EE recompiler (`pcsx2/arm64/iR5900.cpp`, experimental): blocks compiled into calls of the
   interpreter's handlers, so it computes what the EE interpreter computes, faster. On when the EE
   recompiler setting is on (`EmuCore/CPU/Recompiler` `EnableEE`, the default); off = EE interpreter.

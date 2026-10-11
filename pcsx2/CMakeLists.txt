@@ -1106,6 +1106,7 @@ set(pcsx2arm64Sources
 
 set(pcsx2arm64Headers
 	arm64/AsmHelpers.h
+	arm64/VU1Trace.inl
 )
 
 # These ones benefit a lot from LTO
