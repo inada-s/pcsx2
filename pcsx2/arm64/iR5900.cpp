@@ -62,6 +62,7 @@ static void recReserve()
 	s_rom_blocks = alloc(Ps2MemSize::Rom);
 	s_rom1_blocks = alloc(Ps2MemSize::Rom1);
 	s_rom2_blocks = alloc(Ps2MemSize::Rom2);
+	Console.WriteLn("ARM64 EE rec: reserved");
 
 	std::memset(s_lut, 0, sizeof(s_lut));
 	const u32 ram_pages = Ps2MemSize::ExposedRam / 0x10000;
