@@ -59,6 +59,8 @@ Everything is on only for the one game build it was made for; any other disc run
 
 - Auto-updater and release workflow for this fork.
 - Scripts for local builds and for running several instances side by side.
+- macOS deps scripts: no `qt110-xcode264.patch` (Qt 6.11.1 already has it; Apple `patch` reverted it,
+  which broke arm64 Qt builds on Xcode 26.6).
 - Options for tests, traces and game investigation; every build reads them.
 
 ## Documentation
