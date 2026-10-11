@@ -45,6 +45,8 @@ static u8* s_code_ptr;
 static u8* s_code_end;
 // CP0 Config bit 18 (cycle factor of execI) the blocks were compiled with.
 static u32 s_config_bit18;
+// PCSX2_ARM64_EE_NATIVE=0: every instruction calls its interpreter handler (A/B check of the native ops).
+static bool s_native = true;
 
 static void SetPages(BlockFn* blocks, u32 pagebase, u32 first, u32 count)
 {
@@ -62,7 +64,9 @@ static void recReserve()
 	s_rom_blocks = alloc(Ps2MemSize::Rom);
 	s_rom1_blocks = alloc(Ps2MemSize::Rom1);
 	s_rom2_blocks = alloc(Ps2MemSize::Rom2);
-	Console.WriteLn("ARM64 EE rec: reserved");
+	const char* native = std::getenv("PCSX2_ARM64_EE_NATIVE");
+	s_native = !native || std::strcmp(native, "0") != 0;
+	Console.WriteLn("ARM64 EE rec: reserved, native ops %s", s_native ? "on" : "off");
 
 	std::memset(s_lut, 0, sizeof(s_lut));
 	const u32 ram_pages = Ps2MemSize::ExposedRam / 0x10000;
@@ -133,6 +137,120 @@ static bool EndsBlock(const OPCODE& opcode, u32 code)
 	return (opcode.flags & (IS_BRANCH | BRANCHTYPE_MASK)) || (code >> 26) == 0x10; // COP0: Config, Status, ERET
 }
 
+static s64 GprOffset(u32 reg)
+{
+	return offsetof(cpuRegisters, GPR.r[0]) + reg * sizeof(GPR_reg);
+}
+
+// Integer ops without memory access or exceptions, emitted inline. ADD, SUB, ADDI, DADD, DSUB and DADDI
+// write their result on overflow, as the x86 recompiler (the interpreter skips the write).
+// Returns false for the ops left to the interpreter's handler.
+static bool EmitNative(const a64::Register& rregs, u32 code)
+{
+	if (!s_native)
+		return false;
+
+	const u32 op = code >> 26;
+	const u32 rs = (code >> 21) & 31;
+	const u32 rt = (code >> 16) & 31;
+	const u32 rd = (code >> 11) & 31;
+	const u32 sa = (code >> 6) & 31;
+	const s64 imm = static_cast<s16>(code & 0xffff);
+	const u64 immu = code & 0xffff;
+
+	const a64::Register& s = a64::x9;
+	const a64::Register& t = a64::x10;
+	const a64::Register& d = a64::x11;
+	const auto load = [&](const a64::Register& r, u32 reg) { armAsm->Ldr(r, a64::MemOperand(rregs, GprOffset(reg))); };
+	const auto store = [&](u32 reg) { armAsm->Str(d, a64::MemOperand(rregs, GprOffset(reg))); };
+	const auto sext32 = [&]() { armAsm->Sxtw(d, d.W()); };
+
+	if (op == 0)
+	{
+		const u32 funct = code & 63;
+		switch (funct)
+		{
+			case 0x11: // MTHI
+			case 0x13: // MTLO
+				load(d, rs);
+				armAsm->Str(d, a64::MemOperand(rregs, funct == 0x11 ? offsetof(cpuRegisters, HI) : offsetof(cpuRegisters, LO)));
+				return true;
+			case 0x00: case 0x02: case 0x03: case 0x04: case 0x06: case 0x07:
+			case 0x0a: case 0x0b: case 0x10: case 0x12: case 0x14: case 0x16: case 0x17:
+			case 0x20: case 0x21: case 0x22: case 0x23: case 0x24: case 0x25: case 0x26: case 0x27:
+			case 0x2a: case 0x2b: case 0x2c: case 0x2d: case 0x2e: case 0x2f:
+			case 0x38: case 0x3a: case 0x3b: case 0x3c: case 0x3e: case 0x3f:
+				break;
+			default:
+				return false;
+		}
+		if (rd == 0)
+			return true;
+
+		load(s, rs);
+		load(t, rt);
+		switch (funct)
+		{
+			case 0x00: armAsm->Lsl(d.W(), t.W(), sa); sext32(); break; // SLL
+			case 0x02: armAsm->Lsr(d.W(), t.W(), sa); sext32(); break; // SRL
+			case 0x03: armAsm->Asr(d.W(), t.W(), sa); sext32(); break; // SRA
+			case 0x04: armAsm->Lsl(d.W(), t.W(), s.W()); sext32(); break; // SLLV
+			case 0x06: armAsm->Lsr(d.W(), t.W(), s.W()); sext32(); break; // SRLV
+			case 0x07: armAsm->Asr(d.W(), t.W(), s.W()); sext32(); break; // SRAV
+			case 0x0a: // MOVZ
+			case 0x0b: // MOVN
+				load(d, rd);
+				armAsm->Cmp(t, 0);
+				armAsm->Csel(d, s, d, funct == 0x0a ? a64::eq : a64::ne);
+				break;
+			case 0x10: armAsm->Ldr(d, a64::MemOperand(rregs, offsetof(cpuRegisters, HI))); break; // MFHI
+			case 0x12: armAsm->Ldr(d, a64::MemOperand(rregs, offsetof(cpuRegisters, LO))); break; // MFLO
+			case 0x14: armAsm->Lsl(d, t, s); break; // DSLLV
+			case 0x16: armAsm->Lsr(d, t, s); break; // DSRLV
+			case 0x17: armAsm->Asr(d, t, s); break; // DSRAV
+			case 0x20: case 0x21: armAsm->Add(d.W(), s.W(), t.W()); sext32(); break; // ADD, ADDU
+			case 0x22: case 0x23: armAsm->Sub(d.W(), s.W(), t.W()); sext32(); break; // SUB, SUBU
+			case 0x24: armAsm->And(d, s, t); break;
+			case 0x25: armAsm->Orr(d, s, t); break;
+			case 0x26: armAsm->Eor(d, s, t); break;
+			case 0x27: armAsm->Orr(d, s, t); armAsm->Mvn(d, d); break; // NOR
+			case 0x2a: armAsm->Cmp(s, t); armAsm->Cset(d, a64::lt); break; // SLT
+			case 0x2b: armAsm->Cmp(s, t); armAsm->Cset(d, a64::lo); break; // SLTU
+			case 0x2c: case 0x2d: armAsm->Add(d, s, t); break; // DADD, DADDU
+			case 0x2e: case 0x2f: armAsm->Sub(d, s, t); break; // DSUB, DSUBU
+			case 0x38: armAsm->Lsl(d, t, sa); break; // DSLL
+			case 0x3a: armAsm->Lsr(d, t, sa); break; // DSRL
+			case 0x3b: armAsm->Asr(d, t, sa); break; // DSRA
+			case 0x3c: armAsm->Lsl(d, t, sa + 32); break; // DSLL32
+			case 0x3e: armAsm->Lsr(d, t, sa + 32); break; // DSRL32
+			case 0x3f: armAsm->Asr(d, t, sa + 32); break; // DSRA32
+		}
+		store(rd);
+		return true;
+	}
+
+	if (op < 0x08 || (op > 0x0f && op != 0x18 && op != 0x19))
+		return false;
+	if (rt == 0)
+		return true;
+
+	if (op != 0x0f)
+		load(s, rs);
+	switch (op)
+	{
+		case 0x08: case 0x09: armAsm->Add(d.W(), s.W(), imm); sext32(); break; // ADDI, ADDIU
+		case 0x0a: armAsm->Cmp(s, imm); armAsm->Cset(d, a64::lt); break; // SLTI
+		case 0x0b: armAsm->Cmp(s, static_cast<u64>(imm)); armAsm->Cset(d, a64::lo); break; // SLTIU
+		case 0x0c: armAsm->And(d, s, immu); break; // ANDI
+		case 0x0d: armAsm->Orr(d, s, immu); break; // ORI
+		case 0x0e: armAsm->Eor(d, s, immu); break; // XORI
+		case 0x0f: armAsm->Mov(d, static_cast<s64>(static_cast<s32>(code << 16))); break; // LUI
+		case 0x18: case 0x19: armAsm->Add(d, s, imm); break; // DADDI, DADDIU
+	}
+	store(rt);
+	return true;
+}
+
 static BlockFn Compile(u32 startpc, BlockFn* entry)
 {
 	if (static_cast<size_t>(s_code_end - s_code_ptr) < MAX_BLOCK_CODE)
@@ -196,6 +314,22 @@ static BlockFn Compile(u32 startpc, BlockFn* entry)
 
 	const s64 off_pc = offsetof(cpuRegisters, pc);
 	const s64 off_code = offsetof(cpuRegisters, code);
+	// Native ops leave pc, code and cpuBlockCycles to the next handler call or the block end.
+	u32 pending_cycles = 0;
+	const auto flush = [&](u32 code, u32 pc) {
+		armAsm->Mov(a64::w9, code);
+		armAsm->Str(a64::w9, a64::MemOperand(rregs, off_code));
+		armAsm->Mov(a64::w9, pc);
+		armAsm->Str(a64::w9, a64::MemOperand(rregs, off_pc));
+		if (pending_cycles)
+		{
+			armAsm->Ldr(a64::w9, a64::MemOperand(rcycles));
+			armAsm->Add(a64::w9, a64::w9, pending_cycles);
+			armAsm->Str(a64::w9, a64::MemOperand(rcycles));
+			pending_cycles = 0;
+		}
+	};
+	bool last_native = false;
 	for (u32 i = 0; i < count; i++)
 	{
 		const u32 pc = startpc + i * 4;
@@ -204,18 +338,19 @@ static BlockFn Compile(u32 startpc, BlockFn* entry)
 
 		if (Zdxsv::IsIntHookPc(pc))
 		{
+			if (last_native)
+				flush(memRead32(pc - 4), pc);
 			armAsm->Mov(RWARG1, pc);
 			armEmitCall(reinterpret_cast<const void*>(&HookAnswered));
 			armAsm->Cbnz(RWRET, &exit);
 		}
 
-		armAsm->Mov(a64::w9, code);
-		armAsm->Str(a64::w9, a64::MemOperand(rregs, off_code));
-		armAsm->Mov(a64::w9, pc + 4);
-		armAsm->Str(a64::w9, a64::MemOperand(rregs, off_pc));
-		armAsm->Ldr(a64::w9, a64::MemOperand(rcycles));
-		armAsm->Add(a64::w9, a64::w9, opcode.cycles * cycle_factor);
-		armAsm->Str(a64::w9, a64::MemOperand(rcycles));
+		pending_cycles += opcode.cycles * cycle_factor;
+		last_native = EmitNative(rregs, code);
+		if (last_native)
+			continue;
+
+		flush(code, pc + 4);
 		armEmitCall(reinterpret_cast<const void*>(opcode.interpret));
 
 		// An exception or a cancelled instruction moved the pc.
@@ -226,6 +361,11 @@ static BlockFn Compile(u32 startpc, BlockFn* entry)
 			armAsm->Cmp(a64::w9, a64::w10);
 			armAsm->B(a64::ne, &exit);
 		}
+	}
+	if (last_native)
+	{
+		const u32 lastpc = startpc + (count - 1) * 4;
+		flush(memRead32(lastpc), lastpc + 4);
 	}
 
 	armAsm->Bind(&exit);
