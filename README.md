@@ -68,7 +68,9 @@ Everything is on only for the one game build it was made for; any other disc run
 - ARM64 VU1 recompiler (`pcsx2/arm64/VU1Trace.inl`, included by `pcsx2/VUops.cpp`; the VU1
   interpreter itself is upstream's): runs of pairs up to a branch delay slot become native traces
   whose stall and pipeline-flush decisions are worked out at compile time per pipeline state at
-  entry; pairs with E/D/T bits or XGKICK run through the interpreter. Same results as the
+  entry; pairs with E/D/T bits or XGKICK run through the interpreter. Upper ADD/SUB/MUL/MADD/MSUB
+  (all A/bc/i/q forms but ADDi; not Fd = 0) are NEON code with MAC/status flags when VU0 overflow
+  clamping is on, other ops call the interpreter handlers. Same results as the
   interpreter. Env `PCSX2_VU1_JIT`: `0` = interpreter only, `check` = every trace is also run by the
   interpreter from the same start and the VU1 registers and memory compared (log
   `VU1 trace check`), unset = traces.
