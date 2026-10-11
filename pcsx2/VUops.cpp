@@ -7,7 +7,12 @@
 #include "Gif_Unit.h"
 #include "MTVU.h"
 
+#ifdef ARCH_ARM64
+#include "arm64/AsmHelpers.h"
+#endif
+
 #include <algorithm>
+#include <cstdlib>
 #include <cmath>
 #include <cstring>
 #include <memory>
@@ -4303,6 +4308,7 @@ struct VU1Trace
 	VU1PipeSig sig;
 	u32 last_start_rel; // cycle before the last step, relative to the cycle at trace entry
 	std::vector<VU1TraceStep> steps;
+	void (*code)() = nullptr; // ARM64: _vu1TraceRun as native code for this trace
 };
 
 static constexpr u32 VU1_TRACE_VARIANTS = 4;
@@ -4550,9 +4556,247 @@ static void _vu1TraceRun(const VU1Trace& t)
 	}
 }
 
+#ifdef ARCH_ARM64
+// ARM64: each trace becomes native code doing what _vu1TraceRun does for it, with the per-step
+// decisions (retires, register backups, handlers, stall entries) resolved at compile time.
+namespace a64 = vixl::aarch64;
+
+static ArmConstantPool s_vu1_jit_pool;
+static u8* s_vu1_jit_start;
+static u8* s_vu1_jit_ptr;
+static u8* s_vu1_jit_end;
+static constexpr u32 VU1_JIT_POOL_SIZE = 64 * 1024;
+static constexpr u32 VU1_JIT_MAX_STEP_CODE = 512;
+static const bool s_vu1_jit_enabled = [] {
+	const char* env = std::getenv("PCSX2_VU1_JIT");
+	return !env || std::strcmp(env, "0") != 0;
+}();
+
+static void _vu1JitFMACretire() { _vuFMACretire(&VU1); }
+static void _vu1JitIALUretire() { _vuIALUretire(&VU1); }
+static void _vu1JitFDIVretire() { _vuFDIVretire(&VU1); }
+static void _vu1JitEFUretire() { _vuEFUretire(&VU1); }
+static void _vu1JitClearFMAC() { _vuClearFMAC(&VU1); }
+static void _vu1JitXGKICK() { _vuXGKICKTransfer((VU1.cycle - VU1.xgkicklastcycle) - 1, false); }
+static void _vu1JitBranch()
+{
+	if (VU1.branch-- == 1)
+	{
+		VU1.VI[REG_TPC].UL = VU1.branchpc;
+		if (VU1.takedelaybranch)
+		{
+			VU1.branch = 1;
+			VU1.branchpc = VU1.delaybranchpc;
+			VU1.takedelaybranch = false;
+		}
+	}
+}
+static void _vu1JitAddUpperStalls(_VURegsNum* r) { _vuAddUpperStalls(&VU1, r); }
+static void _vu1JitAddLowerStalls(_VURegsNum* r) { _vuAddLowerStalls(&VU1, r); }
+
+template <typename T>
+static s64 _vu1Off(const T& field)
+{
+	return reinterpret_cast<const u8*>(&field) - reinterpret_cast<const u8*>(&VU1);
+}
+
+static void _vu1JitReset()
+{
+	if (!s_vu1_jit_start)
+	{
+		s_vu1_jit_start = SysMemory::GetVU1Rec() + VU1_JIT_POOL_SIZE;
+		s_vu1_jit_end = SysMemory::GetVU1RecEnd();
+	}
+	s_vu1_jit_pool.Init(SysMemory::GetVU1Rec(), VU1_JIT_POOL_SIZE);
+	s_vu1_jit_ptr = s_vu1_jit_start;
+	for (VU1TraceSlot& slot : s_vu1_traces)
+		for (auto& v : slot.variants)
+			if (v)
+				v->code = nullptr;
+}
+
+static void _vu1JitCompile(VU1Trace& t)
+{
+	if (!s_vu1_jit_start ||
+		static_cast<size_t>(s_vu1_jit_end - s_vu1_jit_ptr) < t.steps.size() * VU1_JIT_MAX_STEP_CODE + 256)
+		_vu1JitReset();
+
+	armSetAsmPtr(s_vu1_jit_ptr, s_vu1_jit_end - s_vu1_jit_ptr, &s_vu1_jit_pool);
+	u8* const fn = armStartBlock();
+
+	const a64::Register& rvu = a64::x19;
+	const a64::Register& rbase = a64::x20;
+	const auto vu = [&](s64 off) { return a64::MemOperand(rvu, off); };
+	const auto slot = [](int i) { return a64::MemOperand(a64::sp, 32 + i * 16); };
+	const s64 off_tpc = _vu1Off(VU1.VI[REG_TPC].UL);
+	const s64 off_code = _vu1Off(VU1.code);
+	const s64 off_cycle = _vu1Off(VU1.cycle);
+
+	armAsm->Stp(a64::x29, a64::lr, a64::MemOperand(a64::sp, -96, a64::PreIndex));
+	armAsm->Stp(rvu, rbase, a64::MemOperand(a64::sp, 16));
+	armMoveAddressToReg(rvu, &VU1);
+	armAsm->Ldr(rbase, vu(off_cycle));
+
+	u32 pc = VU1.VI[REG_TPC].UL;
+	bool branch_seen = false;
+	for (const VU1TraceStep& s : t.steps)
+	{
+		const VU1DecodedPair& d = s.d;
+		const u32 lo = static_cast<u32>(s.code);
+		const u32 hi = static_cast<u32>(s.code >> 32);
+		branch_seen |= _vu1IsBranch(reinterpret_cast<const u32*>(&s.code), d);
+
+		armAsm->Mov(a64::w0, pc + 8);
+		armAsm->Str(a64::w0, vu(off_tpc));
+		pc += 8;
+
+		armAsm->Ldr(a64::x2, vu(off_cycle));
+		armAsm->Add(a64::x1, rbase, s.cycle_rel);
+		armAsm->Str(a64::x1, vu(off_cycle));
+
+		// VIBackupCycles -= min((u8)(cycle - cyclesBeforeOp), VIBackupCycles)
+		a64::Label no_vib;
+		armAsm->Ldrb(a64::w0, vu(_vu1Off(VU1.VIBackupCycles)));
+		armAsm->Cbz(a64::w0, &no_vib);
+		armAsm->Sub(a64::w3, a64::w1, a64::w2);
+		armAsm->And(a64::w3, a64::w3, 0xff);
+		armAsm->Cmp(a64::w0, a64::w3);
+		armAsm->Csel(a64::w4, a64::w3, a64::w0, a64::hi);
+		armAsm->Sub(a64::w0, a64::w0, a64::w4);
+		armAsm->Strb(a64::w0, vu(_vu1Off(VU1.VIBackupCycles)));
+		armAsm->Bind(&no_vib);
+
+		if (s.efu_dec)
+		{
+			armAsm->Ldr(a64::w0, vu(_vu1Off(VU1.efu.Cycle)));
+			armAsm->Sub(a64::w0, a64::w0, 1);
+			armAsm->Str(a64::w0, vu(_vu1Off(VU1.efu.Cycle)));
+		}
+		for (u32 i = 0; i < s.fmac_retire; i++)
+			armEmitCall(reinterpret_cast<const void*>(&_vu1JitFMACretire));
+		if (s.fdiv_retire)
+			armEmitCall(reinterpret_cast<const void*>(&_vu1JitFDIVretire));
+		if (s.efu_retire)
+			armEmitCall(reinterpret_cast<const void*>(&_vu1JitEFUretire));
+		for (u32 i = 0; i < s.ialu_retire; i++)
+			armEmitCall(reinterpret_cast<const void*>(&_vu1JitIALUretire));
+
+		a64::Label no_kick;
+		armAsm->Ldr(a64::w0, vu(_vu1Off(VU1.xgkickenable)));
+		armAsm->Cbz(a64::w0, &no_kick);
+		armEmitCall(reinterpret_cast<const void*>(&_vu1JitXGKICK));
+		armAsm->Bind(&no_kick);
+
+		if (d.ibit)
+		{
+			armAsm->Mov(a64::w0, hi);
+			armAsm->Str(a64::w0, vu(off_code));
+			armEmitCall(reinterpret_cast<const void*>(d.upper));
+			armAsm->Mov(a64::w0, lo);
+			armAsm->Str(a64::w0, vu(_vu1Off(VU1.VI[REG_I].UL)));
+		}
+		else
+		{
+			const s64 off_vf = _vu1Off(VU1.VF[d.vfreg]);
+			const s64 off_vi = _vu1Off(VU1.VI[d.vireg]);
+			if (d.vfreg)
+			{
+				armAsm->Ldr(a64::q0, vu(off_vf));
+				armAsm->Str(a64::q0, slot(0));
+			}
+			if (d.vireg)
+			{
+				armAsm->Ldr(a64::q0, vu(off_vi));
+				armAsm->Str(a64::q0, slot(2));
+			}
+			armAsm->Mov(a64::w0, hi);
+			armAsm->Str(a64::w0, vu(off_code));
+			armEmitCall(reinterpret_cast<const void*>(d.upper));
+			if (d.discard == 0)
+			{
+				if (d.vfreg)
+				{
+					armAsm->Ldr(a64::q0, vu(off_vf));
+					armAsm->Str(a64::q0, slot(1));
+					armAsm->Ldr(a64::q0, slot(0));
+					armAsm->Str(a64::q0, vu(off_vf));
+				}
+				if (d.vireg)
+				{
+					armAsm->Ldr(a64::q0, vu(off_vi));
+					armAsm->Str(a64::q0, slot(3));
+					armAsm->Ldr(a64::q0, slot(2));
+					armAsm->Str(a64::q0, vu(off_vi));
+				}
+				armAsm->Mov(a64::w0, lo);
+				armAsm->Str(a64::w0, vu(off_code));
+				armEmitCall(reinterpret_cast<const void*>(d.lower));
+				if (d.vfreg)
+				{
+					armAsm->Ldr(a64::q0, slot(1));
+					armAsm->Str(a64::q0, vu(off_vf));
+				}
+				if (d.vireg)
+				{
+					armAsm->Ldr(a64::q0, slot(3));
+					armAsm->Str(a64::q0, vu(off_vi));
+				}
+			}
+		}
+
+		if (d.fmac)
+			armEmitCall(reinterpret_cast<const void*>(&_vu1JitClearFMAC));
+		armMoveAddressToReg(a64::x0, &s.d.uregs);
+		armEmitCall(reinterpret_cast<const void*>(&_vu1JitAddUpperStalls));
+		armMoveAddressToReg(a64::x0, &s.d.lregs);
+		armEmitCall(reinterpret_cast<const void*>(&_vu1JitAddLowerStalls));
+
+		// VU1.branch is 0 at trace entry: it can only be set from the first branch pair on.
+		if (branch_seen)
+		{
+			a64::Label no_branch;
+			armAsm->Ldr(a64::w0, vu(_vu1Off(VU1.branch)));
+			armAsm->Cbz(a64::w0, &no_branch);
+			armEmitCall(reinterpret_cast<const void*>(&_vu1JitBranch));
+			armAsm->Bind(&no_branch);
+		}
+
+		if (d.fmac)
+		{
+			armAsm->Ldr(a64::w0, vu(_vu1Off(VU1.fmacwritepos)));
+			armAsm->Add(a64::w0, a64::w0, 1);
+			armAsm->And(a64::w0, a64::w0, 3);
+			armAsm->Str(a64::w0, vu(_vu1Off(VU1.fmacwritepos)));
+		}
+	}
+
+	armAsm->Ldp(rvu, rbase, a64::MemOperand(a64::sp, 16));
+	armAsm->Ldp(a64::x29, a64::lr, a64::MemOperand(a64::sp, 96, a64::PostIndex));
+	armAsm->Ret();
+
+	s_vu1_jit_ptr = armEndBlock();
+	t.code = reinterpret_cast<void (*)()>(fn);
+}
+#endif
+
+// Runs a trace: native code on ARM64 (PCSX2_VU1_JIT=0: _vu1TraceRun).
+static void _vu1TraceExec(VU1Trace& t)
+{
+#ifdef ARCH_ARM64
+	if (s_vu1_jit_enabled)
+	{
+		if (!t.code)
+			_vu1JitCompile(t);
+		t.code();
+		return;
+	}
+#endif
+	_vu1TraceRun(t);
+}
+
 // PCSX2_VU1_TRACE=check: every trace also runs through _vu1ExecDecoded from the same start, and
 // the VU1 registers and data memory of both runs are compared. The interpreter's result is kept.
-static bool _vu1TraceCheck(const VU1Trace& t)
+static bool _vu1TraceCheck(VU1Trace& t)
 {
 	alignas(16) static VURegs start, ref;
 	static u8 start_mem[VU1_MEMSIZE], ref_mem[VU1_MEMSIZE];
@@ -4577,7 +4821,7 @@ static bool _vu1TraceCheck(const VU1Trace& t)
 	std::memcpy(&VU1, &start, sizeof(VURegs));
 	std::memcpy(VU1.Mem, start_mem, VU1_MEMSIZE);
 	VU0.VI[REG_VPU_STAT].UL = start_stat;
-	_vu1TraceRun(t);
+	_vu1TraceExec(t);
 
 	checked++;
 	const u8* a = reinterpret_cast<const u8*>(&VU1);
@@ -4669,6 +4913,6 @@ bool _vu1TraceStep(u64 startcycles, u32 cycles, bool check)
 
 	if (check && _vu1TraceCheck(*t))
 		return true;
-	_vu1TraceRun(*t);
+	_vu1TraceExec(*t);
 	return true;
 }
