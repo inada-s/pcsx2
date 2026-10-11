@@ -66,6 +66,7 @@ options: `docs/zdxsv/`.
 | `ServerHosts.cpp` | The game's server hosts, looked up as the zdxsv server's hostname by the internal DNS server |
 | `InputLatency.cpp`, `InputLatency.h` | Debug: pad input latency measurement |
 | `RecHooks.cpp`, `RecHooks.h` | EE recompiler: emits the hook calls (net RPC, recv, step copy, load step) before an instruction |
+| `IntHooks.cpp` | EE interpreter (the only EE core of ARM64 builds): the hook calls of `RecHooks.cpp` but the probes |
 | `RecProbe.cpp` | Debug: EE recompiler probes and store watches (`ZDXSV_EE_PROBE`, `ZDXSV_EE_WATCH`) |
 | `Overlays.cpp` | On-screen GGPO network status, replay keys and replay control bar |
 | `CpuHooks.h` | Hook header: recompilers, counters, MTGS, VMManager |

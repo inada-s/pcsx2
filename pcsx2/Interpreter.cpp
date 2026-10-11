@@ -11,6 +11,8 @@
 
 #include "common/FastJmp.h"
 
+#include "Zdxsv/CpuHooks.h"
+
 #include <float.h>
 
 using namespace R5900;		// for OPCODE and OpcodeImpl
@@ -167,6 +169,9 @@ static void execI()
 
 	CBreakPoints::CommitClearSkipFirst(BREAKPOINT_EE);
 #endif
+
+	if (Zdxsv::IntHooksOn() && !cpuRegs.branch && Zdxsv::IntRunHooks(cpuRegs.pc))
+		return;
 
 	const u32 pc = cpuRegs.pc;
 	// We need to increase the pc before executing the memRead32. An exception could appears

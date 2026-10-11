@@ -462,6 +462,7 @@
     <ClCompile Include="Zdxsv\ReplayRecord.cpp" />
     <ClCompile Include="Zdxsv\SpectateSync.cpp" />
     <ClCompile Include="Zdxsv\SyncSettings.cpp" />
+    <ClCompile Include="Zdxsv\IntHooks.cpp" />
     <ClCompile Include="Zdxsv\RecHooks.cpp" />
     <ClCompile Include="Zdxsv\RecProbe.cpp" />
     <ClCompile Include="VUmicroMem.cpp" />
