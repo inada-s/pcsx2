@@ -26,6 +26,11 @@ Everything is on only for the one game build it was made for; any other disc run
   the interpreters, so it never matches an x86 one) in the platform info, logged as
   `ZdxsvSync: fingerprint <hex>`: a lobby battle whose
   players' fingerprints differ is cut, and the players return to the lobby.
+- VU interpreter on ARM64: ADD/SUB/MUL/MADD/MSUB (ACC and broadcast forms too) run on four lanes with
+  NEON, with the same results and flags as the scalar code. Env `PCSX2_VU_FMAC_CHECK=1`: every op also
+  runs the scalar code (kept) and differences are logged; the first op also runs every FMAC handler on
+  random inputs per clamp mode, rounding mode and FTZ (logged `VU FMAC check: ... differ`). Without input
+  clamping (not the default) the NaN an op keeps may differ: the scalar code's choice is the compiler's.
 
 ### Input latency
 
