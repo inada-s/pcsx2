@@ -560,6 +560,12 @@ static void intReset()
 
 void intEventTest()
 {
+#ifdef ARCH_ARM64
+	// The ARM64 recompiler tests events as the x86 one: only once the cycle target is reached.
+	if (Cpu == &recCpu && static_cast<s64>(cpuRegs.cycle - cpuRegs.nextEventCycle) < 0)
+		return;
+#endif
+
 	// Perform counters, ints, and IOP updates:
 	_cpuEventTest_Shared();
 
