@@ -7,7 +7,11 @@
 #include "Gif_Unit.h"
 #include "MTVU.h"
 
+#include <algorithm>
 #include <cmath>
+#include <cstring>
+#include <memory>
+#include <vector>
 u32 laststall = 0;
 //Lower/Upper instructions can use that..
 #define _Ft_ ((VU->code >> 16) & 0x1F)  // The rt part of the instruction register
@@ -34,6 +38,47 @@ u32 laststall = 0;
 
 alignas(16) static VECTOR RDzero;
 
+// Retires the oldest FMAC entry: writes its flags back.
+static __fi void _vuFMACretire(VURegs* VU)
+{
+	const int i = VU->fmacreadpos;
+
+	// Clip flags (Affected by CLIP instruction)
+	if (VU->fmac[i].flagreg & (1 << REG_CLIP_FLAG))
+		VU->VI[REG_CLIP_FLAG].UL = VU->fmac[i].clipflag;
+
+	// Normal FMAC instructoins only affectx Z/S/I/O, D/I are modified only by FDIV instructions
+	// Sticky flags (Affected by FSSET)
+	if (VU->fmac[i].flagreg & (1 << REG_STATUS_FLAG))
+		VU->VI[REG_STATUS_FLAG].UL = (VU->VI[REG_STATUS_FLAG].UL & 0x30) | (VU->fmac[i].statusflag & 0xFC0) | (VU->fmac[i].statusflag & 0xF);
+	else
+		VU->VI[REG_STATUS_FLAG].UL = (VU->VI[REG_STATUS_FLAG].UL & 0xFF0) | (VU->fmac[i].statusflag & 0xF) | ((VU->fmac[i].statusflag & 0xF) << 6);
+	VU->VI[REG_MAC_FLAG].UL = VU->fmac[i].macflag;
+
+	VU->fmacreadpos = (VU->fmacreadpos + 1) & 3;
+	VU->fmaccount--;
+}
+
+static __fi void _vuIALUretire(VURegs* VU)
+{
+	VU->ialureadpos = (VU->ialureadpos + 1) & 3;
+	VU->ialucount--;
+}
+
+static __fi void _vuFDIVretire(VURegs* VU)
+{
+	VU->fdiv.enable = 0;
+	VU->VI[REG_Q].UL = VU->fdiv.reg.UL;
+	// FDIV only affects D/I
+	VU->VI[REG_STATUS_FLAG].UL = (VU->VI[REG_STATUS_FLAG].UL & 0xFCF) | (VU->fdiv.statusflag & 0xC30);
+}
+
+static __fi void _vuEFUretire(VURegs* VU)
+{
+	VU->efu.enable = 0;
+	VU->VI[REG_P].UL = VU->efu.reg.UL;
+}
+
 static __ri bool _vuFMACflush(VURegs* VU)
 {
 	bool didflush = false;
@@ -50,20 +95,7 @@ static __ri bool _vuFMACflush(VURegs* VU)
 
 		VUM_LOG("flushing FMAC pipe[%d] (macflag=%x clipflag=%x statusflag=%x) r %d w %d", i, VU->fmac[i].macflag, VU->fmac[i].clipflag, VU->fmac[i].statusflag, VU->fmacreadpos, VU->fmacwritepos);
 
-		// Clip flags (Affected by CLIP instruction)
-		if (VU->fmac[i].flagreg & (1 << REG_CLIP_FLAG))
-			VU->VI[REG_CLIP_FLAG].UL = VU->fmac[i].clipflag;
-
-		// Normal FMAC instructoins only affectx Z/S/I/O, D/I are modified only by FDIV instructions
-		// Sticky flags (Affected by FSSET)
-		if (VU->fmac[i].flagreg & (1 << REG_STATUS_FLAG))
-			VU->VI[REG_STATUS_FLAG].UL = (VU->VI[REG_STATUS_FLAG].UL & 0x30) | (VU->fmac[i].statusflag & 0xFC0) | (VU->fmac[i].statusflag & 0xF);
-		else
-			VU->VI[REG_STATUS_FLAG].UL = (VU->VI[REG_STATUS_FLAG].UL & 0xFF0) | (VU->fmac[i].statusflag & 0xF) | ((VU->fmac[i].statusflag & 0xF) << 6);
-		VU->VI[REG_MAC_FLAG].UL = VU->fmac[i].macflag;
-
-		VU->fmacreadpos = (VU->fmacreadpos + 1) & 3;
-		VU->fmaccount--;
+		_vuFMACretire(VU);
 
 		didflush = true;
 	}
@@ -82,8 +114,7 @@ static __ri bool _vuIALUflush(VURegs* VU)
 		if ((VU->cycle - VU->ialu[i].sCycle) < VU->ialu[i].Cycle)
 			return didflush;
 
-		VU->ialureadpos = (VU->ialureadpos + 1) & 3;
-		VU->ialucount--;
+		_vuIALUretire(VU);
 		didflush = true;
 	}
 	return didflush;
@@ -98,10 +129,7 @@ static __ri bool _vuFDIVflush(VURegs* VU)
 	{
 		VUM_LOG("flushing FDIV pipe");
 
-		VU->fdiv.enable = 0;
-		VU->VI[REG_Q].UL = VU->fdiv.reg.UL;
-		// FDIV only affects D/I
-		VU->VI[REG_STATUS_FLAG].UL = (VU->VI[REG_STATUS_FLAG].UL & 0xFCF) | (VU->fdiv.statusflag & 0xC30);
+		_vuFDIVretire(VU);
 
 		return true;
 	}
@@ -117,8 +145,7 @@ static __ri bool _vuEFUflush(VURegs* VU)
 	{
 		VUM_LOG("flushing EFU pipe");
 
-		VU->efu.enable = 0;
-		VU->VI[REG_P].UL = VU->efu.reg.UL;
+		_vuEFUretire(VU);
 
 		return true;
 	}
@@ -4240,4 +4267,408 @@ void _vu1ExecDecoded()
 	// Progress the write position of the FMAC pipeline by one place
 	if (d.fmac)
 		VU->fmacwritepos = (VU->fmacwritepos + 1) & 3;
+}
+
+// VU1 traces: runs of pairs from one entry PC up to a branch delay slot, compiled for one state
+// of the FMAC/IALU/FDIV/EFU pipes at entry. _vu1ExecDecoded's stall and flush decisions depend
+// only on that state (remaining cycles and registers of the pending entries) and on the code,
+// so they are worked out once at compile time by running the same functions on a copy of VU1.
+// At run time only their effects are applied: the new cycle and how many entries retire.
+// Pairs with E/D/T bits or XGKICK end a trace; they run through _vu1ExecDecoded.
+
+struct VU1PipeSig
+{
+	u32 fmac[4][5]; // remaining cycles, regupper, xyzwupper, reglower, xyzwlower
+	u32 ialu[4][2]; // remaining cycles, reg
+	u32 fdiv; // remaining cycles + 1, 0 = off
+	u32 efu;
+	u32 fmaccount;
+	u32 ialucount;
+};
+
+struct VU1TraceStep
+{
+	u64 code;
+	VU1DecodedPair d;
+	u32 cycle_rel; // VU1.cycle after the stall checks, relative to the cycle at trace entry
+	u8 fmac_retire;
+	u8 ialu_retire;
+	u8 fdiv_retire;
+	u8 efu_retire;
+	u8 efu_dec; // the EFU stall check shortened efu.Cycle by one
+};
+
+struct VU1Trace
+{
+	VU1PipeSig sig;
+	u32 last_start_rel; // cycle before the last step, relative to the cycle at trace entry
+	std::vector<VU1TraceStep> steps;
+};
+
+static constexpr u32 VU1_TRACE_VARIANTS = 4;
+static constexpr u32 VU1_TRACE_MAX_STEPS = 256;
+
+struct VU1TraceSlot
+{
+	std::unique_ptr<VU1Trace> variants[VU1_TRACE_VARIANTS];
+	u32 next;
+};
+
+static VU1TraceSlot s_vu1_traces[VU1_PROGSIZE / 8];
+
+static bool _vu1PipeSig(const VURegs* VU, VU1PipeSig* s)
+{
+	std::memset(s, 0, sizeof(*s));
+	if (VU->fmaccount > 4 || VU->ialucount > 4 ||
+		VU->fmacwritepos != ((VU->fmacreadpos + VU->fmaccount) & 3) ||
+		VU->ialuwritepos != ((VU->ialureadpos + VU->ialucount) & 3))
+		return false;
+
+	const auto remaining = [VU](u64 sCycle, u32 Cycle) -> u64 {
+		const u64 end = sCycle + Cycle;
+		return end > VU->cycle ? end - VU->cycle : 0;
+	};
+
+	for (u32 i = 0, p = VU->fmacreadpos; i < VU->fmaccount; i++, p = (p + 1) & 3)
+	{
+		const u64 r = remaining(VU->fmac[p].sCycle, VU->fmac[p].Cycle);
+		if (r > 0xffff)
+			return false;
+		// A ready entry never stalls: only its place in the queue matters.
+		if (r == 0)
+			continue;
+		s->fmac[i][0] = static_cast<u32>(r);
+		s->fmac[i][1] = VU->fmac[p].regupper;
+		s->fmac[i][2] = VU->fmac[p].xyzwupper;
+		s->fmac[i][3] = VU->fmac[p].reglower;
+		s->fmac[i][4] = VU->fmac[p].xyzwlower;
+	}
+	for (u32 i = 0, p = VU->ialureadpos; i < VU->ialucount; i++, p = (p + 1) & 3)
+	{
+		const u64 r = remaining(VU->ialu[p].sCycle, VU->ialu[p].Cycle);
+		if (r > 0xffff)
+			return false;
+		if (r == 0)
+			continue;
+		s->ialu[i][0] = static_cast<u32>(r);
+		s->ialu[i][1] = static_cast<u32>(VU->ialu[p].reg);
+	}
+	if (VU->fdiv.enable)
+	{
+		const u64 r = remaining(VU->fdiv.sCycle, VU->fdiv.Cycle);
+		if (r > 0xffff)
+			return false;
+		s->fdiv = static_cast<u32>(r) + 1;
+	}
+	if (VU->efu.enable)
+	{
+		const u64 r = remaining(VU->efu.sCycle, VU->efu.Cycle);
+		if (r > 0xffff)
+			return false;
+		s->efu = static_cast<u32>(r) + 1;
+	}
+	s->fmaccount = VU->fmaccount;
+	s->ialucount = VU->ialucount;
+	return true;
+}
+
+static __fi bool _vu1TraceEnds(const u32* ptr, const VU1DecodedPair& d)
+{
+	return (ptr[1] & 0x58000000) || d.lregs.pipe == VUPIPE_XGKICK; // E, D, T flags, XGKICK
+}
+
+static __fi bool _vu1IsBranch(const u32* ptr, const VU1DecodedPair& d)
+{
+	return !d.ibit && ((ptr[0] >> 25) & 0x70) == 0x20; // B, BAL, JR, JALR, IBxx
+}
+
+static VU1DecodedPair& _vu1DecodedAt(u32 pc)
+{
+	const u32* ptr = reinterpret_cast<const u32*>(&VU1.Micro[pc]);
+	VU1DecodedPair& d = s_vu1_decoded[pc >> 3];
+	const u64 code = static_cast<u64>(ptr[0]) | (static_cast<u64>(ptr[1]) << 32);
+	if (!d.valid || d.code != code)
+		_vu1Decode(d, ptr);
+	return d;
+}
+
+static std::unique_ptr<VU1Trace> _vu1TraceCompile(u32 pc, const VU1PipeSig& sig)
+{
+	alignas(16) static VURegs sim;
+	std::memcpy(&sim, &VU1, sizeof(VURegs));
+	const u32 saved_code = VU1.code;
+	const u64 base = sim.cycle;
+
+	auto t = std::make_unique<VU1Trace>();
+	t->sig = sig;
+	bool delay_slot = false;
+	while (pc < VU1_PROGSIZE && t->steps.size() < VU1_TRACE_MAX_STEPS)
+	{
+		const u32* ptr = reinterpret_cast<const u32*>(&VU1.Micro[pc]);
+		const VU1DecodedPair& d = _vu1DecodedAt(pc);
+		const bool branch = _vu1IsBranch(ptr, d);
+		if (_vu1TraceEnds(ptr, d) || (delay_slot && branch))
+			break;
+
+		VU1TraceStep& s = t->steps.emplace_back();
+		s.code = d.code;
+		s.d = d;
+		t->last_start_rel = static_cast<u32>(sim.cycle - base);
+
+		sim.cycle++;
+		const u32 efu_cycle = sim.efu.Cycle;
+		_vuTestUpperStalls(&sim, &s.d.uregs);
+		if (!d.ibit)
+			_vuTestLowerStalls(&sim, &s.d.lregs);
+		s.cycle_rel = static_cast<u32>(sim.cycle - base);
+		s.efu_dec = sim.efu.Cycle != efu_cycle;
+
+		const u32 fmaccount = sim.fmaccount;
+		const u32 ialucount = sim.ialucount;
+		const int fdiv = sim.fdiv.enable;
+		const int efu = sim.efu.enable;
+		_vuTestPipes(&sim); // not VU1: no XGKICK transfer
+		s.fmac_retire = static_cast<u8>(fmaccount - sim.fmaccount);
+		s.ialu_retire = static_cast<u8>(ialucount - sim.ialucount);
+		s.fdiv_retire = fdiv && !sim.fdiv.enable;
+		s.efu_retire = efu && !sim.efu.enable;
+
+		if (d.fmac)
+			_vuClearFMAC(&sim);
+		_vuAddUpperStalls(&sim, &s.d.uregs);
+		_vuAddLowerStalls(&sim, &s.d.lregs);
+		if (d.fmac)
+			sim.fmacwritepos = (sim.fmacwritepos + 1) & 3;
+
+		pc += 8;
+		if (delay_slot)
+			break;
+		delay_slot = branch;
+	}
+	VU1.code = saved_code;
+	return t;
+}
+
+static void _vu1TraceRun(const VU1Trace& t)
+{
+	VURegs* VU = &VU1;
+	const u64 base = VU->cycle;
+
+	for (const VU1TraceStep& s : t.steps)
+	{
+		const VU1DecodedPair& d = s.d;
+		u32* ptr = (u32*)&VU->Micro[VU->VI[REG_TPC].UL];
+		VU->VI[REG_TPC].UL += 8;
+
+		u32 cyclesBeforeOp = static_cast<u32>(VU->cycle);
+		VU->cycle = base + s.cycle_rel;
+		if (s.efu_dec)
+			VU->efu.Cycle -= 1;
+
+		for (u32 i = 0; i < s.fmac_retire; i++)
+			_vuFMACretire(VU);
+		if (s.fdiv_retire)
+			_vuFDIVretire(VU);
+		if (s.efu_retire)
+			_vuEFUretire(VU);
+		for (u32 i = 0; i < s.ialu_retire; i++)
+			_vuIALUretire(VU);
+		if (VU1.xgkickenable)
+			_vuXGKICKTransfer((VU1.cycle - VU1.xgkicklastcycle) - 1, false);
+
+		if (VU->VIBackupCycles > 0)
+			VU->VIBackupCycles -= std::min((u8)(VU1.cycle - cyclesBeforeOp), VU->VIBackupCycles);
+
+		if (d.ibit)
+		{
+			VU->code = ptr[1];
+			d.upper();
+
+			VU->VI[REG_I].UL = ptr[0];
+		}
+		else
+		{
+			VECTOR _VF;
+			VECTOR _VFc;
+			REG_VI _VI;
+			REG_VI _VIc;
+
+			if (d.vfreg)
+				_VF = VU->VF[d.vfreg];
+			if (d.vireg)
+				_VI = VU->VI[d.vireg];
+
+			VU->code = ptr[1];
+			d.upper();
+
+			if (d.discard == 0)
+			{
+				if (d.vfreg)
+				{
+					_VFc = VU->VF[d.vfreg];
+					VU->VF[d.vfreg] = _VF;
+				}
+				if (d.vireg)
+				{
+					_VIc = VU->VI[d.vireg];
+					VU->VI[d.vireg] = _VI;
+				}
+
+				VU->code = ptr[0];
+				d.lower();
+
+				if (d.vfreg)
+					VU->VF[d.vfreg] = _VFc;
+				if (d.vireg)
+					VU->VI[d.vireg] = _VIc;
+			}
+		}
+
+		if (d.fmac)
+			_vuClearFMAC(VU);
+
+		_vuAddUpperStalls(VU, const_cast<_VURegsNum*>(&d.uregs));
+		_vuAddLowerStalls(VU, const_cast<_VURegsNum*>(&d.lregs));
+
+		if (VU->branch > 0)
+		{
+			if (VU->branch-- == 1)
+			{
+				VU->VI[REG_TPC].UL = VU->branchpc;
+
+				if (VU->takedelaybranch)
+				{
+					VU->branch = 1;
+					VU->branchpc = VU->delaybranchpc;
+					VU->takedelaybranch = false;
+				}
+			}
+		}
+
+		if (d.fmac)
+			VU->fmacwritepos = (VU->fmacwritepos + 1) & 3;
+	}
+}
+
+// PCSX2_VU1_TRACE=check: every trace also runs through _vu1ExecDecoded from the same start, and
+// the VU1 registers and data memory of both runs are compared. The interpreter's result is kept.
+static bool _vu1TraceCheck(const VU1Trace& t)
+{
+	alignas(16) static VURegs start, ref;
+	static u8 start_mem[VU1_MEMSIZE], ref_mem[VU1_MEMSIZE];
+	static u64 checked, failed;
+
+	// XGKICK transfers reach the GIF: they cannot run twice.
+	if (VU1.xgkickenable)
+		return false;
+
+	const u32 start_stat = VU0.VI[REG_VPU_STAT].UL;
+	std::memcpy(&start, &VU1, sizeof(VURegs));
+	std::memcpy(start_mem, VU1.Mem, VU1_MEMSIZE);
+	for (size_t i = 0; i < t.steps.size(); i++)
+	{
+		VU1.cycle++;
+		_vu1ExecDecoded();
+	}
+	std::memcpy(&ref, &VU1, sizeof(VURegs));
+	std::memcpy(ref_mem, VU1.Mem, VU1_MEMSIZE);
+	const u32 ref_stat = VU0.VI[REG_VPU_STAT].UL;
+
+	std::memcpy(&VU1, &start, sizeof(VURegs));
+	std::memcpy(VU1.Mem, start_mem, VU1_MEMSIZE);
+	VU0.VI[REG_VPU_STAT].UL = start_stat;
+	_vu1TraceRun(t);
+
+	checked++;
+	const u8* a = reinterpret_cast<const u8*>(&VU1);
+	const u8* b = reinterpret_cast<const u8*>(&ref);
+	size_t diff = sizeof(VURegs);
+	for (size_t i = 0; i < sizeof(VURegs); i++)
+	{
+		if (a[i] != b[i])
+		{
+			diff = i;
+			break;
+		}
+	}
+	const bool mem_diff = std::memcmp(VU1.Mem, ref_mem, VU1_MEMSIZE) != 0;
+	if (diff != sizeof(VURegs) || mem_diff || VU0.VI[REG_VPU_STAT].UL != ref_stat)
+	{
+		failed++;
+		if (failed <= 20)
+			Console.Error("VU1 trace check: pc %04x steps %zu differs: regs offset %zd, mem %d, stat %d (%llu of %llu)",
+				start.VI[REG_TPC].UL, t.steps.size(), diff == sizeof(VURegs) ? -1 : static_cast<ptrdiff_t>(diff), mem_diff,
+				VU0.VI[REG_VPU_STAT].UL != ref_stat, failed, checked);
+	}
+	if ((checked & (checked - 1)) == 0 && checked >= 1024)
+		Console.WriteLn("VU1 trace check: %llu traces checked, %llu differ", checked, failed);
+
+	std::memcpy(&VU1, &ref, sizeof(VURegs));
+	std::memcpy(VU1.Mem, ref_mem, VU1_MEMSIZE);
+	VU0.VI[REG_VPU_STAT].UL = ref_stat;
+	return true;
+}
+
+// Runs one trace from VU1's TPC if it fits in the cycle budget of InterpVU1::Execute
+// (which checks the budget before each step). Returns false when the caller must step instead.
+bool _vu1TraceStep(u64 startcycles, u32 cycles, bool check)
+{
+	VU1.VI[REG_TPC].UL &= VU1_PROGMASK;
+	const u32 pc = VU1.VI[REG_TPC].UL;
+	const u32* ptr = reinterpret_cast<const u32*>(&VU1.Micro[pc]);
+	if (_vu1TraceEnds(ptr, _vu1DecodedAt(pc)))
+		return false;
+
+	VU1PipeSig sig;
+	if (!_vu1PipeSig(&VU1, &sig))
+		return false;
+
+	VU1TraceSlot& slot = s_vu1_traces[pc >> 3];
+	VU1Trace* t = nullptr;
+	for (auto& v : slot.variants)
+	{
+		if (v && std::memcmp(&v->sig, &sig, sizeof(sig)) == 0)
+		{
+			t = v.get();
+			break;
+		}
+	}
+
+	if (t)
+	{
+		u32 p = pc;
+		for (const VU1TraceStep& s : t->steps)
+		{
+			const u32* sp = reinterpret_cast<const u32*>(&VU1.Micro[p]);
+			if (s.code != (static_cast<u64>(sp[0]) | (static_cast<u64>(sp[1]) << 32)))
+			{
+				t = nullptr;
+				break;
+			}
+			p += 8;
+		}
+	}
+	if (!t)
+	{
+		std::unique_ptr<VU1Trace> nt = _vu1TraceCompile(pc, sig);
+		if (nt->steps.empty())
+			return false;
+		auto it = std::find_if(std::begin(slot.variants), std::end(slot.variants),
+			[&sig](const std::unique_ptr<VU1Trace>& v) { return v && std::memcmp(&v->sig, &sig, sizeof(sig)) == 0; });
+		if (it == std::end(slot.variants))
+		{
+			it = std::begin(slot.variants) + slot.next;
+			slot.next = (slot.next + 1) % VU1_TRACE_VARIANTS;
+		}
+		*it = std::move(nt);
+		t = it->get();
+	}
+
+	if ((VU1.cycle + t->last_start_rel - startcycles) >= cycles)
+		return false;
+
+	if (check && _vu1TraceCheck(*t))
+		return true;
+	_vu1TraceRun(*t);
+	return true;
 }
