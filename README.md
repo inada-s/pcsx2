@@ -63,6 +63,12 @@ Everything is on only for the one game build it was made for; any other disc run
 - Scripts for local builds and for running several instances side by side.
 - macOS deps scripts: no `qt110-xcode264.patch` (Qt 6.11.1 already has it; Apple `patch` reverted it,
   which broke arm64 Qt builds on Xcode 26.6).
+- VU1 interpreter (ARM64 has no VU1 recompiler), same results as upstream's: each instruction pair's
+  decode is cached, and runs of pairs up to a branch delay slot become traces whose stall and
+  pipeline-flush decisions are worked out once per pipeline state at entry (`pcsx2/VUops.cpp`).
+  Env `PCSX2_VU1_INTERP`: `0` = upstream steps, `decode` = decode cache only, `check` = every trace
+  is also run by the interpreter from the same start and the VU1 registers and memory compared
+  (log `VU1 trace check`), unset = traces.
 - Options for tests, traces and game investigation; every build reads them.
 
 ## Documentation
