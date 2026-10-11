@@ -22,11 +22,13 @@ Everything is on only for the one game build it was made for; any other disc run
   EE/VU rounding and clamping, game fixes (GameDB only), extra memory, GS hardware download mode at
   their defaults; speedhacks, emulation speed and frame rate at their defaults during battles, replays
   and live spectating. An OSD message names the overridden settings; the settings page greys them out.
-- Sync fingerprint (build, those settings and the CPU cores in use, not the BIOS; an ARM64 build runs
-  the interpreters, so it never matches an x86 one) in the platform info, logged as
+- Sync fingerprint (build, those settings and the recompiler settings, not the BIOS; an ARM64 build
+  is not refused for its interpreter cores) in the platform info, logged as
   `ZdxsvSync: fingerprint <hex>`: a lobby battle whose
   players' fingerprints differ is cut, and the players return to the lobby.
 - VU interpreter: the MAC/status flag updates are inline (same results, faster; every game).
+- EE FPU interpreter computes as the EE recompiler: add/sub cut the smaller operand's mantissa, DIV.S
+  uses the divide rounding mode, SQRT.S rounds to nearest (an interpreter peer, e.g. ARM64, stays in sync longer).
 
 ### Input latency
 
@@ -64,6 +66,21 @@ Everything is on only for the one game build it was made for; any other disc run
 - Scripts for local builds and for running several instances side by side.
 - macOS deps scripts: no `qt110-xcode264.patch` (Qt 6.11.1 already has it; Apple `patch` reverted it,
   which broke arm64 Qt builds on Xcode 26.6).
+- VU1 interpreter (ARM64 has no VU1 recompiler), same results as upstream's: each instruction pair's
+  decode is cached, and runs of pairs up to a branch delay slot become traces whose stall and
+  pipeline-flush decisions are worked out once per pipeline state at entry (`pcsx2/VUops.cpp`).
+  Env `PCSX2_VU1_INTERP`: `0` = upstream steps, `decode` = decode cache only, `check` = every trace
+  is also run by the interpreter from the same start and the VU1 registers and memory compared
+  (log `VU1 trace check`), unset = traces.
+- ARM64 EE recompiler (`pcsx2/arm64/iR5900.cpp`, experimental): blocks compiled into calls of the
+  interpreter's handlers, so it computes what the EE interpreter computes, faster. On when the EE
+  recompiler setting is on (`EmuCore/CPU/Recompiler` `EnableEE`, the default); off = EE interpreter.
+  IOP and VU stay interpreters on ARM64.
+  Integer ALU, shift, HI/LO move and MOVZ/MOVN ops are emitted as native code, computed as the x86
+  recompiler does: ADD/SUB/ADDI/DADD/DSUB/DADDI write their result on overflow (the interpreter skips
+  the write). Env `PCSX2_ARM64_EE_NATIVE=0`: every op calls its interpreter handler (A/B check).
+  Events (counters, interrupts, IOP and VU runs) are tested only once the cycle target is reached, as
+  the x86 recompiler does (the EE interpreter tests them at every branch).
 - Options for tests, traces and game investigation; every build reads them.
 
 ## Documentation

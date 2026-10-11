@@ -20,7 +20,7 @@ using namespace R5900;		// for OPCODE and OpcodeImpl
 extern int vu0branch, vu1branch;
 
 static int branch2 = 0;
-static u32 cpuBlockCycles = 0;		// 3 bit fixed point version of cycle count
+u32 cpuBlockCycles = 0;		// 3 bit fixed point version of cycle count
 static std::string disOut;
 static bool intExitExecution = false;
 static fastjmp_buf intJmpBuf;
@@ -231,7 +231,7 @@ static __fi void _doBranch_shared(u32 tar)
 
 	if( cpuRegs.branch != 0 )
 	{
-		if (Cpu == &intCpu)
+		if (CpuRunsIntBranches())
 		{
 			if (intLastBranchTo == tar && EmuConfig.Speedhacks.WaitLoop)
 			{
@@ -281,7 +281,7 @@ void intDoBranch(u32 target)
 	//Console.WriteLn("Interpreter Branch ");
 	_doBranch_shared( target );
 
-	if( Cpu == &intCpu )
+	if( CpuRunsIntBranches() )
 	{
 		intUpdateCPUCycles();
 		intEventTest();
@@ -560,6 +560,12 @@ static void intReset()
 
 void intEventTest()
 {
+#ifdef ARCH_ARM64
+	// The ARM64 recompiler tests events as the x86 one: only once the cycle target is reached.
+	if (Cpu == &recCpu && static_cast<s64>(cpuRegs.cycle - cpuRegs.nextEventCycle) < 0)
+		return;
+#endif
+
 	// Perform counters, ints, and IOP updates:
 	_cpuEventTest_Shared();
 
@@ -572,7 +578,7 @@ void intEventTest()
 	}
 }
 
-static void intSafeExitExecution()
+void intSafeExitExecution()
 {
 	// If we're currently processing events, we can't safely jump out of the interpreter here, because we'll
 	// leave things in an inconsistent state. So instead, we flag it for exiting once cpuEventTest() returns.
@@ -586,13 +592,14 @@ static void intSafeExitExecution()
 	}
 }
 
-static void intCancelInstruction()
+void intCancelInstruction()
 {
 	// See execute function.
 	fastjmp_jmp(&intJmpBuf, 0);
 }
 
-static void intExecute()
+// run_block: execI, or one compiled block of the ARM64 EE recompiler (arm64/iR5900.cpp) once the ELF has booted.
+static __fi void intExecuteWith(void (*run_block)())
 {
 	// This will come back as zero the first time it runs, or on instruction cancel.
 	// It will come back as nonzero when we exit execution.
@@ -657,9 +664,19 @@ static void intExecute()
 		else
 		{
 			while (true)
-				execI();
+				run_block();
 		}
 	}
+}
+
+static void intExecute()
+{
+	intExecuteWith(execI);
+}
+
+void intExecuteBlocks(void (*run_block)())
+{
+	intExecuteWith(run_block);
 }
 
 static void intStep()

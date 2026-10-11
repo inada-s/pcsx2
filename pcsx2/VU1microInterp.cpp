@@ -9,9 +9,29 @@
 #include "MTVU.h"
 
 #include <cfenv>
+#include <cstdlib>
+#include <cstring>
 
 extern void _vuFlushAll(VURegs* VU);
 extern void _vuXGKICKFlush(VURegs* VU);
+extern void _vu1ExecDecoded();
+extern bool _vu1TraceStep(u64 startcycles, u32 cycles, bool check);
+
+// PCSX2_VU1_INTERP: 0 = decode every pair on every step, decode = cache the decode only,
+// check = traces checked against the decode-cache steps, default = traces.
+enum class VU1InterpMode { Plain, Decode, Check, Trace };
+static const VU1InterpMode s_vu1_mode = [] {
+	const char* env = std::getenv("PCSX2_VU1_INTERP");
+	if (!env)
+		return VU1InterpMode::Trace;
+	if (std::strcmp(env, "0") == 0)
+		return VU1InterpMode::Plain;
+	if (std::strcmp(env, "decode") == 0)
+		return VU1InterpMode::Decode;
+	if (std::strcmp(env, "check") == 0)
+		return VU1InterpMode::Check;
+	return VU1InterpMode::Trace;
+}();
 
 void _vu1ExecUpper(VURegs* VU, u32* ptr)
 {
@@ -212,7 +232,10 @@ static void _vu1Exec(VURegs* VU)
 void vu1Exec(VURegs* VU)
 {
 	VU->cycle++;
-	_vu1Exec(VU);
+	if (VU == &VU1 && s_vu1_mode != VU1InterpMode::Plain)
+		_vu1ExecDecoded();
+	else
+		_vu1Exec(VU);
 
 	if (VU->VI[0].UL != 0)
 		DbgCon.Error("VI[0] != 0!!!!\n");
@@ -274,6 +297,9 @@ void InterpVU1::Execute(u32 cycles)
 			}
 			break;
 		}
+		if (s_vu1_mode >= VU1InterpMode::Check && VU1.branch == 0 && VU1.ebit == 0 &&
+			_vu1TraceStep(startcycles, cycles, s_vu1_mode == VU1InterpMode::Check))
+			continue;
 		Step();
 	}
 	VU1.VI[REG_TPC].UL >>= 3;

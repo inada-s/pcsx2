@@ -104,13 +104,7 @@ namespace Zdxsv
 			// ZDXSV_SYNC_SALT=s (test): mixed in, as another build would be
 			if (static const char* salt = TestEnv("ZDXSV_SYNC_SALT"); salt)
 				add(salt, std::strlen(salt));
-			// the CPU cores in use: without x86 the VM runs the interpreters whatever these say
-			// (VMManager), and interpreters and recompilers compute different results
-			Pcsx2Config::RecompilerOptions rec = c.Cpu.Recompiler;
-#ifndef _M_X86
-			rec.EnableEE = rec.EnableIOP = rec.EnableVU0 = rec.EnableVU1 = rec.EnableFastmem = false;
-#endif
-			add32(rec.bitset);
+			add32(c.Cpu.Recompiler.bitset);
 			for (const FPControlRegister& r : {c.Cpu.FPUFPCR, c.Cpu.FPUDivFPCR, c.Cpu.VU0FPCR, c.Cpu.VU1FPCR})
 				add32(static_cast<u32>(r.GetRoundMode()) | (r.GetDenormalsAreZero() ? 0x10 : 0) | (r.GetFlushToZero() ? 0x20 : 0));
 			add32(c.Cpu.ExtraMemory);
