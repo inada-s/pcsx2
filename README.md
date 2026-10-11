@@ -26,6 +26,7 @@ Everything is on only for the one game build it was made for; any other disc run
   the interpreters, so it never matches an x86 one) in the platform info, logged as
   `ZdxsvSync: fingerprint <hex>`: a lobby battle whose
   players' fingerprints differ is cut, and the players return to the lobby.
+- VU interpreter: the MAC/status flag updates are inline (same results, faster; every game).
 
 ### Input latency
 
