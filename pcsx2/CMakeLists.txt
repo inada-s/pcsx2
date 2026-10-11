@@ -146,6 +146,7 @@ set(pcsx2Sources
 	Zdxsv/ReplayRecord.cpp
 	Zdxsv/SpectateSync.cpp
 	Zdxsv/SyncSettings.cpp
+	Zdxsv/IntHooks.cpp
 	Zdxsv/RecHooks.cpp
 	Zdxsv/RecProbe.cpp
 	VU0micro.cpp

@@ -3,7 +3,7 @@
 
 #pragma once
 
-// zdxsv hooks of the CPU and timing code: recompilers (iR5900.cpp, iR3000A.cpp), Counters.cpp,
+// zdxsv hooks of the CPU and timing code: recompilers (iR5900.cpp, iR3000A.cpp), Interpreter.cpp, Counters.cpp,
 // MTGS.cpp, VMManager.cpp, VU1micro.cpp. Only flags and declarations (AGENTS.md, Seams With Upstream Code).
 
 #include "common/Pcsx2Defs.h"
@@ -77,6 +77,10 @@ namespace Zdxsv
 	inline bool RecHooksOn() { return g_ee_probe || g_net_hook || g_zd_hook || g_ps_hook; }
 	// Emits the probe and hook calls for pc; dispatcher = where a hook that answered leaves the block.
 	void RecEmitHooks(u32 pc, const void* dispatcher);
+	// EE interpreter, before each non-delay-slot instruction: the hooks of RecEmitHooks but the probes.
+	inline bool IntHooksOn() { return g_net_hook || g_zd_hook || g_ps_hook; }
+	// true = a hook answered and moved the pc: the instruction at pc does not run (IntHooks.cpp).
+	bool IntRunHooks(u32 pc);
 
 	// ZDXSV_DELTA_TEST: synctest in a running game, see Zdxsv/DeltaState.cpp.
 	extern bool g_delta_state_test_enabled;
