@@ -34,6 +34,10 @@ else()
 		-Wno-missing-braces
 		-Wno-unknown-pragmas
 	)
+	# ARM64 always has FMA: contracted a*b+c in the interpreters rounds unlike the PS2 and the x86 build.
+	if(ARCH_ARM64)
+		target_compile_options(PCSX2_FLAGS INTERFACE -ffp-contract=off)
+	endif()
 endif()
 
 if(USE_LINKED_FFMPEG)
