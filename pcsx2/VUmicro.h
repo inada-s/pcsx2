@@ -113,7 +113,7 @@ public:
 	void SetStartPC(u32 startPC) override;
 	void Step() override;
 	void Execute(u32 cycles) override;
-	void Clear(u32 addr, u32 size) override {}
+	void Clear(u32 addr, u32 size) override;
 	void ResumeXGkick() override {}
 };
 

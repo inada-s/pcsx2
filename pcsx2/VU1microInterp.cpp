@@ -14,6 +14,7 @@ extern void _vuFlushAll(VURegs* VU);
 extern void _vuXGKICKFlush(VURegs* VU);
 #ifdef ARCH_ARM64
 extern bool _vu1TraceStep(u64 startcycles, u32 cycles);
+extern void _vu1TraceClear();
 #endif
 
 void _vu1ExecUpper(VURegs* VU, u32* ptr)
@@ -246,6 +247,16 @@ void InterpVU1::Reset()
 	VU1.ialuwritepos = 0;
 	VU1.ialureadpos = 0;
 	VU1.ialucount = 0;
+#ifdef ARCH_ARM64
+	_vu1TraceClear();
+#endif
+}
+
+void InterpVU1::Clear(u32 addr, u32 size)
+{
+#ifdef ARCH_ARM64
+	_vu1TraceClear();
+#endif
 }
 
 void InterpVU1::SetStartPC(u32 startPC)
