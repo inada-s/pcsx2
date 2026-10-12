@@ -368,7 +368,6 @@ static void _vu1JitMark(const char* what, const void* fn = nullptr)
 
 // As _vuFDIVflush and _vuEFUflush do once the result is due.
 static void _vu1JitXGKICK() { _vuXGKICKTransfer((VU1.cycle - VU1.xgkicklastcycle) - 1, false); }
-static void _vu1JitAddLowerStalls(_VURegsNum* r) { _vuAddLowerStalls(&VU1, r); }
 
 template <typename T>
 static s64 _vu1Off(const T& field)
@@ -535,6 +534,25 @@ static void _vu1JitEmitAddIALU(const _VURegsNum& r, const a64::Register& rbase, 
 	armAsm->Mov(a64::w1, r.cycles);
 	armAsm->Str(a64::w1, a64::MemOperand(a64::x5, off_ialu + offsetof(ialuPipe, Cycle)));
 	_vu1JitEmitPosStep(_vu1Off(VU1.ialuwritepos), _vu1Off(VU1.ialucount), 1);
+}
+
+// _vuFDIVAdd / _vuEFUAdd: Q or P and the status flag are already stored by the op.
+static void _vu1JitEmitAddFdivEfu(const _VURegsNum& r, const a64::Register& rbase, u32 cycle_rel)
+{
+	const bool fdiv = r.pipe == VUPIPE_FDIV;
+	armAsm->Mov(a64::w0, 1);
+	armAsm->Str(a64::w0, _vu1JitMem(fdiv ? _vu1Off(VU1.fdiv.enable) : _vu1Off(VU1.efu.enable)));
+	armAsm->Add(a64::x1, rbase, cycle_rel);
+	armAsm->Str(a64::x1, _vu1JitMem(fdiv ? _vu1Off(VU1.fdiv.sCycle) : _vu1Off(VU1.efu.sCycle)));
+	armAsm->Mov(a64::w0, r.cycles);
+	armAsm->Str(a64::w0, _vu1JitMem(fdiv ? _vu1Off(VU1.fdiv.Cycle) : _vu1Off(VU1.efu.Cycle)));
+	armAsm->Ldr(a64::w0, _vu1JitMem(fdiv ? _vu1Off(VU1.q.UL) : _vu1Off(VU1.p.UL)));
+	armAsm->Str(a64::w0, _vu1JitMem(fdiv ? _vu1Off(VU1.fdiv.reg.UL) : _vu1Off(VU1.efu.reg.UL)));
+	if (fdiv)
+	{
+		armAsm->Ldr(a64::w0, _vu1JitMem(_vu1Off(VU1.statusflag)));
+		armAsm->Str(a64::w0, _vu1JitMem(_vu1Off(VU1.fdiv.statusflag)));
+	}
 }
 
 // Upper FMAC ops emitted natively (applyBinaryMACOp/applyTernaryMACOp in VUops.cpp).
@@ -1742,11 +1760,7 @@ static void _vu1JitCompile(VU1Trace& t)
 			_vu1JitEmitAddIALU(d.lregs, rbase, s.cycle_rel);
 		else if ((d.lregs.pipe == VUPIPE_FDIV && (d.lregs.VIwrite & (1 << REG_Q))) ||
 				 (d.lregs.pipe == VUPIPE_EFU && (d.lregs.VIwrite & (1 << REG_P))))
-		{
-			_vu1JitFlush(false, false);
-			armMoveAddressToReg(a64::x0, &s.d.lregs);
-			armEmitCall(reinterpret_cast<const void*>(&_vu1JitAddLowerStalls));
-		}
+			_vu1JitEmitAddFdivEfu(d.lregs, rbase, s.cycle_rel);
 
 		_vu1JitMark("branch");
 		// VU1.branch is 0 at trace entry: it can only be set from the first branch pair on.
