@@ -23,6 +23,8 @@ static int branch2 = 0;
 u32 cpuBlockCycles = 0;		// 3 bit fixed point version of cycle count
 static std::string disOut;
 static bool intExitExecution = false;
+// intJmpBuf is only valid while intExecuteWith runs (as x86's eeCpuExecuting)
+static bool intCpuExecuting = false;
 static fastjmp_buf intJmpBuf;
 u32 intLastBranchTo;
 
@@ -594,7 +596,9 @@ void intSafeExitExecution()
 {
 	// If we're currently processing events, we can't safely jump out of the interpreter here, because we'll
 	// leave things in an inconsistent state. So instead, we flag it for exiting once cpuEventTest() returns.
-	if (eeEventTestIsActive)
+	// Outside execution (a VM state change run on the CPU thread between two Execute calls) intJmpBuf points
+	// into a returned frame: the next Execute leaves at its first event test (as x86's eeRecExitRequested).
+	if (eeEventTestIsActive || !intCpuExecuting)
 		intExitExecution = true;
 	else
 	{
@@ -616,7 +620,11 @@ static __fi void intExecuteWith(void (*run_block)())
 	// This will come back as zero the first time it runs, or on instruction cancel.
 	// It will come back as nonzero when we exit execution.
 	if (fastjmp_set(&intJmpBuf) != 0)
+	{
+		intCpuExecuting = false;
 		return;
+	}
+	intCpuExecuting = true;
 
 	for (;;)
 	{
