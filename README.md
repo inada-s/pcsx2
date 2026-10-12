@@ -94,6 +94,11 @@ Everything is on only for the one game build it was made for; any other disc run
   native COP2 macro ops): in the default clamp mode, the operands x86 microVU clamps per op (SUB, MUL,
   MULA, MADD/MADDA broadcast, COP2 MADDw/MSUB; `clampType` in `microVU_Upper.inl`) turn a NaN of
   either sign into +max, as x86 does (was signed max). x86_64 builds unchanged.
+- ARM64 VU FMAC NaN/Inf (same files and paths): in the default clamp mode, ADD/SUB/MUL/MADD/MSUB
+  (all forms, OPMULA/OPMSUB) follow x86 SSE: unclamped operands keep Inf/NaN (DAZ only), a NaN
+  operand passes quieted (Fs, or ACC in MADDA/MSUB*, first), an invalid op gives `0xffc00000`,
+  results are not clamped, MAC gets S and Z only (no O/U). SUBi/MULi `.xyzw` clamp I as x86 does.
+  x86_64 builds unchanged.
 - ARM64 EE recompiler (`pcsx2/arm64/iR5900.cpp`, experimental): blocks compiled into calls of the
   interpreter's handlers, with the x86 recompiler's timing, so ARM64 and x86_64 peers count the same
   EE cycles. On when the EE recompiler setting is on (`EmuCore/CPU/Recompiler` `EnableEE`, the
