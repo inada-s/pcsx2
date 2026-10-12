@@ -86,7 +86,7 @@ Everything is on only for the one game build it was made for; any other disc run
   (also BLTZAL..BGEZALL, BC0x/BC1x/BC2x) commit and test events; ERET/EI/traps force an event test;
   a split block tests events only after more than 6 instructions; LB..LW test events after an EE
   counter read (0x10000000-0x10001fff) only at a block-constant address; a FlushCache SYSCALL with a
-  constant v1 adds 5650 cycles instead of the call; timeout loop skip (`recSkipTimeoutLoop`).
+  constant v1 adds 5650 cycles instead of the call; timeout loop skip (`recSkipTimeoutLoop`, only in a block that branches to its own start).
   Integer ALU, shift, HI/LO move and MOVZ/MOVN ops are emitted as native code, computed as the x86
   recompiler does: ADD/SUB/ADDI/DADD/DSUB/DADDI write their result on overflow (the interpreter skips
   the write). Branches jump to the next compiled block without returning.
@@ -102,8 +102,9 @@ Everything is on only for the one game build it was made for; any other disc run
   state loaded while the pre-ELF interpreter loop runs (a replay's common state during boot) switches
   to compiled blocks (`Interpreter.cpp`), and a state load drops the interpreter's uncommitted cycles
   (`SaveState.cpp`): before, the whole lobby phase of a replay ran on the interpreter.
-  `ZDXSV_EVENT_LOG=<file>[,<lines>]`: one line per EE/IOP event test from the replay's common state
-  load; `diff` an ARM64 and an x86 file for the first timing split.
+  `ZDXSV_EVENT_LOG=<file>[,<lines>[,<from>]]`: one line per EE/IOP event test from the replay's common state
+  load; `diff` an ARM64 and an x86 file for the first timing split. With `<from>`, after that many event
+  lines also one `B ee <cycle> <pc>` line per EE recompiler block entry (both recompilers), to find the block.
 - ARM64 IOP recompiler (`pcsx2/arm64/iR3000A.cpp`, experimental) with the x86 IOP recompiler's timing, so
   ARM64 and x86 hosts count the same IOP cycles: x86 block layout, cycles added at the block end (MULT/DIV
   penalties), timeslice and event tests at every jump or branch, nop loop fast-forward, block clears only
