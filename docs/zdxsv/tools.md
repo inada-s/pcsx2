@@ -31,6 +31,7 @@
 | `tools/zdxsv/recvcheck.py` | Checks the receive slots (`R` lines) of a `ZDXSV_NET_TRACE` file. |
 | `tools/zdxsv/ramcount.py` | Finds EE RAM values that count down or up linearly across `ZDXSV_RAM_DUMP` dumps. |
 | `tools/zdxsv/ramvals.py` | Lists EE RAM u16 slots by the values they take across `ZDXSV_RAM_DUMP` dumps. |
+| `tests/zdxsv/vu1_optest_cmp.py` | `vu1_optest_cmp.py <a.bin> <b.bin> <emulog of a> [cases]`: compares two `ZDXSV_VU1_OPTEST` files (e.g. x86_64 vs ARM64): per op, the cases whose outputs differ, then the first such cases with inputs and both outputs. |
 
 `run.py rbk_test` runs a GGPO battle between the instances without a server
 and ends with the sync check. `LAT=ms JITTER=ms LOSS=0..1` send each pair of

@@ -87,6 +87,11 @@ Everything is on only for the one game build it was made for; any other disc run
   Env `PCSX2_VU1_JIT_SELFTEST=<n>`: at the first trace compile, each native DIV/SQRT/RSQRT, EFU and OPMULA/OPMSUB
   op and its handler run on the same <n> generated inputs; log `VU1 JIT selftest: <op> <n> checked,
   <k> differ` (and the first inputs that differ; outputs Q, P, status, MAC, ACC, Fd). VU1 is restored afterwards.
+- VU1 op test (`pcsx2/Zdxsv/VuOpTest.cpp`, all platforms): env `ZDXSV_VU1_OPTEST=<file>[,<n>[,finite]]`
+  runs 49 VU1 ops (FMAC, FDIV, EFU, conversions, CLIP) as short micro programs through the VU1 core
+  in use (x86 microVU, ARM64 traces or interpreter) on <n> generated inputs at the first VU1 micro
+  program start, and writes inputs and outputs to <file>. `tests/zdxsv/vu1_optest_cmp.py` compares
+  the files of two builds (x86_64 vs ARM64) op by op. Details: [options](docs/zdxsv/options.md).
 - ARM64 VU interpreter (`pcsx2/VUops.cpp`, `ARCH_ARM64`) and VU1 recompiler: DIV/SQRT/RSQRT and the
   EFU ops compute as x86 microVU does (unclamped inputs, its op order, flags and NaN), so ARM64 and
   x86_64 peers get the same Q, P and D/I flags; FDIV D/I also set DS/IS. x86_64 builds unchanged.
