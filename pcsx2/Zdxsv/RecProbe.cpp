@@ -18,6 +18,7 @@
 
 #include "Counters.h"
 #include "Memory.h"
+#include "R3000A.h"
 #include "R5900.h"
 #include "R5900OpcodeTables.h"
 #include "x86/iR5900.h"
@@ -351,4 +352,45 @@ namespace Zdxsv
 #else
 	void EeProfileOnRerun() {}
 #endif
+
+	bool g_event_log = false;
+	namespace
+	{
+		FILE* s_event_log = nullptr;
+		u32 s_event_log_left = 0;
+
+		void EventLogLine(char kind)
+		{
+			std::fprintf(s_event_log, "%c ee %llu %08x next %llu iop %llu %08x next %llu\n", kind,
+				static_cast<unsigned long long>(cpuRegs.cycle), cpuRegs.pc, static_cast<unsigned long long>(cpuRegs.nextEventCycle),
+				static_cast<unsigned long long>(psxRegs.cycle), psxRegs.pc, static_cast<unsigned long long>(psxRegs.iopNextEventCycle));
+			if (--s_event_log_left == 0)
+			{
+				std::fclose(s_event_log);
+				s_event_log = nullptr;
+				g_event_log = false;
+			}
+		}
+	} // namespace
+
+	void EventLogStart()
+	{
+		const char* e = TestEnv("ZDXSV_EVENT_LOG");
+		if (!e || s_event_log)
+			return;
+		std::string path(e);
+		s_event_log_left = 2000000;
+		if (const size_t comma = path.rfind(','); comma != std::string::npos)
+		{
+			s_event_log_left = static_cast<u32>(std::strtoul(path.c_str() + comma + 1, nullptr, 10));
+			path.resize(comma);
+		}
+		s_event_log = s_event_log_left ? std::fopen(path.c_str(), "w") : nullptr;
+		g_event_log = s_event_log != nullptr;
+		if (g_event_log)
+			EventLogLine('S');
+	}
+
+	void EventLogEe() { EventLogLine('E'); }
+	void EventLogIop() { EventLogLine('I'); }
 } // namespace Zdxsv

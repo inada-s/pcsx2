@@ -14,6 +14,7 @@
 #include "IopDma.h"
 #include "CDVD/Ps1CD.h"
 #include "CDVD/CDVD.h"
+#include "Zdxsv/CpuHooks.h"
 
 using namespace R3000A;
 
@@ -206,6 +207,8 @@ static __fi void _psxTestInterrupts()
 
 __ri void iopEventTest()
 {
+	if (Zdxsv::g_event_log) [[unlikely]]
+		Zdxsv::EventLogIop();
 	psxRegs.iopNextEventCycle = psxRegs.cycle + iopWaitCycles;
 
 	if (psxTestCycle(psxNextStartCounter, psxNextDeltaCounter))

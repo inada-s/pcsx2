@@ -308,6 +308,7 @@ namespace Zdxsv
 				return false;
 			}
 			Console.WriteLn("ZdxsvGgpo: replay: common state %s loaded", path.c_str());
+			EventLogStart();
 			return true;
 		}
 
