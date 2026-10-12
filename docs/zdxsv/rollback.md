@@ -73,7 +73,7 @@ rerun frame before. So VU1 microprograms run only in the last rerun frame,
 and rerun frames but the last two skip the game's render callback runners
 (0x20ff30, 0x20ff90, called by the battle frame step 0x2124f0 after the
 logic): their draw lists are never kicked. Skipping one more frame of either
-breaks that picture (`tests/zdxsv/rerunpic.sh`, `ZDXSV_RERUN_TAIL`): without
+breaks that picture (`ZDXSV_RERUN_TAIL`): without
 the last frame's VU1 it lacks all VU1 geometry, without the callbacks of the
 frame before it repeats the picture shown before the rollback. Those callbacks also draw from
 RNG A (u16 0x6d7940, ~40 draws a battle frame), so after such a rollback
@@ -125,6 +125,19 @@ Three mechanisms keep the peers on the same frame:
 `ZDXSV_RBK=i/N` runs a battle without any server, from a save state taken
 after battle entry, as position i of N. The emulator answers the lobby calls
 itself, runs turbo until the battle, and exits when the session ends.
+
+## Sync-safe settings and fingerprint
+
+- While the game runs (`Zdxsv/SyncSettings.cpp`), as in RetroAchievements
+  hardcore mode: cheats off; recompilers, EE/VU rounding and clamping, game
+  fixes (GameDB only), extra memory and GS hardware download mode at their
+  defaults. During battles, replays and live spectating also speedhacks,
+  emulation speed and frame rate. An OSD message names the overridden
+  settings; the settings page greys them out.
+- Sync fingerprint: a hash of the build, those settings and the recompiler
+  settings (not the BIOS), sent in the platform info and logged as
+  `ZdxsvSync: fingerprint <hex>`. A lobby battle whose players' fingerprints
+  differ is cut, and the players return to the lobby.
 
 ## Sync checks
 

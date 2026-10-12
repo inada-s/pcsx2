@@ -24,6 +24,7 @@
 | Script | What it does |
 |---|---|
 | `build-local.sh` | Builds PCSX2 on Windows from Git Bash, as the Windows CI's MSBuild path; the first run builds `deps/`. `--run` launches the build. |
+| `.github/workflows/scripts/macos/build-dependencies.sh` | Builds the macOS deps, as upstream but without `qt110-xcode264.patch`: Qt 6.11.1 already contains it, and applying it again breaks arm64 Qt builds on Xcode 26.6. |
 | `run.py` | Launches several local instances side by side, each with its own data directory under `work/`. Modes: `rom`, `state`, `rbk_test`, `rbk_test_random`. Settings: environment variables listed at the top of the script. |
 | `tools/zdxsv/udprelay.py` | UDP relay that adds latency, jitter and loss between two GGPO peers. |
 | `tools/zdxsv/pwcheck.py` | Sync check across the net traces of peers, or of a replay and its live battle ([rollback.md](rollback.md), Sync checks). `--battle CODE`: one battle of a multi-battle trace. |

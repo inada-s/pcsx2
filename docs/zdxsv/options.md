@@ -221,3 +221,16 @@ Addresses and PCs are hexadecimal.
 | `ZDXSV_EE_WATCH=addr[:len],..` | diagnostic | Log every EE store into these ranges (pc, address, value, ra, stack, GGPO frame) to `<prefix>-w<n>.txt`. |
 | `ZDXSV_EE_PROFILE=prefix` | diagnostic | Windows. While rollback frames rerun, sample the CPU thread every ~0.2 ms: counts by EE block pc, VU1/VU0/IOP/VIF-unpack recompiled code, native function (DbgHelp, PDB next to the exe), its source line (`ln <file>:<line>`; inlined code counts at an outer line) and `cpuRegs.pc`, both (`at <pc> fn <function>`), EE stack page (`sp <sp / 4096> ee/other`: which game thread stack) and each return address found on the EE stack (`ra <addr>`: inclusive time of that call; a heuristic, stale stack words count too), native call chain (`ch <function> < <caller> < <its caller>`, by unwind data; stops at recompiled code, shown as `?!?`), rewritten to `<prefix>-<pid>.txt` every 2000 samples. |
 | `ZDXSV_EE_CLAMP=addr,max[,lo,hi][;..]` | test | Keep a u16 at `addr` at or below `max`, only while it is in `lo..hi`. Used to shorten the sortie preparation (出撃準備) timer in rollback tests. A replay of such a battle needs the same value. |
+
+## ARM64 cores
+
+Read by ARM64 builds only. The cores: [arm64.md](arm64.md).
+
+| Option | Use | Meaning |
+|---|---|---|
+| `PCSX2_VU1_JIT=0` | control | VU1 runs on the interpreter only. |
+| `PCSX2_VU1_JIT=check` | test | Every VU1 trace is also run by the interpreter from the same start; VU1 registers and memory are compared, and every kept exit state with the real one (log `VU1 trace check`). Traces that start while an XGKICK transfer runs are not checked (the transfer cannot run twice). |
+| `PCSX2_VU1_JIT_MAP=file` | diagnostic | Start address and kind of each emitted VU1 trace section (and the handler it calls), to attribute `sample` addresses in VU1 JIT code. |
+| `PCSX2_VU1_JIT_SELFTEST=n` | test | At the first trace compile, each native DIV/SQRT/RSQRT, EFU and OPMULA/OPMSUB op and its handler run on the same `n` generated inputs; log `VU1 JIT selftest: <op> <n> checked, <k> differ` and the first differing inputs (outputs Q, P, status, MAC, ACC, Fd). VU1 is restored afterwards. |
+| `PCSX2_ARM64_EE_NATIVE=0` | control | The EE recompiler calls the interpreter handler for every op (no native ops). |
+| `PCSX2_EE_JIT_MAP=file` | diagnostic | Host address of each compiled EE instruction (pc, name, code word). |
