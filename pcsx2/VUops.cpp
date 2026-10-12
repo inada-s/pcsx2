@@ -357,7 +357,12 @@ static __ri void _vuFDIVAdd(VURegs* VU, int cycles)
 	VU->fdiv.sCycle = VU->cycle;
 	VU->fdiv.Cycle = cycles;
 	VU->fdiv.reg.F = VU->q.F;
+#ifdef ARCH_ARM64
+	// D/I also set their sticky bits (DS/IS), as x86 microVU does.
+	VU->fdiv.statusflag = VU->statusflag | ((VU->statusflag & 0x30) << 6);
+#else
 	VU->fdiv.statusflag = VU->statusflag;
+#endif
 }
 
 static __ri void _vuEFUAdd(VURegs* VU, int cycles)
@@ -527,14 +532,82 @@ static __fi VECTOR* _getDst(VURegs* VU)
 		return &VU->VF[_Fd_];
 }
 
+#ifdef ARCH_ARM64
+// Set while an EE COP2 macro op runs: x86 microVU clamps more operands of MADDw and MSUB there.
+static bool s_vu_cop2_op = false;
+
+// Operands x86 microVU clamps for the upper op in code (clampType in microVU_Upper.inl), in the
+// default clamp mode (overflow only): bit 0 Ft (also a broadcast lane or Q, never I), bit 1 Fs,
+// bit 2 ACC. Its clamp (MINPS +max, MAXPS -max) turns a NaN of either sign into +max; vuDouble
+// gives the rest of the values the same result.
+static u32 vuX86ClampOperands(u32 code, int vu, bool cop2)
+{
+	if (!CHECK_VU_OVERFLOW(vu) || CHECK_VU_SIGN_OVERFLOW(vu) || CHECK_VU_EXTRA_OVERFLOW(vu))
+		return 0;
+	const bool ps = ((code >> 21) & 0xf) == 0xf;
+	const u32 funct = code & 0x3f;
+	if (funct >= 0x3c)
+	{
+		switch ((code >> 6) & 0x1f)
+		{
+			case 2: return 2; // MADDAx..w
+			case 6: return (ps && (code & 3) == 3) ? 3 : 2; // MULAx..w
+			default: return 0;
+		}
+	}
+	switch (funct)
+	{
+		case 0x04: case 0x05: case 0x06: case 0x07: case 0x24: case 0x2c: // SUBx..w, SUBq, SUB
+			return ps ? 3 : 0;
+		case 0x26: // SUBi
+			return ps ? 2 : 0;
+		case 0x18: case 0x19: case 0x1a: case 0x1b: case 0x1c: case 0x2a: // MULx..w, MULq, MUL
+			return ps ? 3 : 2;
+		case 0x1e: // MULi
+		case 0x08: case 0x09: case 0x0a: // MADDx..z
+			return 2;
+		case 0x0b: // MADDw
+			return cop2 ? 7 : 2;
+		case 0x2d: // MSUB
+			return cop2 ? 2 : 0;
+		default:
+			return 0;
+	}
+}
+
+static __fi u32 _vuClampOperands(VURegs* VU)
+{
+	return vuX86ClampOperands(VU->code, VU->IsVU1() ? 1 : 0, s_vu_cop2_op && VU->IsVU0());
+}
+
+static __fi u32 _vuClampNaN(u32 f, bool on)
+{
+	return (on && (f & 0x7fffffff) > 0x7f800000) ? 0x7f7fffff : f;
+}
+
+static __fi VECTOR _vuClampNaN(const VECTOR& v, bool on)
+{
+	VECTOR r;
+	for (int i = 0; i < 4; i++)
+		r.UL[i] = _vuClampNaN(v.UL[i], on);
+	return r;
+}
+#endif
+
 template <float(*Fn)(u32, u32), MACOpDst Dst>
 static __fi void applyBinaryMACOp(VURegs* VU)
 {
 	VECTOR* dst = _getDst<Dst>(VU);
-	if (_X) { dst->i.x = VU_MACx_UPDATE(VU, Fn(VU->VF[_Fs_].i.x, VU->VF[_Ft_].i.x)); } else VU_MACx_CLEAR(VU);
-	if (_Y) { dst->i.y = VU_MACy_UPDATE(VU, Fn(VU->VF[_Fs_].i.y, VU->VF[_Ft_].i.y)); } else VU_MACy_CLEAR(VU);
-	if (_Z) { dst->i.z = VU_MACz_UPDATE(VU, Fn(VU->VF[_Fs_].i.z, VU->VF[_Ft_].i.z)); } else VU_MACz_CLEAR(VU);
-	if (_W) { dst->i.w = VU_MACw_UPDATE(VU, Fn(VU->VF[_Fs_].i.w, VU->VF[_Ft_].i.w)); } else VU_MACw_CLEAR(VU);
+#ifdef ARCH_ARM64
+	const u32 c = _vuClampOperands(VU);
+	const VECTOR fs = _vuClampNaN(VU->VF[_Fs_], c & 2), ft = _vuClampNaN(VU->VF[_Ft_], c & 1);
+#else
+	const VECTOR &fs = VU->VF[_Fs_], &ft = VU->VF[_Ft_];
+#endif
+	if (_X) { dst->i.x = VU_MACx_UPDATE(VU, Fn(fs.i.x, ft.i.x)); } else VU_MACx_CLEAR(VU);
+	if (_Y) { dst->i.y = VU_MACy_UPDATE(VU, Fn(fs.i.y, ft.i.y)); } else VU_MACy_CLEAR(VU);
+	if (_Z) { dst->i.z = VU_MACz_UPDATE(VU, Fn(fs.i.z, ft.i.z)); } else VU_MACz_CLEAR(VU);
+	if (_W) { dst->i.w = VU_MACw_UPDATE(VU, Fn(fs.i.w, ft.i.w)); } else VU_MACw_CLEAR(VU);
 	VU_STAT_UPDATE(VU);
 }
 
@@ -542,10 +615,18 @@ template <float(*Fn)(u32, u32), MACOpDst Dst>
 static __fi void applyBinaryMACOpBroadcast(VURegs* VU, u32 bc)
 {
 	VECTOR* dst = _getDst<Dst>(VU);
-	if (_X) { dst->i.x = VU_MACx_UPDATE(VU, Fn(VU->VF[_Fs_].i.x, bc)); } else VU_MACx_CLEAR(VU);
-	if (_Y) { dst->i.y = VU_MACy_UPDATE(VU, Fn(VU->VF[_Fs_].i.y, bc)); } else VU_MACy_CLEAR(VU);
-	if (_Z) { dst->i.z = VU_MACz_UPDATE(VU, Fn(VU->VF[_Fs_].i.z, bc)); } else VU_MACz_CLEAR(VU);
-	if (_W) { dst->i.w = VU_MACw_UPDATE(VU, Fn(VU->VF[_Fs_].i.w, bc)); } else VU_MACw_CLEAR(VU);
+#ifdef ARCH_ARM64
+	const u32 c = _vuClampOperands(VU);
+	const VECTOR fs = _vuClampNaN(VU->VF[_Fs_], c & 2);
+	const u32 b = _vuClampNaN(bc, c & 1);
+#else
+	const VECTOR& fs = VU->VF[_Fs_];
+	const u32 b = bc;
+#endif
+	if (_X) { dst->i.x = VU_MACx_UPDATE(VU, Fn(fs.i.x, b)); } else VU_MACx_CLEAR(VU);
+	if (_Y) { dst->i.y = VU_MACy_UPDATE(VU, Fn(fs.i.y, b)); } else VU_MACy_CLEAR(VU);
+	if (_Z) { dst->i.z = VU_MACz_UPDATE(VU, Fn(fs.i.z, b)); } else VU_MACz_CLEAR(VU);
+	if (_W) { dst->i.w = VU_MACw_UPDATE(VU, Fn(fs.i.w, b)); } else VU_MACw_CLEAR(VU);
 	VU_STAT_UPDATE(VU);
 }
 
@@ -683,10 +764,17 @@ template <float(*Fn)(u32, u32, u32), MACOpDst Dst>
 static __fi void applyTernaryMACOp(VURegs* VU)
 {
 	VECTOR* dst = _getDst<Dst>(VU);
-	if (_X) { dst->i.x = VU_MACx_UPDATE(VU, Fn(VU->ACC.i.x, VU->VF[_Fs_].i.x, VU->VF[_Ft_].i.x)); } else VU_MACx_CLEAR(VU);
-	if (_Y) { dst->i.y = VU_MACy_UPDATE(VU, Fn(VU->ACC.i.y, VU->VF[_Fs_].i.y, VU->VF[_Ft_].i.y)); } else VU_MACy_CLEAR(VU);
-	if (_Z) { dst->i.z = VU_MACz_UPDATE(VU, Fn(VU->ACC.i.z, VU->VF[_Fs_].i.z, VU->VF[_Ft_].i.z)); } else VU_MACz_CLEAR(VU);
-	if (_W) { dst->i.w = VU_MACw_UPDATE(VU, Fn(VU->ACC.i.w, VU->VF[_Fs_].i.w, VU->VF[_Ft_].i.w)); } else VU_MACw_CLEAR(VU);
+#ifdef ARCH_ARM64
+	const u32 c = _vuClampOperands(VU);
+	const VECTOR acc = _vuClampNaN(VU->ACC, c & 4), fs = _vuClampNaN(VU->VF[_Fs_], c & 2),
+				 ft = _vuClampNaN(VU->VF[_Ft_], c & 1);
+#else
+	const VECTOR &acc = VU->ACC, &fs = VU->VF[_Fs_], &ft = VU->VF[_Ft_];
+#endif
+	if (_X) { dst->i.x = VU_MACx_UPDATE(VU, Fn(acc.i.x, fs.i.x, ft.i.x)); } else VU_MACx_CLEAR(VU);
+	if (_Y) { dst->i.y = VU_MACy_UPDATE(VU, Fn(acc.i.y, fs.i.y, ft.i.y)); } else VU_MACy_CLEAR(VU);
+	if (_Z) { dst->i.z = VU_MACz_UPDATE(VU, Fn(acc.i.z, fs.i.z, ft.i.z)); } else VU_MACz_CLEAR(VU);
+	if (_W) { dst->i.w = VU_MACw_UPDATE(VU, Fn(acc.i.w, fs.i.w, ft.i.w)); } else VU_MACw_CLEAR(VU);
 	VU_STAT_UPDATE(VU);
 }
 
@@ -694,10 +782,18 @@ template <float(*Fn)(u32, u32, u32), MACOpDst Dst>
 static __fi void applyTernaryMACOpBroadcast(VURegs* VU, u32 bc)
 {
 	VECTOR* dst = _getDst<Dst>(VU);
-	if (_X) { dst->i.x = VU_MACx_UPDATE(VU, Fn(VU->ACC.i.x, VU->VF[_Fs_].i.x, bc)); } else VU_MACx_CLEAR(VU);
-	if (_Y) { dst->i.y = VU_MACy_UPDATE(VU, Fn(VU->ACC.i.y, VU->VF[_Fs_].i.y, bc)); } else VU_MACy_CLEAR(VU);
-	if (_Z) { dst->i.z = VU_MACz_UPDATE(VU, Fn(VU->ACC.i.z, VU->VF[_Fs_].i.z, bc)); } else VU_MACz_CLEAR(VU);
-	if (_W) { dst->i.w = VU_MACw_UPDATE(VU, Fn(VU->ACC.i.w, VU->VF[_Fs_].i.w, bc)); } else VU_MACw_CLEAR(VU);
+#ifdef ARCH_ARM64
+	const u32 c = _vuClampOperands(VU);
+	const VECTOR acc = _vuClampNaN(VU->ACC, c & 4), fs = _vuClampNaN(VU->VF[_Fs_], c & 2);
+	const u32 b = _vuClampNaN(bc, c & 1);
+#else
+	const VECTOR &acc = VU->ACC, &fs = VU->VF[_Fs_];
+	const u32 b = bc;
+#endif
+	if (_X) { dst->i.x = VU_MACx_UPDATE(VU, Fn(acc.i.x, fs.i.x, b)); } else VU_MACx_CLEAR(VU);
+	if (_Y) { dst->i.y = VU_MACy_UPDATE(VU, Fn(acc.i.y, fs.i.y, b)); } else VU_MACy_CLEAR(VU);
+	if (_Z) { dst->i.z = VU_MACz_UPDATE(VU, Fn(acc.i.z, fs.i.z, b)); } else VU_MACz_CLEAR(VU);
+	if (_W) { dst->i.w = VU_MACw_UPDATE(VU, Fn(acc.i.w, fs.i.w, b)); } else VU_MACw_CLEAR(VU);
 	VU_STAT_UPDATE(VU);
 }
 
@@ -928,6 +1024,67 @@ static __fi void _vuCLIP(VURegs* VU)
 /*   VU Lower instructions    */
 /******************************/
 
+#ifdef ARCH_ARM64
+// DIV/SQRT/RSQRT as x86 microVU computes them (x86/microVU_Lower.inl): the register bits unclamped,
+// zero = exponent 0 (DAZ), negative = sign bit (also -0), I/D as microVU sets them, the quotient
+// clamped by MINSS/MAXSS (a NaN becomes +max).
+static __fi bool _vuFdivZero(u32 v)
+{
+	return (v & 0x7f800000) == 0;
+}
+
+static __fi float _vuFdivClamp(VURegs* VU, float r)
+{
+	if (!CHECK_VU_OVERFLOW(VU == &VU1 ? 1 : 0))
+		return r;
+	const float max = std::bit_cast<float>(0x7f7fffffu), min = std::bit_cast<float>(0xff7fffffu);
+	r = r < max ? r : max;
+	return r > min ? r : min;
+}
+
+static __fi void _vuDIV(VURegs* VU)
+{
+	const u32 fs = VU->VF[_Fs_].UL[_Fsf_], ft = VU->VF[_Ft_].UL[_Ftf_];
+	VU->statusflag &= ~0x30;
+	if (_vuFdivZero(ft))
+	{
+		VU->statusflag |= _vuFdivZero(fs) ? 0x10 : 0x20;
+		VU->q.UL = ((fs ^ ft) & 0x80000000) | 0x7f7fffff;
+	}
+	else
+		VU->q.F = _vuFdivClamp(VU, std::bit_cast<float>(fs) / std::bit_cast<float>(ft));
+}
+
+static __fi void _vuSQRT(VURegs* VU)
+{
+	const u32 ft = VU->VF[_Ft_].UL[_Ftf_];
+	VU->statusflag = (VU->statusflag & ~0x30) | (ft >> 31 ? 0x10 : 0);
+	float t = std::bit_cast<float>(ft & 0x7fffffff);
+	if (CHECK_VU_OVERFLOW(VU == &VU1 ? 1 : 0))
+	{
+		const float max = std::bit_cast<float>(0x7f7fffffu);
+		t = t < max ? t : max;
+	}
+	VU->q.F = std::sqrt(t);
+}
+
+static __fi void _vuRSQRT(VURegs* VU)
+{
+	const u32 fs = VU->VF[_Fs_].UL[_Fsf_], ft = VU->VF[_Ft_].UL[_Ftf_];
+	const float s = std::sqrt(std::bit_cast<float>(ft & 0x7fffffff));
+	VU->statusflag &= ~0x30;
+	if (_vuFdivZero(std::bit_cast<u32>(s)))
+	{
+		VU->statusflag |= _vuFdivZero(fs) ? 0x10 : 0x20;
+		VU->q.UL = (fs & 0x80000000) | 0x7f7fffff;
+	}
+	else
+	{
+		VU->statusflag |= ft >> 31 ? 0x10 : 0;
+		VU->q.F = _vuFdivClamp(VU, std::bit_cast<float>(fs) / s);
+	}
+}
+#else
 static __fi void _vuDIV(VURegs* VU)
 {
 	float ft = vuDouble(VU->VF[_Ft_].UL[_Ftf_]);
@@ -1010,6 +1167,7 @@ static __fi void _vuRSQRT(VURegs* VU)
 		VU->q.F = vuDouble(VU->q.UL);
 	}
 }
+#endif
 
 static __fi void _vuIADDI(VURegs* VU)
 {
@@ -1649,6 +1807,118 @@ static __ri void _vuWAITP(VURegs* VU)
 {
 }
 
+#ifdef ARCH_ARM64
+// EFU ops as x86 microVU computes them (x86/microVU_Lower.inl, default clamp mode): the register
+// bits unclamped, the same single precision ops in the same order, no zero checks, so ARM64 and
+// x86 peers get the same P. A NaN made here gets the x86 default NaN (sign set).
+static __fi float _vuEfuF(u32 bits)
+{
+	return std::bit_cast<float>(bits);
+}
+
+static __fi void _vuEfuSetP(VURegs* VU, float p)
+{
+	VU->p.UL = std::isnan(p) && std::bit_cast<u32>(p) == 0x7fc00000 ? 0xffc00000 : std::bit_cast<u32>(p);
+}
+
+// a + b with the operands in this order (a NaN result depends on it, and the compiler may swap
+// the operands of a plain +), as the JIT's FADD.
+static __fi float _vuEfuAdd(float a, float b)
+{
+	float r;
+	asm("fadd %s0, %s1, %s2" : "=w"(r) : "w"(a), "w"(b));
+	return r;
+}
+
+// x*x + y*y + z*z as DPPS: (x*x + y*y) + (z*z + 0)
+static __fi float _vuEfuSum3(VURegs* VU)
+{
+	const float x = _vuEfuF(VU->VF[_Fs_].i.x), y = _vuEfuF(VU->VF[_Fs_].i.y), z = _vuEfuF(VU->VF[_Fs_].i.z);
+	return _vuEfuAdd(_vuEfuAdd(x * x, y * y), z * z);
+}
+
+static __fi float _vuEfuAbs(VURegs* VU)
+{
+	return _vuEfuF(VU->VF[_Fs_].UL[_Fsf_] & 0x7fffffff);
+}
+
+static __ri void _vuESADD(VURegs* VU) { _vuEfuSetP(VU, _vuEfuSum3(VU)); }
+static __ri void _vuERSADD(VURegs* VU) { _vuEfuSetP(VU, 1.0f / _vuEfuSum3(VU)); }
+static __ri void _vuELENG(VURegs* VU) { _vuEfuSetP(VU, std::sqrt(_vuEfuSum3(VU))); }
+static __ri void _vuERLENG(VURegs* VU) { _vuEfuSetP(VU, 1.0f / std::sqrt(_vuEfuSum3(VU))); }
+static __ri void _vuERCPR(VURegs* VU) { _vuEfuSetP(VU, 1.0f / _vuEfuF(VU->VF[_Fs_].UL[_Fsf_])); }
+static __ri void _vuESQRT(VURegs* VU) { _vuEfuSetP(VU, std::sqrt(_vuEfuAbs(VU))); }
+static __ri void _vuERSQRT(VURegs* VU) { _vuEfuSetP(VU, 1.0f / std::sqrt(_vuEfuAbs(VU))); }
+
+static __ri void _vuESUM(VURegs* VU)
+{
+	const float x = _vuEfuF(VU->VF[_Fs_].i.x), y = _vuEfuF(VU->VF[_Fs_].i.y);
+	const float z = _vuEfuF(VU->VF[_Fs_].i.z), w = _vuEfuF(VU->VF[_Fs_].i.w);
+	_vuEfuSetP(VU, _vuEfuAdd(_vuEfuAdd(x, w), _vuEfuAdd(y, z)));
+}
+
+// atan(u) - pi/4 series on u = (a - b) / (a + b), then + pi/4.
+static __fi float _vuEfuAtan(float u)
+{
+	static constexpr u32 t[7] = {0xbeaaa61c, 0x3e4c40a6, 0xbe0e6c63, 0x3dc577df, 0xbd6501c4, 0x3cb31652, 0xbb84d7e7};
+	float p = u * _vuEfuF(0x3f7ffff5), un = u;
+	for (const u32 c : t)
+	{
+		un = un * u;
+		un = un * u;
+		p = p + un * _vuEfuF(c);
+	}
+	return p + _vuEfuF(0x3f490fdb);
+}
+
+static __ri void _vuEATAN(VURegs* VU)
+{
+	const float x = _vuEfuF(VU->VF[_Fs_].UL[_Fsf_]);
+	_vuEfuSetP(VU, _vuEfuAtan((x - 1.0f) / (x + 1.0f)));
+}
+
+static __ri void _vuEATANxy(VURegs* VU)
+{
+	const float x = _vuEfuF(VU->VF[_Fs_].i.x), y = _vuEfuF(VU->VF[_Fs_].i.y);
+	_vuEfuSetP(VU, _vuEfuAtan((y - x) / (x + y)));
+}
+
+static __ri void _vuEATANxz(VURegs* VU)
+{
+	const float x = _vuEfuF(VU->VF[_Fs_].i.x), z = _vuEfuF(VU->VF[_Fs_].i.z);
+	_vuEfuSetP(VU, _vuEfuAtan((z - x) / (x + z)));
+}
+
+static __ri void _vuESIN(VURegs* VU)
+{
+	const float x = _vuEfuF(VU->VF[_Fs_].UL[_Fsf_]);
+	const float x2 = x * x;
+	float xn = x2 * x;
+	float p = x + xn * _vuEfuF(0xbe2aaaa4);
+	for (const u32 c : {0x3c08873eu, 0xb94fb21fu, 0x362e9c14u})
+	{
+		xn = xn * x2;
+		p = p + xn * _vuEfuF(c);
+	}
+	_vuEfuSetP(VU, p);
+}
+
+static __ri void _vuEEXP(VURegs* VU)
+{
+	const float x = _vuEfuF(VU->VF[_Fs_].UL[_Fsf_]);
+	float p = x * _vuEfuF(0x3e7fffa8) + 1.0f;
+	float xn = x * x;
+	p = p + xn * _vuEfuF(0x3d0007f4);
+	for (const u32 c : {0x3b29d3ffu, 0x3933e553u, 0x36b63510u, 0x353961acu})
+	{
+		xn = xn * x;
+		p = p + xn * _vuEfuF(c);
+	}
+	p = p * p;
+	p = p * p;
+	_vuEfuSetP(VU, 1.0f / p);
+}
+#else
 static __ri void _vuESADD(VURegs* VU)
 {
 	float p = vuDouble(VU->VF[_Fs_].i.x) * vuDouble(VU->VF[_Fs_].i.x) + vuDouble(VU->VF[_Fs_].i.y) * vuDouble(VU->VF[_Fs_].i.y) + vuDouble(VU->VF[_Fs_].i.z) * vuDouble(VU->VF[_Fs_].i.z);
@@ -1803,6 +2073,7 @@ static __ri void _vuEEXP(VURegs* VU)
 
 	VU->p.F = p;
 }
+#endif
 
 static __ri void _vuXITOP(VURegs* VU)
 {
@@ -3886,9 +4157,16 @@ _vuRegsTables(VU1, VU1regs, FnPtr_VuRegsN)
 //  VU0macro (COP2)
 // --------------------------------------------------------------------------------------
 
+#ifdef ARCH_ARM64
+// x86 microVU keeps the D and I flags of the last DIV/SQRT/RSQRT through FMAC ops.
+static constexpr u32 VU0_MACRO_STATUS_KEEP = 0xFF0;
+#else
+static constexpr u32 VU0_MACRO_STATUS_KEEP = 0xFC0;
+#endif
+
 static __fi void SYNCMSFLAGS()
 {
-	VU0.VI[REG_STATUS_FLAG].UL = (VU0.VI[REG_STATUS_FLAG].UL & 0xFC0) | (VU0.statusflag & 0xF) | ((VU0.statusflag & 0xF) << 6);
+	VU0.VI[REG_STATUS_FLAG].UL = (VU0.VI[REG_STATUS_FLAG].UL & VU0_MACRO_STATUS_KEEP) | (VU0.statusflag & 0xF) | ((VU0.statusflag & 0xF) << 6);
 	VU0.VI[REG_MAC_FLAG].UL = VU0.macflag;
 }
 
@@ -3899,7 +4177,7 @@ static __fi void SYNCCLIPFLAG()
 
 static __fi void SYNCSTATUSFLAG()
 {
-	VU0.VI[REG_STATUS_FLAG].UL = (VU0.VI[REG_STATUS_FLAG].UL & 0xFC0) | (VU0.statusflag & 0xF) | ((VU0.statusflag & 0xF) << 6);
+	VU0.VI[REG_STATUS_FLAG].UL = (VU0.VI[REG_STATUS_FLAG].UL & VU0_MACRO_STATUS_KEEP) | (VU0.statusflag & 0xF) | ((VU0.statusflag & 0xF) << 6);
 }
 
 static __fi void SYNCFDIV()
@@ -3957,7 +4235,11 @@ void VMADDq() { VU0.code = cpuRegs.code; _vuMADDq(&VU0); SYNCMSFLAGS(); }
 void VMADDx() { VU0.code = cpuRegs.code; _vuMADDx(&VU0); SYNCMSFLAGS(); }
 void VMADDy() { VU0.code = cpuRegs.code; _vuMADDy(&VU0); SYNCMSFLAGS(); }
 void VMADDz() { VU0.code = cpuRegs.code; _vuMADDz(&VU0); SYNCMSFLAGS(); }
+#ifdef ARCH_ARM64
+void VMADDw() { VU0.code = cpuRegs.code; s_vu_cop2_op = true; _vuMADDw(&VU0); s_vu_cop2_op = false; SYNCMSFLAGS(); }
+#else
 void VMADDw() { VU0.code = cpuRegs.code; _vuMADDw(&VU0); SYNCMSFLAGS(); }
+#endif
 void VMADDA()  { VU0.code = cpuRegs.code; _vuMADDA(&VU0); SYNCMSFLAGS(); }
 void VMADDAi() { VU0.code = cpuRegs.code; _vuMADDAi(&VU0); SYNCMSFLAGS(); }
 void VMADDAq() { VU0.code = cpuRegs.code; _vuMADDAq(&VU0); SYNCMSFLAGS(); }
@@ -3965,7 +4247,11 @@ void VMADDAx() { VU0.code = cpuRegs.code; _vuMADDAx(&VU0); SYNCMSFLAGS(); }
 void VMADDAy() { VU0.code = cpuRegs.code; _vuMADDAy(&VU0); SYNCMSFLAGS(); }
 void VMADDAz() { VU0.code = cpuRegs.code; _vuMADDAz(&VU0); SYNCMSFLAGS(); }
 void VMADDAw() { VU0.code = cpuRegs.code; _vuMADDAw(&VU0); SYNCMSFLAGS(); }
+#ifdef ARCH_ARM64
+void VMSUB()  { VU0.code = cpuRegs.code; s_vu_cop2_op = true; _vuMSUB(&VU0); s_vu_cop2_op = false; SYNCMSFLAGS(); }
+#else
 void VMSUB()  { VU0.code = cpuRegs.code; _vuMSUB(&VU0); SYNCMSFLAGS(); }
+#endif
 void VMSUBi() { VU0.code = cpuRegs.code; _vuMSUBi(&VU0); SYNCMSFLAGS(); }
 void VMSUBq() { VU0.code = cpuRegs.code; _vuMSUBq(&VU0); SYNCMSFLAGS(); }
 void VMSUBx() { VU0.code = cpuRegs.code; _vuMSUBx(&VU0); SYNCMSFLAGS(); }

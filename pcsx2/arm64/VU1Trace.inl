@@ -551,6 +551,8 @@ static void _vu1JitEmitAddFdivEfu(const _VURegsNum& r, const a64::Register& rbas
 	if (fdiv)
 	{
 		armAsm->Ldr(a64::w0, _vu1JitMem(_vu1Off(VU1.statusflag)));
+		armAsm->And(a64::w1, a64::w0, 0x30);
+		armAsm->Orr(a64::w0, a64::w0, a64::Operand(a64::w1, a64::LSL, 6));
 		armAsm->Str(a64::w0, _vu1JitMem(_vu1Off(VU1.fdiv.statusflag)));
 	}
 }
@@ -586,11 +588,14 @@ alignas(16) static const u32 s_vu1_jit_fconst[7][4] = {
 	{0x7f7fffff, 0x7f7fffff, 0x7f7fffff, 0x7f7fffff}, {0x0008, 0x0004, 0x0002, 0x0001},
 	{0x0080, 0x0040, 0x0020, 0x0010}, {0x0800, 0x0400, 0x0200, 0x0100}, {0x8000, 0x4000, 0x2000, 0x1000}};
 
-// Overflow clamp settings the JIT code was compiled for (bit 0: vu0Overflow, bit 1: vu1Overflow).
+// Clamp settings the JIT code was compiled for (bits 0-1: vu0/vu1 Overflow, 2-3: SignOverflow,
+// 4-5: ExtraOverflow).
 static u8 s_vu1_jit_ovf = 0xff;
 static u8 _vu1JitOvf()
 {
-	return (EmuConfig.Cpu.Recompiler.vu0Overflow ? 1 : 0) | (EmuConfig.Cpu.Recompiler.vu1Overflow ? 2 : 0);
+	const auto& r = EmuConfig.Cpu.Recompiler;
+	return (r.vu0Overflow ? 1 : 0) | (r.vu1Overflow ? 2 : 0) | (r.vu0SignOverflow ? 4 : 0) |
+		   (r.vu1SignOverflow ? 8 : 0) | (r.vu0ExtraOverflow ? 16 : 0) | (r.vu1ExtraOverflow ? 32 : 0);
 }
 
 // vuDouble on 4 lanes: exponent 0 -> signed 0, exponent 255 -> signed max float.
@@ -603,6 +608,15 @@ static void _vu1JitEmitVuDouble(const a64::VRegister& v)
 	armAsm->Orr(a64::v27.V16B(), a64::v26.V16B(), a64::v18.V16B());
 	armAsm->Bsl(a64::v24.V16B(), a64::v27.V16B(), v.V16B());
 	armAsm->Bsl(a64::v25.V16B(), a64::v26.V16B(), a64::v24.V16B());
+	armAsm->Mov(v.V16B(), a64::v25.V16B());
+}
+
+// x86 microVU operand clamp (vuX86ClampOperands): a NaN of either sign becomes +max.
+static void _vuJitEmitClampNaN(const a64::VRegister& v)
+{
+	armAsm->Bic(a64::v24.V16B(), v.V16B(), a64::v17.V16B());
+	armAsm->Cmgt(a64::v25.V4S(), a64::v24.V4S(), a64::v16.V4S());
+	armAsm->Bsl(a64::v25.V16B(), a64::v18.V16B(), v.V16B());
 	armAsm->Mov(v.V16B(), a64::v25.V16B());
 }
 
@@ -623,9 +637,9 @@ static const VU1FmacDesc* _vuJitFmacDesc(const VU1FmacDesc* ops, size_t count, F
 }
 
 // The FMAC op on the VURegs at rvu (VU0 or VU1: same layout), s_vu1_jit_fconst at rconst.
-// out_clamp: CHECK_VU_OVERFLOW of that VU.
+// out_clamp: CHECK_VU_OVERFLOW of that VU; clamp: vuX86ClampOperands.
 static void _vuJitEmitFmacCore(const VU1FmacDesc* desc, u32 code, const a64::Register& rvu,
-	const a64::Register& rconst, bool out_clamp)
+	const a64::Register& rconst, bool out_clamp, u32 clamp)
 {
 	const auto _vu1JitMem = [&rvu](s64 off) { return a64::MemOperand(rvu, off); };
 	const u32 ft = (code >> 16) & 0x1f, fs = (code >> 11) & 0x1f, fd = (code >> 6) & 0x1f;
@@ -657,12 +671,18 @@ static void _vuJitEmitFmacCore(const VU1FmacDesc* desc, u32 code, const a64::Reg
 		armAsm->Ldr(a64::s1, _vu1JitMem(off));
 		armAsm->Dup(a64::v1.V4S(), a64::v1.V4S(), 0);
 	}
+	if (clamp & 2)
+		_vuJitEmitClampNaN(a64::v0);
+	if (clamp & 1)
+		_vuJitEmitClampNaN(a64::v1);
 	_vu1JitEmitVuDouble(a64::v0);
 	_vu1JitEmitVuDouble(a64::v1);
 	const bool ternary = desc->op == VU1FmacOp::Madd || desc->op == VU1FmacOp::Msub;
 	if (ternary)
 	{
 		armAsm->Ldr(a64::q2, _vu1JitMem(_vu1Off(VU1.ACC)));
+		if (clamp & 4)
+			_vuJitEmitClampNaN(a64::v2);
 		_vu1JitEmitVuDouble(a64::v2);
 	}
 	switch (desc->op)
@@ -749,7 +769,8 @@ static bool _vu1JitEmitFmac(FnPtr_VuVoid f, u32 code)
 	const VU1FmacDesc* desc = _vuJitFmacDesc(s_vu1_fmac_ops, std::size(s_vu1_fmac_ops), f, code);
 	if (!desc)
 		return false;
-	_vuJitEmitFmacCore(desc, code, s_vu1_jit_rvu, a64::x21, EmuConfig.Cpu.Recompiler.vu1Overflow);
+	_vuJitEmitFmacCore(desc, code, s_vu1_jit_rvu, a64::x21, EmuConfig.Cpu.Recompiler.vu1Overflow,
+		vuX86ClampOperands(code, 1, false));
 	return true;
 }
 
@@ -794,11 +815,12 @@ void vu0MacroEmit(u32 code, const a64::Register& rvu)
 	armAsm->Mov(a64::w0, code);
 	armAsm->Str(a64::w0, mem(_vu1Off(VU1.code)));
 	armMoveAddressToReg(a64::x1, s_vu1_jit_fconst);
-	_vuJitEmitFmacCore(_vu0MacroDesc(code), code, rvu, a64::x1, EmuConfig.Cpu.Recompiler.vu0Overflow);
+	_vuJitEmitFmacCore(_vu0MacroDesc(code), code, rvu, a64::x1, EmuConfig.Cpu.Recompiler.vu0Overflow,
+		vuX86ClampOperands(code, 0, true));
 	armAsm->Ldr(a64::w1, mem(_vu1Off(VU1.statusflag)));
 	armAsm->And(a64::w1, a64::w1, 0xf);
 	armAsm->Ldr(a64::w2, mem(_vu1Off(VU1.VI[REG_STATUS_FLAG].UL)));
-	armAsm->And(a64::w2, a64::w2, 0xfc0);
+	armAsm->And(a64::w2, a64::w2, VU0_MACRO_STATUS_KEEP);
 	armAsm->Orr(a64::w2, a64::w2, a64::w1);
 	armAsm->Orr(a64::w2, a64::w2, a64::Operand(a64::w1, a64::LSL, 6));
 	armAsm->Str(a64::w2, mem(_vu1Off(VU1.VI[REG_STATUS_FLAG].UL)));
@@ -1351,25 +1373,28 @@ static bool _vu1JitEmitLowerInt(FnPtr_VuVoid f, u32 code)
 	return true;
 }
 
-// MOVE, LQ, SQ and _vu1JitEmitLowerInt's ops as native code; other lower ops call the interpreter handler.
-// vuDouble with vu0Overflow on a GPR: exponent 0 -> signed 0, exponent 255 -> signed max float.
-static void _vu1JitEmitVuDoubleW(const a64::Register& w)
+// MINSS/MAXSS against +-max (a NaN becomes +max), as _vuFdivClamp.
+static void _vu1JitEmitFdivClamp(const a64::VRegister& s, bool max_only)
 {
-	armAsm->And(a64::w5, w, 0x80000000);
-	armAsm->Tst(w, 0x7f800000);
-	armAsm->Csel(w, a64::w5, w, a64::eq);
-	armAsm->And(a64::w6, w, 0x7f800000);
-	armAsm->Cmp(a64::w6, 0x7f800000);
-	armAsm->Orr(a64::w5, a64::w5, 0x7f7fffff);
-	armAsm->Csel(w, a64::w5, w, a64::eq);
+	if (!EmuConfig.Cpu.Recompiler.vu1Overflow)
+		return;
+	armAsm->Mov(a64::w5, 0x7f7fffff);
+	armAsm->Fmov(a64::s5, a64::w5);
+	armAsm->Fcmp(s, a64::s5);
+	armAsm->Fcsel(s, s, a64::s5, a64::mi);
+	if (max_only)
+		return;
+	armAsm->Mov(a64::w5, 0xff7fffff);
+	armAsm->Fmov(a64::s5, a64::w5);
+	armAsm->Fcmp(s, a64::s5);
+	armAsm->Fcsel(s, s, a64::s5, a64::gt);
 }
 
-// DIV, SQRT, RSQRT as _vuDIV/_vuSQRT/_vuRSQRT with vu0Overflow (then no input is Inf or NaN,
-// and a value is 0.0 exactly when its exponent is 0). Same single precision ops as the compiled
-// interpreter, under the same FPCR. Returns false when the handler must be called.
+// DIV, SQRT, RSQRT as _vuDIV/_vuSQRT/_vuRSQRT (VUops.cpp, ARM64 = x86 microVU). Returns false when
+// the handler must be called.
 static bool _vu1JitEmitFdivOp(FnPtr_VuVoid f, u32 code)
 {
-	if ((f != VU1MI_DIV && f != VU1MI_SQRT && f != VU1MI_RSQRT) || !EmuConfig.Cpu.Recompiler.vu0Overflow)
+	if (f != VU1MI_DIV && f != VU1MI_SQRT && f != VU1MI_RSQRT)
 		return false;
 	const u32 ft = (code >> 16) & 0x1f;
 	const u32 fs = (code >> 11) & 0x1f;
@@ -1378,68 +1403,61 @@ static bool _vu1JitEmitFdivOp(FnPtr_VuVoid f, u32 code)
 	a64::Label nonzero, store;
 	// w0 = fs, w1 = ft, w2 = statusflag, w3 = q
 	if (f != VU1MI_SQRT)
-	{
 		armAsm->Ldr(a64::w0, _vu1JitMem(_vu1Off(VU1.VF[fs].UL[fsf])));
-		_vu1JitEmitVuDoubleW(a64::w0);
-	}
 	armAsm->Ldr(a64::w1, _vu1JitMem(_vu1Off(VU1.VF[ft].UL[ftf])));
-	_vu1JitEmitVuDoubleW(a64::w1);
 	armAsm->Ldr(a64::w2, _vu1JitMem(_vu1Off(VU1.statusflag)));
 	armAsm->And(a64::w2, a64::w2, ~0x30u);
 	if (f == VU1MI_SQRT)
 	{
-		// ft < 0.0: negative and not -0.
-		armAsm->Tst(a64::w1, 0x7f800000);
-		armAsm->Ccmp(a64::w1, 0, a64::NoFlag, a64::ne);
-		armAsm->Orr(a64::w4, a64::w2, 0x10);
-		armAsm->Csel(a64::w2, a64::w4, a64::w2, a64::lt);
+		// I when the sign bit is set.
+		armAsm->Lsr(a64::w4, a64::w1, 31);
+		armAsm->Orr(a64::w2, a64::w2, a64::Operand(a64::w4, a64::LSL, 4));
+		armAsm->And(a64::w1, a64::w1, 0x7fffffff);
 		armAsm->Fmov(a64::s0, a64::w1);
-		armAsm->Fabs(a64::s0, a64::s0);
+		_vu1JitEmitFdivClamp(a64::s0, true);
 		armAsm->Fsqrt(a64::s0, a64::s0);
 		armAsm->Fmov(a64::w3, a64::s0);
-		_vu1JitEmitVuDoubleW(a64::w3);
 	}
 	else
 	{
-		armAsm->Tst(a64::w1, 0x7f800000);
-		armAsm->B(&nonzero, a64::ne);
-		// ft == 0: w4 = sign of fs ^ ft
-		armAsm->Eor(a64::w4, a64::w0, a64::w1);
-		armAsm->And(a64::w4, a64::w4, 0x80000000);
-		if (f == VU1MI_DIV)
+		// w4 = divisor bits: ft, or sqrt(|ft|) in s1
+		if (f == VU1MI_RSQRT)
 		{
-			armAsm->Tst(a64::w0, 0x7f800000);
-			armAsm->Mov(a64::w3, 0x10);
-			armAsm->Mov(a64::w6, 0x20);
-			armAsm->Csel(a64::w3, a64::w3, a64::w6, a64::eq);
-			armAsm->Orr(a64::w2, a64::w2, a64::w3);
-			armAsm->Orr(a64::w3, a64::w4, 0x7f7fffff);
+			armAsm->And(a64::w4, a64::w1, 0x7fffffff);
+			armAsm->Fmov(a64::s1, a64::w4);
+			armAsm->Fsqrt(a64::s1, a64::s1);
+			armAsm->Fmov(a64::w4, a64::s1);
 		}
 		else
 		{
-			// fs != 0: 0x20, signed max; fs == 0: 0x30, signed 0.
-			armAsm->Orr(a64::w2, a64::w2, 0x20);
-			armAsm->Orr(a64::w3, a64::w4, 0x7f7fffff);
-			armAsm->Orr(a64::w6, a64::w2, 0x10);
-			armAsm->Tst(a64::w0, 0x7f800000);
-			armAsm->Csel(a64::w3, a64::w4, a64::w3, a64::eq);
-			armAsm->Csel(a64::w2, a64::w6, a64::w2, a64::eq);
+			armAsm->Mov(a64::w4, a64::w1);
+			armAsm->Fmov(a64::s1, a64::w1);
 		}
+		armAsm->Tst(a64::w4, 0x7f800000);
+		armAsm->B(&nonzero, a64::ne);
+		// zero divisor: 0/0 = I, else D; q = signed max
+		armAsm->Tst(a64::w0, 0x7f800000);
+		armAsm->Mov(a64::w3, 0x10);
+		armAsm->Mov(a64::w6, 0x20);
+		armAsm->Csel(a64::w3, a64::w3, a64::w6, a64::eq);
+		armAsm->Orr(a64::w2, a64::w2, a64::w3);
+		if (f == VU1MI_DIV)
+			armAsm->Eor(a64::w4, a64::w0, a64::w1);
+		else
+			armAsm->Mov(a64::w4, a64::w0);
+		armAsm->And(a64::w4, a64::w4, 0x80000000);
+		armAsm->Orr(a64::w3, a64::w4, 0x7f7fffff);
 		armAsm->B(&store);
 		armAsm->Bind(&nonzero);
-		armAsm->Fmov(a64::s0, a64::w0);
-		armAsm->Fmov(a64::s1, a64::w1);
 		if (f == VU1MI_RSQRT)
 		{
-			armAsm->Orr(a64::w4, a64::w2, 0x10);
-			armAsm->Cmp(a64::w1, 0);
-			armAsm->Csel(a64::w2, a64::w4, a64::w2, a64::lt);
-			armAsm->Fabs(a64::s1, a64::s1);
-			armAsm->Fsqrt(a64::s1, a64::s1);
+			armAsm->Lsr(a64::w4, a64::w1, 31);
+			armAsm->Orr(a64::w2, a64::w2, a64::Operand(a64::w4, a64::LSL, 4));
 		}
+		armAsm->Fmov(a64::s0, a64::w0);
 		armAsm->Fdiv(a64::s0, a64::s0, a64::s1);
+		_vu1JitEmitFdivClamp(a64::s0, false);
 		armAsm->Fmov(a64::w3, a64::s0);
-		_vu1JitEmitVuDoubleW(a64::w3);
 	}
 	armAsm->Bind(&store);
 	armAsm->Str(a64::w3, _vu1JitMem(_vu1Off(VU1.q.UL)));
@@ -1447,14 +1465,14 @@ static bool _vu1JitEmitFdivOp(FnPtr_VuVoid f, u32 code)
 	return true;
 }
 
-// EFU ops but EATAN/EEXP/ESIN as _vuESADD.._vuERSQRT with vu0Overflow: the same single precision
-// ops in the same order (ERCPR divides in double, as its 1.0 / p does). P is written here; the pipe
-// entry follows. Returns false when the handler must be called.
+// EFU ops but EATAN/EEXP/ESIN as _vuESADD.._vuESUM (VUops.cpp, ARM64 = x86 microVU): the register
+// bits unclamped, the same single precision ops in the same order, the x86 default NaN. P is written
+// here; the pipe entry follows. Returns false when the handler must be called.
 static bool _vu1JitEmitEfuOp(FnPtr_VuVoid f, u32 code)
 {
 	const bool sum3 = f == VU1MI_ESADD || f == VU1MI_ERSADD || f == VU1MI_ELENG || f == VU1MI_ERLENG;
 	const bool one = f == VU1MI_ERCPR || f == VU1MI_ESQRT || f == VU1MI_ERSQRT;
-	if ((!sum3 && !one && f != VU1MI_ESUM) || !EmuConfig.Cpu.Recompiler.vu0Overflow)
+	if (!sum3 && !one && f != VU1MI_ESUM)
 		return false;
 	const u32 fs = (code >> 11) & 0x1f;
 	const u32 fsf = (code >> 21) & 3;
@@ -1463,12 +1481,13 @@ static bool _vu1JitEmitEfuOp(FnPtr_VuVoid f, u32 code)
 	for (u32 i = 0; i < n; i++)
 	{
 		armAsm->Ldr(a64::w0, _vu1JitMem(_vu1Off(VU1.VF[fs].UL[one ? fsf : i])));
-		_vu1JitEmitVuDoubleW(a64::w0);
+		if (f == VU1MI_ESQRT || f == VU1MI_ERSQRT)
+			armAsm->And(a64::w0, a64::w0, 0x7fffffff);
 		armAsm->Fmov(s[i], a64::w0);
 	}
 	if (sum3)
 	{
-		// x*x + y*y + z*z
+		// (x*x + y*y) + z*z
 		armAsm->Fmul(a64::s0, a64::s0, a64::s0);
 		armAsm->Fmul(a64::s1, a64::s1, a64::s1);
 		armAsm->Fadd(a64::s0, a64::s0, a64::s1);
@@ -1477,41 +1496,27 @@ static bool _vu1JitEmitEfuOp(FnPtr_VuVoid f, u32 code)
 	}
 	else if (!one)
 	{
-		armAsm->Fadd(a64::s0, a64::s0, a64::s1);
-		armAsm->Fadd(a64::s0, a64::s0, a64::s2);
+		// (x + w) + (y + z)
 		armAsm->Fadd(a64::s0, a64::s0, a64::s3);
+		armAsm->Fadd(a64::s1, a64::s1, a64::s2);
+		armAsm->Fadd(a64::s0, a64::s0, a64::s1);
 	}
-	a64::Label done;
 	if (f == VU1MI_ELENG || f == VU1MI_ERLENG || f == VU1MI_ESQRT || f == VU1MI_ERSQRT)
-	{
-		// if (p >= 0) p = sqrt(p): lt also holds for unordered.
-		armAsm->Fcmp(a64::s0, 0.0);
-		armAsm->B(&done, a64::lt);
 		armAsm->Fsqrt(a64::s0, a64::s0);
-	}
 	if (f == VU1MI_ERSADD || f == VU1MI_ERLENG || f == VU1MI_ERSQRT || f == VU1MI_ERCPR)
 	{
-		// if (p != 0) p = 1 / p
-		armAsm->Fcmp(a64::s0, 0.0);
-		armAsm->B(&done, a64::eq);
-		if (f == VU1MI_ERCPR)
-		{
-			armAsm->Fcvt(a64::d0, a64::s0);
-			armAsm->Fmov(a64::d1, 1.0);
-			armAsm->Fdiv(a64::d0, a64::d1, a64::d0);
-			armAsm->Fcvt(a64::s0, a64::d0);
-		}
-		else
-		{
-			armAsm->Fmov(a64::s1, 1.0f);
-			armAsm->Fdiv(a64::s0, a64::s1, a64::s0);
-		}
+		armAsm->Fmov(a64::s1, 1.0f);
+		armAsm->Fdiv(a64::s0, a64::s1, a64::s0);
 	}
-	armAsm->Bind(&done);
-	armAsm->Str(a64::s0, _vu1JitMem(_vu1Off(VU1.p.UL)));
+	armAsm->Fmov(a64::w0, a64::s0);
+	armAsm->Mov(a64::w1, 0xffc00000);
+	armAsm->Cmp(a64::w0, 0x7fc00000);
+	armAsm->Csel(a64::w0, a64::w1, a64::w0, a64::eq);
+	armAsm->Str(a64::w0, _vu1JitMem(_vu1Off(VU1.p.UL)));
 	return true;
 }
 
+// MOVE, LQ, SQ and _vu1JitEmitLowerInt's ops as native code; other lower ops call the interpreter handler.
 static void _vu1JitEmitLower(FnPtr_VuVoid f, u32 code)
 {
 	const u32 xyzw = (code >> 21) & 0xf;

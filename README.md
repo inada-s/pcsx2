@@ -98,6 +98,24 @@ Everything is on only for the one game build it was made for; any other disc run
   VABS, VCLIP) as guest loops through the EE core in use on <n> generated inputs, one op per vsync from
   vsync 300, and writes inputs and outputs (COP1: Fd or ACC, FCR31; COP2: VF3 or ACC, status, MAC, clip,
   Q) to <file>. `tests/zdxsv/ee_optest_cmp.py` compares the files of two builds.
+- EE FPU op test (`pcsx2/Zdxsv/EeOpTest.cpp`, all platforms): env `ZDXSV_EE_OPTEST=<file>[,<n>[,finite]]`
+  runs 24 COP1 ops (arithmetic, multiply-add, SQRT/RSQRT, MAX/MIN, compares, conversions) as a guest
+  loop through the EE core in use on <n> generated inputs at vsync 300, and writes inputs and outputs
+  (Fd or ACC, FCR31) to <file>. `tests/zdxsv/ee_optest_cmp.py` compares the files of two builds.
+- ARM64 VU interpreter (`pcsx2/VUops.cpp`, `ARCH_ARM64`) and VU1 recompiler: DIV/SQRT/RSQRT and the
+  EFU ops compute as x86 microVU does (unclamped inputs, its op order, flags and NaN), so ARM64 and
+  x86_64 peers get the same Q, P and D/I flags; FDIV D/I also set DS/IS. x86_64 builds unchanged.
+- ARM64 VU FMAC operand clamp (`VUops.cpp`, `arm64/VU1Trace.inl`, interpreter, VU1 recompiler and
+  native COP2 macro ops): in the default clamp mode, the operands x86 microVU clamps per op (SUB, MUL,
+  MULA, MADD/MADDA broadcast, COP2 MADDw/MSUB; `clampType` in `microVU_Upper.inl`) turn a NaN of
+  either sign into +max, as x86 does (was signed max). x86_64 builds unchanged.
+- ARM64 VU0 status flag in COP2 macro mode (`VUops.cpp`, `VU0.cpp`, `arm64/VU1Trace.inl`): as x86
+  microVU, FMAC ops keep the D/I flags of the last VDIV/VSQRT/VRSQRT, and CTC2 to the status flag
+  writes only the sticky bits (6-11). x86_64 builds unchanged.
+- ARM64 EE FPU (`pcsx2/FPU.cpp`, `ARCH_ARM64`): CFC1, SQRT.S, RSQRT.S, MAX.S, MIN.S compute as the x86
+  recompiler (`pcsx2/x86/iFPU.cpp`) does: CFC1 masks FCR31 and reads FCR0 for 0..15, SQRT/RSQRT set I on
+  any sign bit (also -0), RSQRT x/0 takes the sign of Fs and sets I for 0/0, MAX/MIN clamp NaN/Inf, count
+  denormals as 0 and on +0 vs -0 return Ft (Fs when Fd = Ft), and keep O/U. x86_64 builds unchanged.
 - ARM64 EE recompiler (`pcsx2/arm64/iR5900.cpp`, experimental): blocks compiled into calls of the
   interpreter's handlers, with the x86 recompiler's timing, so ARM64 and x86_64 peers count the same
   EE cycles. On when the EE recompiler setting is on (`EmuCore/CPU/Recompiler` `EnableEE`, the
