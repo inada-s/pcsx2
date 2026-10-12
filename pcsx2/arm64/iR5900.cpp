@@ -814,6 +814,11 @@ static BlockFn Compile(u32 startpc, BlockFn* entry)
 			armAsm->B(a64::ne, &discard);
 		}
 	}
+	if (Zdxsv::EventLogBlocks())
+	{
+		armAsm->Mov(RWARG1, startpc);
+		armEmitCall(reinterpret_cast<const void*>(&Zdxsv::EventLogBlock));
+	}
 
 	const s64 off_pc = offsetof(cpuRegisters, pc);
 	const s64 off_code = offsetof(cpuRegisters, code);
@@ -836,7 +841,8 @@ static BlockFn Compile(u32 startpc, BlockFn* entry)
 	bool ended = false;
 	ConstRegs consts;
 	u32 pc = startpc;
-	if (timeout_loop && timeout_reg >= 0 && EmuConfig.Speedhacks.WaitLoop)
+	// Only a block that branches to its own start (a block split before a compiled block may be just the addiu).
+	if (timeout_loop && timeout_reg >= 0 && branch_to == startpc && EmuConfig.Speedhacks.WaitLoop)
 	{
 		EmitTimeoutLoop(timeout_reg, endpc, rregs, rcycles, exit);
 		ended = true;
