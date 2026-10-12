@@ -645,12 +645,6 @@ static bool _vu1JitEmitFmac(FnPtr_VuVoid f, u32 code)
 	return true;
 }
 
-static void _vu1JitEmitUpper(FnPtr_VuVoid f, u32 code)
-{
-	if (!_vu1JitEmitFmac(f, code))
-		_vu1JitEmitHandler(f);
-}
-
 // VF[ft] = v0 on the lanes of xyzw (8 = x).
 static void _vu1JitEmitStoreVF(u32 ft, u32 xyzw)
 {
@@ -666,10 +660,154 @@ static void _vu1JitEmitStoreVF(u32 ft, u32 xyzw)
 	armAsm->Str(a64::q0, _vu1JitMem(off));
 }
 
-// x1 = VU1.Mem + ((VI[reg] + imm11) & 0x3ff) * 16, as GET_VU_MEM for VU1 after the u16 truncation.
-static void _vu1JitEmitMemAddr(u32 reg, u32 code)
+// v = w0 on all lanes
+static void _vu1JitEmitDupConst(const a64::VRegister& v, u32 value)
 {
-	const s32 imm = (code & 0x400) ? static_cast<s32>(code & 0x3ff) - 0x400 : static_cast<s32>(code & 0x3ff);
+	armAsm->Mov(a64::w0, value);
+	armAsm->Dup(v.V4S(), a64::w0);
+}
+
+// Upper ops working on the integer representation of the floats (MAX, MINI, FTOI, ITOF, ABS,
+// CLIP), as VUops.cpp. FTOI and ITOF scale with the same float multiply as the interpreter, under
+// the same FPCR. Returns false for the ops left to the handler.
+static bool _vu1JitEmitUpperInt(FnPtr_VuVoid f, u32 code)
+{
+	const u32 xyzw = (code >> 21) & 0xf;
+	const u32 ft = (code >> 16) & 0x1f;
+	const u32 fs = (code >> 11) & 0x1f;
+	const u32 fd = (code >> 6) & 0x1f;
+
+	struct MinMaxDesc
+	{
+		FnPtr_VuVoid fn;
+		bool max;
+		u8 bc;
+	};
+	static const MinMaxDesc minmax[] = {{VU1MI_MAX, true, VU1_BC_VEC}, {VU1MI_MAXi, true, VU1_BC_I},
+		{VU1MI_MAXx, true, 0}, {VU1MI_MAXy, true, 1}, {VU1MI_MAXz, true, 2}, {VU1MI_MAXw, true, 3},
+		{VU1MI_MINI, false, VU1_BC_VEC}, {VU1MI_MINIi, false, VU1_BC_I}, {VU1MI_MINIx, false, 0},
+		{VU1MI_MINIy, false, 1}, {VU1MI_MINIz, false, 2}, {VU1MI_MINIw, false, 3}};
+	for (const MinMaxDesc& m : minmax)
+	{
+		if (m.fn != f)
+			continue;
+		if (fd == 0 || xyzw == 0)
+			return true;
+		armAsm->Ldr(a64::q1, _vu1JitMem(_vu1Off(VU1.VF[fs])));
+		if (m.bc == VU1_BC_VEC)
+		{
+			armAsm->Ldr(a64::q2, _vu1JitMem(_vu1Off(VU1.VF[ft])));
+		}
+		else
+		{
+			armAsm->Ldr(a64::w0, _vu1JitMem(m.bc == VU1_BC_I ? _vu1Off(VU1.VI[REG_I].UL) : _vu1Off(VU1.VF[ft].UL[m.bc])));
+			armAsm->Dup(a64::v2.V4S(), a64::w0);
+		}
+		// fp_max/fp_min: signed max/min, the other one when both are negative.
+		armAsm->Smax(a64::v3.V4S(), a64::v1.V4S(), a64::v2.V4S());
+		armAsm->Smin(a64::v4.V4S(), a64::v1.V4S(), a64::v2.V4S());
+		armAsm->And(a64::v0.V16B(), a64::v1.V16B(), a64::v2.V16B());
+		armAsm->Cmlt(a64::v0.V4S(), a64::v0.V4S(), 0);
+		armAsm->Bsl(a64::v0.V16B(), m.max ? a64::v4.V16B() : a64::v3.V16B(), m.max ? a64::v3.V16B() : a64::v4.V16B());
+		_vu1JitEmitStoreVF(fd, xyzw);
+		return true;
+	}
+
+	static const FnPtr_VuVoid ftoi[] = {VU1MI_FTOI0, VU1MI_FTOI4, VU1MI_FTOI12, VU1MI_FTOI15};
+	static const FnPtr_VuVoid itof[] = {VU1MI_ITOF0, VU1MI_ITOF4, VU1MI_ITOF12, VU1MI_ITOF15};
+	static const u32 shift[] = {0, 4, 12, 15};
+	for (int i = 0; i < 4; i++)
+	{
+		if (f != ftoi[i] && f != itof[i])
+			continue;
+		if (ft == 0 || xyzw == 0)
+			return true;
+		armAsm->Ldr(a64::q1, _vu1JitMem(_vu1Off(VU1.VF[fs])));
+		if (f == ftoi[i])
+		{
+			if (shift[i])
+			{
+				_vu1JitEmitDupConst(a64::v2, 0x3f800000 + (shift[i] << 23));
+				armAsm->Fmul(a64::v1.V4S(), a64::v1.V4S(), a64::v2.V4S());
+			}
+			// floatToInt: exponent >= 2^31 (incl. inf, NaN) saturates by sign, else truncates.
+			armAsm->Fcvtzs(a64::v0.V4S(), a64::v1.V4S());
+			_vu1JitEmitDupConst(a64::v2, 0x7f800000);
+			armAsm->And(a64::v2.V16B(), a64::v1.V16B(), a64::v2.V16B());
+			_vu1JitEmitDupConst(a64::v3, 0x4f000000);
+			armAsm->Cmhs(a64::v2.V4S(), a64::v2.V4S(), a64::v3.V4S());
+			armAsm->Ushr(a64::v3.V4S(), a64::v1.V4S(), 31);
+			_vu1JitEmitDupConst(a64::v4, 0x7fffffff);
+			armAsm->Add(a64::v3.V4S(), a64::v3.V4S(), a64::v4.V4S());
+			armAsm->Bsl(a64::v2.V16B(), a64::v3.V16B(), a64::v0.V16B());
+			armAsm->Mov(a64::v0.V16B(), a64::v2.V16B());
+		}
+		else
+		{
+			armAsm->Scvtf(a64::v0.V4S(), a64::v1.V4S());
+			if (shift[i])
+			{
+				_vu1JitEmitDupConst(a64::v2, 0x3f800000 - (shift[i] << 23));
+				armAsm->Fmul(a64::v0.V4S(), a64::v0.V4S(), a64::v2.V4S());
+			}
+		}
+		_vu1JitEmitStoreVF(ft, xyzw);
+		return true;
+	}
+
+	if (f == VU1MI_ABS)
+	{
+		if (ft == 0 || xyzw == 0)
+			return true;
+		armAsm->Ldr(a64::q0, _vu1JitMem(_vu1Off(VU1.VF[fs])));
+		_vu1JitEmitDupConst(a64::v2, 0x7fffffff);
+		armAsm->And(a64::v0.V16B(), a64::v0.V16B(), a64::v2.V16B());
+		_vu1JitEmitStoreVF(ft, xyzw);
+		return true;
+	}
+
+	if (f == VU1MI_CLIP)
+	{
+		// w0 = |Ft.w|, denormals as the largest denormal
+		armAsm->Ldr(a64::w0, _vu1JitMem(_vu1Off(VU1.VF[ft].UL[3])));
+		armAsm->And(a64::w1, a64::w0, 0x7fffffff);
+		armAsm->Mov(a64::w2, 0x007fffff);
+		armAsm->Tst(a64::w0, 0x7f800000);
+		armAsm->Csel(a64::w0, a64::w1, a64::w2, a64::ne);
+		armAsm->Ldr(a64::w1, _vu1JitMem(_vu1Off(VU1.clipflag)));
+		armAsm->Lsl(a64::w1, a64::w1, 6);
+		for (int i = 0; i < 3; i++)
+		{
+			armAsm->Ldr(a64::w2, _vu1JitMem(_vu1Off(VU1.VF[fs].UL[i])));
+			armAsm->Cmp(a64::w2, a64::w0);
+			armAsm->Cset(a64::w3, a64::gt);
+			armAsm->Orr(a64::w1, a64::w1, a64::Operand(a64::w3, a64::LSL, 2 * i));
+			armAsm->Eor(a64::w2, a64::w2, 0x80000000);
+			armAsm->Cmp(a64::w2, a64::w0);
+			armAsm->Cset(a64::w3, a64::gt);
+			armAsm->Orr(a64::w1, a64::w1, a64::Operand(a64::w3, a64::LSL, 2 * i + 1));
+		}
+		armAsm->And(a64::w1, a64::w1, 0xffffff);
+		armAsm->Str(a64::w1, _vu1JitMem(_vu1Off(VU1.clipflag)));
+		return true;
+	}
+	return false;
+}
+
+static void _vu1JitEmitUpper(FnPtr_VuVoid f, u32 code)
+{
+	if (!_vu1JitEmitFmac(f, code) && !_vu1JitEmitUpperInt(f, code))
+		_vu1JitEmitHandler(f);
+}
+
+static s32 _vu1Imm11(u32 code)
+{
+	return (code & 0x400) ? static_cast<s32>(code & 0x3ff) - 0x400 : static_cast<s32>(code & 0x3ff);
+}
+
+// x1 = VU1.Mem + ((VI[reg] + imm) & 0x3ff) * 16, as GET_VU_MEM for VU1 after the u16 truncation.
+static void _vu1JitEmitMemAddrImm(u32 reg, s32 imm)
+{
 	armAsm->Ldrh(a64::w0, _vu1JitMem(_vu1Off(VU1.VI[reg])));
 	if (imm)
 		armAsm->Add(a64::w0, a64::w0, imm);
@@ -678,7 +816,381 @@ static void _vu1JitEmitMemAddr(u32 reg, u32 code)
 	armAsm->Add(a64::x1, a64::x1, a64::Operand(a64::x0, a64::LSL, 4));
 }
 
-// MOVE, LQ and SQ as native code; other lower ops call the interpreter handler.
+static void _vu1JitEmitMemAddr(u32 reg, u32 code)
+{
+	_vu1JitEmitMemAddrImm(reg, _vu1Imm11(code));
+}
+
+static a64::MemOperand _vu1JitVI(u32 reg)
+{
+	return _vu1JitMem(_vu1Off(VU1.VI[reg]));
+}
+
+// _vuBackupVI(&VU1, reg)
+static void _vu1JitEmitBackupVI(u32 reg)
+{
+	a64::Label set, done;
+	armAsm->Ldrb(a64::w2, _vu1JitMem(_vu1Off(VU1.VIBackupCycles)));
+	armAsm->Cbz(a64::w2, &set);
+	armAsm->Ldr(a64::w2, _vu1JitMem(_vu1Off(VU1.VIRegNumber)));
+	armAsm->Cmp(a64::w2, reg);
+	armAsm->B(a64::eq, &done);
+	armAsm->Bind(&set);
+	armAsm->Mov(a64::w2, reg);
+	armAsm->Str(a64::w2, _vu1JitMem(_vu1Off(VU1.VIRegNumber)));
+	armAsm->Ldrh(a64::w2, _vu1JitVI(reg));
+	armAsm->Str(a64::w2, _vu1JitMem(_vu1Off(VU1.VIOldValue)));
+	armAsm->Bind(&done);
+	armAsm->Mov(a64::w2, 2);
+	armAsm->Strb(a64::w2, _vu1JitMem(_vu1Off(VU1.VIBackupCycles)));
+}
+
+// w = VI[reg] as s16, the value before the last write while VIBackupCycles is set (conditional branches).
+static void _vu1JitEmitBranchSrc(const a64::Register& w, u32 reg)
+{
+	a64::Label done;
+	armAsm->Ldrsh(w, _vu1JitVI(reg));
+	armAsm->Ldrb(a64::w3, _vu1JitMem(_vu1Off(VU1.VIBackupCycles)));
+	armAsm->Cbz(a64::w3, &done);
+	armAsm->Ldr(a64::w3, _vu1JitMem(_vu1Off(VU1.VIRegNumber)));
+	armAsm->Cmp(a64::w3, reg);
+	armAsm->B(a64::ne, &done);
+	armAsm->Ldrsh(w, _vu1JitMem(_vu1Off(VU1.VIOldValue)));
+	armAsm->Bind(&done);
+}
+
+// w1 = _branchAddr(&VU1)
+static void _vu1JitEmitBranchAddr(u32 code)
+{
+	armAsm->Ldr(a64::w1, _vu1JitVI(REG_TPC));
+	armAsm->Add(a64::w1, a64::w1, _vu1Imm11(code) * 8);
+	armAsm->And(a64::w1, a64::w1, 0x3fff);
+}
+
+// _setBranch(&VU1, w1)
+static void _vu1JitEmitSetBranch()
+{
+	a64::Label first, done;
+	armAsm->Ldr(a64::w2, _vu1JitMem(_vu1Off(VU1.branch)));
+	armAsm->Cmp(a64::w2, 1);
+	armAsm->B(a64::ne, &first);
+	armAsm->Str(a64::w1, _vu1JitMem(_vu1Off(VU1.delaybranchpc)));
+	armAsm->Mov(a64::w2, 1);
+	armAsm->Strb(a64::w2, _vu1JitMem(_vu1Off(VU1.takedelaybranch)));
+	armAsm->B(&done);
+	armAsm->Bind(&first);
+	armAsm->Mov(a64::w2, 2);
+	armAsm->Str(a64::w2, _vu1JitMem(_vu1Off(VU1.branch)));
+	armAsm->Str(a64::w1, _vu1JitMem(_vu1Off(VU1.branchpc)));
+	armAsm->Bind(&done);
+}
+
+// VI[it] = link address of BAL/JALR (it != 0)
+static void _vu1JitEmitLink(u32 it)
+{
+	a64::Label first, done;
+	armAsm->Ldr(a64::w2, _vu1JitMem(_vu1Off(VU1.branch)));
+	armAsm->Cmp(a64::w2, 1);
+	armAsm->B(a64::ne, &first);
+	armAsm->Ldr(a64::w2, _vu1JitMem(_vu1Off(VU1.branchpc)));
+	armAsm->B(&done);
+	armAsm->Bind(&first);
+	armAsm->Ldr(a64::w2, _vu1JitVI(REG_TPC));
+	armAsm->Bind(&done);
+	armAsm->Add(a64::w2, a64::w2, 8);
+	armAsm->Lsr(a64::w2, a64::w2, 3);
+	armAsm->Strh(a64::w2, _vu1JitVI(it));
+}
+
+// VI[reg].US[0] += delta
+static void _vu1JitEmitIncVI(u32 reg, int delta)
+{
+	armAsm->Ldrh(a64::w2, _vu1JitVI(reg));
+	armAsm->Add(a64::w2, a64::w2, delta);
+	armAsm->Strh(a64::w2, _vu1JitVI(reg));
+}
+
+// [x1] = VF[fs] on the lanes of xyzw (8 = x).
+static void _vu1JitEmitStoreMem(u32 fs, u32 xyzw)
+{
+	if (xyzw == 0xf)
+	{
+		armAsm->Ldr(a64::q0, _vu1JitMem(_vu1Off(VU1.VF[fs])));
+		armAsm->Str(a64::q0, a64::MemOperand(a64::x1));
+		return;
+	}
+	for (int i = 0; i < 4; i++)
+	{
+		if (xyzw & (8 >> i))
+		{
+			armAsm->Ldr(a64::w2, _vu1JitMem(_vu1Off(VU1.VF[fs].UL[i])));
+			armAsm->Str(a64::w2, a64::MemOperand(a64::x1, i * 4));
+		}
+	}
+}
+
+// Integer, branch and VI-addressed load/store lower ops as their _vu* functions in VUops.cpp,
+// including the VI backup. Returns false for the ops left to the handler.
+static bool _vu1JitEmitLowerInt(FnPtr_VuVoid f, u32 code)
+{
+	const u32 xyzw = (code >> 21) & 0xf;
+	const u32 ft = (code >> 16) & 0x1f;
+	const u32 fs = (code >> 11) & 0x1f;
+	const u32 it = ft & 0xf;
+	const u32 is = fs & 0xf;
+	const u32 id = (code >> 6) & 0xf;
+
+	if (f == VU1MI_IADD || f == VU1MI_ISUB || f == VU1MI_IAND || f == VU1MI_IOR)
+	{
+		if (id == 0)
+			return true;
+		_vu1JitEmitBackupVI(id);
+		armAsm->Ldrh(a64::w0, _vu1JitVI(is));
+		armAsm->Ldrh(a64::w1, _vu1JitVI(it));
+		if (f == VU1MI_IADD)
+			armAsm->Add(a64::w0, a64::w0, a64::w1);
+		else if (f == VU1MI_ISUB)
+			armAsm->Sub(a64::w0, a64::w0, a64::w1);
+		else if (f == VU1MI_IAND)
+			armAsm->And(a64::w0, a64::w0, a64::w1);
+		else
+			armAsm->Orr(a64::w0, a64::w0, a64::w1);
+		armAsm->Strh(a64::w0, _vu1JitVI(id));
+	}
+	else if (f == VU1MI_IADDI || f == VU1MI_IADDIU || f == VU1MI_ISUBIU)
+	{
+		if (it == 0)
+			return true;
+		_vu1JitEmitBackupVI(it);
+		armAsm->Ldrh(a64::w0, _vu1JitVI(is));
+		if (f == VU1MI_IADDI)
+		{
+			const s32 imm5 = static_cast<s32>(((code >> 6) & 0x1f) << 27) >> 27;
+			armAsm->Add(a64::w0, a64::w0, imm5);
+		}
+		else
+		{
+			const u32 imm15 = ((code >> 10) & 0x7800) | (code & 0x7ff);
+			if (f == VU1MI_IADDIU)
+				armAsm->Add(a64::w0, a64::w0, imm15);
+			else
+				armAsm->Sub(a64::w0, a64::w0, imm15);
+		}
+		armAsm->Strh(a64::w0, _vu1JitVI(it));
+	}
+	else if (f == VU1MI_ILW || f == VU1MI_ILWR)
+	{
+		if (it == 0)
+			return true;
+		// The last of x, y, z, w selected is the one read.
+		int lane = -1;
+		for (int i = 0; i < 4; i++)
+			if (xyzw & (8 >> i))
+				lane = i;
+		if (lane < 0)
+			return true;
+		_vu1JitEmitMemAddrImm(is, f == VU1MI_ILW ? _vu1Imm11(code) : 0);
+		armAsm->Ldrh(a64::w2, a64::MemOperand(a64::x1, lane * 4));
+		armAsm->Strh(a64::w2, _vu1JitVI(it));
+	}
+	else if (f == VU1MI_ISW || f == VU1MI_ISWR)
+	{
+		_vu1JitEmitMemAddrImm(is, f == VU1MI_ISW ? _vu1Imm11(code) : 0);
+		armAsm->Ldrh(a64::w2, _vu1JitVI(it));
+		for (int i = 0; i < 4; i++)
+			if (xyzw & (8 >> i))
+				armAsm->Str(a64::w2, a64::MemOperand(a64::x1, i * 4));
+	}
+	else if (f == VU1MI_LQI || f == VU1MI_LQD)
+	{
+		_vu1JitEmitBackupVI(is);
+		if (f == VU1MI_LQD && is != 0)
+			_vu1JitEmitIncVI(is, -1);
+		if (ft != 0 && xyzw != 0)
+		{
+			_vu1JitEmitMemAddrImm(is, 0);
+			armAsm->Ldr(a64::q0, a64::MemOperand(a64::x1));
+			_vu1JitEmitStoreVF(ft, xyzw);
+		}
+		if (f == VU1MI_LQI && fs != 0)
+			_vu1JitEmitIncVI(is, 1);
+	}
+	else if (f == VU1MI_SQI || f == VU1MI_SQD)
+	{
+		_vu1JitEmitBackupVI(it);
+		if (f == VU1MI_SQD && ft != 0)
+			_vu1JitEmitIncVI(it, -1);
+		if (xyzw != 0)
+		{
+			_vu1JitEmitMemAddrImm(it, 0);
+			_vu1JitEmitStoreMem(fs, xyzw);
+		}
+		if (f == VU1MI_SQI && ft != 0)
+			_vu1JitEmitIncVI(it, 1);
+	}
+	else if (f == VU1MI_MFIR)
+	{
+		if (ft == 0 || xyzw == 0)
+			return true;
+		armAsm->Ldrsh(a64::w0, _vu1JitVI(is));
+		armAsm->Dup(a64::v0.V4S(), a64::w0);
+		_vu1JitEmitStoreVF(ft, xyzw);
+	}
+	else if (f == VU1MI_MTIR)
+	{
+		if (it == 0)
+			return true;
+		_vu1JitEmitBackupVI(it);
+		armAsm->Ldrh(a64::w0, _vu1JitMem(_vu1Off(VU1.VF[fs].UL[(code >> 21) & 3])));
+		armAsm->Strh(a64::w0, _vu1JitVI(it));
+	}
+	else if (f == VU1MI_MR32)
+	{
+		if (ft == 0 || xyzw == 0)
+			return true;
+		armAsm->Ldr(a64::q0, _vu1JitMem(_vu1Off(VU1.VF[fs])));
+		armAsm->Ext(a64::v0.V16B(), a64::v0.V16B(), a64::v0.V16B(), 4);
+		_vu1JitEmitStoreVF(ft, xyzw);
+	}
+	else if (f == VU1MI_IBEQ || f == VU1MI_IBNE || f == VU1MI_IBGEZ || f == VU1MI_IBGTZ || f == VU1MI_IBLEZ ||
+			 f == VU1MI_IBLTZ)
+	{
+		a64::Label not_taken;
+		_vu1JitEmitBranchSrc(a64::w4, is);
+		if (f == VU1MI_IBEQ || f == VU1MI_IBNE)
+		{
+			_vu1JitEmitBranchSrc(a64::w5, it);
+			armAsm->Cmp(a64::w5, a64::w4);
+			armAsm->B(f == VU1MI_IBEQ ? a64::ne : a64::eq, &not_taken);
+		}
+		else
+		{
+			armAsm->Cmp(a64::w4, 0);
+			armAsm->B(f == VU1MI_IBGEZ ? a64::lt : f == VU1MI_IBGTZ ? a64::le : f == VU1MI_IBLEZ ? a64::gt : a64::ge,
+				&not_taken);
+		}
+		_vu1JitEmitBranchAddr(code);
+		_vu1JitEmitSetBranch();
+		armAsm->Bind(&not_taken);
+	}
+	else if (f == VU1MI_B || f == VU1MI_BAL)
+	{
+		_vu1JitEmitBranchAddr(code);
+		if (f == VU1MI_BAL && it != 0)
+			_vu1JitEmitLink(it);
+		_vu1JitEmitSetBranch();
+	}
+	else if (f == VU1MI_JR || f == VU1MI_JALR)
+	{
+		armAsm->Ldrh(a64::w1, _vu1JitVI(is));
+		armAsm->Lsl(a64::w1, a64::w1, 3);
+		if (f == VU1MI_JALR && it != 0)
+			_vu1JitEmitLink(it);
+		_vu1JitEmitSetBranch();
+	}
+	else if (f == VU1MI_MFP)
+	{
+		if (ft == 0 || xyzw == 0)
+			return true;
+		armAsm->Ldr(a64::w0, _vu1JitVI(REG_P));
+		armAsm->Dup(a64::v0.V4S(), a64::w0);
+		_vu1JitEmitStoreVF(ft, xyzw);
+	}
+	else if (f == VU1MI_FSAND || f == VU1MI_FSEQ || f == VU1MI_FSOR)
+	{
+		if (it == 0)
+			return true;
+		const u32 imm12 = (((code >> 21) & 1) << 11) | (code & 0x7ff);
+		armAsm->Ldrh(a64::w0, _vu1JitVI(REG_STATUS_FLAG));
+		armAsm->And(a64::w0, a64::w0, 0xfff);
+		if (f == VU1MI_FSAND)
+		{
+			armAsm->And(a64::w0, a64::w0, imm12);
+		}
+		else if (f == VU1MI_FSOR)
+		{
+			armAsm->Orr(a64::w0, a64::w0, imm12);
+		}
+		else
+		{
+			armAsm->Cmp(a64::w0, imm12);
+			armAsm->Cset(a64::w0, a64::eq);
+		}
+		armAsm->Strh(a64::w0, _vu1JitVI(it));
+	}
+	else if (f == VU1MI_FSSET)
+	{
+		const u32 imm12 = (((code >> 21) & 1) << 11) | (code & 0x7ff);
+		armAsm->Ldr(a64::w0, _vu1JitMem(_vu1Off(VU1.statusflag)));
+		armAsm->And(a64::w0, a64::w0, 0x3f);
+		if (imm12 & 0xfc0)
+			armAsm->Orr(a64::w0, a64::w0, imm12 & 0xfc0);
+		armAsm->Str(a64::w0, _vu1JitMem(_vu1Off(VU1.statusflag)));
+	}
+	else if (f == VU1MI_FMAND || f == VU1MI_FMEQ || f == VU1MI_FMOR)
+	{
+		if (it == 0)
+			return true;
+		armAsm->Ldrh(a64::w0, _vu1JitVI(REG_MAC_FLAG));
+		armAsm->Ldrh(a64::w1, _vu1JitVI(is));
+		if (f == VU1MI_FMAND)
+		{
+			armAsm->And(a64::w0, a64::w0, a64::w1);
+		}
+		else if (f == VU1MI_FMOR)
+		{
+			armAsm->Orr(a64::w0, a64::w0, a64::w1);
+		}
+		else
+		{
+			armAsm->Cmp(a64::w0, a64::w1);
+			armAsm->Cset(a64::w0, a64::eq);
+		}
+		armAsm->Strh(a64::w0, _vu1JitVI(it));
+	}
+	else if (f == VU1MI_FCAND || f == VU1MI_FCEQ || f == VU1MI_FCOR)
+	{
+		const u32 imm24 = code & 0xffffff;
+		armAsm->Ldr(a64::w0, _vu1JitVI(REG_CLIP_FLAG));
+		armAsm->And(a64::w0, a64::w0, 0xffffff);
+		if (f == VU1MI_FCAND)
+		{
+			armAsm->Tst(a64::w0, imm24);
+			armAsm->Cset(a64::w0, a64::ne);
+		}
+		else
+		{
+			if (f == VU1MI_FCOR)
+				armAsm->Orr(a64::w0, a64::w0, imm24);
+			armAsm->Cmp(a64::w0, f == VU1MI_FCOR ? 0xffffff : imm24);
+			armAsm->Cset(a64::w0, a64::eq);
+		}
+		armAsm->Strh(a64::w0, _vu1JitVI(1));
+	}
+	else if (f == VU1MI_FCSET)
+	{
+		armAsm->Mov(a64::w0, code & 0xffffff);
+		armAsm->Str(a64::w0, _vu1JitMem(_vu1Off(VU1.clipflag)));
+	}
+	else if (f == VU1MI_FCGET)
+	{
+		if (it == 0)
+			return true;
+		armAsm->Ldr(a64::w0, _vu1JitVI(REG_CLIP_FLAG));
+		armAsm->And(a64::w0, a64::w0, 0xfff);
+		armAsm->Strh(a64::w0, _vu1JitVI(it));
+	}
+	else if (f == VU1MI_WAITQ || f == VU1MI_WAITP)
+	{
+	}
+	else
+	{
+		return false;
+	}
+	return true;
+}
+
+// MOVE, LQ, SQ and _vu1JitEmitLowerInt's ops as native code; other lower ops call the interpreter handler.
 static void _vu1JitEmitLower(FnPtr_VuVoid f, u32 code)
 {
 	const u32 xyzw = (code >> 21) & 0xf;
@@ -724,7 +1236,7 @@ static void _vu1JitEmitLower(FnPtr_VuVoid f, u32 code)
 			}
 		}
 	}
-	else
+	else if (!_vu1JitEmitLowerInt(f, code))
 	{
 		_vu1JitEmitHandler(f);
 	}
