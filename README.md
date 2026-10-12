@@ -98,12 +98,12 @@ Everything is on only for the one game build it was made for; any other disc run
   start with only loads, ALU ops on loaded or constant values, mfc/cfc, cache and sync skips to the next
   event on that branch (e.g. a GS CSR VSINT poll), so the EE cycles differ from the EE interpreter there.
   Env `PCSX2_EE_JIT_MAP=<file>`: host address of each compiled instruction (pc, name, code word).
-- ARM64 IOP recompiler (`pcsx2/arm64/iR3000A.cpp`, experimental): blocks up to a jump, branch, SYSCALL or
-  BREAK compiled into calls of the IOP interpreter's handlers (integer ALU, shift and HI/LO move ops
-  native), run in the interpreter's loop, so the IOP cycles and state equal the IOP interpreter's. A
-  `j self; nop` idle loop adds the cycles of the iterations whose event test would do nothing. On when
-  `EmuCore/CPU/Recompiler` `EnableIOP` is on (the default); off = IOP interpreter (A/B check with
-  `ZDXSV_CYCLE_LOG`). Code written by IOP stores or DMA clears the blocks of its 4 KB page.
+- ARM64 IOP recompiler (`pcsx2/arm64/iR3000A.cpp`, experimental) with the x86 IOP recompiler's timing, so
+  ARM64 and x86 hosts count the same IOP cycles: x86 block layout, cycles added at the block end (MULT/DIV
+  penalties), timeslice and event tests at every jump or branch, nop loop fast-forward, block clears only
+  on a write to a block start, IRX import HLE. Integer ALU, shift and HI/LO move ops native, others call
+  the interpreter's handlers. On when `EmuCore/CPU/Recompiler` `EnableIOP` is on (the default); compare
+  with an x86 build via `ZDXSV_CYCLE_LOG`.
 - Options for tests, traces and game investigation; every build reads them.
 
 ## Documentation
