@@ -537,7 +537,7 @@ static __fi VECTOR* _getDst(VURegs* VU)
 static bool s_vu_cop2_op = false;
 
 // Operands x86 microVU clamps for the upper op in code (clampType in microVU_Upper.inl), in the
-// default clamp mode (overflow only): bit 0 Ft (also a broadcast lane or Q, never I), bit 1 Fs,
+// default clamp mode (overflow only): bit 0 Ft (also a broadcast lane, Q or I), bit 1 Fs,
 // bit 2 ACC. Its clamp (MINPS +max, MAXPS -max) turns a NaN of either sign into +max; vuDouble
 // gives the rest of the values the same result.
 static u32 vuX86ClampOperands(u32 code, int vu, bool cop2)
@@ -557,13 +557,10 @@ static u32 vuX86ClampOperands(u32 code, int vu, bool cop2)
 	}
 	switch (funct)
 	{
-		case 0x04: case 0x05: case 0x06: case 0x07: case 0x24: case 0x2c: // SUBx..w, SUBq, SUB
+		case 0x04: case 0x05: case 0x06: case 0x07: case 0x24: case 0x26: case 0x2c: // SUBx..w, SUBq, SUBi, SUB
 			return ps ? 3 : 0;
-		case 0x26: // SUBi
-			return ps ? 2 : 0;
-		case 0x18: case 0x19: case 0x1a: case 0x1b: case 0x1c: case 0x2a: // MULx..w, MULq, MUL
+		case 0x18: case 0x19: case 0x1a: case 0x1b: case 0x1c: case 0x1e: case 0x2a: // MULx..w, MULq, MULi, MUL
 			return ps ? 3 : 2;
-		case 0x1e: // MULi
 		case 0x08: case 0x09: case 0x0a: // MADDx..z
 			return 2;
 		case 0x0b: // MADDw
