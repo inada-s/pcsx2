@@ -558,7 +558,7 @@ static void _vu1JitEmitAddFdivEfu(const _VURegsNum& r, const a64::Register& rbas
 // Upper FMAC ops emitted natively (applyBinaryMACOp/applyTernaryMACOp in VUops.cpp).
 // ADDi is left out (TriAce hack), so are Fd = 0 forms (they write RDzero).
 enum class VU1FmacOp : u8 { Add, Sub, Mul, Madd, Msub };
-static constexpr u8 VU1_BC_VEC = 4, VU1_BC_I = 5, VU1_BC_Q = 6; // 0..3: Ft.x..w
+static constexpr u8 VU1_BC_VEC = 4, VU1_BC_I = 5, VU1_BC_Q = 6, VU1_BC_OP = 7; // 0..3: Ft.x..w; OP: Fs.yzx, Ft.zxy
 struct VU1FmacDesc
 {
 	FnPtr_VuVoid fn;
@@ -575,7 +575,8 @@ struct VU1FmacDesc
 static const VU1FmacDesc s_vu1_fmac_ops[] = {
 	VU1_FMAC_BC(ADD, VU1FmacOp::Add, false), VU1_FMAC_BC(ADDA, VU1FmacOp::Add, true),
 	{VU1MI_ADDAi, VU1FmacOp::Add, true, VU1_BC_I}, VU1_FMAC_ALL(SUB, VU1FmacOp::Sub),
-	VU1_FMAC_ALL(MUL, VU1FmacOp::Mul), VU1_FMAC_ALL(MADD, VU1FmacOp::Madd), VU1_FMAC_ALL(MSUB, VU1FmacOp::Msub)};
+	VU1_FMAC_ALL(MUL, VU1FmacOp::Mul), VU1_FMAC_ALL(MADD, VU1FmacOp::Madd), VU1_FMAC_ALL(MSUB, VU1FmacOp::Msub),
+	{VU1MI_OPMULA, VU1FmacOp::Mul, true, VU1_BC_OP}, {VU1MI_OPMSUB, VU1FmacOp::Msub, false, VU1_BC_OP}};
 #undef VU1_FMAC_ALL
 #undef VU1_FMAC_BC
 
@@ -635,9 +636,20 @@ static void _vuJitEmitFmacCore(const VU1FmacDesc* desc, u32 code, const a64::Reg
 	armAsm->Ldr(a64::q22, a64::MemOperand(rconst, 96));
 
 	armAsm->Ldr(a64::q0, _vu1JitMem(_vu1Off(VU1.VF[fs])));
-	if (desc->bc == VU1_BC_VEC)
+	if (desc->bc == VU1_BC_VEC || desc->bc == VU1_BC_OP)
 		armAsm->Ldr(a64::q1, _vu1JitMem(_vu1Off(VU1.VF[ft])));
-	else
+	if (desc->bc == VU1_BC_OP)
+	{
+		// v0 = Fs.yzx, v1 = Ft.zxy (lane w unused)
+		armAsm->Ext(a64::v24.V16B(), a64::v0.V16B(), a64::v0.V16B(), 4);
+		armAsm->Mov(a64::v24.V4S(), 2, a64::v0.V4S(), 0);
+		armAsm->Ext(a64::v25.V16B(), a64::v1.V16B(), a64::v1.V16B(), 8);
+		armAsm->Mov(a64::v25.V4S(), 1, a64::v1.V4S(), 0);
+		armAsm->Mov(a64::v25.V4S(), 2, a64::v1.V4S(), 1);
+		armAsm->Mov(a64::v0.V16B(), a64::v24.V16B());
+		armAsm->Mov(a64::v1.V16B(), a64::v25.V16B());
+	}
+	else if (desc->bc != VU1_BC_VEC)
 	{
 		const s64 off = desc->bc == VU1_BC_I ? _vu1Off(VU1.VI[REG_I].UL) :
 						desc->bc == VU1_BC_Q ? _vu1Off(VU1.VI[REG_Q].UL) :
@@ -684,12 +696,20 @@ static void _vuJitEmitFmacCore(const VU1FmacDesc* desc, u32 code, const a64::Reg
 	armAsm->Orr(a64::v28.V16B(), a64::v28.V16B(), a64::v29.V16B());
 	armAsm->And(a64::v29.V16B(), a64::v24.V16B(), a64::v22.V16B());
 	armAsm->Orr(a64::v28.V16B(), a64::v28.V16B(), a64::v29.V16B());
-	const u32 lanes = (code >> 21) & 0xf; // bit 3 = x
+	// OPMULA/OPMSUB write x, y, z whatever the dest bits and leave the w MAC bits as they are.
+	const bool op = desc->bc == VU1_BC_OP;
+	const u32 lanes = op ? 0xe : (code >> 21) & 0xf; // bit 3 = x
 	for (int i = 0; i < 4; i++)
 		if (!(lanes & (8 >> i)))
 			armAsm->Mov(a64::v28.V4S(), i, a64::wzr);
 	armAsm->Addv(a64::s28, a64::v28.V4S());
 	armAsm->Fmov(a64::w0, a64::s28);
+	if (op)
+	{
+		armAsm->Ldr(a64::w1, _vu1JitMem(_vu1Off(VU1.macflag)));
+		armAsm->And(a64::w1, a64::w1, 0x1111);
+		armAsm->Orr(a64::w0, a64::w0, a64::w1);
+	}
 	armAsm->Str(a64::w0, _vu1JitMem(_vu1Off(VU1.macflag)));
 	// VU_STAT_UPDATE: bit n = any bit in MAC nibble n.
 	armAsm->Orr(a64::w1, a64::w0, a64::Operand(a64::w0, a64::LSR, 1));
@@ -743,7 +763,8 @@ static bool _vu1JitEmitFmac(FnPtr_VuVoid f, u32 code)
 static const VU1FmacDesc s_vu0_macro_fmac_ops[] = {
 	VU0_FMAC_BC(ADD, VU1FmacOp::Add, false), VU0_FMAC_BC(ADDA, VU1FmacOp::Add, true),
 	{VADDAi, VU1FmacOp::Add, true, VU1_BC_I}, VU0_FMAC_ALL(SUB, VU1FmacOp::Sub),
-	VU0_FMAC_ALL(MUL, VU1FmacOp::Mul), VU0_FMAC_ALL(MADD, VU1FmacOp::Madd), VU0_FMAC_ALL(MSUB, VU1FmacOp::Msub)};
+	VU0_FMAC_ALL(MUL, VU1FmacOp::Mul), VU0_FMAC_ALL(MADD, VU1FmacOp::Madd), VU0_FMAC_ALL(MSUB, VU1FmacOp::Msub),
+	{VOPMULA, VU1FmacOp::Mul, true, VU1_BC_OP}, {VOPMSUB, VU1FmacOp::Msub, false, VU1_BC_OP}};
 #undef VU0_FMAC_ALL
 #undef VU0_FMAC_BC
 
@@ -1643,7 +1664,8 @@ static void _vu1JitSelfTest()
 	static const struct { FnPtr_VuVoid f; const char* name; } ops[] = {
 		{VU1MI_DIV, "DIV"}, {VU1MI_SQRT, "SQRT"}, {VU1MI_RSQRT, "RSQRT"}, {VU1MI_ESADD, "ESADD"},
 		{VU1MI_ERSADD, "ERSADD"}, {VU1MI_ELENG, "ELENG"}, {VU1MI_ERLENG, "ERLENG"}, {VU1MI_ESUM, "ESUM"},
-		{VU1MI_ERCPR, "ERCPR"}, {VU1MI_ESQRT, "ESQRT"}, {VU1MI_ERSQRT, "ERSQRT"}};
+		{VU1MI_ERCPR, "ERCPR"}, {VU1MI_ESQRT, "ESQRT"}, {VU1MI_ERSQRT, "ERSQRT"}, {VU1MI_OPMULA, "OPMULA"},
+		{VU1MI_OPMSUB, "OPMSUB"}};
 	u32 rng = 0x12345678;
 	const auto next = [&rng] {
 		rng ^= rng << 13;
@@ -1667,51 +1689,74 @@ static void _vu1JitSelfTest()
 	const std::unique_ptr<VURegs> saved = std::make_unique<VURegs>(VU1);
 	for (const auto& op : ops)
 	{
-		// One function per fsf/ftf (code bits 21-24); fs = 1, ft = 2.
+		// One function per fsf/ftf or dest (code bits 21-24); fs = 1, ft = 2, fd = 3.
 		void (*fns[16])();
 		for (u32 sel = 0; sel < 16; sel++)
 		{
-			const u32 code = (sel << 21) | (2 << 16) | (1 << 11);
+			const u32 code = (sel << 21) | (2 << 16) | (1 << 11) | (3 << 6);
 			armSetAsmPtr(s_vu1_jit_ptr, s_vu1_jit_end - s_vu1_jit_ptr, &s_vu1_jit_pool);
 			u8* const fn = armStartBlock();
 			armAsm->Stp(a64::x29, a64::lr, a64::MemOperand(a64::sp, -16, a64::PreIndex));
 			armAsm->Stp(a64::x19, a64::x20, a64::MemOperand(a64::sp, -16, a64::PreIndex));
+			armAsm->Stp(a64::x21, a64::x22, a64::MemOperand(a64::sp, -16, a64::PreIndex));
 			armMoveAddressToReg(s_vu1_jit_rvu, &VU1);
-			if (!_vu1JitEmitFdivOp(op.f, code) && !_vu1JitEmitEfuOp(op.f, code))
+			armMoveAddressToReg(a64::x21, s_vu1_jit_fconst);
+			if (!_vu1JitEmitFdivOp(op.f, code) && !_vu1JitEmitEfuOp(op.f, code) && !_vu1JitEmitFmac(op.f, code))
 				armEmitCall(reinterpret_cast<const void*>(op.f));
+			armAsm->Ldp(a64::x21, a64::x22, a64::MemOperand(a64::sp, 16, a64::PostIndex));
 			armAsm->Ldp(a64::x19, a64::x20, a64::MemOperand(a64::sp, 16, a64::PostIndex));
 			armAsm->Ldp(a64::x29, a64::lr, a64::MemOperand(a64::sp, 16, a64::PostIndex));
 			armAsm->Ret();
 			s_vu1_jit_ptr = armEndBlock();
 			fns[sel] = reinterpret_cast<void (*)()>(fn);
 		}
+		// Outputs: Q, P, status, MAC, ACC, VF[3] (OPMSUB's Fd).
+		const auto get = [](u32* o) {
+			o[0] = VU1.q.UL;
+			o[1] = VU1.p.UL;
+			o[2] = VU1.statusflag;
+			o[3] = VU1.macflag;
+			std::memcpy(&o[4], &VU1.ACC, 16);
+			std::memcpy(&o[8], &VU1.VF[3], 16);
+		};
+		const auto set = [](const u32* o) {
+			VU1.q.UL = o[0];
+			VU1.p.UL = o[1];
+			VU1.statusflag = o[2];
+			VU1.macflag = o[3];
+			std::memcpy(&VU1.ACC, &o[4], 16);
+			std::memcpy(&VU1.VF[3], &o[8], 16);
+		};
 		u32 failed = 0;
 		for (u32 i = 0; i < count; i++)
 		{
 			const u32 sel = next() & 15;
+			u32 in[12], want[12], got[12];
 			for (u32 j = 0; j < 4; j++)
 			{
 				VU1.VF[1].UL[j] = value();
 				VU1.VF[2].UL[j] = value();
 			}
-			const u32 status = next(), q = next(), p = next();
-			VU1.code = (sel << 21) | (2 << 16) | (1 << 11);
-			VU1.statusflag = status;
-			VU1.q.UL = q;
-			VU1.p.UL = p;
+			for (u32 j = 0; j < 12; j++)
+				in[j] = j >= 4 ? value() : j == 3 ? next() & 0xffff : next(); // MAC is 16 bits
+			VU1.code = (sel << 21) | (2 << 16) | (1 << 11) | (3 << 6);
+			set(in);
 			op.f();
-			const u32 want[3] = {VU1.q.UL, VU1.p.UL, VU1.statusflag};
-			VU1.statusflag = status;
-			VU1.q.UL = q;
-			VU1.p.UL = p;
+			get(want);
+			set(in);
 			fns[sel]();
-			const u32 got[3] = {VU1.q.UL, VU1.p.UL, VU1.statusflag};
+			get(got);
 			if (std::memcmp(want, got, sizeof(want)) != 0 && failed++ < 3)
-				Console.WriteLn("VU1 JIT selftest: %s fs %08x %08x %08x %08x ft %08x %08x %08x %08x sel %u: "
-								"q/p/status %08x %08x %08x, JIT %08x %08x %08x",
+			{
+				u32 k = 0;
+				while (want[k] == got[k])
+					k++;
+				Console.WriteLn("VU1 JIT selftest: %s fs %08x %08x %08x %08x ft %08x %08x %08x %08x acc %08x %08x %08x "
+								"%08x mac %08x sel %u: output %u = %08x, JIT %08x",
 					op.name, VU1.VF[1].UL[0], VU1.VF[1].UL[1], VU1.VF[1].UL[2], VU1.VF[1].UL[3], VU1.VF[2].UL[0],
-					VU1.VF[2].UL[1], VU1.VF[2].UL[2], VU1.VF[2].UL[3], sel, want[0], want[1], want[2], got[0],
-					got[1], got[2]);
+					VU1.VF[2].UL[1], VU1.VF[2].UL[2], VU1.VF[2].UL[3], in[4], in[5], in[6], in[7], in[3], sel, k,
+					want[k], got[k]);
+			}
 		}
 		Console.WriteLn("VU1 JIT selftest: %s %u checked, %u differ", op.name, count, failed);
 	}
