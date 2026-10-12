@@ -73,7 +73,8 @@ Everything is on only for the one game build it was made for; any other disc run
   clamping is on; upper MAX/MINI/FTOI/ITOF/ABS/CLIP, lower MOVE/LQ/SQ/LQI/LQD/SQI/SQD, integer
   ALU, ILW/ISW(R), MFIR/MTIR/MR32/MFP, flag ops and branches are native too; other ops (FDIV/EFU,
   OPMULA/OPMSUB, the remaining FMAC forms) call the interpreter handlers. TPC, cycle and code
-  are stored only before a handler call that may read them and at trace exit. A trace re-reads its code only after a
+  are stored only before a handler call that may read them and at trace exit; so are the FMAC
+  pipe positions and count (tracked at compile time from the read position at entry). A trace re-reads its code only after a
   VU1 micro memory write (`InterpVU1::Clear`) or reset. Same results as the interpreter. Env `PCSX2_VU1_JIT`: `0` = interpreter only, `check` = every trace is also run by the
   interpreter from the same start and the VU1 registers and memory compared (log
   `VU1 trace check`), unset = traces.
