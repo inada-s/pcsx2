@@ -161,6 +161,14 @@ static void EmitFpuDouble(const a64::Register& w)
 	armAsm->Csel(w, a64::w4, w, a64::eq);
 }
 
+// Denormals as zero on w (FPU.cpp fpuDaz).
+static void EmitFpuDaz(const a64::Register& w)
+{
+	armAsm->And(a64::w4, w, 0x80000000);
+	armAsm->Tst(w, 0x7f800000);
+	armAsm->Csel(w, a64::w4, w, a64::eq);
+}
+
 // fpuAddSub (FPU.cpp) on w0, w1 to its operands: the smaller one's mantissa cut to the bits the larger
 // exponent keeps.
 static void EmitFpuAddSubCut()
@@ -195,8 +203,8 @@ static void EmitFpuAddSubCut()
 	armAsm->Bind(&done);
 }
 
-// COP1 ADD.S, SUB.S, MUL.S, DIV.S, MOV.S, MFC1, MTC1 as the interpreter (FPU.cpp). Inputs go through
-// fpuDouble and DIV.S tests a zero divisor first, so no NaN or infinity reaches the arithmetic.
+// COP1 ADD.S, SUB.S, MUL.S, DIV.S, MOV.S, MFC1, MTC1 as the interpreter (FPU.cpp). DIV.S tests a zero
+// divisor first.
 static bool EmitFpu(const a64::Register& rregs, u32 code)
 {
 	const u32 rs = (code >> 21) & 31, ft = (code >> 16) & 31, fs = (code >> 11) & 31, fd = (code >> 6) & 31;
@@ -228,6 +236,10 @@ static bool EmitFpu(const a64::Register& rregs, u32 code)
 	}
 	armAsm->Ldr(a64::w1, fpr(ft));
 	armAsm->Ldr(a64::w2, fcr31);
+	// The x86 recompiler's default clamp mode, as FPU.cpp fpuX86Mode.
+	const bool x86 = CHECK_FPU_OVERFLOW && !CHECK_FPU_EXTRA_OVERFLOW && !CHECK_FPU_FULL;
+	if (x86 && funct == 3)
+		armAsm->And(a64::w2, a64::w2, ~(0x10000u | 0x20000u)); // recDIVhelper1 clears D and I
 	a64::Label store;
 	if (funct == 3)
 	{
@@ -248,8 +260,9 @@ static bool EmitFpu(const a64::Register& rregs, u32 code)
 	}
 	else if (funct <= 1)
 		EmitFpuAddSubCut();
-	EmitFpuDouble(a64::w0);
-	EmitFpuDouble(a64::w1);
+	const auto operand = x86 ? EmitFpuDaz : EmitFpuDouble;
+	operand(a64::w0);
+	operand(a64::w1);
 	armAsm->Fmov(a64::s0, a64::w0);
 	armAsm->Fmov(a64::s1, a64::w1);
 	switch (funct)
@@ -268,6 +281,24 @@ static bool EmitFpu(const a64::Register& rregs, u32 code)
 			break;
 	}
 	armAsm->Fmov(a64::w0, a64::s0);
+
+	if (x86)
+	{
+		// fpuResultX86: NaN -> +Fmax, +/-Inf -> +/-Fmax, denormal -> signed 0; O and U untouched.
+		a64::Label finite;
+		armAsm->And(a64::w3, a64::w0, 0x7f800000);
+		armAsm->And(a64::w4, a64::w0, 0x80000000);
+		armAsm->Cmp(a64::w3, 0x7f800000);
+		armAsm->B(a64::ne, &finite);
+		armAsm->Tst(a64::w0, 0x007fffff);
+		armAsm->Csel(a64::w0, a64::wzr, a64::w4, a64::ne);
+		armAsm->Orr(a64::w0, a64::w0, 0x7f7fffff);
+		armAsm->B(&store);
+		armAsm->Bind(&finite);
+		armAsm->Cmp(a64::w3, 0);
+		armAsm->Csel(a64::w0, a64::w4, a64::w0, a64::eq);
+		armAsm->B(&store);
+	}
 
 	// checkOverflow, then checkUnderflow if no overflow; DIV.S sets and clears no flags there.
 	const u32 oflags = funct == 3 ? 0 : 0x8000 | 0x10, uflags = funct == 3 ? 0 : 0x4000 | 0x08;
