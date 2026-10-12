@@ -48,7 +48,7 @@ namespace
 	// Macro op from a VU upper/lower op word (as VuOpTest.cpp builds them): COP2, CO bit, then its low 25 bits.
 	constexpr u32 V(u32 vu) { return 0x4a000000 | (vu & 0x01ffffff); }
 	constexpr u32 U(u32 fn, u32 fd = 3, u32 dest = 0xf, u32 fs = 1, u32 ft = 2) { return (dest << 21) | (ft << 16) | (fs << 11) | (fd << 6) | fn; }
-	constexpr u32 US(u32 t, u32 idx, u32 dest = 0xf) { return U(0x3c + t, idx, dest); }
+	constexpr u32 US(u32 t, u32 idx, u32 dest = 0xf, u32 ft = 2) { return U(0x3c + t, idx, dest, 1, ft); }
 	constexpr u32 L(u32 t, u32 idx, u32 dest) { return (dest << 21) | (2 << 16) | (1 << 11) | (idx << 6) | (0x3c + t); }
 
 	constexpr u8 S = 0x10, W = 0x14, C2 = 0;
@@ -103,15 +103,15 @@ namespace
 		{"VMULA", C2, 0, V_ACC, false, {V(US(2, 0x0a))}},
 		{"VMSUBA", C2, 0, V_ACC, false, {V(US(1, 0x0b))}},
 		{"VOPMULA+VOPMSUB", C2, 0, V_FD, false, {V(US(2, 0x0b, 0xe)), V(U(0x2e, 3, 0xe))}},
-		{"VITOF0", C2, 0, V_FD, false, {V(US(0, 0x04))}},
-		{"VITOF4", C2, 0, V_FD, false, {V(US(1, 0x04))}},
-		{"VITOF12", C2, 0, V_FD, false, {V(US(2, 0x04))}},
-		{"VITOF15", C2, 0, V_FD, false, {V(US(3, 0x04))}},
-		{"VFTOI0", C2, 0, V_FD, false, {V(US(0, 0x05))}},
-		{"VFTOI4", C2, 0, V_FD, false, {V(US(1, 0x05))}},
-		{"VFTOI12", C2, 0, V_FD, false, {V(US(2, 0x05))}},
-		{"VFTOI15", C2, 0, V_FD, false, {V(US(3, 0x05))}},
-		{"VABS", C2, 0, V_FD, false, {V(US(1, 0x07))}},
+		{"VITOF0", C2, 0, V_FD, false, {V(US(0, 0x04, 0xf, 3))}},
+		{"VITOF4", C2, 0, V_FD, false, {V(US(1, 0x04, 0xf, 3))}},
+		{"VITOF12", C2, 0, V_FD, false, {V(US(2, 0x04, 0xf, 3))}},
+		{"VITOF15", C2, 0, V_FD, false, {V(US(3, 0x04, 0xf, 3))}},
+		{"VFTOI0", C2, 0, V_FD, false, {V(US(0, 0x05, 0xf, 3))}},
+		{"VFTOI4", C2, 0, V_FD, false, {V(US(1, 0x05, 0xf, 3))}},
+		{"VFTOI12", C2, 0, V_FD, false, {V(US(2, 0x05, 0xf, 3))}},
+		{"VFTOI15", C2, 0, V_FD, false, {V(US(3, 0x05, 0xf, 3))}},
+		{"VABS", C2, 0, V_FD, false, {V(US(1, 0x07, 0xf, 3))}},
 		{"VCLIP", C2, 0, V_FD, false, {V(US(3, 0x07, 0xe))}},
 	};
 	constexpr u32 NUM_OPS = std::size(s_ops);
