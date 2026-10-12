@@ -206,6 +206,10 @@ bool SaveStateBase::FreezeInternals(Error* error)
 	Freeze(nextStartCounter);
 	Freeze(psxNextStartCounter);
 	Freeze(psxNextDeltaCounter);
+	// Not in the state: the interpreter's uncommitted cycles belong to the replaced state (a load from inside the
+	// interpreter's loop would add them to the loaded one).
+	if (IsLoading())
+		cpuBlockCycles = 0;
 
 	// Fourth Block - EE-related systems
 	// ---------------------------------
