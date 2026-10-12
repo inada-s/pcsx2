@@ -154,6 +154,7 @@ set(pcsx2Sources
 	Zdxsv/RecHooks.cpp
 	Zdxsv/RecProbe.cpp
 	Zdxsv/VuOpTest.cpp
+	Zdxsv/EeOpTest.cpp
 	VU0micro.cpp
 	VU0microInterp.cpp
 	VU1micro.cpp
