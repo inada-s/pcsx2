@@ -17,6 +17,7 @@
 
 #include "common/Console.h"
 
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 
@@ -313,10 +314,60 @@ static void EmitEventTestAndDispatch(const a64::Register& wpc, const a64::Regist
 	EmitDispatch(wpc, rregs, rcycles, exit);
 }
 
+// The x86 recompiler's wait loop test (s_nBlockFF): a block that branches to its own start and only
+// runs ALU ops on constants and loaded values, loads, mfc/cfc, cache and sync does the same on every
+// iteration until an event, so a taken branch back may skip to the next event.
+static bool IsFastForwardLoop(u32 startpc, u32 branchpc)
+{
+	u32 reads = 0, loads = 1;
+	for (u32 pc = startpc; pc < branchpc + 8; pc += 4)
+	{
+		if (pc == branchpc)
+			continue;
+		const u32 code = memRead32(pc);
+		const u32 op = code >> 26, funct = code & 63;
+		const u32 rs = (code >> 21) & 31, rt = (code >> 16) & 31, rd = (code >> 11) & 31;
+		if (code == 0 || op == 057 || (op == 0 && funct == 017))
+			continue;
+		u32 dst;
+		if ((op & 070) == 010 || (op & 076) == 030 || (op & 070) == 040 || (op & 076) == 032 || op == 067)
+		{
+			// imm arithmetic, loads
+			if (loads & (1u << rs))
+			{
+				loads |= 1u << rt;
+				continue;
+			}
+			reads |= 1u << rs;
+			dst = rt;
+		}
+		else if (op == 0 && (funct & 060) == 040 && (funct & 076) != 050)
+		{
+			if ((loads & (1u << rs)) && (loads & (1u << rt)))
+			{
+				loads |= 1u << rd;
+				continue;
+			}
+			reads |= (1u << rs) | (1u << rt);
+			dst = rd;
+		}
+		else if ((op & 074) == 020 && rs < 4)
+		{
+			loads |= 1u << rt;
+			continue;
+		}
+		else
+			return false;
+		if (reads & (1u << dst))
+			return false;
+	}
+	return true;
+}
+
 // What the branch's handler and doBranch do, with pc, code and cpuBlockCycles already set for the branch.
 // The delay slot runs with cpuRegs.branch set (no hooks; an exception clears it and ends the block).
 static void EmitBranch(u32 code, u32 pc, const a64::Register& rregs, const a64::Register& rcycles,
-	u32 cycle_factor, a64::Label& exit)
+	u32 cycle_factor, u32 ff_start, a64::Label& exit)
 {
 	const u32 op = code >> 26;
 	const u32 rs = (code >> 21) & 31;
@@ -387,6 +438,7 @@ static void EmitBranch(u32 code, u32 pc, const a64::Register& rregs, const a64::
 	if (!reg_jump)
 		armAsm->Mov(wtarget, target);
 	const bool wait_loop = CpuRunsIntBranches() && EmuConfig.Speedhacks.WaitLoop;
+	const bool wait_ff = !reg_jump && EmuConfig.Speedhacks.WaitLoop;
 	bool may_skip = reg_jump || target == 0x81fc0;
 	if (!may_skip && (pc + 8 - target) < 4 * 10)
 	{
@@ -422,6 +474,14 @@ static void EmitBranch(u32 code, u32 pc, const a64::Register& rregs, const a64::
 		armAsm->Add(a64::w14, a64::w14, a64::w16);
 	armAsm->Ldr(a64::x15, a64::MemOperand(rregs, offsetof(cpuRegisters, cycle)));
 	armAsm->Add(a64::x15, a64::x15, a64::x14);
+	if (wait_ff && target == ff_start)
+	{
+		// IsFastForwardLoop: cycle = nextEventCycle when that is later.
+		armAsm->Ldr(a64::x17, a64::MemOperand(rregs, offsetof(cpuRegisters, nextEventCycle)));
+		armAsm->Sub(a64::x16, a64::x17, a64::x15);
+		armAsm->Cmp(a64::x16, 0);
+		armAsm->Csel(a64::x15, a64::x17, a64::x15, a64::gt);
+	}
 	armAsm->Str(a64::x15, a64::MemOperand(rregs, offsetof(cpuRegisters, cycle)));
 	armAsm->And(a64::w13, a64::w13, 7);
 	armAsm->Str(a64::w13, a64::MemOperand(rcycles));
@@ -443,6 +503,12 @@ static void EmitBranch(u32 code, u32 pc, const a64::Register& rregs, const a64::
 		EmitDispatch(wtarget, rregs, rcycles, exit);
 }
 
+// PCSX2_EE_JIT_MAP=<file>: host address of each compiled instruction (pc, name, code word), to
+// attribute `sample` addresses in block code.
+static FILE* const s_ee_map = [] {
+	const char* path = std::getenv("PCSX2_EE_JIT_MAP");
+	return path ? std::fopen(path, "w") : nullptr;
+}();
 static BlockFn Compile(u32 startpc, BlockFn* entry)
 {
 	if (static_cast<size_t>(s_code_end - s_code_ptr) < MAX_BLOCK_CODE)
@@ -471,6 +537,7 @@ static BlockFn Compile(u32 startpc, BlockFn* entry)
 	const bool native_branch = IsNativeBranch(memRead32(lastpc)) && ((lastpc + 4) & 0xfff) != 0 &&
 							   !EndsBlock(GetInstruction(memRead32(lastpc + 4)), memRead32(lastpc + 4));
 	const u32 code_words = count + native_branch;
+	const u32 ff_start = (native_branch && IsFastForwardLoop(startpc, lastpc)) ? startpc : 0xffffffff;
 
 	// Self-modifying code: a written page clears its blocks (vtlb page protection), or, on a page under
 	// manual protection, the block compares its code at entry (as memory_protect_recompiled_code on x86).
@@ -533,6 +600,8 @@ static BlockFn Compile(u32 startpc, BlockFn* entry)
 		const u32 pc = startpc + i * 4;
 		const u32 code = memRead32(pc);
 		const OPCODE& opcode = GetInstruction(code);
+		if (s_ee_map)
+			std::fprintf(s_ee_map, "%p E %08x:%s:%08x\n", armGetCurrentCodePointer(), pc, opcode.Name, code);
 
 		if (Zdxsv::IsIntHookPc(pc))
 		{
@@ -551,7 +620,7 @@ static BlockFn Compile(u32 startpc, BlockFn* entry)
 		flush(code, pc + 4);
 		if (native_branch && i + 1 == count)
 		{
-			EmitBranch(code, pc, rregs, rcycles, cycle_factor, exit);
+			EmitBranch(code, pc, rregs, rcycles, cycle_factor, ff_start, exit);
 			break;
 		}
 		armEmitCall(reinterpret_cast<const void*>(opcode.interpret));
@@ -585,6 +654,11 @@ static BlockFn Compile(u32 startpc, BlockFn* entry)
 		armAsm->B(&exit);
 	}
 
+	if (s_ee_map)
+	{
+		std::fprintf(s_ee_map, "%p end -\n", armGetCurrentCodePointer());
+		std::fflush(s_ee_map);
+	}
 	s_code_ptr = armEndBlock();
 
 	const BlockFn block = reinterpret_cast<BlockFn>(fn);

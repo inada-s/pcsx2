@@ -7,9 +7,12 @@
 #include "arm64/AsmHelpers.h"
 
 #include <algorithm>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <dlfcn.h>
 #include <memory>
+#include <unordered_map>
 #include <vector>
 // Per-pair decode: final handlers (sub-tables resolved), register usage and the upper/lower
 // register backup decisions, as _vu1Exec in VU1microInterp.cpp works them out on every step.
@@ -311,6 +314,25 @@ static const VU1JitMode s_vu1_jit_mode = [] {
 		return VU1JitMode::Check;
 	return VU1JitMode::On;
 }();
+// PCSX2_VU1_JIT_MAP=<file>: start address of each emitted section, what it does and the handler
+// it calls, to attribute `sample` addresses in JIT code.
+static FILE* const s_vu1_jit_map = [] {
+	const char* path = std::getenv("PCSX2_VU1_JIT_MAP");
+	return path ? std::fopen(path, "w") : nullptr;
+}();
+static void _vu1JitMark(const char* what, const void* fn = nullptr)
+{
+	if (!s_vu1_jit_map)
+		return;
+	static std::unordered_map<const void*, const char*> names;
+	const char*& sym = names[fn];
+	if (!sym)
+	{
+		Dl_info info;
+		sym = (fn && dladdr(fn, &info) && info.dli_sname) ? info.dli_sname : "-";
+	}
+	std::fprintf(s_vu1_jit_map, "%p %s %s\n", armGetCurrentCodePointer(), what, sym);
+}
 
 // As _vuFDIVflush and _vuEFUflush do once the result is due.
 static void _vu1JitFDIVretire()
@@ -717,6 +739,8 @@ static void _vu1JitReset()
 	}
 	s_vu1_jit_pool.Init(SysMemory::GetVU1Rec(), VU1_JIT_POOL_SIZE);
 	s_vu1_jit_ptr = s_vu1_jit_start;
+	if (s_vu1_jit_map)
+		std::fprintf(s_vu1_jit_map, "reset\n");
 	for (VU1TraceSlot& slot : s_vu1_traces)
 		for (auto& v : slot.variants)
 			if (v)
@@ -731,6 +755,7 @@ static void _vu1JitCompile(VU1Trace& t)
 
 	armSetAsmPtr(s_vu1_jit_ptr, s_vu1_jit_end - s_vu1_jit_ptr, &s_vu1_jit_pool);
 	u8* const fn = armStartBlock();
+	_vu1JitMark("pro");
 
 	const a64::Register& rvu = a64::x19;
 	const a64::Register& rbase = a64::x20;
@@ -742,13 +767,19 @@ static void _vu1JitCompile(VU1Trace& t)
 
 	armAsm->Stp(a64::x29, a64::lr, a64::MemOperand(a64::sp, -112, a64::PreIndex));
 	armAsm->Stp(rvu, rbase, a64::MemOperand(a64::sp, 16));
-	armAsm->Str(a64::x21, a64::MemOperand(a64::sp, 96));
+	armAsm->Stp(a64::x21, a64::x22, a64::MemOperand(a64::sp, 96));
 	armMoveAddressToReg(a64::x21, s_vu1_jit_fconst);
 	armMoveAddressToReg(rvu, &VU1);
 	armAsm->Ldr(rbase, vu(off_cycle));
 
 	u32 pc = VU1.VI[REG_TPC].UL;
 	bool branch_seen = false;
+	// w22 = VU1.xgkickenable: only XGKICK (never in a trace) sets it, only _vu1JitXGKICK clears it.
+	armAsm->Ldr(a64::w22, vu(_vu1Off(VU1.xgkickenable)));
+	// Steps that may still see VIBackupCycles != 0: it is at most 2, set by the VI-writing lower
+	// handlers, and every step takes at least one cycle off it.
+	u32 vib_steps = 2;
+	u32 prev_rel = 0;
 	for (const VU1TraceStep& s : t.steps)
 	{
 		const VU1DecodedPair& d = s.d;
@@ -756,26 +787,32 @@ static void _vu1JitCompile(VU1Trace& t)
 		const u32 hi = static_cast<u32>(s.code >> 32);
 		branch_seen |= _vu1IsBranch(reinterpret_cast<const u32*>(&s.code), d);
 
+		_vu1JitMark("step");
 		armAsm->Mov(a64::w0, pc + 8);
 		armAsm->Str(a64::w0, vu(off_tpc));
 		pc += 8;
 
-		armAsm->Ldr(a64::x2, vu(off_cycle));
 		armAsm->Add(a64::x1, rbase, s.cycle_rel);
 		armAsm->Str(a64::x1, vu(off_cycle));
 
+		_vu1JitMark("vib");
 		// VIBackupCycles -= min((u8)(cycle - cyclesBeforeOp), VIBackupCycles)
-		a64::Label no_vib;
-		armAsm->Ldrb(a64::w0, vu(_vu1Off(VU1.VIBackupCycles)));
-		armAsm->Cbz(a64::w0, &no_vib);
-		armAsm->Sub(a64::w3, a64::w1, a64::w2);
-		armAsm->And(a64::w3, a64::w3, 0xff);
-		armAsm->Cmp(a64::w0, a64::w3);
-		armAsm->Csel(a64::w4, a64::w3, a64::w0, a64::hi);
-		armAsm->Sub(a64::w0, a64::w0, a64::w4);
-		armAsm->Strb(a64::w0, vu(_vu1Off(VU1.VIBackupCycles)));
-		armAsm->Bind(&no_vib);
+		if (vib_steps)
+		{
+			vib_steps--;
+			a64::Label no_vib;
+			armAsm->Ldrb(a64::w0, vu(_vu1Off(VU1.VIBackupCycles)));
+			armAsm->Cbz(a64::w0, &no_vib);
+			armAsm->Mov(a64::w3, static_cast<u8>(s.cycle_rel - prev_rel));
+			armAsm->Cmp(a64::w0, a64::w3);
+			armAsm->Csel(a64::w4, a64::w3, a64::w0, a64::hi);
+			armAsm->Sub(a64::w0, a64::w0, a64::w4);
+			armAsm->Strb(a64::w0, vu(_vu1Off(VU1.VIBackupCycles)));
+			armAsm->Bind(&no_vib);
+		}
+		prev_rel = s.cycle_rel;
 
+		_vu1JitMark("retire");
 		if (s.efu_dec)
 		{
 			armAsm->Ldr(a64::w0, vu(_vu1Off(VU1.efu.Cycle)));
@@ -791,17 +828,21 @@ static void _vu1JitCompile(VU1Trace& t)
 		for (u32 i = 0; i < s.ialu_retire; i++)
 			_vu1JitEmitPosStep(_vu1Off(VU1.ialureadpos), _vu1Off(VU1.ialucount), -1);
 
+		_vu1JitMark("kick");
 		a64::Label no_kick;
-		armAsm->Ldr(a64::w0, vu(_vu1Off(VU1.xgkickenable)));
-		armAsm->Cbz(a64::w0, &no_kick);
+		armAsm->Cbz(a64::w22, &no_kick);
 		armEmitCall(reinterpret_cast<const void*>(&_vu1JitXGKICK));
+		armAsm->Ldr(a64::w22, vu(_vu1Off(VU1.xgkickenable)));
 		armAsm->Bind(&no_kick);
 
+		_vu1JitMark("bk");
 		if (d.ibit)
 		{
 			armAsm->Mov(a64::w0, hi);
 			armAsm->Str(a64::w0, vu(off_code));
+			_vu1JitMark("U", reinterpret_cast<const void*>(d.upper));
 			_vu1JitEmitUpper(d.upper, hi);
+			_vu1JitMark("bk");
 			armAsm->Mov(a64::w0, lo);
 			armAsm->Str(a64::w0, vu(_vu1Off(VU1.VI[REG_I].UL)));
 		}
@@ -821,7 +862,9 @@ static void _vu1JitCompile(VU1Trace& t)
 			}
 			armAsm->Mov(a64::w0, hi);
 			armAsm->Str(a64::w0, vu(off_code));
+			_vu1JitMark("U", reinterpret_cast<const void*>(d.upper));
 			_vu1JitEmitUpper(d.upper, hi);
+			_vu1JitMark("bk");
 			if (d.discard == 0)
 			{
 				if (d.vfreg)
@@ -840,7 +883,9 @@ static void _vu1JitCompile(VU1Trace& t)
 				}
 				armAsm->Mov(a64::w0, lo);
 				armAsm->Str(a64::w0, vu(off_code));
+				_vu1JitMark("L", reinterpret_cast<const void*>(d.lower));
 				_vu1JitEmitLower(d.lower, lo);
+				_vu1JitMark("bk");
 				if (d.vfreg)
 				{
 					armAsm->Ldr(a64::q0, slot(1));
@@ -854,6 +899,9 @@ static void _vu1JitCompile(VU1Trace& t)
 			}
 		}
 
+		if (!d.ibit && d.lower != VU1MI_NOP && d.lower != VU1MI_MOVE && d.lower != VU1MI_LQ && d.lower != VU1MI_SQ)
+			vib_steps = 2;
+		_vu1JitMark("addpipe");
 		if (d.fmac)
 			_vu1JitEmitAddFMAC(d, rbase, s.cycle_rel);
 		if (d.lregs.pipe == VUPIPE_IALU && d.lregs.cycles != 0)
@@ -865,6 +913,7 @@ static void _vu1JitCompile(VU1Trace& t)
 			armEmitCall(reinterpret_cast<const void*>(&_vu1JitAddLowerStalls));
 		}
 
+		_vu1JitMark("branch");
 		// VU1.branch is 0 at trace entry: it can only be set from the first branch pair on.
 		if (branch_seen)
 		{
@@ -875,6 +924,7 @@ static void _vu1JitCompile(VU1Trace& t)
 			armAsm->Bind(&no_branch);
 		}
 
+		_vu1JitMark("fpos");
 		if (d.fmac)
 		{
 			armAsm->Ldr(a64::w0, vu(_vu1Off(VU1.fmacwritepos)));
@@ -884,10 +934,14 @@ static void _vu1JitCompile(VU1Trace& t)
 		}
 	}
 
+	_vu1JitMark("epi");
 	armAsm->Ldp(rvu, rbase, a64::MemOperand(a64::sp, 16));
-	armAsm->Ldr(a64::x21, a64::MemOperand(a64::sp, 96));
+	armAsm->Ldp(a64::x21, a64::x22, a64::MemOperand(a64::sp, 96));
 	armAsm->Ldp(a64::x29, a64::lr, a64::MemOperand(a64::sp, 112, a64::PostIndex));
 	armAsm->Ret();
+	_vu1JitMark("end");
+	if (s_vu1_jit_map)
+		std::fflush(s_vu1_jit_map);
 
 	s_vu1_jit_ptr = armEndBlock();
 	t.code = reinterpret_cast<void (*)()>(fn);

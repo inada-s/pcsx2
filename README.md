@@ -74,6 +74,8 @@ Everything is on only for the one game build it was made for; any other disc run
   VU1 micro memory write (`InterpVU1::Clear`) or reset. Same results as the interpreter. Env `PCSX2_VU1_JIT`: `0` = interpreter only, `check` = every trace is also run by the
   interpreter from the same start and the VU1 registers and memory compared (log
   `VU1 trace check`), unset = traces.
+  Env `PCSX2_VU1_JIT_MAP=<file>`: start address and kind of each emitted trace section (and the
+  handler it calls), to attribute `sample` addresses in VU1 JIT code to per-step work.
 - ARM64 EE recompiler (`pcsx2/arm64/iR5900.cpp`, experimental): blocks compiled into calls of the
   interpreter's handlers, so it computes what the EE interpreter computes, faster. On when the EE
   recompiler setting is on (`EmuCore/CPU/Recompiler` `EnableEE`, the default); off = EE interpreter.
@@ -87,6 +89,10 @@ Everything is on only for the one game build it was made for; any other disc run
   two builds. Env `PCSX2_ARM64_EE_NATIVE=0`: every op calls its interpreter handler (A/B check).
   Events (counters, interrupts, IOP and VU runs) are tested only once the cycle target is reached, as
   the x86 recompiler does (the EE interpreter tests them at every branch).
+  Wait loops as the x86 recompiler (`s_nBlockFF`, `Speedhacks.WaitLoop`): a block branching to its own
+  start with only loads, ALU ops on loaded or constant values, mfc/cfc, cache and sync skips to the next
+  event on that branch (e.g. a GS CSR VSINT poll), so the EE cycles differ from the EE interpreter there.
+  Env `PCSX2_EE_JIT_MAP=<file>`: host address of each compiled instruction (pc, name, code word).
 - ARM64 IOP recompiler (`pcsx2/arm64/iR3000A.cpp`, experimental): blocks up to a jump, branch, SYSCALL or
   BREAK compiled into calls of the IOP interpreter's handlers (integer ALU, shift and HI/LO move ops
   native), run in the interpreter's loop, so the IOP cycles and state equal the IOP interpreter's. A
