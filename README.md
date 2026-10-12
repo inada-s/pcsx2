@@ -69,10 +69,10 @@ Everything is on only for the one game build it was made for; any other disc run
   interpreter itself is upstream's): runs of pairs up to a branch delay slot become native traces
   whose stall and pipeline-flush decisions are worked out at compile time per pipeline state at
   entry; pairs with E/D/T bits or XGKICK run through the interpreter. Upper ADD/SUB/MUL/MADD/MSUB
-  (all A/bc/i/q forms but ADDi; not Fd = 0) are NEON code with MAC/status flags when VU0 overflow
+  (all A/bc/i/q forms but ADDi; not Fd = 0) and OPMULA/OPMSUB are NEON code with MAC/status flags when VU0 overflow
   clamping is on; upper MAX/MINI/FTOI/ITOF/ABS/CLIP, lower MOVE/LQ/SQ/LQI/LQD/SQI/SQD, integer
   ALU, ILW/ISW(R), MFIR/MTIR/MR32/MFP, flag ops, branches and (with clamping) DIV/SQRT/RSQRT and EFU ops but EATAN/EEXP/ESIN are native too; other ops (EATAN/EEXP/ESIN,
-  OPMULA/OPMSUB, the remaining FMAC forms) call the interpreter handlers; the FDIV/EFU pipe entries are native. TPC, cycle and code
+  the remaining FMAC forms) call the interpreter handlers; the FDIV/EFU pipe entries are native. TPC, cycle and code
   are stored only before a handler call that may read them and at trace exit; so are the FMAC
   pipe positions and count (tracked at compile time from the read position at entry). A trace re-reads its code only after a
   VU1 micro memory write (`InterpVU1::Clear`) or reset. A trace keeps its pipeline state at exit
@@ -84,9 +84,9 @@ Everything is on only for the one game build it was made for; any other disc run
   state compared with the real one (log `VU1 trace check`), unset = traces.
   Env `PCSX2_VU1_JIT_MAP=<file>`: start address and kind of each emitted trace section (and the
   handler it calls), to attribute `sample` addresses in VU1 JIT code to per-step work.
-  Env `PCSX2_VU1_JIT_SELFTEST=<n>`: at the first trace compile, each native DIV/SQRT/RSQRT and EFU
+  Env `PCSX2_VU1_JIT_SELFTEST=<n>`: at the first trace compile, each native DIV/SQRT/RSQRT, EFU and OPMULA/OPMSUB
   op and its handler run on the same <n> generated inputs; log `VU1 JIT selftest: <op> <n> checked,
-  <k> differ` (and the first inputs that differ). VU1 is restored afterwards.
+  <k> differ` (and the first inputs that differ; outputs Q, P, status, MAC, ACC, Fd). VU1 is restored afterwards.
 - ARM64 EE recompiler (`pcsx2/arm64/iR5900.cpp`, experimental): blocks compiled into calls of the
   interpreter's handlers, with the x86 recompiler's timing, so ARM64 and x86_64 peers count the same
   EE cycles. On when the EE recompiler setting is on (`EmuCore/CPU/Recompiler` `EnableEE`, the
@@ -102,7 +102,7 @@ Everything is on only for the one game build it was made for; any other disc run
   recompiler does: ADD/SUB/ADDI/DADD/DSUB/DADDI write their result on overflow (the interpreter skips
   the write). COP1 ADD.S/SUB.S/MUL.S/DIV.S/MOV.S/MFC1/MTC1 are native as the interpreter (FPU.cpp:
   fpuDouble inputs, cut add/sub operand, overflow/underflow clamps and flags, DIV.S in the divide
-  rounding mode). COP2 macro FMAC ops (VADD..VMSUBA, not VADDi) are native with the VU1 JIT's FMAC
+  rounding mode). COP2 macro FMAC ops (VADD..VMSUBA, not VADDi; VOPMULA/VOPMSUB) are native with the VU1 JIT's FMAC
   code on VU0 when VU0 runs no micro program (else the handler, which finishes it first).
   Branches jump to the next compiled block without returning.
   `ZDXSV_CYCLE_LOG=n` (docs/zdxsv/options.md) logs the EE/IOP cycle counters in a replay to compare
