@@ -91,7 +91,11 @@ Everything is on only for the one game build it was made for; any other disc run
   constant v1 adds 5650 cycles instead of the call; timeout loop skip (`recSkipTimeoutLoop`, only in a block that branches to its own start).
   Integer ALU, shift, HI/LO move and MOVZ/MOVN ops are emitted as native code, computed as the x86
   recompiler does: ADD/SUB/ADDI/DADD/DSUB/DADDI write their result on overflow (the interpreter skips
-  the write). Branches jump to the next compiled block without returning.
+  the write). COP1 ADD.S/SUB.S/MUL.S/DIV.S/MOV.S/MFC1/MTC1 are native as the interpreter (FPU.cpp:
+  fpuDouble inputs, cut add/sub operand, overflow/underflow clamps and flags, DIV.S in the divide
+  rounding mode). COP2 macro FMAC ops (VADD..VMSUBA, not VADDi) are native with the VU1 JIT's FMAC
+  code on VU0 when VU0 runs no micro program (else the handler, which finishes it first).
+  Branches jump to the next compiled block without returning.
   `ZDXSV_CYCLE_LOG=n` (docs/zdxsv/options.md) logs the EE/IOP cycle counters in a replay to compare
   two builds. Env `PCSX2_ARM64_EE_NATIVE=0`: every op calls its interpreter handler (A/B check).
   Events (counters, interrupts, IOP and VU runs) are tested only once the cycle target is reached, as
