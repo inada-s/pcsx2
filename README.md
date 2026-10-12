@@ -72,7 +72,7 @@ Everything is on only for the one game build it was made for; any other disc run
   (all A/bc/i/q forms but ADDi; not Fd = 0) are NEON code with MAC/status flags when VU0 overflow
   clamping is on; upper MAX/MINI/FTOI/ITOF/ABS/CLIP, lower MOVE/LQ/SQ/LQI/LQD/SQI/SQD, integer
   ALU, ILW/ISW(R), MFIR/MTIR/MR32/MFP, flag ops, branches and (with clamping) DIV/SQRT/RSQRT are native too; other ops (EFU,
-  OPMULA/OPMSUB, the remaining FMAC forms) call the interpreter handlers. TPC, cycle and code
+  OPMULA/OPMSUB, the remaining FMAC forms) call the interpreter handlers; the FDIV/EFU pipe entries are native. TPC, cycle and code
   are stored only before a handler call that may read them and at trace exit; so are the FMAC
   pipe positions and count (tracked at compile time from the read position at entry). A trace re-reads its code only after a
   VU1 micro memory write (`InterpVU1::Clear`) or reset. A trace keeps its pipeline state at exit
