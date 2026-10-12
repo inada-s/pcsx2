@@ -75,9 +75,11 @@ Everything is on only for the one game build it was made for; any other disc run
   OPMULA/OPMSUB, the remaining FMAC forms) call the interpreter handlers. TPC, cycle and code
   are stored only before a handler call that may read them and at trace exit; so are the FMAC
   pipe positions and count (tracked at compile time from the read position at entry). A trace re-reads its code only after a
-  VU1 micro memory write (`InterpVU1::Clear`) or reset. Same results as the interpreter. Env `PCSX2_VU1_JIT`: `0` = interpreter only, `check` = every trace is also run by the
-  interpreter from the same start and the VU1 registers and memory compared (log
-  `VU1 trace check`), unset = traces.
+  VU1 micro memory write (`InterpVU1::Clear`) or reset. A trace keeps its pipeline state at exit
+  (taken after its first run) and the traces that ran after it, so back-to-back traces skip the
+  state build and lookup. Same results as the interpreter. Env `PCSX2_VU1_JIT`: `0` = interpreter only, `check` = every trace is also run by the
+  interpreter from the same start and the VU1 registers and memory compared, and every kept exit
+  state compared with the real one (log `VU1 trace check`), unset = traces.
   Env `PCSX2_VU1_JIT_MAP=<file>`: start address and kind of each emitted trace section (and the
   handler it calls), to attribute `sample` addresses in VU1 JIT code to per-step work.
 - ARM64 EE recompiler (`pcsx2/arm64/iR5900.cpp`, experimental): blocks compiled into calls of the

@@ -140,6 +140,17 @@ struct VU1Trace
 	std::vector<VU1TraceStep> steps;
 	void (*code)() = nullptr; // native code, compiled on first run
 	u32 micro_gen = 0; // s_vu1_micro_gen when the steps were last compared with VU1.Micro
+	// Pipe state at trace exit. Like the stalls, it depends only on sig and the code, so it is
+	// taken once, after the first run: 0 = not yet, 1 = exit_sig, 2 = not representable.
+	u8 exit_known = 0;
+	VU1PipeSig exit_sig;
+	// Traces that ran next, looked up with exit_sig; valid while epoch == s_vu1_trace_epoch.
+	struct
+	{
+		u32 pc;
+		u32 epoch;
+		VU1Trace* t;
+	} succ[2] = {};
 };
 
 static constexpr u32 VU1_TRACE_VARIANTS = 4;
@@ -157,9 +168,21 @@ static VU1TraceSlot s_vu1_traces[VU1_PROGSIZE / 8];
 // steps with VU1.Micro once per generation instead of on every run.
 static u32 s_vu1_micro_gen = 1;
 
+// Bumped when a trace is freed: invalidates every VU1Trace::succ.
+static u32 s_vu1_trace_epoch = 1;
+
+// The trace that ran last, while nothing else has touched VU1 since its exit.
+static VU1Trace* s_vu1_prev;
+
 void _vu1TraceClear()
 {
 	s_vu1_micro_gen++;
+}
+
+// Called by InterpVU1::Execute before an interpreter step and at entry.
+void _vu1TraceForget()
+{
+	s_vu1_prev = nullptr;
 }
 
 static bool _vu1PipeSig(const VURegs* VU, VU1PipeSig* s)
@@ -1686,21 +1709,19 @@ static bool _vu1TraceCheck(VU1Trace& t)
 	return true;
 }
 
-// Runs one trace from VU1's TPC if it fits in the cycle budget of InterpVU1::Execute
-// (which checks the budget before each step). Returns false when the caller must step instead.
-bool _vu1TraceStep(u64 startcycles, u32 cycles)
+// The trace for VU1's TPC and the given pipe state (nullptr: taken from VU1), or nullptr when
+// the caller must step instead.
+static VU1Trace* _vu1TraceLookup(u32 pc, const VU1PipeSig* known)
 {
-	if (s_vu1_jit_mode == VU1JitMode::Off)
-		return false;
-	VU1.VI[REG_TPC].UL &= VU1_PROGMASK;
-	const u32 pc = VU1.VI[REG_TPC].UL;
 	const u32* ptr = reinterpret_cast<const u32*>(&VU1.Micro[pc]);
 	if (_vu1TraceEnds(ptr, _vu1DecodedAt(pc)))
-		return false;
+		return nullptr;
 
 	VU1PipeSig sig;
-	if (!_vu1PipeSig(&VU1, &sig))
-		return false;
+	if (known)
+		sig = *known;
+	else if (!_vu1PipeSig(&VU1, &sig))
+		return nullptr;
 
 	VU1TraceSlot& slot = s_vu1_traces[pc >> 3];
 	VU1Trace* t = nullptr;
@@ -1733,7 +1754,7 @@ bool _vu1TraceStep(u64 startcycles, u32 cycles)
 	{
 		std::unique_ptr<VU1Trace> nt = _vu1TraceCompile(pc, sig);
 		if (nt->steps.empty())
-			return false;
+			return nullptr;
 		auto it = std::find_if(std::begin(slot.variants), std::end(slot.variants),
 			[&sig](const std::unique_ptr<VU1Trace>& v) { return v && std::memcmp(&v->sig, &sig, sizeof(sig)) == 0; });
 		if (it == std::end(slot.variants))
@@ -1741,16 +1762,84 @@ bool _vu1TraceStep(u64 startcycles, u32 cycles)
 			it = std::begin(slot.variants) + slot.next;
 			slot.next = (slot.next + 1) % VU1_TRACE_VARIANTS;
 		}
+		if (*it)
+			s_vu1_trace_epoch++;
 		*it = std::move(nt);
 		t = it->get();
 		t->micro_gen = s_vu1_micro_gen;
+	}
+	return t;
+}
+
+// Runs one trace from VU1's TPC if it fits in the cycle budget of InterpVU1::Execute
+// (which checks the budget before each step). Returns false when the caller must step instead.
+bool _vu1TraceStep(u64 startcycles, u32 cycles)
+{
+	if (s_vu1_jit_mode == VU1JitMode::Off)
+		return false;
+	VU1.VI[REG_TPC].UL &= VU1_PROGMASK;
+	const u32 pc = VU1.VI[REG_TPC].UL;
+
+	// Straight after another trace the pipe state is that trace's exit_sig.
+	VU1Trace* const prev = s_vu1_prev;
+	s_vu1_prev = nullptr;
+	VU1Trace* t = nullptr;
+	if (prev)
+	{
+		for (const auto& s : prev->succ)
+		{
+			if (s.t && s.pc == pc && s.epoch == s_vu1_trace_epoch && s.t->micro_gen == s_vu1_micro_gen)
+			{
+				t = s.t;
+				break;
+			}
+		}
+		if (!t)
+		{
+			t = _vu1TraceLookup(pc, &prev->exit_sig);
+			if (!t)
+				return false;
+			const bool keep0 = prev->succ[0].t && prev->succ[0].epoch == s_vu1_trace_epoch;
+			auto& s = prev->succ[keep0 ? 1 : 0];
+			s.pc = pc;
+			s.epoch = s_vu1_trace_epoch;
+			s.t = t;
+		}
+	}
+	else
+	{
+		t = _vu1TraceLookup(pc, nullptr);
+		if (!t)
+			return false;
 	}
 
 	if ((VU1.cycle + t->last_start_rel - startcycles) >= cycles)
 		return false;
 
-	if (s_vu1_jit_mode == VU1JitMode::Check && _vu1TraceCheck(*t))
-		return true;
-	_vu1TraceExec(*t);
+	if (!(s_vu1_jit_mode == VU1JitMode::Check && _vu1TraceCheck(*t)))
+		_vu1TraceExec(*t);
+
+	if (t->exit_known == 0)
+	{
+		t->exit_known = _vu1PipeSig(&VU1, &t->exit_sig) ? 1 : 2;
+	}
+	else if (s_vu1_jit_mode == VU1JitMode::Check)
+	{
+		static u64 checked, failed;
+		VU1PipeSig s;
+		const u8 known = _vu1PipeSig(&VU1, &s) ? 1 : 2;
+		checked++;
+		if (known != t->exit_known || (known == 1 && std::memcmp(&s, &t->exit_sig, sizeof(s)) != 0))
+		{
+			failed++;
+			if (failed <= 20)
+				Console.Error("VU1 trace check: exit pipe state of pc %04x differs (%llu of %llu)",
+					pc, failed, checked);
+		}
+		if ((checked & (checked - 1)) == 0 && checked >= 1024)
+			Console.WriteLn("VU1 trace check: %llu exit pipe states checked, %llu differ", checked, failed);
+	}
+	if (t->exit_known == 1)
+		s_vu1_prev = t;
 	return true;
 }
