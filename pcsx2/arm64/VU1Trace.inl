@@ -620,9 +620,37 @@ static void _vuJitEmitClampNaN(const a64::VRegister& v)
 	armAsm->Mov(v.V16B(), a64::v25.V16B());
 }
 
-// Emits the upper op natively when it is in s_vu1_fmac_ops and the inputs are clamped
-// (vu0Overflow, as vuDouble tests): then no NaN can arise and the result does not depend on
-// the operand order the compiler picked. Returns false when the handler must be called.
+// DAZ on 4 lanes: exponent 0 -> signed 0.
+static void _vuJitEmitDaz(const a64::VRegister& v)
+{
+	armAsm->And(a64::v24.V16B(), v.V16B(), a64::v16.V16B());
+	armAsm->Cmeq(a64::v24.V4S(), a64::v24.V4S(), 0);
+	armAsm->And(a64::v25.V16B(), v.V16B(), a64::v17.V16B());
+	armAsm->Bit(v.V16B(), a64::v25.V16B(), a64::v24.V16B());
+}
+
+// r = a op b as x86 SSE (_vuX86Arith): r holds the ARM64 result. A NaN in a, else in b, passes
+// through quieted; any other NaN result becomes the x86 default NaN; FTZ. v5 = 0x00400000,
+// v6 = 0xffc00000.
+static void _vuJitEmitX86Nan(const a64::VRegister& r, const a64::VRegister& a, const a64::VRegister& b)
+{
+	armAsm->Bic(a64::v24.V16B(), r.V16B(), a64::v17.V16B());
+	armAsm->Cmgt(a64::v24.V4S(), a64::v24.V4S(), a64::v16.V4S());
+	armAsm->Bit(r.V16B(), a64::v6.V16B(), a64::v24.V16B());
+	armAsm->Bic(a64::v24.V16B(), b.V16B(), a64::v17.V16B());
+	armAsm->Cmgt(a64::v24.V4S(), a64::v24.V4S(), a64::v16.V4S());
+	armAsm->Orr(a64::v25.V16B(), b.V16B(), a64::v5.V16B());
+	armAsm->Bit(r.V16B(), a64::v25.V16B(), a64::v24.V16B());
+	armAsm->Bic(a64::v24.V16B(), a.V16B(), a64::v17.V16B());
+	armAsm->Cmgt(a64::v24.V4S(), a64::v24.V4S(), a64::v16.V4S());
+	armAsm->Orr(a64::v25.V16B(), a.V16B(), a64::v5.V16B());
+	armAsm->Bit(r.V16B(), a64::v25.V16B(), a64::v24.V16B());
+	_vuJitEmitDaz(r);
+}
+
+// Emits the upper op natively when it is in s_vu1_fmac_ops and vu0Overflow is set (as vuDouble
+// tests): the inputs are clamped, or a NaN follows the x86 rules (vuX86Fmac), so the result does
+// not depend on the operand order the compiler picked. Returns false when the handler must be called.
 static const VU1FmacDesc* _vuJitFmacDesc(const VU1FmacDesc* ops, size_t count, FnPtr_VuVoid f, u32 code)
 {
 	if (!EmuConfig.Cpu.Recompiler.vu0Overflow)
@@ -637,10 +665,12 @@ static const VU1FmacDesc* _vuJitFmacDesc(const VU1FmacDesc* ops, size_t count, F
 }
 
 // The FMAC op on the VURegs at rvu (VU0 or VU1: same layout), s_vu1_jit_fconst at rconst.
-// out_clamp: CHECK_VU_OVERFLOW of that VU; clamp: vuX86ClampOperands.
+// out_clamp: CHECK_VU_OVERFLOW of that VU; x86: vuX86Fmac of that VU; clamp: vuX86ClampOperands.
 static void _vuJitEmitFmacCore(const VU1FmacDesc* desc, u32 code, const a64::Register& rvu,
-	const a64::Register& rconst, bool out_clamp, u32 clamp)
+	const a64::Register& rconst, bool out_clamp, bool x86, u32 clamp)
 {
+	if (x86)
+		out_clamp = false;
 	const auto _vu1JitMem = [&rvu](s64 off) { return a64::MemOperand(rvu, off); };
 	const u32 ft = (code >> 16) & 0x1f, fs = (code >> 11) & 0x1f, fd = (code >> 6) & 0x1f;
 
@@ -671,19 +701,28 @@ static void _vuJitEmitFmacCore(const VU1FmacDesc* desc, u32 code, const a64::Reg
 		armAsm->Ldr(a64::s1, _vu1JitMem(off));
 		armAsm->Dup(a64::v1.V4S(), a64::v1.V4S(), 0);
 	}
-	if (clamp & 2)
-		_vuJitEmitClampNaN(a64::v0);
-	if (clamp & 1)
-		_vuJitEmitClampNaN(a64::v1);
-	_vu1JitEmitVuDouble(a64::v0);
-	_vu1JitEmitVuDouble(a64::v1);
+	// x86: the operands x86 does not clamp only get DAZ.
+	const auto prep = [x86](const a64::VRegister& v, bool c) {
+		if (c)
+			_vuJitEmitClampNaN(v);
+		if (c || !x86)
+			_vu1JitEmitVuDouble(v);
+		else
+			_vuJitEmitDaz(v);
+	};
+	prep(a64::v0, clamp & 2);
+	prep(a64::v1, clamp & 1);
 	const bool ternary = desc->op == VU1FmacOp::Madd || desc->op == VU1FmacOp::Msub;
 	if (ternary)
 	{
 		armAsm->Ldr(a64::q2, _vu1JitMem(_vu1Off(VU1.ACC)));
-		if (clamp & 4)
-			_vuJitEmitClampNaN(a64::v2);
-		_vu1JitEmitVuDouble(a64::v2);
+		prep(a64::v2, clamp & 4);
+	}
+	if (x86)
+	{
+		armAsm->Movi(a64::v5.V4S(), 0x40, a64::LSL, 16);
+		armAsm->Orr(a64::v6.V16B(), a64::v16.V16B(), a64::v17.V16B());
+		armAsm->Orr(a64::v6.V16B(), a64::v6.V16B(), a64::v5.V16B());
 	}
 	switch (desc->op)
 	{
@@ -691,13 +730,28 @@ static void _vuJitEmitFmacCore(const VU1FmacDesc* desc, u32 code, const a64::Reg
 		case VU1FmacOp::Sub: armAsm->Fsub(a64::v3.V4S(), a64::v0.V4S(), a64::v1.V4S()); break;
 		case VU1FmacOp::Mul: armAsm->Fmul(a64::v3.V4S(), a64::v0.V4S(), a64::v1.V4S()); break;
 		case VU1FmacOp::Madd:
-			armAsm->Fmul(a64::v3.V4S(), a64::v0.V4S(), a64::v1.V4S());
-			armAsm->Fadd(a64::v3.V4S(), a64::v2.V4S(), a64::v3.V4S());
-			break;
 		case VU1FmacOp::Msub:
 			armAsm->Fmul(a64::v3.V4S(), a64::v0.V4S(), a64::v1.V4S());
-			armAsm->Fsub(a64::v3.V4S(), a64::v2.V4S(), a64::v3.V4S());
+			if (x86)
+			{
+				_vuJitEmitX86Nan(a64::v3, a64::v0, a64::v1);
+				armAsm->Mov(a64::v0.V16B(), a64::v3.V16B());
+			}
+			if (desc->op == VU1FmacOp::Madd)
+				armAsm->Fadd(a64::v3.V4S(), a64::v2.V4S(), a64::v3.V4S());
+			else
+				armAsm->Fsub(a64::v3.V4S(), a64::v2.V4S(), a64::v3.V4S());
 			break;
+	}
+	if (x86)
+	{
+		// x86 MADD to Fd adds ACC to the product; MADDA and MSUB* put ACC first.
+		if (!ternary)
+			_vuJitEmitX86Nan(a64::v3, a64::v0, a64::v1);
+		else if (desc->op == VU1FmacOp::Madd && !desc->acc)
+			_vuJitEmitX86Nan(a64::v3, a64::v0, a64::v2);
+		else
+			_vuJitEmitX86Nan(a64::v3, a64::v2, a64::v0);
 	}
 
 	// VU_MAC_UPDATE: an enabled lane's 4 MAC bits depend on its result only, others are cleared.
@@ -714,8 +768,11 @@ static void _vuJitEmitFmacCore(const VU1FmacDesc* desc, u32 code, const a64::Reg
 	armAsm->Orr(a64::v28.V16B(), a64::v28.V16B(), a64::v29.V16B());
 	armAsm->And(a64::v29.V16B(), a64::v25.V16B(), a64::v21.V16B());
 	armAsm->Orr(a64::v28.V16B(), a64::v28.V16B(), a64::v29.V16B());
-	armAsm->And(a64::v29.V16B(), a64::v24.V16B(), a64::v22.V16B());
-	armAsm->Orr(a64::v28.V16B(), a64::v28.V16B(), a64::v29.V16B());
+	if (!x86) // x86 mVUupdateFlags never sets O (U cannot occur after FTZ)
+	{
+		armAsm->And(a64::v29.V16B(), a64::v24.V16B(), a64::v22.V16B());
+		armAsm->Orr(a64::v28.V16B(), a64::v28.V16B(), a64::v29.V16B());
+	}
 	// OPMULA/OPMSUB write x, y, z whatever the dest bits and leave the w MAC bits as they are.
 	const bool op = desc->bc == VU1_BC_OP;
 	const u32 lanes = op ? 0xe : (code >> 21) & 0xf; // bit 3 = x
@@ -769,7 +826,7 @@ static bool _vu1JitEmitFmac(FnPtr_VuVoid f, u32 code)
 	const VU1FmacDesc* desc = _vuJitFmacDesc(s_vu1_fmac_ops, std::size(s_vu1_fmac_ops), f, code);
 	if (!desc)
 		return false;
-	_vuJitEmitFmacCore(desc, code, s_vu1_jit_rvu, a64::x21, EmuConfig.Cpu.Recompiler.vu1Overflow,
+	_vuJitEmitFmacCore(desc, code, s_vu1_jit_rvu, a64::x21, EmuConfig.Cpu.Recompiler.vu1Overflow, vuX86Fmac(1),
 		vuX86ClampOperands(code, 1, false));
 	return true;
 }
@@ -815,7 +872,7 @@ void vu0MacroEmit(u32 code, const a64::Register& rvu)
 	armAsm->Mov(a64::w0, code);
 	armAsm->Str(a64::w0, mem(_vu1Off(VU1.code)));
 	armMoveAddressToReg(a64::x1, s_vu1_jit_fconst);
-	_vuJitEmitFmacCore(_vu0MacroDesc(code), code, rvu, a64::x1, EmuConfig.Cpu.Recompiler.vu0Overflow,
+	_vuJitEmitFmacCore(_vu0MacroDesc(code), code, rvu, a64::x1, EmuConfig.Cpu.Recompiler.vu0Overflow, vuX86Fmac(0),
 		vuX86ClampOperands(code, 0, true));
 	armAsm->Ldr(a64::w1, mem(_vu1Off(VU1.statusflag)));
 	armAsm->And(a64::w1, a64::w1, 0xf);
