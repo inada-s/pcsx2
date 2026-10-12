@@ -1088,6 +1088,101 @@ static bool _vu1JitEmitLowerInt(FnPtr_VuVoid f, u32 code)
 			_vu1JitEmitLink(it);
 		_vu1JitEmitSetBranch();
 	}
+	else if (f == VU1MI_MFP)
+	{
+		if (ft == 0 || xyzw == 0)
+			return true;
+		armAsm->Ldr(a64::w0, _vu1JitVI(REG_P));
+		armAsm->Dup(a64::v0.V4S(), a64::w0);
+		_vu1JitEmitStoreVF(ft, xyzw);
+	}
+	else if (f == VU1MI_FSAND || f == VU1MI_FSEQ || f == VU1MI_FSOR)
+	{
+		if (it == 0)
+			return true;
+		const u32 imm12 = (((code >> 21) & 1) << 11) | (code & 0x7ff);
+		armAsm->Ldrh(a64::w0, _vu1JitVI(REG_STATUS_FLAG));
+		armAsm->And(a64::w0, a64::w0, 0xfff);
+		if (f == VU1MI_FSAND)
+		{
+			armAsm->And(a64::w0, a64::w0, imm12);
+		}
+		else if (f == VU1MI_FSOR)
+		{
+			armAsm->Orr(a64::w0, a64::w0, imm12);
+		}
+		else
+		{
+			armAsm->Cmp(a64::w0, imm12);
+			armAsm->Cset(a64::w0, a64::eq);
+		}
+		armAsm->Strh(a64::w0, _vu1JitVI(it));
+	}
+	else if (f == VU1MI_FSSET)
+	{
+		const u32 imm12 = (((code >> 21) & 1) << 11) | (code & 0x7ff);
+		armAsm->Ldr(a64::w0, _vu1JitMem(_vu1Off(VU1.statusflag)));
+		armAsm->And(a64::w0, a64::w0, 0x3f);
+		if (imm12 & 0xfc0)
+			armAsm->Orr(a64::w0, a64::w0, imm12 & 0xfc0);
+		armAsm->Str(a64::w0, _vu1JitMem(_vu1Off(VU1.statusflag)));
+	}
+	else if (f == VU1MI_FMAND || f == VU1MI_FMEQ || f == VU1MI_FMOR)
+	{
+		if (it == 0)
+			return true;
+		armAsm->Ldrh(a64::w0, _vu1JitVI(REG_MAC_FLAG));
+		armAsm->Ldrh(a64::w1, _vu1JitVI(is));
+		if (f == VU1MI_FMAND)
+		{
+			armAsm->And(a64::w0, a64::w0, a64::w1);
+		}
+		else if (f == VU1MI_FMOR)
+		{
+			armAsm->Orr(a64::w0, a64::w0, a64::w1);
+		}
+		else
+		{
+			armAsm->Cmp(a64::w0, a64::w1);
+			armAsm->Cset(a64::w0, a64::eq);
+		}
+		armAsm->Strh(a64::w0, _vu1JitVI(it));
+	}
+	else if (f == VU1MI_FCAND || f == VU1MI_FCEQ || f == VU1MI_FCOR)
+	{
+		const u32 imm24 = code & 0xffffff;
+		armAsm->Ldr(a64::w0, _vu1JitVI(REG_CLIP_FLAG));
+		armAsm->And(a64::w0, a64::w0, 0xffffff);
+		if (f == VU1MI_FCAND)
+		{
+			armAsm->Tst(a64::w0, imm24);
+			armAsm->Cset(a64::w0, a64::ne);
+		}
+		else
+		{
+			if (f == VU1MI_FCOR)
+				armAsm->Orr(a64::w0, a64::w0, imm24);
+			armAsm->Cmp(a64::w0, f == VU1MI_FCOR ? 0xffffff : imm24);
+			armAsm->Cset(a64::w0, a64::eq);
+		}
+		armAsm->Strh(a64::w0, _vu1JitVI(1));
+	}
+	else if (f == VU1MI_FCSET)
+	{
+		armAsm->Mov(a64::w0, code & 0xffffff);
+		armAsm->Str(a64::w0, _vu1JitMem(_vu1Off(VU1.clipflag)));
+	}
+	else if (f == VU1MI_FCGET)
+	{
+		if (it == 0)
+			return true;
+		armAsm->Ldr(a64::w0, _vu1JitVI(REG_CLIP_FLAG));
+		armAsm->And(a64::w0, a64::w0, 0xfff);
+		armAsm->Strh(a64::w0, _vu1JitVI(it));
+	}
+	else if (f == VU1MI_WAITQ || f == VU1MI_WAITP)
+	{
+	}
 	else
 	{
 		return false;
