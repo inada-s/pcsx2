@@ -506,6 +506,7 @@ static __fi void VSyncStart(u64 sCycle)
 		Zdxsv::DeltaStateOnVsync();
 	if (Zdxsv::g_ggpo_enabled || Zdxsv::g_net_hook)
 		Zdxsv::GgpoOnVsync();
+	Zdxsv::EeOpTestOnVsync();
 
 	bool deferred = false;
 	if (EmuConfig.EmulationSpeed.LowLatencyVsync && Zdxsv::g_z_game)

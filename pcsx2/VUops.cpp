@@ -4157,9 +4157,16 @@ _vuRegsTables(VU1, VU1regs, FnPtr_VuRegsN)
 //  VU0macro (COP2)
 // --------------------------------------------------------------------------------------
 
+#ifdef ARCH_ARM64
+// x86 microVU keeps the D and I flags of the last DIV/SQRT/RSQRT through FMAC ops.
+static constexpr u32 VU0_MACRO_STATUS_KEEP = 0xFF0;
+#else
+static constexpr u32 VU0_MACRO_STATUS_KEEP = 0xFC0;
+#endif
+
 static __fi void SYNCMSFLAGS()
 {
-	VU0.VI[REG_STATUS_FLAG].UL = (VU0.VI[REG_STATUS_FLAG].UL & 0xFC0) | (VU0.statusflag & 0xF) | ((VU0.statusflag & 0xF) << 6);
+	VU0.VI[REG_STATUS_FLAG].UL = (VU0.VI[REG_STATUS_FLAG].UL & VU0_MACRO_STATUS_KEEP) | (VU0.statusflag & 0xF) | ((VU0.statusflag & 0xF) << 6);
 	VU0.VI[REG_MAC_FLAG].UL = VU0.macflag;
 }
 
@@ -4170,7 +4177,7 @@ static __fi void SYNCCLIPFLAG()
 
 static __fi void SYNCSTATUSFLAG()
 {
-	VU0.VI[REG_STATUS_FLAG].UL = (VU0.VI[REG_STATUS_FLAG].UL & 0xFC0) | (VU0.statusflag & 0xF) | ((VU0.statusflag & 0xF) << 6);
+	VU0.VI[REG_STATUS_FLAG].UL = (VU0.VI[REG_STATUS_FLAG].UL & VU0_MACRO_STATUS_KEEP) | (VU0.statusflag & 0xF) | ((VU0.statusflag & 0xF) << 6);
 }
 
 static __fi void SYNCFDIV()

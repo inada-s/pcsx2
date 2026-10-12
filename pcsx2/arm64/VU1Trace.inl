@@ -820,7 +820,7 @@ void vu0MacroEmit(u32 code, const a64::Register& rvu)
 	armAsm->Ldr(a64::w1, mem(_vu1Off(VU1.statusflag)));
 	armAsm->And(a64::w1, a64::w1, 0xf);
 	armAsm->Ldr(a64::w2, mem(_vu1Off(VU1.VI[REG_STATUS_FLAG].UL)));
-	armAsm->And(a64::w2, a64::w2, 0xfc0);
+	armAsm->And(a64::w2, a64::w2, VU0_MACRO_STATUS_KEEP);
 	armAsm->Orr(a64::w2, a64::w2, a64::w1);
 	armAsm->Orr(a64::w2, a64::w2, a64::Operand(a64::w1, a64::LSL, 6));
 	armAsm->Str(a64::w2, mem(_vu1Off(VU1.VI[REG_STATUS_FLAG].UL)));
