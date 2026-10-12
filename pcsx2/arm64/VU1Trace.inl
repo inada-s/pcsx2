@@ -1426,6 +1426,71 @@ static bool _vu1JitEmitFdivOp(FnPtr_VuVoid f, u32 code)
 	return true;
 }
 
+// EFU ops but EATAN/EEXP/ESIN as _vuESADD.._vuERSQRT with vu0Overflow: the same single precision
+// ops in the same order (ERCPR divides in double, as its 1.0 / p does). P is written here; the pipe
+// entry follows. Returns false when the handler must be called.
+static bool _vu1JitEmitEfuOp(FnPtr_VuVoid f, u32 code)
+{
+	const bool sum3 = f == VU1MI_ESADD || f == VU1MI_ERSADD || f == VU1MI_ELENG || f == VU1MI_ERLENG;
+	const bool one = f == VU1MI_ERCPR || f == VU1MI_ESQRT || f == VU1MI_ERSQRT;
+	if ((!sum3 && !one && f != VU1MI_ESUM) || !EmuConfig.Cpu.Recompiler.vu0Overflow)
+		return false;
+	const u32 fs = (code >> 11) & 0x1f;
+	const u32 fsf = (code >> 21) & 3;
+	const a64::VRegister s[4] = {a64::s0, a64::s1, a64::s2, a64::s3};
+	const u32 n = one ? 1 : sum3 ? 3 : 4;
+	for (u32 i = 0; i < n; i++)
+	{
+		armAsm->Ldr(a64::w0, _vu1JitMem(_vu1Off(VU1.VF[fs].UL[one ? fsf : i])));
+		_vu1JitEmitVuDoubleW(a64::w0);
+		armAsm->Fmov(s[i], a64::w0);
+	}
+	if (sum3)
+	{
+		// x*x + y*y + z*z
+		armAsm->Fmul(a64::s0, a64::s0, a64::s0);
+		armAsm->Fmul(a64::s1, a64::s1, a64::s1);
+		armAsm->Fadd(a64::s0, a64::s0, a64::s1);
+		armAsm->Fmul(a64::s2, a64::s2, a64::s2);
+		armAsm->Fadd(a64::s0, a64::s0, a64::s2);
+	}
+	else if (!one)
+	{
+		armAsm->Fadd(a64::s0, a64::s0, a64::s1);
+		armAsm->Fadd(a64::s0, a64::s0, a64::s2);
+		armAsm->Fadd(a64::s0, a64::s0, a64::s3);
+	}
+	a64::Label done;
+	if (f == VU1MI_ELENG || f == VU1MI_ERLENG || f == VU1MI_ESQRT || f == VU1MI_ERSQRT)
+	{
+		// if (p >= 0) p = sqrt(p): lt also holds for unordered.
+		armAsm->Fcmp(a64::s0, 0.0);
+		armAsm->B(&done, a64::lt);
+		armAsm->Fsqrt(a64::s0, a64::s0);
+	}
+	if (f == VU1MI_ERSADD || f == VU1MI_ERLENG || f == VU1MI_ERSQRT || f == VU1MI_ERCPR)
+	{
+		// if (p != 0) p = 1 / p
+		armAsm->Fcmp(a64::s0, 0.0);
+		armAsm->B(&done, a64::eq);
+		if (f == VU1MI_ERCPR)
+		{
+			armAsm->Fcvt(a64::d0, a64::s0);
+			armAsm->Fmov(a64::d1, 1.0);
+			armAsm->Fdiv(a64::d0, a64::d1, a64::d0);
+			armAsm->Fcvt(a64::s0, a64::d0);
+		}
+		else
+		{
+			armAsm->Fmov(a64::s1, 1.0f);
+			armAsm->Fdiv(a64::s0, a64::s1, a64::s0);
+		}
+	}
+	armAsm->Bind(&done);
+	armAsm->Str(a64::s0, _vu1JitMem(_vu1Off(VU1.p.UL)));
+	return true;
+}
+
 static void _vu1JitEmitLower(FnPtr_VuVoid f, u32 code)
 {
 	const u32 xyzw = (code >> 21) & 0xf;
@@ -1471,7 +1536,7 @@ static void _vu1JitEmitLower(FnPtr_VuVoid f, u32 code)
 			}
 		}
 	}
-	else if (!_vu1JitEmitFdivOp(f, code) && !_vu1JitEmitLowerInt(f, code))
+	else if (!_vu1JitEmitFdivOp(f, code) && !_vu1JitEmitEfuOp(f, code) && !_vu1JitEmitLowerInt(f, code))
 	{
 		_vu1JitEmitHandler(f);
 	}
@@ -1561,8 +1626,104 @@ static void _vu1JitEmitChain(VU1Trace& t)
 	armAsm->Bind(&out);
 }
 
+// PCSX2_VU1_JIT_SELFTEST=<n>: at the first trace compile, run each native FDIV/EFU op and its
+// handler on the same <n> generated inputs (special exponents, zeros, random bits) and log the
+// count whose Q, P or status flag differ. VU1 is restored afterwards.
+static void _vu1JitSelfTest()
+{
+	static const u32 count = [] {
+		const char* env = std::getenv("PCSX2_VU1_JIT_SELFTEST");
+		return env ? static_cast<u32>(std::strtoul(env, nullptr, 10)) : 0u;
+	}();
+	static bool done = false;
+	if (!count || done)
+		return;
+	done = true;
+
+	static const struct { FnPtr_VuVoid f; const char* name; } ops[] = {
+		{VU1MI_DIV, "DIV"}, {VU1MI_SQRT, "SQRT"}, {VU1MI_RSQRT, "RSQRT"}, {VU1MI_ESADD, "ESADD"},
+		{VU1MI_ERSADD, "ERSADD"}, {VU1MI_ELENG, "ELENG"}, {VU1MI_ERLENG, "ERLENG"}, {VU1MI_ESUM, "ESUM"},
+		{VU1MI_ERCPR, "ERCPR"}, {VU1MI_ESQRT, "ESQRT"}, {VU1MI_ERSQRT, "ERSQRT"}};
+	u32 rng = 0x12345678;
+	const auto next = [&rng] {
+		rng ^= rng << 13;
+		rng ^= rng >> 17;
+		rng ^= rng << 5;
+		return rng;
+	};
+	const auto value = [&next] {
+		const u32 r = next(), m = next();
+		switch (r & 7)
+		{
+			case 0: return m & 0x807fffff; // exponent 0
+			case 1: return m | 0x7f800000; // exponent 255
+			case 2: return m & 0x80000000; // +-0
+			case 3: return (m & 0x807fffff) | ((r >> 3 & 1) ? 0x7f000000 : 0x00800000); // exponent 254 or 1
+			case 4: return (m & 0x807fffff) | 0x3f800000; // [1, 2)
+			default: return m;
+		}
+	};
+
+	const std::unique_ptr<VURegs> saved = std::make_unique<VURegs>(VU1);
+	for (const auto& op : ops)
+	{
+		// One function per fsf/ftf (code bits 21-24); fs = 1, ft = 2.
+		void (*fns[16])();
+		for (u32 sel = 0; sel < 16; sel++)
+		{
+			const u32 code = (sel << 21) | (2 << 16) | (1 << 11);
+			armSetAsmPtr(s_vu1_jit_ptr, s_vu1_jit_end - s_vu1_jit_ptr, &s_vu1_jit_pool);
+			u8* const fn = armStartBlock();
+			armAsm->Stp(a64::x29, a64::lr, a64::MemOperand(a64::sp, -16, a64::PreIndex));
+			armAsm->Stp(a64::x19, a64::x20, a64::MemOperand(a64::sp, -16, a64::PreIndex));
+			armMoveAddressToReg(s_vu1_jit_rvu, &VU1);
+			if (!_vu1JitEmitFdivOp(op.f, code) && !_vu1JitEmitEfuOp(op.f, code))
+				armEmitCall(reinterpret_cast<const void*>(op.f));
+			armAsm->Ldp(a64::x19, a64::x20, a64::MemOperand(a64::sp, 16, a64::PostIndex));
+			armAsm->Ldp(a64::x29, a64::lr, a64::MemOperand(a64::sp, 16, a64::PostIndex));
+			armAsm->Ret();
+			s_vu1_jit_ptr = armEndBlock();
+			fns[sel] = reinterpret_cast<void (*)()>(fn);
+		}
+		u32 failed = 0;
+		for (u32 i = 0; i < count; i++)
+		{
+			const u32 sel = next() & 15;
+			for (u32 j = 0; j < 4; j++)
+			{
+				VU1.VF[1].UL[j] = value();
+				VU1.VF[2].UL[j] = value();
+			}
+			const u32 status = next(), q = next(), p = next();
+			VU1.code = (sel << 21) | (2 << 16) | (1 << 11);
+			VU1.statusflag = status;
+			VU1.q.UL = q;
+			VU1.p.UL = p;
+			op.f();
+			const u32 want[3] = {VU1.q.UL, VU1.p.UL, VU1.statusflag};
+			VU1.statusflag = status;
+			VU1.q.UL = q;
+			VU1.p.UL = p;
+			fns[sel]();
+			const u32 got[3] = {VU1.q.UL, VU1.p.UL, VU1.statusflag};
+			if (std::memcmp(want, got, sizeof(want)) != 0 && failed++ < 3)
+				Console.WriteLn("VU1 JIT selftest: %s fs %08x %08x %08x %08x ft %08x %08x %08x %08x sel %u: "
+								"q/p/status %08x %08x %08x, JIT %08x %08x %08x",
+					op.name, VU1.VF[1].UL[0], VU1.VF[1].UL[1], VU1.VF[1].UL[2], VU1.VF[1].UL[3], VU1.VF[2].UL[0],
+					VU1.VF[2].UL[1], VU1.VF[2].UL[2], VU1.VF[2].UL[3], sel, want[0], want[1], want[2], got[0],
+					got[1], got[2]);
+		}
+		Console.WriteLn("VU1 JIT selftest: %s %u checked, %u differ", op.name, count, failed);
+	}
+	VU1 = *saved;
+	_vu1JitReset();
+}
+
 static void _vu1JitCompile(VU1Trace& t)
 {
+	if (!s_vu1_jit_start)
+		_vu1JitReset();
+	_vu1JitSelfTest();
 	if (!s_vu1_jit_start ||
 		static_cast<size_t>(s_vu1_jit_end - s_vu1_jit_ptr) < t.steps.size() * VU1_JIT_MAX_STEP_CODE + 512)
 		_vu1JitReset();
