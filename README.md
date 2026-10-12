@@ -92,6 +92,9 @@ Everything is on only for the one game build it was made for; any other disc run
   in use (x86 microVU, ARM64 traces or interpreter) on <n> generated inputs at the first VU1 micro
   program start, and writes inputs and outputs to <file>. `tests/zdxsv/vu1_optest_cmp.py` compares
   the files of two builds (x86_64 vs ARM64) op by op. Details: [options](docs/zdxsv/options.md).
+- ARM64 VU interpreter (`pcsx2/VUops.cpp`, `ARCH_ARM64`) and VU1 recompiler: DIV/SQRT/RSQRT and the
+  EFU ops compute as x86 microVU does (unclamped inputs, its op order, flags and NaN), so ARM64 and
+  x86_64 peers get the same Q, P and D/I flags; FDIV D/I also set DS/IS. x86_64 builds unchanged.
 - ARM64 EE recompiler (`pcsx2/arm64/iR5900.cpp`, experimental): blocks compiled into calls of the
   interpreter's handlers, with the x86 recompiler's timing, so ARM64 and x86_64 peers count the same
   EE cycles. On when the EE recompiler setting is on (`EmuCore/CPU/Recompiler` `EnableEE`, the
