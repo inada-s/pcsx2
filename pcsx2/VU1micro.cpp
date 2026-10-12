@@ -65,6 +65,7 @@ void vu1ExecMicro(u32 addr)
 	}
 	static int count = 0;
 	vu1Finish(false);
+	Zdxsv::VuOpTest();
 	if (Zdxsv::g_rerun_vu1_skip)
 	{
 		// as if the microprogram ended at once

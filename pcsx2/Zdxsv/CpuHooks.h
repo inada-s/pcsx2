@@ -16,6 +16,8 @@ namespace Zdxsv
 	extern u64 g_rerun_vu1_ticks; // Common::Timer ticks in VU1 microcode during rerun frames (microVU.cpp)
 	// this rerun frame starts no VU1 microprogram (vu1ExecMicro; Ggpo.cpp AdvanceFrame, ZDXSV_RERUN_VU1)
 	extern bool g_rerun_vu1_skip;
+	// ZDXSV_VU1_OPTEST: once, at the first VU1 micro program start (VuOpTest.cpp)
+	void VuOpTest();
 	// GGPO, a replay or ZDXSV_DELTA_TEST in this VM: the MTVU speedhack stays off (VMManager::LoadCoreSettings)
 	extern bool g_mtvu_off;
 	// live spectating (Ggpo.cpp LivePace, CPU thread): microseconds added to the frame limiter's period at nominal
