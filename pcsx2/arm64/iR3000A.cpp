@@ -1,42 +1,58 @@
 // SPDX-FileCopyrightText: 2002-2026 PCSX2 Dev Team
 // SPDX-License-Identifier: GPL-3.0+
 
-// ARM64 IOP recompiler.
-// A block runs from its pc up to a jump, branch, SYSCALL or BREAK (its handler runs the delay slot and
-// iopEventTest) or the end of the 4 KB page. Each instruction is compiled into the state updates execI
-// makes (psxRegs.code, psxRegs.pc, psxRegs.cycle) and a call of its interpreter handler, and the blocks
-// run in the interpreter's loop (psxIntExecuteBlocks), so the IOP computes exactly what the interpreter
-// computes.
+// ARM64 IOP recompiler with the timing of the x86 IOP recompiler (x86/iR3000A.cpp), so that ARM64 and x86
+// hosts compute the same IOP cycles.
+// Blocks as x86 iopRecRecompile: from their pc up to a jump or branch and its delay slot, up to a block
+// already compiled, or up to the target of a backward branch inside the block. Each instruction is 1 cycle,
+// MULT/MULTU +7, DIV/DIVU +40, and psxRegs.cycle is updated at the block end only. A jump or branch (taken
+// or not) adds the cycles, returns to the EE when iopCycleEE <= 0, else tests events once the cycle reaches
+// iopNextEventCycle; a nop loop jumping back to its start fast-forwards to the next event. Other block ends
+// and SYSCALL/BREAK add the cycles without a test. Integer ALU ops are inline, the others calls of the
+// interpreter's handlers.
 
 #include "Common.h"
+#include "IopBios.h"
+#include "IopDma.h"
 #include "IopHw.h"
 #include "IopMem.h"
 #include "R3000A.h"
 #include "arm64/AsmHelpers.h"
+#include "DebugTools/SymbolGuardian.h"
 
 #include "common/Console.h"
 
-#include <cstdlib>
 #include <algorithm>
+#include <cstdlib>
 #include <cstring>
+#include <map>
 #include <vector>
 
 namespace a64 = vixl::aarch64;
 
-// Returns true for an idle loop (j to itself, nop in the delay slot).
-using BlockFn = bool (*)();
+// How a block ended (bits 32+ of a block's return value, its cycles in bits 0-31).
+enum BlockEnd : u64
+{
+	END_PLAIN, // add the cycles
+	END_TEST, // add the cycles, then the timeslice and event tests
+	END_FF, // END_TEST, or the nop loop fast-forward when the loop jumped back to its start
+	END_NONE, // an IRX import HLE function returned from the import stub: no cycles
+};
+
+using BlockFn = u64 (*)();
 
 static constexpr u32 POOL_SIZE = 0x100000;
 static constexpr u32 MAX_BLOCK_CODE = 0x20000;
+static constexpr u32 MAX_BLOCK_INSTS = 0x800;
 static constexpr u32 PAGE_ENTRIES = 0x10000 / 4;
 
-// Blocks by virtual 64 KB page (allocated on first use): the pc a block stores is the one it ran from.
+// Blocks by physical 64 KB page (allocated on first use), shared by the RAM mirrors as x86 psxRecLUT.
 static BlockFn* s_lut[0x10000];
 static std::vector<u32> s_pages;
-// One bit per RAM word that is code of a block: a write there clears the blocks of its 4 KB page.
-static u32 s_code_bits[Ps2MemSize::TotalIopRam / 4 / 32];
-// Set by a clear: the running block ends after its store.
-static bool s_cleared;
+// x86 recBlocks: start (pc & 0x1fffffff) -> size in words, for the clears.
+static std::map<u32, u32> s_blocks;
+// x86 g_psxMaxRecMem: writes at or above it clear nothing.
+static u32 s_max_rec_mem;
 
 static ArmConstantPool s_pool;
 static u8* s_code_ptr;
@@ -52,11 +68,35 @@ static bool Compilable(u32 pc)
 	return !(pc & 3) && (InRam(pc) || (pc & 0x1fffffff) >= 0x1fc00000);
 }
 
+static BlockFn* Entry(u32 pc, bool alloc)
+{
+	const u32 phys = InRam(pc) ? (pc & (Ps2MemSize::ExposedIopRam - 1)) : (pc & 0x1fffffff);
+	BlockFn*& page = s_lut[phys >> 16];
+	if (!page)
+	{
+		if (!alloc)
+			return nullptr;
+		page = static_cast<BlockFn*>(std::calloc(PAGE_ENTRIES, sizeof(BlockFn)));
+		s_pages.push_back(phys >> 16);
+	}
+	return &page[(phys & 0xffff) >> 2];
+}
+
+// As x86: code outside RAM and ROM counts as compiled (a block ends before it).
+static bool Compiled(u32 pc)
+{
+	if (!Compilable(pc))
+		return true;
+	BlockFn* const entry = Entry(pc, false);
+	return entry && *entry;
+}
+
 static void ClearAllBlocks()
 {
 	for (u32 page : s_pages)
 		std::memset(s_lut[page], 0, PAGE_ENTRIES * sizeof(BlockFn));
-	std::memset(s_code_bits, 0, sizeof(s_code_bits));
+	s_blocks.clear();
+	s_max_rec_mem = 0;
 
 	s_pool.Init(SysMemory::GetIOPRec(), POOL_SIZE);
 	s_code_ptr = SysMemory::GetIOPRec() + POOL_SIZE;
@@ -75,6 +115,7 @@ static void recShutdown()
 		s_lut[page] = nullptr;
 	}
 	s_pages.clear();
+	s_blocks.clear();
 	s_pool.Destroy();
 }
 
@@ -83,63 +124,103 @@ static void recReset()
 	ClearAllBlocks();
 }
 
-// The blocks of a 4 KB RAM page (offset in RAM), at all the virtual addresses of that RAM.
-static void ClearRamPage(u32 offset)
+// x86 psxRecClearMem: a write to a block start clears that block and the blocks overlapping it; a write
+// elsewhere leaves the blocks as compiled. Returns the bytes to skip.
+static u32 ClearMem(u32 mem)
 {
-	const u32 mask = Ps2MemSize::ExposedIopRam - 1;
-	for (u32 page : s_pages)
+	if (mem >= s_max_rec_mem || !Compilable(mem) || !Compiled(mem))
+		return 4;
+	const u32 pc = mem & 0x1fffffff;
+	auto it = s_blocks.upper_bound(pc);
+	if (it == s_blocks.begin())
+		return 4;
+	--it;
+	if (pc >= it->first + it->second * 4)
+		return 4;
+
+	u32 lower = pc, upper = pc + 4;
+	while (it != s_blocks.begin())
 	{
-		const u32 base = page << 16;
-		if (InRam(base) && (base & mask) == (offset & ~0xffffu))
-			std::memset(&s_lut[page][(offset & 0xf000) >> 2], 0, 0x1000 / 4 * sizeof(BlockFn));
+		const auto prev = std::prev(it);
+		if (prev->first + prev->second * 4 <= lower)
+			break;
+		lower = std::min(lower, prev->first);
+		it = prev;
 	}
-	std::memset(&s_code_bits[offset >> 7], 0, 0x1000 / 4 / 8);
-	s_cleared = true;
+	const auto first = it;
+	for (; it != s_blocks.end() && it->first < upper; ++it)
+	{
+		lower = std::min(lower, it->first);
+		upper = std::max(upper, it->first + it->second * 4);
+	}
+	s_blocks.erase(first, it);
+
+	for (u32 addr = lower; addr < upper; addr += 4)
+	{
+		if (BlockFn* const entry = Entry(addr, false))
+			*entry = nullptr;
+	}
+	return upper - pc;
 }
 
-// Size in words. Called with virtual and with physical addresses.
+// Size in words.
 static void recClear(u32 addr, u32 size)
 {
-	if (!InRam(addr))
-		return;
-	const u32 mask = Ps2MemSize::ExposedIopRam - 1;
-	for (u32 i = 0; i < size;)
-	{
-		const u32 offset = (addr + i * 4) & mask & ~3u;
-		const u32 word = offset >> 2;
-		if ((word & 31) == 0 && size - i >= 32 && s_code_bits[word >> 5] == 0)
-		{
-			i += 32;
-			continue;
-		}
-		if (s_code_bits[word >> 5] & (1u << (word & 31)))
-		{
-			ClearRamPage(offset & ~0xfffu);
-			i += (0x1000 - (offset & 0xfff)) / 4;
-			continue;
-		}
-		i++;
-	}
+	for (u32 mem = addr; mem < addr + size * 4;)
+		mem += ClearMem(mem);
 }
 
 static void IrxHack()
 {
-	// As execI at pc 0x1630.
+	// As x86 iopRecRecompile for a block at 0x1630.
 	if (EmuConfig.CurrentIRX.length() > 3 && iopMemRead32(0x20018) == 0x1F)
 		iopMemWrite32(0x20094, 0xbffc0000);
 }
 
-static bool EndsBlock(u32 code)
+// 1 = JR/JALR, 2 = J/JAL, 3 = conditional branch (the ones x86 iopRecRecompile ends a block at).
+static int BranchKind(u32 code)
 {
 	const u32 op = code >> 26;
-	const u32 funct = code & 0x3f;
-	return (op >= 1 && op <= 7) || (op == 0 && (funct == 8 || funct == 9 || funct == 12 || funct == 13));
+	if (op == 0)
+		return ((code & 0x3f) == 8 || (code & 0x3f) == 9) ? 1 : 0;
+	if (op == 1)
+	{
+		const u32 rt = (code >> 16) & 31;
+		return (rt == 0 || rt == 1 || rt == 16 || rt == 17) ? 3 : 0;
+	}
+	if (op == 2 || op == 3)
+		return 2;
+	return op <= 7 ? 3 : 0;
 }
 
-static bool IsStore(u32 code)
+static u32 Penalty(u32 code)
 {
-	const u32 op = code >> 26;
-	return (op >= 0x28 && op <= 0x2e) || op == 0x3a;
+	if (code >> 26)
+		return 0;
+	switch (code & 0x3f)
+	{
+		case 0x18: case 0x19: return 7; // MULT, MULTU
+		case 0x1a: case 0x1b: return 40; // DIV, DIVU
+		default: return 0;
+	}
+}
+
+// SYSCALL, BREAK: the handler moves the pc to the exception vector.
+static bool IsException(u32 code)
+{
+	return (code >> 26) == 0 && ((code & 0x3f) == 12 || (code & 0x3f) == 13);
+}
+
+// x86 psxRecompileIrxImport: ADDIU zero, zero, index in an IRX import stub calls the HLE function of that
+// import, which returns from the stub when it handles the call.
+static irxHLE IrxImportHle(u32 pc, u32 code)
+{
+	if ((code >> 16) != 0x2400)
+		return nullptr;
+	const u32 import_table = R3000A::irxImportTableAddr(pc);
+	if (!import_table)
+		return nullptr;
+	return R3000A::irxImportHLE(iopMemReadString(import_table + 12, 8), code & 0xffff);
 }
 
 static void (*Handler(u32 code))()
@@ -295,107 +376,199 @@ static bool EmitNative(const a64::Register& rregs, u32 code)
 	}
 }
 
-static bool IsIdleLoop(u32 pc)
+
+static const a64::Register& LoadGpr(const a64::Register& rregs, const a64::Register& r, u32 reg)
 {
-	const u32 code = iopMemRead32(pc);
-	return (code >> 26) == 2 && (((pc + 4) & 0xf0000000) | ((code & 0x03ffffff) << 2)) == pc && iopMemRead32(pc + 4) == 0;
+	if (reg == 0)
+		return a64::wzr;
+	armAsm->Ldr(r, a64::MemOperand(rregs, GprOffset(reg)));
+	return r;
+}
+
+static void StoreLink(const a64::Register& rregs, u32 reg, u32 pc)
+{
+	armAsm->Mov(a64::w9, pc + 8);
+	armAsm->Str(a64::w9, a64::MemOperand(rregs, GprOffset(reg)));
 }
 
 static BlockFn Compile(u32 startpc, BlockFn* entry)
 {
+	// As x86 iopRecRecompile, once per compile of a block at these pcs.
+	if (startpc == 0x890)
+		R3000SymbolGuardian.ClearIrxModules();
+	if (startpc == 0x1630)
+		IrxHack();
+	if (startpc == 0xbfc4a000)
+		psxRegs.GPR.n.a0 = Ps2MemSize::ExposedIopRam >> 20;
+
 	if (static_cast<size_t>(s_code_end - s_code_ptr) < MAX_BLOCK_CODE)
 	{
 		Console.WriteLn("ARM64 IOP rec: code buffer full, clearing all blocks");
 		ClearAllBlocks();
 	}
 
-	u32 count = 0;
+	u32 end;
+	u32 branch_to = 0xffffffff;
 	for (u32 pc = startpc;; pc += 4)
 	{
-		count++;
-		if (EndsBlock(iopMemRead32(pc)) || ((pc + 4) & 0xfff) == 0)
-			break;
-	}
-	if (InRam(startpc))
-	{
-		const u32 mask = Ps2MemSize::ExposedIopRam - 1;
-		for (u32 i = 0; i < count; i++)
+		if (pc != startpc && (Compiled(pc) || pc - startpc >= MAX_BLOCK_INSTS * 4))
 		{
-			const u32 word = ((startpc + i * 4) & mask) >> 2;
-			s_code_bits[word >> 5] |= 1u << (word & 31);
+			end = pc;
+			break;
+		}
+		const u32 code = iopMemRead32(pc);
+		const int kind = BranchKind(code);
+		if (kind == 1)
+		{
+			end = pc + 8;
+			break;
+		}
+		if (kind == 2)
+		{
+			branch_to = ((code & 0x03ffffff) << 2) | ((pc + 4) & 0xf0000000);
+			end = pc + 8;
+			break;
+		}
+		if (kind == 3)
+		{
+			branch_to = static_cast<s16>(code) * 4 + pc + 4;
+			end = (branch_to > startpc && branch_to < pc) ? branch_to : pc + 8;
+			break;
 		}
 	}
+	// x86 s_nBlockFF: a loop of nops (but its branch) back to its start.
+	bool ff = branch_to == startpc;
+	for (u32 pc = startpc; ff && pc < end; pc += 4)
+		ff = pc == end - 8 || iopMemRead32(pc) == 0;
+
+	s_blocks[startpc & 0x1fffffff] = (end - startpc) / 4;
+	if (!(end & 0x10000000))
+		s_max_rec_mem = std::max(end & ~0xa0000000u, s_max_rec_mem);
 
 	armSetAsmPtr(s_code_ptr, s_code_end - s_code_ptr, &s_pool);
 	u8* const fn = armStartBlock();
 
 	const a64::Register& rregs = a64::x19;
-	a64::Label exit;
+	// The pc after a jump or branch, read before its delay slot runs.
+	const a64::Register& rtarget = a64::w20;
+	a64::Label exit, hle_exit;
+	bool has_hle = false;
 
 	armAsm->Stp(a64::x29, a64::lr, a64::MemOperand(a64::sp, -32, a64::PreIndex));
-	armAsm->Str(rregs, a64::MemOperand(a64::sp, 16));
+	armAsm->Stp(a64::x19, a64::x20, a64::MemOperand(a64::sp, 16));
 	armMoveAddressToReg(rregs, &psxRegs);
 
 	const s64 off_pc = offsetof(psxRegisters, pc);
 	const s64 off_code = offsetof(psxRegisters, code);
-	const s64 off_cycle = offsetof(psxRegisters, cycle);
-	// Native ops leave code, pc and cycle to the next handler call or the block end.
-	u32 pending_cycles = 0;
-	const auto flush = [&](u32 code, u32 pc) {
+	const auto set_return = [&](BlockEnd kind, u32 cycles) {
+		armAsm->Mov(a64::x0, (static_cast<u64>(kind) << 32) | cycles);
+	};
+	u32 cycles = 0;
+	const auto emit_op = [&](u32 pc, u32 code) {
+		cycles += 1 + Penalty(code);
+		if (const irxHLE hle = IrxImportHle(pc, code))
+		{
+			armAsm->Mov(a64::w9, code);
+			armAsm->Str(a64::w9, a64::MemOperand(rregs, off_code));
+			armAsm->Mov(a64::w9, pc + 4);
+			armAsm->Str(a64::w9, a64::MemOperand(rregs, off_pc));
+			armEmitCall(reinterpret_cast<const void*>(hle));
+			armAsm->Cbnz(RWRET, &hle_exit);
+			has_hle = true;
+			return;
+		}
+		if (EmitNative(rregs, code))
+			return;
 		armAsm->Mov(a64::w9, code);
 		armAsm->Str(a64::w9, a64::MemOperand(rregs, off_code));
-		armAsm->Mov(a64::w9, pc);
+		armAsm->Mov(a64::w9, pc + 4);
 		armAsm->Str(a64::w9, a64::MemOperand(rregs, off_pc));
-		if (pending_cycles)
-		{
-			armAsm->Ldr(a64::x9, a64::MemOperand(rregs, off_cycle));
-			armAsm->Add(a64::x9, a64::x9, pending_cycles);
-			armAsm->Str(a64::x9, a64::MemOperand(rregs, off_cycle));
-			pending_cycles = 0;
-		}
-	};
-	bool last_native = false;
-	for (u32 i = 0; i < count; i++)
-	{
-		const u32 pc = startpc + i * 4;
-		const u32 code = iopMemRead32(pc);
-
-		if (pc == 0x1630)
-			armEmitCall(reinterpret_cast<const void*>(&IrxHack));
-
-		pending_cycles++;
-		last_native = EmitNative(rregs, code);
-		if (last_native)
-			continue;
-
-		flush(code, pc + 4);
 		armEmitCall(reinterpret_cast<const void*>(Handler(code)));
+		// x86 rpsxRFE raises a pending interrupt.
+		if ((code >> 26) == 0x10 && ((code >> 21) & 31) == 16)
+			armEmitCall(reinterpret_cast<const void*>(&iopTestIntc));
+	};
 
-		if (i + 1 < count)
-		{
-			// An exception moved the pc.
-			armAsm->Ldr(a64::w9, a64::MemOperand(rregs, off_pc));
-			armAsm->Mov(a64::w10, pc + 4);
-			armAsm->Cmp(a64::w9, a64::w10);
-			armAsm->B(a64::ne, &exit);
-			// The store cleared blocks, maybe this one.
-			if (IsStore(code))
-			{
-				armMoveAddressToReg(a64::x9, &s_cleared);
-				armAsm->Ldrb(a64::w9, a64::MemOperand(a64::x9));
-				armAsm->Cbnz(a64::w9, &exit);
-			}
-		}
-	}
-	if (last_native)
+	bool ended = false;
+	for (u32 pc = startpc; pc < end && !ended; pc += 4)
 	{
-		const u32 lastpc = startpc + (count - 1) * 4;
-		flush(iopMemRead32(lastpc), lastpc + 4);
+		const u32 code = iopMemRead32(pc);
+		const int kind = BranchKind(code);
+		if (!kind)
+		{
+			emit_op(pc, code);
+			if (IsException(code))
+			{
+				set_return(END_PLAIN, cycles);
+				ended = true;
+			}
+			continue;
+		}
+
+		const u32 op = code >> 26;
+		const u32 rs = (code >> 21) & 31;
+		const u32 rt = (code >> 16) & 31;
+		const u32 rd = (code >> 11) & 31;
+		if (kind == 1)
+		{
+			armAsm->Mov(rtarget, LoadGpr(rregs, a64::w10, rs));
+			if ((code & 0x3f) == 9 && rd)
+				StoreLink(rregs, rd, pc);
+		}
+		else if (kind == 2)
+		{
+			if (op == 3)
+				StoreLink(rregs, 31, pc);
+			armAsm->Mov(rtarget, ((code & 0x03ffffff) << 2) | ((pc + 4) & 0xf0000000));
+		}
+		else
+		{
+			// BLTZAL/BGEZAL link before the test, as the interpreter.
+			if (op == 1 && rt >= 16)
+				StoreLink(rregs, 31, pc);
+			const a64::Register& s = LoadGpr(rregs, a64::w10, rs);
+			a64::Condition cond;
+			if (op == 1)
+			{
+				armAsm->Cmp(s, 0);
+				cond = (rt & 1) ? a64::ge : a64::lt;
+			}
+			else if (op <= 5)
+			{
+				armAsm->Cmp(s, LoadGpr(rregs, a64::w11, rt));
+				cond = op == 4 ? a64::eq : a64::ne;
+			}
+			else
+			{
+				armAsm->Cmp(s, 0);
+				cond = op == 6 ? a64::le : a64::gt;
+			}
+			armAsm->Mov(a64::w12, static_cast<s16>(code) * 4 + pc + 4);
+			armAsm->Mov(a64::w13, pc + 8);
+			armAsm->Csel(rtarget, a64::w12, a64::w13, cond);
+		}
+		cycles++;
+		emit_op(pc + 4, iopMemRead32(pc + 4));
+		armAsm->Str(rtarget, a64::MemOperand(rregs, off_pc));
+		set_return(ff ? END_FF : END_TEST, cycles);
+		ended = true;
+	}
+	if (!ended)
+	{
+		armAsm->Mov(a64::w9, end);
+		armAsm->Str(a64::w9, a64::MemOperand(rregs, off_pc));
+		set_return(END_PLAIN, cycles);
+	}
+	armAsm->B(&exit);
+
+	if (has_hle)
+	{
+		armAsm->Bind(&hle_exit);
+		set_return(END_NONE, 0);
 	}
 
 	armAsm->Bind(&exit);
-	armAsm->Mov(RWRET, IsIdleLoop(startpc));
-	armAsm->Ldr(rregs, a64::MemOperand(a64::sp, 16));
+	armAsm->Ldp(a64::x19, a64::x20, a64::MemOperand(a64::sp, 16));
 	armAsm->Ldp(a64::x29, a64::lr, a64::MemOperand(a64::sp, 32, a64::PostIndex));
 	armAsm->Ret();
 
@@ -409,62 +582,101 @@ static BlockFn Compile(u32 startpc, BlockFn* entry)
 // execI, for code outside RAM and ROM.
 static void InterpretOne()
 {
-	if (psxRegs.pc == 0x1630)
-		IrxHack();
 	psxRegs.code = iopMemRead32(psxRegs.pc);
 	psxRegs.pc += 4;
 	psxRegs.cycle++;
 	psxBSC[psxRegs.code >> 26]();
 }
 
-// The loop at pc ran once (its iopEventTest at the current cycle). The next iterations whose iopEventTest
-// comes before iopNextEventCycle change nothing but the cycle: add their cycles, then run the next one.
-// psxIntExecuteBlocks subtracts 8 EE cycles per IOP cycle since start from iopCycleEE after a run_block call
-// and calls it again while iopCycleEE stays above 0 (without ICFG bit 3: no PS1 clock, no BIOS call check).
-static void SkipIdle(u32 pc, BlockFn block, u64 start)
+// x86 iPsxAddEECycles: takes EE cycles off iopCycleEE. True when the timeslice is over (x86 jle).
+static bool SubEECycles(u32 ee)
 {
-	while (psxRegs.pc == pc && !s_cleared)
-	{
-		const u64 cycle = psxRegs.cycle;
-		// iopNextEventCycle is not lowered to the counter target when the counters were updated.
-		const s64 counter = psxNextDeltaCounter - static_cast<s64>(static_cast<s32>(cycle - psxNextStartCounter));
-		const s64 quiet = (std::min(static_cast<s64>(psxRegs.iopNextEventCycle - cycle), counter) - 1) / 2;
-		const s64 budget = (psxRegs.iopCycleEE - 8 * static_cast<s64>(cycle - start) - 1) / 16;
-		const s64 skip = std::min(quiet, budget);
-		if (skip <= 0)
-			return;
-		psxRegs.cycle += 2 * skip;
-		block();
-	}
+	const s32 before = psxRegs.iopCycleEE;
+	psxRegs.iopCycleEE = static_cast<s32>(static_cast<u32>(before) - ee);
+	return static_cast<s64>(before) - static_cast<s32>(ee) <= 0;
 }
 
-static void recRunBlock(u64 start)
+static bool AddCycles(u32 cycles, bool ps1_clock)
 {
-	const u32 pc = psxRegs.pc;
-	if (!Compilable(pc)) [[unlikely]]
-	{
-		InterpretOne();
-		return;
-	}
+	if (!ps1_clock) [[likely]]
+		return SubEECycles(cycles * 8);
+	// F = gcd(PS2CLK, PSXCLK) = 230400: 1280 = PS2CLK / F, 147 = PSXCLK / F.
+	const u32 t = cycles * 1280 + psxRegs.iopCycleEECarry;
+	psxRegs.iopCycleEECarry = t % 147;
+	return SubEECycles(t / 147);
+}
 
-	BlockFn*& page = s_lut[pc >> 16];
-	if (!page) [[unlikely]]
-	{
-		page = static_cast<BlockFn*>(std::calloc(PAGE_ENTRIES, sizeof(BlockFn)));
-		s_pages.push_back(pc >> 16);
-	}
-	BlockFn* const entry = &page[(pc & 0xffff) >> 2];
-	BlockFn block = *entry;
-	if (!block) [[unlikely]]
-		block = Compile(pc, entry);
-	s_cleared = false;
-	if (block() && !(psxHu32(HW_ICFG) & 8))
-		SkipIdle(pc, block, start);
+// x86 iPsxBranchTest's nop loop fast-forward: the cycle moves to the next event, at most by the rest of
+// the timeslice, and events are tested.
+static bool FastForward(bool ps1_clock)
+{
+	const u64 before = psxRegs.cycle;
+	// x86 reads iopCycleEE as 64 bits, iopCycleEECarry above it.
+	const u64 rest = (static_cast<u64>(psxRegs.iopCycleEECarry) << 32) | static_cast<u32>(psxRegs.iopCycleEE);
+	u64 cycle = before + ((rest + 7) >> 3);
+	if (static_cast<s64>(cycle - psxRegs.iopNextEventCycle) >= 0)
+		cycle = psxRegs.iopNextEventCycle;
+	psxRegs.cycle = cycle;
+	const u32 ee = static_cast<u32>((cycle - before) << 3);
+	if (!ps1_clock) [[likely]]
+		return SubEECycles(ee);
+	const u32 t = ee + psxRegs.iopCycleEECarry;
+	psxRegs.iopCycleEECarry = t % 147;
+	return SubEECycles(t / 147);
 }
 
 static s32 recExecuteBlock(s32 eeCycles)
 {
-	return psxIntExecuteBlocks(eeCycles, recRunBlock);
+	psxRegs.iopBreak = 0;
+	psxRegs.iopCycleEE = eeCycles;
+
+	for (;;)
+	{
+		const u32 pc = psxRegs.pc;
+		const bool ps1_clock = psxHu32(HW_ICFG) & (1 << 3);
+		if (ps1_clock && ((pc & 0x1fffffff) == 0xa0 || (pc & 0x1fffffff) == 0xb0 || (pc & 0x1fffffff) == 0xc0) &&
+			psxBiosCall())
+			continue;
+		if (!Compilable(pc)) [[unlikely]]
+		{
+			InterpretOne();
+			AddCycles(1, ps1_clock);
+			continue;
+		}
+
+		BlockFn* const entry = Entry(pc, true);
+		BlockFn block = *entry;
+		if (!block) [[unlikely]]
+			block = Compile(pc, entry);
+
+		const u64 ret = block();
+		const u32 cycles = static_cast<u32>(ret);
+		switch (static_cast<BlockEnd>(ret >> 32))
+		{
+			case END_PLAIN:
+				psxRegs.cycle += cycles;
+				AddCycles(cycles, ps1_clock);
+				break;
+			case END_FF:
+				if (EmuConfig.Speedhacks.WaitLoop && psxRegs.pc == pc)
+				{
+					if (FastForward(ps1_clock))
+						return psxRegs.iopBreak + psxRegs.iopCycleEE;
+					iopEventTest();
+					break;
+				}
+				[[fallthrough]];
+			case END_TEST:
+				psxRegs.cycle += cycles;
+				if (AddCycles(cycles, ps1_clock))
+					return psxRegs.iopBreak + psxRegs.iopCycleEE;
+				if (static_cast<s64>(psxRegs.cycle - psxRegs.iopNextEventCycle) >= 0)
+					iopEventTest();
+				break;
+			case END_NONE:
+				break;
+		}
+	}
 }
 
 R3000Acpu psxRec = {
