@@ -198,6 +198,11 @@ void CTC2() {
 			vu1Finish(true);
 			vu1ExecMicro(cpuRegs.GPR.r[_Rt_].US[0]);	// Execute VU1 Micro SubRoutine
 			break;
+#ifdef ARCH_ARM64
+		case REG_STATUS_FLAG: // as x86 recCTC2: only the sticky flags are written
+			VU0.VI[REG_STATUS_FLAG].UL = (VU0.VI[REG_STATUS_FLAG].UL & 0x3F) | (cpuRegs.GPR.r[_Rt_].UL[0] & 0xFC0);
+			break;
+#endif
 		case REG_CLIP_FLAG:
 			VU0.clipflag = cpuRegs.GPR.r[_Rt_].UL[0];
 		default:
