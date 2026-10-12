@@ -251,6 +251,109 @@ static bool EmitNative(const a64::Register& rregs, u32 code)
 	return true;
 }
 
+// Jumps and branches compiled with their delay slot (EmitBranch): J, JAL, JR, JALR, BEQ, BNE, BLEZ,
+// BGTZ, BLTZ, BGEZ and the likely forms. The Goemon TLB hack runs in the JAL and JR handlers.
+static bool IsNativeBranch(u32 code)
+{
+	if (!s_native)
+		return false;
+	const u32 op = code >> 26;
+	switch (op)
+	{
+		case 0x00: return ((code & 63) == 0x08 || (code & 63) == 0x09) && !EmuConfig.Gamefixes.GoemonTlbHack; // JR, JALR
+		case 0x01: return ((code >> 16) & 31) <= 0x03; // BLTZ, BGEZ, BLTZL, BGEZL
+		case 0x02: return true; // J
+		case 0x03: return !EmuConfig.Gamefixes.GoemonTlbHack; // JAL
+		case 0x04: case 0x05: case 0x06: case 0x07: // BEQ, BNE, BLEZ, BGTZ
+		case 0x14: case 0x15: case 0x16: case 0x17: // BEQL, BNEL, BLEZL, BGTZL
+			return true;
+		default: return false;
+	}
+}
+
+// What the branch's handler and doBranch do, with pc, code and cpuBlockCycles already set for the branch.
+// The delay slot runs with cpuRegs.branch set (no hooks; an exception clears it and ends the block).
+static void EmitBranch(u32 code, u32 pc, const a64::Register& rregs, const a64::Register& rcycles,
+	u32 cycle_factor, a64::Label& exit)
+{
+	const u32 op = code >> 26;
+	const u32 rs = (code >> 21) & 31;
+	const u32 rt = (code >> 16) & 31;
+	const u32 rd = (code >> 11) & 31;
+	const bool reg_jump = (op == 0);
+	const bool likely = (op >= 0x14) || (op == 0x01 && (rt & 2));
+	u32 target;
+	if (op == 0x02 || op == 0x03)
+		target = ((code & 0x03ffffff) << 2) + ((pc + 4) & 0xf0000000);
+	else
+		target = static_cast<u32>(static_cast<s16>(code & 0xffff)) * 4 + pc + 4;
+
+	const s64 off_branch = offsetof(cpuRegisters, branch);
+	const a64::Register& s = a64::x9;
+	const a64::Register& t = a64::x10;
+	a64::Label not_taken;
+
+	if (reg_jump)
+		armAsm->Ldr(a64::w21, a64::MemOperand(rregs, GprOffset(rs)));
+	else if (op != 0x02 && op != 0x03)
+	{
+		armAsm->Ldr(s, a64::MemOperand(rregs, GprOffset(rs)));
+		a64::Condition skip;
+		switch (op & 0xf)
+		{
+			case 0x04: armAsm->Ldr(t, a64::MemOperand(rregs, GprOffset(rt))); armAsm->Cmp(s, t); skip = a64::ne; break; // BEQ
+			case 0x05: armAsm->Ldr(t, a64::MemOperand(rregs, GprOffset(rt))); armAsm->Cmp(s, t); skip = a64::eq; break; // BNE
+			case 0x06: armAsm->Cmp(s, 0); skip = a64::gt; break; // BLEZ
+			case 0x07: armAsm->Cmp(s, 0); skip = a64::le; break; // BGTZ
+			default: armAsm->Cmp(s, 0); skip = (rt & 1) ? a64::lt : a64::ge; break; // BGEZ, BLTZ
+		}
+		armAsm->B(skip, &not_taken);
+	}
+
+	const u32 link = (op == 0x03) ? 31 : (reg_jump && (code & 63) == 0x09) ? rd : 0;
+	if (link)
+	{
+		armAsm->Mov(s, pc + 8);
+		armAsm->Str(s, a64::MemOperand(rregs, GprOffset(link)));
+	}
+
+	// The delay slot, as execI.
+	const u32 dcode = memRead32(pc + 4);
+	const OPCODE& dop = GetInstruction(dcode);
+	armAsm->Mov(a64::w9, 1);
+	armAsm->Str(a64::w9, a64::MemOperand(rregs, off_branch));
+	armAsm->Mov(a64::w9, dcode);
+	armAsm->Str(a64::w9, a64::MemOperand(rregs, offsetof(cpuRegisters, code)));
+	armAsm->Mov(a64::w9, pc + 8);
+	armAsm->Str(a64::w9, a64::MemOperand(rregs, offsetof(cpuRegisters, pc)));
+	armAsm->Ldr(a64::w9, a64::MemOperand(rcycles));
+	armAsm->Add(a64::w9, a64::w9, dop.cycles * cycle_factor);
+	armAsm->Str(a64::w9, a64::MemOperand(rcycles));
+	if (!EmitNative(rregs, dcode))
+	{
+		armEmitCall(reinterpret_cast<const void*>(dop.interpret));
+		armAsm->Ldr(a64::w9, a64::MemOperand(rregs, off_branch));
+		armAsm->Cbz(a64::w9, &exit);
+	}
+
+	if (reg_jump)
+		armAsm->Mov(RWARG1, a64::w21);
+	else
+		armAsm->Mov(RWARG1, target);
+	armEmitCall(reinterpret_cast<const void*>(&intBranchAfterDelaySlot));
+	armAsm->B(&exit);
+
+	armAsm->Bind(&not_taken);
+	if (likely)
+	{
+		armAsm->Mov(a64::w9, pc + 8);
+		armAsm->Str(a64::w9, a64::MemOperand(rregs, offsetof(cpuRegisters, pc)));
+	}
+	// BLEZ, BGTZ, BLTZ and BGEZ do not test events when not taken.
+	if (likely || op == 0x04 || op == 0x05)
+		armEmitCall(reinterpret_cast<const void*>(&intEventTest));
+}
+
 static BlockFn Compile(u32 startpc, BlockFn* entry)
 {
 	if (static_cast<size_t>(s_code_end - s_code_ptr) < MAX_BLOCK_CODE)
@@ -274,6 +377,11 @@ static BlockFn Compile(u32 startpc, BlockFn* entry)
 		if (EndsBlock(GetInstruction(code), code) || ((pc + 4) & 0xfff) == 0)
 			break;
 	}
+	// The block ends with a branch compiled with its delay slot, which then is checked as block code.
+	const u32 lastpc = startpc + (count - 1) * 4;
+	const bool native_branch = IsNativeBranch(memRead32(lastpc)) && ((lastpc + 4) & 0xfff) != 0 &&
+							   !EndsBlock(GetInstruction(memRead32(lastpc + 4)), memRead32(lastpc + 4));
+	const u32 code_words = count + native_branch;
 
 	// Self-modifying code: a written page clears its blocks (vtlb page protection), or, on a page under
 	// manual protection, the block compares its code at entry (as memory_protect_recompiled_code on x86).
@@ -295,15 +403,16 @@ static BlockFn Compile(u32 startpc, BlockFn* entry)
 	const a64::Register& rcycles = a64::x20;
 	a64::Label exit, discard;
 
-	armAsm->Stp(a64::x29, a64::lr, a64::MemOperand(a64::sp, -32, a64::PreIndex));
+	armAsm->Stp(a64::x29, a64::lr, a64::MemOperand(a64::sp, -48, a64::PreIndex));
 	armAsm->Stp(rregs, rcycles, a64::MemOperand(a64::sp, 16));
+	armAsm->Str(a64::x21, a64::MemOperand(a64::sp, 32));
 	armAsm->Mov(rregs, RXARG1);
 	armAsm->Mov(rcycles, RXARG2);
 
 	if (check_code)
 	{
 		armMoveAddressToReg(a64::x9, PSM(startpc));
-		for (u32 i = 0; i < count; i++)
+		for (u32 i = 0; i < code_words; i++)
 		{
 			armAsm->Ldr(a64::w10, a64::MemOperand(a64::x9, i * 4));
 			armAsm->Mov(a64::w11, memRead32(startpc + i * 4));
@@ -351,6 +460,11 @@ static BlockFn Compile(u32 startpc, BlockFn* entry)
 			continue;
 
 		flush(code, pc + 4);
+		if (native_branch && i + 1 == count)
+		{
+			EmitBranch(code, pc, rregs, rcycles, cycle_factor, exit);
+			break;
+		}
 		armEmitCall(reinterpret_cast<const void*>(opcode.interpret));
 
 		// An exception or a cancelled instruction moved the pc.
@@ -369,8 +483,9 @@ static BlockFn Compile(u32 startpc, BlockFn* entry)
 	}
 
 	armAsm->Bind(&exit);
+	armAsm->Ldr(a64::x21, a64::MemOperand(a64::sp, 32));
 	armAsm->Ldp(rregs, rcycles, a64::MemOperand(a64::sp, 16));
-	armAsm->Ldp(a64::x29, a64::lr, a64::MemOperand(a64::sp, 32, a64::PostIndex));
+	armAsm->Ldp(a64::x29, a64::lr, a64::MemOperand(a64::sp, 48, a64::PostIndex));
 	armAsm->Ret();
 
 	if (check_code)
@@ -378,7 +493,7 @@ static BlockFn Compile(u32 startpc, BlockFn* entry)
 		// The code changed: the pc is unchanged, the dispatcher recompiles.
 		armAsm->Bind(&discard);
 		armAsm->Mov(RWARG1, startpc);
-		armAsm->Mov(RWARG2, count);
+		armAsm->Mov(RWARG2, code_words);
 		armEmitCall(reinterpret_cast<const void*>(&recClear));
 		armAsm->B(&exit);
 	}

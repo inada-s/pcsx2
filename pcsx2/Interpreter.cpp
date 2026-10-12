@@ -221,11 +221,8 @@ static void execI()
 	opcode.interpret();
 }
 
-static __fi void _doBranch_shared(u32 tar)
+static __fi void _doBranchAfterDelaySlot(u32 tar)
 {
-	branch2 = cpuRegs.branch = 1;
-	execI();
-
 	// branch being 0 means an exception was thrown, since only the exception
 	// handler should ever clear it.
 
@@ -267,6 +264,21 @@ static __fi void _doBranch_shared(u32 tar)
 		cpuRegs.pc = tar;
 		cpuRegs.branch = 0;
 	}
+}
+
+static __fi void _doBranch_shared(u32 tar)
+{
+	branch2 = cpuRegs.branch = 1;
+	execI();
+	_doBranchAfterDelaySlot(tar);
+}
+
+// doBranch for the ARM64 recompiler, which runs the delay slot in its block.
+void intBranchAfterDelaySlot(u32 target)
+{
+	_doBranchAfterDelaySlot(target);
+	intUpdateCPUCycles();
+	intEventTest();
 }
 
 static void doBranch( u32 target )
