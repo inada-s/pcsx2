@@ -5,6 +5,7 @@
 // pipeline functions to work out each trace's decisions at compile time.
 
 #include "arm64/AsmHelpers.h"
+#include "R5900OpcodeTables.h"
 
 #include <algorithm>
 #include <cstdio>
@@ -537,22 +538,31 @@ static void _vu1JitEmitVuDouble(const a64::VRegister& v)
 // Emits the upper op natively when it is in s_vu1_fmac_ops and the inputs are clamped
 // (vu0Overflow, as vuDouble tests): then no NaN can arise and the result does not depend on
 // the operand order the compiler picked. Returns false when the handler must be called.
-static bool _vu1JitEmitFmac(FnPtr_VuVoid f, u32 code)
+static const VU1FmacDesc* _vuJitFmacDesc(const VU1FmacDesc* ops, size_t count, FnPtr_VuVoid f, u32 code)
 {
 	if (!EmuConfig.Cpu.Recompiler.vu0Overflow)
-		return false;
+		return nullptr;
 	const VU1FmacDesc* desc = nullptr;
-	for (const VU1FmacDesc& o : s_vu1_fmac_ops)
-		if (o.fn == f)
-			desc = &o;
-	const u32 ft = (code >> 16) & 0x1f, fs = (code >> 11) & 0x1f, fd = (code >> 6) & 0x1f;
-	if (!desc || (!desc->acc && fd == 0))
-		return false;
+	for (size_t i = 0; i < count; i++)
+		if (ops[i].fn == f)
+			desc = &ops[i];
+	if (!desc || (!desc->acc && ((code >> 6) & 0x1f) == 0))
+		return nullptr;
+	return desc;
+}
 
-	armAsm->Ldp(a64::q16, a64::q17, a64::MemOperand(a64::x21, 0));
-	armAsm->Ldp(a64::q18, a64::q19, a64::MemOperand(a64::x21, 32));
-	armAsm->Ldp(a64::q20, a64::q21, a64::MemOperand(a64::x21, 64));
-	armAsm->Ldr(a64::q22, a64::MemOperand(a64::x21, 96));
+// The FMAC op on the VURegs at rvu (VU0 or VU1: same layout), s_vu1_jit_fconst at rconst.
+// out_clamp: CHECK_VU_OVERFLOW of that VU.
+static void _vuJitEmitFmacCore(const VU1FmacDesc* desc, u32 code, const a64::Register& rvu,
+	const a64::Register& rconst, bool out_clamp)
+{
+	const auto _vu1JitMem = [&rvu](s64 off) { return a64::MemOperand(rvu, off); };
+	const u32 ft = (code >> 16) & 0x1f, fs = (code >> 11) & 0x1f, fd = (code >> 6) & 0x1f;
+
+	armAsm->Ldp(a64::q16, a64::q17, a64::MemOperand(rconst, 0));
+	armAsm->Ldp(a64::q18, a64::q19, a64::MemOperand(rconst, 32));
+	armAsm->Ldp(a64::q20, a64::q21, a64::MemOperand(rconst, 64));
+	armAsm->Ldr(a64::q22, a64::MemOperand(rconst, 96));
 
 	armAsm->Ldr(a64::q0, _vu1JitMem(_vu1Off(VU1.VF[fs])));
 	if (desc->bc == VU1_BC_VEC)
@@ -625,7 +635,7 @@ static bool _vu1JitEmitFmac(FnPtr_VuVoid f, u32 code)
 	armAsm->And(a64::v26.V16B(), a64::v3.V16B(), a64::v17.V16B());
 	armAsm->Bsl(a64::v25.V16B(), a64::v26.V16B(), a64::v3.V16B());
 	a64::VRegister res = a64::v25;
-	if (EmuConfig.Cpu.Recompiler.vu1Overflow)
+	if (out_clamp)
 	{
 		armAsm->Orr(a64::v27.V16B(), a64::v26.V16B(), a64::v18.V16B());
 		armAsm->Bsl(a64::v24.V16B(), a64::v27.V16B(), a64::v25.V16B());
@@ -642,7 +652,67 @@ static bool _vu1JitEmitFmac(FnPtr_VuVoid f, u32 code)
 	}
 	if (lanes != 0)
 		armAsm->Str(res.Q(), _vu1JitMem(off_dst));
+}
+
+static bool _vu1JitEmitFmac(FnPtr_VuVoid f, u32 code)
+{
+	const VU1FmacDesc* desc = _vuJitFmacDesc(s_vu1_fmac_ops, std::size(s_vu1_fmac_ops), f, code);
+	if (!desc)
+		return false;
+	_vuJitEmitFmacCore(desc, code, s_vu1_jit_rvu, a64::x21, EmuConfig.Cpu.Recompiler.vu1Overflow);
 	return true;
+}
+
+// EE COP2 macro FMAC ops (VU0 macro mode): the same ops on VU0, then SYNCMSFLAGS.
+#define VU0_FMAC_BC(name, op, acc) \
+	{V##name##x, op, acc, 0}, {V##name##y, op, acc, 1}, {V##name##z, op, acc, 2}, \
+		{V##name##w, op, acc, 3}, {V##name##q, op, acc, VU1_BC_Q}, {V##name, op, acc, VU1_BC_VEC}
+#define VU0_FMAC_ALL(name, op) \
+	VU0_FMAC_BC(name, op, false), {V##name##i, op, false, VU1_BC_I}, VU0_FMAC_BC(name##A, op, true), \
+		{V##name##Ai, op, true, VU1_BC_I}
+static const VU1FmacDesc s_vu0_macro_fmac_ops[] = {
+	VU0_FMAC_BC(ADD, VU1FmacOp::Add, false), VU0_FMAC_BC(ADDA, VU1FmacOp::Add, true),
+	{VADDAi, VU1FmacOp::Add, true, VU1_BC_I}, VU0_FMAC_ALL(SUB, VU1FmacOp::Sub),
+	VU0_FMAC_ALL(MUL, VU1FmacOp::Mul), VU0_FMAC_ALL(MADD, VU1FmacOp::Madd), VU0_FMAC_ALL(MSUB, VU1FmacOp::Msub)};
+#undef VU0_FMAC_ALL
+#undef VU0_FMAC_BC
+
+static const VU1FmacDesc* _vu0MacroDesc(u32 code)
+{
+	if ((code >> 25) != 0x25) // COP2 with CO set
+		return nullptr;
+	const u32 funct = code & 63;
+	void (*f)() = funct < 0x3c ? Int_COP2SPECIAL1PrintTable[funct] :
+								 Int_COP2SPECIAL2PrintTable[(code & 3) | ((code >> 4) & 0x7c)];
+	for (const VU1FmacDesc& o : s_vu0_macro_fmac_ops)
+		if (reinterpret_cast<void (*)()>(o.fn) == f)
+			return _vuJitFmacDesc(&o, 1, o.fn, code);
+	return nullptr;
+}
+
+bool vu0MacroCanEmit(u32 code)
+{
+	return _vu0MacroDesc(code) != nullptr;
+}
+
+// The handler's work after _vu0FinishMicro (the caller tests VPU_STAT): VU0.code = code, the op,
+// SYNCMSFLAGS. rvu = &VU0; uses x0-x2, v0-v4 and v16-v29.
+void vu0MacroEmit(u32 code, const a64::Register& rvu)
+{
+	const auto mem = [&rvu](s64 off) { return a64::MemOperand(rvu, off); };
+	armAsm->Mov(a64::w0, code);
+	armAsm->Str(a64::w0, mem(_vu1Off(VU1.code)));
+	armMoveAddressToReg(a64::x1, s_vu1_jit_fconst);
+	_vuJitEmitFmacCore(_vu0MacroDesc(code), code, rvu, a64::x1, EmuConfig.Cpu.Recompiler.vu0Overflow);
+	armAsm->Ldr(a64::w1, mem(_vu1Off(VU1.statusflag)));
+	armAsm->And(a64::w1, a64::w1, 0xf);
+	armAsm->Ldr(a64::w2, mem(_vu1Off(VU1.VI[REG_STATUS_FLAG].UL)));
+	armAsm->And(a64::w2, a64::w2, 0xfc0);
+	armAsm->Orr(a64::w2, a64::w2, a64::w1);
+	armAsm->Orr(a64::w2, a64::w2, a64::Operand(a64::w1, a64::LSL, 6));
+	armAsm->Str(a64::w2, mem(_vu1Off(VU1.VI[REG_STATUS_FLAG].UL)));
+	armAsm->Ldr(a64::w0, mem(_vu1Off(VU1.macflag)));
+	armAsm->Str(a64::w0, mem(_vu1Off(VU1.VI[REG_MAC_FLAG].UL)));
 }
 
 // VF[ft] = v0 on the lanes of xyzw (8 = x).
