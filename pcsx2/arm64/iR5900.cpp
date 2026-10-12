@@ -2,15 +2,17 @@
 // SPDX-License-Identifier: GPL-3.0+
 
 // ARM64 EE recompiler.
-// A block runs from its pc up to a branch (and its delay slot, run by the branch's handler), a COP0
-// instruction or the end of the 4 KB page. Each instruction is compiled into the state updates execI
-// makes (cpuRegs.code, cpuRegs.pc, cpuBlockCycles) and a call of its interpreter handler, so a block
-// computes exactly what the interpreter computes: branches, events, exceptions and TLB misses take the
-// interpreter's paths (CpuRunsIntBranches).
+// Blocks and cycles follow the x86 recompiler, so both count the same EE cycles: the same block layout
+// (recRecompile), each block end commits cycle += max(blockcycles >> 3, 1) with the fraction dropped,
+// and both paths of a branch commit and test events. Each instruction is compiled into the state
+// updates execI makes (cpuRegs.code, cpuRegs.pc, cpuBlockCycles) and a call of its interpreter handler,
+// or inline for integer ops; exceptions and TLB misses take the interpreter's paths (CpuRunsIntBranches).
 
 #include "Common.h"
+#include "Dmac.h"
 #include "R5900OpcodeTables.h"
 #include "VMManager.h"
+#include "VUmicro.h"
 #include "vtlb.h"
 #include "arm64/AsmHelpers.h"
 #include "Zdxsv/CpuHooks.h"
@@ -133,11 +135,6 @@ static bool HookAnswered(u32 pc)
 	return Zdxsv::IntHooksOn() && Zdxsv::IntRunHooks(pc);
 }
 
-static bool EndsBlock(const OPCODE& opcode, u32 code)
-{
-	return (opcode.flags & (IS_BRANCH | BRANCHTYPE_MASK)) || (code >> 26) == 0x10; // COP0: Config, Status, ERET
-}
-
 static s64 GprOffset(u32 reg)
 {
 	return offsetof(cpuRegisters, GPR.r[0]) + reg * sizeof(GPR_reg);
@@ -254,27 +251,182 @@ static bool EmitNative(const a64::Register& rregs, u32 code)
 
 // Jumps and branches compiled with their delay slot (EmitBranch): J, JAL, JR, JALR, BEQ, BNE, BLEZ,
 // BGTZ, BLTZ, BGEZ and the likely forms. The Goemon TLB hack runs in the JAL and JR handlers.
-static bool IsNativeBranch(u32 code)
+// A branch as the x86 recompiler's block scan (recRecompile) sees it: jumps, regimm branches
+// (BLTZ..BGEZL, BLTZAL..BGEZALL), BEQ..BGTZL, and BC0x/BC1x/BC2x.
+static bool IsBranch(u32 code)
 {
-	if (!s_native)
-		return false;
-	const u32 op = code >> 26;
+	const u32 op = code >> 26, rs = (code >> 21) & 31, rt = (code >> 16) & 31;
 	switch (op)
 	{
-		case 0x00: return ((code & 63) == 0x08 || (code & 63) == 0x09) && !EmuConfig.Gamefixes.GoemonTlbHack; // JR, JALR
-		case 0x01: return ((code >> 16) & 31) <= 0x03; // BLTZ, BGEZ, BLTZL, BGEZL
-		case 0x02: return true; // J
-		case 0x03: return !EmuConfig.Gamefixes.GoemonTlbHack; // JAL
-		case 0x04: case 0x05: case 0x06: case 0x07: // BEQ, BNE, BLEZ, BGTZ
-		case 0x14: case 0x15: case 0x16: case 0x17: // BEQL, BNEL, BLEZL, BGTZL
+		case 0x00: return (code & 63) == 0x08 || (code & 63) == 0x09;
+		case 0x01: return rt < 4 || (rt >= 16 && rt < 20);
+		case 0x02: case 0x03:
+		case 0x04: case 0x05: case 0x06: case 0x07:
+		case 0x14: case 0x15: case 0x16: case 0x17:
 			return true;
+		case 0x10: case 0x11: case 0x12: return rs == 8;
 		default: return false;
 	}
 }
 
+static u32 BranchTarget(u32 code, u32 pc)
+{
+	if ((code >> 26) == 0x02 || (code >> 26) == 0x03)
+		return ((code & 0x03ffffff) << 2) | ((pc + 4) & 0xf0000000);
+	return static_cast<u32>(static_cast<s16>(code & 0xffff)) * 4 + pc + 4;
+}
+
+// ERET, EI and the traps: the x86 recompiler sets nextEventCycle = cycle before the call (recBranchCall),
+// so the block end after them always tests events.
+static bool ForcesEventTest(u32 code)
+{
+	const u32 op = code >> 26;
+	if (code == 0x42000018 || code == 0x42000038)
+		return true;
+	if (op == 0x00)
+		return (code & 63) >= 0x30 && (code & 63) <= 0x36 && (code & 63) != 0x35;
+	if (op == 0x01)
+	{
+		const u32 rt = (code >> 16) & 31;
+		return rt >= 8 && rt <= 14 && rt != 13;
+	}
+	return false;
+}
+
+// The interpreter's LB, LBU, LH, LHU and LW without their event test after an EE counter read
+// (0x10000000-0x10001fff): the x86 recompiler tests only after a constant address (Compile).
+// A misaligned address takes the interpreter's handler (address error).
+template <typename T, void (*Interp)()>
+static void LoadNoEventTest()
+{
+	const u32 addr = cpuRegs.GPR.r[(cpuRegs.code >> 21) & 31].UL[0] + static_cast<s16>(cpuRegs.code & 0xffff);
+	if (addr & (sizeof(T) - 1)) [[unlikely]]
+	{
+		Interp();
+		return;
+	}
+	T value;
+	if constexpr (sizeof(T) == 1)
+		value = static_cast<T>(memRead8(addr));
+	else if constexpr (sizeof(T) == 2)
+		value = static_cast<T>(memRead16(addr));
+	else
+		value = static_cast<T>(memRead32(addr));
+	const u32 rt = (cpuRegs.code >> 16) & 31;
+	if (!rt)
+		return;
+	if constexpr (std::is_signed_v<T>)
+		cpuRegs.GPR.r[rt].SD[0] = value;
+	else
+		cpuRegs.GPR.r[rt].UD[0] = value;
+}
+
+static void (*LoadHandler(u32 code))()
+{
+	switch (code >> 26)
+	{
+		case 0x20: return &LoadNoEventTest<s8, Interpreter::OpcodeImpl::LB>;
+		case 0x21: return &LoadNoEventTest<s16, Interpreter::OpcodeImpl::LH>;
+		case 0x23: return &LoadNoEventTest<s32, Interpreter::OpcodeImpl::LW>;
+		case 0x24: return &LoadNoEventTest<u8, Interpreter::OpcodeImpl::LBU>;
+		case 0x25: return &LoadNoEventTest<u16, Interpreter::OpcodeImpl::LHU>;
+		default: return nullptr;
+	}
+}
+
+// Block-local GPR constants, as the x86 recompiler's g_cpuConstRegs, for its constant address loads and
+// FlushCache syscalls. Ops not followed here forget the registers they may write.
+struct ConstRegs
+{
+	u32 mask = 1;
+	u64 v[32] = {};
+
+	bool Is(u32 r) const { return (mask >> r) & 1; }
+	void Set(u32 r, u64 x)
+	{
+		if (r)
+		{
+			mask |= 1u << r;
+			v[r] = x;
+		}
+	}
+	void Clear(u32 r)
+	{
+		if (r)
+			mask &= ~(1u << r);
+	}
+
+	void Track(u32 code)
+	{
+		const u32 op = code >> 26, rs = (code >> 21) & 31, rt = (code >> 16) & 31, rd = (code >> 11) & 31;
+		const u32 sa = (code >> 6) & 31;
+		const u64 simm = static_cast<u64>(static_cast<s64>(static_cast<s16>(code & 0xffff)));
+		const u64 zimm = code & 0xffff;
+		const auto s32x = [](u64 x) { return static_cast<u64>(static_cast<s64>(static_cast<s32>(x))); };
+		switch (op)
+		{
+			case 0x00:
+			{
+				const bool shift = (code & 63) <= 3;
+				if ((shift && Is(rt)) || (!shift && Is(rs) && Is(rt)))
+				{
+					const u64 a = v[rs], b = v[rt];
+					switch (code & 63)
+					{
+						case 0x00: Set(rd, s32x(static_cast<u32>(b) << sa)); return; // SLL
+						case 0x02: Set(rd, s32x(static_cast<u32>(b) >> sa)); return; // SRL
+						case 0x03: Set(rd, s32x(static_cast<u64>(static_cast<s32>(b) >> sa))); return; // SRA
+						case 0x20: case 0x21: Set(rd, s32x(a + b)); return; // ADD, ADDU
+						case 0x22: case 0x23: Set(rd, s32x(a - b)); return; // SUB, SUBU
+						case 0x24: Set(rd, a & b); return;
+						case 0x25: Set(rd, a | b); return;
+						case 0x26: Set(rd, a ^ b); return;
+						case 0x27: Set(rd, ~(a | b)); return;
+						case 0x2a: Set(rd, static_cast<s64>(a) < static_cast<s64>(b)); return; // SLT
+						case 0x2b: Set(rd, a < b); return; // SLTU
+						case 0x2c: case 0x2d: Set(rd, a + b); return; // DADD, DADDU
+						case 0x2e: case 0x2f: Set(rd, a - b); return; // DSUB, DSUBU
+						default: break;
+					}
+				}
+				Clear(rd);
+				return;
+			}
+			case 0x01: if (rt & 16) Clear(31); return; // BLTZAL..BGEZALL
+			case 0x03: Clear(31); return; // JAL
+			case 0x08: case 0x09: if (Is(rs)) Set(rt, s32x(v[rs] + simm)); else Clear(rt); return; // ADDI, ADDIU
+			case 0x0a: if (Is(rs)) Set(rt, static_cast<s64>(v[rs]) < static_cast<s64>(simm)); else Clear(rt); return; // SLTI
+			case 0x0b: if (Is(rs)) Set(rt, v[rs] < simm); else Clear(rt); return; // SLTIU
+			case 0x0c: if (Is(rs)) Set(rt, v[rs] & zimm); else Clear(rt); return; // ANDI
+			case 0x0d: if (Is(rs)) Set(rt, v[rs] | zimm); else Clear(rt); return; // ORI
+			case 0x0e: if (Is(rs)) Set(rt, v[rs] ^ zimm); else Clear(rt); return; // XORI
+			case 0x0f: Set(rt, s32x(zimm << 16)); return; // LUI
+			case 0x18: case 0x19: if (Is(rs)) Set(rt, v[rs] + simm); else Clear(rt); return; // DADDI, DADDIU
+			case 0x10: case 0x11: case 0x12: if (rs <= 2) Clear(rt); return; // MFCz, QMFC2, CFCz
+			case 0x1c: Clear(rd); return; // MMI
+			case 0x02: case 0x04: case 0x05: case 0x06: case 0x07: case 0x14: case 0x15: case 0x16: case 0x17:
+			case 0x1f: case 0x28: case 0x29: case 0x2a: case 0x2b: case 0x2c: case 0x2d: case 0x2e: case 0x2f:
+			case 0x31: case 0x36: case 0x39: case 0x3e: case 0x3f:
+				return; // branches, stores, CACHE, LWC1, LQC2
+			default: Clear(rt); return; // loads
+		}
+	}
+};
+
+static bool IsCompiled(u32 pc)
+{
+	const BlockFn* page = s_lut[pc >> 16];
+	return page && page[(pc & 0xffff) >> 2];
+}
+
+static u32 Bc0Condition()
+{
+	return ((dmacRegs.stat.CIS | ~dmacRegs.pcr.CPC) & 0x3ff) == 0x3ff;
+}
+
 static void EmitEpilogue(const a64::Register& rregs, const a64::Register& rcycles)
 {
-	armAsm->Ldr(a64::x21, a64::MemOperand(a64::sp, 32));
+	armAsm->Ldp(a64::x21, a64::x22, a64::MemOperand(a64::sp, 32));
 	armAsm->Ldp(rregs, rcycles, a64::MemOperand(a64::sp, 16));
 	armAsm->Ldp(a64::x29, a64::lr, a64::MemOperand(a64::sp, 48, a64::PostIndex));
 }
@@ -312,6 +464,31 @@ static void EmitEventTestAndDispatch(const a64::Register& wpc, const a64::Regist
 	armAsm->B(&exit);
 	armAsm->Bind(&no_event);
 	EmitDispatch(wpc, rregs, rcycles, exit);
+}
+
+static void CommitScaledCycles()
+{
+	intUpdateCPUCycles();
+	cpuBlockCycles = 0;
+}
+
+// Block end, as the x86 recompiler (scaleblockcycles): cycle += max(cpuBlockCycles >> 3, 1) and the
+// fraction is dropped, so every block starts at cpuBlockCycles = 0.
+static void EmitCommit(const a64::Register& rregs, const a64::Register& rcycles)
+{
+	if (EmuConfig.Speedhacks.EECycleRate != 0)
+	{
+		armEmitCall(reinterpret_cast<const void*>(&CommitScaledCycles));
+		return;
+	}
+	armAsm->Ldr(a64::w13, a64::MemOperand(rcycles));
+	armAsm->Lsr(a64::w14, a64::w13, 3);
+	armAsm->Cmp(a64::w14, 1);
+	armAsm->Csinc(a64::w14, a64::w14, a64::wzr, a64::hs);
+	armAsm->Ldr(a64::x15, a64::MemOperand(rregs, offsetof(cpuRegisters, cycle)));
+	armAsm->Add(a64::x15, a64::x15, a64::x14);
+	armAsm->Str(a64::x15, a64::MemOperand(rregs, offsetof(cpuRegisters, cycle)));
+	armAsm->Str(a64::wzr, a64::MemOperand(rcycles));
 }
 
 // The x86 recompiler's wait loop test (s_nBlockFF): a block that branches to its own start and only
@@ -364,51 +541,78 @@ static bool IsFastForwardLoop(u32 startpc, u32 branchpc)
 	return true;
 }
 
-// What the branch's handler and doBranch do, with pc, code and cpuBlockCycles already set for the branch.
-// The delay slot runs with cpuRegs.branch set (no hooks; an exception clears it and ends the block).
+// A branch and its delay slot, as the x86 recompiler: both paths commit the block cycles (the delay
+// slot's too, unless a likely branch skips it) and test events; a taken branch to the block start of a
+// wait loop (IsFastForwardLoop) skips to the next event. pc, code and cpuBlockCycles are already set for
+// the branch. The delay slot runs with cpuRegs.branch set (no hooks; an exception clears it).
 static void EmitBranch(u32 code, u32 pc, const a64::Register& rregs, const a64::Register& rcycles,
-	u32 cycle_factor, u32 ff_start, a64::Label& exit)
+	u32 cycle_factor, u32 ff_start, a64::Label& exit_commit, a64::Label& exit)
 {
 	const u32 op = code >> 26;
 	const u32 rs = (code >> 21) & 31;
 	const u32 rt = (code >> 16) & 31;
 	const u32 rd = (code >> 11) & 31;
 	const bool reg_jump = (op == 0);
-	const bool likely = (op >= 0x14) || (op == 0x01 && (rt & 2));
-	u32 target;
-	if (op == 0x02 || op == 0x03)
-		target = ((code & 0x03ffffff) << 2) + ((pc + 4) & 0xf0000000);
-	else
-		target = static_cast<u32>(static_cast<s16>(code & 0xffff)) * 4 + pc + 4;
+	const bool cond = !reg_jump && op != 0x02 && op != 0x03;
+	const bool likely = cond && ((op == 0x01 || op >= 0x10 && op <= 0x12) ? (rt & 2) != 0 : op >= 0x14);
+	const u32 target = BranchTarget(code, pc);
 
 	const s64 off_branch = offsetof(cpuRegisters, branch);
 	const a64::Register& s = a64::x9;
 	const a64::Register& t = a64::x10;
-	a64::Label not_taken;
+	const a64::Register& wtaken = a64::w22;
+	const a64::Register& wtarget = a64::w21;
 
 	if (reg_jump)
-		armAsm->Ldr(a64::w21, a64::MemOperand(rregs, GprOffset(rs)));
-	else if (op != 0x02 && op != 0x03)
+		armAsm->Ldr(wtarget, a64::MemOperand(rregs, GprOffset(rs)));
+	else if (cond)
 	{
-		armAsm->Ldr(s, a64::MemOperand(rregs, GprOffset(rs)));
-		a64::Condition skip;
-		switch (op & 0xf)
+		a64::Condition taken;
+		switch (op)
 		{
-			case 0x04: armAsm->Ldr(t, a64::MemOperand(rregs, GprOffset(rt))); armAsm->Cmp(s, t); skip = a64::ne; break; // BEQ
-			case 0x05: armAsm->Ldr(t, a64::MemOperand(rregs, GprOffset(rt))); armAsm->Cmp(s, t); skip = a64::eq; break; // BNE
-			case 0x06: armAsm->Cmp(s, 0); skip = a64::gt; break; // BLEZ
-			case 0x07: armAsm->Cmp(s, 0); skip = a64::le; break; // BGTZ
-			default: armAsm->Cmp(s, 0); skip = (rt & 1) ? a64::lt : a64::ge; break; // BGEZ, BLTZ
+			case 0x01: case 0x04: case 0x05: case 0x06: case 0x07:
+			case 0x14: case 0x15: case 0x16: case 0x17:
+				armAsm->Ldr(s, a64::MemOperand(rregs, GprOffset(rs)));
+				switch (op & 0xf)
+				{
+					case 0x04: armAsm->Ldr(t, a64::MemOperand(rregs, GprOffset(rt))); armAsm->Cmp(s, t); taken = a64::eq; break; // BEQ
+					case 0x05: armAsm->Ldr(t, a64::MemOperand(rregs, GprOffset(rt))); armAsm->Cmp(s, t); taken = a64::ne; break; // BNE
+					case 0x06: armAsm->Cmp(s, 0); taken = a64::le; break; // BLEZ
+					case 0x07: armAsm->Cmp(s, 0); taken = a64::gt; break; // BGTZ
+					default: armAsm->Cmp(s, 0); taken = (rt & 1) ? a64::ge : a64::lt; break; // BGEZ, BLTZ
+				}
+				break;
+			case 0x10: // BC0F, BC0T: CPCOND0
+				armEmitCall(reinterpret_cast<const void*>(&Bc0Condition));
+				armAsm->Cmp(RWRET, 0);
+				taken = (rt & 1) ? a64::ne : a64::eq;
+				break;
+			case 0x11: // BC1F, BC1T: FPU condition flag C
+				armMoveAddressToReg(a64::x9, &fpuRegs.fprc[31]);
+				armAsm->Ldr(a64::w9, a64::MemOperand(a64::x9));
+				armAsm->Tst(a64::w9, 0x00800000);
+				taken = (rt & 1) ? a64::ne : a64::eq;
+				break;
+			default: // BC2F, BC2T: VPU_STAT bit 8 (VU1 running)
+				armMoveAddressToReg(a64::x9, &VU0.VI[REG_VPU_STAT]);
+				armAsm->Ldr(a64::w9, a64::MemOperand(a64::x9));
+				armAsm->Tst(a64::w9, 0x100);
+				taken = (rt & 1) ? a64::ne : a64::eq;
+				break;
 		}
-		armAsm->B(skip, &not_taken);
+		armAsm->Cset(wtaken, taken);
 	}
 
-	const u32 link = (op == 0x03) ? 31 : (reg_jump && (code & 63) == 0x09) ? rd : 0;
+	const u32 link = (op == 0x03 || (op == 0x01 && (rt & 16))) ? 31 : (reg_jump && (code & 63) == 0x09) ? rd : 0;
 	if (link)
 	{
 		armAsm->Mov(s, pc + 8);
 		armAsm->Str(s, a64::MemOperand(rregs, GprOffset(link)));
 	}
+
+	a64::Label not_taken;
+	if (likely)
+		armAsm->Cbz(wtaken, &not_taken);
 
 	// The delay slot, as execI.
 	const u32 dcode = memRead32(pc + 4);
@@ -426,81 +630,64 @@ static void EmitBranch(u32 code, u32 pc, const a64::Register& rregs, const a64::
 	{
 		armEmitCall(reinterpret_cast<const void*>(dop.interpret));
 		armAsm->Ldr(a64::w9, a64::MemOperand(rregs, off_branch));
-		armAsm->Cbz(a64::w9, &exit);
+		armAsm->Cbz(a64::w9, &exit_commit);
 	}
+	if (cond && !likely)
+		armAsm->Cbz(wtaken, &not_taken);
 
-	// The rest of doBranch, inline at the default EE cycle rate. Speedhack changes recompile all blocks.
-	// A taken branch to the last taken target is a wait loop candidate: it runs intUpdateCPUCycles once
-	// more (one more cycle, as cpuBlockCycles < 8 then) and may skip to the next event, which only
-	// intBranchAfterDelaySlot does. PSM reads the fixed physical map, so whether the skip test can pass
-	// is known here for a constant target.
-	const a64::Register& wtarget = a64::w21;
 	if (!reg_jump)
 		armAsm->Mov(wtarget, target);
-	const bool wait_loop = CpuRunsIntBranches() && EmuConfig.Speedhacks.WaitLoop;
-	const bool wait_ff = !reg_jump && EmuConfig.Speedhacks.WaitLoop;
-	bool may_skip = reg_jump || target == 0x81fc0;
-	if (!may_skip && (pc + 8 - target) < 4 * 10)
-	{
-		may_skip = true;
-		for (u32 i = target; i < pc + 8; i += 4)
-		{
-			if (PSM(i) != 0)
-			{
-				may_skip = false;
-				break;
-			}
-		}
-	}
-	a64::Label slow;
-	if (EmuConfig.Speedhacks.EECycleRate != 0)
-		armAsm->B(&slow);
-	armMoveAddressToReg(a64::x15, &intLastBranchTo);
-	armAsm->Ldr(a64::w13, a64::MemOperand(a64::x15));
-	armAsm->Cmp(a64::w13, wtarget);
-	if (wait_loop && may_skip)
-		armAsm->B(a64::eq, &slow);
-	if (wait_loop)
-		armAsm->Cset(a64::w16, a64::eq);
-	armAsm->Str(wtarget, a64::MemOperand(a64::x15));
 	armAsm->Str(wtarget, a64::MemOperand(rregs, offsetof(cpuRegisters, pc)));
 	armAsm->Str(a64::wzr, a64::MemOperand(rregs, off_branch));
-	// intUpdateCPUCycles: cycle += max(cpuBlockCycles >> 3, 1), cpuBlockCycles &= 7.
-	armAsm->Ldr(a64::w13, a64::MemOperand(rcycles));
-	armAsm->Lsr(a64::w14, a64::w13, 3);
-	armAsm->Cmp(a64::w14, 1);
-	armAsm->Csinc(a64::w14, a64::w14, a64::wzr, a64::hs);
-	if (wait_loop)
-		armAsm->Add(a64::w14, a64::w14, a64::w16);
-	armAsm->Ldr(a64::x15, a64::MemOperand(rregs, offsetof(cpuRegisters, cycle)));
-	armAsm->Add(a64::x15, a64::x15, a64::x14);
-	if (wait_ff && target == ff_start)
+	EmitCommit(rregs, rcycles);
+	if (EmuConfig.Speedhacks.WaitLoop && !reg_jump && target == ff_start)
 	{
-		// IsFastForwardLoop: cycle = nextEventCycle when that is later.
+		// cycle = nextEventCycle when that is later.
+		armAsm->Ldr(a64::x15, a64::MemOperand(rregs, offsetof(cpuRegisters, cycle)));
 		armAsm->Ldr(a64::x17, a64::MemOperand(rregs, offsetof(cpuRegisters, nextEventCycle)));
 		armAsm->Sub(a64::x16, a64::x17, a64::x15);
 		armAsm->Cmp(a64::x16, 0);
 		armAsm->Csel(a64::x15, a64::x17, a64::x15, a64::gt);
+		armAsm->Str(a64::x15, a64::MemOperand(rregs, offsetof(cpuRegisters, cycle)));
 	}
-	armAsm->Str(a64::x15, a64::MemOperand(rregs, offsetof(cpuRegisters, cycle)));
-	armAsm->And(a64::w13, a64::w13, 7);
-	armAsm->Str(a64::w13, a64::MemOperand(rcycles));
 	EmitEventTestAndDispatch(wtarget, rregs, rcycles, exit);
 
-	armAsm->Bind(&slow);
-	armAsm->Mov(RWARG1, wtarget);
-	armEmitCall(reinterpret_cast<const void*>(&intBranchAfterDelaySlot));
-	armAsm->B(&exit);
-
-	armAsm->Bind(&not_taken);
-	armAsm->Mov(wtarget, likely ? pc + 8 : pc + 4);
-	if (likely)
+	if (cond)
+	{
+		armAsm->Bind(&not_taken);
+		armAsm->Mov(wtarget, pc + 8);
 		armAsm->Str(wtarget, a64::MemOperand(rregs, offsetof(cpuRegisters, pc)));
-	// BLEZ, BGTZ, BLTZ and BGEZ do not test events when not taken.
-	if (likely || op == 0x04 || op == 0x05)
+		armAsm->Str(a64::wzr, a64::MemOperand(rregs, off_branch));
+		EmitCommit(rregs, rcycles);
 		EmitEventTestAndDispatch(wtarget, rregs, rcycles, exit);
-	else
-		EmitDispatch(wtarget, rregs, rcycles, exit);
+	}
+}
+
+// The x86 recompiler's timeout loop skip (recSkipTimeoutLoop): a block of `addiu r, r, -n`, nops and
+// `bne r, zero` with a nop delay slot spins r cycles; skip them, up to the next event.
+static void EmitTimeoutLoop(u32 reg, u32 endpc, const a64::Register& rregs, const a64::Register& rcycles,
+	a64::Label& exit)
+{
+	a64::Label event;
+	armAsm->Ldr(a64::x12, a64::MemOperand(rregs, offsetof(cpuRegisters, cycle)));
+	armAsm->Ldr(a64::x13, a64::MemOperand(rregs, offsetof(cpuRegisters, nextEventCycle)));
+	armAsm->Cmp(a64::x12, a64::x13);
+	armAsm->B(a64::hs, &event);
+	armAsm->Ldr(a64::w14, a64::MemOperand(rregs, GprOffset(reg)));
+	armAsm->Add(a64::x15, a64::x12, a64::Operand(a64::x14, a64::LSL, 3));
+	armAsm->Cmp(a64::x13, a64::x15);
+	armAsm->Csel(a64::x15, a64::x13, a64::x15, a64::lo);
+	armAsm->Str(a64::x15, a64::MemOperand(rregs, offsetof(cpuRegisters, cycle)));
+	armAsm->Sub(a64::x15, a64::x15, a64::x12);
+	armAsm->Sub(a64::x14, a64::x14, a64::Operand(a64::x15, a64::LSR, 3));
+	armAsm->Str(a64::w14, a64::MemOperand(rregs, GprOffset(reg)));
+	armAsm->Cbnz(a64::x14, &event);
+	armAsm->Mov(a64::w21, endpc);
+	armAsm->Str(a64::w21, a64::MemOperand(rregs, offsetof(cpuRegisters, pc)));
+	EmitDispatch(a64::w21, rregs, rcycles, exit);
+	armAsm->Bind(&event);
+	armEmitCall(reinterpret_cast<const void*>(&intEventTest));
+	armAsm->B(&exit);
 }
 
 // PCSX2_EE_JIT_MAP=<file>: host address of each compiled instruction (pc, name, code word), to
@@ -523,21 +710,58 @@ static BlockFn Compile(u32 startpc, BlockFn* entry)
 	const bool in_ram = (s_lut[startpc >> 16] - s_ram_blocks) >= 0 &&
 						static_cast<size_t>(s_lut[startpc >> 16] - s_ram_blocks) < Ps2MemSize::ExposedRam / 4;
 
-	// The instructions, up to the end of the block.
-	u32 count = 0;
+	// The x86 recompiler's block layout: up to a branch and its delay slot (or up to the branch's target
+	// when that is inside the block), SYSCALL, BREAK or ERET, or split at a 4 KB page or before a
+	// compiled block.
+	u32 endpc, branch_to = 0xffffffff;
+	s32 timeout_reg = -1;
+	bool timeout_loop = true;
 	for (u32 pc = startpc;; pc += 4)
 	{
-		count++;
-		const u32 code = memRead32(pc);
-		if (EndsBlock(GetInstruction(code), code) || ((pc + 4) & 0xfff) == 0)
+		if (pc != startpc && ((pc & 0xffc) == 0 || IsCompiled(pc)))
+		{
+			endpc = pc;
 			break;
+		}
+		const u32 code = memRead32(pc);
+		const u32 op = code >> 26, rs = (code >> 21) & 31, rt = (code >> 16) & 31;
+		if (timeout_loop)
+		{
+			if (op == 0x08 || op == 0x09)
+			{
+				if (timeout_reg >= 0 || rs != rt || static_cast<s16>(code & 0xffff) >= 0)
+					timeout_loop = false;
+				else
+					timeout_reg = rs;
+			}
+			else if (op == 0x05)
+			{
+				if (timeout_reg != static_cast<s32>(rs) || rt != 0 || memRead32(pc + 4) != 0)
+					timeout_loop = false;
+			}
+			else if (code != 0)
+				timeout_loop = false;
+		}
+		if (IsBranch(code))
+		{
+			endpc = pc + 8;
+			if (op != 0x00)
+			{
+				branch_to = BranchTarget(code, pc);
+				if (op != 0x02 && op != 0x03 && branch_to > startpc && branch_to < pc)
+					endpc = branch_to;
+			}
+			break;
+		}
+		if ((op == 0x00 && ((code & 63) == 0x0c || (code & 63) == 0x0d)) || code == 0x42000018)
+		{
+			endpc = pc + 4;
+			break;
+		}
 	}
-	// The block ends with a branch compiled with its delay slot, which then is checked as block code.
-	const u32 lastpc = startpc + (count - 1) * 4;
-	const bool native_branch = IsNativeBranch(memRead32(lastpc)) && ((lastpc + 4) & 0xfff) != 0 &&
-							   !EndsBlock(GetInstruction(memRead32(lastpc + 4)), memRead32(lastpc + 4));
-	const u32 code_words = count + native_branch;
-	const u32 ff_start = (native_branch && IsFastForwardLoop(startpc, lastpc)) ? startpc : 0xffffffff;
+	const u32 code_words = (endpc - startpc) / 4;
+	const u32 ff_start =
+		(branch_to == startpc && endpc >= startpc + 8 && IsFastForwardLoop(startpc, endpc - 8)) ? startpc : 0xffffffff;
 
 	// Self-modifying code: a written page clears its blocks (vtlb page protection), or, on a page under
 	// manual protection, the block compares its code at entry (as memory_protect_recompiled_code on x86).
@@ -557,11 +781,11 @@ static BlockFn Compile(u32 startpc, BlockFn* entry)
 
 	const a64::Register& rregs = a64::x19;
 	const a64::Register& rcycles = a64::x20;
-	a64::Label exit, discard;
+	a64::Label exit, exit_commit, hook_exit, discard;
 
 	armAsm->Stp(a64::x29, a64::lr, a64::MemOperand(a64::sp, -48, a64::PreIndex));
 	armAsm->Stp(rregs, rcycles, a64::MemOperand(a64::sp, 16));
-	armAsm->Str(a64::x21, a64::MemOperand(a64::sp, 32));
+	armAsm->Stp(a64::x21, a64::x22, a64::MemOperand(a64::sp, 32));
 	armAsm->Mov(rregs, RXARG1);
 	armAsm->Mov(rcycles, RXARG2);
 
@@ -595,9 +819,16 @@ static BlockFn Compile(u32 startpc, BlockFn* entry)
 		}
 	};
 	bool last_native = false;
-	for (u32 i = 0; i < count; i++)
+	bool ended = false;
+	ConstRegs consts;
+	u32 pc = startpc;
+	if (timeout_loop && timeout_reg >= 0 && EmuConfig.Speedhacks.WaitLoop)
 	{
-		const u32 pc = startpc + i * 4;
+		EmitTimeoutLoop(timeout_reg, endpc, rregs, rcycles, exit);
+		ended = true;
+	}
+	for (; !ended && pc < endpc; pc += 4)
+	{
 		const u32 code = memRead32(pc);
 		const OPCODE& opcode = GetInstruction(code);
 		if (s_ee_map)
@@ -609,36 +840,85 @@ static BlockFn Compile(u32 startpc, BlockFn* entry)
 				flush(memRead32(pc - 4), pc);
 			armAsm->Mov(RWARG1, pc);
 			armEmitCall(reinterpret_cast<const void*>(&HookAnswered));
-			armAsm->Cbnz(RWRET, &exit);
+			armAsm->Cbnz(RWRET, &hook_exit);
 		}
 
 		pending_cycles += opcode.cycles * cycle_factor;
+		if (IsBranch(code))
+		{
+			flush(code, pc + 4);
+			EmitBranch(code, pc, rregs, rcycles, cycle_factor, ff_start, exit_commit, exit);
+			ended = true;
+			break;
+		}
+		const u32 op = code >> 26, rs = (code >> 21) & 31;
+		if (op == 0x00 && (code & 63) == 0x0c && consts.Is(3) && ((consts.v[3] & 0xff) == 0x64 || (consts.v[3] & 0xff) == 0x68))
+		{
+			// FlushCache: the x86 recompiler adds the cycles of its exception handlers instead of the call.
+			pending_cycles += 5650;
+			last_native = true;
+			continue;
+		}
+		const bool const_hw_load = (op >= 0x20 && op <= 0x25 && op != 0x22) || op == 0x27 ?
+			consts.Is(rs) && ((static_cast<u32>(consts.v[rs]) + static_cast<s16>(code & 0xffff)) & 0xffffe000) == 0x10000000 : false;
 		last_native = EmitNative(rregs, code);
+		consts.Track(code);
 		if (last_native)
 			continue;
 
 		flush(code, pc + 4);
-		if (native_branch && i + 1 == count)
+		const bool force_test = ForcesEventTest(code);
+		if (force_test)
 		{
-			EmitBranch(code, pc, rregs, rcycles, cycle_factor, ff_start, exit);
+			armAsm->Ldr(a64::x9, a64::MemOperand(rregs, offsetof(cpuRegisters, cycle)));
+			armAsm->Str(a64::x9, a64::MemOperand(rregs, offsetof(cpuRegisters, nextEventCycle)));
+		}
+		void (*handler)() = LoadHandler(code);
+		armEmitCall(reinterpret_cast<const void*>(handler ? handler : opcode.interpret));
+		if (force_test || const_hw_load || (code >> 26 == 0x00 && ((code & 63) == 0x0c || (code & 63) == 0x0d)))
+		{
+			// The x86 recompiler's g_branch = 2: commit, test events, continue at cpuRegs.pc.
+			EmitCommit(rregs, rcycles);
+			armAsm->Ldr(a64::w21, a64::MemOperand(rregs, off_pc));
+			EmitEventTestAndDispatch(a64::w21, rregs, rcycles, exit);
+			ended = true;
 			break;
 		}
-		armEmitCall(reinterpret_cast<const void*>(opcode.interpret));
 
 		// An exception or a cancelled instruction moved the pc.
-		if (i + 1 < count)
-		{
-			armAsm->Ldr(a64::w9, a64::MemOperand(rregs, off_pc));
-			armAsm->Mov(a64::w10, pc + 4);
-			armAsm->Cmp(a64::w9, a64::w10);
-			armAsm->B(a64::ne, &exit);
-		}
+		armAsm->Ldr(a64::w9, a64::MemOperand(rregs, off_pc));
+		armAsm->Mov(a64::w10, pc + 4);
+		armAsm->Cmp(a64::w9, a64::w10);
+		armAsm->B(a64::ne, &exit_commit);
 	}
-	if (last_native)
+	if (!ended)
 	{
-		const u32 lastpc = startpc + (count - 1) * 4;
-		flush(memRead32(lastpc), lastpc + 4);
+		// Split block: commit, test events only after more than 6 instructions.
+		if (last_native)
+			flush(memRead32(endpc - 4), endpc);
+		EmitCommit(rregs, rcycles);
+		armAsm->Mov(a64::w21, endpc);
+		armAsm->Str(a64::w21, a64::MemOperand(rregs, off_pc));
+		if (code_words > 6)
+			EmitEventTestAndDispatch(a64::w21, rregs, rcycles, exit);
+		else
+			EmitDispatch(a64::w21, rregs, rcycles, exit);
 	}
+
+	// An exception in a handler: commit and test events, the dispatcher continues at cpuRegs.pc.
+	armAsm->Bind(&exit_commit);
+	EmitCommit(rregs, rcycles);
+	armAsm->Ldr(a64::x13, a64::MemOperand(rregs, offsetof(cpuRegisters, cycle)));
+	armAsm->Ldr(a64::x14, a64::MemOperand(rregs, offsetof(cpuRegisters, nextEventCycle)));
+	armAsm->Sub(a64::x13, a64::x13, a64::x14);
+	armAsm->Tbnz(a64::x13, 63, &exit);
+	armEmitCall(reinterpret_cast<const void*>(&intEventTest));
+	armAsm->B(&exit);
+
+	// An answered hook leaves the block without its cycles, as the x86 recompiler's hook jumps to the
+	// dispatcher before the block end adds them.
+	armAsm->Bind(&hook_exit);
+	armAsm->Str(a64::wzr, a64::MemOperand(rcycles));
 
 	armAsm->Bind(&exit);
 	EmitEpilogue(rregs, rcycles);

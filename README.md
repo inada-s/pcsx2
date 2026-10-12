@@ -77,14 +77,19 @@ Everything is on only for the one game build it was made for; any other disc run
   Env `PCSX2_VU1_JIT_MAP=<file>`: start address and kind of each emitted trace section (and the
   handler it calls), to attribute `sample` addresses in VU1 JIT code to per-step work.
 - ARM64 EE recompiler (`pcsx2/arm64/iR5900.cpp`, experimental): blocks compiled into calls of the
-  interpreter's handlers, so it computes what the EE interpreter computes, faster. On when the EE
-  recompiler setting is on (`EmuCore/CPU/Recompiler` `EnableEE`, the default); off = EE interpreter.
-  VU stays the interpreter on ARM64.
+  interpreter's handlers, with the x86 recompiler's timing, so ARM64 and x86_64 peers count the same
+  EE cycles. On when the EE recompiler setting is on (`EmuCore/CPU/Recompiler` `EnableEE`, the
+  default); off = EE interpreter (its own timing, as upstream). VU stays the interpreter on ARM64.
+  Timing as the x86 recompiler: same block layout (end at a branch + delay slot, at a backward target
+  inside the block, at SYSCALL/BREAK/ERET, at a 4 KB page, before a compiled block); each block end
+  commits `cycle += max(blockcycles >> 3, 1)` with the fraction dropped; both paths of every branch
+  (also BLTZAL..BGEZALL, BC0x/BC1x/BC2x) commit and test events; ERET/EI/traps force an event test;
+  a split block tests events only after more than 6 instructions; LB..LW test events after an EE
+  counter read (0x10000000-0x10001fff) only at a block-constant address; a FlushCache SYSCALL with a
+  constant v1 adds 5650 cycles instead of the call; timeout loop skip (`recSkipTimeoutLoop`).
   Integer ALU, shift, HI/LO move and MOVZ/MOVN ops are emitted as native code, computed as the x86
   recompiler does: ADD/SUB/ADDI/DADD/DSUB/DADDI write their result on overflow (the interpreter skips
-  the write). Jumps and branches (J/JAL/JR/JALR, BEQ/BNE/BLEZ/BGTZ/BLTZ/BGEZ and likely forms) are
-  compiled with their delay slot and the rest of the interpreter's doBranch (cycles, event test; a
-  wait loop candidate calls it), then jump to the next compiled block without returning.
+  the write). Branches jump to the next compiled block without returning.
   `ZDXSV_CYCLE_LOG=n` (docs/zdxsv/options.md) logs the EE/IOP cycle counters in a replay to compare
   two builds. Env `PCSX2_ARM64_EE_NATIVE=0`: every op calls its interpreter handler (A/B check).
   Events (counters, interrupts, IOP and VU runs) are tested only once the cycle target is reached, as
