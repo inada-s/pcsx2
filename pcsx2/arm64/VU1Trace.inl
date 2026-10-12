@@ -1463,6 +1463,14 @@ static bool _vu1JitEmitEfuOp(FnPtr_VuVoid f, u32 code)
 		armAsm->Ldr(a64::w0, _vu1JitMem(_vu1Off(VU1.VF[fs].UL[one ? fsf : i])));
 		if (f == VU1MI_ESQRT || f == VU1MI_ERSQRT)
 			armAsm->And(a64::w0, a64::w0, 0x7fffffff);
+		if (n == 4)
+		{
+			// NaN quieted, as _vuEfuR: x + w and y + z add two register operands
+			armAsm->And(a64::w1, a64::w0, 0x7fffffff);
+			armAsm->Orr(a64::w2, a64::w0, 0x400000);
+			armAsm->Cmp(a64::w1, 0x7f800000);
+			armAsm->Csel(a64::w0, a64::w2, a64::w0, a64::hi);
+		}
 		armAsm->Fmov(s[i], a64::w0);
 	}
 	if (sum3)

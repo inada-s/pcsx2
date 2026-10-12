@@ -1739,6 +1739,13 @@ static __fi float _vuEfuAdd(float a, float b)
 	return r;
 }
 
+// A register operand with a NaN quieted. With two NaN operands SSE returns the first one, AArch64
+// a signaling one first; once both are quiet AArch64 also returns the first.
+static __fi float _vuEfuR(u32 bits)
+{
+	return _vuEfuF((bits & 0x7fffffff) > 0x7f800000 ? bits | 0x400000 : bits);
+}
+
 // x*x + y*y + z*z as DPPS: (x*x + y*y) + (z*z + 0)
 static __fi float _vuEfuSum3(VURegs* VU)
 {
@@ -1761,8 +1768,8 @@ static __ri void _vuERSQRT(VURegs* VU) { _vuEfuSetP(VU, 1.0f / std::sqrt(_vuEfuA
 
 static __ri void _vuESUM(VURegs* VU)
 {
-	const float x = _vuEfuF(VU->VF[_Fs_].i.x), y = _vuEfuF(VU->VF[_Fs_].i.y);
-	const float z = _vuEfuF(VU->VF[_Fs_].i.z), w = _vuEfuF(VU->VF[_Fs_].i.w);
+	const float x = _vuEfuR(VU->VF[_Fs_].i.x), y = _vuEfuR(VU->VF[_Fs_].i.y);
+	const float z = _vuEfuR(VU->VF[_Fs_].i.z), w = _vuEfuR(VU->VF[_Fs_].i.w);
 	_vuEfuSetP(VU, _vuEfuAdd(_vuEfuAdd(x, w), _vuEfuAdd(y, z)));
 }
 
@@ -1788,14 +1795,14 @@ static __ri void _vuEATAN(VURegs* VU)
 
 static __ri void _vuEATANxy(VURegs* VU)
 {
-	const float x = _vuEfuF(VU->VF[_Fs_].i.x), y = _vuEfuF(VU->VF[_Fs_].i.y);
-	_vuEfuSetP(VU, _vuEfuAtan((y - x) / (x + y)));
+	const float x = _vuEfuR(VU->VF[_Fs_].i.x), y = _vuEfuR(VU->VF[_Fs_].i.y);
+	_vuEfuSetP(VU, _vuEfuAtan((y - x) / _vuEfuAdd(x, y)));
 }
 
 static __ri void _vuEATANxz(VURegs* VU)
 {
-	const float x = _vuEfuF(VU->VF[_Fs_].i.x), z = _vuEfuF(VU->VF[_Fs_].i.z);
-	_vuEfuSetP(VU, _vuEfuAtan((z - x) / (x + z)));
+	const float x = _vuEfuR(VU->VF[_Fs_].i.x), z = _vuEfuR(VU->VF[_Fs_].i.z);
+	_vuEfuSetP(VU, _vuEfuAtan((z - x) / _vuEfuAdd(x, z)));
 }
 
 static __ri void _vuESIN(VURegs* VU)
