@@ -510,6 +510,73 @@ static void (*LoadHandler(u32 code))()
 	}
 }
 
+// Loads and stores on a vtlb pointer page as native code, the interpreter's access without its handler
+// call (CHECK_EEREC: no data cache). Branches to slow for a handler page, a misaligned address (the
+// handler raises the address error) and LQC2/SQC2 while VU0 runs (vu0Sync). False: op not handled here.
+static bool EmitMemFast(const a64::Register& rregs, u32 code, a64::Label* slow)
+{
+	const u32 op = code >> 26, rs = (code >> 21) & 31, rt = (code >> 16) & 31;
+	u32 size;
+	switch (op)
+	{
+		case 0x20: case 0x24: case 0x28: size = 1; break; // LB, LBU, SB
+		case 0x21: case 0x25: case 0x29: size = 2; break; // LH, LHU, SH
+		case 0x23: case 0x2b: case 0x31: case 0x39: size = 4; break; // LW, SW, LWC1, SWC1
+		case 0x37: case 0x3f: size = 8; break; // LD, SD
+		case 0x1e: case 0x1f: case 0x36: case 0x3e: size = 16; break; // LQ, SQ, LQC2, SQC2
+		default: return false;
+	}
+	const bool cop2 = op == 0x36 || op == 0x3e;
+	const s64 off_vf = reinterpret_cast<u8*>(&VU0.VF[rt]) - reinterpret_cast<u8*>(&VU0);
+	if (cop2)
+	{
+		armMoveAddressToReg(a64::x12, &VU0);
+		armAsm->Ldr(a64::w9, a64::MemOperand(a64::x12, reinterpret_cast<u8*>(&VU0.VI[REG_VPU_STAT]) -
+														  reinterpret_cast<u8*>(&VU0)));
+		armAsm->Tbnz(a64::w9, 0, slow);
+	}
+	armAsm->Ldr(a64::w0, a64::MemOperand(rregs, GprOffset(rs)));
+	armAsm->Add(a64::w0, a64::w0, static_cast<s16>(code & 0xffff));
+	if (op == 0x1e || op == 0x1f)
+		armAsm->And(a64::w0, a64::w0, ~0xfu);
+	else if (size > 1 && !cop2)
+	{
+		armAsm->Tst(a64::w0, size - 1);
+		armAsm->B(a64::ne, slow);
+	}
+	armMoveAddressToReg(a64::x2, &vtlb_private::vtlbdata.vmap);
+	armAsm->Ldr(a64::x2, a64::MemOperand(a64::x2));
+	armAsm->Lsr(a64::w1, a64::w0, vtlb_private::VTLB_PAGE_BITS);
+	armAsm->Ldr(a64::x1, a64::MemOperand(a64::x2, a64::x1, a64::LSL, 3));
+	armAsm->Add(a64::x1, a64::x1, a64::Operand(a64::w0, a64::UXTW));
+	armAsm->Tbnz(a64::x1, 63, slow);
+	static_assert(sizeof(vtlb_private::VTLBVirtual) == 8);
+
+	const a64::MemOperand host(a64::x1);
+	const a64::MemOperand gpr(rregs, GprOffset(rt));
+	const a64::MemOperand fpr(rregs, FprOffset(rt));
+	switch (op)
+	{
+		case 0x20: if (rt) { armAsm->Ldrsb(a64::x3, host); armAsm->Str(a64::x3, gpr); } break;
+		case 0x24: if (rt) { armAsm->Ldrb(a64::w3, host); armAsm->Str(a64::x3, gpr); } break;
+		case 0x21: if (rt) { armAsm->Ldrsh(a64::x3, host); armAsm->Str(a64::x3, gpr); } break;
+		case 0x25: if (rt) { armAsm->Ldrh(a64::w3, host); armAsm->Str(a64::x3, gpr); } break;
+		case 0x23: if (rt) { armAsm->Ldrsw(a64::x3, host); armAsm->Str(a64::x3, gpr); } break;
+		case 0x37: if (rt) { armAsm->Ldr(a64::x3, host); armAsm->Str(a64::x3, gpr); } break;
+		case 0x1e: if (rt) { armAsm->Ldr(a64::q0, host); armAsm->Str(a64::q0, gpr); } break;
+		case 0x31: armAsm->Ldr(a64::w3, host); armAsm->Str(a64::w3, fpr); break;
+		case 0x36: if (rt) { armAsm->Ldr(a64::q0, host); armAsm->Str(a64::q0, a64::MemOperand(a64::x12, off_vf)); } break;
+		case 0x28: armAsm->Ldr(a64::w3, gpr); armAsm->Strb(a64::w3, host); break;
+		case 0x29: armAsm->Ldr(a64::w3, gpr); armAsm->Strh(a64::w3, host); break;
+		case 0x2b: armAsm->Ldr(a64::w3, gpr); armAsm->Str(a64::w3, host); break;
+		case 0x3f: armAsm->Ldr(a64::x3, gpr); armAsm->Str(a64::x3, host); break;
+		case 0x1f: armAsm->Ldr(a64::q0, gpr); armAsm->Str(a64::q0, host); break;
+		case 0x39: armAsm->Ldr(a64::w3, fpr); armAsm->Str(a64::w3, host); break;
+		case 0x3e: armAsm->Ldr(a64::q0, a64::MemOperand(a64::x12, off_vf)); armAsm->Str(a64::q0, host); break;
+	}
+	return true;
+}
+
 // Block-local GPR constants, as the x86 recompiler's g_cpuConstRegs, for its constant address loads and
 // FlushCache syscalls. Ops not followed here forget the registers they may write.
 struct ConstRegs
@@ -1070,6 +1137,13 @@ static BlockFn Compile(u32 startpc, BlockFn* entry)
 		}
 
 		flush(code, pc + 4);
+		a64::Label mem_slow, mem_done;
+		const bool mem_fast = s_native && !const_hw_load && EmitMemFast(rregs, code, &mem_slow);
+		if (mem_fast)
+		{
+			armAsm->B(&mem_done);
+			armAsm->Bind(&mem_slow);
+		}
 		const bool force_test = ForcesEventTest(code);
 		if (force_test)
 		{
@@ -1095,6 +1169,8 @@ static BlockFn Compile(u32 startpc, BlockFn* entry)
 		armAsm->Mov(a64::w10, pc + 4);
 		armAsm->Cmp(a64::w9, a64::w10);
 		armAsm->B(a64::ne, &exit_commit);
+		if (mem_fast)
+			armAsm->Bind(&mem_done);
 	}
 	if (!ended)
 	{
