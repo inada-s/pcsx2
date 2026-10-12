@@ -121,6 +121,11 @@ Everything is on only for the one game build it was made for; any other disc run
   recompiler (`pcsx2/x86/iFPU.cpp`) does: CFC1 masks FCR31 and reads FCR0 for 0..15, SQRT/RSQRT set I on
   any sign bit (also -0), RSQRT x/0 takes the sign of Fs and sets I for 0/0, MAX/MIN clamp NaN/Inf, count
   denormals as 0 and on +0 vs -0 return Ft (Fs when Fd = Ft), and keep O/U. x86_64 builds unchanged.
+- ARM64 EE FPU NaN/Inf/denormal operands as the x86 recompiler in its default clamp mode (interpreter
+  `pcsx2/FPU.cpp` and native `pcsx2/arm64/iR5900.cpp`): ADD/SUB/MUL/DIV/RSQRT/MADD/MSUB (and the ACC
+  forms) take operands unclamped with denormals as 0, a NaN result is +Fmax and an infinity +/-Fmax;
+  ABS clamps to +Fmax and flushes denormals, NEG clamps NaN/Inf keeping denormals; O/U are left alone and
+  DIV.S clears D/I first. Other clamp modes keep the old code. x86_64 builds unchanged.
 - ARM64 EE recompiler (`pcsx2/arm64/iR5900.cpp`, experimental): blocks compiled into calls of the
   interpreter's handlers, with the x86 recompiler's timing, so ARM64 and x86_64 peers count the same
   EE cycles. On when the EE recompiler setting is on (`EmuCore/CPU/Recompiler` `EnableEE`, the
