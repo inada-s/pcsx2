@@ -174,6 +174,14 @@ static u32 s_vu1_trace_epoch = 1;
 // The trace that ran last, while nothing else has touched VU1 since its exit.
 static VU1Trace* s_vu1_prev;
 
+// Trace chaining: a trace's exit jumps straight into a successor from its succ when
+// InterpVU1::Execute would run that one next anyway.
+static struct
+{
+	u64 limit; // the trace's start cycle must stay below this: startcycles + cycles of Execute
+	VU1Trace* last; // the trace that ran last, written by the chain jump
+} s_vu1_chain;
+
 void _vu1TraceClear()
 {
 	s_vu1_micro_gen++;
@@ -359,31 +367,7 @@ static void _vu1JitMark(const char* what, const void* fn = nullptr)
 }
 
 // As _vuFDIVflush and _vuEFUflush do once the result is due.
-static void _vu1JitFDIVretire()
-{
-	VU1.fdiv.enable = 0;
-	VU1.VI[REG_Q].UL = VU1.fdiv.reg.UL;
-	VU1.VI[REG_STATUS_FLAG].UL = (VU1.VI[REG_STATUS_FLAG].UL & 0xFCF) | (VU1.fdiv.statusflag & 0xC30);
-}
-static void _vu1JitEFUretire()
-{
-	VU1.efu.enable = 0;
-	VU1.VI[REG_P].UL = VU1.efu.reg.UL;
-}
 static void _vu1JitXGKICK() { _vuXGKICKTransfer((VU1.cycle - VU1.xgkicklastcycle) - 1, false); }
-static void _vu1JitBranch()
-{
-	if (VU1.branch-- == 1)
-	{
-		VU1.VI[REG_TPC].UL = VU1.branchpc;
-		if (VU1.takedelaybranch)
-		{
-			VU1.branch = 1;
-			VU1.branchpc = VU1.delaybranchpc;
-			VU1.takedelaybranch = false;
-		}
-	}
-}
 static void _vu1JitAddLowerStalls(_VURegsNum* r) { _vuAddLowerStalls(&VU1, r); }
 
 template <typename T>
@@ -1405,10 +1389,69 @@ static bool _vu1BacksUpVI(FnPtr_VuVoid f)
 		   f == VU1MI_SQD || f == VU1MI_SQI;
 }
 
+// After the epilogue: the checks of InterpVU1::Execute and _vu1TraceStep for running the next
+// trace, then a tail jump to it, else return. Only x0-x15 are used (x16/x17 are VIXL scratch).
+static void _vu1JitEmitChain(VU1Trace& t)
+{
+	_vu1JitMark("chain");
+	const auto field = [&t](const void* p) { return static_cast<s64>(static_cast<const u8*>(p) - reinterpret_cast<const u8*>(&t)); };
+	const s64 off_tcode = field(&t.code);
+	const s64 off_tgen = field(&t.micro_gen);
+	const s64 off_trel = field(&t.last_start_rel);
+	a64::Label out, found;
+	armMoveAddressToReg(a64::x9, &VU1);
+	const auto vu = [](s64 off) { return a64::MemOperand(a64::x9, off); };
+	armAsm->Ldr(a64::w10, vu(_vu1Off(VU1.branch)));
+	armAsm->Cbnz(a64::w10, &out);
+	armAsm->Ldr(a64::w10, vu(_vu1Off(VU1.ebit)));
+	armAsm->Cbnz(a64::w10, &out);
+	armMoveAddressToReg(a64::x11, &VU0.VI[REG_VPU_STAT].UL);
+	armAsm->Ldr(a64::w10, a64::MemOperand(a64::x11));
+	armAsm->Tbz(a64::w10, 8, &out);
+	armAsm->Ldr(a64::w12, vu(_vu1Off(VU1.VI[REG_TPC].UL)));
+	armAsm->And(a64::w12, a64::w12, VU1_PROGMASK);
+	armMoveAddressToReg(a64::x11, &s_vu1_trace_epoch);
+	armAsm->Ldr(a64::w11, a64::MemOperand(a64::x11));
+	for (const auto& s : t.succ)
+	{
+		a64::Label next;
+		armMoveAddressToReg(a64::x13, &s);
+		armAsm->Ldr(a64::x14, a64::MemOperand(a64::x13, offsetof(std::remove_reference_t<decltype(s)>, t)));
+		armAsm->Cbz(a64::x14, &next);
+		armAsm->Ldp(a64::w15, a64::w10, a64::MemOperand(a64::x13, offsetof(std::remove_reference_t<decltype(s)>, pc)));
+		static_assert(offsetof(std::remove_reference_t<decltype(s)>, pc) + 4 == offsetof(std::remove_reference_t<decltype(s)>, epoch));
+		armAsm->Cmp(a64::w15, a64::w12);
+		armAsm->Ccmp(a64::w10, a64::w11, a64::NoFlag, a64::eq);
+		armAsm->B(&found, a64::eq);
+		armAsm->Bind(&next);
+	}
+	armAsm->B(&out);
+
+	armAsm->Bind(&found); // x14 = the successor
+	armAsm->Ldr(a64::w10, a64::MemOperand(a64::x14, off_tgen));
+	armMoveAddressToReg(a64::x11, &s_vu1_micro_gen);
+	armAsm->Ldr(a64::w11, a64::MemOperand(a64::x11));
+	armAsm->Cmp(a64::w10, a64::w11);
+	armAsm->B(&out, a64::ne);
+	armAsm->Ldr(a64::x15, a64::MemOperand(a64::x14, off_tcode));
+	armAsm->Cbz(a64::x15, &out);
+	armAsm->Ldr(a64::w10, a64::MemOperand(a64::x14, off_trel));
+	armAsm->Ldr(a64::x11, vu(_vu1Off(VU1.cycle)));
+	armAsm->Add(a64::x11, a64::x11, a64::x10);
+	armMoveAddressToReg(a64::x13, &s_vu1_chain);
+	armAsm->Ldr(a64::x10, a64::MemOperand(a64::x13, offsetof(decltype(s_vu1_chain), limit)));
+	armAsm->Cmp(a64::x11, a64::x10);
+	armAsm->B(&out, a64::hs);
+	armAsm->Str(a64::w12, vu(_vu1Off(VU1.VI[REG_TPC].UL)));
+	armAsm->Str(a64::x14, a64::MemOperand(a64::x13, offsetof(decltype(s_vu1_chain), last)));
+	armAsm->Br(a64::x15);
+	armAsm->Bind(&out);
+}
+
 static void _vu1JitCompile(VU1Trace& t)
 {
 	if (!s_vu1_jit_start ||
-		static_cast<size_t>(s_vu1_jit_end - s_vu1_jit_ptr) < t.steps.size() * VU1_JIT_MAX_STEP_CODE + 256)
+		static_cast<size_t>(s_vu1_jit_end - s_vu1_jit_ptr) < t.steps.size() * VU1_JIT_MAX_STEP_CODE + 512)
 		_vu1JitReset();
 
 	armSetAsmPtr(s_vu1_jit_ptr, s_vu1_jit_end - s_vu1_jit_ptr, &s_vu1_jit_pool);
@@ -1495,9 +1538,25 @@ static void _vu1JitCompile(VU1Trace& t)
 			s_vu1_jit_pending.fmac = true;
 		}
 		if (s.fdiv_retire)
-			armEmitCall(reinterpret_cast<const void*>(&_vu1JitFDIVretire));
+		{
+			// Q = fdiv.reg, status bits 4-5 and 10-11 from the FDIV entry.
+			const s64 off_status = _vu1Off(VU1.VI[REG_STATUS_FLAG].UL);
+			armAsm->Str(a64::wzr, vu(_vu1Off(VU1.fdiv.enable)));
+			armAsm->Ldr(a64::w0, vu(_vu1Off(VU1.fdiv.reg.UL)));
+			armAsm->Str(a64::w0, vu(_vu1Off(VU1.VI[REG_Q].UL)));
+			armAsm->Ldr(a64::w1, vu(off_status));
+			armAsm->Ldr(a64::w2, vu(_vu1Off(VU1.fdiv.statusflag)));
+			armAsm->And(a64::w1, a64::w1, 0xFCF);
+			armAsm->And(a64::w2, a64::w2, 0xC30);
+			armAsm->Orr(a64::w1, a64::w1, a64::w2);
+			armAsm->Str(a64::w1, vu(off_status));
+		}
 		if (s.efu_retire)
-			armEmitCall(reinterpret_cast<const void*>(&_vu1JitEFUretire));
+		{
+			armAsm->Str(a64::wzr, vu(_vu1Off(VU1.efu.enable)));
+			armAsm->Ldr(a64::w0, vu(_vu1Off(VU1.efu.reg.UL)));
+			armAsm->Str(a64::w0, vu(_vu1Off(VU1.VI[REG_P].UL)));
+		}
 		for (u32 i = 0; i < s.ialu_retire; i++)
 			_vu1JitEmitPosStep(_vu1Off(VU1.ialureadpos), _vu1Off(VU1.ialucount), -1);
 
@@ -1598,12 +1657,24 @@ static void _vu1JitCompile(VU1Trace& t)
 		// VU1.branch is 0 at trace entry: it can only be set from the first branch pair on.
 		if (branch_seen)
 		{
-			// _vu1JitBranch may write TPC: nothing pending may overwrite it later.
+			// The branch countdown of _vu1Exec, which may write TPC: nothing pending may overwrite it later.
 			_vu1JitFlush(false, false);
 			a64::Label no_branch;
 			armAsm->Ldr(a64::w0, vu(_vu1Off(VU1.branch)));
 			armAsm->Cbz(a64::w0, &no_branch);
-			armEmitCall(reinterpret_cast<const void*>(&_vu1JitBranch));
+			armAsm->Sub(a64::w1, a64::w0, 1);
+			armAsm->Str(a64::w1, vu(_vu1Off(VU1.branch)));
+			armAsm->Cmp(a64::w0, 1);
+			armAsm->B(&no_branch, a64::ne);
+			armAsm->Ldr(a64::w1, vu(_vu1Off(VU1.branchpc)));
+			armAsm->Str(a64::w1, vu(_vu1Off(VU1.VI[REG_TPC].UL)));
+			armAsm->Ldrb(a64::w2, vu(_vu1Off(VU1.takedelaybranch)));
+			armAsm->Cbz(a64::w2, &no_branch);
+			armAsm->Mov(a64::w1, 1);
+			armAsm->Str(a64::w1, vu(_vu1Off(VU1.branch)));
+			armAsm->Ldr(a64::w1, vu(_vu1Off(VU1.delaybranchpc)));
+			armAsm->Str(a64::w1, vu(_vu1Off(VU1.branchpc)));
+			armAsm->Strb(a64::wzr, vu(_vu1Off(VU1.takedelaybranch)));
 			armAsm->Bind(&no_branch);
 		}
 
@@ -1617,6 +1688,8 @@ static void _vu1JitCompile(VU1Trace& t)
 	armAsm->Ldp(a64::x25, a64::x26, a64::MemOperand(a64::sp, 128));
 	armAsm->Ldp(a64::x27, a64::x28, a64::MemOperand(a64::sp, 144));
 	armAsm->Ldp(a64::x29, a64::lr, a64::MemOperand(a64::sp, 160, a64::PostIndex));
+	if (s_vu1_jit_mode == VU1JitMode::On)
+		_vu1JitEmitChain(t);
 	armAsm->Ret();
 	_vu1JitMark("end");
 	if (s_vu1_jit_map)
@@ -1817,7 +1890,12 @@ bool _vu1TraceStep(u64 startcycles, u32 cycles)
 		return false;
 
 	if (!(s_vu1_jit_mode == VU1JitMode::Check && _vu1TraceCheck(*t)))
+	{
+		s_vu1_chain.limit = startcycles + cycles;
+		s_vu1_chain.last = t;
 		_vu1TraceExec(*t);
+		t = s_vu1_chain.last;
+	}
 
 	if (t->exit_known == 0)
 	{

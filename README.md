@@ -77,7 +77,9 @@ Everything is on only for the one game build it was made for; any other disc run
   pipe positions and count (tracked at compile time from the read position at entry). A trace re-reads its code only after a
   VU1 micro memory write (`InterpVU1::Clear`) or reset. A trace keeps its pipeline state at exit
   (taken after its first run) and the traces that ran after it, so back-to-back traces skip the
-  state build and lookup. Same results as the interpreter. Env `PCSX2_VU1_JIT`: `0` = interpreter only, `check` = every trace is also run by the
+  state build and lookup; with traces on, a trace's exit jumps straight into such a successor
+  when `InterpVU1::Execute` would run it next (branch, E bit, VPU_STAT, cycle budget), as
+  microVU links its blocks. The branch countdown and FDIV/EFU result writes are native. Same results as the interpreter. Env `PCSX2_VU1_JIT`: `0` = interpreter only, `check` = every trace is also run by the
   interpreter from the same start and the VU1 registers and memory compared, and every kept exit
   state compared with the real one (log `VU1 trace check`), unset = traces.
   Env `PCSX2_VU1_JIT_MAP=<file>`: start address and kind of each emitted trace section (and the
