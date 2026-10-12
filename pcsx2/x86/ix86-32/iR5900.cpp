@@ -2278,6 +2278,9 @@ static void recRecompile(const u32 startpc)
 	_initX86regs();
 	_initXMMregs();
 
+	if (Zdxsv::EventLogBlocks())
+		xFastCall((void*)Zdxsv::EventLogBlock, pc);
+
 #ifdef TRACE_BLOCKS
 	xFastCall((void*)PreBlockCheck, pc);
 #endif

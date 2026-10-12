@@ -105,10 +105,13 @@ namespace Zdxsv
 	// GS thread, after a vsync's frame was presented.
 	void InputLatencyOnPresent();
 
-	// ZDXSV_EVENT_LOG=<file>[,<lines>] (RecProbe.cpp): from EventLogStart, the start values (S), then one line per EE and IOP event test,
-	// up to <lines> (default 2000000); two builds of a CPU core change must write the same file.
+	// ZDXSV_EVENT_LOG=<file>[,<lines>[,<from>]] (RecProbe.cpp): from EventLogStart, the start values (S), then one line per EE and IOP event test,
+	// up to <lines> (default 2000000); two builds of a CPU core change must write the same file. With <from>, after that many S/E/I
+	// lines also one B line per EE recompiler block entry.
 	extern bool g_event_log; // a log is open
 	void EventLogStart(); // replay playback, after the common state load
 	void EventLogEe(); // _cpuEventTest_Shared entry
 	void EventLogIop(); // iopEventTest entry
+	bool EventLogBlocks(); // the EE recompilers emit EventLogBlock at each block start
+	void EventLogBlock(u32 pc);
 } // namespace Zdxsv

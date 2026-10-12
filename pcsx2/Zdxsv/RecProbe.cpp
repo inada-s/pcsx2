@@ -358,18 +358,46 @@ namespace Zdxsv
 	{
 		FILE* s_event_log = nullptr;
 		u32 s_event_log_left = 0;
+		u32 s_event_log_lines = 0; // S, E and I lines written
+		u32 s_event_log_from = 0; // B lines after this many S, E and I lines; 0 = none
+
+		void EventLogClose()
+		{
+			std::fclose(s_event_log);
+			s_event_log = nullptr;
+			g_event_log = false;
+		}
 
 		void EventLogLine(char kind)
 		{
 			std::fprintf(s_event_log, "%c ee %llu %08x next %llu iop %llu %08x next %llu\n", kind,
 				static_cast<unsigned long long>(cpuRegs.cycle), cpuRegs.pc, static_cast<unsigned long long>(cpuRegs.nextEventCycle),
 				static_cast<unsigned long long>(psxRegs.cycle), psxRegs.pc, static_cast<unsigned long long>(psxRegs.iopNextEventCycle));
+			s_event_log_lines++;
 			if (--s_event_log_left == 0)
-			{
-				std::fclose(s_event_log);
-				s_event_log = nullptr;
-				g_event_log = false;
-			}
+				EventLogClose();
+		}
+
+		// <file>[,<lines>[,<from>]]
+		struct EventLogEnv
+		{
+			std::string path;
+			u32 lines = 2000000;
+			u32 from = 0;
+		};
+		EventLogEnv ParseEventLogEnv(const char* e)
+		{
+			EventLogEnv env;
+			env.path = e;
+			const size_t c1 = env.path.find(',');
+			if (c1 == std::string::npos)
+				return env;
+			char* end = nullptr;
+			env.lines = static_cast<u32>(std::strtoul(env.path.c_str() + c1 + 1, &end, 10));
+			if (*end == ',')
+				env.from = static_cast<u32>(std::strtoul(end + 1, nullptr, 10));
+			env.path.resize(c1);
+			return env;
 		}
 	} // namespace
 
@@ -378,14 +406,11 @@ namespace Zdxsv
 		const char* e = TestEnv("ZDXSV_EVENT_LOG");
 		if (!e || s_event_log)
 			return;
-		std::string path(e);
-		s_event_log_left = 2000000;
-		if (const size_t comma = path.rfind(','); comma != std::string::npos)
-		{
-			s_event_log_left = static_cast<u32>(std::strtoul(path.c_str() + comma + 1, nullptr, 10));
-			path.resize(comma);
-		}
-		s_event_log = s_event_log_left ? std::fopen(path.c_str(), "w") : nullptr;
+		const EventLogEnv env = ParseEventLogEnv(e);
+		s_event_log_left = env.lines;
+		s_event_log_from = env.from;
+		s_event_log_lines = 0;
+		s_event_log = s_event_log_left ? std::fopen(env.path.c_str(), "w") : nullptr;
 		g_event_log = s_event_log != nullptr;
 		if (g_event_log)
 			EventLogLine('S');
@@ -393,4 +418,22 @@ namespace Zdxsv
 
 	void EventLogEe() { EventLogLine('E'); }
 	void EventLogIop() { EventLogLine('I'); }
+
+	bool EventLogBlocks()
+	{
+		static const bool on = [] {
+			const char* e = TestEnv("ZDXSV_EVENT_LOG");
+			return e && ParseEventLogEnv(e).from != 0;
+		}();
+		return on;
+	}
+
+	void EventLogBlock(u32 pc)
+	{
+		if (!s_event_log || s_event_log_lines < s_event_log_from)
+			return;
+		std::fprintf(s_event_log, "B ee %llu %08x\n", static_cast<unsigned long long>(cpuRegs.cycle), pc);
+		if (--s_event_log_left == 0)
+			EventLogClose();
+	}
 } // namespace Zdxsv
