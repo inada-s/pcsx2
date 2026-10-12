@@ -98,6 +98,12 @@ Everything is on only for the one game build it was made for; any other disc run
   start with only loads, ALU ops on loaded or constant values, mfc/cfc, cache and sync skips to the next
   event on that branch (e.g. a GS CSR VSINT poll), so the EE cycles differ from the EE interpreter there.
   Env `PCSX2_EE_JIT_MAP=<file>`: host address of each compiled instruction (pc, name, code word).
+  MFC0 Count, MFPC, MTC0 Status/Count, MTPS/MTPC commit the block's cycles first, as `iCOP0.cpp`. A
+  state loaded while the pre-ELF interpreter loop runs (a replay's common state during boot) switches
+  to compiled blocks (`Interpreter.cpp`), and a state load drops the interpreter's uncommitted cycles
+  (`SaveState.cpp`): before, the whole lobby phase of a replay ran on the interpreter.
+  `ZDXSV_EVENT_LOG=<file>[,<lines>]`: one line per EE/IOP event test from the replay's common state
+  load; `diff` an ARM64 and an x86 file for the first timing split.
 - ARM64 IOP recompiler (`pcsx2/arm64/iR3000A.cpp`, experimental) with the x86 IOP recompiler's timing, so
   ARM64 and x86 hosts count the same IOP cycles: x86 block layout, cycles added at the block end (MULT/DIV
   penalties), timeslice and event tests at every jump or branch, nop loop fast-forward, block clears only

@@ -276,6 +276,20 @@ static u32 BranchTarget(u32 code, u32 pc)
 	return static_cast<u32>(static_cast<s16>(code & 0xffff)) * 4 + pc + 4;
 }
 
+// COP0 ops the x86 recompiler (iCOP0.cpp) runs after a mid-block commit (scaleblockcycles_clear: the
+// fraction stays): MFC0 Count, MFPC to a register, MTC0 Status and Count, MTPS to PCCR, MTPC.
+static bool CommitsBeforeOp(u32 code)
+{
+	if ((code >> 26) != 0x10)
+		return false;
+	const u32 rs = (code >> 21) & 31, rt = (code >> 16) & 31, rd = (code >> 11) & 31;
+	if (rs == 0)
+		return rd == 9 || (rd == 25 && rt != 0 && (code & 1));
+	if (rs == 4)
+		return rd == 12 || rd == 9 || (rd == 25 && ((code & 1) || (code & 0x3e) == 0));
+	return false;
+}
+
 // ERET, EI and the traps: the x86 recompiler sets nextEventCycle = cycle before the call (recBranchCall),
 // so the block end after them always tests events.
 static bool ForcesEventTest(u32 code)
@@ -873,6 +887,8 @@ static BlockFn Compile(u32 startpc, BlockFn* entry)
 			armAsm->Ldr(a64::x9, a64::MemOperand(rregs, offsetof(cpuRegisters, cycle)));
 			armAsm->Str(a64::x9, a64::MemOperand(rregs, offsetof(cpuRegisters, nextEventCycle)));
 		}
+		if (CommitsBeforeOp(code))
+			armEmitCall(reinterpret_cast<const void*>(&intUpdateCPUCycles));
 		void (*handler)() = LoadHandler(code);
 		armEmitCall(reinterpret_cast<const void*>(handler ? handler : opcode.interpret));
 		if (force_test || const_hw_load || (code >> 26 == 0x00 && ((code & 63) == 0x0c || (code & 63) == 0x0d)))

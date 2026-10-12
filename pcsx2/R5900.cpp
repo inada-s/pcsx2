@@ -28,6 +28,8 @@
 #include "DebugTools/SymbolGuardian.h"
 #include "R5900OpcodeTables.h"
 
+#include "Zdxsv/CpuHooks.h"
+
 #include "fmt/format.h"
 
 using namespace R5900;	// for R5900 disasm tools
@@ -361,6 +363,8 @@ static bool cpuIntsEnabled(int Interrupt)
 // and the recompiler.  (moved here to help alleviate redundant code)
 __fi void _cpuEventTest_Shared()
 {
+	if (Zdxsv::g_event_log) [[unlikely]]
+		Zdxsv::EventLogEe();
 	eeEventTestIsActive = true;
 	cpuRegs.nextEventCycle = cpuRegs.cycle + eeWaitCycles;
 	cpuRegs.lastEventCycle = cpuRegs.cycle;

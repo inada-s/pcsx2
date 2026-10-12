@@ -671,6 +671,11 @@ static __fi void intExecuteWith(void (*run_block)())
 					VMManager::Internal::EntryPointCompilingOnCPUThread();
 					break;
 				}
+				else if (VMManager::Internal::HasBootedELF())
+				{
+					// A state loaded during this loop is past the ELF entry: run blocks, as after a fresh Execute.
+					break;
+				}
 			}
 		}
 		else
