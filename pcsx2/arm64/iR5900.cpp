@@ -293,6 +293,126 @@ static bool ForcesEventTest(u32 code)
 	return false;
 }
 
+// The interpreter's LB, LBU, LH, LHU and LW without their event test after an EE counter read
+// (0x10000000-0x10001fff): the x86 recompiler tests only after a constant address (Compile).
+// A misaligned address takes the interpreter's handler (address error).
+template <typename T, void (*Interp)()>
+static void LoadNoEventTest()
+{
+	const u32 addr = cpuRegs.GPR.r[(cpuRegs.code >> 21) & 31].UL[0] + static_cast<s16>(cpuRegs.code & 0xffff);
+	if (addr & (sizeof(T) - 1)) [[unlikely]]
+	{
+		Interp();
+		return;
+	}
+	T value;
+	if constexpr (sizeof(T) == 1)
+		value = static_cast<T>(memRead8(addr));
+	else if constexpr (sizeof(T) == 2)
+		value = static_cast<T>(memRead16(addr));
+	else
+		value = static_cast<T>(memRead32(addr));
+	const u32 rt = (cpuRegs.code >> 16) & 31;
+	if (!rt)
+		return;
+	if constexpr (std::is_signed_v<T>)
+		cpuRegs.GPR.r[rt].SD[0] = value;
+	else
+		cpuRegs.GPR.r[rt].UD[0] = value;
+}
+
+static void (*LoadHandler(u32 code))()
+{
+	switch (code >> 26)
+	{
+		case 0x20: return &LoadNoEventTest<s8, Interpreter::OpcodeImpl::LB>;
+		case 0x21: return &LoadNoEventTest<s16, Interpreter::OpcodeImpl::LH>;
+		case 0x23: return &LoadNoEventTest<s32, Interpreter::OpcodeImpl::LW>;
+		case 0x24: return &LoadNoEventTest<u8, Interpreter::OpcodeImpl::LBU>;
+		case 0x25: return &LoadNoEventTest<u16, Interpreter::OpcodeImpl::LHU>;
+		default: return nullptr;
+	}
+}
+
+// Block-local GPR constants, as the x86 recompiler's g_cpuConstRegs, for its constant address loads and
+// FlushCache syscalls. Ops not followed here forget the registers they may write.
+struct ConstRegs
+{
+	u32 mask = 1;
+	u64 v[32] = {};
+
+	bool Is(u32 r) const { return (mask >> r) & 1; }
+	void Set(u32 r, u64 x)
+	{
+		if (r)
+		{
+			mask |= 1u << r;
+			v[r] = x;
+		}
+	}
+	void Clear(u32 r)
+	{
+		if (r)
+			mask &= ~(1u << r);
+	}
+
+	void Track(u32 code)
+	{
+		const u32 op = code >> 26, rs = (code >> 21) & 31, rt = (code >> 16) & 31, rd = (code >> 11) & 31;
+		const u32 sa = (code >> 6) & 31;
+		const u64 simm = static_cast<u64>(static_cast<s64>(static_cast<s16>(code & 0xffff)));
+		const u64 zimm = code & 0xffff;
+		const auto s32x = [](u64 x) { return static_cast<u64>(static_cast<s64>(static_cast<s32>(x))); };
+		switch (op)
+		{
+			case 0x00:
+			{
+				const bool shift = (code & 63) <= 3;
+				if ((shift && Is(rt)) || (!shift && Is(rs) && Is(rt)))
+				{
+					const u64 a = v[rs], b = v[rt];
+					switch (code & 63)
+					{
+						case 0x00: Set(rd, s32x(static_cast<u32>(b) << sa)); return; // SLL
+						case 0x02: Set(rd, s32x(static_cast<u32>(b) >> sa)); return; // SRL
+						case 0x03: Set(rd, s32x(static_cast<u64>(static_cast<s32>(b) >> sa))); return; // SRA
+						case 0x20: case 0x21: Set(rd, s32x(a + b)); return; // ADD, ADDU
+						case 0x22: case 0x23: Set(rd, s32x(a - b)); return; // SUB, SUBU
+						case 0x24: Set(rd, a & b); return;
+						case 0x25: Set(rd, a | b); return;
+						case 0x26: Set(rd, a ^ b); return;
+						case 0x27: Set(rd, ~(a | b)); return;
+						case 0x2a: Set(rd, static_cast<s64>(a) < static_cast<s64>(b)); return; // SLT
+						case 0x2b: Set(rd, a < b); return; // SLTU
+						case 0x2c: case 0x2d: Set(rd, a + b); return; // DADD, DADDU
+						case 0x2e: case 0x2f: Set(rd, a - b); return; // DSUB, DSUBU
+						default: break;
+					}
+				}
+				Clear(rd);
+				return;
+			}
+			case 0x01: if (rt & 16) Clear(31); return; // BLTZAL..BGEZALL
+			case 0x03: Clear(31); return; // JAL
+			case 0x08: case 0x09: if (Is(rs)) Set(rt, s32x(v[rs] + simm)); else Clear(rt); return; // ADDI, ADDIU
+			case 0x0a: if (Is(rs)) Set(rt, static_cast<s64>(v[rs]) < static_cast<s64>(simm)); else Clear(rt); return; // SLTI
+			case 0x0b: if (Is(rs)) Set(rt, v[rs] < simm); else Clear(rt); return; // SLTIU
+			case 0x0c: if (Is(rs)) Set(rt, v[rs] & zimm); else Clear(rt); return; // ANDI
+			case 0x0d: if (Is(rs)) Set(rt, v[rs] | zimm); else Clear(rt); return; // ORI
+			case 0x0e: if (Is(rs)) Set(rt, v[rs] ^ zimm); else Clear(rt); return; // XORI
+			case 0x0f: Set(rt, s32x(zimm << 16)); return; // LUI
+			case 0x18: case 0x19: if (Is(rs)) Set(rt, v[rs] + simm); else Clear(rt); return; // DADDI, DADDIU
+			case 0x10: case 0x11: case 0x12: if (rs <= 2) Clear(rt); return; // MFCz, QMFC2, CFCz
+			case 0x1c: Clear(rd); return; // MMI
+			case 0x02: case 0x04: case 0x05: case 0x06: case 0x07: case 0x14: case 0x15: case 0x16: case 0x17:
+			case 0x1f: case 0x28: case 0x29: case 0x2a: case 0x2b: case 0x2c: case 0x2d: case 0x2e: case 0x2f:
+			case 0x31: case 0x36: case 0x39: case 0x3e: case 0x3f:
+				return; // branches, stores, CACHE, LWC1, LQC2
+			default: Clear(rt); return; // loads
+		}
+	}
+};
+
 static bool IsCompiled(u32 pc)
 {
 	const BlockFn* page = s_lut[pc >> 16];
@@ -700,6 +820,7 @@ static BlockFn Compile(u32 startpc, BlockFn* entry)
 	};
 	bool last_native = false;
 	bool ended = false;
+	ConstRegs consts;
 	u32 pc = startpc;
 	if (timeout_loop && timeout_reg >= 0 && EmuConfig.Speedhacks.WaitLoop)
 	{
@@ -730,7 +851,18 @@ static BlockFn Compile(u32 startpc, BlockFn* entry)
 			ended = true;
 			break;
 		}
+		const u32 op = code >> 26, rs = (code >> 21) & 31;
+		if (op == 0x00 && (code & 63) == 0x0c && consts.Is(3) && ((consts.v[3] & 0xff) == 0x64 || (consts.v[3] & 0xff) == 0x68))
+		{
+			// FlushCache: the x86 recompiler adds the cycles of its exception handlers instead of the call.
+			pending_cycles += 5650;
+			last_native = true;
+			continue;
+		}
+		const bool const_hw_load = (op >= 0x20 && op <= 0x25 && op != 0x22) || op == 0x27 ?
+			consts.Is(rs) && ((static_cast<u32>(consts.v[rs]) + static_cast<s16>(code & 0xffff)) & 0xffffe000) == 0x10000000 : false;
 		last_native = EmitNative(rregs, code);
+		consts.Track(code);
 		if (last_native)
 			continue;
 
@@ -741,8 +873,9 @@ static BlockFn Compile(u32 startpc, BlockFn* entry)
 			armAsm->Ldr(a64::x9, a64::MemOperand(rregs, offsetof(cpuRegisters, cycle)));
 			armAsm->Str(a64::x9, a64::MemOperand(rregs, offsetof(cpuRegisters, nextEventCycle)));
 		}
-		armEmitCall(reinterpret_cast<const void*>(opcode.interpret));
-		if (force_test || (code >> 26 == 0x00 && ((code & 63) == 0x0c || (code & 63) == 0x0d)))
+		void (*handler)() = LoadHandler(code);
+		armEmitCall(reinterpret_cast<const void*>(handler ? handler : opcode.interpret));
+		if (force_test || const_hw_load || (code >> 26 == 0x00 && ((code & 63) == 0x0c || (code & 63) == 0x0d)))
 		{
 			// The x86 recompiler's g_branch = 2: commit, test events, continue at cpuRegs.pc.
 			EmitCommit(rregs, rcycles);
