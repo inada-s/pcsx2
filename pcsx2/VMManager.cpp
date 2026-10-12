@@ -2687,6 +2687,7 @@ void VMManager::InitializeCPUProviders()
 	// of the ring buffer wont match, and various systems in the emulator end up deadlocked.
 	vu1Thread.Open();
 	recCpu.Reserve();
+	psxRec.Reserve();
 #endif
 
 	VifUnpackSSE_Init();
@@ -2712,6 +2713,7 @@ void VMManager::ShutdownCPUProviders()
 	if (vu1Thread.IsOpen())
 		vu1Thread.WaitVU();
 
+	psxRec.Shutdown();
 	recCpu.Shutdown();
 #endif
 }
@@ -2735,7 +2737,7 @@ void VMManager::UpdateCPUImplementations()
 	CpuVU1 = EmuConfig.Cpu.Recompiler.EnableVU1 ? static_cast<BaseVUmicroCPU*>(&CpuMicroVU1) : static_cast<BaseVUmicroCPU*>(&CpuIntVU1);
 #else
 	Cpu = CHECK_EEREC ? &recCpu : &intCpu;
-	psxCpu = &psxInt;
+	psxCpu = CHECK_IOPREC ? &psxRec : &psxInt;
 
 	CpuVU0 = &CpuIntVU0;
 	CpuVU1 = &CpuIntVU1;

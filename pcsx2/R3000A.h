@@ -193,6 +193,7 @@ extern R3000Acpu psxRec;
 extern void psxReset();
 extern void psxException(u32 code, u32 step);
 extern void iopEventTest();
+extern s32 psxIntExecuteBlocks(s32 eeCycles, void (*run_block)(u64 start));
 
 int psxIsBreakpointNeeded(u32 addr);
 int psxIsMemcheckNeeded(u32 pc);

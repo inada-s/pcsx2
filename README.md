@@ -77,7 +77,7 @@ Everything is on only for the one game build it was made for; any other disc run
 - ARM64 EE recompiler (`pcsx2/arm64/iR5900.cpp`, experimental): blocks compiled into calls of the
   interpreter's handlers, so it computes what the EE interpreter computes, faster. On when the EE
   recompiler setting is on (`EmuCore/CPU/Recompiler` `EnableEE`, the default); off = EE interpreter.
-  IOP and VU stay interpreters on ARM64.
+  VU stays the interpreter on ARM64.
   Integer ALU, shift, HI/LO move and MOVZ/MOVN ops are emitted as native code, computed as the x86
   recompiler does: ADD/SUB/ADDI/DADD/DSUB/DADDI write their result on overflow (the interpreter skips
   the write). Jumps and branches (J/JAL/JR/JALR, BEQ/BNE/BLEZ/BGTZ/BLTZ/BGEZ and likely forms) are
@@ -87,6 +87,12 @@ Everything is on only for the one game build it was made for; any other disc run
   two builds. Env `PCSX2_ARM64_EE_NATIVE=0`: every op calls its interpreter handler (A/B check).
   Events (counters, interrupts, IOP and VU runs) are tested only once the cycle target is reached, as
   the x86 recompiler does (the EE interpreter tests them at every branch).
+- ARM64 IOP recompiler (`pcsx2/arm64/iR3000A.cpp`, experimental): blocks up to a jump, branch, SYSCALL or
+  BREAK compiled into calls of the IOP interpreter's handlers (integer ALU, shift and HI/LO move ops
+  native), run in the interpreter's loop, so the IOP cycles and state equal the IOP interpreter's. A
+  `j self; nop` idle loop adds the cycles of the iterations whose event test would do nothing. On when
+  `EmuCore/CPU/Recompiler` `EnableIOP` is on (the default); off = IOP interpreter (A/B check with
+  `ZDXSV_CYCLE_LOG`). Code written by IOP stores or DMA clears the blocks of its 4 KB page.
 - Options for tests, traces and game investigation; every build reads them.
 
 ## Documentation
