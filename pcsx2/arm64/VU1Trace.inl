@@ -588,11 +588,14 @@ alignas(16) static const u32 s_vu1_jit_fconst[7][4] = {
 	{0x7f7fffff, 0x7f7fffff, 0x7f7fffff, 0x7f7fffff}, {0x0008, 0x0004, 0x0002, 0x0001},
 	{0x0080, 0x0040, 0x0020, 0x0010}, {0x0800, 0x0400, 0x0200, 0x0100}, {0x8000, 0x4000, 0x2000, 0x1000}};
 
-// Overflow clamp settings the JIT code was compiled for (bit 0: vu0Overflow, bit 1: vu1Overflow).
+// Clamp settings the JIT code was compiled for (bits 0-1: vu0/vu1 Overflow, 2-3: SignOverflow,
+// 4-5: ExtraOverflow).
 static u8 s_vu1_jit_ovf = 0xff;
 static u8 _vu1JitOvf()
 {
-	return (EmuConfig.Cpu.Recompiler.vu0Overflow ? 1 : 0) | (EmuConfig.Cpu.Recompiler.vu1Overflow ? 2 : 0);
+	const auto& r = EmuConfig.Cpu.Recompiler;
+	return (r.vu0Overflow ? 1 : 0) | (r.vu1Overflow ? 2 : 0) | (r.vu0SignOverflow ? 4 : 0) |
+		   (r.vu1SignOverflow ? 8 : 0) | (r.vu0ExtraOverflow ? 16 : 0) | (r.vu1ExtraOverflow ? 32 : 0);
 }
 
 // vuDouble on 4 lanes: exponent 0 -> signed 0, exponent 255 -> signed max float.
@@ -605,6 +608,15 @@ static void _vu1JitEmitVuDouble(const a64::VRegister& v)
 	armAsm->Orr(a64::v27.V16B(), a64::v26.V16B(), a64::v18.V16B());
 	armAsm->Bsl(a64::v24.V16B(), a64::v27.V16B(), v.V16B());
 	armAsm->Bsl(a64::v25.V16B(), a64::v26.V16B(), a64::v24.V16B());
+	armAsm->Mov(v.V16B(), a64::v25.V16B());
+}
+
+// x86 microVU operand clamp (vuX86ClampOperands): a NaN of either sign becomes +max.
+static void _vuJitEmitClampNaN(const a64::VRegister& v)
+{
+	armAsm->Bic(a64::v24.V16B(), v.V16B(), a64::v17.V16B());
+	armAsm->Cmgt(a64::v25.V4S(), a64::v24.V4S(), a64::v16.V4S());
+	armAsm->Bsl(a64::v25.V16B(), a64::v18.V16B(), v.V16B());
 	armAsm->Mov(v.V16B(), a64::v25.V16B());
 }
 
@@ -625,9 +637,9 @@ static const VU1FmacDesc* _vuJitFmacDesc(const VU1FmacDesc* ops, size_t count, F
 }
 
 // The FMAC op on the VURegs at rvu (VU0 or VU1: same layout), s_vu1_jit_fconst at rconst.
-// out_clamp: CHECK_VU_OVERFLOW of that VU.
+// out_clamp: CHECK_VU_OVERFLOW of that VU; clamp: vuX86ClampOperands.
 static void _vuJitEmitFmacCore(const VU1FmacDesc* desc, u32 code, const a64::Register& rvu,
-	const a64::Register& rconst, bool out_clamp)
+	const a64::Register& rconst, bool out_clamp, u32 clamp)
 {
 	const auto _vu1JitMem = [&rvu](s64 off) { return a64::MemOperand(rvu, off); };
 	const u32 ft = (code >> 16) & 0x1f, fs = (code >> 11) & 0x1f, fd = (code >> 6) & 0x1f;
@@ -659,12 +671,18 @@ static void _vuJitEmitFmacCore(const VU1FmacDesc* desc, u32 code, const a64::Reg
 		armAsm->Ldr(a64::s1, _vu1JitMem(off));
 		armAsm->Dup(a64::v1.V4S(), a64::v1.V4S(), 0);
 	}
+	if (clamp & 2)
+		_vuJitEmitClampNaN(a64::v0);
+	if (clamp & 1)
+		_vuJitEmitClampNaN(a64::v1);
 	_vu1JitEmitVuDouble(a64::v0);
 	_vu1JitEmitVuDouble(a64::v1);
 	const bool ternary = desc->op == VU1FmacOp::Madd || desc->op == VU1FmacOp::Msub;
 	if (ternary)
 	{
 		armAsm->Ldr(a64::q2, _vu1JitMem(_vu1Off(VU1.ACC)));
+		if (clamp & 4)
+			_vuJitEmitClampNaN(a64::v2);
 		_vu1JitEmitVuDouble(a64::v2);
 	}
 	switch (desc->op)
@@ -751,7 +769,8 @@ static bool _vu1JitEmitFmac(FnPtr_VuVoid f, u32 code)
 	const VU1FmacDesc* desc = _vuJitFmacDesc(s_vu1_fmac_ops, std::size(s_vu1_fmac_ops), f, code);
 	if (!desc)
 		return false;
-	_vuJitEmitFmacCore(desc, code, s_vu1_jit_rvu, a64::x21, EmuConfig.Cpu.Recompiler.vu1Overflow);
+	_vuJitEmitFmacCore(desc, code, s_vu1_jit_rvu, a64::x21, EmuConfig.Cpu.Recompiler.vu1Overflow,
+		vuX86ClampOperands(code, 1, false));
 	return true;
 }
 
@@ -796,7 +815,8 @@ void vu0MacroEmit(u32 code, const a64::Register& rvu)
 	armAsm->Mov(a64::w0, code);
 	armAsm->Str(a64::w0, mem(_vu1Off(VU1.code)));
 	armMoveAddressToReg(a64::x1, s_vu1_jit_fconst);
-	_vuJitEmitFmacCore(_vu0MacroDesc(code), code, rvu, a64::x1, EmuConfig.Cpu.Recompiler.vu0Overflow);
+	_vuJitEmitFmacCore(_vu0MacroDesc(code), code, rvu, a64::x1, EmuConfig.Cpu.Recompiler.vu0Overflow,
+		vuX86ClampOperands(code, 0, true));
 	armAsm->Ldr(a64::w1, mem(_vu1Off(VU1.statusflag)));
 	armAsm->And(a64::w1, a64::w1, 0xf);
 	armAsm->Ldr(a64::w2, mem(_vu1Off(VU1.VI[REG_STATUS_FLAG].UL)));

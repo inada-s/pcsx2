@@ -532,14 +532,82 @@ static __fi VECTOR* _getDst(VURegs* VU)
 		return &VU->VF[_Fd_];
 }
 
+#ifdef ARCH_ARM64
+// Set while an EE COP2 macro op runs: x86 microVU clamps more operands of MADDw and MSUB there.
+static bool s_vu_cop2_op = false;
+
+// Operands x86 microVU clamps for the upper op in code (clampType in microVU_Upper.inl), in the
+// default clamp mode (overflow only): bit 0 Ft (also a broadcast lane or Q, never I), bit 1 Fs,
+// bit 2 ACC. Its clamp (MINPS +max, MAXPS -max) turns a NaN of either sign into +max; vuDouble
+// gives the rest of the values the same result.
+static u32 vuX86ClampOperands(u32 code, int vu, bool cop2)
+{
+	if (!CHECK_VU_OVERFLOW(vu) || CHECK_VU_SIGN_OVERFLOW(vu) || CHECK_VU_EXTRA_OVERFLOW(vu))
+		return 0;
+	const bool ps = ((code >> 21) & 0xf) == 0xf;
+	const u32 funct = code & 0x3f;
+	if (funct >= 0x3c)
+	{
+		switch ((code >> 6) & 0x1f)
+		{
+			case 2: return 2; // MADDAx..w
+			case 6: return (ps && (code & 3) == 3) ? 3 : 2; // MULAx..w
+			default: return 0;
+		}
+	}
+	switch (funct)
+	{
+		case 0x04: case 0x05: case 0x06: case 0x07: case 0x24: case 0x2c: // SUBx..w, SUBq, SUB
+			return ps ? 3 : 0;
+		case 0x26: // SUBi
+			return ps ? 2 : 0;
+		case 0x18: case 0x19: case 0x1a: case 0x1b: case 0x1c: case 0x2a: // MULx..w, MULq, MUL
+			return ps ? 3 : 2;
+		case 0x1e: // MULi
+		case 0x08: case 0x09: case 0x0a: // MADDx..z
+			return 2;
+		case 0x0b: // MADDw
+			return cop2 ? 7 : 2;
+		case 0x2d: // MSUB
+			return cop2 ? 2 : 0;
+		default:
+			return 0;
+	}
+}
+
+static __fi u32 _vuClampOperands(VURegs* VU)
+{
+	return vuX86ClampOperands(VU->code, VU->IsVU1() ? 1 : 0, s_vu_cop2_op && VU->IsVU0());
+}
+
+static __fi u32 _vuClampNaN(u32 f, bool on)
+{
+	return (on && (f & 0x7fffffff) > 0x7f800000) ? 0x7f7fffff : f;
+}
+
+static __fi VECTOR _vuClampNaN(const VECTOR& v, bool on)
+{
+	VECTOR r;
+	for (int i = 0; i < 4; i++)
+		r.UL[i] = _vuClampNaN(v.UL[i], on);
+	return r;
+}
+#endif
+
 template <float(*Fn)(u32, u32), MACOpDst Dst>
 static __fi void applyBinaryMACOp(VURegs* VU)
 {
 	VECTOR* dst = _getDst<Dst>(VU);
-	if (_X) { dst->i.x = VU_MACx_UPDATE(VU, Fn(VU->VF[_Fs_].i.x, VU->VF[_Ft_].i.x)); } else VU_MACx_CLEAR(VU);
-	if (_Y) { dst->i.y = VU_MACy_UPDATE(VU, Fn(VU->VF[_Fs_].i.y, VU->VF[_Ft_].i.y)); } else VU_MACy_CLEAR(VU);
-	if (_Z) { dst->i.z = VU_MACz_UPDATE(VU, Fn(VU->VF[_Fs_].i.z, VU->VF[_Ft_].i.z)); } else VU_MACz_CLEAR(VU);
-	if (_W) { dst->i.w = VU_MACw_UPDATE(VU, Fn(VU->VF[_Fs_].i.w, VU->VF[_Ft_].i.w)); } else VU_MACw_CLEAR(VU);
+#ifdef ARCH_ARM64
+	const u32 c = _vuClampOperands(VU);
+	const VECTOR fs = _vuClampNaN(VU->VF[_Fs_], c & 2), ft = _vuClampNaN(VU->VF[_Ft_], c & 1);
+#else
+	const VECTOR &fs = VU->VF[_Fs_], &ft = VU->VF[_Ft_];
+#endif
+	if (_X) { dst->i.x = VU_MACx_UPDATE(VU, Fn(fs.i.x, ft.i.x)); } else VU_MACx_CLEAR(VU);
+	if (_Y) { dst->i.y = VU_MACy_UPDATE(VU, Fn(fs.i.y, ft.i.y)); } else VU_MACy_CLEAR(VU);
+	if (_Z) { dst->i.z = VU_MACz_UPDATE(VU, Fn(fs.i.z, ft.i.z)); } else VU_MACz_CLEAR(VU);
+	if (_W) { dst->i.w = VU_MACw_UPDATE(VU, Fn(fs.i.w, ft.i.w)); } else VU_MACw_CLEAR(VU);
 	VU_STAT_UPDATE(VU);
 }
 
@@ -547,10 +615,18 @@ template <float(*Fn)(u32, u32), MACOpDst Dst>
 static __fi void applyBinaryMACOpBroadcast(VURegs* VU, u32 bc)
 {
 	VECTOR* dst = _getDst<Dst>(VU);
-	if (_X) { dst->i.x = VU_MACx_UPDATE(VU, Fn(VU->VF[_Fs_].i.x, bc)); } else VU_MACx_CLEAR(VU);
-	if (_Y) { dst->i.y = VU_MACy_UPDATE(VU, Fn(VU->VF[_Fs_].i.y, bc)); } else VU_MACy_CLEAR(VU);
-	if (_Z) { dst->i.z = VU_MACz_UPDATE(VU, Fn(VU->VF[_Fs_].i.z, bc)); } else VU_MACz_CLEAR(VU);
-	if (_W) { dst->i.w = VU_MACw_UPDATE(VU, Fn(VU->VF[_Fs_].i.w, bc)); } else VU_MACw_CLEAR(VU);
+#ifdef ARCH_ARM64
+	const u32 c = _vuClampOperands(VU);
+	const VECTOR fs = _vuClampNaN(VU->VF[_Fs_], c & 2);
+	const u32 b = _vuClampNaN(bc, c & 1);
+#else
+	const VECTOR& fs = VU->VF[_Fs_];
+	const u32 b = bc;
+#endif
+	if (_X) { dst->i.x = VU_MACx_UPDATE(VU, Fn(fs.i.x, b)); } else VU_MACx_CLEAR(VU);
+	if (_Y) { dst->i.y = VU_MACy_UPDATE(VU, Fn(fs.i.y, b)); } else VU_MACy_CLEAR(VU);
+	if (_Z) { dst->i.z = VU_MACz_UPDATE(VU, Fn(fs.i.z, b)); } else VU_MACz_CLEAR(VU);
+	if (_W) { dst->i.w = VU_MACw_UPDATE(VU, Fn(fs.i.w, b)); } else VU_MACw_CLEAR(VU);
 	VU_STAT_UPDATE(VU);
 }
 
@@ -688,10 +764,17 @@ template <float(*Fn)(u32, u32, u32), MACOpDst Dst>
 static __fi void applyTernaryMACOp(VURegs* VU)
 {
 	VECTOR* dst = _getDst<Dst>(VU);
-	if (_X) { dst->i.x = VU_MACx_UPDATE(VU, Fn(VU->ACC.i.x, VU->VF[_Fs_].i.x, VU->VF[_Ft_].i.x)); } else VU_MACx_CLEAR(VU);
-	if (_Y) { dst->i.y = VU_MACy_UPDATE(VU, Fn(VU->ACC.i.y, VU->VF[_Fs_].i.y, VU->VF[_Ft_].i.y)); } else VU_MACy_CLEAR(VU);
-	if (_Z) { dst->i.z = VU_MACz_UPDATE(VU, Fn(VU->ACC.i.z, VU->VF[_Fs_].i.z, VU->VF[_Ft_].i.z)); } else VU_MACz_CLEAR(VU);
-	if (_W) { dst->i.w = VU_MACw_UPDATE(VU, Fn(VU->ACC.i.w, VU->VF[_Fs_].i.w, VU->VF[_Ft_].i.w)); } else VU_MACw_CLEAR(VU);
+#ifdef ARCH_ARM64
+	const u32 c = _vuClampOperands(VU);
+	const VECTOR acc = _vuClampNaN(VU->ACC, c & 4), fs = _vuClampNaN(VU->VF[_Fs_], c & 2),
+				 ft = _vuClampNaN(VU->VF[_Ft_], c & 1);
+#else
+	const VECTOR &acc = VU->ACC, &fs = VU->VF[_Fs_], &ft = VU->VF[_Ft_];
+#endif
+	if (_X) { dst->i.x = VU_MACx_UPDATE(VU, Fn(acc.i.x, fs.i.x, ft.i.x)); } else VU_MACx_CLEAR(VU);
+	if (_Y) { dst->i.y = VU_MACy_UPDATE(VU, Fn(acc.i.y, fs.i.y, ft.i.y)); } else VU_MACy_CLEAR(VU);
+	if (_Z) { dst->i.z = VU_MACz_UPDATE(VU, Fn(acc.i.z, fs.i.z, ft.i.z)); } else VU_MACz_CLEAR(VU);
+	if (_W) { dst->i.w = VU_MACw_UPDATE(VU, Fn(acc.i.w, fs.i.w, ft.i.w)); } else VU_MACw_CLEAR(VU);
 	VU_STAT_UPDATE(VU);
 }
 
@@ -699,10 +782,18 @@ template <float(*Fn)(u32, u32, u32), MACOpDst Dst>
 static __fi void applyTernaryMACOpBroadcast(VURegs* VU, u32 bc)
 {
 	VECTOR* dst = _getDst<Dst>(VU);
-	if (_X) { dst->i.x = VU_MACx_UPDATE(VU, Fn(VU->ACC.i.x, VU->VF[_Fs_].i.x, bc)); } else VU_MACx_CLEAR(VU);
-	if (_Y) { dst->i.y = VU_MACy_UPDATE(VU, Fn(VU->ACC.i.y, VU->VF[_Fs_].i.y, bc)); } else VU_MACy_CLEAR(VU);
-	if (_Z) { dst->i.z = VU_MACz_UPDATE(VU, Fn(VU->ACC.i.z, VU->VF[_Fs_].i.z, bc)); } else VU_MACz_CLEAR(VU);
-	if (_W) { dst->i.w = VU_MACw_UPDATE(VU, Fn(VU->ACC.i.w, VU->VF[_Fs_].i.w, bc)); } else VU_MACw_CLEAR(VU);
+#ifdef ARCH_ARM64
+	const u32 c = _vuClampOperands(VU);
+	const VECTOR acc = _vuClampNaN(VU->ACC, c & 4), fs = _vuClampNaN(VU->VF[_Fs_], c & 2);
+	const u32 b = _vuClampNaN(bc, c & 1);
+#else
+	const VECTOR &acc = VU->ACC, &fs = VU->VF[_Fs_];
+	const u32 b = bc;
+#endif
+	if (_X) { dst->i.x = VU_MACx_UPDATE(VU, Fn(acc.i.x, fs.i.x, b)); } else VU_MACx_CLEAR(VU);
+	if (_Y) { dst->i.y = VU_MACy_UPDATE(VU, Fn(acc.i.y, fs.i.y, b)); } else VU_MACy_CLEAR(VU);
+	if (_Z) { dst->i.z = VU_MACz_UPDATE(VU, Fn(acc.i.z, fs.i.z, b)); } else VU_MACz_CLEAR(VU);
+	if (_W) { dst->i.w = VU_MACw_UPDATE(VU, Fn(acc.i.w, fs.i.w, b)); } else VU_MACw_CLEAR(VU);
 	VU_STAT_UPDATE(VU);
 }
 
@@ -4144,7 +4235,11 @@ void VMADDq() { VU0.code = cpuRegs.code; _vuMADDq(&VU0); SYNCMSFLAGS(); }
 void VMADDx() { VU0.code = cpuRegs.code; _vuMADDx(&VU0); SYNCMSFLAGS(); }
 void VMADDy() { VU0.code = cpuRegs.code; _vuMADDy(&VU0); SYNCMSFLAGS(); }
 void VMADDz() { VU0.code = cpuRegs.code; _vuMADDz(&VU0); SYNCMSFLAGS(); }
+#ifdef ARCH_ARM64
+void VMADDw() { VU0.code = cpuRegs.code; s_vu_cop2_op = true; _vuMADDw(&VU0); s_vu_cop2_op = false; SYNCMSFLAGS(); }
+#else
 void VMADDw() { VU0.code = cpuRegs.code; _vuMADDw(&VU0); SYNCMSFLAGS(); }
+#endif
 void VMADDA()  { VU0.code = cpuRegs.code; _vuMADDA(&VU0); SYNCMSFLAGS(); }
 void VMADDAi() { VU0.code = cpuRegs.code; _vuMADDAi(&VU0); SYNCMSFLAGS(); }
 void VMADDAq() { VU0.code = cpuRegs.code; _vuMADDAq(&VU0); SYNCMSFLAGS(); }
@@ -4152,7 +4247,11 @@ void VMADDAx() { VU0.code = cpuRegs.code; _vuMADDAx(&VU0); SYNCMSFLAGS(); }
 void VMADDAy() { VU0.code = cpuRegs.code; _vuMADDAy(&VU0); SYNCMSFLAGS(); }
 void VMADDAz() { VU0.code = cpuRegs.code; _vuMADDAz(&VU0); SYNCMSFLAGS(); }
 void VMADDAw() { VU0.code = cpuRegs.code; _vuMADDAw(&VU0); SYNCMSFLAGS(); }
+#ifdef ARCH_ARM64
+void VMSUB()  { VU0.code = cpuRegs.code; s_vu_cop2_op = true; _vuMSUB(&VU0); s_vu_cop2_op = false; SYNCMSFLAGS(); }
+#else
 void VMSUB()  { VU0.code = cpuRegs.code; _vuMSUB(&VU0); SYNCMSFLAGS(); }
+#endif
 void VMSUBi() { VU0.code = cpuRegs.code; _vuMSUBi(&VU0); SYNCMSFLAGS(); }
 void VMSUBq() { VU0.code = cpuRegs.code; _vuMSUBq(&VU0); SYNCMSFLAGS(); }
 void VMSUBx() { VU0.code = cpuRegs.code; _vuMSUBx(&VU0); SYNCMSFLAGS(); }
