@@ -24,7 +24,7 @@ u32 cpuBlockCycles = 0;		// 3 bit fixed point version of cycle count
 static std::string disOut;
 static bool intExitExecution = false;
 static fastjmp_buf intJmpBuf;
-static u32 intLastBranchTo;
+u32 intLastBranchTo;
 
 void intEventTest();
 

@@ -290,6 +290,7 @@ void intSetBranch();
 // parts of the Recs (namely COP0's branch codes and stuff).
 void intDoBranch(u32 target);
 void intBranchAfterDelaySlot(u32 target);
+extern u32 intLastBranchTo; // target of the last taken branch (wait loop detection)
 
 // modules loaded at hardcoded addresses by the kernel
 const u32 EEKERNEL_START	= 0;

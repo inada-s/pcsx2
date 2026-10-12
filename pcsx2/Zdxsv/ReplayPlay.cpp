@@ -18,6 +18,11 @@ namespace Zdxsv
 			return e ? std::atoi(e) : 600;
 		}();
 		const bool s_play_key_nohle = std::getenv("ZDXSV_REPLAY_KEY_NOHLE") != nullptr;
+		// ZDXSV_CYCLE_LOG=n: EE and IOP cycle counters every n played frames (exact timing check of a CPU core change).
+		const int s_cycle_log = [] {
+			const char* e = std::getenv("ZDXSV_CYCLE_LOG");
+			return e ? std::atoi(e) : 0;
+		}();
 		u8 s_tick_st = 0;
 		u32 s_round_rec = 0;
 		// control bar (ReplayBarInfo): written per played frame on the CPU thread, read by the GS thread's ImGui
@@ -239,6 +244,8 @@ namespace Zdxsv
 		// The file's state hash and RNGs of frame f against the emulated state (a desync check; nothing changes).
 		void PlayCheckState(int f)
 		{
+			if (s_cycle_log > 0 && f % s_cycle_log == 0)
+				Console.WriteLn("ZdxsvGgpo: cycles at frame %d: ee %llu iop %u", f, static_cast<unsigned long long>(cpuRegs.cycle), psxRegs.cycle);
 			const bool cut = std::any_of(s_play_cut.begin(), s_play_cut.end(), [f](const auto& c) { return f >= c.first && f < c.second; });
 			if (cut && f < static_cast<int>(s_play_hashes.size()))
 				s_play_hash_cut++;
