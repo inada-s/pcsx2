@@ -271,7 +271,8 @@ static void intReset() {
 	intAlloc();
 }
 
-static s32 intExecuteBlock( s32 eeCycles )
+template <typename RunFn>
+static __fi s32 intExecuteWith(s32 eeCycles, RunFn run)
 {
 	psxRegs.iopBreak = 0;
 	psxRegs.iopCycleEE = eeCycles;
@@ -285,7 +286,7 @@ static s32 intExecuteBlock( s32 eeCycles )
 
 		branch2 = 0;
 		while (!branch2)
-			execI();
+			run(lastIOPCycle);
 
 		
 		if ((psxHu32(HW_ICFG) & (1 << 3)))
@@ -307,6 +308,18 @@ static s32 intExecuteBlock( s32 eeCycles )
 	}
 
 	return psxRegs.iopBreak + psxRegs.iopCycleEE;
+}
+
+static s32 intExecuteBlock(s32 eeCycles)
+{
+	return intExecuteWith(eeCycles, [](u64) { execI(); });
+}
+
+// The interpreter loop with run_block in place of execI: run_block runs instructions up to a taken branch at
+// most, given the cycle the loop accounts the EE cycles from.
+s32 psxIntExecuteBlocks(s32 eeCycles, void (*run_block)(u64 start))
+{
+	return intExecuteWith(eeCycles, run_block);
 }
 
 static void intClear(u32 Addr, u32 Size) {

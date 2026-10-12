@@ -245,7 +245,7 @@ namespace Zdxsv
 		void PlayCheckState(int f)
 		{
 			if (s_cycle_log > 0 && f % s_cycle_log == 0)
-				Console.WriteLn("ZdxsvGgpo: cycles at frame %d: ee %llu iop %u", f, static_cast<unsigned long long>(cpuRegs.cycle), psxRegs.cycle);
+				Console.WriteLn("ZdxsvGgpo: cycles at frame %d: ee %llu iop %llu", f, static_cast<unsigned long long>(cpuRegs.cycle), static_cast<unsigned long long>(psxRegs.cycle));
 			const bool cut = std::any_of(s_play_cut.begin(), s_play_cut.end(), [f](const auto& c) { return f >= c.first && f < c.second; });
 			if (cut && f < static_cast<int>(s_play_hashes.size()))
 				s_play_hash_cut++;

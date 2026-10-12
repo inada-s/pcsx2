@@ -1100,6 +1100,7 @@ set(pcsx2arm64Sources
 	arm64/AsmHelpers.cpp
 	arm64/Vif_Dynarec.cpp
 	arm64/Vif_UnpackNEON.cpp
+	arm64/iR3000A.cpp
 	arm64/RecStubs.cpp
 	arm64/iR5900.cpp
 	)
