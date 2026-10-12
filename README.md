@@ -87,6 +87,11 @@ Everything is on only for the one game build it was made for; any other disc run
   Env `PCSX2_VU1_JIT_SELFTEST=<n>`: at the first trace compile, each native DIV/SQRT/RSQRT, EFU and OPMULA/OPMSUB
   op and its handler run on the same <n> generated inputs; log `VU1 JIT selftest: <op> <n> checked,
   <k> differ` (and the first inputs that differ; outputs Q, P, status, MAC, ACC, Fd). VU1 is restored afterwards.
+- VU1 op test (`pcsx2/Zdxsv/VuOpTest.cpp`, all platforms): env `ZDXSV_VU1_OPTEST=<file>[,<n>[,finite]]`
+  runs 49 VU1 ops (FMAC, FDIV, EFU, conversions, CLIP) as short micro programs through the VU1 core
+  in use (x86 microVU, ARM64 traces or interpreter) on <n> generated inputs at the first VU1 micro
+  program start, and writes inputs and outputs to <file>. `tests/zdxsv/vu1_optest_cmp.py` compares
+  the files of two builds (x86_64 vs ARM64) op by op. Details: [options](docs/zdxsv/options.md).
 - ARM64 EE recompiler (`pcsx2/arm64/iR5900.cpp`, experimental): blocks compiled into calls of the
   interpreter's handlers, with the x86 recompiler's timing, so ARM64 and x86_64 peers count the same
   EE cycles. On when the EE recompiler setting is on (`EmuCore/CPU/Recompiler` `EnableEE`, the

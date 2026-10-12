@@ -206,6 +206,7 @@ are not shown, so they are no samples: their time (state load + reruns) is the
 | `ZDXSV_PW_DUMP=file` | diagnostic | Work RAM of the players for every saved frame. Read by `pwdiff.py`. |
 | `ZDXSV_RAM_DUMP=dir,start,step,count` | diagnostic | EE RAM (32 MB) to `dir/<frame>.bin`. Read by `tools/zdxsv/ramcount.py`, `tools/zdxsv/ramvals.py`. |
 | `ZDXSV_SNAP=dir,n[,from]` | diagnostic | GS screenshot `dir/v<vsync>.png` every n vsyncs, from vsync `from`. Only shown frames: a request in a rollback goes to the next present. Needs a renderer; not in headless runs. |
+| `ZDXSV_VU1_OPTEST=file[,n[,finite]]` | test | At the first VU1 micro program start, run each of 49 VU1 ops as a micro program through the VU1 core in use on `n` (default 2048) generated inputs, weighted to edges (denormals, zeros, exponent 255); `finite`: exponent 255 becomes 254 and denormals zero. Flags and pending Q/P are reset per case; VU1 is restored afterwards. Inputs and outputs (VF1-VF8, ACC, Q, P, status, MAC, clip) go to `file`; the log has one `VU1 optest: <op> <n> cases, hash <h>` line per op. Compare two builds with `tests/zdxsv/vu1_optest_cmp.py`. |
 
 ## Game investigation (EE recompiler)
 
