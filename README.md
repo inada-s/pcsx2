@@ -107,6 +107,9 @@ Everything is on only for the one game build it was made for; any other disc run
   `ZDXSV_EVENT_LOG=<file>[,<lines>[,<from>]]`: one line per EE/IOP event test from the replay's common state
   load; `diff` an ARM64 and an x86 file for the first timing split. With `<from>`, after that many event
   lines also one `B ee <cycle> <pc>` line per EE recompiler block entry (both recompilers), to find the block.
+  An exit request (VM stop) made on the CPU thread between two Execute calls is kept for the next
+  event test, as x86's `eeRecExitRequested` (`Interpreter.cpp`): it jumped into the returned Execute
+  frame, so ARM64 crashed (SIGBUS, pc 0xff) at every VM stop after a settings reload (replay end, rbk exit).
 - ARM64 IOP recompiler (`pcsx2/arm64/iR3000A.cpp`, experimental) with the x86 IOP recompiler's timing, so
   ARM64 and x86 hosts count the same IOP cycles: x86 block layout, cycles added at the block end (MULT/DIV
   penalties), timeslice and event tests at every jump or branch, nop loop fast-forward, block clears only
