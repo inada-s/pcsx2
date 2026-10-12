@@ -186,6 +186,12 @@ void Zdxsv::VuOpTest()
 			VU1.p.UL = in[34];
 			VU1.VI[REG_STATUS_FLAG].UL = VU1.VI[REG_MAC_FLAG].UL = VU1.VI[REG_CLIP_FLAG].UL = 0;
 			VU1.statusflag = VU1.macflag = VU1.clipflag = 0;
+			// microVU loads its flag instances from these at program start, not from VI[REG_*_FLAG].
+			std::memset(VU1.micro_statusflags, 0, sizeof(VU1.micro_statusflags));
+			std::memset(VU1.micro_macflags, 0, sizeof(VU1.micro_macflags));
+			std::memset(VU1.micro_clipflags, 0, sizeof(VU1.micro_clipflags));
+			VU1.pending_q = in[33];
+			VU1.pending_p = in[34];
 			VU1.VI[1].UL = VU1.VI[2].UL = VU1.VI[3].UL = 0;
 			VU1.cycle = cpuRegs.cycle;
 			RunProgram();
