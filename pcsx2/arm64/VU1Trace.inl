@@ -377,10 +377,45 @@ static a64::MemOperand _vu1JitMem(s64 off)
 	return a64::MemOperand(s_vu1_jit_rvu, off);
 }
 
+// TPC, cycle and code of the current step: native code knows them at compile time, so they are
+// stored only before a call that may read them and at trace exit.
+struct VU1JitPending
+{
+	bool tpc, cycle, code;
+	u32 tpc_v, cycle_rel, code_v;
+};
+static VU1JitPending s_vu1_jit_pending;
+
+// Clobbers w0/x1. keep: the stores sit on a conditional path, the values stay pending after it.
+static void _vu1JitFlush(bool keep = false)
+{
+	VU1JitPending& p = s_vu1_jit_pending;
+	if (p.tpc)
+	{
+		armAsm->Mov(a64::w0, p.tpc_v);
+		armAsm->Str(a64::w0, _vu1JitMem(_vu1Off(VU1.VI[REG_TPC].UL)));
+	}
+	if (p.cycle)
+	{
+		armAsm->Add(a64::x1, a64::x20, p.cycle_rel);
+		armAsm->Str(a64::x1, _vu1JitMem(_vu1Off(VU1.cycle)));
+	}
+	if (p.code)
+	{
+		armAsm->Mov(a64::w0, p.code_v);
+		armAsm->Str(a64::w0, _vu1JitMem(_vu1Off(VU1.code)));
+	}
+	if (!keep)
+		p.tpc = p.cycle = p.code = false;
+}
+
 static void _vu1JitEmitHandler(FnPtr_VuVoid f)
 {
 	if (f != VU1MI_NOP)
+	{
+		_vu1JitFlush();
 		armEmitCall(reinterpret_cast<const void*>(f));
+	}
 }
 
 // pos = (pos + 1) & 3, count += delta
@@ -932,7 +967,7 @@ static void _vu1JitEmitBranchSrc(const a64::Register& w, u32 reg)
 // w1 = _branchAddr(&VU1)
 static void _vu1JitEmitBranchAddr(u32 code)
 {
-	armAsm->Ldr(a64::w1, _vu1JitVI(REG_TPC));
+	armAsm->Mov(a64::w1, s_vu1_jit_pending.tpc_v);
 	armAsm->Add(a64::w1, a64::w1, _vu1Imm11(code) * 8);
 	armAsm->And(a64::w1, a64::w1, 0x3fff);
 }
@@ -965,7 +1000,7 @@ static void _vu1JitEmitLink(u32 it)
 	armAsm->Ldr(a64::w2, _vu1JitMem(_vu1Off(VU1.branchpc)));
 	armAsm->B(&done);
 	armAsm->Bind(&first);
-	armAsm->Ldr(a64::w2, _vu1JitVI(REG_TPC));
+	armAsm->Mov(a64::w2, s_vu1_jit_pending.tpc_v);
 	armAsm->Bind(&done);
 	armAsm->Add(a64::w2, a64::w2, 8);
 	armAsm->Lsr(a64::w2, a64::w2, 3);
@@ -1337,14 +1372,13 @@ static void _vu1JitCompile(VU1Trace& t)
 
 	armSetAsmPtr(s_vu1_jit_ptr, s_vu1_jit_end - s_vu1_jit_ptr, &s_vu1_jit_pool);
 	u8* const fn = armStartBlock();
+	s_vu1_jit_pending = {};
 	_vu1JitMark("pro");
 
 	const a64::Register& rvu = a64::x19;
 	const a64::Register& rbase = a64::x20;
 	const auto vu = [&](s64 off) { return a64::MemOperand(rvu, off); };
 	const auto slot = [](int i) { return a64::MemOperand(a64::sp, 32 + i * 16); };
-	const s64 off_tpc = _vu1Off(VU1.VI[REG_TPC].UL);
-	const s64 off_code = _vu1Off(VU1.code);
 	const s64 off_cycle = _vu1Off(VU1.cycle);
 
 	armAsm->Stp(a64::x29, a64::lr, a64::MemOperand(a64::sp, -112, a64::PreIndex));
@@ -1370,12 +1404,10 @@ static void _vu1JitCompile(VU1Trace& t)
 		branch_seen |= _vu1IsBranch(reinterpret_cast<const u32*>(&s.code), d);
 
 		_vu1JitMark("step");
-		armAsm->Mov(a64::w0, pc + 8);
-		armAsm->Str(a64::w0, vu(off_tpc));
 		pc += 8;
-
-		armAsm->Add(a64::x1, rbase, s.cycle_rel);
-		armAsm->Str(a64::x1, vu(off_cycle));
+		s_vu1_jit_pending.tpc = s_vu1_jit_pending.cycle = true;
+		s_vu1_jit_pending.tpc_v = pc;
+		s_vu1_jit_pending.cycle_rel = s.cycle_rel;
 
 		_vu1JitMark("vib");
 		// VIBackupCycles -= min((u8)(cycle - cyclesBeforeOp), VIBackupCycles)
@@ -1413,6 +1445,7 @@ static void _vu1JitCompile(VU1Trace& t)
 		_vu1JitMark("kick");
 		a64::Label no_kick;
 		armAsm->Cbz(a64::w22, &no_kick);
+		_vu1JitFlush(true);
 		armEmitCall(reinterpret_cast<const void*>(&_vu1JitXGKICK));
 		armAsm->Ldr(a64::w22, vu(_vu1Off(VU1.xgkickenable)));
 		armAsm->Bind(&no_kick);
@@ -1420,8 +1453,8 @@ static void _vu1JitCompile(VU1Trace& t)
 		_vu1JitMark("bk");
 		if (d.ibit)
 		{
-			armAsm->Mov(a64::w0, hi);
-			armAsm->Str(a64::w0, vu(off_code));
+			s_vu1_jit_pending.code = true;
+			s_vu1_jit_pending.code_v = hi;
 			_vu1JitMark("U", reinterpret_cast<const void*>(d.upper));
 			_vu1JitEmitUpper(d.upper, hi);
 			_vu1JitMark("bk");
@@ -1442,8 +1475,8 @@ static void _vu1JitCompile(VU1Trace& t)
 				armAsm->Ldr(a64::q0, vu(off_vi));
 				armAsm->Str(a64::q0, slot(2));
 			}
-			armAsm->Mov(a64::w0, hi);
-			armAsm->Str(a64::w0, vu(off_code));
+			s_vu1_jit_pending.code = true;
+			s_vu1_jit_pending.code_v = hi;
 			_vu1JitMark("U", reinterpret_cast<const void*>(d.upper));
 			_vu1JitEmitUpper(d.upper, hi);
 			_vu1JitMark("bk");
@@ -1463,8 +1496,8 @@ static void _vu1JitCompile(VU1Trace& t)
 					armAsm->Ldr(a64::q0, slot(2));
 					armAsm->Str(a64::q0, vu(off_vi));
 				}
-				armAsm->Mov(a64::w0, lo);
-				armAsm->Str(a64::w0, vu(off_code));
+				s_vu1_jit_pending.code = true;
+				s_vu1_jit_pending.code_v = lo;
 				_vu1JitMark("L", reinterpret_cast<const void*>(d.lower));
 				_vu1JitEmitLower(d.lower, lo);
 				_vu1JitMark("bk");
@@ -1491,6 +1524,7 @@ static void _vu1JitCompile(VU1Trace& t)
 		else if ((d.lregs.pipe == VUPIPE_FDIV && (d.lregs.VIwrite & (1 << REG_Q))) ||
 				 (d.lregs.pipe == VUPIPE_EFU && (d.lregs.VIwrite & (1 << REG_P))))
 		{
+			_vu1JitFlush();
 			armMoveAddressToReg(a64::x0, &s.d.lregs);
 			armEmitCall(reinterpret_cast<const void*>(&_vu1JitAddLowerStalls));
 		}
@@ -1499,6 +1533,8 @@ static void _vu1JitCompile(VU1Trace& t)
 		// VU1.branch is 0 at trace entry: it can only be set from the first branch pair on.
 		if (branch_seen)
 		{
+			// _vu1JitBranch may write TPC: nothing pending may overwrite it later.
+			_vu1JitFlush();
 			a64::Label no_branch;
 			armAsm->Ldr(a64::w0, vu(_vu1Off(VU1.branch)));
 			armAsm->Cbz(a64::w0, &no_branch);
@@ -1517,6 +1553,7 @@ static void _vu1JitCompile(VU1Trace& t)
 	}
 
 	_vu1JitMark("epi");
+	_vu1JitFlush();
 	armAsm->Ldp(rvu, rbase, a64::MemOperand(a64::sp, 16));
 	armAsm->Ldp(a64::x21, a64::x22, a64::MemOperand(a64::sp, 96));
 	armAsm->Ldp(a64::x29, a64::lr, a64::MemOperand(a64::sp, 112, a64::PostIndex));
