@@ -103,7 +103,7 @@ Everything is on only for the one game build it was made for; any other disc run
   loop through the EE core in use on <n> generated inputs at vsync 300, and writes inputs and outputs
   (Fd or ACC, FCR31) to <file>. `tests/zdxsv/ee_optest_cmp.py` compares the files of two builds.
 - ARM64 VU interpreter (`pcsx2/VUops.cpp`, `ARCH_ARM64`) and VU1 recompiler: DIV/SQRT/RSQRT and the
-  EFU ops compute as x86 microVU does (unclamped inputs, its op order, flags and NaN), so ARM64 and
+  EFU ops compute as x86 microVU does (unclamped inputs, its op order, flags and NaN; of two NaN operands the first, as SSE), so ARM64 and
   x86_64 peers get the same Q, P and D/I flags; FDIV D/I also set DS/IS. x86_64 builds unchanged.
 - ARM64 VU FMAC operand clamp (`VUops.cpp`, `arm64/VU1Trace.inl`, interpreter, VU1 recompiler and
   native COP2 macro ops): in the default clamp mode, the operands x86 microVU clamps per op (SUB, MUL,
