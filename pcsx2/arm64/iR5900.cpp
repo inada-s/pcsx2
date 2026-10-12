@@ -144,6 +144,162 @@ static s64 GprOffset(u32 reg)
 	return offsetof(cpuRegisters, GPR.r[0]) + reg * sizeof(GPR_reg);
 }
 
+static constexpr s64 FprOffset(u32 reg)
+{
+	return offsetof(cpuRegistersPack, fpuRegs) + offsetof(fpuRegisters, fpr) + reg * sizeof(FPRreg);
+}
+
+// fpuDouble (FPU.cpp) on w: exponent 0 -> signed 0, exponent 255 -> signed max float.
+static void EmitFpuDouble(const a64::Register& w)
+{
+	armAsm->And(a64::w3, w, 0x7f800000);
+	armAsm->And(a64::w4, w, 0x80000000);
+	armAsm->Cmp(a64::w3, 0);
+	armAsm->Csel(w, a64::w4, w, a64::eq);
+	armAsm->Orr(a64::w4, a64::w4, 0x7f7fffff);
+	armAsm->Cmp(a64::w3, 0x7f800000);
+	armAsm->Csel(w, a64::w4, w, a64::eq);
+}
+
+// fpuAddSub (FPU.cpp) on w0, w1 to its operands: the smaller one's mantissa cut to the bits the larger
+// exponent keeps.
+static void EmitFpuAddSubCut()
+{
+	a64::Label neg, bsign, asign, done;
+	armAsm->Ubfx(a64::w3, a64::w0, 23, 8);
+	armAsm->Ubfx(a64::w4, a64::w1, 23, 8);
+	armAsm->Subs(a64::w3, a64::w3, a64::w4);
+	armAsm->B(a64::eq, &done);
+	armAsm->B(a64::lt, &neg);
+	armAsm->Cmp(a64::w3, 25);
+	armAsm->B(a64::ge, &bsign);
+	armAsm->Sub(a64::w3, a64::w3, 1);
+	armAsm->Mov(a64::w4, 0xffffffff);
+	armAsm->Lsl(a64::w4, a64::w4, a64::w3);
+	armAsm->And(a64::w1, a64::w1, a64::w4);
+	armAsm->B(&done);
+	armAsm->Bind(&bsign);
+	armAsm->And(a64::w1, a64::w1, 0x80000000);
+	armAsm->B(&done);
+	armAsm->Bind(&neg);
+	armAsm->Neg(a64::w3, a64::w3);
+	armAsm->Cmp(a64::w3, 25);
+	armAsm->B(a64::ge, &asign);
+	armAsm->Sub(a64::w3, a64::w3, 1);
+	armAsm->Mov(a64::w4, 0xffffffff);
+	armAsm->Lsl(a64::w4, a64::w4, a64::w3);
+	armAsm->And(a64::w0, a64::w0, a64::w4);
+	armAsm->B(&done);
+	armAsm->Bind(&asign);
+	armAsm->And(a64::w0, a64::w0, 0x80000000);
+	armAsm->Bind(&done);
+}
+
+// COP1 ADD.S, SUB.S, MUL.S, DIV.S, MOV.S, MFC1, MTC1 as the interpreter (FPU.cpp). Inputs go through
+// fpuDouble and DIV.S tests a zero divisor first, so no NaN or infinity reaches the arithmetic.
+static bool EmitFpu(const a64::Register& rregs, u32 code)
+{
+	const u32 rs = (code >> 21) & 31, ft = (code >> 16) & 31, fs = (code >> 11) & 31, fd = (code >> 6) & 31;
+	const u32 funct = code & 63;
+	const auto fpr = [&](u32 reg) { return a64::MemOperand(rregs, FprOffset(reg)); };
+	const a64::MemOperand fcr31(rregs, offsetof(cpuRegistersPack, fpuRegs) + offsetof(fpuRegisters, fprc) + 31 * 4);
+	if (rs == 0x00) // MFC1
+	{
+		if (ft != 0)
+		{
+			armAsm->Ldrsw(a64::x0, fpr(fs));
+			armAsm->Str(a64::x0, a64::MemOperand(rregs, GprOffset(ft)));
+		}
+		return true;
+	}
+	if (rs == 0x04) // MTC1
+	{
+		armAsm->Ldr(a64::w0, a64::MemOperand(rregs, GprOffset(ft)));
+		armAsm->Str(a64::w0, fpr(fs));
+		return true;
+	}
+	if (rs != 0x10 || (funct > 3 && funct != 6))
+		return false;
+	armAsm->Ldr(a64::w0, fpr(fs));
+	if (funct == 6) // MOV.S
+	{
+		armAsm->Str(a64::w0, fpr(fd));
+		return true;
+	}
+	armAsm->Ldr(a64::w1, fpr(ft));
+	armAsm->Ldr(a64::w2, fcr31);
+	a64::Label store;
+	if (funct == 3)
+	{
+		// checkDivideByZero: D | SD, or I | SI for a zero dividend; result signed max float.
+		a64::Label nonzero;
+		armAsm->Tst(a64::w1, 0x7f800000);
+		armAsm->B(a64::ne, &nonzero);
+		armAsm->Tst(a64::w0, 0x7f800000);
+		armAsm->Mov(a64::w3, 0x20 | 0x10000);
+		armAsm->Mov(a64::w4, 0x40 | 0x20000);
+		armAsm->Csel(a64::w3, a64::w4, a64::w3, a64::eq);
+		armAsm->Orr(a64::w2, a64::w2, a64::w3);
+		armAsm->Eor(a64::w0, a64::w0, a64::w1);
+		armAsm->And(a64::w0, a64::w0, 0x80000000);
+		armAsm->Orr(a64::w0, a64::w0, 0x7f7fffff);
+		armAsm->B(&store);
+		armAsm->Bind(&nonzero);
+	}
+	else if (funct <= 1)
+		EmitFpuAddSubCut();
+	EmitFpuDouble(a64::w0);
+	EmitFpuDouble(a64::w1);
+	armAsm->Fmov(a64::s0, a64::w0);
+	armAsm->Fmov(a64::s1, a64::w1);
+	switch (funct)
+	{
+		case 0: armAsm->Fadd(a64::s0, a64::s0, a64::s1); break;
+		case 1: armAsm->Fsub(a64::s0, a64::s0, a64::s1); break;
+		case 2: armAsm->Fmul(a64::s0, a64::s0, a64::s1); break;
+		case 3:
+			// The divide rounding mode, as the interpreter.
+			armAsm->Mrs(a64::x5, a64::FPCR);
+			armMoveAddressToReg(a64::x6, &EmuConfig.Cpu.FPUDivFPCR.bitmask);
+			armAsm->Ldr(a64::x6, a64::MemOperand(a64::x6));
+			armAsm->Msr(a64::FPCR, a64::x6);
+			armAsm->Fdiv(a64::s0, a64::s0, a64::s1);
+			armAsm->Msr(a64::FPCR, a64::x5);
+			break;
+	}
+	armAsm->Fmov(a64::w0, a64::s0);
+
+	// checkOverflow, then checkUnderflow if no overflow; DIV.S sets and clears no flags there.
+	const u32 oflags = funct == 3 ? 0 : 0x8000 | 0x10, uflags = funct == 3 ? 0 : 0x4000 | 0x08;
+	a64::Label no_over, no_under;
+	armAsm->And(a64::w3, a64::w0, 0x7fffffff);
+	armAsm->Cmp(a64::w3, 0x7f800000);
+	armAsm->B(a64::ne, &no_over);
+	armAsm->Orr(a64::w0, a64::w0, 0x7f7fffff);
+	armAsm->And(a64::w0, a64::w0, 0xff7fffff);
+	if (oflags)
+		armAsm->Orr(a64::w2, a64::w2, oflags);
+	armAsm->B(&store);
+	armAsm->Bind(&no_over);
+	if (oflags)
+		armAsm->And(a64::w2, a64::w2, ~0x8000u);
+	armAsm->Tst(a64::w0, 0x7f800000);
+	armAsm->B(a64::ne, &no_under);
+	armAsm->Tst(a64::w0, 0x007fffff);
+	armAsm->B(a64::eq, &no_under);
+	armAsm->And(a64::w0, a64::w0, 0x80000000);
+	if (uflags)
+		armAsm->Orr(a64::w2, a64::w2, uflags);
+	armAsm->B(&store);
+	armAsm->Bind(&no_under);
+	if (uflags)
+		armAsm->And(a64::w2, a64::w2, ~0x4000u);
+	armAsm->Bind(&store);
+	armAsm->Str(a64::w0, fpr(fd));
+	armAsm->Str(a64::w2, fcr31);
+	return true;
+}
+
 // Integer ops without memory access or exceptions, emitted inline. ADD, SUB, ADDI, DADD, DSUB and DADDI
 // write their result on overflow, as the x86 recompiler (the interpreter skips the write).
 // Returns false for the ops left to the interpreter's handler.
@@ -153,6 +309,8 @@ static bool EmitNative(const a64::Register& rregs, u32 code)
 		return false;
 
 	const u32 op = code >> 26;
+	if (op == 0x11)
+		return EmitFpu(rregs, code);
 	const u32 rs = (code >> 21) & 31;
 	const u32 rt = (code >> 16) & 31;
 	const u32 rd = (code >> 11) & 31;
