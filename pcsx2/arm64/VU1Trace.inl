@@ -645,12 +645,6 @@ static bool _vu1JitEmitFmac(FnPtr_VuVoid f, u32 code)
 	return true;
 }
 
-static void _vu1JitEmitUpper(FnPtr_VuVoid f, u32 code)
-{
-	if (!_vu1JitEmitFmac(f, code))
-		_vu1JitEmitHandler(f);
-}
-
 // VF[ft] = v0 on the lanes of xyzw (8 = x).
 static void _vu1JitEmitStoreVF(u32 ft, u32 xyzw)
 {
@@ -664,6 +658,146 @@ static void _vu1JitEmitStoreVF(u32 ft, u32 xyzw)
 		armAsm->Mov(a64::v0.V16B(), a64::v1.V16B());
 	}
 	armAsm->Str(a64::q0, _vu1JitMem(off));
+}
+
+// v = w0 on all lanes
+static void _vu1JitEmitDupConst(const a64::VRegister& v, u32 value)
+{
+	armAsm->Mov(a64::w0, value);
+	armAsm->Dup(v.V4S(), a64::w0);
+}
+
+// Upper ops working on the integer representation of the floats (MAX, MINI, FTOI, ITOF, ABS,
+// CLIP), as VUops.cpp. FTOI and ITOF scale with the same float multiply as the interpreter, under
+// the same FPCR. Returns false for the ops left to the handler.
+static bool _vu1JitEmitUpperInt(FnPtr_VuVoid f, u32 code)
+{
+	const u32 xyzw = (code >> 21) & 0xf;
+	const u32 ft = (code >> 16) & 0x1f;
+	const u32 fs = (code >> 11) & 0x1f;
+	const u32 fd = (code >> 6) & 0x1f;
+
+	struct MinMaxDesc
+	{
+		FnPtr_VuVoid fn;
+		bool max;
+		u8 bc;
+	};
+	static const MinMaxDesc minmax[] = {{VU1MI_MAX, true, VU1_BC_VEC}, {VU1MI_MAXi, true, VU1_BC_I},
+		{VU1MI_MAXx, true, 0}, {VU1MI_MAXy, true, 1}, {VU1MI_MAXz, true, 2}, {VU1MI_MAXw, true, 3},
+		{VU1MI_MINI, false, VU1_BC_VEC}, {VU1MI_MINIi, false, VU1_BC_I}, {VU1MI_MINIx, false, 0},
+		{VU1MI_MINIy, false, 1}, {VU1MI_MINIz, false, 2}, {VU1MI_MINIw, false, 3}};
+	for (const MinMaxDesc& m : minmax)
+	{
+		if (m.fn != f)
+			continue;
+		if (fd == 0 || xyzw == 0)
+			return true;
+		armAsm->Ldr(a64::q1, _vu1JitMem(_vu1Off(VU1.VF[fs])));
+		if (m.bc == VU1_BC_VEC)
+		{
+			armAsm->Ldr(a64::q2, _vu1JitMem(_vu1Off(VU1.VF[ft])));
+		}
+		else
+		{
+			armAsm->Ldr(a64::w0, _vu1JitMem(m.bc == VU1_BC_I ? _vu1Off(VU1.VI[REG_I].UL) : _vu1Off(VU1.VF[ft].UL[m.bc])));
+			armAsm->Dup(a64::v2.V4S(), a64::w0);
+		}
+		// fp_max/fp_min: signed max/min, the other one when both are negative.
+		armAsm->Smax(a64::v3.V4S(), a64::v1.V4S(), a64::v2.V4S());
+		armAsm->Smin(a64::v4.V4S(), a64::v1.V4S(), a64::v2.V4S());
+		armAsm->And(a64::v0.V16B(), a64::v1.V16B(), a64::v2.V16B());
+		armAsm->Cmlt(a64::v0.V4S(), a64::v0.V4S(), 0);
+		armAsm->Bsl(a64::v0.V16B(), m.max ? a64::v4.V16B() : a64::v3.V16B(), m.max ? a64::v3.V16B() : a64::v4.V16B());
+		_vu1JitEmitStoreVF(fd, xyzw);
+		return true;
+	}
+
+	static const FnPtr_VuVoid ftoi[] = {VU1MI_FTOI0, VU1MI_FTOI4, VU1MI_FTOI12, VU1MI_FTOI15};
+	static const FnPtr_VuVoid itof[] = {VU1MI_ITOF0, VU1MI_ITOF4, VU1MI_ITOF12, VU1MI_ITOF15};
+	static const u32 shift[] = {0, 4, 12, 15};
+	for (int i = 0; i < 4; i++)
+	{
+		if (f != ftoi[i] && f != itof[i])
+			continue;
+		if (ft == 0 || xyzw == 0)
+			return true;
+		armAsm->Ldr(a64::q1, _vu1JitMem(_vu1Off(VU1.VF[fs])));
+		if (f == ftoi[i])
+		{
+			if (shift[i])
+			{
+				_vu1JitEmitDupConst(a64::v2, 0x3f800000 + (shift[i] << 23));
+				armAsm->Fmul(a64::v1.V4S(), a64::v1.V4S(), a64::v2.V4S());
+			}
+			// floatToInt: exponent >= 2^31 (incl. inf, NaN) saturates by sign, else truncates.
+			armAsm->Fcvtzs(a64::v0.V4S(), a64::v1.V4S());
+			_vu1JitEmitDupConst(a64::v2, 0x7f800000);
+			armAsm->And(a64::v2.V16B(), a64::v1.V16B(), a64::v2.V16B());
+			_vu1JitEmitDupConst(a64::v3, 0x4f000000);
+			armAsm->Cmhs(a64::v2.V4S(), a64::v2.V4S(), a64::v3.V4S());
+			armAsm->Ushr(a64::v3.V4S(), a64::v1.V4S(), 31);
+			_vu1JitEmitDupConst(a64::v4, 0x7fffffff);
+			armAsm->Add(a64::v3.V4S(), a64::v3.V4S(), a64::v4.V4S());
+			armAsm->Bsl(a64::v2.V16B(), a64::v3.V16B(), a64::v0.V16B());
+			armAsm->Mov(a64::v0.V16B(), a64::v2.V16B());
+		}
+		else
+		{
+			armAsm->Scvtf(a64::v0.V4S(), a64::v1.V4S());
+			if (shift[i])
+			{
+				_vu1JitEmitDupConst(a64::v2, 0x3f800000 - (shift[i] << 23));
+				armAsm->Fmul(a64::v0.V4S(), a64::v0.V4S(), a64::v2.V4S());
+			}
+		}
+		_vu1JitEmitStoreVF(ft, xyzw);
+		return true;
+	}
+
+	if (f == VU1MI_ABS)
+	{
+		if (ft == 0 || xyzw == 0)
+			return true;
+		armAsm->Ldr(a64::q0, _vu1JitMem(_vu1Off(VU1.VF[fs])));
+		_vu1JitEmitDupConst(a64::v2, 0x7fffffff);
+		armAsm->And(a64::v0.V16B(), a64::v0.V16B(), a64::v2.V16B());
+		_vu1JitEmitStoreVF(ft, xyzw);
+		return true;
+	}
+
+	if (f == VU1MI_CLIP)
+	{
+		// w0 = |Ft.w|, denormals as the largest denormal
+		armAsm->Ldr(a64::w0, _vu1JitMem(_vu1Off(VU1.VF[ft].UL[3])));
+		armAsm->And(a64::w1, a64::w0, 0x7fffffff);
+		armAsm->Mov(a64::w2, 0x007fffff);
+		armAsm->Tst(a64::w0, 0x7f800000);
+		armAsm->Csel(a64::w0, a64::w1, a64::w2, a64::ne);
+		armAsm->Ldr(a64::w1, _vu1JitMem(_vu1Off(VU1.clipflag)));
+		armAsm->Lsl(a64::w1, a64::w1, 6);
+		for (int i = 0; i < 3; i++)
+		{
+			armAsm->Ldr(a64::w2, _vu1JitMem(_vu1Off(VU1.VF[fs].UL[i])));
+			armAsm->Cmp(a64::w2, a64::w0);
+			armAsm->Cset(a64::w3, a64::gt);
+			armAsm->Orr(a64::w1, a64::w1, a64::Operand(a64::w3, a64::LSL, 2 * i));
+			armAsm->Eor(a64::w2, a64::w2, 0x80000000);
+			armAsm->Cmp(a64::w2, a64::w0);
+			armAsm->Cset(a64::w3, a64::gt);
+			armAsm->Orr(a64::w1, a64::w1, a64::Operand(a64::w3, a64::LSL, 2 * i + 1));
+		}
+		armAsm->And(a64::w1, a64::w1, 0xffffff);
+		armAsm->Str(a64::w1, _vu1JitMem(_vu1Off(VU1.clipflag)));
+		return true;
+	}
+	return false;
+}
+
+static void _vu1JitEmitUpper(FnPtr_VuVoid f, u32 code)
+{
+	if (!_vu1JitEmitFmac(f, code) && !_vu1JitEmitUpperInt(f, code))
+		_vu1JitEmitHandler(f);
 }
 
 static s32 _vu1Imm11(u32 code)
