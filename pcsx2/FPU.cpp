@@ -3,6 +3,7 @@
 
 #include "Common.h"
 
+#include <bit>
 #include <cmath>
 
 // Helper Macros
@@ -98,6 +99,36 @@ __fi u32 fp_min(u32 a, u32 b)
 {
 	return ((s32)a < 0 && (s32)b < 0) ? std::max<s32>(a, b) : std::min<s32>(a, b);
 }
+
+#ifdef ARCH_ARM64
+// ARM64 runs these ops here; they follow the x86 recompiler (iFPU.cpp) so both hosts compute the same bits.
+
+// fpuFloat2: +/-NaN, +/-Inf -> +/-Fmax
+static u32 fpuClampX86(u32 v)
+{
+	if (!CHECK_FPU_OVERFLOW)
+		return v;
+	v = static_cast<u32>(std::min<s32>(static_cast<s32>(v), static_cast<s32>(posFmax)));
+	return std::min<u32>(v, negFmax);
+}
+
+// MAXSS/MINSS on clamped operands with denormals as zero: on equal operands (+0 vs -0) SSE returns the
+// second one, which recCommutativeOp makes Ft, or Fs when Fd == Ft.
+static u32 fpuMaxMinX86(bool max)
+{
+	u32 a = fpuClampX86(_FsValUl_);
+	u32 b = fpuClampX86(_FtValUl_);
+	if (_Fd_ == _Ft_)
+		std::swap(a, b);
+	if (!(a & 0x7f800000))
+		a &= 0x80000000;
+	if (!(b & 0x7f800000))
+		b &= 0x80000000;
+	const float fa = std::bit_cast<float>(a);
+	const float fb = std::bit_cast<float>(b);
+	return (max ? fa > fb : fa < fb) ? a : b;
+}
+#endif
 
 /*	Checks if Divide by Zero will occur. (z/y = x)
 	cFlagsToSet1 = Flags to set if (z != 0)
@@ -250,6 +281,15 @@ void C_LT() {
 void CFC1() {
 	if (!_Rt_) return;
 
+#ifdef ARCH_ARM64
+	// recCFC1: FCR31 with its always-zero bits cleared and always-one bits set, else FCR0
+	if (_Fs_ >= 16)
+		cpuRegs.GPR.r[_Rt_].SD[0] = (s32)((fpuRegs.fprc[31] & 0x0083c078) | 0x01000001);
+	else
+		cpuRegs.GPR.r[_Rt_].SD[0] = (s32)fpuRegs.fprc[0];
+	return;
+#endif
+
 	if (_Fs_ == 31)
 		cpuRegs.GPR.r[_Rt_].SD[0] = (s32)fpuRegs.fprc[31];	// force sign extension to 64 bit
 	else if (_Fs_ == 0)
@@ -305,6 +345,10 @@ void MADDA_S() {
 }
 
 void MAX_S() {
+#ifdef ARCH_ARM64
+	_FdValUl_ = fpuMaxMinX86(true); // recMAX_S_xmm keeps O and U
+	return;
+#endif
 	_FdValUl_  = fp_max( _FsValUl_, _FtValUl_ );
 	clearFPUFlags( FPUflagO | FPUflagU );
 }
@@ -315,6 +359,10 @@ void MFC1() {
 }
 
 void MIN_S() {
+#ifdef ARCH_ARM64
+	_FdValUl_ = fpuMaxMinX86(false); // recMIN_S_xmm keeps O and U
+	return;
+#endif
 	_FdValUl_ = fp_min(_FsValUl_, _FtValUl_);
 	clearFPUFlags( FPUflagO | FPUflagU );
 }
@@ -364,6 +412,16 @@ void RSQRT_S() {
 	FPRreg temp;
 	clearFPUFlags(FPUflagD | FPUflagI);
 
+#ifdef ARCH_ARM64
+	// recRSQRThelper1: sign of Ft -> I, then Ft = 0 gives +/-Fmax with the sign of Fs, I for 0/0, else D
+	if ( ( _FtValUl_ & 0x7F800000 ) == 0 ) {
+		if ( _FtValUl_ & 0x80000000 )
+			_ContVal_ |= FPUflagI | FPUflagSI;
+		_ContVal_ |= ( ( _FsValUl_ & 0x7F800000 ) == 0 ) ? ( FPUflagI | FPUflagSI ) : ( FPUflagD | FPUflagSD );
+		_FdValUl_ = ( _FsValUl_ & 0x80000000 ) | posFmax;
+		return;
+	}
+#endif
 	if ( ( _FtValUl_ & 0x7F800000 ) == 0 ) { // Ft is zero (Denormals are Zero)
 		_ContVal_ |= FPUflagD | FPUflagSD;
 		_FdValUl_ = ( _FtValUl_ & 0x80000000 ) | posFmax;
@@ -385,6 +443,16 @@ void SQRT_S() {
 	// round to nearest, as the recompiler (recSQRT_S_xmm)
 	const FPControlRegisterBackup fpcr(FPControlRegister(EmuConfig.Cpu.FPUFPCR).SetRoundMode(FPRoundMode::Nearest));
 
+#ifdef ARCH_ARM64
+	// recSQRT_S_xmm: any sign bit (also -0) sets I, the result is the root of the absolute value
+	if ( _FtValUl_ & 0x80000000 )
+		_ContVal_ |= FPUflagI | FPUflagSI;
+	if ( ( _FtValUl_ & 0x7F800000 ) == 0 )
+		_FdValUl_ = 0;
+	else
+		_FdValf_ = sqrt( fabs( fpuDouble( _FtValUl_ ) ) );
+	return;
+#endif
 	if ( ( _FtValUl_ & 0x7F800000 ) == 0 ) // If Ft = +/-0
 		_FdValUl_ = _FtValUl_ & 0x80000000;// result is 0
 	else if ( _FtValUl_ & 0x80000000 ) { // If Ft is Negative
