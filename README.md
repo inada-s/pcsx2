@@ -109,6 +109,11 @@ Everything is on only for the one game build it was made for; any other disc run
   native COP2 macro ops): in the default clamp mode, the operands x86 microVU clamps per op (SUB, MUL,
   MULA, MADD/MADDA broadcast, COP2 MADDw/MSUB; `clampType` in `microVU_Upper.inl`) turn a NaN of
   either sign into +max, as x86 does (was signed max). x86_64 builds unchanged.
+- ARM64 VU FMAC NaN/Inf (same files and paths): in the default clamp mode, ADD/SUB/MUL/MADD/MSUB
+  (all forms, OPMULA/OPMSUB) follow x86 SSE: unclamped operands keep Inf/NaN (DAZ only), a NaN
+  operand passes quieted (Fs, or ACC in MADDA/MSUB*, first), an invalid op gives `0xffc00000`,
+  results are not clamped, MAC gets S and Z only (no O/U). SUBi/MULi `.xyzw` clamp I as x86 does.
+  x86_64 builds unchanged.
 - ARM64 VU0 status flag in COP2 macro mode (`VUops.cpp`, `VU0.cpp`, `arm64/VU1Trace.inl`): as x86
   microVU, FMAC ops keep the D/I flags of the last VDIV/VSQRT/VRSQRT, and CTC2 to the status flag
   writes only the sticky bits (6-11). x86_64 builds unchanged.

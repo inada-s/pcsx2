@@ -537,7 +537,7 @@ static __fi VECTOR* _getDst(VURegs* VU)
 static bool s_vu_cop2_op = false;
 
 // Operands x86 microVU clamps for the upper op in code (clampType in microVU_Upper.inl), in the
-// default clamp mode (overflow only): bit 0 Ft (also a broadcast lane or Q, never I), bit 1 Fs,
+// default clamp mode (overflow only): bit 0 Ft (also a broadcast lane, Q or I), bit 1 Fs,
 // bit 2 ACC. Its clamp (MINPS +max, MAXPS -max) turns a NaN of either sign into +max; vuDouble
 // gives the rest of the values the same result.
 static u32 vuX86ClampOperands(u32 code, int vu, bool cop2)
@@ -557,13 +557,10 @@ static u32 vuX86ClampOperands(u32 code, int vu, bool cop2)
 	}
 	switch (funct)
 	{
-		case 0x04: case 0x05: case 0x06: case 0x07: case 0x24: case 0x2c: // SUBx..w, SUBq, SUB
+		case 0x04: case 0x05: case 0x06: case 0x07: case 0x24: case 0x26: case 0x2c: // SUBx..w, SUBq, SUBi, SUB
 			return ps ? 3 : 0;
-		case 0x26: // SUBi
-			return ps ? 2 : 0;
-		case 0x18: case 0x19: case 0x1a: case 0x1b: case 0x1c: case 0x2a: // MULx..w, MULq, MUL
+		case 0x18: case 0x19: case 0x1a: case 0x1b: case 0x1c: case 0x1e: case 0x2a: // MULx..w, MULq, MULi, MUL
 			return ps ? 3 : 2;
-		case 0x1e: // MULi
 		case 0x08: case 0x09: case 0x0a: // MADDx..z
 			return 2;
 		case 0x0b: // MADDw
@@ -592,6 +589,118 @@ static __fi VECTOR _vuClampNaN(const VECTOR& v, bool on)
 		r.UL[i] = _vuClampNaN(v.UL[i], on);
 	return r;
 }
+
+// FMAC ops as x86 microVU computes them in the default clamp mode: SSE single precision with
+// DAZ/FTZ on the operands vuX86ClampOperands leaves alone. A NaN operand passes through quieted
+// (the first operand's wins, signaling or not), an invalid op gives the x86 default NaN, Inf and
+// NaN results stay unclamped. MAC flags as mVUupdateFlags: S = sign bit, Z = +-0, never O or U.
+enum class VuX86Fmac { None, Add, Sub, Mul, Madd, Msub };
+
+static __fi bool vuX86Fmac(int vu)
+{
+	return CHECK_VU_OVERFLOW(vu) && !CHECK_VU_SIGN_OVERFLOW(vu) && !CHECK_VU_EXTRA_OVERFLOW(vu);
+}
+
+static __fi bool _vuX86Fmac(const VURegs* VU)
+{
+	return vuX86Fmac(VU->IsVU1() ? 1 : 0);
+}
+
+static __fi bool _vuIsNaN(u32 f)
+{
+	return (f & 0x7fffffff) > 0x7f800000;
+}
+
+// An operand: clamped as x86 mVUclamp2 (NaN -> +max, Inf -> signed max), else as read; DAZ.
+static __fi u32 _vuX86In(u32 f, bool clamp)
+{
+	if (clamp && _vuIsNaN(f))
+		return 0x7f7fffff;
+	if ((f & 0x7f800000) == 0)
+		return f & 0x80000000;
+	if (clamp && (f & 0x7f800000) == 0x7f800000)
+		return (f & 0x80000000) | 0x7f7fffff;
+	return f;
+}
+
+static __fi VECTOR _vuX86In(const VECTOR& v, bool clamp)
+{
+	VECTOR r;
+	for (int i = 0; i < 4; i++)
+		r.UL[i] = _vuX86In(v.UL[i], clamp);
+	return r;
+}
+
+template <VuX86Fmac Op>
+static __fi u32 _vuX86Arith(u32 a, u32 b)
+{
+	if (_vuIsNaN(a))
+		return a | 0x400000;
+	if (_vuIsNaN(b))
+		return b | 0x400000;
+	const float fa = *(float*)&a, fb = *(float*)&b;
+	const float r = Op == VuX86Fmac::Add ? fa + fb : Op == VuX86Fmac::Sub ? fa - fb : fa * fb;
+	const u32 v = *(u32*)&r;
+	if (_vuIsNaN(v))
+		return 0xffc00000;
+	return (v & 0x7f800000) ? v : (v & 0x80000000);
+}
+
+// MADD = product + ACC, MADDA = ACC + product: the operand order picks which NaN passes.
+template <VuX86Fmac Op, MACOpDst Dst>
+static __fi u32 _vuX86Op(u32 acc, u32 fs, u32 ft)
+{
+	if constexpr (Op == VuX86Fmac::Madd || Op == VuX86Fmac::Msub)
+	{
+		const u32 p = _vuX86Arith<VuX86Fmac::Mul>(fs, ft);
+		if constexpr (Op == VuX86Fmac::Msub)
+			return _vuX86Arith<VuX86Fmac::Sub>(acc, p);
+		else if constexpr (Dst == MACOpDst::Fd)
+			return _vuX86Arith<VuX86Fmac::Add>(p, acc);
+		else
+			return _vuX86Arith<VuX86Fmac::Add>(acc, p);
+	}
+	else
+		return _vuX86Arith<Op>(fs, ft);
+}
+
+// lane 0 = x.
+static __fi u32 _vuX86Mac(VURegs* VU, int lane, u32 v)
+{
+	const int shift = 3 - lane;
+	VU->macflag = (VU->macflag & ~(0x1111 << shift)) | ((v >> 31) << (4 + shift)) |
+				  ((v & 0x7fffffff) == 0 ? 1u << shift : 0);
+	return v;
+}
+
+template <VuX86Fmac Op, MACOpDst Dst>
+static __fi void _vuX86Apply(VURegs* VU, VECTOR* dst, const VECTOR& acc, const VECTOR& fs, const VECTOR& ft)
+{
+	if (_X) { dst->i.x = _vuX86Mac(VU, 0, _vuX86Op<Op, Dst>(acc.i.x, fs.i.x, ft.i.x)); } else VU_MACx_CLEAR(VU);
+	if (_Y) { dst->i.y = _vuX86Mac(VU, 1, _vuX86Op<Op, Dst>(acc.i.y, fs.i.y, ft.i.y)); } else VU_MACy_CLEAR(VU);
+	if (_Z) { dst->i.z = _vuX86Mac(VU, 2, _vuX86Op<Op, Dst>(acc.i.z, fs.i.z, ft.i.z)); } else VU_MACz_CLEAR(VU);
+	if (_W) { dst->i.w = _vuX86Mac(VU, 3, _vuX86Op<Op, Dst>(acc.i.w, fs.i.w, ft.i.w)); } else VU_MACw_CLEAR(VU);
+	VU_STAT_UPDATE(VU);
+}
+
+static __fi float _vuOpADD(u32 fs, u32 ft);
+static __fi float _vuOpSUB(u32 fs, u32 ft);
+static __fi float _vuOpMUL(u32 fs, u32 ft);
+static __fi float _vuOpMADD(u32 acc, u32 fs, u32 ft);
+static __fi float _vuOpMSUB(u32 acc, u32 fs, u32 ft);
+
+template <float (*Fn)(u32, u32)>
+static constexpr VuX86Fmac _vuX86FmacOf()
+{
+	return Fn == _vuOpADD ? VuX86Fmac::Add : Fn == _vuOpSUB ? VuX86Fmac::Sub :
+		   Fn == _vuOpMUL ? VuX86Fmac::Mul : VuX86Fmac::None;
+}
+
+template <float (*Fn)(u32, u32, u32)>
+static constexpr VuX86Fmac _vuX86FmacOf()
+{
+	return Fn == _vuOpMADD ? VuX86Fmac::Madd : Fn == _vuOpMSUB ? VuX86Fmac::Msub : VuX86Fmac::None;
+}
 #endif
 
 template <float(*Fn)(u32, u32), MACOpDst Dst>
@@ -600,6 +709,12 @@ static __fi void applyBinaryMACOp(VURegs* VU)
 	VECTOR* dst = _getDst<Dst>(VU);
 #ifdef ARCH_ARM64
 	const u32 c = _vuClampOperands(VU);
+	if (_vuX86FmacOf<Fn>() != VuX86Fmac::None && _vuX86Fmac(VU))
+	{
+		const VECTOR xs = _vuX86In(VU->VF[_Fs_], c & 2), xt = _vuX86In(VU->VF[_Ft_], c & 1);
+		_vuX86Apply<_vuX86FmacOf<Fn>(), Dst>(VU, dst, xs, xs, xt);
+		return;
+	}
 	const VECTOR fs = _vuClampNaN(VU->VF[_Fs_], c & 2), ft = _vuClampNaN(VU->VF[_Ft_], c & 1);
 #else
 	const VECTOR &fs = VU->VF[_Fs_], &ft = VU->VF[_Ft_];
@@ -617,6 +732,14 @@ static __fi void applyBinaryMACOpBroadcast(VURegs* VU, u32 bc)
 	VECTOR* dst = _getDst<Dst>(VU);
 #ifdef ARCH_ARM64
 	const u32 c = _vuClampOperands(VU);
+	if (_vuX86FmacOf<Fn>() != VuX86Fmac::None && _vuX86Fmac(VU))
+	{
+		const VECTOR xs = _vuX86In(VU->VF[_Fs_], c & 2);
+		VECTOR xt;
+		xt.UL[0] = xt.UL[1] = xt.UL[2] = xt.UL[3] = _vuX86In(bc, c & 1);
+		_vuX86Apply<_vuX86FmacOf<Fn>(), Dst>(VU, dst, xs, xs, xt);
+		return;
+	}
 	const VECTOR fs = _vuClampNaN(VU->VF[_Fs_], c & 2);
 	const u32 b = _vuClampNaN(bc, c & 1);
 #else
@@ -766,6 +889,13 @@ static __fi void applyTernaryMACOp(VURegs* VU)
 	VECTOR* dst = _getDst<Dst>(VU);
 #ifdef ARCH_ARM64
 	const u32 c = _vuClampOperands(VU);
+	if (_vuX86FmacOf<Fn>() != VuX86Fmac::None && _vuX86Fmac(VU))
+	{
+		const VECTOR xa = _vuX86In(VU->ACC, c & 4), xs = _vuX86In(VU->VF[_Fs_], c & 2),
+					 xt = _vuX86In(VU->VF[_Ft_], c & 1);
+		_vuX86Apply<_vuX86FmacOf<Fn>(), Dst>(VU, dst, xa, xs, xt);
+		return;
+	}
 	const VECTOR acc = _vuClampNaN(VU->ACC, c & 4), fs = _vuClampNaN(VU->VF[_Fs_], c & 2),
 				 ft = _vuClampNaN(VU->VF[_Ft_], c & 1);
 #else
@@ -784,6 +914,14 @@ static __fi void applyTernaryMACOpBroadcast(VURegs* VU, u32 bc)
 	VECTOR* dst = _getDst<Dst>(VU);
 #ifdef ARCH_ARM64
 	const u32 c = _vuClampOperands(VU);
+	if (_vuX86FmacOf<Fn>() != VuX86Fmac::None && _vuX86Fmac(VU))
+	{
+		const VECTOR xa = _vuX86In(VU->ACC, c & 4), xs = _vuX86In(VU->VF[_Fs_], c & 2);
+		VECTOR xt;
+		xt.UL[0] = xt.UL[1] = xt.UL[2] = xt.UL[3] = _vuX86In(bc, c & 1);
+		_vuX86Apply<_vuX86FmacOf<Fn>(), Dst>(VU, dst, xa, xs, xt);
+		return;
+	}
 	const VECTOR acc = _vuClampNaN(VU->ACC, c & 4), fs = _vuClampNaN(VU->VF[_Fs_], c & 2);
 	const u32 b = _vuClampNaN(bc, c & 1);
 #else
@@ -934,8 +1072,32 @@ static __fi void _vuMINIy(VURegs* VU) { applyMinMaxBroadcast<fp_min>(VU, VU->VF[
 static __fi void _vuMINIz(VURegs* VU) { applyMinMaxBroadcast<fp_min>(VU, VU->VF[_Ft_].i.z); }
 static __fi void _vuMINIw(VURegs* VU) { applyMinMaxBroadcast<fp_min>(VU, VU->VF[_Ft_].i.w); }
 
+#ifdef ARCH_ARM64
+// OPMULA/OPMSUB as x86 microVU: no operand clamp, ACC.xyz (+)= Fs.yzx * Ft.zxy.
+template <VuX86Fmac Op>
+static __fi void _vuX86OP(VURegs* VU, VECTOR* dst)
+{
+	const VECTOR xa = _vuX86In(VU->ACC, false), xs = _vuX86In(VU->VF[_Fs_], false),
+				 xt = _vuX86In(VU->VF[_Ft_], false);
+	const u32 x = _vuX86Op<Op, MACOpDst::Fd>(xa.i.x, xs.i.y, xt.i.z);
+	const u32 y = _vuX86Op<Op, MACOpDst::Fd>(xa.i.y, xs.i.z, xt.i.x);
+	const u32 z = _vuX86Op<Op, MACOpDst::Fd>(xa.i.z, xs.i.x, xt.i.y);
+	dst->i.x = _vuX86Mac(VU, 0, x);
+	dst->i.y = _vuX86Mac(VU, 1, y);
+	dst->i.z = _vuX86Mac(VU, 2, z);
+	VU_STAT_UPDATE(VU);
+}
+#endif
+
 static __fi void _vuOPMULA(VURegs* VU)
 {
+#ifdef ARCH_ARM64
+	if (_vuX86Fmac(VU))
+	{
+		_vuX86OP<VuX86Fmac::Mul>(VU, &VU->ACC);
+		return;
+	}
+#endif
 	VU->ACC.i.x = VU_MACx_UPDATE(VU, vuDouble(VU->VF[_Fs_].i.y) * vuDouble(VU->VF[_Ft_].i.z));
 	VU->ACC.i.y = VU_MACy_UPDATE(VU, vuDouble(VU->VF[_Fs_].i.z) * vuDouble(VU->VF[_Ft_].i.x));
 	VU->ACC.i.z = VU_MACz_UPDATE(VU, vuDouble(VU->VF[_Fs_].i.x) * vuDouble(VU->VF[_Ft_].i.y));
@@ -951,6 +1113,13 @@ static __fi void _vuOPMSUB(VURegs* VU)
 		dst = &RDzero;
 	else
 		dst = &VU->VF[_Fd_];
+#ifdef ARCH_ARM64
+	if (_vuX86Fmac(VU))
+	{
+		_vuX86OP<VuX86Fmac::Msub>(VU, dst);
+		return;
+	}
+#endif
 
 	ftx = vuDouble(VU->VF[_Ft_].i.x);
 	fty = vuDouble(VU->VF[_Ft_].i.y);
