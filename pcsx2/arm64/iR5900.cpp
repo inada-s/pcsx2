@@ -130,6 +130,10 @@ static void recClear(u32 addr, u32 size)
 	}
 }
 
+// VU1Trace.inl: EE COP2 macro FMAC ops as native code.
+bool vu0MacroCanEmit(u32 code);
+void vu0MacroEmit(u32 code, const a64::Register& rvu);
+
 static bool HookAnswered(u32 pc)
 {
 	return Zdxsv::IntHooksOn() && Zdxsv::IntRunHooks(pc);
@@ -885,6 +889,27 @@ static BlockFn Compile(u32 startpc, BlockFn* entry)
 		consts.Track(code);
 		if (last_native)
 			continue;
+
+		if (s_native && vu0MacroCanEmit(code))
+		{
+			// COP2_SPECIAL: native unless VU0 runs a micro program (_vu0FinishMicro), then the handler.
+			flush(code, pc + 4);
+			a64::Label busy, done;
+			armMoveAddressToReg(a64::x12, &VU0);
+			armAsm->Ldr(a64::w9, a64::MemOperand(a64::x12, reinterpret_cast<u8*>(&VU0.VI[REG_VPU_STAT]) -
+															  reinterpret_cast<u8*>(&VU0)));
+			armAsm->Tbnz(a64::w9, 0, &busy);
+			vu0MacroEmit(code, a64::x12);
+			armAsm->B(&done);
+			armAsm->Bind(&busy);
+			armEmitCall(reinterpret_cast<const void*>(opcode.interpret));
+			armAsm->Ldr(a64::w9, a64::MemOperand(rregs, off_pc));
+			armAsm->Mov(a64::w10, pc + 4);
+			armAsm->Cmp(a64::w9, a64::w10);
+			armAsm->B(a64::ne, &exit_commit);
+			armAsm->Bind(&done);
+			continue;
+		}
 
 		flush(code, pc + 4);
 		const bool force_test = ForcesEventTest(code);
