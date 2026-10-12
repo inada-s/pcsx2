@@ -15,6 +15,7 @@ extern void _vuXGKICKFlush(VURegs* VU);
 #ifdef ARCH_ARM64
 extern bool _vu1TraceStep(u64 startcycles, u32 cycles);
 extern void _vu1TraceClear();
+extern void _vu1TraceForget();
 #endif
 
 void _vu1ExecUpper(VURegs* VU, u32* ptr)
@@ -276,6 +277,9 @@ void InterpVU1::Execute(u32 cycles)
 
 	VU1.VI[REG_TPC].UL <<= 3;
 	u64 startcycles = VU1.cycle;
+#ifdef ARCH_ARM64
+	_vu1TraceForget();
+#endif
 
 	while ((VU1.cycle - startcycles) < cycles)
 	{
@@ -291,6 +295,7 @@ void InterpVU1::Execute(u32 cycles)
 #ifdef ARCH_ARM64
 		if (VU1.branch == 0 && VU1.ebit == 0 && _vu1TraceStep(startcycles, cycles))
 			continue;
+		_vu1TraceForget();
 #endif
 		Step();
 	}
