@@ -51,6 +51,8 @@ zdxsv checkout, save states): `tests/zdxsv/README.md`.
 | GGPO library (`3rdparty/ggpo`) | linked always | unit: `GGPO.*` in `tests/ctest/core/ggpo_tests.cpp` | `GGPO.SyncTestCatchesStateOutsideSave` |
 | GGPO pump thread (sockets every 1 ms) | `net=1` | `TRACE=0 rbk.sh 2 1` x2: `pump thread started` per peer, logged OSD pings 0-5 ms | `PCSX2_ENV=ZDXSV_NET_PUMP=0`: no such line, pings 2-23 ms |
 | Delta save states | used by GGPO; self-test `ZDXSV_DELTA_TEST` | `deltatest.ps1` exit 0 (`result PASS`): the 2nd rerun of each window hashes like the 1st (same code cache) | `break=ee`: `result FAIL`, exit 1 |
+| Faster rerun frames (no reverb, VU1 only in the last, render callbacks only in the last two) | always in a rollback; `ZDXSV_RERUN_*` | `rerunpic.sh`: the pictures after rollbacks pass `rerunpic.py`; speed A/B with `benchab.sh` | `rerunpic.sh "ZDXSV_RERUN_TAIL=1"`: FAIL |
+| Battle start and MS select load barriers (every peer needs a build with both) | GGPO session | none | none |
 | GGPO synctest in a running game | `ZDXSV_GGPO` without `net=1` | `deltatest.ps1 -Var ZDXSV_GGPO -Spec start=9000,frames=3000,mask=fcff -Route arcade -End 12300`: 0 of 3000 frames mismatch in an arcade battle (`hash=pw`) | `control=input`: mismatches |
 | GGPO on by default for lobby battles | setting `ZdxsvGgpo` (on) | `CLIENTS="1 3" EMU=1 GGPO=7101 GDELAY=auto GGPO_DEFAULT=1 m4z.sh`: client 1 has no `ZDXSV_GGPO`, logs the default options, GGPO battle with 0 mismatches | the same with `ZdxsvGgpo = false` in client 1's ini: client 3 cuts the battle connection, the checks fail |
 | Minimum input delay setting | setting `ZdxsvGgpoMinDelay`; `mindelay=` overrides it | `ZdxsvGgpoMinDelay = 4` in the `[DEV9/Eth]` section of both clients' ini, `CLIENTS="1 3" EMU=1 GGPO=7101 GDELAY=auto GGPO_DEFAULT=1 GMIN=3 m4z.sh`: client 1 `lobby delay 4 ... min 4`, client 3 (`mindelay=3`) `lobby delay 3 ... min 3`, 0 mismatches | without the setting: `lobby delay 2 ... min 2` |
@@ -92,6 +94,15 @@ zdxsv checkout, save states): `tests/zdxsv/README.md`.
 | Round jump | Shift+PageUp, Shift+PageDown, bar step buttons; `ZDXSV_REPLAY_ROUND_AT` in tests | `rplay.sh` with `SKIP_MS=1 PCSX2_ENV=ZDXSV_REPLAY_ROUND_AT=1000:2,17000:1,6000:3`: every logged load end is 1 frame after a live trace `L` line leaving state 8 (same vsync), the rounds start at the predicted loads, player work equals live. Keys and bar: `WINDOW=1 KEYS="10:Shift+PageDown;40:bar:show,w600,bar:nextround"` | none |
 | Takeover | bar "Take over" / "Retry" / "Replay" buttons, hotkey "Take Over / Retry", START = retry or skip the matching; `ZDXSV_REPLAY_TAKEOVER`, `ZDXSV_REPLAY_TAKEOVER_RETRY` in tests | `rplay.sh` on a 2-player lobby battle `.pb` with `SKIP_MS=1 PCSX2_ENV="ZDXSV_REPLAY_TAKEOVER=6000:replay ZDXSV_REPLAY_TAKEOVER_RETRY=9000"`: the own position packed by the takeover (pad + kind-3 msgs, delay 2) plays to the end, retry goes back to 6000, player work + rng = the players' | `ZDXSV_REPLAY_TAKEOVER=6000:rand`: FAIL. Input matching panel with a real pad: not run |
 | Four-screen replay | `ZDXSV_REPLAY_FOUR=1` (one file) | `FOUR=1 rplay.sh`: guest trace pwcheck + host `spread` lines <= 4 frames | `PCSX2_ENV=ZDXSV_REPLAY_SYNC=0`: the spread FAILs |
+
+## ARM64 builds
+
+| Feature | How to turn on | Test | Control |
+|---|---|---|---|
+| EE and IOP recompilers with the x86 timing | `EnableEE`, `EnableIOP` (default) | the same replay with `ZDXSV_CYCLE_LOG` on an ARM64 and an x86_64 build: same cycle lines | none |
+| VU1 trace recompiler | default; `PCSX2_VU1_JIT=0` turns it off | a replay with `PCSX2_VU1_JIT=check`: `0 differ`; `PCSX2_VU1_JIT_SELFTEST` | none |
+| FPU and VU math as x86 | always | `ZDXSV_VU1_OPTEST` and `ZDXSV_EE_OPTEST` on an ARM64 and an x86_64 build, then `vu1_optest_cmp.py` / `ee_optest_cmp.py`: no op differs | none |
+| EE FPU interpreter computes as the EE recompiler (all builds) | always | none | none |
 
 ## Releases and tools
 
