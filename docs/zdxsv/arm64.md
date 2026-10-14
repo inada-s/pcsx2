@@ -97,6 +97,10 @@ Same results as the interpreter.
   native x86 FMAC ops emit no DAZ/FTZ code: FZ flushes denormal operands and
   results in hardware. FZ tests tininess before rounding, x86 after it; toward
   zero both give the same result.
+- With no denormal to flush, the microVU operand clamp is FMINNM +max then
+  FMAX -max (quiet NaN -> +max, Inf -> signed max). A signaling NaN stays NaN,
+  so the result is NaN and the out-of-line rerun clamps exactly. Broadcast
+  MUL/MADD/MSUB multiply by element (no DUP).
 - Within a trace VI[STATUS], VI[MAC] and the flags of entries that retire in
   it live in registers; they are stored before handler calls, native flag ops
   (FSAND.., FMAND..) and at exit. An FMAC entry whose MAC/status the next
