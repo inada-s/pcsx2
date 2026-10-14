@@ -88,6 +88,11 @@ Same results as the interpreter.
   XGKICK call (which read the pipe) stores only its MAC/status/clip result;
   only entries still pending there are written in full. Retire flag updates
   are picked at compile time.
+- Within a trace VI[STATUS], VI[MAC] and the flags of entries that retire in
+  it live in registers; they are stored before handler calls, native flag ops
+  (FSAND.., FMAND..) and at exit.
+- Up to 16 traces per address (pipe state and code differ): programs that the
+  game uploads in turn to the same micro memory keep their code.
 - A trace re-reads its code only after a VU1 micro memory write
   (`InterpVU1::Clear`) or reset.
 - A trace keeps its pipeline state at exit (taken after its first run) and the
