@@ -34,6 +34,23 @@ void _vu1ExecLower(VURegs* VU, u32* ptr)
 
 int vu1branch = 0;
 
+// After the delay slot of an E-bit pair. Also called by the arm64 VU1 recompiler.
+void _vu1EndProgram()
+{
+	VU1.VIBackupCycles = 0;
+	_vuFlushAll(&VU1);
+	VU0.VI[REG_VPU_STAT].UL &= ~0x100;
+	vif1Regs.stat.VEW = false;
+
+	if(VU1.xgkickenable)
+		_vuXGKICKTransfer(0, true);
+	// In instant VU mode, VU1 goes WAY ahead of the CPU, making the XGKick fall way behind
+	// We also have some code to update it in VIF Unpacks too, since in some games (Aggressive Inline) overwrite the XGKick data
+	// VU currently flushes XGKICK on end, so this isn't needed, yet
+	if (INSTANT_VU1)
+		VU1.xgkicklastcycle = cpuRegs.cycle;
+}
+
 static void _vu1Exec(VURegs* VU)
 {
 	_VURegsNum lregs;
@@ -193,20 +210,7 @@ static void _vu1Exec(VURegs* VU)
 	if (VU->ebit > 0)
 	{
 		if (VU->ebit-- == 1)
-		{
-			VU->VIBackupCycles = 0;
-			_vuFlushAll(VU);
-			VU0.VI[REG_VPU_STAT].UL &= ~0x100;
-			vif1Regs.stat.VEW = false;
-
-			if(VU1.xgkickenable)
-				_vuXGKICKTransfer(0, true);
-			// In instant VU mode, VU1 goes WAY ahead of the CPU, making the XGKick fall way behind
-			// We also have some code to update it in VIF Unpacks too, since in some games (Aggressive Inline) overwrite the XGKick data
-			// VU currently flushes XGKICK on end, so this isn't needed, yet
-			if (INSTANT_VU1)
-				VU1.xgkicklastcycle = cpuRegs.cycle;
-		}
+			_vu1EndProgram();
 	}
 
 	// Progress the write position of the FMAC pipeline by one place
