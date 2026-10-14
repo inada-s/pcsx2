@@ -154,7 +154,7 @@ struct VU1Trace
 	} succ[2] = {};
 };
 
-static constexpr u32 VU1_TRACE_VARIANTS = 4;
+static constexpr u32 VU1_TRACE_VARIANTS = 16;
 static constexpr u32 VU1_TRACE_MAX_STEPS = 256;
 
 struct VU1TraceSlot
@@ -2305,31 +2305,33 @@ static VU1Trace* _vu1TraceLookup(u32 pc, const VU1PipeSig* known)
 		return nullptr;
 
 	VU1TraceSlot& slot = s_vu1_traces[pc >> 3];
+	// Variants differ by pipe state and by code: programs that take turns at the same address
+	// keep their traces.
 	VU1Trace* t = nullptr;
 	for (auto& v : slot.variants)
 	{
-		if (v && std::memcmp(&v->sig, &sig, sizeof(sig)) == 0)
+		if (!v || std::memcmp(&v->sig, &sig, sizeof(sig)) != 0)
+			continue;
+		if (v->micro_gen != s_vu1_micro_gen)
 		{
-			t = v.get();
-			break;
-		}
-	}
-
-	if (t && t->micro_gen != s_vu1_micro_gen)
-	{
-		u32 p = pc;
-		for (const VU1TraceStep& s : t->steps)
-		{
-			const u32* sp = reinterpret_cast<const u32*>(&VU1.Micro[p]);
-			if (s.code != (static_cast<u64>(sp[0]) | (static_cast<u64>(sp[1]) << 32)))
+			u32 p = pc;
+			bool same = true;
+			for (const VU1TraceStep& s : v->steps)
 			{
-				t = nullptr;
-				break;
+				const u32* sp = reinterpret_cast<const u32*>(&VU1.Micro[p]);
+				if (s.code != (static_cast<u64>(sp[0]) | (static_cast<u64>(sp[1]) << 32)))
+				{
+					same = false;
+					break;
+				}
+				p += 8;
 			}
-			p += 8;
+			if (!same)
+				continue;
+			v->micro_gen = s_vu1_micro_gen;
 		}
-		if (t)
-			t->micro_gen = s_vu1_micro_gen;
+		t = v.get();
+		break;
 	}
 	if (!t)
 	{
@@ -2337,7 +2339,7 @@ static VU1Trace* _vu1TraceLookup(u32 pc, const VU1PipeSig* known)
 		if (nt->steps.empty())
 			return nullptr;
 		auto it = std::find_if(std::begin(slot.variants), std::end(slot.variants),
-			[&sig](const std::unique_ptr<VU1Trace>& v) { return v && std::memcmp(&v->sig, &sig, sizeof(sig)) == 0; });
+			[](const std::unique_ptr<VU1Trace>& v) { return !v; });
 		if (it == std::end(slot.variants))
 		{
 			it = std::begin(slot.variants) + slot.next;
