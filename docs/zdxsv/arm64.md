@@ -46,6 +46,8 @@ with the x86 recompiler's timing, so both hosts count the same EE cycles.
 - Native ops:
   - Integer ALU, shift, HI/LO move, MOVZ/MOVN, computed as x86:
     ADD/SUB/ADDI/DADD/DSUB/DADDI write their result on overflow.
+  - Loads/stores (LB..SD, LQ/SQ, LWC1/SWC1, LQC2/SQC2) to directly mapped
+    memory; other addresses call the handler out of line, after the block.
   - COP1 ADD.S/SUB.S/MUL.S/DIV.S/MOV.S/MFC1/MTC1, as the interpreter
     (`FPU.cpp`, see [EE FPU](#ee-fpu)).
   - COP2 macro FMAC ops (VADD..VMSUBA but VADDi, VOPMULA/VOPMSUB) with the VU1
