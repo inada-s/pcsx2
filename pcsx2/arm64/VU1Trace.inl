@@ -492,6 +492,15 @@ static void _vu1JitVfcLoad(const a64::VRegister& q, u32 vf, const a64::Register&
 	else
 		armAsm->Ldr(q.Q(), a64::MemOperand(rvu, _vu1Off(VU1.VF[vf])));
 }
+// w = VF[vf].UL[lane]
+static void _vu1JitVfcLane(const a64::Register& w, u32 vf, u32 lane)
+{
+	const s8 s = s_vu1_jit_vfc.on && vf < 32 ? s_vu1_jit_vfc.slot[vf] : -1;
+	if (s >= 0)
+		armAsm->Mov(w.W(), a64::VRegister(8 + s, 128).V4S(), lane);
+	else
+		armAsm->Ldr(w.W(), _vu1JitMem(_vu1Off(VU1.VF[vf].UL[lane])));
+}
 // Flags in registers within a trace: w28 = VI[STATUS] (st_loaded; st_dirty: not stored yet),
 // w15 = VI[MAC] not stored yet (mac_dirty), w9 + i = mac | status << 16 of the FMAC entry at
 // pipe position i (bit i of live; entries that retire within the trace), w14 = the same of
@@ -1046,7 +1055,11 @@ static void _vuJitEmitFmacCore(const VU1FmacDesc* desc, u32 code, const a64::Reg
 		const s64 off = desc->bc == VU1_BC_I ? _vu1Off(VU1.VI[REG_I].UL) :
 						desc->bc == VU1_BC_Q ? _vu1Off(VU1.VI[REG_Q].UL) :
 											   _vu1Off(VU1.VF[ft].UL[desc->bc]);
-		armAsm->Ldr(a64::s1, _vu1JitMem(off));
+		const s8 s = desc->bc < 4 && s_vu1_jit_vfc.on ? s_vu1_jit_vfc.slot[ft] : -1;
+		if (s >= 0)
+			armAsm->Dup(a64::v1.V4S(), a64::VRegister(8 + s, 128).V4S(), desc->bc);
+		else
+			armAsm->Ldr(a64::s1, _vu1JitMem(off));
 	}
 	// x86 Mul/Madd/Msub use the broadcast value by element; Add/Sub need it in all lanes.
 	const bool ternary = desc->op == VU1FmacOp::Madd || desc->op == VU1FmacOp::Msub;
@@ -1433,7 +1446,10 @@ static bool _vu1JitEmitUpperInt(FnPtr_VuVoid f, u32 code)
 		}
 		else
 		{
-			armAsm->Ldr(a64::w0, _vu1JitMem(m.bc == VU1_BC_I ? _vu1Off(VU1.VI[REG_I].UL) : _vu1Off(VU1.VF[ft].UL[m.bc])));
+			if (m.bc == VU1_BC_I)
+				armAsm->Ldr(a64::w0, _vu1JitMem(_vu1Off(VU1.VI[REG_I].UL)));
+			else
+				_vu1JitVfcLane(a64::w0, ft, m.bc);
 			armAsm->Dup(a64::v2.V4S(), a64::w0);
 		}
 		// fp_max/fp_min: signed max/min, the other one when both are negative.
@@ -1502,7 +1518,7 @@ static bool _vu1JitEmitUpperInt(FnPtr_VuVoid f, u32 code)
 	if (f == VU1MI_CLIP)
 	{
 		// w0 = |Ft.w|, denormals as the largest denormal
-		armAsm->Ldr(a64::w0, _vu1JitMem(_vu1Off(VU1.VF[ft].UL[3])));
+		_vu1JitVfcLane(a64::w0, ft, 3);
 		armAsm->And(a64::w1, a64::w0, 0x7fffffff);
 		armAsm->Mov(a64::w2, 0x007fffff);
 		armAsm->Tst(a64::w0, 0x7f800000);
@@ -1511,7 +1527,7 @@ static bool _vu1JitEmitUpperInt(FnPtr_VuVoid f, u32 code)
 		armAsm->Lsl(a64::w1, a64::w1, 6);
 		for (int i = 0; i < 3; i++)
 		{
-			armAsm->Ldr(a64::w2, _vu1JitMem(_vu1Off(VU1.VF[fs].UL[i])));
+			_vu1JitVfcLane(a64::w2, fs, i);
 			armAsm->Cmp(a64::w2, a64::w0);
 			armAsm->Cset(a64::w3, a64::gt);
 			armAsm->Orr(a64::w1, a64::w1, a64::Operand(a64::w3, a64::LSL, 2 * i));
@@ -1656,7 +1672,7 @@ static void _vu1JitEmitStoreMem(u32 fs, u32 xyzw)
 	{
 		if (xyzw & (8 >> i))
 		{
-			armAsm->Ldr(a64::w2, _vu1JitMem(_vu1Off(VU1.VF[fs].UL[i])));
+			_vu1JitVfcLane(a64::w2, fs, i);
 			armAsm->Str(a64::w2, a64::MemOperand(a64::x1, i * 4));
 		}
 	}
@@ -1774,7 +1790,7 @@ static bool _vu1JitEmitLowerInt(FnPtr_VuVoid f, u32 code)
 		if (it == 0)
 			return true;
 		_vu1JitEmitBackupVI(it);
-		armAsm->Ldrh(a64::w0, _vu1JitMem(_vu1Off(VU1.VF[fs].UL[(code >> 21) & 3])));
+		_vu1JitVfcLane(a64::w0, fs, (code >> 21) & 3);
 		armAsm->Strh(a64::w0, _vu1JitVI(it));
 	}
 	else if (f == VU1MI_MR32)
@@ -1954,8 +1970,8 @@ static bool _vu1JitEmitFdivOp(FnPtr_VuVoid f, u32 code)
 	a64::Label nonzero, store;
 	// w0 = fs, w1 = ft, w2 = statusflag, w3 = q
 	if (f != VU1MI_SQRT)
-		armAsm->Ldr(a64::w0, _vu1JitMem(_vu1Off(VU1.VF[fs].UL[fsf])));
-	armAsm->Ldr(a64::w1, _vu1JitMem(_vu1Off(VU1.VF[ft].UL[ftf])));
+		_vu1JitVfcLane(a64::w0, fs, fsf);
+	_vu1JitVfcLane(a64::w1, ft, ftf);
 	armAsm->Ldr(a64::w2, _vu1JitMem(_vu1Off(VU1.statusflag)));
 	armAsm->And(a64::w2, a64::w2, ~0x30u);
 	if (f == VU1MI_SQRT)
@@ -2032,7 +2048,7 @@ static bool _vu1JitEmitEfuOp(FnPtr_VuVoid f, u32 code)
 	const u32 n = one ? 1 : sum3 ? 3 : 4;
 	for (u32 i = 0; i < n; i++)
 	{
-		armAsm->Ldr(a64::w0, _vu1JitMem(_vu1Off(VU1.VF[fs].UL[one ? fsf : i])));
+		_vu1JitVfcLane(a64::w0, fs, one ? fsf : i);
 		if (f == VU1MI_ESQRT || f == VU1MI_ERSQRT)
 			armAsm->And(a64::w0, a64::w0, 0x7fffffff);
 		if (n == 4)
@@ -2115,7 +2131,7 @@ static void _vu1JitEmitLower(FnPtr_VuVoid f, u32 code)
 				{
 					if (xyzw & (8 >> i))
 					{
-						armAsm->Ldr(a64::w2, _vu1JitMem(_vu1Off(VU1.VF[fs].UL[i])));
+						_vu1JitVfcLane(a64::w2, fs, i);
 						armAsm->Str(a64::w2, a64::MemOperand(a64::x1, i * 4));
 					}
 				}
