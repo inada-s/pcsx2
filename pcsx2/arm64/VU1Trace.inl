@@ -2250,9 +2250,10 @@ static void _vu1JitEmitChain(VU1Trace& t)
 // non-sticky VI[STATUS] before any read, and the next native FMAC op replaces
 // VU1.macflag/statusflag before any read; only the entry's sticky bits are kept (v31).
 // Entry k and the next FMAC pipe entry m: native FMAC ops other than OPMULA/OPMSUB, no STATUS in
-// the flagreg, retire within the trace. No lower op touches VI MAC/STATUS from k to the retire
-// of m, none reads VU1.statusflag (FDIV) from k to m. The entries pending at k are known and do
-// not write STATUS (their retire would replace sticky bits a fold already set).
+// the flagreg, retire within the trace; a lower FMAC-pipe op (LQ, MOVE..) in the pair shares the
+// entry and leaves VU1.macflag/statusflag alone. No lower op touches VI MAC/STATUS from k to the
+// retire of m, none reads VU1.statusflag (FDIV) from k to m. The entries pending at k are known
+// and do not write STATUS (their retire would replace sticky bits a fold already set).
 static std::vector<bool> _vu1JitFlagsDead(const VU1Trace& t, const std::vector<bool>& in_trace)
 {
 	constexpr u32 vi_flags = (1u << REG_STATUS_FLAG) | (1u << REG_MAC_FLAG);
@@ -2262,8 +2263,7 @@ static std::vector<bool> _vu1JitFlagsDead(const VU1Trace& t, const std::vector<b
 		const VU1DecodedPair& d = t.steps[k].d;
 		const VU1FmacDesc* desc = _vuJitFmacDesc(s_vu1_fmac_ops, std::size(s_vu1_fmac_ops), d.upper,
 			static_cast<u32>(t.steps[k].code >> 32));
-		return desc && desc->bc != VU1_BC_OP && in_trace[k] && no_status(static_cast<int>(k)) &&
-			   (d.ibit || d.lregs.pipe != VUPIPE_FMAC);
+		return desc && desc->bc != VU1_BC_OP && in_trace[k] && no_status(static_cast<int>(k));
 	};
 	const auto lo_flags = [&t](size_t k) {
 		const VU1DecodedPair& d = t.steps[k].d;
