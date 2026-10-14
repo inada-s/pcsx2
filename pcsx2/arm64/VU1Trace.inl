@@ -1213,15 +1213,20 @@ bool vu0MacroCanEmit(u32 code)
 }
 
 // The handler's work after _vu0FinishMicro (the caller tests VPU_STAT): VU0.code = code, the op,
-// SYNCMSFLAGS. rvu = &VU0; uses x0-x2, v0-v4 and v16-v29.
-void vu0MacroEmit(u32 code, const a64::Register& rvu)
+// SYNCMSFLAGS. rvu = &VU0; uses x0-x2, v0-v4 and v16-v30. fconst_live, acc_live: as
+// _vuJitEmitFmacCore, kept over a run of macro ops; last: the run's last op (VU0.code, MAC_FLAG).
+void vu0MacroEmit(u32 code, const a64::Register& rvu, bool* fconst_live, bool* acc_live, bool last)
 {
 	const auto mem = [&rvu](s64 off) { return a64::MemOperand(rvu, off); };
-	armAsm->Mov(a64::w0, code);
-	armAsm->Str(a64::w0, mem(_vu1Off(VU1.code)));
-	armMoveAddressToReg(a64::x1, s_vu1_jit_fconst);
+	if (last)
+	{
+		armAsm->Mov(a64::w0, code);
+		armAsm->Str(a64::w0, mem(_vu1Off(VU1.code)));
+	}
+	if (!*fconst_live)
+		armMoveAddressToReg(a64::x1, s_vu1_jit_fconst);
 	_vuJitEmitFmacCore(_vu0MacroDesc(code), code, rvu, a64::x1, EmuConfig.Cpu.Recompiler.vu0Overflow, vuX86Fmac(0),
-		vuX86ClampOperands(code, 0, true));
+		vuX86ClampOperands(code, 0, true), fconst_live, 0, acc_live);
 	armAsm->Ldr(a64::w1, mem(_vu1Off(VU1.statusflag)));
 	armAsm->And(a64::w1, a64::w1, 0xf);
 	armAsm->Ldr(a64::w2, mem(_vu1Off(VU1.VI[REG_STATUS_FLAG].UL)));
@@ -1229,8 +1234,11 @@ void vu0MacroEmit(u32 code, const a64::Register& rvu)
 	armAsm->Orr(a64::w2, a64::w2, a64::w1);
 	armAsm->Orr(a64::w2, a64::w2, a64::Operand(a64::w1, a64::LSL, 6));
 	armAsm->Str(a64::w2, mem(_vu1Off(VU1.VI[REG_STATUS_FLAG].UL)));
-	armAsm->Ldr(a64::w0, mem(_vu1Off(VU1.macflag)));
-	armAsm->Str(a64::w0, mem(_vu1Off(VU1.VI[REG_MAC_FLAG].UL)));
+	if (last)
+	{
+		armAsm->Ldr(a64::w0, mem(_vu1Off(VU1.macflag)));
+		armAsm->Str(a64::w0, mem(_vu1Off(VU1.VI[REG_MAC_FLAG].UL)));
+	}
 }
 
 // VF[ft] = v0 on the lanes of xyzw (8 = x).

@@ -49,8 +49,9 @@ with the x86 recompiler's timing, so both hosts count the same EE cycles.
   - COP1 ADD.S/SUB.S/MUL.S/DIV.S/MOV.S/MFC1/MTC1, as the interpreter
     (`FPU.cpp`, see [EE FPU](#ee-fpu)).
   - COP2 macro FMAC ops (VADD..VMSUBA but VADDi, VOPMULA/VOPMSUB) with the VU1
-    recompiler's FMAC code on VU0, when VU0 runs no micro program (else the
-    handler, which finishes it first).
+    recompiler's FMAC code on VU0; `_vu0FinishMicro` first (out of line) if VU0
+    runs a micro program. A run of macro ops tests VU0 once and keeps the FMAC
+    constants and ACC in registers.
 - A state loaded while the pre-ELF interpreter loop runs (a replay's common
   state during boot) switches to compiled blocks (`Interpreter.cpp`); a state
   load drops the interpreter's uncommitted cycles (`SaveState.cpp`).
