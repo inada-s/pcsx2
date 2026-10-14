@@ -84,6 +84,10 @@ Same results as the interpreter.
 - TPC, cycle and code, and the FMAC pipe positions and count (tracked at
   compile time from the read position at entry), are stored only before a
   handler call that may read them and at trace exit.
+- An FMAC pipe entry that retires inside the trace before any handler or
+  XGKICK call (which read the pipe) stores only its MAC/status/clip result;
+  only entries still pending there are written in full. Retire flag updates
+  are picked at compile time.
 - A trace re-reads its code only after a VU1 micro memory write
   (`InterpVU1::Clear`) or reset.
 - A trace keeps its pipeline state at exit (taken after its first run) and the
