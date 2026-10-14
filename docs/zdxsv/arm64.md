@@ -160,6 +160,6 @@ the default clamp mode (other clamp modes keep upstream's code).
   `vu1_optest_cmp.py` / `ee_optest_cmp.py` ([tools.md](tools.md)).
 - Timing: `ZDXSV_CYCLE_LOG` in the same replay on both builds; at a split,
   `ZDXSV_EVENT_LOG` on both and `diff` for the first differing event test.
-- Recompiler self-checks: `PCSX2_VU1_JIT=check`, `PCSX2_VU1_JIT_SELFTEST`,
+- Recompiler self-checks: `PCSX2_VU1_JIT=check`, `ZDXSV_VU1_OPTEST` (vs the x86 build),
   `PCSX2_ARM64_EE_NATIVE=0`.
 - Profiles of JIT code: `PCSX2_EE_JIT_MAP`, `PCSX2_VU1_JIT_MAP`.

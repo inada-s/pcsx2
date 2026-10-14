@@ -2101,124 +2101,6 @@ static void _vu1JitEmitChain(VU1Trace& t)
 	armAsm->Bind(&out);
 }
 
-// PCSX2_VU1_JIT_SELFTEST=<n>: at the first trace compile, run each native FDIV/EFU op and its
-// handler on the same <n> generated inputs (special exponents, zeros, random bits) and log the
-// count whose Q, P or status flag differ. VU1 is restored afterwards.
-static void _vu1JitSelfTest()
-{
-	static const u32 count = [] {
-		const char* env = std::getenv("PCSX2_VU1_JIT_SELFTEST");
-		return env ? static_cast<u32>(std::strtoul(env, nullptr, 10)) : 0u;
-	}();
-	static bool done = false;
-	if (!count || done)
-		return;
-	done = true;
-
-	static const struct { FnPtr_VuVoid f; const char* name; } ops[] = {
-		{VU1MI_DIV, "DIV"}, {VU1MI_SQRT, "SQRT"}, {VU1MI_RSQRT, "RSQRT"}, {VU1MI_ESADD, "ESADD"},
-		{VU1MI_ERSADD, "ERSADD"}, {VU1MI_ELENG, "ELENG"}, {VU1MI_ERLENG, "ERLENG"}, {VU1MI_ESUM, "ESUM"},
-		{VU1MI_ERCPR, "ERCPR"}, {VU1MI_ESQRT, "ESQRT"}, {VU1MI_ERSQRT, "ERSQRT"}, {VU1MI_OPMULA, "OPMULA"},
-		{VU1MI_OPMSUB, "OPMSUB"}};
-	u32 rng = 0x12345678;
-	const auto next = [&rng] {
-		rng ^= rng << 13;
-		rng ^= rng >> 17;
-		rng ^= rng << 5;
-		return rng;
-	};
-	const auto value = [&next] {
-		const u32 r = next(), m = next();
-		switch (r & 7)
-		{
-			case 0: return m & 0x807fffff; // exponent 0
-			case 1: return m | 0x7f800000; // exponent 255
-			case 2: return m & 0x80000000; // +-0
-			case 3: return (m & 0x807fffff) | ((r >> 3 & 1) ? 0x7f000000 : 0x00800000); // exponent 254 or 1
-			case 4: return (m & 0x807fffff) | 0x3f800000; // [1, 2)
-			default: return m;
-		}
-	};
-
-	const std::unique_ptr<VURegs> saved = std::make_unique<VURegs>(VU1);
-	for (const auto& op : ops)
-	{
-		// One function per fsf/ftf or dest (code bits 21-24); fs = 1, ft = 2, fd = 3.
-		void (*fns[16])();
-		for (u32 sel = 0; sel < 16; sel++)
-		{
-			const u32 code = (sel << 21) | (2 << 16) | (1 << 11) | (3 << 6);
-			armSetAsmPtr(s_vu1_jit_ptr, s_vu1_jit_end - s_vu1_jit_ptr, &s_vu1_jit_pool);
-			u8* const fn = armStartBlock();
-			armAsm->Stp(a64::x29, a64::lr, a64::MemOperand(a64::sp, -16, a64::PreIndex));
-			armAsm->Stp(a64::x19, a64::x20, a64::MemOperand(a64::sp, -16, a64::PreIndex));
-			armAsm->Stp(a64::x21, a64::x22, a64::MemOperand(a64::sp, -16, a64::PreIndex));
-			armMoveAddressToReg(s_vu1_jit_rvu, &VU1);
-			armMoveAddressToReg(a64::x21, s_vu1_jit_fconst);
-			s_vu1_jit_vf = {};
-			if (!_vu1JitEmitFdivOp(op.f, code) && !_vu1JitEmitEfuOp(op.f, code) && !_vu1JitEmitFmac(op.f, code))
-				armEmitCall(reinterpret_cast<const void*>(op.f));
-			armAsm->Ldp(a64::x21, a64::x22, a64::MemOperand(a64::sp, 16, a64::PostIndex));
-			armAsm->Ldp(a64::x19, a64::x20, a64::MemOperand(a64::sp, 16, a64::PostIndex));
-			armAsm->Ldp(a64::x29, a64::lr, a64::MemOperand(a64::sp, 16, a64::PostIndex));
-			armAsm->Ret();
-			s_vu1_jit_ptr = armEndBlock();
-			fns[sel] = reinterpret_cast<void (*)()>(fn);
-		}
-		// Outputs: Q, P, status, MAC, ACC, VF[3] (OPMSUB's Fd).
-		const auto get = [](u32* o) {
-			o[0] = VU1.q.UL;
-			o[1] = VU1.p.UL;
-			o[2] = VU1.statusflag;
-			o[3] = VU1.macflag;
-			std::memcpy(&o[4], &VU1.ACC, 16);
-			std::memcpy(&o[8], &VU1.VF[3], 16);
-		};
-		const auto set = [](const u32* o) {
-			VU1.q.UL = o[0];
-			VU1.p.UL = o[1];
-			VU1.statusflag = o[2];
-			VU1.macflag = o[3];
-			std::memcpy(&VU1.ACC, &o[4], 16);
-			std::memcpy(&VU1.VF[3], &o[8], 16);
-		};
-		u32 failed = 0;
-		for (u32 i = 0; i < count; i++)
-		{
-			const u32 sel = next() & 15;
-			u32 in[12], want[12], got[12];
-			for (u32 j = 0; j < 4; j++)
-			{
-				VU1.VF[1].UL[j] = value();
-				VU1.VF[2].UL[j] = value();
-			}
-			for (u32 j = 0; j < 12; j++)
-				in[j] = j >= 4 ? value() : j == 3 ? next() & 0xffff : next(); // MAC is 16 bits
-			VU1.code = (sel << 21) | (2 << 16) | (1 << 11) | (3 << 6);
-			set(in);
-			op.f();
-			get(want);
-			set(in);
-			fns[sel]();
-			get(got);
-			if (std::memcmp(want, got, sizeof(want)) != 0 && failed++ < 3)
-			{
-				u32 k = 0;
-				while (want[k] == got[k])
-					k++;
-				Console.WriteLn("VU1 JIT selftest: %s fs %08x %08x %08x %08x ft %08x %08x %08x %08x acc %08x %08x %08x "
-								"%08x mac %08x sel %u: output %u = %08x, JIT %08x",
-					op.name, VU1.VF[1].UL[0], VU1.VF[1].UL[1], VU1.VF[1].UL[2], VU1.VF[1].UL[3], VU1.VF[2].UL[0],
-					VU1.VF[2].UL[1], VU1.VF[2].UL[2], VU1.VF[2].UL[3], in[4], in[5], in[6], in[7], in[3], sel, k,
-					want[k], got[k]);
-			}
-		}
-		Console.WriteLn("VU1 JIT selftest: %s %u checked, %u differ", op.name, count, failed);
-	}
-	VU1 = *saved;
-	_vu1JitReset();
-}
-
 // FMAC entries whose mac and status are dead: the next retire replaces VI[MAC] and the
 // non-sticky VI[STATUS] before any read, and the next native FMAC op replaces
 // VU1.macflag/statusflag before any read; only the entry's sticky bits are kept (v31).
@@ -2283,7 +2165,6 @@ static void _vu1JitCompile(VU1Trace& t)
 {
 	if (!s_vu1_jit_start)
 		_vu1JitReset();
-	_vu1JitSelfTest();
 	if (!s_vu1_jit_start ||
 		static_cast<size_t>(s_vu1_jit_end - s_vu1_jit_ptr) < t.steps.size() * VU1_JIT_MAX_STEP_CODE + 512)
 		_vu1JitReset();
