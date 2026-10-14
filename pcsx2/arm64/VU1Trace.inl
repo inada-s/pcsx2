@@ -904,10 +904,14 @@ static void _vuJitEmitX86Slow(const VU1FmacDesc* desc)
 // clean (x86 only, bits as clamp: 2 = Fs, 1 = Ft, 4 = ACC): the lanes the op uses have no
 // denormal. acc_live: whether v30 holds ACC (updated here); nullptr = ACC only in memory.
 // sticky: non-null = the flags are dead, only the MAC bits go to v31 (*sticky: v31 holds some).
+// fz (x86 only): the FPCR flushes denormal operands and results (FZ; with round toward zero a
+// result tiny before rounding is tiny after it, as x86 FTZ tests), so no DAZ is emitted.
 static void _vuJitEmitFmacCore(const VU1FmacDesc* desc, u32 code, const a64::Register& rvu,
 	const a64::Register& rconst, bool out_clamp, bool x86, u32 clamp, bool* fconst_live = nullptr,
-	u32 clean = 0, bool* acc_live = nullptr, bool* sticky = nullptr)
+	u32 clean = 0, bool* acc_live = nullptr, bool* sticky = nullptr, bool fz = false)
 {
+	if (fz && x86)
+		clean = 7;
 	if (x86)
 		out_clamp = false;
 	const auto _vu1JitMem = [&rvu](s64 off) { return a64::MemOperand(rvu, off); };
@@ -981,7 +985,8 @@ static void _vuJitEmitFmacCore(const VU1FmacDesc* desc, u32 code, const a64::Reg
 			case VU1FmacOp::Madd:
 			case VU1FmacOp::Msub:
 				armAsm->Fmul(a64::v4.V4S(), a64::v0.V4S(), a64::v1.V4S());
-				_vuJitEmitDaz(a64::v4);
+				if (!fz)
+					_vuJitEmitDaz(a64::v4);
 				if (desc->op == VU1FmacOp::Madd)
 					armAsm->Fadd(a64::v3.V4S(), a64::v2.V4S(), a64::v4.V4S());
 				else
@@ -1004,7 +1009,8 @@ static void _vuJitEmitFmacCore(const VU1FmacDesc* desc, u32 code, const a64::Reg
 			_vuJitEmitX86Slow(desc);
 			armAsm->Bind(&done);
 		}
-		_vuJitEmitDaz(a64::v3);
+		if (!fz)
+			_vuJitEmitDaz(a64::v3);
 		// mVUupdateFlags: Z = +-0 (FTZ leaves no other exponent 0), S = sign, never O or U.
 		armAsm->Fcmeq(a64::v26.V4S(), a64::v3.V4S(), 0.0);
 		armAsm->Sshr(a64::v27.V4S(), a64::v3.V4S(), 31);
@@ -1152,7 +1158,8 @@ static bool _vu1JitEmitFmac(FnPtr_VuVoid f, u32 code, bool dead = false)
 					  (ternary && (cl[32] & lanes) == lanes ? 4 : 0);
 	_vuJitEmitFmacCore(desc, code, s_vu1_jit_rvu, a64::x21, EmuConfig.Cpu.Recompiler.vu1Overflow, vuX86Fmac(1),
 		vuX86ClampOperands(code, 1, false), &s_vu1_jit_fconst_live, vuX86Fmac(1) ? clean : 0,
-		&s_vu1_jit_vf.acc_live, dead && !op ? &s_vu1_jit_fl.sticky : nullptr);
+		&s_vu1_jit_vf.acc_live, dead && !op ? &s_vu1_jit_fl.sticky : nullptr,
+		EmuConfig.Cpu.VU1FPCR.GetDenormalsAreZero() && EmuConfig.Cpu.VU1FPCR.GetRoundMode() == FPRoundMode::ChopZero);
 	s_vu1_jit_vf.out_reg = desc->acc ? 32 : static_cast<s8>(fd);
 	s_vu1_jit_vf.out_lanes = vuX86Fmac(1) ? static_cast<u8>(op ? 0xe : lanes) : 0;
 	if (dead && !op)
