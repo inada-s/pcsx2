@@ -23,7 +23,9 @@ with the x86 recompiler's timing, so both hosts count the same EE cycles.
 
 - Block layout as x86: a block ends at a branch + delay slot, at a backward
   target inside the block, at SYSCALL/BREAK/ERET, at a 4 KB page, before a
-  compiled block. Branches jump to the next compiled block without returning.
+  compiled block. Branches jump to the next compiled block without returning,
+  past its prologue (same frame); a constant target's lookup entry is resolved
+  at compile time.
 - Each block end commits `cycle += max(blockcycles >> 3, 1)`, fraction dropped.
 - Both paths of every branch (also BLTZAL..BGEZALL, BC0x/BC1x/BC2x) commit and
   test events; ERET/EI/traps force an event test; a split block tests events
