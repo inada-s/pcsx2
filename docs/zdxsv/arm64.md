@@ -110,7 +110,8 @@ Same results as the interpreter.
   traces that ran after it: back-to-back traces skip the state build and
   lookup, and a trace's exit jumps straight into such a successor when
   `InterpVU1::Execute` would run it next (branch, E bit, VPU_STAT, cycle
-  budget), as microVU links its blocks.
+  budget), as microVU links its blocks. The jump keeps the stack frame and
+  callee-saved registers of the first trace (no restore and save in between).
 
 ## Math as x86
 

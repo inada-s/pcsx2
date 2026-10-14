@@ -418,6 +418,7 @@ static struct
 	u8 live;
 } s_vu1_jit_fl;
 static constexpr s64 VU1_JIT_FL_SAVE = 160; // stack save area of w9..w15 around calls
+static constexpr s64 VU1_JIT_FRAME_PUSH = 24; // the trace code starts with the 6 stp of its frame
 static constexpr s64 VU1_JIT_STICKY_SAVE = 192; // stack save area of v31 around the XGKICK call
 static void _vu1JitStatusLoad();
 // VU_STAT_UPDATE of the OR of the MAC bits in v31, to the sticky bits of w28. Clobbers w0-w2.
@@ -2057,6 +2058,8 @@ static void _vu1JitEmitChain(VU1Trace& t)
 	armAsm->B(&out, a64::hs);
 	armAsm->Str(a64::w12, vu(_vu1Off(VU1.VI[REG_TPC].UL)));
 	armAsm->Str(a64::x14, a64::MemOperand(a64::x13, offsetof(decltype(s_vu1_chain), last)));
+	// The frame of this trace stays: the successor runs from past its frame push.
+	armAsm->Add(a64::x15, a64::x15, VU1_JIT_FRAME_PUSH);
 	armAsm->Br(a64::x15);
 	armAsm->Bind(&out);
 }
@@ -2279,6 +2282,7 @@ static void _vu1JitCompile(VU1Trace& t)
 	armAsm->Stp(a64::x23, a64::x24, a64::MemOperand(a64::sp, 112));
 	armAsm->Stp(a64::x25, a64::x26, a64::MemOperand(a64::sp, 128));
 	armAsm->Stp(a64::x27, a64::x28, a64::MemOperand(a64::sp, 144));
+	pxAssert(armGetCurrentCodePointer() - fn == VU1_JIT_FRAME_PUSH);
 	armMoveAddressToReg(a64::x21, s_vu1_jit_fconst);
 	armMoveAddressToReg(rvu, &VU1);
 	armAsm->Ldr(rbase, vu(off_cycle));
@@ -2540,14 +2544,14 @@ static void _vu1JitCompile(VU1Trace& t)
 	_vu1JitMark("epi");
 	_vu1JitFlush();
 	_vu1JitFlagsStore();
+	if (s_vu1_jit_mode == VU1JitMode::On)
+		_vu1JitEmitChain(t);
 	armAsm->Ldp(rvu, rbase, a64::MemOperand(a64::sp, 16));
 	armAsm->Ldp(a64::x21, a64::x22, a64::MemOperand(a64::sp, 96));
 	armAsm->Ldp(a64::x23, a64::x24, a64::MemOperand(a64::sp, 112));
 	armAsm->Ldp(a64::x25, a64::x26, a64::MemOperand(a64::sp, 128));
 	armAsm->Ldp(a64::x27, a64::x28, a64::MemOperand(a64::sp, 144));
 	armAsm->Ldp(a64::x29, a64::lr, a64::MemOperand(a64::sp, 208, a64::PostIndex));
-	if (s_vu1_jit_mode == VU1JitMode::On)
-		_vu1JitEmitChain(t);
 	armAsm->Ret();
 	_vu1JitMark("kickcall");
 	for (VU1JitKick& k : kicks)
