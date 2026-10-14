@@ -459,50 +459,101 @@ static a64::Register _vu1JitFmacBase(u32 i)
 	return a64::XRegister(23 + (i & 3));
 }
 
-// Retires the oldest FMAC entry (x5 = its base), as _vuFMACflush does; the caller tracks the
-// read position and count.
-static void _vu1JitEmitFMACretire()
+// Retires the oldest FMAC entry (rb = its base), as _vuFMACflush does; the caller tracks the
+// read position and count. flagreg: the entry's flagreg when known at compile time, else -1.
+static void _vu1JitEmitFMACretire(const a64::Register& rb, int flagreg)
 {
 	const s64 off_fmac = _vu1Off(VU1.fmac[0]);
 	const s64 off_status = _vu1Off(VU1.VI[REG_STATUS_FLAG].UL);
-	a64::Label no_clip, sticky, done;
-	armAsm->Ldr(a64::w1, a64::MemOperand(a64::x5, off_fmac + offsetof(fmacPipe, flagreg)));
-	armAsm->Tbz(a64::w1, REG_CLIP_FLAG, &no_clip);
-	armAsm->Ldr(a64::w2, a64::MemOperand(a64::x5, off_fmac + offsetof(fmacPipe, clipflag)));
-	armAsm->Str(a64::w2, _vu1JitMem(_vu1Off(VU1.VI[REG_CLIP_FLAG].UL)));
-	armAsm->Bind(&no_clip);
-	armAsm->Ldr(a64::w3, a64::MemOperand(a64::x5, off_fmac + offsetof(fmacPipe, statusflag)));
-	armAsm->Ldr(a64::w4, _vu1JitMem(off_status));
-	armAsm->And(a64::w2, a64::w3, 0xf);
-	armAsm->Tbnz(a64::w1, REG_STATUS_FLAG, &sticky);
-	armAsm->And(a64::w4, a64::w4, 0xff0);
-	armAsm->Orr(a64::w4, a64::w4, a64::w2);
-	armAsm->Orr(a64::w4, a64::w4, a64::Operand(a64::w2, a64::LSL, 6));
-	armAsm->B(&done);
-	armAsm->Bind(&sticky);
-	armAsm->And(a64::w4, a64::w4, 0x30);
-	armAsm->Orr(a64::w4, a64::w4, a64::w2);
-	armAsm->And(a64::w2, a64::w3, 0xfc0);
-	armAsm->Orr(a64::w4, a64::w4, a64::w2);
-	armAsm->Bind(&done);
-	armAsm->Str(a64::w4, _vu1JitMem(off_status));
-	armAsm->Ldr(a64::w2, a64::MemOperand(a64::x5, off_fmac + offsetof(fmacPipe, macflag)));
+	const auto entry = [&rb, off_fmac](size_t field) { return a64::MemOperand(rb, off_fmac + field); };
+	if (flagreg < 0)
+	{
+		a64::Label no_clip, sticky, done;
+		armAsm->Ldr(a64::w1, entry(offsetof(fmacPipe, flagreg)));
+		armAsm->Tbz(a64::w1, REG_CLIP_FLAG, &no_clip);
+		armAsm->Ldr(a64::w2, entry(offsetof(fmacPipe, clipflag)));
+		armAsm->Str(a64::w2, _vu1JitMem(_vu1Off(VU1.VI[REG_CLIP_FLAG].UL)));
+		armAsm->Bind(&no_clip);
+		armAsm->Ldr(a64::w3, entry(offsetof(fmacPipe, statusflag)));
+		armAsm->Ldr(a64::w4, _vu1JitMem(off_status));
+		armAsm->And(a64::w2, a64::w3, 0xf);
+		armAsm->Tbnz(a64::w1, REG_STATUS_FLAG, &sticky);
+		armAsm->And(a64::w4, a64::w4, 0xff0);
+		armAsm->Orr(a64::w4, a64::w4, a64::w2);
+		armAsm->Orr(a64::w4, a64::w4, a64::Operand(a64::w2, a64::LSL, 6));
+		armAsm->B(&done);
+		armAsm->Bind(&sticky);
+		armAsm->And(a64::w4, a64::w4, 0x30);
+		armAsm->Orr(a64::w4, a64::w4, a64::w2);
+		armAsm->And(a64::w2, a64::w3, 0xfc0);
+		armAsm->Orr(a64::w4, a64::w4, a64::w2);
+		armAsm->Bind(&done);
+		armAsm->Str(a64::w4, _vu1JitMem(off_status));
+	}
+	else
+	{
+		if (flagreg & (1 << REG_CLIP_FLAG))
+		{
+			armAsm->Ldr(a64::w2, entry(offsetof(fmacPipe, clipflag)));
+			armAsm->Str(a64::w2, _vu1JitMem(_vu1Off(VU1.VI[REG_CLIP_FLAG].UL)));
+		}
+		armAsm->Ldr(a64::w3, entry(offsetof(fmacPipe, statusflag)));
+		armAsm->Ldr(a64::w4, _vu1JitMem(off_status));
+		armAsm->And(a64::w2, a64::w3, 0xf);
+		if (flagreg & (1 << REG_STATUS_FLAG))
+		{
+			armAsm->And(a64::w4, a64::w4, 0x30);
+			armAsm->Orr(a64::w4, a64::w4, a64::w2);
+			armAsm->And(a64::w2, a64::w3, 0xfc0);
+			armAsm->Orr(a64::w4, a64::w4, a64::w2);
+		}
+		else
+		{
+			armAsm->And(a64::w4, a64::w4, 0xff0);
+			armAsm->Orr(a64::w4, a64::w4, a64::w2);
+			armAsm->Orr(a64::w4, a64::w4, a64::Operand(a64::w2, a64::LSL, 6));
+		}
+		armAsm->Str(a64::w4, _vu1JitMem(off_status));
+	}
+	armAsm->Ldr(a64::w2, entry(offsetof(fmacPipe, macflag)));
 	armAsm->Str(a64::w2, _vu1JitMem(_vu1Off(VU1.VI[REG_MAC_FLAG].UL)));
 }
 
+// The pipe entry's flagreg for this pair.
+static int _vu1FmacFlagreg(const VU1DecodedPair& d)
+{
+	return (d.uregs.pipe == VUPIPE_FMAC ? d.uregs.VIwrite : 0) | (d.lregs.pipe == VUPIPE_FMAC ? d.lregs.VIwrite : 0);
+}
+
 // _vuClearFMAC + _vuAddUpperStalls/_vuAddLowerStalls for the FMAC pipe: every field of the entry
-// is stored (the static ones as constants), as the memset of _vuClearFMAC does. x5 = the entry;
-// the caller tracks the write position and count.
-static void _vu1JitEmitAddFMAC(const VU1DecodedPair& d, const a64::Register& rbase, u32 cycle_rel)
+// is stored (the static ones as constants), as the memset of _vuClearFMAC does. rb = the entry;
+// the caller tracks the write position and count. flags_only: the entry retires within the trace
+// and no code reads the pipe before (no handler does, stalls are compile time), so only the flags
+// its retire reads are stored.
+static void _vu1JitEmitAddFMAC(const VU1DecodedPair& d, const a64::Register& rb, const a64::Register& rbase,
+	u32 cycle_rel, bool flags_only)
 {
 	const bool up = d.uregs.pipe == VUPIPE_FMAC;
 	const bool lo = d.lregs.pipe == VUPIPE_FMAC;
 	const s64 off_fmac = _vu1Off(VU1.fmac[0]);
-	const auto entry = [off_fmac](size_t field) { return a64::MemOperand(a64::x5, off_fmac + field); };
+	const auto entry = [&rb, off_fmac](size_t field) { return a64::MemOperand(rb, off_fmac + field); };
+	static_assert(offsetof(fmacPipe, macflag) + 4 == offsetof(fmacPipe, statusflag) &&
+				  offsetof(VURegs, macflag) + 4 == offsetof(VURegs, statusflag));
+	if (flags_only)
+	{
+		armAsm->Ldr(a64::x1, _vu1JitMem(_vu1Off(VU1.macflag)));
+		armAsm->Str(a64::x1, entry(offsetof(fmacPipe, macflag)));
+		if (_vu1FmacFlagreg(d) & (1 << REG_CLIP_FLAG))
+		{
+			armAsm->Ldr(a64::w2, _vu1JitMem(_vu1Off(VU1.clipflag)));
+			armAsm->Str(a64::w2, entry(offsetof(fmacPipe, clipflag)));
+		}
+		return;
+	}
 	armAsm->Mov(a64::w1, up ? d.uregs.VFwrite : 0);
 	armAsm->Mov(a64::w2, lo ? d.lregs.VFwrite : 0);
 	armAsm->Stp(a64::w1, a64::w2, entry(offsetof(fmacPipe, regupper)));
-	armAsm->Mov(a64::w1, (up ? d.uregs.VIwrite : 0) | (lo ? d.lregs.VIwrite : 0));
+	armAsm->Mov(a64::w1, _vu1FmacFlagreg(d));
 	armAsm->Mov(a64::w2, up ? d.uregs.VFwxyzw : 0);
 	armAsm->Stp(a64::w1, a64::w2, entry(offsetof(fmacPipe, flagreg)));
 	armAsm->Mov(a64::w1, lo ? d.lregs.VFwxyzw : 0);
@@ -1864,9 +1915,35 @@ static void _vu1JitCompile(VU1Trace& t)
 	armMoveAddressToReg(rvu, &VU1);
 	armAsm->Ldr(rbase, vu(off_cycle));
 	armAsm->Ldr(a64::w27, vu(_vu1Off(VU1.fmacreadpos)));
+	// FMAC entries by pipe position: -1 = pending at trace entry, else the step that adds it.
+	// Which added entries retire within the trace, and which entry bases the code uses.
+	int fmac_src[4] = {-1, -1, -1, -1};
+	std::vector<bool> fmac_in_trace(t.steps.size());
+	u32 fmac_bases = 0;
+	{
+		u32 ret = 0, cnt = t.sig.fmaccount;
+		for (size_t k = 0; k < t.steps.size(); k++)
+		{
+			for (u32 i = 0; i < t.steps[k].fmac_retire; i++, ret++, cnt--)
+			{
+				if (fmac_src[ret & 3] >= 0)
+					fmac_in_trace[fmac_src[ret & 3]] = true;
+				fmac_bases |= 1u << (ret & 3);
+			}
+			if (t.steps[k].d.fmac)
+			{
+				fmac_src[(ret + cnt) & 3] = static_cast<int>(k);
+				fmac_bases |= 1u << ((ret + cnt) & 3);
+				cnt++;
+			}
+		}
+		std::fill(std::begin(fmac_src), std::end(fmac_src), -1);
+	}
 	armAsm->Mov(a64::w6, sizeof(fmacPipe));
 	for (u32 i = 0; i < 4; i++)
 	{
+		if (!(fmac_bases & (1u << i)))
+			continue;
 		armAsm->Add(a64::w0, a64::w27, i);
 		armAsm->And(a64::w0, a64::w0, 3);
 		armAsm->Umaddl(_vu1JitFmacBase(i), a64::w0, a64::w6, rvu);
@@ -1920,8 +1997,8 @@ static void _vu1JitCompile(VU1Trace& t)
 		}
 		for (u32 i = 0; i < s.fmac_retire; i++)
 		{
-			armAsm->Mov(a64::x5, _vu1JitFmacBase(s_vu1_jit_pending.fmac_ret));
-			_vu1JitEmitFMACretire();
+			const int src = fmac_src[s_vu1_jit_pending.fmac_ret & 3];
+			_vu1JitEmitFMACretire(_vu1JitFmacBase(s_vu1_jit_pending.fmac_ret), src < 0 ? -1 : _vu1FmacFlagreg(t.steps[src].d));
 			s_vu1_jit_pending.fmac_ret++;
 			s_vu1_jit_pending.fmac_cnt--;
 			s_vu1_jit_pending.fmac = true;
@@ -2027,8 +2104,9 @@ static void _vu1JitCompile(VU1Trace& t)
 		if (d.fmac)
 		{
 			VU1JitPending& p = s_vu1_jit_pending;
-			armAsm->Mov(a64::x5, _vu1JitFmacBase(p.fmac_ret + p.fmac_cnt));
-			_vu1JitEmitAddFMAC(d, rbase, s.cycle_rel);
+			const size_t k = &s - t.steps.data();
+			fmac_src[(p.fmac_ret + p.fmac_cnt) & 3] = static_cast<int>(k);
+			_vu1JitEmitAddFMAC(d, _vu1JitFmacBase(p.fmac_ret + p.fmac_cnt), rbase, s.cycle_rel, fmac_in_trace[k]);
 			p.fmac_cnt++;
 			p.fmac = true;
 		}
@@ -2124,10 +2202,13 @@ static bool _vu1TraceCheck(VU1Trace& t)
 
 	// _vu1Exec leaves an FMAC entry's write mask uninitialized for ops that write no VF register
 	// (stack contents); the traces store 0. _vuFMACTestStall never matches register 0.
+	// Retired entries are never read again; the traces store only the flags of those retiring inside.
 	alignas(16) static VURegs ref_cmp;
 	std::memcpy(&ref_cmp, &ref, sizeof(VURegs));
 	for (VURegs* r : {&VU1, &ref_cmp})
 	{
+		for (u32 i = r->fmaccount; i < 4; i++)
+			std::memset(&r->fmac[(r->fmacreadpos + i) & 3], 0, sizeof(fmacPipe));
 		for (fmacPipe& f : r->fmac)
 		{
 			if (f.regupper == 0)
