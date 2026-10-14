@@ -95,7 +95,9 @@ Same results as the interpreter.
   lanes a native x86 FMAC op wrote in the trace (FTZ done) skip DAZ.
 - Within a trace VI[STATUS], VI[MAC] and the flags of entries that retire in
   it live in registers; they are stored before handler calls, native flag ops
-  (FSAND.., FMAND..) and at exit.
+  (FSAND.., FMAND..) and at exit. An FMAC entry whose MAC/status the next
+  in-trace retire replaces before any flag op reads them computes only its
+  sticky status bits (OR-accumulated, folded in at the next store).
 - Up to 16 traces per address (pipe state and code differ): programs that the
   game uploads in turn to the same micro memory keep their code.
 - A trace re-reads its code only after a VU1 micro memory write
