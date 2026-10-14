@@ -88,6 +88,9 @@ Same results as the interpreter.
   XGKICK call (which read the pipe) stores only its MAC/status/clip result;
   only entries still pending there are written in full. Retire flag updates
   are picked at compile time.
+- Native FMAC ops with x86 NaN rules: when no lane of the result is NaN, no
+  operand or product was NaN, so only FTZ is applied; a NaN result reruns the
+  op with the full x86 NaN rules out of line after the trace.
 - Within a trace VI[STATUS], VI[MAC] and the flags of entries that retire in
   it live in registers; they are stored before handler calls, native flag ops
   (FSAND.., FMAND..) and at exit.
