@@ -1834,8 +1834,12 @@ static void _vu1JitSelfTest()
 	_vu1JitReset();
 }
 
+static u64 s_vu1_wip_count[2]; // WIP count: trace runs, steps
 static void _vu1JitCompile(VU1Trace& t)
 {
+	static u64 compiles; // WIP count
+	if (s_vu1_jit_map && (++compiles & 0xffff) == 0)
+		Console.WriteLn("VU1 WIP count: compiles %llu runs %llu steps %llu", compiles, s_vu1_wip_count[0], s_vu1_wip_count[1]);
 	if (!s_vu1_jit_start)
 		_vu1JitReset();
 	_vu1JitSelfTest();
@@ -1847,6 +1851,16 @@ static void _vu1JitCompile(VU1Trace& t)
 	u8* const fn = armStartBlock();
 	s_vu1_jit_pending = {};
 	_vu1JitMark("pro");
+	if (s_vu1_jit_map) // WIP dump
+		std::fprintf(s_vu1_jit_map, "%p tpc %04x\n", armGetCurrentCodePointer(), VU1.VI[REG_TPC].UL & VU1_PROGMASK);
+	if (s_vu1_jit_map) // WIP count
+	{
+		armMoveAddressToReg(a64::x0, &s_vu1_wip_count);
+		armAsm->Ldp(a64::x1, a64::x2, a64::MemOperand(a64::x0));
+		armAsm->Add(a64::x1, a64::x1, 1);
+		armAsm->Add(a64::x2, a64::x2, t.steps.size());
+		armAsm->Stp(a64::x1, a64::x2, a64::MemOperand(a64::x0));
+	}
 
 	const a64::Register& rvu = a64::x19;
 	const a64::Register& rbase = a64::x20;
@@ -2077,6 +2091,19 @@ static void _vu1JitCompile(VU1Trace& t)
 		_vu1JitEmitChain(t);
 	armAsm->Ret();
 	_vu1JitMark("end");
+	if (s_vu1_jit_map) // WIP dump
+	{
+		static bool dumped[VU1_PROGSIZE / 8];
+		const u32 tpc = (VU1.VI[REG_TPC].UL & VU1_PROGMASK) >> 3;
+		if (!dumped[tpc])
+		{
+			dumped[tpc] = true;
+			std::fprintf(s_vu1_jit_map, "%p dump ", fn);
+			for (const u8* p = fn; p < armGetCurrentCodePointer(); p++)
+				std::fprintf(s_vu1_jit_map, "%02x", *p);
+			std::fprintf(s_vu1_jit_map, "\n");
+		}
+	}
 	if (s_vu1_jit_map)
 		std::fflush(s_vu1_jit_map);
 
