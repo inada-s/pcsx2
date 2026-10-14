@@ -397,6 +397,15 @@ struct VU1JitPending
 static VU1JitPending s_vu1_jit_pending;
 // The FMAC constant registers (_vuJitEmitFconst) are loaded; calls clobber them.
 static bool s_vu1_jit_fconst_live;
+// Within a trace: lanes (bit 3 = x) of VF[0..31] / ACC (32) in memory that a native x86 FMAC op
+// wrote (DAZ done, no denormal: operands skip DAZ), and whether v30 holds ACC (calls clobber it).
+static struct
+{
+	u8 clean[33];
+	bool acc_live;
+	s8 out_reg; // the native FMAC result of the current pair: register, lanes
+	u8 out_lanes;
+} s_vu1_jit_vf;
 // Flags in registers within a trace: w28 = VI[STATUS] (st_loaded; st_dirty: not stored yet),
 // w15 = VI[MAC] not stored yet (mac_dirty), w9 + i = mac | status << 16 of the FMAC entry at
 // pipe position i (bit i of live; entries that retire within the trace), w14 = the same of
@@ -487,6 +496,7 @@ static void _vu1JitEmitHandler(FnPtr_VuVoid f)
 		armEmitCall(reinterpret_cast<const void*>(f));
 		_vu1JitFlSave(true);
 		s_vu1_jit_fconst_live = false;
+		s_vu1_jit_vf.acc_live = false;
 		s_vu1_jit_fl.st_loaded = s_vu1_jit_fl.scratch = false;
 	}
 }
@@ -744,12 +754,14 @@ static void _vuJitEmitDaz(const a64::VRegister& v)
 }
 
 // _vuJitEmitClampNaN then vuDouble: NaN -> +max, Inf -> signed max (Inf - 1), exponent 0 -> signed 0.
-static void _vuJitEmitClampDouble(const a64::VRegister& v)
+static void _vuJitEmitClampDouble(const a64::VRegister& v, bool daz = true)
 {
 	_vuJitEmitClampNaN(v);
 	armAsm->And(a64::v24.V16B(), v.V16B(), a64::v16.V16B());
 	armAsm->Cmeq(a64::v25.V4S(), a64::v24.V4S(), a64::v16.V4S());
 	armAsm->Add(v.V4S(), v.V4S(), a64::v25.V4S());
+	if (!daz)
+		return;
 	armAsm->Cmeq(a64::v24.V4S(), a64::v24.V4S(), 0);
 	armAsm->And(a64::v26.V16B(), v.V16B(), a64::v17.V16B());
 	armAsm->Bit(v.V16B(), a64::v26.V16B(), a64::v24.V16B());
@@ -843,8 +855,11 @@ static void _vuJitEmitX86Slow(const VU1FmacDesc* desc)
 }
 
 // fconst_live: whether _vuJitEmitFconst's registers are loaded (set here); nullptr = load them.
+// clean (x86 only, bits as clamp: 2 = Fs, 1 = Ft, 4 = ACC): the lanes the op uses have no
+// denormal. acc_live: whether v30 holds ACC (updated here); nullptr = ACC only in memory.
 static void _vuJitEmitFmacCore(const VU1FmacDesc* desc, u32 code, const a64::Register& rvu,
-	const a64::Register& rconst, bool out_clamp, bool x86, u32 clamp, bool* fconst_live = nullptr)
+	const a64::Register& rconst, bool out_clamp, bool x86, u32 clamp, bool* fconst_live = nullptr,
+	u32 clean = 0, bool* acc_live = nullptr)
 {
 	if (x86)
 		out_clamp = false;
@@ -881,21 +896,31 @@ static void _vuJitEmitFmacCore(const VU1FmacDesc* desc, u32 code, const a64::Reg
 		armAsm->Dup(a64::v1.V4S(), a64::v1.V4S(), 0);
 	}
 	// x86: the operands x86 does not clamp only get DAZ.
-	const auto prep = [x86](const a64::VRegister& v, bool c) {
+	const auto prep = [x86](const a64::VRegister& v, bool c, bool cl) {
 		if (c)
-			_vuJitEmitClampDouble(v);
+			_vuJitEmitClampDouble(v, !(x86 && cl));
 		else if (!x86)
 			_vu1JitEmitVuDouble(v);
-		else
+		else if (!cl)
 			_vuJitEmitDaz(v);
 	};
-	prep(a64::v0, clamp & 2);
-	prep(a64::v1, clamp & 1);
+	prep(a64::v0, clamp & 2, clean & 2);
+	prep(a64::v1, clamp & 1, clean & 1);
 	const bool ternary = desc->op == VU1FmacOp::Madd || desc->op == VU1FmacOp::Msub;
 	if (ternary)
 	{
-		armAsm->Ldr(a64::q2, _vu1JitMem(_vu1Off(VU1.ACC)));
-		prep(a64::v2, clamp & 4);
+		if (acc_live && *acc_live)
+			armAsm->Mov(a64::v2.V16B(), a64::v30.V16B());
+		else
+		{
+			armAsm->Ldr(a64::q2, _vu1JitMem(_vu1Off(VU1.ACC)));
+			if (acc_live)
+			{
+				armAsm->Mov(a64::v30.V16B(), a64::v2.V16B());
+				*acc_live = true;
+			}
+		}
+		prep(a64::v2, clamp & 4, clean & 4);
 	}
 	if (x86)
 	{
@@ -1022,16 +1047,27 @@ static void _vuJitEmitFmacCore(const VU1FmacDesc* desc, u32 code, const a64::Reg
 	}
 	const s64 off_dst = desc->acc ? _vu1Off(VU1.ACC) : _vu1Off(VU1.VF[fd]);
 	// Full 16-byte stores: a later 16-byte load of the register is forwarded only from one.
+	const bool acc_reg = desc->acc && acc_live;
 	if (lanes != 0xf && lanes != 0)
 	{
-		armAsm->Ldr(a64::q4, _vu1JitMem(off_dst));
+		if (acc_reg && *acc_live)
+			armAsm->Mov(a64::v4.V16B(), a64::v30.V16B());
+		else
+			armAsm->Ldr(a64::q4, _vu1JitMem(off_dst));
 		for (int i = 0; i < 4; i++)
 			if (lanes & (8 >> i))
 				armAsm->Mov(a64::v4.V4S(), i, res.V4S(), i);
 		res = a64::v4;
 	}
 	if (lanes != 0)
+	{
 		armAsm->Str(res.Q(), _vu1JitMem(off_dst));
+		if (acc_reg)
+		{
+			armAsm->Mov(a64::v30.V16B(), res.V16B());
+			*acc_live = true;
+		}
+	}
 }
 
 static bool _vu1JitEmitFmac(FnPtr_VuVoid f, u32 code)
@@ -1039,8 +1075,20 @@ static bool _vu1JitEmitFmac(FnPtr_VuVoid f, u32 code)
 	const VU1FmacDesc* desc = _vuJitFmacDesc(s_vu1_fmac_ops, std::size(s_vu1_fmac_ops), f, code);
 	if (!desc)
 		return false;
+	// Lanes each operand is used in: the dest lanes, the broadcast lane, OPMULA/OPMSUB x, y, z.
+	const u32 ft = (code >> 16) & 0x1f, fs = (code >> 11) & 0x1f, fd = (code >> 6) & 0x1f;
+	const bool op = desc->bc == VU1_BC_OP;
+	const u32 lanes = op ? 0xe : (code >> 21) & 0xf;
+	const u8* cl = s_vu1_jit_vf.clean;
+	const u32 ft_lanes = desc->bc == VU1_BC_VEC || op ? lanes : desc->bc < 4 ? 8u >> desc->bc : 0x10;
+	const bool ternary = desc->op == VU1FmacOp::Madd || desc->op == VU1FmacOp::Msub;
+	const u32 clean = ((cl[fs] & lanes) == lanes ? 2 : 0) | ((cl[ft] & ft_lanes) == ft_lanes ? 1 : 0) |
+					  (ternary && (cl[32] & lanes) == lanes ? 4 : 0);
 	_vuJitEmitFmacCore(desc, code, s_vu1_jit_rvu, a64::x21, EmuConfig.Cpu.Recompiler.vu1Overflow, vuX86Fmac(1),
-		vuX86ClampOperands(code, 1, false), &s_vu1_jit_fconst_live);
+		vuX86ClampOperands(code, 1, false), &s_vu1_jit_fconst_live, vuX86Fmac(1) ? clean : 0,
+		&s_vu1_jit_vf.acc_live);
+	s_vu1_jit_vf.out_reg = desc->acc ? 32 : static_cast<s8>(fd);
+	s_vu1_jit_vf.out_lanes = vuX86Fmac(1) ? static_cast<u8>(op ? 0xe : lanes) : 0;
 	// The core leaves VU1.macflag in w0 and VU1.statusflag in w1.
 	armAsm->Orr(a64::w14, a64::w0, a64::Operand(a64::w1, a64::LSL, 16));
 	s_vu1_jit_fl.scratch = true;
@@ -1989,6 +2037,7 @@ static void _vu1JitSelfTest()
 			armAsm->Stp(a64::x21, a64::x22, a64::MemOperand(a64::sp, -16, a64::PreIndex));
 			armMoveAddressToReg(s_vu1_jit_rvu, &VU1);
 			armMoveAddressToReg(a64::x21, s_vu1_jit_fconst);
+			s_vu1_jit_vf = {};
 			if (!_vu1JitEmitFdivOp(op.f, code) && !_vu1JitEmitEfuOp(op.f, code) && !_vu1JitEmitFmac(op.f, code))
 				armEmitCall(reinterpret_cast<const void*>(op.f));
 			armAsm->Ldp(a64::x21, a64::x22, a64::MemOperand(a64::sp, 16, a64::PostIndex));
@@ -2066,12 +2115,14 @@ static void _vu1JitCompile(VU1Trace& t)
 	s_vu1_jit_pending = {};
 	s_vu1_jit_fconst_live = false;
 	s_vu1_jit_fl = {};
+	s_vu1_jit_vf = {};
+	s_vu1_jit_vf.out_reg = -1;
 	// The XGKICK transfer calls, out of line after the trace: kicks are rare and taken branches cost.
 	struct VU1JitKick
 	{
 		a64::Label call, back;
 		VU1JitPending pending;
-		bool fconst_live;
+		bool fconst_live, acc_live;
 	};
 	std::deque<VU1JitKick> kicks;
 	std::deque<VuJitCold> cold;
@@ -2209,6 +2260,7 @@ static void _vu1JitCompile(VU1Trace& t)
 		kicks.emplace_back();
 		kicks.back().pending = s_vu1_jit_pending;
 		kicks.back().fconst_live = s_vu1_jit_fconst_live;
+		kicks.back().acc_live = s_vu1_jit_vf.acc_live;
 		armAsm->Cbnz(a64::w22, &kicks.back().call);
 		armAsm->Bind(&kicks.back().back);
 
@@ -2281,6 +2333,20 @@ static void _vu1JitCompile(VU1Trace& t)
 			}
 		}
 
+		{
+			u8* const cl = s_vu1_jit_vf.clean;
+			const s8 out = s_vu1_jit_vf.out_reg;
+			const u8 keep = out >= 0 ? cl[out] : 0;
+			const u32 lo_vf = d.ibit ? 0 : d.lregs.VFwrite;
+			cl[d.uregs.VFwrite] = 0;
+			cl[lo_vf] = 0;
+			if ((d.uregs.VIwrite | (d.ibit ? 0 : d.lregs.VIwrite)) & (1u << REG_ACC_FLAG))
+				cl[32] = 0;
+			if (out >= 0 && (out == 32 || static_cast<u32>(out) != lo_vf))
+				cl[out] = keep | s_vu1_jit_vf.out_lanes;
+			cl[0] = 0;
+			s_vu1_jit_vf.out_reg = -1;
+		}
 		if (!d.ibit && _vu1BacksUpVI(d.lower))
 			vib_steps = 2;
 		if (lo_flags && (d.lregs.VIwrite & vi_flags))
@@ -2359,6 +2425,8 @@ static void _vu1JitCompile(VU1Trace& t)
 		armAsm->Ldp(a64::w13, a64::w14, fl_save(4));
 		armAsm->Ldr(a64::w15, fl_save(6));
 		armAsm->Ldr(a64::w22, vu(_vu1Off(VU1.xgkickenable)));
+		if (k.acc_live)
+			armAsm->Ldr(a64::q30, vu(_vu1Off(VU1.ACC)));
 		if (k.fconst_live)
 			_vuJitEmitFconst(a64::x21);
 		armAsm->B(&k.back);
