@@ -1146,12 +1146,23 @@ static BlockFn Compile(u32 startpc, BlockFn* entry)
 	bool last_native = false;
 	// A run of COP2 macro ops: x12 = &VU0, VU0 idle; fconst and ACC registers as vu0MacroEmit.
 	bool macro_run = false, macro_fconst = false, macro_acc = false;
-	struct Vu0Busy
+	// Calls after the block (a memory op's slow path, VU0 busy at a macro op): fn with pc, code and
+	// cycles stored as for a handler, then back with the cycles pending again.
+	struct ColdCall
 	{
-		a64::Label busy, back;
+		a64::Label entry, back;
 		u32 code, pc, pending;
+		const void* fn;
 	};
-	std::deque<Vu0Busy> vu0_busy;
+	std::deque<ColdCall> cold;
+	const auto add_cold = [&](u32 code, u32 pc, const void* fn) -> ColdCall& {
+		ColdCall& c = cold.emplace_back();
+		c.code = code;
+		c.pc = pc;
+		c.pending = pending_cycles;
+		c.fn = fn;
+		return c;
+	};
 	bool ended = false;
 	ConstRegs consts;
 	u32 pc = startpc;
@@ -1205,14 +1216,11 @@ static BlockFn Compile(u32 startpc, BlockFn* entry)
 			// VU0 stays idle over a run of macro ops: the first one tests.
 			if (!macro_run)
 			{
-				Vu0Busy& b = vu0_busy.emplace_back();
-				b.code = code;
-				b.pc = pc;
-				b.pending = pending_cycles;
+				ColdCall& b = add_cold(code, pc, reinterpret_cast<const void*>(&_vu0FinishMicro));
 				armMoveAddressToReg(a64::x12, &VU0);
 				armAsm->Ldr(a64::w9, a64::MemOperand(a64::x12, reinterpret_cast<u8*>(&VU0.VI[REG_VPU_STAT]) -
 																  reinterpret_cast<u8*>(&VU0)));
-				armAsm->Tbnz(a64::w9, 0, &b.busy);
+				armAsm->Tbnz(a64::w9, 0, &b.entry);
 				armAsm->Bind(&b.back);
 				macro_run = true;
 				macro_fconst = macro_acc = false;
@@ -1224,14 +1232,21 @@ static BlockFn Compile(u32 startpc, BlockFn* entry)
 			continue;
 		}
 
-		flush(code, pc + 4);
-		a64::Label mem_slow, mem_done;
-		const bool mem_fast = s_native && !const_hw_load && EmitMemFast(rregs, code, &mem_slow);
-		if (mem_fast)
+		if (s_native && !const_hw_load)
 		{
-			armAsm->B(&mem_done);
-			armAsm->Bind(&mem_slow);
+			// Memory op: the handler is the slow path, after the block.
+			void (*handler)() = LoadHandler(code);
+			ColdCall& c = add_cold(code, pc, reinterpret_cast<const void*>(handler ? handler : opcode.interpret));
+			if (EmitMemFast(rregs, code, &c.entry))
+			{
+				armAsm->Bind(&c.back);
+				last_native = true;
+				continue;
+			}
+			cold.pop_back();
 		}
+
+		flush(code, pc + 4);
 		const bool force_test = ForcesEventTest(code);
 		if (force_test)
 		{
@@ -1257,8 +1272,6 @@ static BlockFn Compile(u32 startpc, BlockFn* entry)
 		armAsm->Mov(a64::w10, pc + 4);
 		armAsm->Cmp(a64::w9, a64::w10);
 		armAsm->B(a64::ne, &exit_commit);
-		if (mem_fast)
-			armAsm->Bind(&mem_done);
 	}
 	if (!ended)
 	{
@@ -1274,25 +1287,25 @@ static BlockFn Compile(u32 startpc, BlockFn* entry)
 			EmitDispatch(a64::w21, rregs, rcycles, exit, endpc);
 	}
 
-	// VU0 busy at a macro op: _vu0FinishMicro as COP2_SPECIAL calls it, the op's cycles back to pending.
-	for (Vu0Busy& b : vu0_busy)
+	for (ColdCall& c : cold)
 	{
-		armAsm->Bind(&b.busy);
-		pending_cycles = b.pending;
-		flush(b.code, b.pc + 4);
-		armEmitCall(reinterpret_cast<const void*>(&_vu0FinishMicro));
+		armAsm->Bind(&c.entry);
+		pending_cycles = c.pending;
+		flush(c.code, c.pc + 4);
+		armEmitCall(c.fn);
 		armAsm->Ldr(a64::w9, a64::MemOperand(rregs, off_pc));
-		armAsm->Mov(a64::w10, b.pc + 4);
+		armAsm->Mov(a64::w10, c.pc + 4);
 		armAsm->Cmp(a64::w9, a64::w10);
 		armAsm->B(a64::ne, &exit_commit);
-		if (b.pending)
+		if (c.pending)
 		{
 			armAsm->Ldr(a64::w9, a64::MemOperand(rcycles));
-			armAsm->Sub(a64::w9, a64::w9, b.pending);
+			armAsm->Sub(a64::w9, a64::w9, c.pending);
 			armAsm->Str(a64::w9, a64::MemOperand(rcycles));
 		}
-		armMoveAddressToReg(a64::x12, &VU0);
-		armAsm->B(&b.back);
+		if (c.fn == reinterpret_cast<const void*>(&_vu0FinishMicro))
+			armMoveAddressToReg(a64::x12, &VU0);
+		armAsm->B(&c.back);
 	}
 
 	// An exception in a handler: commit and test events, the dispatcher continues at cpuRegs.pc.
