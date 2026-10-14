@@ -140,6 +140,7 @@ struct VU1Trace
 	u32 last_start_rel; // cycle before the last step, relative to the cycle at trace entry
 	std::vector<VU1TraceStep> steps;
 	void (*code)() = nullptr; // native code, compiled on first run
+	u8* entry = nullptr; // where a chain jump enters code: past the frame push and the x19/x21 setup
 	u32 micro_gen = 0; // s_vu1_micro_gen when the steps were last compared with VU1.Micro
 	// Pipe state at trace exit. Like the stalls, it depends only on sig and the code, so it is
 	// taken once, after the first run: 0 = not yet, 1 = exit_sig, 2 = not representable.
@@ -152,6 +153,11 @@ struct VU1Trace
 		u32 epoch;
 		VU1Trace* t;
 	} succ[2] = {};
+	// The chain's jump to succ[i] (a branch to the indirect jump, until _vu1JitLink makes it a
+	// direct branch to link_to[i]) and its unlinked instruction. Null when code is null.
+	u32* link_site[2] = {};
+	u32 link_slow[2] = {};
+	const u8* link_to[2] = {};
 };
 
 static constexpr u32 VU1_TRACE_VARIANTS = 16;
@@ -418,7 +424,6 @@ static struct
 	u8 live;
 } s_vu1_jit_fl;
 static constexpr s64 VU1_JIT_FL_SAVE = 160; // stack save area of w9..w15 around calls
-static constexpr s64 VU1_JIT_FRAME_PUSH = 24; // the trace code starts with the 6 stp of its frame
 static constexpr s64 VU1_JIT_STICKY_SAVE = 192; // stack save area of v31 around the XGKICK call
 static void _vu1JitStatusLoad();
 // VU_STAT_UPDATE of the OR of the MAC bits in v31, to the sticky bits of w28. Clobbers w0-w2.
@@ -1978,6 +1983,35 @@ static void _vu1JitEmitLower(FnPtr_VuVoid f, u32 code)
 	}
 }
 
+static void _vu1JitDrop(VU1Trace& t)
+{
+	t.code = nullptr;
+	t.entry = nullptr;
+	std::fill(std::begin(t.link_site), std::end(t.link_site), nullptr);
+	std::fill(std::begin(t.link_to), std::end(t.link_to), nullptr);
+}
+
+// Points the chain jump of t to succ[i] at to (a successor's entry), or back to the indirect
+// jump when to is null.
+static void _vu1JitLink(VU1Trace& t, u32 i, const u8* to)
+{
+	u32* const site = t.link_site[i];
+	if (!site || t.link_to[i] == to)
+		return;
+	u32 insn = t.link_slow[i];
+	if (to)
+	{
+		const s64 disp = (to - reinterpret_cast<const u8*>(site)) >> 2;
+		pxAssert(vixl::IsInt26(disp));
+		insn = 0x14000000u | (static_cast<u32>(disp) & 0x3ffffffu); // b to
+	}
+	HostSys::BeginCodeWrite();
+	*site = insn;
+	HostSys::EndCodeWrite();
+	HostSys::FlushInstructionCache(site, sizeof(*site));
+	t.link_to[i] = to;
+}
+
 static void _vu1JitReset()
 {
 	if (!s_vu1_jit_start)
@@ -1992,7 +2026,7 @@ static void _vu1JitReset()
 	for (VU1TraceSlot& slot : s_vu1_traces)
 		for (auto& v : slot.variants)
 			if (v)
-				v->code = nullptr;
+				_vu1JitDrop(*v);
 }
 
 // The lower ops that call _vuBackupVI, the only writer of VIBackupCycles but the per-step decrement.
@@ -2003,18 +2037,18 @@ static bool _vu1BacksUpVI(FnPtr_VuVoid f)
 		   f == VU1MI_SQD || f == VU1MI_SQI;
 }
 
-// After the epilogue: the checks of InterpVU1::Execute and _vu1TraceStep for running the next
-// trace, then a tail jump to it, else return. Only x0-x15 are used (x16/x17 are VIXL scratch).
+// Before the register restore: the checks of InterpVU1::Execute and _vu1TraceStep for running
+// the next trace, then a jump to its entry, else on to the restore. The frame and x19/x21 stay.
+// Only x0-x15 are used (x16/x17 are VIXL scratch).
 static void _vu1JitEmitChain(VU1Trace& t)
 {
 	_vu1JitMark("chain");
 	const auto field = [&t](const void* p) { return static_cast<s64>(static_cast<const u8*>(p) - reinterpret_cast<const u8*>(&t)); };
-	const s64 off_tcode = field(&t.code);
+	const s64 off_tentry = field(&t.entry);
 	const s64 off_tgen = field(&t.micro_gen);
 	const s64 off_trel = field(&t.last_start_rel);
-	a64::Label out, found;
-	armMoveAddressToReg(a64::x9, &VU1);
-	const auto vu = [](s64 off) { return a64::MemOperand(a64::x9, off); };
+	a64::Label out;
+	const auto vu = [](s64 off) { return a64::MemOperand(s_vu1_jit_rvu, off); };
 	armAsm->Ldr(a64::w10, vu(_vu1Off(VU1.branch)));
 	armAsm->Cbnz(a64::w10, &out);
 	armAsm->Ldr(a64::w10, vu(_vu1Off(VU1.ebit)));
@@ -2026,41 +2060,44 @@ static void _vu1JitEmitChain(VU1Trace& t)
 	armAsm->And(a64::w12, a64::w12, VU1_PROGMASK);
 	armMoveAddressToReg(a64::x11, &s_vu1_trace_epoch);
 	armAsm->Ldr(a64::w11, a64::MemOperand(a64::x11));
-	for (const auto& s : t.succ)
+	armMoveAddressToReg(a64::x13, &t);
+	for (u32 i = 0; i < std::size(t.succ); i++)
 	{
-		a64::Label next;
-		armMoveAddressToReg(a64::x13, &s);
-		armAsm->Ldr(a64::x14, a64::MemOperand(a64::x13, offsetof(std::remove_reference_t<decltype(s)>, t)));
+		const auto& s = t.succ[i];
+		a64::Label next, slow;
+		armAsm->Ldr(a64::x14, a64::MemOperand(a64::x13, field(&s.t)));
 		armAsm->Cbz(a64::x14, &next);
-		armAsm->Ldp(a64::w15, a64::w10, a64::MemOperand(a64::x13, offsetof(std::remove_reference_t<decltype(s)>, pc)));
+		armAsm->Ldp(a64::w15, a64::w10, a64::MemOperand(a64::x13, field(&s.pc)));
 		static_assert(offsetof(std::remove_reference_t<decltype(s)>, pc) + 4 == offsetof(std::remove_reference_t<decltype(s)>, epoch));
 		armAsm->Cmp(a64::w15, a64::w12);
 		armAsm->Ccmp(a64::w10, a64::w11, a64::NoFlag, a64::eq);
-		armAsm->B(&found, a64::eq);
+		armAsm->B(&next, a64::ne);
+		// x14 = the successor
+		armAsm->Ldr(a64::w10, a64::MemOperand(a64::x14, off_tgen));
+		armMoveAddressToReg(a64::x15, &s_vu1_micro_gen);
+		armAsm->Ldr(a64::w15, a64::MemOperand(a64::x15));
+		armAsm->Cmp(a64::w10, a64::w15);
+		armAsm->B(&out, a64::ne);
+		armAsm->Ldr(a64::w10, a64::MemOperand(a64::x14, off_trel));
+		armAsm->Ldr(a64::x11, vu(_vu1Off(VU1.cycle)));
+		armAsm->Add(a64::x11, a64::x11, a64::x10);
+		armMoveAddressToReg(a64::x15, &s_vu1_chain);
+		armAsm->Ldr(a64::x10, a64::MemOperand(a64::x15, offsetof(decltype(s_vu1_chain), limit)));
+		armAsm->Cmp(a64::x11, a64::x10);
+		armAsm->B(&out, a64::hs);
+		armAsm->Str(a64::w12, vu(_vu1Off(VU1.VI[REG_TPC].UL)));
+		armAsm->Str(a64::x14, a64::MemOperand(a64::x15, offsetof(decltype(s_vu1_chain), last)));
+		t.link_site[i] = reinterpret_cast<u32*>(armGetCurrentCodePointer());
+		{
+			a64::SingleEmissionCheckScope guard(armAsm);
+			armAsm->b(&slow);
+		}
+		armAsm->Bind(&slow);
+		armAsm->Ldr(a64::x15, a64::MemOperand(a64::x14, off_tentry));
+		armAsm->Cbz(a64::x15, &out);
+		armAsm->Br(a64::x15);
 		armAsm->Bind(&next);
 	}
-	armAsm->B(&out);
-
-	armAsm->Bind(&found); // x14 = the successor
-	armAsm->Ldr(a64::w10, a64::MemOperand(a64::x14, off_tgen));
-	armMoveAddressToReg(a64::x11, &s_vu1_micro_gen);
-	armAsm->Ldr(a64::w11, a64::MemOperand(a64::x11));
-	armAsm->Cmp(a64::w10, a64::w11);
-	armAsm->B(&out, a64::ne);
-	armAsm->Ldr(a64::x15, a64::MemOperand(a64::x14, off_tcode));
-	armAsm->Cbz(a64::x15, &out);
-	armAsm->Ldr(a64::w10, a64::MemOperand(a64::x14, off_trel));
-	armAsm->Ldr(a64::x11, vu(_vu1Off(VU1.cycle)));
-	armAsm->Add(a64::x11, a64::x11, a64::x10);
-	armMoveAddressToReg(a64::x13, &s_vu1_chain);
-	armAsm->Ldr(a64::x10, a64::MemOperand(a64::x13, offsetof(decltype(s_vu1_chain), limit)));
-	armAsm->Cmp(a64::x11, a64::x10);
-	armAsm->B(&out, a64::hs);
-	armAsm->Str(a64::w12, vu(_vu1Off(VU1.VI[REG_TPC].UL)));
-	armAsm->Str(a64::x14, a64::MemOperand(a64::x13, offsetof(decltype(s_vu1_chain), last)));
-	// The frame of this trace stays: the successor runs from past its frame push.
-	armAsm->Add(a64::x15, a64::x15, VU1_JIT_FRAME_PUSH);
-	armAsm->Br(a64::x15);
 	armAsm->Bind(&out);
 }
 
@@ -2282,9 +2319,9 @@ static void _vu1JitCompile(VU1Trace& t)
 	armAsm->Stp(a64::x23, a64::x24, a64::MemOperand(a64::sp, 112));
 	armAsm->Stp(a64::x25, a64::x26, a64::MemOperand(a64::sp, 128));
 	armAsm->Stp(a64::x27, a64::x28, a64::MemOperand(a64::sp, 144));
-	pxAssert(armGetCurrentCodePointer() - fn == VU1_JIT_FRAME_PUSH);
 	armMoveAddressToReg(a64::x21, s_vu1_jit_fconst);
 	armMoveAddressToReg(rvu, &VU1);
+	u8* const entry = armGetCurrentCodePointer();
 	armAsm->Ldr(rbase, vu(off_cycle));
 	armAsm->Ldr(a64::w27, vu(_vu1Off(VU1.fmacreadpos)));
 	// FMAC entries by pipe position: -1 = pending at trace entry, else the step that adds it.
@@ -2595,6 +2632,10 @@ static void _vu1JitCompile(VU1Trace& t)
 
 	s_vu1_jit_ptr = armEndBlock();
 	t.code = reinterpret_cast<void (*)()>(fn);
+	t.entry = entry;
+	for (u32 i = 0; i < std::size(t.link_site); i++)
+		if (t.link_site[i])
+			t.link_slow[i] = *t.link_site[i];
 }
 
 static void _vu1TraceExec(VU1Trace& t)
@@ -2760,13 +2801,16 @@ bool _vu1TraceStep(u64 startcycles, u32 cycles)
 	VU1Trace* const prev = s_vu1_prev;
 	s_vu1_prev = nullptr;
 	VU1Trace* t = nullptr;
+	int link = -1; // the prev->succ entry of t
 	if (prev)
 	{
-		for (const auto& s : prev->succ)
+		for (u32 i = 0; i < std::size(prev->succ); i++)
 		{
+			const auto& s = prev->succ[i];
 			if (s.t && s.pc == pc && s.epoch == s_vu1_trace_epoch && s.t->micro_gen == s_vu1_micro_gen)
 			{
 				t = s.t;
+				link = i;
 				break;
 			}
 		}
@@ -2776,7 +2820,11 @@ bool _vu1TraceStep(u64 startcycles, u32 cycles)
 			if (!t)
 				return false;
 			const bool keep0 = prev->succ[0].t && prev->succ[0].epoch == s_vu1_trace_epoch;
-			auto& s = prev->succ[keep0 ? 1 : 0];
+			const u32 i = keep0 ? 1 : 0;
+			// prev may run again before t: its jump must not keep the old successor's. The new
+			// one is linked when found again, not at once: entries that keep changing stay unlinked.
+			_vu1JitLink(*prev, i, nullptr);
+			auto& s = prev->succ[i];
 			s.pc = pc;
 			s.epoch = s_vu1_trace_epoch;
 			s.t = t;
@@ -2796,7 +2844,10 @@ bool _vu1TraceStep(u64 startcycles, u32 cycles)
 	{
 		s_vu1_chain.limit = startcycles + cycles;
 		s_vu1_chain.last = t;
+		VU1Trace* const first = t;
 		_vu1TraceExec(*t);
+		if (link >= 0 && first->entry)
+			_vu1JitLink(*prev, link, first->entry);
 		t = s_vu1_chain.last;
 	}
 

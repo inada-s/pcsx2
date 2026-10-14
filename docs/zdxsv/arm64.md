@@ -112,6 +112,8 @@ Same results as the interpreter.
   `InterpVU1::Execute` would run it next (branch, E bit, VPU_STAT, cycle
   budget), as microVU links its blocks. The jump keeps the stack frame and
   callee-saved registers of the first trace (no restore and save in between).
+  A successor found again from C++ gets a direct branch patched into that
+  jump; replacing a successor entry first restores the indirect jump.
 
 ## Math as x86
 
