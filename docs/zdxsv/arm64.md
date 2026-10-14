@@ -27,6 +27,8 @@ with the x86 recompiler's timing, so both hosts count the same EE cycles.
   past its prologue (same frame); a constant target's lookup entry is resolved
   at compile time.
 - Each block end commits `cycle += max(blockcycles >> 3, 1)`, fraction dropped.
+  Until a block's first in-line handler call, its cycles are a compile-time
+  constant (`cpuBlockCycles` stays 0).
 - Both paths of every branch (also BLTZAL..BGEZALL, BC0x/BC1x/BC2x) commit and
   test events; ERET/EI/traps force an event test; a split block tests events
   only after more than 6 instructions.
@@ -169,6 +171,10 @@ the default clamp mode (other clamp modes keep upstream's code).
   `vu1_optest_cmp.py` / `ee_optest_cmp.py` ([tools.md](tools.md)).
 - Timing: `ZDXSV_CYCLE_LOG` in the same replay on both builds; at a split,
   `ZDXSV_EVENT_LOG` on both and `diff` for the first differing event test.
+  EE cycle counting changes often leave the traces and the state check
+  unchanged (frame-locked game): compare the whole replay's event log (a
+  `lines` above the replay's event tests (2M are ~6 s of game time), the
+  file a FIFO read by `md5`).
 - Recompiler self-checks: `PCSX2_VU1_JIT=check`, `ZDXSV_VU1_OPTEST` (vs the x86 build),
   `PCSX2_ARM64_EE_NATIVE=0`.
 - Profiles of JIT code: `PCSX2_EE_JIT_MAP`, `PCSX2_VU1_JIT_MAP`.
