@@ -22,6 +22,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <deque>
 
 namespace a64 = vixl::aarch64;
 
@@ -132,7 +133,7 @@ static void recClear(u32 addr, u32 size)
 
 // VU1Trace.inl: EE COP2 macro FMAC ops as native code.
 bool vu0MacroCanEmit(u32 code);
-void vu0MacroEmit(u32 code, const a64::Register& rvu);
+void vu0MacroEmit(u32 code, const a64::Register& rvu, bool* fconst_live, bool* acc_live, bool last);
 
 static bool HookAnswered(u32 pc)
 {
@@ -1143,6 +1144,14 @@ static BlockFn Compile(u32 startpc, BlockFn* entry)
 		}
 	};
 	bool last_native = false;
+	// A run of COP2 macro ops: x12 = &VU0, VU0 idle; fconst and ACC registers as vu0MacroEmit.
+	bool macro_run = false, macro_fconst = false, macro_acc = false;
+	struct Vu0Busy
+	{
+		a64::Label busy, back;
+		u32 code, pc, pending;
+	};
+	std::deque<Vu0Busy> vu0_busy;
 	bool ended = false;
 	ConstRegs consts;
 	u32 pc = startpc;
@@ -1192,22 +1201,26 @@ static BlockFn Compile(u32 startpc, BlockFn* entry)
 
 		if (s_native && vu0MacroCanEmit(code))
 		{
-			// COP2_SPECIAL: native unless VU0 runs a micro program (_vu0FinishMicro), then the handler.
-			flush(code, pc + 4);
-			a64::Label busy, done;
-			armMoveAddressToReg(a64::x12, &VU0);
-			armAsm->Ldr(a64::w9, a64::MemOperand(a64::x12, reinterpret_cast<u8*>(&VU0.VI[REG_VPU_STAT]) -
-															  reinterpret_cast<u8*>(&VU0)));
-			armAsm->Tbnz(a64::w9, 0, &busy);
-			vu0MacroEmit(code, a64::x12);
-			armAsm->B(&done);
-			armAsm->Bind(&busy);
-			armEmitCall(reinterpret_cast<const void*>(opcode.interpret));
-			armAsm->Ldr(a64::w9, a64::MemOperand(rregs, off_pc));
-			armAsm->Mov(a64::w10, pc + 4);
-			armAsm->Cmp(a64::w9, a64::w10);
-			armAsm->B(a64::ne, &exit_commit);
-			armAsm->Bind(&done);
+			// COP2_SPECIAL: _vu0FinishMicro (out of line, VU0 runs a micro program), then the op.
+			// VU0 stays idle over a run of macro ops: the first one tests.
+			if (!macro_run)
+			{
+				Vu0Busy& b = vu0_busy.emplace_back();
+				b.code = code;
+				b.pc = pc;
+				b.pending = pending_cycles;
+				armMoveAddressToReg(a64::x12, &VU0);
+				armAsm->Ldr(a64::w9, a64::MemOperand(a64::x12, reinterpret_cast<u8*>(&VU0.VI[REG_VPU_STAT]) -
+																  reinterpret_cast<u8*>(&VU0)));
+				armAsm->Tbnz(a64::w9, 0, &b.busy);
+				armAsm->Bind(&b.back);
+				macro_run = true;
+				macro_fconst = macro_acc = false;
+			}
+			const bool last = pc + 4 >= endpc || Zdxsv::IsIntHookPc(pc + 4) || !vu0MacroCanEmit(memRead32(pc + 4));
+			vu0MacroEmit(code, a64::x12, &macro_fconst, &macro_acc, last);
+			macro_run = !last;
+			last_native = true;
 			continue;
 		}
 
@@ -1259,6 +1272,27 @@ static BlockFn Compile(u32 startpc, BlockFn* entry)
 			EmitEventTestAndDispatch(a64::w21, rregs, rcycles, exit, cycle_x15, endpc);
 		else
 			EmitDispatch(a64::w21, rregs, rcycles, exit, endpc);
+	}
+
+	// VU0 busy at a macro op: _vu0FinishMicro as COP2_SPECIAL calls it, the op's cycles back to pending.
+	for (Vu0Busy& b : vu0_busy)
+	{
+		armAsm->Bind(&b.busy);
+		pending_cycles = b.pending;
+		flush(b.code, b.pc + 4);
+		armEmitCall(reinterpret_cast<const void*>(&_vu0FinishMicro));
+		armAsm->Ldr(a64::w9, a64::MemOperand(rregs, off_pc));
+		armAsm->Mov(a64::w10, b.pc + 4);
+		armAsm->Cmp(a64::w9, a64::w10);
+		armAsm->B(a64::ne, &exit_commit);
+		if (b.pending)
+		{
+			armAsm->Ldr(a64::w9, a64::MemOperand(rcycles));
+			armAsm->Sub(a64::w9, a64::w9, b.pending);
+			armAsm->Str(a64::w9, a64::MemOperand(rcycles));
+		}
+		armMoveAddressToReg(a64::x12, &VU0);
+		armAsm->B(&b.back);
 	}
 
 	// An exception in a handler: commit and test events, the dispatcher continues at cpuRegs.pc.
