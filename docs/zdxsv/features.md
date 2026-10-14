@@ -100,7 +100,7 @@ zdxsv checkout, save states): `tests/zdxsv/README.md`.
 | Feature | How to turn on | Test | Control |
 |---|---|---|---|
 | EE and IOP recompilers with the x86 timing | `EnableEE`, `EnableIOP` (default) | the same replay with `ZDXSV_CYCLE_LOG` on an ARM64 and an x86_64 build: same cycle lines | none |
-| VU1 trace recompiler | default; `PCSX2_VU1_JIT=0` turns it off | a replay with `PCSX2_VU1_JIT=check`: `0 differ`; `PCSX2_VU1_JIT_SELFTEST` | none |
+| VU1 trace recompiler | default; `PCSX2_VU1_JIT=0` turns it off | a replay with `PCSX2_VU1_JIT=check`: `0 differ`; `ZDXSV_VU1_OPTEST` vs the x86 build: `0 differ` | none |
 | FPU and VU math as x86 | always | `ZDXSV_VU1_OPTEST` and `ZDXSV_EE_OPTEST` on an ARM64 and an x86_64 build, then `vu1_optest_cmp.py` / `ee_optest_cmp.py`: no op differs | none |
 | EE FPU interpreter computes as the EE recompiler (all builds) | always | none | none |
 

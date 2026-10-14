@@ -231,6 +231,5 @@ Read by ARM64 builds only. The cores: [arm64.md](arm64.md).
 | `PCSX2_VU1_JIT=0` | control | VU1 runs on the interpreter only. |
 | `PCSX2_VU1_JIT=check` | test | Every VU1 trace is also run by the interpreter from the same start; VU1 registers and memory are compared, and every kept exit state with the real one (log `VU1 trace check`). Traces that start while an XGKICK transfer runs are not checked (the transfer cannot run twice). |
 | `PCSX2_VU1_JIT_MAP=file` | diagnostic | Start address and kind of each emitted VU1 trace section (and the handler it calls), to attribute `sample` addresses in VU1 JIT code. |
-| `PCSX2_VU1_JIT_SELFTEST=n` | test | At the first trace compile, each native DIV/SQRT/RSQRT, EFU and OPMULA/OPMSUB op and its handler run on the same `n` generated inputs; log `VU1 JIT selftest: <op> <n> checked, <k> differ` and the first differing inputs (outputs Q, P, status, MAC, ACC, Fd). VU1 is restored afterwards. |
 | `PCSX2_ARM64_EE_NATIVE=0` | control | The EE recompiler calls the interpreter handler for every op (no native ops). |
 | `PCSX2_EE_JIT_MAP=file` | diagnostic | Host address of each compiled EE instruction (pc, name, code word). |
