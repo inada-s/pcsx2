@@ -75,7 +75,8 @@ with the x86 recompiler's timing, so both hosts count the same EE cycles.
 
 Same results as the interpreter.
 
-- A trace = a run of instruction pairs up to a branch delay slot. Its stall
+- A trace = a run of instruction pairs up to a branch delay slot; past the delay
+  slot of a B or BAL it goes on at the target (once per target pc). Its stall
   and pipeline-flush decisions are worked out at compile time per pipeline
   state at entry. Pairs with D/T bits run through the interpreter. An E-bit
   pair and its delay slot end a trace and the program (the interpreter's
