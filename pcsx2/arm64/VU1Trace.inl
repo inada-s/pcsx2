@@ -113,14 +113,15 @@ static void _vu1Decode(VU1DecodedPair& d, const u32* ptr)
 // Pipeline state at trace entry, the trace lookup key. Bytes keep it at 32 so the compare is inline.
 struct VU1PipeSig
 {
+	u16 ialureg[4]; // VIwrite mask of ialu[i]
 	u8 fmac[4][5]; // remaining cycles, regupper, xyzwupper, reglower, xyzwlower
-	u8 ialu[4][2]; // remaining cycles, reg
+	u8 ialu[4]; // remaining cycles
 	u8 fdiv; // remaining cycles + 1, 0 = off
 	u8 efu;
 	u8 fmaccount;
 	u8 ialucount;
 };
-static_assert(sizeof(VU1PipeSig) == 32);
+static_assert(sizeof(VU1PipeSig) == 36);
 
 struct VU1TraceStep
 {
@@ -230,12 +231,12 @@ static bool _vu1PipeSig(const VURegs* VU, VU1PipeSig* s)
 	for (u32 i = 0, p = VU->ialureadpos; i < VU->ialucount; i++, p = (p + 1) & 3)
 	{
 		const u64 r = remaining(VU->ialu[p].sCycle, VU->ialu[p].Cycle);
-		if (r > 0xff || static_cast<u32>(VU->ialu[p].reg) > 0xff)
+		if (r > 0xff || static_cast<u32>(VU->ialu[p].reg) > 0xffff)
 			return false;
 		if (r == 0)
 			continue;
-		s->ialu[i][0] = static_cast<u8>(r);
-		s->ialu[i][1] = static_cast<u8>(VU->ialu[p].reg);
+		s->ialu[i] = static_cast<u8>(r);
+		s->ialureg[i] = static_cast<u16>(VU->ialu[p].reg);
 	}
 	if (VU->fdiv.enable)
 	{
