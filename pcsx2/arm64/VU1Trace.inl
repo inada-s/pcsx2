@@ -104,7 +104,8 @@ static void _vu1Decode(VU1DecodedPair& d, const u32* ptr)
 }
 
 // VU1 traces: runs of pairs from one entry PC up to a branch delay slot (B and BAL are followed to
-// their target, once per target), compiled for one state
+// their target, once per target; a conditional branch is followed in the direction its profile
+// predicts, with a side exit after the delay slot for the other one), compiled for one state
 // of the FMAC/IALU/FDIV/EFU pipes at entry. _vu1Exec's stall and flush decisions depend
 // only on that state (remaining cycles and registers of the pending entries) and on the code,
 // so they are worked out once at compile time by running the same functions on a copy of VU1.
@@ -136,6 +137,9 @@ struct VU1TraceStep
 	u8 efu_retire;
 	u8 efu_dec; // the EFU stall check shortened efu.Cycle by one
 	u16 pc; // of the pair: not sequential past a B/BAL delay slot
+	// The delay slot of a predicted conditional branch: VU1Trace::sides index, the predicted pc.
+	s8 side = -1;
+	u16 next_pc = 0;
 };
 
 struct VU1Trace
@@ -164,10 +168,27 @@ struct VU1Trace
 	u32* link_site[2] = {};
 	u32 link_slow[2] = {};
 	const u8* link_to[2] = {};
+	// Conditional branch pc -> the pc the trace goes on at after its delay slot (0xffff: ends there).
+	std::vector<std::pair<u16, u16>> hints;
+	// Per side exit: no steps or code, only the exit state and chain of that path.
+	std::vector<std::unique_ptr<VU1Trace>> sides;
+	// Ends at an unhinted conditional branch: the next prof_left runs return to _vu1TraceStep
+	// (no chain), which counts the successor pcs and then replaces the trace with one hinted.
+	u16 prof_branch = 0;
+	u8 prof_left = 0;
+	u8 prof_cnt[2] = {};
+	u16 prof_pc[2] = {};
+	// Profiled: _vu1TraceLookup compiles the trace again with the new hint (micro_gen is 0 so
+	// that chain jumps return to it).
+	bool rebuild = false;
 };
 
 static constexpr u32 VU1_TRACE_VARIANTS = 16;
 static constexpr u32 VU1_TRACE_MAX_STEPS = 256;
+// Runs profiled per conditional branch; the trace goes on past it in the direction taken by at
+// least VU1_TRACE_PROF_HINT of them.
+static constexpr u32 VU1_TRACE_PROF_RUNS = 32;
+static constexpr u32 VU1_TRACE_PROF_HINT = 24;
 
 struct VU1TraceSlot
 {
@@ -183,6 +204,8 @@ static u32 s_vu1_micro_gen = 1;
 
 // Bumped when a trace is freed: invalidates every VU1Trace::succ.
 static u32 s_vu1_trace_epoch = 1;
+// Replaced traces, freed at the next _vu1TraceStep: the caller of _vu1TraceLookup may hold one.
+static std::vector<std::unique_ptr<VU1Trace>> s_vu1_freed;
 
 // The trace that ran last, while nothing else has touched VU1 since its exit.
 static VU1Trace* s_vu1_prev;
@@ -298,7 +321,8 @@ static bool _vu1TraceStops(u32 pc)
 	return (ptr[3] & 0x58000000) || _vu1IsBranch(ptr + 2, next) || next.fmac;
 }
 
-static std::unique_ptr<VU1Trace> _vu1TraceCompile(u32 pc, const VU1PipeSig& sig)
+static std::unique_ptr<VU1Trace> _vu1TraceCompile(u32 pc, const VU1PipeSig& sig,
+	std::vector<std::pair<u16, u16>> hints = {})
 {
 	alignas(16) static VURegs sim;
 	std::memcpy(&sim, &VU1, sizeof(VURegs));
@@ -307,9 +331,11 @@ static std::unique_ptr<VU1Trace> _vu1TraceCompile(u32 pc, const VU1PipeSig& sig)
 
 	auto t = std::make_unique<VU1Trace>();
 	t->sig = sig;
+	t->hints = std::move(hints);
 	bool delay_slot = false;
 	bool end_slot = false;
 	u32 jump = 0; // target + 1 of a B/BAL whose delay slot is next
+	u32 cond = 0; // pc + 1 of a conditional branch whose delay slot is next
 	std::vector<bool> seen(VU1_PROGSIZE / 8);
 	while (pc < VU1_PROGSIZE && t->steps.size() < VU1_TRACE_MAX_STEPS)
 	{
@@ -362,6 +388,30 @@ static std::unique_ptr<VU1Trace> _vu1TraceCompile(u32 pc, const VU1PipeSig& sig)
 			break;
 		}
 		end_slot = ebit;
+		if (delay_slot && cond)
+		{
+			const u16 bpc = static_cast<u16>(cond - 1);
+			const auto h = std::find_if(t->hints.begin(), t->hints.end(), [bpc](const auto& e) { return e.first == bpc; });
+			if (h == t->hints.end())
+			{
+				if (!ebit && t->steps.size() < VU1_TRACE_MAX_STEPS)
+				{
+					t->prof_branch = bpc;
+					t->prof_left = VU1_TRACE_PROF_RUNS;
+				}
+				break;
+			}
+			if (h->second == 0xffff || ebit || seen[h->second >> 3])
+				break;
+			VU1TraceStep& ds = t->steps.back();
+			ds.side = static_cast<s8>(t->sides.size());
+			ds.next_pc = h->second;
+			t->sides.push_back(std::make_unique<VU1Trace>());
+			pc = h->second;
+			cond = 0;
+			delay_slot = false;
+			continue;
+		}
 		if (delay_slot)
 		{
 			// _vu1Exec moves TPC to the target after this pair: the trace goes on there.
@@ -376,6 +426,8 @@ static std::unique_ptr<VU1Trace> _vu1TraceCompile(u32 pc, const VU1PipeSig& sig)
 		const u32 op = ptr[0] >> 25;
 		if (branch && (op == 0x20 || op == 0x21)) // B, BAL
 			jump = ((pc + _vu1Imm11(ptr[0]) * 8) & VU1_PROGMASK) + 1;
+		else if (branch && (op == 0x28 || op == 0x29 || op >= 0x2c)) // IBEQ, IBNE, IBLTZ..IBGEZ
+			cond = pc - 8 + 1;
 	}
 	VU1.code = saved_code;
 	return t;
@@ -1703,43 +1755,25 @@ static void _vu1JitEmitBranchSrc(const a64::Register& w, u32 reg)
 // w1 = _branchAddr(&VU1)
 static void _vu1JitEmitBranchAddr(u32 code)
 {
-	armAsm->Mov(a64::w1, s_vu1_jit_pending.tpc_v);
-	armAsm->Add(a64::w1, a64::w1, _vu1Imm11(code) * 8);
-	armAsm->And(a64::w1, a64::w1, 0x3fff);
+	armAsm->Mov(a64::w1, (s_vu1_jit_pending.tpc_v + _vu1Imm11(code) * 8) & 0x3fff);
 }
 
-// _setBranch(&VU1, w1)
-static void _vu1JitEmitSetBranch()
+// _setBranch(&VU1, w1). VU1.branch is 0 at every branch in a trace (none is in a delay slot), and
+// the trace does the countdown itself (_vu1JitCompile): only a conditional branch leaves its
+// outcome in VU1.branch (1 = taken), for the end of its delay slot.
+static void _vu1JitEmitSetBranch(bool cond)
 {
-	a64::Label first, done;
-	armAsm->Ldr(a64::w2, _vu1JitMem(_vu1Off(VU1.branch)));
-	armAsm->Cmp(a64::w2, 1);
-	armAsm->B(a64::ne, &first);
-	armAsm->Str(a64::w1, _vu1JitMem(_vu1Off(VU1.delaybranchpc)));
-	armAsm->Mov(a64::w2, 1);
-	armAsm->Strb(a64::w2, _vu1JitMem(_vu1Off(VU1.takedelaybranch)));
-	armAsm->B(&done);
-	armAsm->Bind(&first);
-	armAsm->Mov(a64::w2, 2);
-	armAsm->Str(a64::w2, _vu1JitMem(_vu1Off(VU1.branch)));
 	armAsm->Str(a64::w1, _vu1JitMem(_vu1Off(VU1.branchpc)));
-	armAsm->Bind(&done);
+	if (!cond)
+		return;
+	armAsm->Mov(a64::w2, 1);
+	armAsm->Str(a64::w2, _vu1JitMem(_vu1Off(VU1.branch)));
 }
 
 // VI[it] = link address of BAL/JALR (it != 0)
 static void _vu1JitEmitLink(u32 it)
 {
-	a64::Label first, done;
-	armAsm->Ldr(a64::w2, _vu1JitMem(_vu1Off(VU1.branch)));
-	armAsm->Cmp(a64::w2, 1);
-	armAsm->B(a64::ne, &first);
-	armAsm->Ldr(a64::w2, _vu1JitMem(_vu1Off(VU1.branchpc)));
-	armAsm->B(&done);
-	armAsm->Bind(&first);
-	armAsm->Mov(a64::w2, s_vu1_jit_pending.tpc_v);
-	armAsm->Bind(&done);
-	armAsm->Add(a64::w2, a64::w2, 8);
-	armAsm->Lsr(a64::w2, a64::w2, 3);
+	armAsm->Mov(a64::w2, (s_vu1_jit_pending.tpc_v + 8) >> 3);
 	armAsm->Strh(a64::w2, _vu1JitVI(it));
 }
 
@@ -1911,7 +1945,7 @@ static bool _vu1JitEmitLowerInt(FnPtr_VuVoid f, u32 code)
 				&not_taken);
 		}
 		_vu1JitEmitBranchAddr(code);
-		_vu1JitEmitSetBranch();
+		_vu1JitEmitSetBranch(true);
 		armAsm->Bind(&not_taken);
 	}
 	else if (f == VU1MI_B || f == VU1MI_BAL)
@@ -1919,7 +1953,7 @@ static bool _vu1JitEmitLowerInt(FnPtr_VuVoid f, u32 code)
 		_vu1JitEmitBranchAddr(code);
 		if (f == VU1MI_BAL && it != 0)
 			_vu1JitEmitLink(it);
-		_vu1JitEmitSetBranch();
+		_vu1JitEmitSetBranch(false);
 	}
 	else if (f == VU1MI_JR || f == VU1MI_JALR)
 	{
@@ -1927,7 +1961,7 @@ static bool _vu1JitEmitLowerInt(FnPtr_VuVoid f, u32 code)
 		armAsm->Lsl(a64::w1, a64::w1, 3);
 		if (f == VU1MI_JALR && it != 0)
 			_vu1JitEmitLink(it);
-		_vu1JitEmitSetBranch();
+		_vu1JitEmitSetBranch(false);
 	}
 	else if (f == VU1MI_MFP)
 	{
@@ -2242,6 +2276,8 @@ static void _vu1JitDrop(VU1Trace& t)
 	t.entry = nullptr;
 	std::fill(std::begin(t.link_site), std::end(t.link_site), nullptr);
 	std::fill(std::begin(t.link_to), std::end(t.link_to), nullptr);
+	for (auto& s : t.sides)
+		_vu1JitDrop(*s);
 }
 
 // Points the chain jump of t to succ[i] at to (a successor's entry), or back to the indirect
@@ -2354,7 +2390,9 @@ static void _vu1JitEmitChain(VU1Trace& t)
 // entry and leaves VU1.macflag/statusflag alone. No lower op touches VI MAC/STATUS from k to the
 // retire of m, none reads VU1.statusflag (FDIV) from k to m. The entries pending at k are known
 // and do not write STATUS (their retire would replace sticky bits a fold already set).
-static std::vector<bool> _vu1JitFlagsDead(const VU1Trace& t, const std::vector<bool>& in_trace)
+// end[k]: the step count of the shortest path through step k (to the first side exit from k on).
+static std::vector<bool> _vu1JitFlagsDead(const VU1Trace& t, const std::vector<bool>& in_trace,
+	const std::vector<size_t>& end)
 {
 	constexpr u32 vi_flags = (1u << REG_STATUS_FLAG) | (1u << REG_MAC_FLAG);
 	const size_t n = t.steps.size();
@@ -2394,7 +2432,7 @@ static std::vector<bool> _vu1JitFlagsDead(const VU1Trace& t, const std::vector<b
 		size_t m = k + 1;
 		while (m < n && !t.steps[m].d.fmac)
 			m++;
-		if (m == n || !native(m) || retire[m] == n)
+		if (m >= end[k] || !native(m) || retire[m] >= end[k])
 			continue;
 		bool ok = true;
 		for (size_t j = k + 1; j < m; j++)
@@ -2434,6 +2472,19 @@ static void _vu1JitCompile(VU1Trace& t)
 		s8 vfc[8];
 	};
 	std::deque<VU1JitKick> kicks;
+	// Side exits, out of line: the compile-time state after the delay slot, for the exit's flush.
+	struct VU1JitSide
+	{
+		a64::Label exit;
+		VU1Trace* side;
+		bool clear_branch; // VU1.branch = 0: the branch was taken
+		VU1JitPending pending;
+		bool fconst_live;
+		decltype(s_vu1_jit_fl) fl;
+		decltype(s_vu1_jit_vf) vf;
+		decltype(s_vu1_jit_vfc) vfc;
+	};
+	std::deque<VU1JitSide> sides;
 	std::deque<VuJitCold> cold;
 	s_vu_jit_cold = &cold;
 	_vu1JitMark("pro");
@@ -2462,9 +2513,17 @@ static void _vu1JitCompile(VU1Trace& t)
 	armAsm->Ldr(a64::w0, vu(_vu1Off(VU1.ialureadpos)));
 	armAsm->Orr(a64::w27, a64::w27, a64::Operand(a64::w0, a64::LSL, 8));
 	// FMAC entries by pipe position: -1 = pending at trace entry, else the step that adds it.
-	// Which added entries retire within the trace, and which entry bases the code uses.
+	// Which added entries retire within the trace (before any side exit), and which entry bases
+	// the code uses.
 	int fmac_src[4] = {-1, -1, -1, -1};
 	std::vector<bool> fmac_in_trace(t.steps.size());
+	std::vector<size_t> path_end(t.steps.size());
+	for (size_t k = t.steps.size(), e = k; k-- > 0;)
+	{
+		if (t.steps[k].side >= 0)
+			e = k + 1;
+		path_end[k] = e;
+	}
 	u32 fmac_bases = 0;
 	{
 		u32 ret = 0, cnt = t.sig.fmaccount;
@@ -2472,7 +2531,7 @@ static void _vu1JitCompile(VU1Trace& t)
 		{
 			for (u32 i = 0; i < t.steps[k].fmac_retire; i++, ret++, cnt--)
 			{
-				if (fmac_src[ret & 3] >= 0)
+				if (fmac_src[ret & 3] >= 0 && k < path_end[fmac_src[ret & 3]])
 					fmac_in_trace[fmac_src[ret & 3]] = true;
 				fmac_bases |= 1u << (ret & 3);
 			}
@@ -2485,7 +2544,7 @@ static void _vu1JitCompile(VU1Trace& t)
 		}
 		std::fill(std::begin(fmac_src), std::end(fmac_src), -1);
 	}
-	const std::vector<bool> fmac_dead = _vu1JitFlagsDead(t, fmac_in_trace);
+	const std::vector<bool> fmac_dead = _vu1JitFlagsDead(t, fmac_in_trace, path_end);
 	armAsm->Mov(a64::w6, sizeof(fmacPipe));
 	for (u32 i = 0; i < 4; i++)
 	{
@@ -2498,7 +2557,8 @@ static void _vu1JitCompile(VU1Trace& t)
 	s_vu1_jit_pending.fmac_cnt = t.sig.fmaccount;
 	s_vu1_jit_pending.ialu_cnt = t.sig.ialucount;
 
-	bool prev_branch = false;
+	int prev_kind = 0; // of the previous pair: 1 = B/BAL, 2 = IBxx, 3 = JR/JALR (the countdown of _vu1Exec)
+	u32 prev_target = 0;
 	// w22 = VU1.xgkickenable: only XGKICK (never in a trace) sets it, only _vu1JitXGKICK clears it.
 	armAsm->Ldr(a64::w22, vu(_vu1Off(VU1.xgkickenable)));
 	u32 prev_rel = 0;
@@ -2509,8 +2569,11 @@ static void _vu1JitCompile(VU1Trace& t)
 		const u32 lo = static_cast<u32>(s.code);
 		const u32 hi = static_cast<u32>(s.code >> 32);
 		const bool branch_now = _vu1IsBranch(reinterpret_cast<const u32*>(&s.code), d);
-		const bool countdown = branch_now || prev_branch;
-		prev_branch = branch_now;
+		const u32 bop = lo >> 25;
+		const int slot_kind = prev_kind;
+		const u32 slot_target = prev_target;
+		prev_kind = !branch_now ? 0 : bop <= 0x21 ? 1 : (bop == 0x28 || bop == 0x29 || bop >= 0x2c) ? 2 : (bop == 0x24 || bop == 0x25) ? 3 : 0;
+		prev_target = (s.pc + 8u + _vu1Imm11(lo) * 8) & 0x3fff;
 
 		_vu1JitMark("step");
 		const u32 pc = s.pc + 8u;
@@ -2717,51 +2780,110 @@ static void _vu1JitCompile(VU1Trace& t)
 			_vu1JitEmitAddFdivEfu(d.lregs, rbase, s.cycle_rel);
 
 		_vu1JitMark("branch");
-		// VU1.branch is 0 at trace entry and no branch is in a delay slot: it is 2 after a taken
-		// branch pair, 1 after its delay slot, else 0.
-		if (countdown)
+		// _vu1Exec's countdown at the end of a delay slot: TPC = the target of a taken branch.
+		// VU1.branch is 0 again after it (_vu1JitEmitSetBranch).
+		VU1JitPending& bp = s_vu1_jit_pending;
+		const u32 fall = s.pc + 8u;
+		if (slot_kind == 1)
 		{
-			// The branch countdown of _vu1Exec, which may write TPC: nothing pending may overwrite it later.
-			_vu1JitFlush(false, false);
-			a64::Label no_branch;
-			armAsm->Ldr(a64::w0, vu(_vu1Off(VU1.branch)));
-			armAsm->Cbz(a64::w0, &no_branch);
-			armAsm->Sub(a64::w1, a64::w0, 1);
-			armAsm->Str(a64::w1, vu(_vu1Off(VU1.branch)));
-			armAsm->Cmp(a64::w0, 1);
-			armAsm->B(&no_branch, a64::ne);
-			armAsm->Ldr(a64::w1, vu(_vu1Off(VU1.branchpc)));
-			armAsm->Str(a64::w1, vu(_vu1Off(VU1.VI[REG_TPC].UL)));
-			armAsm->Ldrb(a64::w2, vu(_vu1Off(VU1.takedelaybranch)));
-			armAsm->Cbz(a64::w2, &no_branch);
-			armAsm->Mov(a64::w1, 1);
-			armAsm->Str(a64::w1, vu(_vu1Off(VU1.branch)));
-			armAsm->Ldr(a64::w1, vu(_vu1Off(VU1.delaybranchpc)));
-			armAsm->Str(a64::w1, vu(_vu1Off(VU1.branchpc)));
-			armAsm->Strb(a64::wzr, vu(_vu1Off(VU1.takedelaybranch)));
-			armAsm->Bind(&no_branch);
+			bp.tpc = true;
+			bp.tpc_v = slot_target;
 		}
-
+		else if (slot_kind == 3)
+		{
+			armAsm->Ldr(a64::w0, vu(_vu1Off(VU1.branchpc)));
+			armAsm->Str(a64::w0, vu(_vu1Off(VU1.VI[REG_TPC].UL)));
+			bp.tpc = false;
+		}
+		else if (slot_kind == 2 && slot_target == fall)
+		{
+			armAsm->Str(a64::wzr, vu(_vu1Off(VU1.branch)));
+			bp.tpc = true;
+			bp.tpc_v = fall;
+		}
+		else if (slot_kind == 2 && s.side >= 0)
+		{
+			// The trace goes on at next_pc; the other direction leaves by a side exit.
+			_vu1JitMark("side");
+			const bool taken = s.next_pc == slot_target;
+			VU1JitSide& x = sides.emplace_back();
+			x.side = t.sides[s.side].get();
+			x.clear_branch = !taken;
+			x.pending = bp;
+			x.pending.tpc = true;
+			x.pending.tpc_v = taken ? fall : slot_target;
+			x.fconst_live = s_vu1_jit_fconst_live;
+			x.fl = s_vu1_jit_fl;
+			x.vf = s_vu1_jit_vf;
+			x.vfc = s_vu1_jit_vfc;
+			armAsm->Ldr(a64::w0, vu(_vu1Off(VU1.branch)));
+			if (taken)
+			{
+				armAsm->Cbz(a64::w0, &x.exit);
+				armAsm->Str(a64::wzr, vu(_vu1Off(VU1.branch)));
+			}
+			else
+			{
+				armAsm->Cbnz(a64::w0, &x.exit);
+			}
+			bp.tpc = true;
+			bp.tpc_v = s.next_pc;
+		}
+		else if (slot_kind == 2)
+		{
+			armAsm->Ldr(a64::w0, vu(_vu1Off(VU1.branch)));
+			armAsm->Mov(a64::w1, fall);
+			armAsm->Mov(a64::w2, slot_target);
+			armAsm->Cmp(a64::w0, 0);
+			armAsm->Csel(a64::w1, a64::w2, a64::w1, a64::ne);
+			armAsm->Str(a64::w1, vu(_vu1Off(VU1.VI[REG_TPC].UL)));
+			armAsm->Str(a64::wzr, vu(_vu1Off(VU1.branch)));
+			bp.tpc = false;
+		}
 	}
 
+	const auto ret = [&]() {
+		armAsm->Ldp(rvu, rbase, a64::MemOperand(a64::sp, 16));
+		armAsm->Ldp(a64::x21, a64::x22, a64::MemOperand(a64::sp, 96));
+		armAsm->Ldp(a64::x23, a64::x24, a64::MemOperand(a64::sp, 112));
+		armAsm->Ldp(a64::x25, a64::x26, a64::MemOperand(a64::sp, 128));
+		armAsm->Ldp(a64::x27, a64::x28, a64::MemOperand(a64::sp, 144));
+		armAsm->Ldp(a64::d8, a64::d9, a64::MemOperand(a64::sp, 208));
+		armAsm->Ldp(a64::d10, a64::d11, a64::MemOperand(a64::sp, 224));
+		armAsm->Ldp(a64::d12, a64::d13, a64::MemOperand(a64::sp, 240));
+		armAsm->Ldp(a64::d14, a64::d15, a64::MemOperand(a64::sp, 256));
+		armAsm->Ldp(a64::x29, a64::lr, a64::MemOperand(a64::sp, 272, a64::PostIndex));
+		armAsm->Ret();
+	};
 	_vu1JitMark("epi");
 	_vu1JitFlush();
 	_vu1JitFlagsStore();
 	if (t.program_end)
 		armEmitCall(reinterpret_cast<const void*>(&_vu1EndProgram)); // clears VPU_STAT bit 8: no chain
-	else if (s_vu1_jit_mode == VU1JitMode::On)
+	else if (s_vu1_jit_mode == VU1JitMode::On && !t.prof_left)
 		_vu1JitEmitChain(t);
-	armAsm->Ldp(rvu, rbase, a64::MemOperand(a64::sp, 16));
-	armAsm->Ldp(a64::x21, a64::x22, a64::MemOperand(a64::sp, 96));
-	armAsm->Ldp(a64::x23, a64::x24, a64::MemOperand(a64::sp, 112));
-	armAsm->Ldp(a64::x25, a64::x26, a64::MemOperand(a64::sp, 128));
-	armAsm->Ldp(a64::x27, a64::x28, a64::MemOperand(a64::sp, 144));
-	armAsm->Ldp(a64::d8, a64::d9, a64::MemOperand(a64::sp, 208));
-	armAsm->Ldp(a64::d10, a64::d11, a64::MemOperand(a64::sp, 224));
-	armAsm->Ldp(a64::d12, a64::d13, a64::MemOperand(a64::sp, 240));
-	armAsm->Ldp(a64::d14, a64::d15, a64::MemOperand(a64::sp, 256));
-	armAsm->Ldp(a64::x29, a64::lr, a64::MemOperand(a64::sp, 272, a64::PostIndex));
-	armAsm->Ret();
+	ret();
+	_vu1JitMark("sidexit");
+	for (VU1JitSide& x : sides)
+	{
+		armAsm->Bind(&x.exit);
+		s_vu1_jit_pending = x.pending;
+		s_vu1_jit_fconst_live = x.fconst_live;
+		s_vu1_jit_fl = x.fl;
+		s_vu1_jit_vf = x.vf;
+		s_vu1_jit_vfc = x.vfc;
+		if (x.clear_branch)
+			armAsm->Str(a64::wzr, vu(_vu1Off(VU1.branch)));
+		_vu1JitFlush();
+		_vu1JitFlagsStore();
+		// _vu1TraceStep takes the exit state and successors of the trace that ran last.
+		armMoveAddressToReg(a64::x0, &s_vu1_chain.last);
+		armMoveAddressToReg(a64::x1, x.side);
+		armAsm->Str(a64::x1, a64::MemOperand(a64::x0));
+		if (s_vu1_jit_mode == VU1JitMode::On)
+			_vu1JitEmitChain(*x.side);
+		ret();
+	}
 	_vu1JitMark("kickcall");
 	for (VU1JitKick& k : kicks)
 	{
@@ -2809,9 +2931,14 @@ static void _vu1JitCompile(VU1Trace& t)
 	s_vu1_jit_ptr = armEndBlock();
 	t.code = reinterpret_cast<void (*)()>(fn);
 	t.entry = entry;
-	for (u32 i = 0; i < std::size(t.link_site); i++)
-		if (t.link_site[i])
-			t.link_slow[i] = *t.link_site[i];
+	const auto slow = [](VU1Trace& c) {
+		for (u32 i = 0; i < std::size(c.link_site); i++)
+			if (c.link_site[i])
+				c.link_slow[i] = *c.link_site[i];
+	};
+	slow(t);
+	for (auto& c : t.sides)
+		slow(*c);
 }
 
 static void _vu1TraceExec(VU1Trace& t)
@@ -2841,8 +2968,13 @@ static bool _vu1TraceCheck(VU1Trace& t)
 	const u32 start_stat = VU0.VI[REG_VPU_STAT].UL;
 	std::memcpy(&start, &VU1, sizeof(VURegs));
 	std::memcpy(start_mem, VU1.Mem, VU1_MEMSIZE);
+	// Up to the side exit the trace takes, if any.
 	for (size_t i = 0; i < t.steps.size(); i++)
+	{
 		vu1Exec(&VU1);
+		if (t.steps[i].side >= 0 && VU1.VI[REG_TPC].UL != t.steps[i].next_pc)
+			break;
+	}
 	std::memcpy(&ref, &VU1, sizeof(VURegs));
 	std::memcpy(ref_mem, VU1.Mem, VU1_MEMSIZE);
 	const u32 ref_stat = VU0.VI[REG_VPU_STAT].UL;
@@ -2937,6 +3069,14 @@ static VU1Trace* _vu1TraceLookup(u32 pc, const VU1PipeSig* known)
 				continue;
 			v->micro_gen = s_vu1_micro_gen;
 		}
+		if (v->rebuild)
+		{
+			std::unique_ptr<VU1Trace> nt = _vu1TraceCompile(pc, sig, std::move(v->hints));
+			nt->micro_gen = s_vu1_micro_gen;
+			s_vu1_freed.push_back(std::move(v));
+			v = std::move(nt);
+			s_vu1_trace_epoch++;
+		}
 		t = v.get();
 		break;
 	}
@@ -2953,7 +3093,10 @@ static VU1Trace* _vu1TraceLookup(u32 pc, const VU1PipeSig* known)
 			slot.next = (slot.next + 1) % VU1_TRACE_VARIANTS;
 		}
 		if (*it)
+		{
+			s_vu1_freed.push_back(std::move(*it));
 			s_vu1_trace_epoch++;
+		}
 		*it = std::move(nt);
 		t = it->get();
 		t->micro_gen = s_vu1_micro_gen;
@@ -2969,6 +3112,7 @@ bool _vu1TraceStep(u64 startcycles, u32 cycles)
 		return false;
 	VU1.VI[REG_TPC].UL &= VU1_PROGMASK;
 	const u32 pc = VU1.VI[REG_TPC].UL;
+	s_vu1_freed.clear();
 
 	// Straight after another trace the pipe state is that trace's exit_sig.
 	VU1Trace* const prev = s_vu1_prev;
@@ -3013,15 +3157,35 @@ bool _vu1TraceStep(u64 startcycles, u32 cycles)
 	if ((VU1.cycle + t->last_start_rel - startcycles) >= cycles)
 		return false;
 
+	s_vu1_chain.limit = startcycles + cycles;
+	s_vu1_chain.last = t;
 	if (!(s_vu1_jit_mode == VU1JitMode::Check && _vu1TraceCheck(*t)))
 	{
-		s_vu1_chain.limit = startcycles + cycles;
-		s_vu1_chain.last = t;
 		VU1Trace* const first = t;
 		_vu1TraceExec(*t);
 		if (link >= 0 && first->entry)
 			_vu1JitLink(*prev, link, first->entry);
-		t = s_vu1_chain.last;
+	}
+	t = s_vu1_chain.last;
+
+	if (t->prof_left)
+	{
+		const u16 next = static_cast<u16>(VU1.VI[REG_TPC].UL & VU1_PROGMASK);
+		for (u32 i = 0; i < 2; i++)
+		{
+			if (t->prof_cnt[i] && t->prof_pc[i] != next)
+				continue;
+			t->prof_pc[i] = next;
+			t->prof_cnt[i]++;
+			break;
+		}
+		if (--t->prof_left == 0)
+		{
+			const u32 i = t->prof_cnt[1] > t->prof_cnt[0];
+			t->hints.emplace_back(t->prof_branch, t->prof_cnt[i] >= VU1_TRACE_PROF_HINT ? t->prof_pc[i] : 0xffff);
+			t->rebuild = true;
+			t->micro_gen = 0;
+		}
 	}
 
 	if (t->exit_known == 0)
