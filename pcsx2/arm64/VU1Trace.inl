@@ -103,7 +103,8 @@ static void _vu1Decode(VU1DecodedPair& d, const u32* ptr)
 	d.valid = 1;
 }
 
-// VU1 traces: runs of pairs from one entry PC up to a branch delay slot, compiled for one state
+// VU1 traces: runs of pairs from one entry PC up to a branch delay slot (B and BAL are followed to
+// their target, once per target), compiled for one state
 // of the FMAC/IALU/FDIV/EFU pipes at entry. _vu1Exec's stall and flush decisions depend
 // only on that state (remaining cycles and registers of the pending entries) and on the code,
 // so they are worked out once at compile time by running the same functions on a copy of VU1.
@@ -134,6 +135,7 @@ struct VU1TraceStep
 	u8 fdiv_retire;
 	u8 efu_retire;
 	u8 efu_dec; // the EFU stall check shortened efu.Cycle by one
+	u16 pc; // of the pair: not sequential past a B/BAL delay slot
 };
 
 struct VU1Trace
@@ -275,6 +277,11 @@ static VU1DecodedPair& _vu1DecodedAt(u32 pc)
 	return d;
 }
 
+static s32 _vu1Imm11(u32 code)
+{
+	return (code & 0x400) ? static_cast<s32>(code & 0x3ff) - 0x400 : static_cast<s32>(code & 0x3ff);
+}
+
 // Whether the pair at pc cannot be in a trace: D/T flags, or an E-bit pair whose delay slot the
 // trace cannot also run (flags, a branch, or an FMAC op: _vu1Exec ends the program before that
 // op's FMAC write position moves).
@@ -302,6 +309,8 @@ static std::unique_ptr<VU1Trace> _vu1TraceCompile(u32 pc, const VU1PipeSig& sig)
 	t->sig = sig;
 	bool delay_slot = false;
 	bool end_slot = false;
+	u32 jump = 0; // target + 1 of a B/BAL whose delay slot is next
+	std::vector<bool> seen(VU1_PROGSIZE / 8);
 	while (pc < VU1_PROGSIZE && t->steps.size() < VU1_TRACE_MAX_STEPS)
 	{
 		const u32* ptr = reinterpret_cast<const u32*>(&VU1.Micro[pc]);
@@ -317,6 +326,8 @@ static std::unique_ptr<VU1Trace> _vu1TraceCompile(u32 pc, const VU1PipeSig& sig)
 		VU1TraceStep& s = t->steps.emplace_back();
 		s.code = d.code;
 		s.d = d;
+		s.pc = static_cast<u16>(pc);
+		seen[pc >> 3] = true;
 		t->last_start_rel = static_cast<u32>(sim.cycle - base);
 
 		sim.cycle++;
@@ -352,8 +363,19 @@ static std::unique_ptr<VU1Trace> _vu1TraceCompile(u32 pc, const VU1PipeSig& sig)
 		}
 		end_slot = ebit;
 		if (delay_slot)
-			break;
+		{
+			// _vu1Exec moves TPC to the target after this pair: the trace goes on there.
+			if (!jump || ebit || seen[(jump - 1) >> 3])
+				break;
+			pc = jump - 1;
+			jump = 0;
+			delay_slot = false;
+			continue;
+		}
 		delay_slot = branch;
+		const u32 op = ptr[0] >> 25;
+		if (branch && (op == 0x20 || op == 0x21)) // B, BAL
+			jump = ((pc + _vu1Imm11(ptr[0]) * 8) & VU1_PROGMASK) + 1;
 	}
 	VU1.code = saved_code;
 	return t;
@@ -1590,11 +1612,6 @@ static void _vu1JitEmitUpper(FnPtr_VuVoid f, u32 code, bool dead = false)
 		_vu1JitEmitHandler(f);
 }
 
-static s32 _vu1Imm11(u32 code)
-{
-	return (code & 0x400) ? static_cast<s32>(code & 0x3ff) - 0x400 : static_cast<s32>(code & 0x3ff);
-}
-
 // x1 = VU1.Mem + ((VI[reg] + imm) & 0x3ff) * 16, as GET_VU_MEM for VU1 after the u16 truncation.
 static void _vu1JitEmitMemAddrImm(u32 reg, s32 imm)
 {
@@ -2481,8 +2498,7 @@ static void _vu1JitCompile(VU1Trace& t)
 	s_vu1_jit_pending.fmac_cnt = t.sig.fmaccount;
 	s_vu1_jit_pending.ialu_cnt = t.sig.ialucount;
 
-	u32 pc = VU1.VI[REG_TPC].UL;
-	bool branch_seen = false;
+	bool prev_branch = false;
 	// w22 = VU1.xgkickenable: only XGKICK (never in a trace) sets it, only _vu1JitXGKICK clears it.
 	armAsm->Ldr(a64::w22, vu(_vu1Off(VU1.xgkickenable)));
 	u32 prev_rel = 0;
@@ -2492,10 +2508,12 @@ static void _vu1JitCompile(VU1Trace& t)
 		const size_t step = &s - t.steps.data();
 		const u32 lo = static_cast<u32>(s.code);
 		const u32 hi = static_cast<u32>(s.code >> 32);
-		branch_seen |= _vu1IsBranch(reinterpret_cast<const u32*>(&s.code), d);
+		const bool branch_now = _vu1IsBranch(reinterpret_cast<const u32*>(&s.code), d);
+		const bool countdown = branch_now || prev_branch;
+		prev_branch = branch_now;
 
 		_vu1JitMark("step");
-		pc += 8;
+		const u32 pc = s.pc + 8u;
 		s_vu1_jit_pending.tpc = s_vu1_jit_pending.cycle = true;
 		s_vu1_jit_pending.tpc_v = pc;
 		s_vu1_jit_pending.cycle_rel = s.cycle_rel;
@@ -2699,8 +2717,9 @@ static void _vu1JitCompile(VU1Trace& t)
 			_vu1JitEmitAddFdivEfu(d.lregs, rbase, s.cycle_rel);
 
 		_vu1JitMark("branch");
-		// VU1.branch is 0 at trace entry: it can only be set from the first branch pair on.
-		if (branch_seen)
+		// VU1.branch is 0 at trace entry and no branch is in a delay slot: it is 2 after a taken
+		// branch pair, 1 after its delay slot, else 0.
+		if (countdown)
 		{
 			// The branch countdown of _vu1Exec, which may write TPC: nothing pending may overwrite it later.
 			_vu1JitFlush(false, false);
@@ -2904,17 +2923,15 @@ static VU1Trace* _vu1TraceLookup(u32 pc, const VU1PipeSig* known)
 			continue;
 		if (v->micro_gen != s_vu1_micro_gen)
 		{
-			u32 p = pc;
 			bool same = true;
 			for (const VU1TraceStep& s : v->steps)
 			{
-				const u32* sp = reinterpret_cast<const u32*>(&VU1.Micro[p]);
+				const u32* sp = reinterpret_cast<const u32*>(&VU1.Micro[s.pc]);
 				if (s.code != (static_cast<u64>(sp[0]) | (static_cast<u64>(sp[1]) << 32)))
 				{
 					same = false;
 					break;
 				}
-				p += 8;
 			}
 			if (!same)
 				continue;
