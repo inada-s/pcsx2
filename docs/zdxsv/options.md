@@ -114,6 +114,7 @@ off. Any other value turns it on. Without `net=1` the session is a synctest. Log
 | `ZDXSV_RERUN_TAIL=n` | 2 | control | The last n rerun frames of a rollback run the game's render callbacks, the last n - 1 VU1 microprograms. Below 2 the picture after a rollback breaks (`tests/zdxsv/rerunpic.sh` FAIL control). |
 | `ZDXSV_PRESENT_FIRST=0` | on | control | With `ZdxsvLowLatencyVsync` in a GGPO session: the limiter sleep and the input poll come before the rollback. Default: present, rollback, then sleep and poll, so a rollback shorter than the sleep does not delay the next present; a corrected frame shows one frame later. |
 | `ZDXSV_RERUN_EE_DRAW=1` | off | control | The game's render callbacks run in every rerun frame. Default: not in rerun frames but the last two (see rollback.md). |
+| `ZDXSV_RERUN_DRAW=0` | on | control | The GS drops the draw calls of rollback rerun frames. Default: drawn (not presented; the next frame draws over them). |
 | `ZDXSV_NET_TAIL=n` | 300 | tuning | Frames run after the battle end message before the session stops. |
 | `ZDXSV_NET_DISCONNECT_MS=ms` | 5000 | tuning | GGPO disconnect timeout. |
 | `ZDXSV_NET_PUMP=0` | on | control | No GGPO pump thread: the sockets are polled only by the frame loop, so pings and relayed packets wait up to a frame. |

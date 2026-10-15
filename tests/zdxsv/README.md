@@ -17,6 +17,8 @@ its header comment.
   build `battlereg/`.
 - Lobby save states (`STATES`) and the rbk start states (`RBKSTATES`, made by
   `rbkprep.sh`) are made on the machine; they are not part of this repository.
+- Instance settings of the rig clients: merge `pcsx2.ini.part` into each
+  `$RUN/pN/PCSX2/inis/PCSX2.ini` (`@IP@` = `IP`).
 
 ## Settings
 
