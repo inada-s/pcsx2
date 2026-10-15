@@ -426,6 +426,11 @@ struct VU1JitPending
 	bool tpc, cycle, code, fmac;
 	u32 tpc_v, cycle_rel, code_v;
 	u32 fmac_ret, fmac_cnt;
+	// VIBackupCycles and VIRegNumber: known from the first backup on (vib_reg -1: not known),
+	// else at most vib_max. vib_dirty: the known VIBackupCycles is not stored yet.
+	bool vib_known, vib_dirty;
+	u8 vib_cycles, vib_max;
+	s8 vib_reg;
 };
 static VU1JitPending s_vu1_jit_pending;
 // The FMAC constant registers (_vuJitEmitFconst) are loaded; calls clobber them.
@@ -601,8 +606,21 @@ static void _vu1JitFlush(bool keep = false, bool fmac = true)
 		armAsm->Mov(a64::w0, p.code_v);
 		armAsm->Str(a64::w0, _vu1JitMem(_vu1Off(VU1.code)));
 	}
+	if (p.vib_dirty)
+	{
+		armAsm->Mov(a64::w0, p.vib_cycles);
+		armAsm->Strb(a64::w0, _vu1JitMem(_vu1Off(VU1.VIBackupCycles)));
+	}
 	if (!keep)
-		p.tpc = p.cycle = p.code = false;
+		p.tpc = p.cycle = p.code = p.vib_dirty = false;
+}
+
+// The lower ops that call _vuBackupVI, the only writer of VIBackupCycles but the per-step decrement.
+static bool _vu1BacksUpVI(FnPtr_VuVoid f)
+{
+	return f == VU1MI_IADD || f == VU1MI_IADDI || f == VU1MI_IADDIU || f == VU1MI_IAND || f == VU1MI_IOR ||
+		   f == VU1MI_ISUB || f == VU1MI_ISUBIU || f == VU1MI_LQD || f == VU1MI_LQI || f == VU1MI_MTIR ||
+		   f == VU1MI_SQD || f == VU1MI_SQI;
 }
 
 static void _vu1JitEmitHandler(FnPtr_VuVoid f)
@@ -614,6 +632,11 @@ static void _vu1JitEmitHandler(FnPtr_VuVoid f)
 		_vu1JitFlSave(false);
 		armEmitCall(reinterpret_cast<const void*>(f));
 		_vu1JitFlSave(true);
+		if (_vu1BacksUpVI(f))
+		{
+			s_vu1_jit_pending.vib_known = false;
+			s_vu1_jit_pending.vib_max = 2;
+		}
 		s_vu1_jit_fconst_live = false;
 		s_vu1_jit_vf.acc_live = false;
 		_vu1JitVfcReset();
@@ -1594,25 +1617,54 @@ static a64::MemOperand _vu1JitVI(u32 reg)
 // _vuBackupVI(&VU1, reg)
 static void _vu1JitEmitBackupVI(u32 reg)
 {
-	a64::Label set, done;
-	armAsm->Ldrb(a64::w2, _vu1JitMem(_vu1Off(VU1.VIBackupCycles)));
-	armAsm->Cbz(a64::w2, &set);
-	armAsm->Ldr(a64::w2, _vu1JitMem(_vu1Off(VU1.VIRegNumber)));
-	armAsm->Cmp(a64::w2, reg);
-	armAsm->B(a64::eq, &done);
-	armAsm->Bind(&set);
-	armAsm->Mov(a64::w2, reg);
-	armAsm->Str(a64::w2, _vu1JitMem(_vu1Off(VU1.VIRegNumber)));
-	armAsm->Ldrh(a64::w2, _vu1JitVI(reg));
-	armAsm->Str(a64::w2, _vu1JitMem(_vu1Off(VU1.VIOldValue)));
-	armAsm->Bind(&done);
-	armAsm->Mov(a64::w2, 2);
-	armAsm->Strb(a64::w2, _vu1JitMem(_vu1Off(VU1.VIBackupCycles)));
+	VU1JitPending& p = s_vu1_jit_pending;
+	if (!p.vib_known)
+	{
+		a64::Label set, done;
+		armAsm->Ldrb(a64::w2, _vu1JitMem(_vu1Off(VU1.VIBackupCycles)));
+		armAsm->Cbz(a64::w2, &set);
+		armAsm->Ldr(a64::w2, _vu1JitMem(_vu1Off(VU1.VIRegNumber)));
+		armAsm->Cmp(a64::w2, reg);
+		armAsm->B(a64::eq, &done);
+		armAsm->Bind(&set);
+		armAsm->Mov(a64::w2, reg);
+		armAsm->Str(a64::w2, _vu1JitMem(_vu1Off(VU1.VIRegNumber)));
+		armAsm->Ldrh(a64::w2, _vu1JitVI(reg));
+		armAsm->Str(a64::w2, _vu1JitMem(_vu1Off(VU1.VIOldValue)));
+		armAsm->Bind(&done);
+		armAsm->Mov(a64::w2, 2);
+		armAsm->Strb(a64::w2, _vu1JitMem(_vu1Off(VU1.VIBackupCycles)));
+		p.vib_known = true;
+		p.vib_dirty = false;
+	}
+	else
+	{
+		if (!p.vib_cycles || p.vib_reg != static_cast<s8>(reg))
+		{
+			if (p.vib_reg != static_cast<s8>(reg))
+			{
+				armAsm->Mov(a64::w2, reg);
+				armAsm->Str(a64::w2, _vu1JitMem(_vu1Off(VU1.VIRegNumber)));
+			}
+			armAsm->Ldrh(a64::w2, _vu1JitVI(reg));
+			armAsm->Str(a64::w2, _vu1JitMem(_vu1Off(VU1.VIOldValue)));
+		}
+		p.vib_dirty |= p.vib_cycles != 2;
+	}
+	p.vib_cycles = 2;
+	p.vib_reg = static_cast<s8>(reg);
 }
 
 // w = VI[reg] as s16, the value before the last write while VIBackupCycles is set (conditional branches).
 static void _vu1JitEmitBranchSrc(const a64::Register& w, u32 reg)
 {
+	const VU1JitPending& p = s_vu1_jit_pending;
+	if (p.vib_known)
+	{
+		const bool old = p.vib_cycles && p.vib_reg == static_cast<s8>(reg);
+		armAsm->Ldrsh(w, old ? _vu1JitMem(_vu1Off(VU1.VIOldValue)) : _vu1JitVI(reg));
+		return;
+	}
 	a64::Label done;
 	armAsm->Ldrsh(w, _vu1JitVI(reg));
 	armAsm->Ldrb(a64::w3, _vu1JitMem(_vu1Off(VU1.VIBackupCycles)));
@@ -2206,14 +2258,6 @@ static void _vu1JitReset()
 				_vu1JitDrop(*v);
 }
 
-// The lower ops that call _vuBackupVI, the only writer of VIBackupCycles but the per-step decrement.
-static bool _vu1BacksUpVI(FnPtr_VuVoid f)
-{
-	return f == VU1MI_IADD || f == VU1MI_IADDI || f == VU1MI_IADDIU || f == VU1MI_IAND || f == VU1MI_IOR ||
-		   f == VU1MI_ISUB || f == VU1MI_ISUBIU || f == VU1MI_LQD || f == VU1MI_LQI || f == VU1MI_MTIR ||
-		   f == VU1MI_SQD || f == VU1MI_SQI;
-}
-
 // Before the register restore: the checks of InterpVU1::Execute and _vu1TraceStep for running
 // the next trace, then a jump to its entry, else on to the restore. The frame and x19/x21 stay.
 // Only x0-x15 are used (x16/x17 are VIXL scratch).
@@ -2349,6 +2393,7 @@ static void _vu1JitCompile(VU1Trace& t)
 	armSetAsmPtr(s_vu1_jit_ptr, s_vu1_jit_end - s_vu1_jit_ptr, &s_vu1_jit_pool);
 	u8* const fn = armStartBlock();
 	s_vu1_jit_pending = {};
+	s_vu1_jit_pending.vib_max = 2; // VIBackupCycles at entry: set to 2 by _vuBackupVI only
 	s_vu1_jit_fconst_live = false;
 	s_vu1_jit_fl = {};
 	s_vu1_jit_vf = {};
@@ -2430,9 +2475,6 @@ static void _vu1JitCompile(VU1Trace& t)
 	bool branch_seen = false;
 	// w22 = VU1.xgkickenable: only XGKICK (never in a trace) sets it, only _vu1JitXGKICK clears it.
 	armAsm->Ldr(a64::w22, vu(_vu1Off(VU1.xgkickenable)));
-	// Steps that may still see VIBackupCycles != 0: it is at most 2, set by the VI-writing lower
-	// handlers, and every step takes at least one cycle off it.
-	u32 vib_steps = 2;
 	u32 prev_rel = 0;
 	for (const VU1TraceStep& s : t.steps)
 	{
@@ -2450,9 +2492,23 @@ static void _vu1JitCompile(VU1Trace& t)
 
 		_vu1JitMark("vib");
 		// VIBackupCycles -= min((u8)(cycle - cyclesBeforeOp), VIBackupCycles)
-		if (vib_steps)
+		VU1JitPending& vp = s_vu1_jit_pending;
+		const u8 vib_dt = static_cast<u8>(s.cycle_rel - prev_rel);
+		if (vp.vib_known)
 		{
-			vib_steps--;
+			const u8 dec = std::min(vib_dt, vp.vib_cycles);
+			vp.vib_cycles -= dec;
+			vp.vib_dirty |= dec != 0;
+		}
+		else if (vp.vib_max)
+		{
+			vp.vib_max -= std::min(vib_dt, vp.vib_max);
+			if (!vp.vib_max)
+			{
+				vp.vib_known = true;
+				vp.vib_cycles = 0;
+				vp.vib_reg = -1;
+			}
 			a64::Label no_vib;
 			armAsm->Ldrb(a64::w0, vu(_vu1Off(VU1.VIBackupCycles)));
 			armAsm->Cbz(a64::w0, &no_vib);
@@ -2604,8 +2660,6 @@ static void _vu1JitCompile(VU1Trace& t)
 					_vu1JitVfcDrop(r);
 			s_vu1_jit_vfc.put = 0;
 		}
-		if (!d.ibit && _vu1BacksUpVI(d.lower))
-			vib_steps = 2;
 		if (lo_flags && (d.lregs.VIwrite & vi_flags))
 			s_vu1_jit_fl.st_loaded = false;
 		_vu1JitMark("addpipe");
