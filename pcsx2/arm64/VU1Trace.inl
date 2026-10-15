@@ -419,13 +419,14 @@ static a64::MemOperand _vu1JitMem(s64 off)
 
 // TPC, cycle and code of the current step: native code knows them at compile time, so they are
 // stored only before a call that may read them and at trace exit.
-// The FMAC read/write positions and count too: the count is part of the trace key, the read
-// position at entry is in w27, entries retired since then are known.
+// The FMAC and IALU read/write positions and counts too: the counts are part of the trace key, the
+// read positions at entry are in w27 (FMAC bits 0-1, IALU bits 8-9), entries retired since then are known.
 struct VU1JitPending
 {
-	bool tpc, cycle, code, fmac;
+	bool tpc, cycle, code, fmac, ialu;
 	u32 tpc_v, cycle_rel, code_v;
 	u32 fmac_ret, fmac_cnt;
+	u32 ialu_ret, ialu_cnt;
 	// VIBackupCycles and VIRegNumber: known from the first backup on (vib_reg -1: not known),
 	// else at most vib_max. vib_dirty: the known VIBackupCycles is not stored yet.
 	bool vib_known, vib_dirty;
@@ -574,7 +575,7 @@ static void _vu1JitFlSave(bool load)
 }
 
 // Clobbers w0/x1. keep: the stores sit on a conditional path, the values stay pending after it.
-// fmac = false: the callee does not touch the FMAC pipe.
+// fmac = false: the callee does not touch the FMAC and IALU pipes.
 static void _vu1JitFlush(bool keep = false, bool fmac = true)
 {
 	VU1JitPending& p = s_vu1_jit_pending;
@@ -590,6 +591,19 @@ static void _vu1JitFlush(bool keep = false, bool fmac = true)
 		armAsm->Str(a64::w0, _vu1JitMem(_vu1Off(VU1.fmaccount)));
 		if (!keep)
 			p.fmac = false;
+	}
+	if (fmac && p.ialu)
+	{
+		armAsm->Add(a64::w0, a64::w27, (p.ialu_ret & 3) << 8);
+		armAsm->Ubfx(a64::w0, a64::w0, 8, 2);
+		armAsm->Str(a64::w0, _vu1JitMem(_vu1Off(VU1.ialureadpos)));
+		armAsm->Add(a64::w0, a64::w27, ((p.ialu_ret + p.ialu_cnt) & 3) << 8);
+		armAsm->Ubfx(a64::w0, a64::w0, 8, 2);
+		armAsm->Str(a64::w0, _vu1JitMem(_vu1Off(VU1.ialuwritepos)));
+		armAsm->Mov(a64::w0, p.ialu_cnt);
+		armAsm->Str(a64::w0, _vu1JitMem(_vu1Off(VU1.ialucount)));
+		if (!keep)
+			p.ialu = false;
 	}
 	if (p.tpc)
 	{
@@ -642,18 +656,6 @@ static void _vu1JitEmitHandler(FnPtr_VuVoid f)
 		_vu1JitVfcReset();
 		s_vu1_jit_fl.st_loaded = s_vu1_jit_fl.scratch = false;
 	}
-}
-
-// pos = (pos + 1) & 3, count += delta
-static void _vu1JitEmitPosStep(s64 off_pos, s64 off_count, int delta)
-{
-	armAsm->Ldr(a64::w0, _vu1JitMem(off_pos));
-	armAsm->Add(a64::w0, a64::w0, 1);
-	armAsm->And(a64::w0, a64::w0, 3);
-	armAsm->Str(a64::w0, _vu1JitMem(off_pos));
-	armAsm->Ldr(a64::w0, _vu1JitMem(off_count));
-	armAsm->Add(a64::w0, a64::w0, delta);
-	armAsm->Str(a64::w0, _vu1JitMem(off_count));
 }
 
 // x23 + i = &VU1 + ((fmacreadpos at trace entry + i) & 3) * sizeof(fmacPipe)
@@ -812,11 +814,12 @@ static void _vu1JitEmitAddFMAC(const VU1DecodedPair& d, const a64::Register& rb,
 				  offsetof(fmacPipe, statusflag) + 4 == offsetof(fmacPipe, clipflag) && sizeof(fmacPipe) == 48);
 }
 
-// _vuAddIALUStalls (cycles != 0)
-static void _vu1JitEmitAddIALU(const _VURegsNum& r, const a64::Register& rbase, u32 cycle_rel)
+// _vuAddIALUStalls (cycles != 0); the caller tracks the write position and count.
+static void _vu1JitEmitAddIALU(const _VURegsNum& r, const a64::Register& rbase, u32 cycle_rel, u32 pos)
 {
 	const s64 off_ialu = _vu1Off(VU1.ialu[0]);
-	armAsm->Ldr(a64::w0, _vu1JitMem(_vu1Off(VU1.ialuwritepos)));
+	armAsm->Add(a64::w0, a64::w27, (pos & 3) << 8);
+	armAsm->Ubfx(a64::w0, a64::w0, 8, 2);
 	armAsm->Mov(a64::w6, sizeof(ialuPipe));
 	armAsm->Umaddl(a64::x5, a64::w0, a64::w6, s_vu1_jit_rvu);
 	armAsm->Mov(a64::w1, r.VIwrite);
@@ -825,7 +828,6 @@ static void _vu1JitEmitAddIALU(const _VURegsNum& r, const a64::Register& rbase, 
 	armAsm->Str(a64::x1, a64::MemOperand(a64::x5, off_ialu + offsetof(ialuPipe, sCycle)));
 	armAsm->Mov(a64::w1, r.cycles);
 	armAsm->Str(a64::w1, a64::MemOperand(a64::x5, off_ialu + offsetof(ialuPipe, Cycle)));
-	_vu1JitEmitPosStep(_vu1Off(VU1.ialuwritepos), _vu1Off(VU1.ialucount), 1);
 }
 
 // _vuFDIVAdd / _vuEFUAdd: Q or P and the status flag are already stored by the op.
@@ -2435,6 +2437,8 @@ static void _vu1JitCompile(VU1Trace& t)
 	u8* const entry = armGetCurrentCodePointer();
 	armAsm->Ldr(rbase, vu(off_cycle));
 	armAsm->Ldr(a64::w27, vu(_vu1Off(VU1.fmacreadpos)));
+	armAsm->Ldr(a64::w0, vu(_vu1Off(VU1.ialureadpos)));
+	armAsm->Orr(a64::w27, a64::w27, a64::Operand(a64::w0, a64::LSL, 8));
 	// FMAC entries by pipe position: -1 = pending at trace entry, else the step that adds it.
 	// Which added entries retire within the trace, and which entry bases the code uses.
 	int fmac_src[4] = {-1, -1, -1, -1};
@@ -2470,6 +2474,7 @@ static void _vu1JitCompile(VU1Trace& t)
 		armAsm->Umaddl(_vu1JitFmacBase(i), a64::w0, a64::w6, rvu);
 	}
 	s_vu1_jit_pending.fmac_cnt = t.sig.fmaccount;
+	s_vu1_jit_pending.ialu_cnt = t.sig.ialucount;
 
 	u32 pc = VU1.VI[REG_TPC].UL;
 	bool branch_seen = false;
@@ -2557,8 +2562,12 @@ static void _vu1JitCompile(VU1Trace& t)
 			armAsm->Ldr(a64::w0, vu(_vu1Off(VU1.efu.reg.UL)));
 			armAsm->Str(a64::w0, vu(_vu1Off(VU1.VI[REG_P].UL)));
 		}
-		for (u32 i = 0; i < s.ialu_retire; i++)
-			_vu1JitEmitPosStep(_vu1Off(VU1.ialureadpos), _vu1Off(VU1.ialucount), -1);
+		if (s.ialu_retire)
+		{
+			s_vu1_jit_pending.ialu_ret += s.ialu_retire;
+			s_vu1_jit_pending.ialu_cnt -= s.ialu_retire;
+			s_vu1_jit_pending.ialu = true;
+		}
 
 		_vu1JitMark("kick");
 		kicks.emplace_back();
@@ -2674,7 +2683,12 @@ static void _vu1JitCompile(VU1Trace& t)
 			p.fmac = true;
 		}
 		if (d.lregs.pipe == VUPIPE_IALU && d.lregs.cycles != 0)
-			_vu1JitEmitAddIALU(d.lregs, rbase, s.cycle_rel);
+		{
+			VU1JitPending& p = s_vu1_jit_pending;
+			_vu1JitEmitAddIALU(d.lregs, rbase, s.cycle_rel, p.ialu_ret + p.ialu_cnt);
+			p.ialu_cnt++;
+			p.ialu = true;
+		}
 		else if ((d.lregs.pipe == VUPIPE_FDIV && (d.lregs.VIwrite & (1 << REG_Q))) ||
 				 (d.lregs.pipe == VUPIPE_EFU && (d.lregs.VIwrite & (1 << REG_P))))
 			_vu1JitEmitAddFdivEfu(d.lregs, rbase, s.cycle_rel);
