@@ -4,6 +4,7 @@
 # Entry flake (230 client entries measured): first send 10.5-10.6 s after the
 # driver connects (222), or never before the game's ~106 s RST (8 = 3.5 %; route timing, frames
 # per hold and load did not explain it). ENTRY1_WAIT (25 s) past entry1, ENTRY_TRIES (3) launches.
+# Control for the retry: ENTRY1="bash tests/zdxsv/entryfault.sh" (one entry1 sends nothing).
 entry1_retry() {
   local i=$1 k out pid
   shift
