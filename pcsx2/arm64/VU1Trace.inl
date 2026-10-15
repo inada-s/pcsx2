@@ -1271,7 +1271,23 @@ static void _vuJitEmitFmacCore(const VU1FmacDesc* desc, u32 code, const a64::Reg
 	const s64 off_dst = desc->acc ? _vu1Off(VU1.ACC) : _vu1Off(VU1.VF[fd]);
 	// Full 16-byte stores: a later 16-byte load of the register is forwarded only from one.
 	const bool acc_reg = desc->acc && acc_live;
-	if (lanes != 0xf && lanes != 0)
+	const int nlanes = std::popcount(lanes);
+	if (nlanes == 2 || nlanes == 3)
+	{
+		// res is scratch: the old value's lanes go into it, no more inserts than the other way.
+		a64::VRegister old = a64::v4;
+		const s8 s = !desc->acc && s_vu1_jit_vfc.on ? s_vu1_jit_vfc.slot[fd] : -1;
+		if (acc_reg && *acc_live)
+			old = a64::v30;
+		else if (s >= 0)
+			old = a64::VRegister(8 + s, 128);
+		else
+			armAsm->Ldr(a64::q4, _vu1JitMem(off_dst));
+		for (int i = 0; i < 4; i++)
+			if (!(lanes & (8 >> i)))
+				armAsm->Mov(res.V4S(), i, old.V4S(), i);
+	}
+	else if (nlanes == 1)
 	{
 		if (acc_reg && *acc_live)
 			armAsm->Mov(a64::v4.V16B(), a64::v30.V16B());
@@ -1561,7 +1577,7 @@ static void _vu1JitEmitMemAddrImm(u32 reg, s32 imm)
 	if (imm)
 		armAsm->Add(a64::w0, a64::w0, imm);
 	armAsm->And(a64::w0, a64::w0, 0x3ff);
-	armAsm->Ldr(a64::x1, _vu1JitMem(_vu1Off(VU1.Mem)));
+	armMoveAddressToReg(a64::x1, VU1.Mem); // fixed for the process (SysMemory): no load
 	armAsm->Add(a64::x1, a64::x1, a64::Operand(a64::x0, a64::LSL, 4));
 }
 
