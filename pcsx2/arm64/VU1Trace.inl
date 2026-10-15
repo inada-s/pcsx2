@@ -1598,6 +1598,11 @@ static s32 _vu1Imm11(u32 code)
 // x1 = VU1.Mem + ((VI[reg] + imm) & 0x3ff) * 16, as GET_VU_MEM for VU1 after the u16 truncation.
 static void _vu1JitEmitMemAddrImm(u32 reg, s32 imm)
 {
+	if (reg == 0) // VI[0] is 0
+	{
+		armMoveAddressToReg(a64::x1, VU1.Mem + (imm & 0x3ff) * 16);
+		return;
+	}
 	armAsm->Ldrh(a64::w0, _vu1JitMem(_vu1Off(VU1.VI[reg])));
 	if (imm)
 		armAsm->Add(a64::w0, a64::w0, imm);
