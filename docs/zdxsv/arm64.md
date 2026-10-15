@@ -100,6 +100,9 @@ Same results as the interpreter.
   op with the full x86 NaN rules out of line after the trace.
 - Within a trace ACC stays in a register across native FMAC ops, and operand
   lanes a native x86 FMAC op wrote in the trace (FTZ done) skip DAZ.
+- Within a trace the last 8 VF registers written by native code also stay in
+  v8..v15: later reads skip the store-to-load round trip (the stores remain).
+  A handler call or a write the cache does not track drops them.
 - With the VU1 FPCR at DAZ/FTZ (FZ) and round toward zero (the default),
   native x86 FMAC ops emit no DAZ/FTZ code: FZ flushes denormal operands and
   results in hardware. FZ tests tininess before rounding, x86 after it; toward

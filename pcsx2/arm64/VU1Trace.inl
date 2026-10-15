@@ -412,6 +412,59 @@ static struct
 	s8 out_reg; // the native FMAC result of the current pair: register, lanes
 	u8 out_lanes;
 } s_vu1_jit_vf;
+// Within a trace: VF[1..31] also in v8 + slot[i] (-1 = memory only), so a later read skips the
+// store-to-load round trip (~8 cycles on Apple M). Memory stays current: the stores remain.
+// Writes the cache does not see drop entries at the end of the step; calls clobber v8..v15.
+static struct
+{
+	bool on;
+	s8 slot[32];
+	s8 vf[8];
+	u8 next;
+	u32 put; // VF registers put in the current step
+} s_vu1_jit_vfc;
+static void _vu1JitVfcReset()
+{
+	std::fill(std::begin(s_vu1_jit_vfc.slot), std::end(s_vu1_jit_vfc.slot), -1);
+	std::fill(std::begin(s_vu1_jit_vfc.vf), std::end(s_vu1_jit_vfc.vf), -1);
+}
+static void _vu1JitVfcDrop(u32 vf)
+{
+	const s8 s = s_vu1_jit_vfc.slot[vf];
+	if (s >= 0)
+	{
+		s_vu1_jit_vfc.vf[s] = -1;
+		s_vu1_jit_vfc.slot[vf] = -1;
+	}
+}
+// v holds the whole of VF[vf], just stored.
+static void _vu1JitVfcPut(u32 vf, const a64::VRegister& v)
+{
+	auto& c = s_vu1_jit_vfc;
+	if (!c.on || vf == 0 || vf >= 32)
+		return;
+	s8 s = c.slot[vf];
+	if (s < 0)
+	{
+		s = static_cast<s8>(c.next);
+		c.next = (c.next + 1) & 7;
+		if (c.vf[s] >= 0)
+			c.slot[c.vf[s]] = -1;
+		c.vf[s] = static_cast<s8>(vf);
+		c.slot[vf] = s;
+	}
+	c.put |= 1u << vf;
+	armAsm->Mov(a64::VRegister(8 + s, 128).V16B(), v.V16B());
+}
+// q = VF[vf] (rvu = &VU1).
+static void _vu1JitVfcLoad(const a64::VRegister& q, u32 vf, const a64::Register& rvu)
+{
+	const s8 s = s_vu1_jit_vfc.on && vf < 32 ? s_vu1_jit_vfc.slot[vf] : -1;
+	if (s >= 0)
+		armAsm->Mov(q.V16B(), a64::VRegister(8 + s, 128).V16B());
+	else
+		armAsm->Ldr(q.Q(), a64::MemOperand(rvu, _vu1Off(VU1.VF[vf])));
+}
 // Flags in registers within a trace: w28 = VI[STATUS] (st_loaded; st_dirty: not stored yet),
 // w15 = VI[MAC] not stored yet (mac_dirty), w9 + i = mac | status << 16 of the FMAC entry at
 // pipe position i (bit i of live; entries that retire within the trace), w14 = the same of
@@ -527,6 +580,7 @@ static void _vu1JitEmitHandler(FnPtr_VuVoid f)
 		_vu1JitFlSave(true);
 		s_vu1_jit_fconst_live = false;
 		s_vu1_jit_vf.acc_live = false;
+		_vu1JitVfcReset();
 		s_vu1_jit_fl.st_loaded = s_vu1_jit_fl.scratch = false;
 	}
 }
@@ -946,9 +1000,9 @@ static void _vuJitEmitFmacCore(const VU1FmacDesc* desc, u32 code, const a64::Reg
 			*fconst_live = true;
 	}
 
-	armAsm->Ldr(a64::q0, _vu1JitMem(_vu1Off(VU1.VF[fs])));
+	_vu1JitVfcLoad(a64::v0, fs, rvu);
 	if (desc->bc == VU1_BC_VEC || desc->bc == VU1_BC_OP)
-		armAsm->Ldr(a64::q1, _vu1JitMem(_vu1Off(VU1.VF[ft])));
+		_vu1JitVfcLoad(a64::v1, ft, rvu);
 	if (desc->bc == VU1_BC_OP)
 	{
 		// v0 = Fs.yzx, v1 = Ft.zxy (lane w unused)
@@ -1181,6 +1235,8 @@ static void _vuJitEmitFmacCore(const VU1FmacDesc* desc, u32 code, const a64::Reg
 	{
 		if (acc_reg && *acc_live)
 			armAsm->Mov(a64::v4.V16B(), a64::v30.V16B());
+		else if (!desc->acc)
+			_vu1JitVfcLoad(a64::v4, fd, rvu);
 		else
 			armAsm->Ldr(a64::q4, _vu1JitMem(off_dst));
 		for (int i = 0; i < 4; i++)
@@ -1191,6 +1247,8 @@ static void _vuJitEmitFmacCore(const VU1FmacDesc* desc, u32 code, const a64::Reg
 	if (lanes != 0)
 	{
 		armAsm->Str(res.Q(), _vu1JitMem(off_dst));
+		if (!desc->acc)
+			_vu1JitVfcPut(fd, res);
 		if (acc_reg)
 		{
 			armAsm->Mov(a64::v30.V16B(), res.V16B());
@@ -1298,13 +1356,14 @@ static void _vu1JitEmitStoreVF(u32 ft, u32 xyzw)
 	const s64 off = _vu1Off(VU1.VF[ft]);
 	if (xyzw != 0xf)
 	{
-		armAsm->Ldr(a64::q1, _vu1JitMem(off));
+		_vu1JitVfcLoad(a64::v1, ft, s_vu1_jit_rvu);
 		for (int i = 0; i < 4; i++)
 			if (xyzw & (8 >> i))
 				armAsm->Mov(a64::v1.V4S(), i, a64::v0.V4S(), i);
 		armAsm->Mov(a64::v0.V16B(), a64::v1.V16B());
 	}
 	armAsm->Str(a64::q0, _vu1JitMem(off));
+	_vu1JitVfcPut(ft, a64::v0);
 }
 
 // v = w0 on all lanes
@@ -1340,10 +1399,10 @@ static bool _vu1JitEmitUpperInt(FnPtr_VuVoid f, u32 code)
 			continue;
 		if (fd == 0 || xyzw == 0)
 			return true;
-		armAsm->Ldr(a64::q1, _vu1JitMem(_vu1Off(VU1.VF[fs])));
+		_vu1JitVfcLoad(a64::v1, fs, s_vu1_jit_rvu);
 		if (m.bc == VU1_BC_VEC)
 		{
-			armAsm->Ldr(a64::q2, _vu1JitMem(_vu1Off(VU1.VF[ft])));
+			_vu1JitVfcLoad(a64::v2, ft, s_vu1_jit_rvu);
 		}
 		else
 		{
@@ -1369,7 +1428,7 @@ static bool _vu1JitEmitUpperInt(FnPtr_VuVoid f, u32 code)
 			continue;
 		if (ft == 0 || xyzw == 0)
 			return true;
-		armAsm->Ldr(a64::q1, _vu1JitMem(_vu1Off(VU1.VF[fs])));
+		_vu1JitVfcLoad(a64::v1, fs, s_vu1_jit_rvu);
 		if (f == ftoi[i])
 		{
 			if (shift[i])
@@ -1406,7 +1465,7 @@ static bool _vu1JitEmitUpperInt(FnPtr_VuVoid f, u32 code)
 	{
 		if (ft == 0 || xyzw == 0)
 			return true;
-		armAsm->Ldr(a64::q0, _vu1JitMem(_vu1Off(VU1.VF[fs])));
+		_vu1JitVfcLoad(a64::v0, fs, s_vu1_jit_rvu);
 		_vu1JitEmitDupConst(a64::v2, 0x7fffffff);
 		armAsm->And(a64::v0.V16B(), a64::v0.V16B(), a64::v2.V16B());
 		_vu1JitEmitStoreVF(ft, xyzw);
@@ -1562,7 +1621,7 @@ static void _vu1JitEmitStoreMem(u32 fs, u32 xyzw)
 {
 	if (xyzw == 0xf)
 	{
-		armAsm->Ldr(a64::q0, _vu1JitMem(_vu1Off(VU1.VF[fs])));
+		_vu1JitVfcLoad(a64::v0, fs, s_vu1_jit_rvu);
 		armAsm->Str(a64::q0, a64::MemOperand(a64::x1));
 		return;
 	}
@@ -1695,7 +1754,7 @@ static bool _vu1JitEmitLowerInt(FnPtr_VuVoid f, u32 code)
 	{
 		if (ft == 0 || xyzw == 0)
 			return true;
-		armAsm->Ldr(a64::q0, _vu1JitMem(_vu1Off(VU1.VF[fs])));
+		_vu1JitVfcLoad(a64::v0, fs, s_vu1_jit_rvu);
 		armAsm->Ext(a64::v0.V16B(), a64::v0.V16B(), a64::v0.V16B(), 4);
 		_vu1JitEmitStoreVF(ft, xyzw);
 	}
@@ -2000,7 +2059,7 @@ static void _vu1JitEmitLower(FnPtr_VuVoid f, u32 code)
 	{
 		if (ft != 0 && xyzw != 0)
 		{
-			armAsm->Ldr(a64::q0, _vu1JitMem(_vu1Off(VU1.VF[fs])));
+			_vu1JitVfcLoad(a64::v0, fs, s_vu1_jit_rvu);
 			_vu1JitEmitStoreVF(ft, xyzw);
 		}
 	}
@@ -2020,7 +2079,7 @@ static void _vu1JitEmitLower(FnPtr_VuVoid f, u32 code)
 			_vu1JitEmitMemAddr(ft, code);
 			if (xyzw == 0xf)
 			{
-				armAsm->Ldr(a64::q0, _vu1JitMem(_vu1Off(VU1.VF[fs])));
+				_vu1JitVfcLoad(a64::v0, fs, s_vu1_jit_rvu);
 				armAsm->Str(a64::q0, a64::MemOperand(a64::x1));
 			}
 			else
@@ -2235,12 +2294,16 @@ static void _vu1JitCompile(VU1Trace& t)
 	s_vu1_jit_fl = {};
 	s_vu1_jit_vf = {};
 	s_vu1_jit_vf.out_reg = -1;
+	s_vu1_jit_vfc = {};
+	s_vu1_jit_vfc.on = true;
+	_vu1JitVfcReset();
 	// The XGKICK transfer calls, out of line after the trace: kicks are rare and taken branches cost.
 	struct VU1JitKick
 	{
 		a64::Label call, back;
 		VU1JitPending pending;
 		bool fconst_live, acc_live, sticky;
+		s8 vfc[8];
 	};
 	std::deque<VU1JitKick> kicks;
 	std::deque<VuJitCold> cold;
@@ -2253,7 +2316,11 @@ static void _vu1JitCompile(VU1Trace& t)
 	const auto slot = [](int i) { return a64::MemOperand(a64::sp, 32 + i * 16); };
 	const s64 off_cycle = _vu1Off(VU1.cycle);
 
-	armAsm->Stp(a64::x29, a64::lr, a64::MemOperand(a64::sp, -208, a64::PreIndex));
+	armAsm->Stp(a64::x29, a64::lr, a64::MemOperand(a64::sp, -272, a64::PreIndex));
+	armAsm->Stp(a64::d8, a64::d9, a64::MemOperand(a64::sp, 208));
+	armAsm->Stp(a64::d10, a64::d11, a64::MemOperand(a64::sp, 224));
+	armAsm->Stp(a64::d12, a64::d13, a64::MemOperand(a64::sp, 240));
+	armAsm->Stp(a64::d14, a64::d15, a64::MemOperand(a64::sp, 256));
 	armAsm->Stp(rvu, rbase, a64::MemOperand(a64::sp, 16));
 	armAsm->Stp(a64::x21, a64::x22, a64::MemOperand(a64::sp, 96));
 	armAsm->Stp(a64::x23, a64::x24, a64::MemOperand(a64::sp, 112));
@@ -2383,6 +2450,7 @@ static void _vu1JitCompile(VU1Trace& t)
 		kicks.back().pending = s_vu1_jit_pending;
 		kicks.back().fconst_live = s_vu1_jit_fconst_live;
 		kicks.back().acc_live = s_vu1_jit_vf.acc_live;
+		std::copy(std::begin(s_vu1_jit_vfc.vf), std::end(s_vu1_jit_vfc.vf), kicks.back().vfc);
 		kicks.back().sticky = s_vu1_jit_fl.sticky;
 		armAsm->Cbnz(a64::w22, &kicks.back().call);
 		armAsm->Bind(&kicks.back().back);
@@ -2430,6 +2498,7 @@ static void _vu1JitCompile(VU1Trace& t)
 					armAsm->Str(a64::q0, slot(1));
 					armAsm->Ldr(a64::q0, slot(0));
 					armAsm->Str(a64::q0, vu(off_vf));
+					_vu1JitVfcDrop(d.vfreg);
 				}
 				if (d.vireg)
 				{
@@ -2469,6 +2538,10 @@ static void _vu1JitCompile(VU1Trace& t)
 				cl[out] = keep | s_vu1_jit_vf.out_lanes;
 			cl[0] = 0;
 			s_vu1_jit_vf.out_reg = -1;
+			for (const u32 r : {static_cast<u32>(d.uregs.VFwrite), lo_vf})
+				if (!(s_vu1_jit_vfc.put & (1u << r)))
+					_vu1JitVfcDrop(r);
+			s_vu1_jit_vfc.put = 0;
 		}
 		if (!d.ibit && _vu1BacksUpVI(d.lower))
 			vib_steps = 2;
@@ -2528,7 +2601,11 @@ static void _vu1JitCompile(VU1Trace& t)
 	armAsm->Ldp(a64::x23, a64::x24, a64::MemOperand(a64::sp, 112));
 	armAsm->Ldp(a64::x25, a64::x26, a64::MemOperand(a64::sp, 128));
 	armAsm->Ldp(a64::x27, a64::x28, a64::MemOperand(a64::sp, 144));
-	armAsm->Ldp(a64::x29, a64::lr, a64::MemOperand(a64::sp, 208, a64::PostIndex));
+	armAsm->Ldp(a64::d8, a64::d9, a64::MemOperand(a64::sp, 208));
+	armAsm->Ldp(a64::d10, a64::d11, a64::MemOperand(a64::sp, 224));
+	armAsm->Ldp(a64::d12, a64::d13, a64::MemOperand(a64::sp, 240));
+	armAsm->Ldp(a64::d14, a64::d15, a64::MemOperand(a64::sp, 256));
+	armAsm->Ldp(a64::x29, a64::lr, a64::MemOperand(a64::sp, 272, a64::PostIndex));
 	armAsm->Ret();
 	_vu1JitMark("kickcall");
 	for (VU1JitKick& k : kicks)
@@ -2554,6 +2631,9 @@ static void _vu1JitCompile(VU1Trace& t)
 		armAsm->Ldr(a64::w22, vu(_vu1Off(VU1.xgkickenable)));
 		if (k.acc_live)
 			armAsm->Ldr(a64::q30, vu(_vu1Off(VU1.ACC)));
+		for (int s = 0; s < 8; s++)
+			if (k.vfc[s] >= 0)
+				armAsm->Ldr(a64::VRegister(8 + s, 128).Q(), vu(_vu1Off(VU1.VF[k.vfc[s]])));
 		if (k.fconst_live)
 			_vuJitEmitFconst(a64::x21);
 		armAsm->B(&k.back);
@@ -2566,6 +2646,7 @@ static void _vu1JitCompile(VU1Trace& t)
 		armAsm->B(&c.back);
 	}
 	s_vu_jit_cold = nullptr;
+	s_vu1_jit_vfc.on = false;
 	_vu1JitMark("end");
 	if (s_vu1_jit_map)
 		std::fflush(s_vu1_jit_map);
