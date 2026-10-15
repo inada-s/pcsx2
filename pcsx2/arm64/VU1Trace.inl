@@ -108,9 +108,10 @@ static void _vu1Decode(VU1DecodedPair& d, const u32* ptr)
 // only on that state (remaining cycles and registers of the pending entries) and on the code,
 // so they are worked out once at compile time by running the same functions on a copy of VU1.
 // At run time only their effects are applied: the new cycle and how many entries retire.
-// Pairs with E/D/T bits or XGKICK end a trace; the interpreter steps them.
+// Pairs with D/T bits end a trace; the interpreter steps them. An E-bit pair and its delay slot end
+// the program in the trace (_vu1EndProgram at exit).
 
-// Pipeline state at trace entry, the trace lookup key. Bytes keep it at 32 so the compare is inline.
+// Pipeline state at trace entry, the trace lookup key. Small fields keep the compare inline.
 struct VU1PipeSig
 {
 	u16 ialureg[4]; // VIwrite mask of ialu[i]
@@ -139,6 +140,8 @@ struct VU1Trace
 {
 	VU1PipeSig sig;
 	u32 last_start_rel; // cycle before the last step, relative to the cycle at trace entry
+	bool program_end = false; // the last two steps are an E-bit pair and its delay slot
+	bool kicks = false; // has an XGKICK op
 	std::vector<VU1TraceStep> steps;
 	void (*code)() = nullptr; // native code, compiled on first run
 	u8* entry = nullptr; // where a chain jump enters code: past the frame push and the x19/x21 setup
@@ -257,11 +260,6 @@ static bool _vu1PipeSig(const VURegs* VU, VU1PipeSig* s)
 	return true;
 }
 
-static __fi bool _vu1TraceEnds(const u32* ptr, const VU1DecodedPair& d)
-{
-	return (ptr[1] & 0x58000000) || d.lregs.pipe == VUPIPE_XGKICK; // E, D, T flags, XGKICK
-}
-
 static __fi bool _vu1IsBranch(const u32* ptr, const VU1DecodedPair& d)
 {
 	return !d.ibit && ((ptr[0] >> 25) & 0x70) == 0x20; // B, BAL, JR, JALR, IBxx
@@ -277,6 +275,22 @@ static VU1DecodedPair& _vu1DecodedAt(u32 pc)
 	return d;
 }
 
+// Whether the pair at pc cannot be in a trace: D/T flags, or an E-bit pair whose delay slot the
+// trace cannot also run (flags, a branch, or an FMAC op: _vu1Exec ends the program before that
+// op's FMAC write position moves).
+static bool _vu1TraceStops(u32 pc)
+{
+	const u32* ptr = reinterpret_cast<const u32*>(&VU1.Micro[pc]);
+	if (ptr[1] & 0x18000000)
+		return true;
+	if (!(ptr[1] & 0x40000000))
+		return false;
+	if (pc + 8 >= VU1_PROGSIZE || _vu1IsBranch(ptr, _vu1DecodedAt(pc)))
+		return true;
+	const VU1DecodedPair& next = _vu1DecodedAt(pc + 8);
+	return (ptr[3] & 0x58000000) || _vu1IsBranch(ptr + 2, next) || next.fmac;
+}
+
 static std::unique_ptr<VU1Trace> _vu1TraceCompile(u32 pc, const VU1PipeSig& sig)
 {
 	alignas(16) static VURegs sim;
@@ -287,13 +301,18 @@ static std::unique_ptr<VU1Trace> _vu1TraceCompile(u32 pc, const VU1PipeSig& sig)
 	auto t = std::make_unique<VU1Trace>();
 	t->sig = sig;
 	bool delay_slot = false;
+	bool end_slot = false;
 	while (pc < VU1_PROGSIZE && t->steps.size() < VU1_TRACE_MAX_STEPS)
 	{
 		const u32* ptr = reinterpret_cast<const u32*>(&VU1.Micro[pc]);
 		const VU1DecodedPair& d = _vu1DecodedAt(pc);
 		const bool branch = _vu1IsBranch(ptr, d);
-		if (_vu1TraceEnds(ptr, d) || (delay_slot && branch))
+		const bool ebit = ptr[1] & 0x40000000;
+		if (_vu1TraceStops(pc) || (delay_slot && branch) ||
+			(ebit && (delay_slot || t->steps.size() + 2 > VU1_TRACE_MAX_STEPS)))
 			break;
+		if (!d.ibit && d.lregs.pipe == VUPIPE_XGKICK)
+			t->kicks = true;
 
 		VU1TraceStep& s = t->steps.emplace_back();
 		s.code = d.code;
@@ -326,6 +345,12 @@ static std::unique_ptr<VU1Trace> _vu1TraceCompile(u32 pc, const VU1PipeSig& sig)
 			sim.fmacwritepos = (sim.fmacwritepos + 1) & 3;
 
 		pc += 8;
+		if (end_slot)
+		{
+			t->program_end = true;
+			break;
+		}
+		end_slot = ebit;
 		if (delay_slot)
 			break;
 		delay_slot = branch;
@@ -376,6 +401,7 @@ static void _vu1JitMark(const char* what, const void* fn = nullptr)
 
 // As _vuFDIVflush and _vuEFUflush do once the result is due.
 static void _vu1JitXGKICK() { _vuXGKICKTransfer((VU1.cycle - VU1.xgkicklastcycle) - 1, false); }
+extern void _vu1EndProgram();
 
 template <typename T>
 static s64 _vu1Off(const T& field)
@@ -2513,6 +2539,8 @@ static void _vu1JitCompile(VU1Trace& t)
 				_vu1JitMark("L", reinterpret_cast<const void*>(d.lower));
 				_vu1JitEmitLower(d.lower, lo);
 				_vu1JitMark("bk");
+				if (d.lower == VU1MI_XGKICK)
+					armAsm->Ldr(a64::w22, vu(_vu1Off(VU1.xgkickenable)));
 				if (d.vfreg)
 				{
 					armAsm->Ldr(a64::q0, slot(1));
@@ -2595,7 +2623,9 @@ static void _vu1JitCompile(VU1Trace& t)
 	_vu1JitMark("epi");
 	_vu1JitFlush();
 	_vu1JitFlagsStore();
-	if (s_vu1_jit_mode == VU1JitMode::On)
+	if (t.program_end)
+		armEmitCall(reinterpret_cast<const void*>(&_vu1EndProgram)); // clears VPU_STAT bit 8: no chain
+	else if (s_vu1_jit_mode == VU1JitMode::On)
 		_vu1JitEmitChain(t);
 	armAsm->Ldp(rvu, rbase, a64::MemOperand(a64::sp, 16));
 	armAsm->Ldp(a64::x21, a64::x22, a64::MemOperand(a64::sp, 96));
@@ -2681,7 +2711,7 @@ static bool _vu1TraceCheck(VU1Trace& t)
 	static u64 checked, failed;
 
 	// XGKICK transfers reach the GIF: they cannot run twice.
-	if (VU1.xgkickenable)
+	if (VU1.xgkickenable || t.kicks)
 		return false;
 
 	const u32 start_stat = VU0.VI[REG_VPU_STAT].UL;
@@ -2750,8 +2780,7 @@ static bool _vu1TraceCheck(VU1Trace& t)
 // the caller must step instead.
 static VU1Trace* _vu1TraceLookup(u32 pc, const VU1PipeSig* known)
 {
-	const u32* ptr = reinterpret_cast<const u32*>(&VU1.Micro[pc]);
-	if (_vu1TraceEnds(ptr, _vu1DecodedAt(pc)))
+	if (_vu1TraceStops(pc))
 		return nullptr;
 
 	VU1PipeSig sig;

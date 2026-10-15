@@ -77,7 +77,11 @@ Same results as the interpreter.
 
 - A trace = a run of instruction pairs up to a branch delay slot. Its stall
   and pipeline-flush decisions are worked out at compile time per pipeline
-  state at entry. Pairs with E/D/T bits or XGKICK run through the interpreter.
+  state at entry. Pairs with D/T bits run through the interpreter. An E-bit
+  pair and its delay slot end a trace and the program (the interpreter's
+  program-end code is called at exit), unless the delay slot has flags, a
+  branch or an FMAC op. XGKICK calls the interpreter handler; check mode
+  skips traces with one (the transfer cannot run twice).
 - Native:
   - Upper ADD/SUB/MUL/MADD/MSUB (all A/bc/i/q forms but ADDi; not Fd = 0),
     OPMULA/OPMSUB, with MAC/status flags, when VU0 overflow clamping is on.
