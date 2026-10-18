@@ -24,6 +24,10 @@ battle-socket state at frame 0, the synced inputs of every position, and
 the round results. Optional per-frame state hashes and the game RNGs at
 each load end let playback detect a desync; a file without them plays
 unchecked. `tests/zdxsv/replay_check.py` compares the files of one battle.
+The battle-load step's frame is machine-local: when playback reaches it after
+the file's play-start release, it releases N frames later and draws RNG B
+N frames later. Those frames are logged as `own load late by N`, not as a
+desync.
 
 ## Playing
 

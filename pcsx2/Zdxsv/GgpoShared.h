@@ -253,6 +253,7 @@ namespace Zdxsv
 	extern std::map<int, u32> s_play_rngs; // frame -> GameRng
 	extern int s_play_rng_pos;
 	extern std::vector<std::pair<int, int>> s_play_cut;
+	extern std::vector<u8> s_play_ps_rel; // per frame: the file's play-start barrier releases (PS::rel) before it
 	extern int s_play_frames;
 	extern std::vector<std::vector<u8>> s_play_answers; // common start: the file's lobby answers (RbkBody)
 	extern int s_play_rearm_seek; // a switch's common start: the frame to seek to from its key 0

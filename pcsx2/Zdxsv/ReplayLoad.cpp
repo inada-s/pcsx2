@@ -255,6 +255,17 @@ namespace Zdxsv
 				rb.zds_seen[p] = h[4 + p];
 			rb.zds_rel = h[8];
 			rb.ms = {static_cast<u8>(h[9]), static_cast<u8>(h[10]), h[11] != 0, h[12] != 0};
+			// the recorder's releases as NetApply makes them: all positions' counts past rel (its own count implies
+			// its hold). A playback whose own load step comes later releases later.
+			s_play_ps_rel.resize(static_cast<size_t>(frames));
+			u8 rel = rb.ps.rel;
+			for (int f = 0; f < s_play_frames; f++)
+			{
+				s_play_ps_rel[f] = rel;
+				const NetInput* in = &s_play_inputs[static_cast<size_t>(f) * s_players];
+				if (std::all_of(in, in + s_players, [rel](const NetInput& i) { return static_cast<u8>(i.pad.unused[1] - rel - 1) < 127; }))
+					rel++;
+			}
 			Console.WriteLn("ZdxsvGgpo: replay %s: recorded at position %lld of %d, %lld frames, rx0 %zu bytes, "
 							"%zu lobby answers, state hashes %s, rngs %zu", path.c_str(), me, s_players, frames,
 				rb.net_rx.size(), s_play_answers.size(), r.hashes.empty() ? "no" : "yes",

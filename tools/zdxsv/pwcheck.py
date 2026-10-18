@@ -20,6 +20,8 @@ nothing is judged: the peers can enter the 8 load 1-2 frames apart and draw RNG 
 Play start = the first `PS` trace line (play-start barrier frame, equal on all peers); in traces without
 one (older builds) the first frame the tick state 0xc627b4 (`L` lines, last column) leaves 8 =
 battle load end; the latest over the traces. All frames if a trace has neither.
+Own load late = a later play start than the earliest trace's after the same game end (a replay whose machine reached
+the load step after its file's release): its frames (earliest, latest] are not judged, printed apart.
 - RNG A also takes machine-local draws (s759 rbk 2 1 ZDXSV_EE_WATCH: sound pick 0x23abec on one peer only,
   71 of 73 differing frames; RNG B callers equal on all 828 frames): `rng_a` is printed, not judged.
 - Before play start the scene steps run on local load timing (s759 rbk 4 1: RNG B draw 0x2f1770 one frame
@@ -85,6 +87,16 @@ starts = sorted({s for *_, ss, _, _ in loaded for s in ss})
 last = max(common, default=0) + 1
 spans = [[e, next((s for s in starts if s > e), last)] for *_, es, _ in loaded for e in es]
 spans += [[a, b if b is not None else last] for *_, rs in loaded for a, b in rs]
+# own load late: a trace whose machine reached the load step after the others released the play start (a replay
+# played against its file: the file's release is fixed) releases later; its RNG B draw there comes later too
+late = []
+for e in sorted({e for *_, es, _ in loaded for e in es}):
+    nxt = [next((s for s in ss if s > e), None) for *_, ss, _, _ in loaded]
+    if None not in nxt and max(nxt) > min(nxt):
+        late.append([min(nxt) + 1, max(nxt) + 1])
+        spans.append(late[-1])
+print("own load late (play start later than the earliest trace's, not judged) %s" % (
+    [[a - 1, b - 1] for a, b in late]))
 cut = []
 for a, b in sorted(spans):
     if cut and a <= cut[-1][1]:

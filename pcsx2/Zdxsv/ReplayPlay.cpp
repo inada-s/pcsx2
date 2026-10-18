@@ -13,6 +13,7 @@ namespace Zdxsv
 	{
 		int s_play_hash_checks = 0, s_play_hash_bad = 0, s_play_hash_first_bad = -1, s_play_rng_checks = 0, s_play_rng_bad = 0;
 		int s_play_hash_cut = 0;
+		int s_play_late = 0, s_play_late_loads = 0, s_play_late_max = 0, s_play_late_run = 0;
 		const int s_play_key_every = [] {
 			const char* e = std::getenv("ZDXSV_REPLAY_KEY");
 			return e ? std::atoi(e) : 600;
@@ -246,10 +247,27 @@ namespace Zdxsv
 		{
 			if (s_cycle_log > 0 && f % s_cycle_log == 0)
 				Console.WriteLn("ZdxsvGgpo: cycles at frame %d: ee %llu iop %llu", f, static_cast<unsigned long long>(cpuRegs.cycle), static_cast<unsigned long long>(psxRegs.cycle));
-			const bool cut = std::any_of(s_play_cut.begin(), s_play_cut.end(), [f](const auto& c) { return f >= c.first && f < c.second; });
-			if (cut && f < static_cast<int>(s_play_hashes.size()))
+			// own load late: the file released the play-start barrier, this machine reached the load step after it
+			// and releases later; the release's RNG B draw comes that much later (the load step's frame is
+			// machine-local). Counted apart, not a desync.
+			const bool late = f < static_cast<int>(s_play_ps_rel.size()) && static_cast<u8>(s_play_ps_rel[f] - s_rb.ps.rel - 1) < 127;
+			if (late)
+			{
+				s_play_late++;
+				if (s_play_late_run++ == 0)
+					s_play_late_loads++;
+				s_play_late_max = std::max(s_play_late_max, s_play_late_run);
+			}
+			else if (s_play_late_run > 0)
+			{
+				Console.WriteLn("ZdxsvGgpo: replay own load late by %d frames: play start at frame %d, file %d", s_play_late_run, f - 1, f - 1 - s_play_late_run);
+				s_play_late_run = 0;
+			}
+			const bool cut = late || std::any_of(s_play_cut.begin(), s_play_cut.end(), [f](const auto& c) { return f >= c.first && f < c.second; });
+			const bool hashed = !late && f < static_cast<int>(s_play_hashes.size());
+			if (hashed && cut)
 				s_play_hash_cut++;
-			else if (f < static_cast<int>(s_play_hashes.size()))
+			else if (hashed)
 			{
 				s_play_hash_checks++;
 				if (const u32 h = ReplayStateHash(); h != s_play_hashes[f])
@@ -284,6 +302,7 @@ namespace Zdxsv
 	int s_play_rng_pos = -1;
 	// [game end, next play start) and [round end, tick 6) of the file (replay.proto 57..59): not checked, the peers differ there
 	std::vector<std::pair<int, int>> s_play_cut;
+	std::vector<u8> s_play_ps_rel;
 	int s_play_frames = 0;
 	std::vector<std::vector<u8>> s_play_answers; // common start: the file's lobby answers (RbkBody)
 	int s_play_rearm_seek = -1; // a switch's common start: the frame to seek to from its key 0
@@ -525,8 +544,9 @@ namespace Zdxsv
 	{
 		Console.WriteLn("ZdxsvGgpo: replay %s at frame %d of %d, vsync %u", what, s_net_frame, s_play_frames, g_FrameCount);
 		Console.WriteLn("ZdxsvGgpo: replay state check: hashes %d checked, %d differ (first at frame %d); rngs %d checked, %d differ; "
-						"%d frames after a round or game end not checked",
-			s_play_hash_checks, s_play_hash_bad, s_play_hash_first_bad, s_play_rng_checks, s_play_rng_bad, s_play_hash_cut);
+						"%d frames after a round or game end not checked; own load late %d frames (%d loads, max %d), not checked",
+			s_play_hash_checks, s_play_hash_bad, s_play_hash_first_bad, s_play_rng_checks, s_play_rng_bad, s_play_hash_cut,
+			s_play_late, s_play_late_loads, s_play_late_max);
 		NetReport();
 	}
 
@@ -570,6 +590,8 @@ namespace Zdxsv
 		s_play_rngs.clear();
 		s_play_rng_pos = -1;
 		s_play_hash_checks = s_play_hash_bad = s_play_rng_checks = s_play_rng_bad = s_play_hash_cut = 0;
+		s_play_late = s_play_late_loads = s_play_late_max = s_play_late_run = 0;
+		s_play_ps_rel.clear();
 		s_play_hash_first_bad = -1;
 		s_play_cut.clear();
 		s_play_seeks.clear();
