@@ -71,10 +71,10 @@ TEST(DEV9Config, ZdxsvStaleHostEntries)
 
 TEST(DEV9Config, ZdxsvDnsLookupName)
 {
-	EXPECT_STREQ(Zdxsv::DnsLookupName("www01.kddi-mmbb.jp"), "zdxsv.net");
-	EXPECT_STREQ(Zdxsv::DnsLookupName("gate1.jp.dnas.playstation.org"), "zdxsv.net");
-	EXPECT_STREQ(Zdxsv::DnsLookupName("ca1202.mmcp6"), "zdxsv.net");
-	EXPECT_STREQ(Zdxsv::DnsLookupName("Ca1203.Mmcp6"), "zdxsv.net");
+	EXPECT_STREQ(Zdxsv::DnsLookupName("www01.kddi-mmbb.jp"), "lbs.zdxsv.net");
+	EXPECT_STREQ(Zdxsv::DnsLookupName("gate1.jp.dnas.playstation.org"), "lbs.zdxsv.net");
+	EXPECT_STREQ(Zdxsv::DnsLookupName("ca1202.mmcp6"), "lbs.zdxsv.net");
+	EXPECT_STREQ(Zdxsv::DnsLookupName("Ca1203.Mmcp6"), "lbs.zdxsv.net");
 	EXPECT_STREQ(Zdxsv::DnsLookupName("example.com"), "example.com");
 	EXPECT_STREQ(Zdxsv::DnsLookupName("ca1202.mmcp6.example.com"), "ca1202.mmcp6.example.com");
 }
