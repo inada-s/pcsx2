@@ -18,7 +18,7 @@ With --trace (a `zdxsv -v=2 lobby` log of a real battle, lobby_trace.py):
   adopted connection at position k plays the k-th recorded user (0x6913 answers of the
   trace). 0x6915 gets a fresh battle code; 0x6916 the battle server, after the custom 0x9951
   battle info (session, users, p2p_<user>=addr from the STUN answers below, ggpo_<user> with --ggpo;
-  ggpo_session + ggpo_ping_ms as zdxsv (--bad-session K: client K's differs); --ggpo-delay D: ggpo_ = a udprelay.py per pair, D ms one way,
+  ggpo_session + ggpo_ping_ms as zdxsv (--bad-session K: client K's differs); --no-addr K: client K has no p2p_ / ggpo_ line; --ggpo-delay D: ggpo_ = a udprelay.py per pair, D ms one way,
   so the GGPO ping test and battle see 2*D ms rtt); --relay ADDR: relay_0 for a `zdxsv relay` there, ggpo_session from --relay-session.
 - STUN on UDP --port+1 (zproxy Ping -> Pong{public_addr}). The emulator pings it right
   before its adopted connection sends, so the k-th unbound ping address belongs to the k-th
@@ -194,7 +194,7 @@ class Battle:
         lines = "session_id=%s\nuser_id=%s\nbattle_server=%s\nusers=%s\n" % (conn.session, conn.user, self.args.battle, ",".join(users))
         ggpo = False
         for c in self.order:
-            if c is not conn and c.udp:
+            if c is not conn and c.udp and not (self.args.no_addr and self.conns.index(c) + 1 == self.args.no_addr):
                 r = self.relays.get((conn, c))
                 v4 = "127.0.0.1:" + c.udp.split(":")[1] if r else c.udp
                 v6 = "[%s]:%s" % (self.args.v6, c.udp.split(":")[1])
@@ -376,6 +376,7 @@ def main():
     ap.add_argument("--ggpo-delay", type=float, default=0, help="one-way ms: ggpo_ ports point at a udprelay.py per pair")
     ap.add_argument("--ggpo-relay-port", type=int, default=7301, help="first relay port (2 per pair)")
     ap.add_argument("--bad-session", type=int, default=0, help="the k-th adopted client (1-based) gets a different ggpo_session")
+    ap.add_argument("--no-addr", type=int, default=0, help="the k-th adopted client (1-based) gets no p2p_ / ggpo_ line in the others' battle infos")
     ap.add_argument("--p2p", choices=("v4", "v6", "dual"), default="v4",
                     help="p2p_ addresses: the STUN one (v4), [--v6]:port (v6), both (dual; as zdxsv with udp_addr6)")
     ap.add_argument("--v6", help="IPv6 address for --p2p v6/dual (default: this box's global one)")

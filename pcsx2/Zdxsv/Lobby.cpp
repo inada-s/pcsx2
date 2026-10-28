@@ -245,18 +245,22 @@ namespace Zdxsv
 		g_listener = std::move(listener);
 	}
 
-	bool GgpoPeers(const BattleInfo& info, const std::string& ownPublicIP, std::vector<std::vector<PeerAddr>>& byPosition)
+	int GgpoPeers(const BattleInfo& info, const std::string& ownPublicIP, std::vector<std::vector<PeerAddr>>& byPosition)
 	{
+		int me = -1;
 		byPosition.assign(info.users.size(), {});
 		for (size_t i = 0; i < info.users.size(); i++)
 		{
 			const std::string& u = info.users[i];
 			if (u == info.userId)
+			{
+				me = static_cast<int>(i);
 				continue;
+			}
 			const auto port = info.ggpo.find(u);
 			const auto peer = std::find_if(info.p2p.begin(), info.p2p.end(), [&u](const BattleInfo::Peer& p) { return p.userId == u; });
 			if (port == info.ggpo.end() || peer == info.p2p.end())
-				return false;
+				continue;
 			std::vector<PeerAddr> v4, v6;
 			for (const PeerAddr& a : peer->addrs)
 				(a.V6() ? v6 : v4).push_back({a.ip, port->second});
@@ -269,7 +273,7 @@ namespace Zdxsv
 					if (std::find(c.begin(), c.end(), a) == c.end())
 						c.push_back(a);
 		}
-		return true;
+		return me;
 	}
 
 	void LobbyFilterDeleter::operator()(LobbyFilter* filter) const
@@ -426,6 +430,25 @@ namespace Zdxsv
 			s4->sin_port = htons(a.port);
 			len = sizeof(sockaddr_in);
 			return inet_pton(AF_INET, a.ip.c_str(), &s4->sin_addr) == 1;
+		}
+
+		// sockaddr_in / sockaddr_in6 -> numeric PeerAddr; ip "" for another family
+		PeerAddr FromSockaddr(const sockaddr_storage& sa)
+		{
+			char buf[INET6_ADDRSTRLEN] = {};
+			if (sa.ss_family == AF_INET6)
+			{
+				const auto& s6 = reinterpret_cast<const sockaddr_in6&>(sa);
+				if (inet_ntop(AF_INET6, &s6.sin6_addr, buf, sizeof(buf)))
+					return {buf, ntohs(s6.sin6_port)};
+			}
+			else if (sa.ss_family == AF_INET)
+			{
+				const auto& s4 = reinterpret_cast<const sockaddr_in&>(sa);
+				if (inet_ntop(AF_INET, &s4.sin_addr, buf, sizeof(buf)))
+					return {buf, ntohs(s4.sin_port)};
+			}
+			return {};
 		}
 
 		// same family, ip and port (IPv6 scope / flow info ignored)
@@ -620,6 +643,7 @@ namespace Zdxsv
 				sockaddr_storage sa{};
 				socklen_t len = 0;
 				sock_t s = INVALID_SOCKET; // socket of its family, INVALID_SOCKET = not pinged
+				PeerAddr addr;
 				int64_t sum = 0, pongs = 0;
 				int Rtt() const { return pongs ? static_cast<int>((sum + pongs - 1) / pongs) : -1; }
 			};
@@ -645,6 +669,7 @@ namespace Zdxsv
 					for (const PeerAddr& a : m_byPosition[p])
 					{
 						Cand c;
+						c.addr = a;
 						if (ToSockaddr(a, c.sa, c.len))
 							c.s = a.V6() ? m_s6 : m_s4;
 						m_cand[p].push_back(c);
@@ -810,6 +835,17 @@ namespace Zdxsv
 					return;
 				const bool head = pk.magic == PING_MAGIC && pk.sessionId == m_session && pk.toPeer == m_me && pk.fromPeer < m_n && pk.fromPeer != m_me;
 				const std::vector<Cand>* fc = head ? &m_cand[pk.fromPeer] : nullptr;
+				// a peer listed without an address: the sources of its pings become its candidates (as flycast), at most 4
+				if (head && pk.type == PING_TYPE && m_byPosition[pk.fromPeer].empty() && fc->size() < 4 &&
+					std::none_of(fc->begin(), fc->end(), [&from](const Cand& c) { return SameAddr(from, c.sa); }))
+				{
+					Cand c;
+					c.sa = from;
+					c.len = len;
+					c.s = s;
+					c.addr = FromSockaddr(from);
+					m_cand[pk.fromPeer].push_back(c);
+				}
 				bool ok = false;
 				if (head && pk.type == PING_TYPE &&
 					std::any_of(fc->begin(), fc->end(), [&from](const Cand& c) { return SameAddr(from, c.sa); }))
@@ -860,13 +896,13 @@ namespace Zdxsv
 					{
 						const Cand& c = m_cand[p][k];
 						const int r = c.Rtt();
-						line += " " + m_byPosition[p][k].Masked() + " rtt " + std::to_string(r) + " ms (" + std::to_string(c.pongs) + " pongs)";
+						line += " " + c.addr.Masked() + " rtt " + std::to_string(r) + " ms (" + std::to_string(c.pongs) + " pongs)";
 						if (r <= 0)
 							continue;
 						const float score = 10000.f - r + (IsLoopback(c.sa) ? 100.f : 0.f) + (IsPrivate(c.sa) ? 50.f : 0.f) +
 											(c.sa.ss_family == AF_INET6 ? 20.f : 0.f);
 						if (score > best)
-							best = score, direct[p] = {r, m_byPosition[p][k]};
+							best = score, direct[p] = {r, c.addr};
 					}
 					line += ", " + std::to_string(m_pongsIn[p]) + " pings answered, picked " +
 							(direct[p].rtt > 0 ? direct[p].addr.String() : std::string("none"));
@@ -953,7 +989,7 @@ namespace Zdxsv
 		};
 	} // namespace
 
-	void StartPingTest(uint32_t session, const std::vector<std::vector<PeerAddr>>& byPosition, uint16_t port, int durationMs,
+	void StartPingTest(uint32_t session, int me, const std::vector<std::vector<PeerAddr>>& byPosition, uint16_t port, int durationMs,
 		const std::vector<BattleInfo::Relay>& relays)
 	{
 		if (g_ping)
@@ -962,11 +998,7 @@ namespace Zdxsv
 		StopUdpTest();
 		g_pingError.clear();
 		const int n = static_cast<int>(byPosition.size());
-		int me = -1;
-		for (int p = 0; p < n; p++)
-			if (byPosition[p].empty())
-				me = p;
-		if (me < 0 || n > 4)
+		if (me < 0 || me >= n || n > 4)
 			return;
 		const sock_t s4 = BindUdp(AF_INET, port), s6 = BindUdp(AF_INET6, port);
 		if (s4 == INVALID_SOCKET && s6 == INVALID_SOCKET)

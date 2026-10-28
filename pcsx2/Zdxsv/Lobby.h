@@ -163,14 +163,15 @@ namespace Zdxsv
 	void SetBattleInfoListener(std::function<void(const BattleInfo&)> listener);
 
 	// GGPO address candidates of every player by battle position (own position empty); the first one is
-	// the default without a ping test. ownPublicIP "" = unknown. False when another player has no GGPO
-	// port or no p2p address.
-	bool GgpoPeers(const BattleInfo& info, const std::string& ownPublicIP, std::vector<std::vector<PeerAddr>>& byPosition);
+	// the default without a ping test. ownPublicIP "" = unknown. A player without a GGPO port or p2p
+	// address gets none (the ping test may still find a path). Returns our position, -1 if not listed.
+	int GgpoPeers(const BattleInfo& info, const std::string& ownPublicIP, std::vector<std::vector<PeerAddr>>& byPosition);
 
 	// GGPO ping test before a lobby GGPO battle, packet-compatible with flycast's: pings every candidate
 	// of every peer of byPosition and every relay for durationMs on the GGPO port, and answers their
 	// pings. A ping also joins us to the relay's session. Cancels a running test or StartUdpTest first.
-	void StartPingTest(uint32_t session, const std::vector<std::vector<PeerAddr>>& byPosition, uint16_t port, int durationMs,
+	// me = our position. A peer without candidates is reached at the sources of its pings.
+	void StartPingTest(uint32_t session, int me, const std::vector<std::vector<PeerAddr>>& byPosition, uint16_t port, int durationMs,
 		const std::vector<BattleInfo::Relay>& relays = {});
 	// Per battle position, the path picked as flycast picks it: direct, unless a relaying peer is 32 ms
 	// or a relay server 16 ms faster. rtt in ms (the whole path), -1 = unreachable (and own position).
