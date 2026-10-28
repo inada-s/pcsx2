@@ -148,21 +148,28 @@ UdpProtocol::SendInput(GameInput &input)
 void
 UdpProtocol::SendPendingOutput()
 {
-   UdpMsg *msg = new UdpMsg(UdpMsg::Input);
-   int i, j, offset = 0;
+   // zdxsv: the pending inputs go in as many packets as it takes, each at most MAX_SEND_INPUT_BITS of inputs
+   int i, j = 0;
    uint8 *bits;
-   GameInput last;
+   GameInput last = _last_acked_input;
+   do {
+   UdpMsg *msg = new UdpMsg(UdpMsg::Input);
+   int offset = 0;
 
    if (_pending_output.size()) {
-      last = _last_acked_input;
       bits = msg->u.input.bits;
 
-      msg->u.input.start_frame = _pending_output.front().frame;
-      msg->u.input.input_size = (uint8)_pending_output.front().size;
+      msg->u.input.start_frame = _pending_output.item(j).frame;
+      msg->u.input.input_size = (uint8)_pending_output.item(j).size;
 
       ASSERT(last.frame == -1 || last.frame + 1 == (int)msg->u.input.start_frame);
-      for (j = 0; j < _pending_output.size(); j++) {
+      for (const int first = j; j < _pending_output.size(); j++) {
          GameInput &current = _pending_output.item(j);
+         int cost = 1;
+         for (i = 0; i < current.size * 8; i++)
+            cost += current.value(i) != last.value(i) ? 2 + BITVECTOR_NIBBLE_SIZE : 0;
+         if (j > first && offset + cost > MAX_SEND_INPUT_BITS)
+            break;
          if (memcmp(current.bits, last.bits, current.size) != 0) {
             ASSERT((GAMEINPUT_MAX_BYTES * GAMEINPUT_MAX_PLAYERS * 8) < (1 << BITVECTOR_NIBBLE_SIZE));
             for (i = 0; i < current.size * 8; i++) {
@@ -194,6 +201,7 @@ UdpProtocol::SendPendingOutput()
    ASSERT(offset < MAX_COMPRESSED_BITS);
 
    SendMsg(msg);
+   } while (j < _pending_output.size());
 }
 
 void
@@ -713,7 +721,10 @@ UdpProtocol::OnInput(UdpMsg *msg, int len)
     * Decompress the input.
     */
    int last_received_frame_number = _last_received_input.frame;
-   if (msg->u.input.num_bits) {
+   // zdxsv: a packet that starts past the next frame (an earlier split packet was lost) is skipped; the sender
+   // sends again from its oldest unacked frame
+   const bool gap = _last_received_input.frame >= 0 && (int)msg->u.input.start_frame > _last_received_input.frame + 1;
+   if (msg->u.input.num_bits && !gap) {
       int offset = 0;
       uint8 *bits = (uint8 *)msg->u.input.bits;
       int numBits = msg->u.input.num_bits;
