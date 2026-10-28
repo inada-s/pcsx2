@@ -38,6 +38,10 @@ delete `inis\PCSX2.ini` to get a new one with these defaults.
 
 If Windows Firewall asks whether PCSX2 can use the network, allow it.
 
+When a battle cannot start, a message beginning with "No battle:" says why
+(an opponent did not answer, the network port is in use, an opponent's build or
+settings differ), and the game returns to the lobby.
+
 ## First time in the game
 
 If your memory card is empty, the game makes the files it needs by itself:
