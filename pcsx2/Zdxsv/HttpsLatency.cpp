@@ -8,9 +8,6 @@
 #include "Zdxsv/Dev9Hooks.h"
 #include "Zdxsv/TestOptions.h"
 
-#include "Host.h"
-#include "IconsFontAwesome.h"
-
 #include "common/Console.h"
 #include "common/StringUtil.h"
 
@@ -288,7 +285,6 @@ namespace Zdxsv
 						summary = best->first + " " + std::to_string(best->second) + " ms (best of " +
 								  std::to_string(s_results.size()) + ")";
 					Console.WriteLn("ZdxsvHttpsLatency: done: %s", summary.c_str());
-					Host::AddIconOSDMessage("ZdxsvHttpsLatency", ICON_FA_NETWORK_WIRED, "Server latency: " + summary, 10.0f);
 				}
 			});
 	}

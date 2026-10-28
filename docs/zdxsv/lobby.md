@@ -153,7 +153,7 @@ cancels it. A missing STUN answer is asked again on the next connection.
 When the game goes online, the emulator measures the HTTPS latency to the
 cloud regions, as flycast's ping test (gcping hosts,
 `Zdxsv/HttpsLatency.cpp`): the fastest of 3 `HEAD /api/ping` on a warm
-connection per region. The best region goes to the OSD; every later platform
+connection per region. The best region goes to the log; every later platform
 info carries `<region>=ms`. Once per run.
 
 ## Network status OSD
