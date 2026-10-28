@@ -184,9 +184,11 @@ namespace Zdxsv
 	};
 	// Relay server k as GGPO registers it (ggpo_add_relay_server): addr = the faster family that
 	// answered (IPv4 if none did), alt = the other family's address, empty if none.
+	// sources: addresses its pongs came from other than addr/alt (ggpo_add_relay_server_source).
 	struct RelayServerAddr
 	{
 		PeerAddr addr, alt;
+		std::vector<PeerAddr> sources;
 	};
 	// Waits for the running test to end (the GGPO port is free after); empty if no test ran.
 	// servers (optional): every relay of the test, in order. error (optional): why the last

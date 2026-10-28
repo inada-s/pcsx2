@@ -87,7 +87,7 @@ Peer2PeerBackend::AddRemotePlayer(char *ip,
    _endpoints[queue].Init(&_udp, _poll, queue, ip, port, relay, _local_connect_status);
    for (int k = 0; k < (int)_relay_servers.size(); k++) {
       if (relay && _endpoints[queue].IsPeerAddress(_relay_servers[k].addr)) {
-         _endpoints[queue].UseRelayServer(_relay_servers[k].addr, k);
+         _endpoints[queue].UseRelayServer(_relay_servers[k].addr, k, _relay_servers[k].known);
       }
    }
    _endpoints[queue].SetDisconnectTimeout(_disconnect_timeout);
@@ -666,6 +666,18 @@ Peer2PeerBackend::AddRelayServer(const char *ip, unsigned short port, const char
    return GGPO_OK;
 }
 
+GGPOErrorCode
+Peer2PeerBackend::AddRelayServerSource(const char *ip, unsigned short port)
+{
+   sockaddr_storage addr{};
+   if (_relay_servers.empty() || !ResolveNumeric(ip, port, &addr)) {
+      LogError("AddRelayServerSource: invalid address %s:%d", ip, port);
+      return GGPO_ERRORCODE_INVALID_REQUEST;
+   }
+   _relay_servers.back().known.push_back(addr);
+   return GGPO_OK;
+}
+
 int
 Peer2PeerBackend::RelayServerIndex(const sockaddr_storage &addr) const
 {
@@ -718,7 +730,7 @@ Peer2PeerBackend::OnMsg(sockaddr_storage &from, UdpMsg *msg, int len)
          const int server = RelayServerIndex(from);
          if (server != -1) {
             // Answer in this peer's own IP family: the relay only knows this peer by that address.
-            _endpoints[i].UseRelayServer(_relay_servers[server].addr, server);
+            _endpoints[i].UseRelayServer(_relay_servers[server].addr, server, _relay_servers[server].known);
          }
          _endpoints[i].OnMsg(msg, len);
          return;

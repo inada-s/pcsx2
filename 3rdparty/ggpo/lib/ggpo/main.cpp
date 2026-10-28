@@ -292,3 +292,11 @@ GGPOErrorCode ggpo_add_relay_server(GGPOSession *ggpo, const char *ip, unsigned 
 
 	return ggpo->AddRelayServer(ip, port, alt_ip);
 }
+
+GGPOErrorCode ggpo_add_relay_server_source(GGPOSession *ggpo, const char *ip, unsigned short port)
+{
+	if (ggpo == nullptr)
+		return GGPO_ERRORCODE_INVALID_SESSION;
+
+	return ggpo->AddRelayServerSource(ip, port);
+}

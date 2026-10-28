@@ -35,6 +35,7 @@ public:
    GGPOErrorCode SetDisconnectNotifyStart(int timeout) override;
    GGPOErrorCode SetDisconnectWithoutRollback(bool allow) override;
    GGPOErrorCode AddRelayServer(const char *ip, unsigned short port, const char *alt_ip) override;
+   GGPOErrorCode AddRelayServerSource(const char *ip, unsigned short port) override;
    GGPOErrorCode SendMessage(const void *msg, int len, bool spectators) override;
    GGPOErrorCode GetCurrentFrame(int* frame) override { *frame = _sync.GetFrameCount(); return GGPO_OK; }
    GGPOErrorCode GetLastConfirmedFrame(int* frame) override { *frame = _sync.GetLastConfirmedFrame(); return GGPO_OK; }
@@ -83,7 +84,7 @@ protected:
    int                   _relay_forwards;
    struct RelayServer {
       sockaddr_storage addr;                  /* where this peer sends */
-      std::vector<sockaddr_storage> known;    /* addr and the other IP family's address */
+      std::vector<sockaddr_storage> known;    /* addr, the other IP family's address and those it answers from */
    };
    std::vector<RelayServer> _relay_servers;
 
