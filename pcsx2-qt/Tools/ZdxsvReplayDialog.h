@@ -17,7 +17,7 @@ class QTabWidget;
 class QTreeWidget;
 class QTreeWidgetItem;
 
-// Tools → zdxsv Replays (as flycast's gdxsv replay menu): local .pb files, the lobby's uploaded replays
+// Tools → zdxsv Replays: local .pb files, the lobby's uploaded replays
 // (/lbs/replay) and its live battles (/lbs/live). Play boots the Z game with the pick (Zdxsv::SetNextReplay).
 class ZdxsvReplayDialog final : public QDialog
 {

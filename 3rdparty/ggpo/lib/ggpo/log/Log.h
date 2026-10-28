@@ -16,7 +16,7 @@ namespace LogTypes
 	};
 }
 
-// As in flycast release builds: debug messages are compiled out.
+// Debug messages are compiled out.
 #ifndef MAX_LOGLEVEL
 #define MAX_LOGLEVEL LogTypes::LINFO
 #endif

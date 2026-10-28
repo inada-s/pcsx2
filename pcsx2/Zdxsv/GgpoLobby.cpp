@@ -95,7 +95,7 @@ namespace Zdxsv
 				peers[p] = s_lobby_peers[p].front();
 		if (!s_delay_set)
 		{
-			// as flycast's rollback backend: one-way time to the slowest peer in 16 ms frames, rounded up
+			// one-way time to the slowest peer in 16 ms frames, rounded up
 			Common::Timer wait;
 			std::vector<Zdxsv::RelayServerAddr> servers;
 			std::string pingError;
@@ -131,7 +131,7 @@ namespace Zdxsv
 			s_net_via = std::move(via);
 			s_net_servers = std::move(servers);
 			rtts += "ping_wait_ms=" + std::to_string(static_cast<int>(wait.GetTimeMilliseconds())) + "\n";
-			// as flycast ("Peer%d unreachable"): no GGPO unless every peer answered the ping test (same
+			// no GGPO unless every peer answered the ping test (same
 			// session, position and address); a peer from another battle never gets our inputs
 			if (up < n - 1)
 			{

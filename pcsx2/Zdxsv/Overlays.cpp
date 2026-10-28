@@ -74,7 +74,7 @@ namespace Zdxsv
 		}
 
 		// zdxsv replay key display (ZDXSV_REPLAY_KEY_DISPLAY=1 / hotkey): the shown position's last input changes, newest on top,
-		// each with the frames it was held (capped at 99), as in flycast's gdxsv_key_display. Bits: the B word (ZdPadAB).
+		// each with the frames it was held (capped at 99). Bits: the B word (ZdPadAB).
 		static constexpr struct { u16 bit; const char* icon; } buttons[] = {
 			{0x0200, ICON_PF_BUTTON_SQUARE}, {0x0100, ICON_PF_BUTTON_TRIANGLE}, {0x0040, ICON_PF_BUTTON_CROSS},
 			{0x0020, ICON_PF_BUTTON_CIRCLE}, {0x0080, ICON_PF_LEFT_SHOULDER_L1}, {0x0010, ICON_PF_RIGHT_SHOULDER_R1},
@@ -351,7 +351,7 @@ namespace Zdxsv
 			ImGui::PopStyleVar(2);
 		}
 
-		// replay takeover input matching (as flycast's RenderTakeoverAlignment / Countdown): the replay's own input
+		// replay takeover input matching: the replay's own input
 		// at the takeover frame and the host pad's, then the 1 s countdown
 		void DrawTakeover(float scale)
 		{

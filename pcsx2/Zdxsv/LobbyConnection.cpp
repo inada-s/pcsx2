@@ -193,7 +193,7 @@ namespace Zdxsv
 			msg.insert(msg.end(), b.begin(), b.end());
 		};
 		append(0x50, body);
-		// The last lobby battle's report (0x9952 P2PMatchingReport, as flycast's lbsP2PMatchingReport).
+		// The last lobby battle's report (0x9952 P2PMatchingReport).
 		const std::string report = ggpoPort > 0 ? TakeLobbyReport() : "";
 		if (!report.empty() && report.size() < 0x8000)
 		{

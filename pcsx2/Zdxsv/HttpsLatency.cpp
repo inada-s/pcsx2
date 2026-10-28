@@ -1,9 +1,9 @@
 // SPDX-FileCopyrightText: 2026 zdxsv contributors
 // SPDX-License-Identifier: GPL-3.0+
 
-// HTTPS latency to the cloud regions, as flycast's gcp_ping_test (gdxsv_https_latency_*): per region, a warm-up
+// HTTPS latency to the cloud regions: per region, a warm-up
 // HEAD and then 3 HEADs on the same connection; the fastest is the region's latency. The lobby gets them as
-// "<region>=<ms>" platform info lines (gdxsv's keys: its lobby picks the battle region from them).
+// "<region>=<ms>" platform info lines.
 
 #include "Zdxsv/Dev9Hooks.h"
 #include "Zdxsv/TestOptions.h"
@@ -42,7 +42,7 @@ namespace Zdxsv
 			std::string label; // log and OSD
 		};
 
-		// flycast's list (powered by https://github.com/GoogleCloudPlatform/gcping)
+		// the gcping regions (https://github.com/GoogleCloudPlatform/gcping)
 		const char* const kPath = "/api/ping";
 		const Region kRegions[] = {
 			{"australia-southeast1", "australia-southeast1-5tkroniexa-ts.a.run.app", "Australia"},

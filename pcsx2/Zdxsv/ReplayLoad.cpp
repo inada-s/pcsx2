@@ -143,8 +143,8 @@ namespace Zdxsv
 			return i < json.size() ? url : std::string();
 		}
 
-		// ZDXSV_REPLAY=http(s)://...: a replay file, or the lobby's /lbs/replay?battle_code=C answer (as gdxsv
-		// lbsapi: a JSON list, newest first), whose first battle's replay_url is then fetched.
+		// ZDXSV_REPLAY=http(s)://...: a replay file, or the lobby's /lbs/replay?battle_code=C answer
+		// (a JSON list, newest first), whose first battle's replay_url is then fetched.
 		std::optional<std::vector<u8>> HttpOpen(const std::string& url)
 		{
 			std::optional<std::vector<u8>> got = HttpGet(url);
@@ -276,7 +276,7 @@ namespace Zdxsv
 			return static_cast<int>(me);
 		}
 
-		// The hosted post-entry state of a common start (as gdxsv's slot 99): ZDXSV_REPLAY_STATE, else the setting
+		// The hosted post-entry state of a common start: ZDXSV_REPLAY_STATE, else the setting
 		// DEV9/Eth ZdxsvReplayStateUrl (default: the hosted one); a URL is downloaded once into the cache (one file
 		// per URL). Set empty = the booted state is used as it is.
 		bool PlayCommonState()
