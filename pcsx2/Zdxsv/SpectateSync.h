@@ -8,7 +8,7 @@
 #include <utility>
 #include <vector>
 
-// Four-screen replay (as flycast's gdxsv_spectate_sync / gdxsv_multi_pov): one replay played from each position
+// Four-screen replay: one replay played from each position
 // with a file, one PCSX2 process per position, kept on the same frame through a file-backed shared memory group.
 // The host (the process the replay was started in) also publishes its pause, speed and seeks; the guests follow.
 namespace Zdxsv::SpectateSync

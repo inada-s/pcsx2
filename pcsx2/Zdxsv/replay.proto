@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 zdxsv contributors
 // SPDX-License-Identifier: GPL-3.0+
 
-// zdxsv replay file (<battle_code>.pb): gdxsv's BattleLogFile with the same field numbers, plus the PCSX2 fields
+// zdxsv replay file (<battle_code>.pb). Field numbers below 40 are shared with other replay readers: keep them; PCSX2 fields
 // from 40 on. Written by ReplayWrite, read by PlayLoadFile with the codec in Proto.h; not compiled into PCSX2.
 syntax = "proto3";
 
@@ -14,7 +14,7 @@ message BattleLogUser {
   int32 pos = 12;  // battle position (0-based)
 }
 
-// gdxsv BattleLogRound: one per round, in order.
+// one per round, in order
 message BattleLogRound {
   int32 win_team = 1;  // 1 or 2 (team 1 = position 0's side); -1 = draw (time-up: both teams take a loss)
   repeated int32 used_ms = 2;  // by position: the MS id at the round end + 1 (player work +0x1f2a; 1 = Gundam)

@@ -307,7 +307,6 @@ namespace Zdxsv
 
 		constexpr u32 OsdColor(u32 r, u32 g, u32 b) { return 0xff000000u | (b << 16) | (g << 8) | r; } // IM_COL32
 		constexpr u32 OSD_TEXT = OsdColor(255, 255, 255);
-		// flycast msColor
 		u32 OsdPingColor(int ms)
 		{
 			return ms <= 0 ? OsdColor(64, 64, 64) : ms <= 30 ? OsdColor(87, 213, 213) : ms <= 60 ? OsdColor(0, 255, 149) :
@@ -315,7 +314,7 @@ namespace Zdxsv
 		}
 
 		// net, once per frame: the OSD lines (GgpoOsdLines). log: also to the log, one line.
-		// With the OSD off, shown only while a peer is interrupted or disconnected (as flycast).
+		// With the OSD off, shown only while a peer is interrupted or disconnected.
 		void UpdateOsd(bool log)
 		{
 			if (!s_net || !s_session)
@@ -327,7 +326,6 @@ namespace Zdxsv
 				return;
 			}
 			std::vector<GgpoOsdLine> lines;
-			// flycast's delay colors
 			lines.push_back({fmt::format("Delay {}fr", s_delay), s_delay >= 13 ? OsdColor(255, 38, 31) : s_delay >= 10 ? OsdColor(255, 128, 0) :
 			                                                      s_delay >= 5   ? OsdColor(255, 217, 0) : OSD_TEXT});
 			lines.push_back({fmt::format("Roll {}  Wait {}", s_rollback_frames, s_waits), OSD_TEXT});
@@ -487,8 +485,8 @@ namespace Zdxsv
 				Console.Warning("ZdxsvGgpo: ggpo: %s", msg);
 		}
 
-		// net: a thread pumps GGPO's sockets every 1 ms (ggpo_idle -1: receive and send only, no callbacks), as
-		// flycast's ggpoIdleLoop, so pings, input acks and relayed packets do not wait for the next vsync.
+		// net: a thread pumps GGPO's sockets every 1 ms (ggpo_idle -1: receive and send only, no callbacks),
+		// so pings, input acks and relayed packets do not wait for the next vsync.
 		// ZDXSV_NET_PUMP=0: no thread (GGPO polled only by the frame loop).
 		// s_ggpo_mtx guards every GGPO call: the frame loop holds it through Returned, the thread per pump.
 		std::recursive_mutex s_ggpo_mtx;
@@ -541,7 +539,7 @@ namespace Zdxsv
 			Zdxsv::DeltaStateClear();
 			Report(what);
 			{
-				// flycast keeps its stats up 10 s after a disconnect, so the player sees who left
+				// the stats stay up 10 s after a disconnect, so the player sees who left
 				std::lock_guard lock(s_osd_mtx);
 				if (s_disconnected && !s_osd_lines.empty())
 				{
@@ -625,7 +623,7 @@ namespace Zdxsv
 			const std::string code = IdValue(ReplayIds(), "battle_code");
 			if (s_net_trace) // battle start marker (pwcheck.py --battle): BATTLES=N lobby battles in one process
 				std::fprintf(s_net_trace, "%u B %s\n", g_FrameCount, code.empty() ? "-" : code.c_str());
-			// GGPO's sync handshake compares this (as flycast): a peer of another session (an old battle, a stray
+			// GGPO's sync handshake compares this: a peer of another session (an old battle, a stray
 			// packet) is refused. ZDXSV_NET_SESSION=s replaces it (test: a peer of another session).
 			const char* session_env = Zdxsv::TestEnv("ZDXSV_NET_SESSION");
 			const std::string session = (session_env ? std::string(session_env) : code).substr(0, 256); // GGPO's max
@@ -635,7 +633,7 @@ namespace Zdxsv
 				s_session = nullptr;
 				return "start failed";
 			}
-			// ZDXSV_NET_DISCONNECT_MS=ms (default 10000, as flycast): longer lets a peer stall (ZDXSV_RAM_DUMP) without a disconnect.
+			// ZDXSV_NET_DISCONNECT_MS=ms (default 10000): longer lets a peer stall (ZDXSV_RAM_DUMP) without a disconnect.
 			const char* dms = Zdxsv::TestEnv("ZDXSV_NET_DISCONNECT_MS");
 			ggpo_set_disconnect_timeout(s_session, dms ? std::atoi(dms) : 10000);
 			ggpo_set_disconnect_notify_start(s_session, 1000);
@@ -674,7 +672,7 @@ namespace Zdxsv
 				if (player.type == GGPO_PLAYERTYPE_LOCAL)
 					ggpo_set_frame_delay(s_session, s_handles[p], s_delay);
 			}
-			// Every peer arms at its own first key msg: block until all are synchronized (as flycast, 10 s).
+			// Every peer arms at its own first key msg: block until all are synchronized.
 			constexpr double START_TIMEOUT_S = 10;
 			Common::Timer wait;
 			while (!s_running && wait.GetTimeSeconds() < START_TIMEOUT_S)
@@ -1093,7 +1091,7 @@ namespace Zdxsv
 			s_options.clear();
 		else
 			s_options = e ? e : lobby_default ? DEFAULT_OPTIONS : "";
-		// as flycast's gdxsv:MinDelay (2..6); mindelay= overrides it
+		// mindelay= overrides it
 		s_min_delay = std::clamp(Host::GetIntSettingValue("DEV9/Eth", "ZdxsvGgpoMinDelay", 2), 2, 6);
 		g_ggpo_enabled = !s_options.empty() || s_play_env;
 		s_net_env = s_options.find("net=1") != std::string::npos || s_play_env;

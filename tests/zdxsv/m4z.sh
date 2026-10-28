@@ -16,7 +16,7 @@
 #   BATTLES=N (CLIENTS="1 3", 1v1): N battles in the same processes (EXIT from 作戦後部屋, Lobby 02 again);
 #   the result and GGPO checks then expect N battle codes and N GGPO battle ends per client.
 #   GOPT=opts (GGPO): appended to every ZDXSV_GGPO (e.g. GOPT=replay=0: saving off; live streams anyway).
-#   UPLOAD=1 (GGPO): replay upload as gdxsv. Clients post (ZDXSV_GGPO upload=) to the lobby's public api on
+#   UPLOAD=1 (GGPO): replay upload. Clients post (ZDXSV_GGPO upload=) to the lobby's public api on
 #   127.0.0.1:9881 (/lbs/replay_upload, db migrated first), stored in OUT/upload (ZDXSV_LOBBY_REPLAY_DIR, served
 #   at /lbs/replays/). Checks per battle code: the stored .pb = one client's saved one,
 #   one client's upload ok + the rest 409, every db record's replay_url = the stored file's url.

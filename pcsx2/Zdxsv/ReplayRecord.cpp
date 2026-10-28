@@ -80,7 +80,7 @@ namespace Zdxsv
 		}
 
 		// upload=URL, else the settings, but only when the game found the public server by DNS: a lobby reached
-		// through a host entry (a rig, a local server) posts nowhere without upload= (as flycast's !is_local_test_).
+		// through a host entry (a rig, a local server) posts nowhere without upload=.
 		std::string ReplayUploadUrl()
 		{
 			if (!s_upload_url.empty())
@@ -90,7 +90,7 @@ namespace Zdxsv
 			return Host::GetStringSettingValue("DEV9/Eth", "ZdxsvReplayUploadUrl", REPLAY_UPLOAD_URL);
 		}
 
-		// As flycast's GdxsvBackendRollback::SaveReplay: every player posts <battle_code>.pb (multipart field "file")
+		// Every player posts <battle_code>.pb (multipart field "file")
 		// to the uploader, which keeps the first one (409 for the others). Detached: a slow upload blocks neither
 		// the next battle nor the exit.
 		void ReplayUpload(const std::string& name, const std::vector<uint8_t>& pb)
@@ -183,7 +183,7 @@ namespace Zdxsv
 	}
 
 	// At GGPO frame 0: the session started, its first input not added yet (Zdxsv::DeltaStateSave(0) saves this point).
-	// Records when the battle is saved, uploaded or streamed live: each one goes without the others (as gdxsv).
+	// Records when the battle is saved, uploaded or streamed live: each one goes without the others.
 	void ReplayBegin()
 	{
 		if (!s_net)
@@ -301,7 +301,7 @@ namespace Zdxsv
 			{
 				std::vector<uint8_t> round;
 				PutInt(round, 1, win);
-				std::vector<int64_t> used_ms; // by position, 1-based as gdxsv's
+				std::vector<int64_t> used_ms; // by position, 1-based
 				for (int p = 0; p < s_players; p++)
 					used_ms.push_back(((s_replay_ms[f] >> (p * 8)) & 0xff) + 1);
 				PutPackedInts(round, 2, used_ms);

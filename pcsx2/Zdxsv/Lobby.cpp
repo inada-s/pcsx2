@@ -464,8 +464,8 @@ namespace Zdxsv
 				   std::memcmp(&a6.sin6_addr, &b6.sin6_addr, sizeof(a6.sin6_addr)) == 0;
 		}
 
-		// UDP socket of family af bound to port on every address; IPv6 only on AF_INET6 (as flycast's
-		// UdpClient: one socket per family). INVALID_SOCKET if it can't be opened or bound.
+		// UDP socket of family af bound to port on every address; IPv6 only on AF_INET6 (one socket per
+		// family). INVALID_SOCKET if it can't be opened or bound.
 		sock_t BindUdp(int af, uint16_t port)
 		{
 			sock_t s = socket(af, SOCK_DGRAM, IPPROTO_UDP);
@@ -489,7 +489,6 @@ namespace Zdxsv
 			return s;
 		}
 
-		// flycast is_loopback_addr / is_private_addr
 		bool IsLoopback(const sockaddr_storage& a)
 		{
 			if (a.ss_family == AF_INET)
@@ -536,7 +535,7 @@ namespace Zdxsv
 
 	namespace
 	{
-		// flycast core/gdxsv/gdxsv_network.h UdpPingPong::Packet, byte for byte
+		// ping test packet; its layout is a wire format shared with other clients
 #pragma pack(push, 1)
 		struct PingPacket
 		{
@@ -550,12 +549,12 @@ namespace Zdxsv
 			uint64_t pingTimestamp; // pong: the ping's sendTimestamp
 			uint8_t rttMatrix[4][4]; // [i][j]: i's rtt to j in ms (255 max), 0 = unknown; each player fills its own row
 		};
-		// sent instead of PingPacket only when the battle has relays (flycast PacketWithRelays)
+		// sent instead of PingPacket only when the battle has relays
 		struct PingPacketRelays : PingPacket
 		{
 			uint8_t relayRttMatrix[4][4]; // [i][k]: i's rtt to relay k
 		};
-		// gdxsv relay.go ping, echoed as a pong (flycast UdpPingPong::RelayPacket)
+		// relay server ping, echoed as a pong
 		struct RelayPacket
 		{
 			uint32_t magic;
@@ -633,7 +632,7 @@ namespace Zdxsv
 			return out;
 		}
 
-		// One ping test on its thread (flycast UdpPingPong): pings each candidate address of every other position
+		// One ping test on its thread: pings each candidate address of every other position
 		// and each relay path, answers the peers' pings, then picks a path per position.
 		class PingRun
 		{
@@ -659,7 +658,7 @@ namespace Zdxsv
 				, m_n(static_cast<int>(byPosition.size()))
 				, m_relays(relays)
 				, m_nr(static_cast<int>(std::min<size_t>(relays.size(), 4)))
-				// older peers read only a PingPacket: the relay rtts go out only in battles with relays (as flycast)
+				// older peers read only a PingPacket: the relay rtts go out only in battles with relays
 				, m_pkSize(m_nr ? sizeof(PingPacketRelays) : sizeof(PingPacket))
 				, m_cand(m_n)
 				, m_rpath(m_nr)
@@ -835,7 +834,7 @@ namespace Zdxsv
 					return;
 				const bool head = pk.magic == PING_MAGIC && pk.sessionId == m_session && pk.toPeer == m_me && pk.fromPeer < m_n && pk.fromPeer != m_me;
 				const std::vector<Cand>* fc = head ? &m_cand[pk.fromPeer] : nullptr;
-				// a peer listed without an address: the sources of its pings become its candidates (as flycast), at most 4
+				// a peer listed without an address: the sources of its pings become its candidates, at most 4
 				if (head && pk.type == PING_TYPE && m_byPosition[pk.fromPeer].empty() && fc->size() < 4 &&
 					std::none_of(fc->begin(), fc->end(), [&from](const Cand& c) { return SameAddr(from, c.sa); }))
 				{
@@ -889,7 +888,7 @@ namespace Zdxsv
 				{
 					if (p == m_me)
 						continue;
-					// flycast UdpPingPong::GetAvailableAddress: highest 10000 - rtt, +100 loopback, +50 private, +20 IPv6
+					// highest 10000 - rtt, +100 loopback, +50 private, +20 IPv6
 					float best = 0;
 					line += "; peer " + std::to_string(p);
 					for (size_t k = 0; k < m_cand[p].size(); k++)
@@ -927,7 +926,7 @@ namespace Zdxsv
 				}
 			}
 
-			// path choice, flycast's rollback backend: a relaying peer must beat direct by 32 ms (it spends its
+			// a relaying peer must beat direct by 32 ms (it spends its
 			// own bandwidth), a relay server by 16 ms; of the two the lower rtt wins
 			PingResult PickPath(int p, const std::vector<PingResult>& direct, const std::vector<RelayServerAddr>& servers) const
 			{
@@ -1275,7 +1274,7 @@ namespace Zdxsv
 	// Live spectating (Lobby.h LiveUp / LiveDown).
 	namespace
 	{
-		// Packet.type and its message field (gdxsv's numbers)
+		// Packet.type and its message field
 		constexpr uint32_t LIVE_PUSH = 20, LIVE_ACK = 21, LIVE_SUBSCRIBE = 24, LIVE_CHALLENGE = 25;
 		constexpr size_t LIVE_CHUNK = 1000;
 		constexpr size_t LIVE_WINDOW = 32; // datagrams past the ack

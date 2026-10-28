@@ -14,7 +14,7 @@ namespace Zdxsv
 {
 	// default of ZdxsvReplayStateUrl: the post-entry state a replay starts from
 	inline constexpr const char* REPLAY_STATE_URL = "https://storage.googleapis.com/zdxsv/misc/rbk-p1.p2s";
-	// default of ZdxsvReplayUploadUrl: the lobby's replay upload API (as flycast's lbs.gdxsv.net one)
+	// default of ZdxsvReplayUploadUrl: the lobby's replay upload API
 	inline constexpr const char* REPLAY_UPLOAD_URL = "https://lbs.zdxsv.net:8443/lbs/replay_upload";
 
 	// env: "0" = off, any other value = on

@@ -27,7 +27,7 @@ namespace Zdxsv
 {
 	// A player's address for logs players paste (streams): IPv4 digits after the first octet and IPv6
 	// digits after the third group become one 'x' per part, the port stays ("1.x.x.x:7001",
-	// "[2001:db8:1:x::x]:7001"). As flycast's mask_ip_address, but without the digit count.
+	// "[2001:db8:1:x::x]:7001").
 	std::string MaskIpAddress(const std::string& addr);
 
 	// A peer's UDP address: numeric IPv4 ("1.2.3.4") or IPv6 ("2001:db8::1") ip, host order port.
@@ -167,13 +167,13 @@ namespace Zdxsv
 	// address gets none (the ping test may still find a path). Returns our position, -1 if not listed.
 	int GgpoPeers(const BattleInfo& info, const std::string& ownPublicIP, std::vector<std::vector<PeerAddr>>& byPosition);
 
-	// GGPO ping test before a lobby GGPO battle, packet-compatible with flycast's: pings every candidate
+	// GGPO ping test before a lobby GGPO battle: pings every candidate
 	// of every peer of byPosition and every relay for durationMs on the GGPO port, and answers their
 	// pings. A ping also joins us to the relay's session. Cancels a running test or StartUdpTest first.
 	// me = our position. A peer without candidates is reached at the sources of its pings.
 	void StartPingTest(uint32_t session, int me, const std::vector<std::vector<PeerAddr>>& byPosition, uint16_t port, int durationMs,
 		const std::vector<BattleInfo::Relay>& relays = {});
-	// Per battle position, the path picked as flycast picks it: direct, unless a relaying peer is 32 ms
+	// Per battle position, the path picked: direct, unless a relaying peer is 32 ms
 	// or a relay server 16 ms faster. rtt in ms (the whole path), -1 = unreachable (and own position).
 	struct PingResult
 	{
