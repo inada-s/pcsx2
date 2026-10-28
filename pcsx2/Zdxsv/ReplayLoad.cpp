@@ -4,6 +4,7 @@
 // Replay files: parse, load, common start, start of playback, switch of position, next battle.
 
 #include "Zdxsv/GgpoShared.h"
+#include "IconsFontAwesome.h"
 
 namespace Zdxsv
 {
@@ -435,6 +436,13 @@ namespace Zdxsv
 				TakeoverOff("cancelled");
 			return false;
 		}
+
+		// Without it the game just boots to its title screen; the cause is in the log lines before.
+		void PlayFailed(const std::string& msg)
+		{
+			Console.Error("ZdxsvGgpo: replay: not started: %s", msg.c_str());
+			Host::AddIconOSDMessage("ZdxsvReplayFailed", ICON_FA_TRIANGLE_EXCLAMATION, msg, Host::OSD_ERROR_DURATION);
+		}
 	} // namespace
 
 
@@ -447,7 +455,10 @@ namespace Zdxsv
 			if (const int p = PlayLoadFile(std::string(path)); me < 0)
 				me = p;
 		if (me < 0)
+		{
+			PlayFailed(TRANSLATE_STR("Zdxsv", "Failed to start the replay. The replay file could not be read, or it is corrupted or outdated."));
 			return;
+		}
 		const char* e = std::getenv("ZDXSV_REPLAY_POV");
 		if (const std::string pov = e ? e : s_play_picked_pov >= 0 ? std::to_string(s_play_picked_pov) : ""; !pov.empty())
 		{
@@ -457,7 +468,8 @@ namespace Zdxsv
 			else
 				Console.Error("ZdxsvGgpo: replay: point of view %s is not a position of the battle, playing position %d", pov.c_str(), me);
 		}
-		PlayCommonArm(me);
+		if (!PlayCommonArm(me))
+			PlayFailed(TRANSLATE_STR("Zdxsv", "Failed to start the replay. The common start state could not be downloaded or loaded."));
 	}
 
 	// The battle start from the common state, the lobby answering 0x6912 (own position) with pov: the game plays that

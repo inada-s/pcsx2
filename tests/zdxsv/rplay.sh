@@ -18,6 +18,7 @@
 # Control bar: KEYS="15:bar:show,w600,bar:timeline:0.7,shot:$OUT/a.png" (pcsx2ctl.ps1 mouse tokens).
 # API=1: plays ZDXSV_REPLAY=http://127.0.0.1:API_PORT/lbs/replay?battle_code=<FILE's name> from apiserve.py (API_PORT,
 # default 9891), whose replay_url serves FILE; checks the replay_url line too.
+# BAD=1: FILE is not a playable replay: exit 0 if the player is told it did not start (`replay: not started`).
 here=$(cd "$(dirname "$0")" && pwd -W)
 . "$here/riglock.sh"  # one rig at a time
 OUT=${OUT:?OUT=dir for logs}
@@ -65,6 +66,10 @@ l=$RUN/p$N/PCSX2/logs/emulog.txt
 # start check: the replay header line within 30 s, else stop
 for t in $(seq 30); do grep -a -q "ZdxsvGgpo: replay .*: \(recorded at position\|not a\|bad\|no lobby answers\)\|replay: state load failed" "$l" 2>/dev/null && break; sleep 1; done
 grep -a "ZdxsvGgpo: replay" "$l" | cut -c1-200
+if [ "$BAD" = 1 ]; then
+  for t in $(seq 5); do grep -a -q "ZdxsvGgpo: replay: not started" "$l" && { echo "PASS not started, player told"; exit 0; }; sleep 1; done
+  echo "FAIL no not started line"; exit 1
+fi
 grep -a -q "ZdxsvGgpo: replay .*: recorded at position" "$l" || { echo "FAIL replay did not start"; exit 1; }
 [ -z "$api" ] || grep -a -q "replay_url http://127.0.0.1:${API_PORT:-9891}/pb" "$l" || { echo "FAIL no replay_url line"; exit 1; }
 t1=$SECONDS
