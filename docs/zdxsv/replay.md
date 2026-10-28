@@ -136,3 +136,8 @@ A lobby GGPO battle is streamed to the lobby while it runs, as gdxsv does
 - Auto-next (as flycast `gdxsv:LiveAutoNext`, setting `ZdxsvLiveAutoNext`):
   at the end of a stream the spectator asks the lobby for its newest live
   battle not watched yet, resets the VM and watches it from its start.
+  A live stream that does not play (no battle, open failed, not a replay
+  stream) is skipped, as flycast: the spectator keeps waiting and does not
+  count it as a move. While it waits (VM paused, the lobby asked every 5 s) an
+  OSD shows the time waited, battles watched, battles skipped and the last
+  skip's cause. Resuming the VM stops the wait.

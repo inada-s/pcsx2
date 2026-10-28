@@ -4,6 +4,7 @@
 // Replay playback of a live stream and the spectator sync of several viewers.
 
 #include "Zdxsv/GgpoShared.h"
+#include "IconsFontAwesome.h"
 
 namespace Zdxsv
 {
@@ -19,6 +20,8 @@ namespace Zdxsv
 			const char* e = std::getenv("ZDXSV_LIVE_NEXT");
 			return e ? std::atoi(e) : -1; // -1 = the setting decides (no limit)
 		}();
+		int s_live_skips = 0; // battles auto-next could not play, kept across the resets
+		std::string s_live_open_error; // why the last LiveOpen failed, "" = it opened
 		constexpr int LIVE_NEXT_POLL_S = 5, LIVE_NEWEST_MS = 2000, LIVE_NEXT_SKIP = 32; // the skip list fits one datagram
 
 		void LiveSeen(const std::string& code)
@@ -189,8 +192,10 @@ namespace Zdxsv
 		if (!s_live_down)
 		{
 			Console.Error("ZdxsvGgpo: live %s: %s", url.c_str(), error.c_str());
+			s_live_open_error = std::move(error);
 			return std::nullopt;
 		}
+		s_live_open_error.clear();
 		s_live_got = {};
 		s_live_down->Take(s_live_got, LIVE_STALL_MS);
 		const size_t fb = std::max(s_live_got.frameBytes, 1);
@@ -202,29 +207,47 @@ namespace Zdxsv
 		s_live_got.inputs.erase(s_live_got.inputs.begin(), s_live_got.inputs.begin() + frames * fb);
 		const std::string code = s_live_down->Code();
 		LiveSeen(code);
+		if (!s_live_next_url.empty() && s_live_next_left > 0)
+			s_live_next_left--; // a battle moved on to that does not open is skipped, not counted
 		Console.WriteLn("ZdxsvGgpo: live: battle %s, %zu frames so far%s", code.c_str(), frames,
 			s_live_got.closed ? ", closed" : "");
 		return pb;
 	}
 
-	// PlayNext at the end of a closed stream: true = auto-next waits for the next battle (VM paused).
-	bool LiveAutoNext()
+	// PlayNext at the end of a closed stream, PlayLoad when a live stream does not play (skip): true = auto-next waits for
+	// the next battle (VM paused). Resuming the VM stops the wait.
+	bool LiveAutoNext(bool skip)
 	{
 		if (s_live_next_left < 0 ? !Host::GetBoolSettingValue("DEV9/Eth", "ZdxsvLiveAutoNext", false) : s_live_next_left == 0)
 			return false;
-		if (s_live_next_left > 0)
-			s_live_next_left--;
 		const std::string_view src = s_live_next_url.empty() ? std::string_view(s_play_env) : std::string_view(s_live_next_url);
 		const std::string_view rest = src.substr(std::min<size_t>(6, src.size())); // after udp://
 		std::string host(rest.substr(0, rest.find('/')));
-		Console.WriteLn("ZdxsvGgpo: live: auto-next: waiting for a new battle at %s (%zu watched)", host.c_str(), s_live_seen.size());
+		const std::string why = !skip ? "" : !s_live_open_error.empty() ? s_live_open_error : "not a replay stream";
+		if (skip)
+			s_live_skips++;
+		Console.WriteLn("ZdxsvGgpo: live: auto-next: waiting for a new battle at %s (%zu watched, %d skipped)%s%s", host.c_str(),
+			s_live_seen.size(), s_live_skips, why.empty() ? "" : ": skipped, ", why.c_str());
 		s_live_wait = std::make_unique<LiveWait>();
 		const auto skip_from = s_live_seen.end() - std::min<ptrdiff_t>(s_live_seen.size(), LIVE_NEXT_SKIP);
 		s_live_wait->t = std::thread([w = s_live_wait.get(), host = std::move(host), seen = s_live_seen,
-										 skip = std::vector<std::string>(skip_from, s_live_seen.end())]() {
+										 skip = std::vector<std::string>(skip_from, s_live_seen.end()), why, skips = s_live_skips]() {
 			Common::Timer since;
+			bool paused = false;
 			while (!w->quit)
 			{
+				if (VMManager::GetState() == VMState::Paused)
+					paused = true;
+				else if (paused)
+				{
+					Console.WriteLn("ZdxsvGgpo: live: auto-next: stopped (resumed) after %.0f s", since.GetTimeSeconds());
+					break;
+				}
+				std::string msg = fmt::format(TRANSLATE_FS("Zdxsv", "Waiting for the next live battle: {:.0f} s, {} watched. Resume to stop."),
+					since.GetTimeSeconds(), seen.size());
+				if (!why.empty())
+					msg += fmt::format(TRANSLATE_FS("Zdxsv", "\nSkipped {}, last: {}"), skips, why);
+				Host::AddIconOSDMessage("ZdxsvLiveNext", ICON_FA_EYE, msg, LIVE_NEXT_POLL_S + 2.0f);
 				// the seen check holds the pick against a lobby that ignores skip (it answers its newest battle)
 				if (const std::string code = Zdxsv::LiveDown::Newest(host, skip, LIVE_NEWEST_MS);
 					!code.empty() && std::ranges::find(seen, code) == seen.end())
@@ -238,11 +261,12 @@ namespace Zdxsv
 						VMManager::Reset();
 						VMManager::SetPaused(false);
 					});
-					return;
+					break;
 				}
 				for (int i = 0; i < LIVE_NEXT_POLL_S * 10 && !w->quit; i++)
 					Threading::Sleep(100);
 			}
+			Host::RemoveKeyedOSDMessage("ZdxsvLiveNext");
 		});
 		VMManager::SetPaused(true);
 		return true;

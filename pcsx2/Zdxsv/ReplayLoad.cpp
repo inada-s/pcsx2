@@ -474,6 +474,8 @@ namespace Zdxsv
 		for (const std::string_view path : StringUtil::SplitString(paths, ';'))
 			if (const int p = PlayLoadFile(std::string(path)); me < 0)
 				me = p;
+		if (me < 0 && paths.starts_with("udp://") && LiveAutoNext(true))
+			return; // flycast too skips a live battle that does not play and keeps waiting
 		if (me < 0)
 		{
 			PlayFailed(TRANSLATE_STR("Zdxsv", "Failed to start the replay. The replay file could not be read, or it is corrupted or outdated."));
