@@ -150,6 +150,7 @@ namespace Zdxsv
 	struct RollbackState
 	{
 		size_t net_pos = 0; // msgs sent so far in the current timeline
+		int end_frame = -1; // frame that sent the end msg (kind f) in the current timeline, -1 = not yet
 		std::vector<u8> net_rx; // remote msgs not yet given to the game's recv
 		int zds_seen[GGPO_MAX_PLAYERS] = {}, zds_rel = 0; // zds kind-3 barrier counters
 		PS ps = {}, ms = {};

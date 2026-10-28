@@ -609,7 +609,10 @@ namespace Zdxsv
 		void NetLoaded(int frame)
 		{
 			s_net_frame = frame;
+			const int end_frame = s_rb.end_frame;
 			s_rb = s_net_at[frame & 127];
+			if (end_frame >= 0 && s_rb.end_frame < 0)
+				Console.WriteLn("ZdxsvGgpo: net end msg of frame %d rolled back to frame %d", end_frame, frame);
 		}
 
 		const char* NetStart(GGPOSessionCallbacks& cb)
@@ -1017,7 +1020,18 @@ namespace Zdxsv
 			return;
 		}
 		s_session_frames++;
-		// net: the battle ended (end msg sent or received); s_net_tail frames for the peers to get it too.
+		// net: the battle ended (end msg sent in a frame whose inputs are all confirmed: a mispredicted timeline
+		// can send one that the rerun does not); s_net_tail frames for the peers to get it too.
+		if (s_net && s_net_end < 0 && s_rb.end_frame >= 0)
+		{
+			int confirmed = INT_MAX;
+			ggpo_get_last_confirmed_frame(s_session, &confirmed);
+			if (confirmed >= s_rb.end_frame)
+			{
+				s_net_end = 0;
+				Console.WriteLn("ZdxsvGgpo: net end msg of frame %d confirmed at frame %d", s_rb.end_frame, s_net_frame);
+			}
+		}
 		if (s_net && s_net_end >= 0 && ++s_net_end > s_net_tail)
 		{
 			Stop("net battle end");

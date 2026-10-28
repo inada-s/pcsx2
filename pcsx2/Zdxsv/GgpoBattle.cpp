@@ -44,6 +44,8 @@ namespace Zdxsv
 		void NetSend(std::vector<u8> m)
 		{
 			s_ns.msgs++;
+			if (m.size() >= 2 && (m[1] >> 4) == 0xf && s_rb.end_frame < 0)
+				s_rb.end_frame = s_net_frame;
 			const int kind = m.size() >= 2 && m[0] == m.size() ? m[1] >> 4 : -1;
 			if (kind == 3)
 				; // GGPO input (below), released by NetSyncAndApply
@@ -87,8 +89,6 @@ namespace Zdxsv
 			}
 			else
 			{
-				if (m.size() >= 2 && (m[1] >> 4) == 0xf && s_net_end < 0)
-					s_net_end = 0;
 				s_net_sent.push_back(m);
 				s_net_sent_at.push_back(s_net_frame);
 				if (m.size() >= 2 && (m[1] >> 4) == 3)
