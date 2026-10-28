@@ -127,7 +127,8 @@ A relayed peer shows `(R)` on the OSD.
 On the first lobby connection the emulator tests the GGPO port against the
 lobby's STUN and its test socket at the STUN port + 1, as flycast's
 feasibility test: `open`, `cone NAT`, `symmetric NAT` or `unknown`. Shown on
-the OSD, logged and sent as `nat=`. It runs on its own thread; a ping test
+the OSD in words only (no address or port: streams), logged with the
+addresses and sent as `nat=`. It runs on its own thread; a ping test
 cancels it. A missing STUN answer is asked again on the next connection.
 
 ## HTTPS latency test

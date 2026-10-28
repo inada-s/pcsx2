@@ -1087,8 +1087,8 @@ namespace Zdxsv
 		{
 			if (s != INVALID_SOCKET)
 				closesocket(s);
-			summary = "unknown (port " + std::to_string(bindPort) + " busy)";
-			Log("udp test: " + summary);
+			summary = "unknown (port busy)";
+			Log("udp test: " + summary + ": port " + std::to_string(bindPort));
 			return "nat=unknown\n";
 		}
 		const sockaddr_in stun = MakeAddr(stunIP, stunPort);
@@ -1138,20 +1138,21 @@ namespace Zdxsv
 
 		uint32_t ip1 = 0, ip2 = 0;
 		uint16_t port1 = 0, port2 = 0;
-		std::string nat;
+		// summary is shown to the player (streams): words only; addresses go to the log line only
+		std::string nat, detail;
 		if (stopped())
-			nat = "unknown", summary = "unknown (test cancelled: port " + std::to_string(bindPort) + " taken by the ping test)";
+			nat = "unknown", summary = "unknown (test cancelled)", detail = "port " + std::to_string(bindPort) + " taken by the ping test";
 		else if (mapped.empty())
-			nat = "unknown", summary = "unknown (no STUN answer from " + AddrString(stun) + ")";
+			nat = "unknown", summary = "unknown (no answer from the server)", detail = "no STUN answer from " + AddrString(stun);
 		else if (open)
-			nat = "open", summary = "open (port " + std::to_string(bindPort) + " reachable from any source, public " + mapped + ")";
+			nat = "open", summary = "open", detail = "port " + std::to_string(bindPort) + " reachable from any source, public " + mapped;
 		else if (mappedTest.empty() || !ParseAddr(mapped, ip1, port1) || !ParseAddr(mappedTest, ip2, port2))
-			nat = "unknown", summary = "unknown (no answer from the STUN test socket " + AddrString(test) + ")";
+			nat = "unknown", summary = "unknown (no answer from the server's test socket)", detail = "no answer from the STUN test socket " + AddrString(test);
 		else if (port1 == port2 && ip1 == ip2)
-			nat = "cone", summary = "cone NAT (port " + std::to_string(bindPort) + " closed, same public " + mapped + " for both servers)";
+			nat = "cone", summary = "cone NAT (port closed)", detail = "port " + std::to_string(bindPort) + " closed, same public " + mapped + " for both servers";
 		else
-			nat = "symmetric", summary = "symmetric NAT (port " + std::to_string(bindPort) + " closed, public " + mapped + " / " + mappedTest + ")";
-		Log("udp test: nat=" + nat + ": " + summary);
+			nat = "symmetric", summary = "symmetric NAT (port closed)", detail = "port " + std::to_string(bindPort) + " closed, public " + mapped + " / " + mappedTest;
+		Log("udp test: nat=" + nat + ": " + summary + ": " + detail);
 		return "nat=" + nat + "\n";
 	}
 
