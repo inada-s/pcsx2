@@ -1,7 +1,7 @@
 # PCSX2 for zdxsv: setup (Windows)
 
 This build of PCSX2 is set up to play *Mobile Suit Gundam: Gundam vs. Zeta Gundam*
-(PS2, 2004, Japan) online on the zdxsv server (`zdxsv.net`).
+(PS2, 2004, Japan) online on the zdxsv server (`lbs.zdxsv.net`).
 
 ## What you need
 
@@ -29,7 +29,7 @@ A new setup already has these settings, under Settings → Network & HDD:
 | Ethernet device | Auto |
 | Intercept DHCP | on |
 | DNS1 / DNS2 | Internal |
-| Hosts | empty (the game's servers are found through `zdxsv.net`) |
+| Hosts | empty (the game's servers are found through `lbs.zdxsv.net`) |
 | zdxsv: Rollback netcode (GGPO) for online battles | on (takes effect at the next game start) |
 
 Do not change them. If you copy a `PCSX2.ini` from another PCSX2 installation, it
