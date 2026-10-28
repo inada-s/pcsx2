@@ -346,7 +346,7 @@ namespace Zdxsv
 	extern std::unique_ptr<LiveWait> s_live_wait;
 	extern std::string s_live_next_url; // the battle auto-next moved on to, "" = ZDXSV_REPLAY
 	std::optional<std::vector<u8>> LiveOpen(const std::string& url);
-	bool LiveAutoNext();
+	bool LiveAutoNext(bool skip = false);
 	void LiveCatchupEnd(int f);
 	void LivePaceReset();
 	void LiveNext(int next);
