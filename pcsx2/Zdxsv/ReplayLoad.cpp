@@ -298,22 +298,42 @@ namespace Zdxsv
 					return true;
 				}
 			}
-			if (src.starts_with("http://") || src.starts_with("https://"))
+			const bool http = src.starts_with("http://") || src.starts_with("https://");
+			const auto download = [&src, &path]() {
+				const std::optional<std::vector<u8>> got = HttpGet(src);
+				if (!got || !FileSystem::WriteBinaryFile(path.c_str(), got->data(), got->size()))
+				{
+					Console.Error("ZdxsvGgpo: replay: common state %s: download to %s failed", src.c_str(), path.c_str());
+					return false;
+				}
+				Console.WriteLn("ZdxsvGgpo: replay: common state %s: %zu bytes into %s", src.c_str(), got->size(), path.c_str());
+				return true;
+			};
+			bool fresh = false;
+			if (http)
 			{
 				path = Path::Combine(EmuFolders::Cache, fmt::format("zdxsv-common-{:016x}.p2s", std::hash<std::string>{}(src)));
 				if (!FileSystem::FileExists(path.c_str()))
 				{
-					const std::optional<std::vector<u8>> got = HttpGet(src);
-					if (!got || !FileSystem::WriteBinaryFile(path.c_str(), got->data(), got->size()))
-					{
-						Console.Error("ZdxsvGgpo: replay: common state %s: download to %s failed", src.c_str(), path.c_str());
+					if (!download())
 						return false;
-					}
-					Console.WriteLn("ZdxsvGgpo: replay: common state %s: %zu bytes into %s", src.c_str(), got->size(), path.c_str());
+					fresh = true;
 				}
 			}
 			Error error;
-			if (!VMManager::LoadState(path.c_str(), &error))
+			bool loaded = VMManager::LoadState(path.c_str(), &error);
+			// a broken cached copy (a cut download, a bad disk) is downloaded again, once per URL per run: a start
+			// that fails is tried again soon, and a bad file on the server would be downloaded at each try
+			static std::string refetched;
+			if (!loaded && http && !fresh && refetched != src)
+			{
+				refetched = src;
+				Console.Error("ZdxsvGgpo: replay: common state %s: cached copy load failed: %s", path.c_str(), error.GetDescription().c_str());
+				FileSystem::DeleteFilePath(path.c_str());
+				error.Clear();
+				loaded = download() && VMManager::LoadState(path.c_str(), &error);
+			}
+			if (!loaded)
 			{
 				Console.Error("ZdxsvGgpo: replay: common state %s: load failed: %s", path.c_str(), error.GetDescription().c_str());
 				return false;
