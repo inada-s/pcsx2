@@ -103,6 +103,11 @@ The game runs with its own input delay 0; GGPO adds the input delay.
 - Each peer arms at its own first key message and waits up to 10 s (as
   flycast) for all to be synchronized; then the session closes as
   `start timeout` (other start errors: `start failed`).
+- The sync handshake carries the battle code (as flycast; rbk: none). A
+  peer with another code is refused: the peer that gets the refusal closes
+  as `session mismatch` and answers the other's requests for 1 s more; the
+  other closes as `session mismatch` too, or as `start timeout` when GGPO
+  sent it no refusal in that time.
 - Once synchronized, a thread pumps the GGPO sockets every 1 ms
   (`ggpo_idle(-1)`: receive, send, relay forwarding; no callbacks), as
   flycast's `ggpoIdleLoop`. A mutex keeps it off GGPO while the frame loop
