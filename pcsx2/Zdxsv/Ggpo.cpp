@@ -602,12 +602,15 @@ namespace Zdxsv
 				return "start failed";
 			}
 			const int local_port = s_lobby ? s_port : s_port + s_net_me;
+			const std::string code = IdValue(ReplayIds(), "battle_code");
 			if (s_net_trace) // battle start marker (pwcheck.py --battle): BATTLES=N lobby battles in one process
-			{
-				const std::string code = IdValue(ReplayIds(), "battle_code");
 				std::fprintf(s_net_trace, "%u B %s\n", g_FrameCount, code.empty() ? "-" : code.c_str());
-			}
-			if (ggpo_start_session(&s_session, &cb, "zdxsv", s_players, sizeof(NetInput), static_cast<unsigned short>(local_port), nullptr, 0) != GGPO_OK)
+			// GGPO's sync handshake compares this (as flycast): a peer of another session (an old battle, a stray
+			// packet) is refused. ZDXSV_NET_SESSION=s replaces it (test: a peer of another session).
+			const char* session_env = Zdxsv::TestEnv("ZDXSV_NET_SESSION");
+			const std::string session = (session_env ? std::string(session_env) : code).substr(0, 256); // GGPO's max
+			if (ggpo_start_session(&s_session, &cb, "zdxsv", s_players, sizeof(NetInput), static_cast<unsigned short>(local_port),
+					session.empty() ? nullptr : session.data(), static_cast<int>(session.size())) != GGPO_OK)
 			{
 				s_session = nullptr;
 				return "start failed";
@@ -656,7 +659,18 @@ namespace Zdxsv
 			Common::Timer wait;
 			while (!s_running && wait.GetTimeSeconds() < START_TIMEOUT_S)
 			{
-				ggpo_idle(s_session, 0);
+				if (ggpo_idle(s_session, 0) == GGPO_ERRORCODE_VERIFICATION_ERROR)
+				{
+					Console.Error("ZdxsvGgpo: a peer is in another session (battle code mismatch)");
+					// Refuse the peer's sync requests for 1 s, so it can close as a mismatch too. Best effort: GGPO resends
+					// a request only after 500 ms without any send, and its replies to ours count as sends.
+					for (Common::Timer linger; linger.GetTimeSeconds() < 1;)
+					{
+						ggpo_idle(s_session, 0);
+						Threading::Sleep(1);
+					}
+					return "session mismatch";
+				}
 				Threading::Sleep(1);
 			}
 			if (!s_running)
