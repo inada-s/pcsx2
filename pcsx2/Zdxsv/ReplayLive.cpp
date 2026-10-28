@@ -179,8 +179,9 @@ namespace Zdxsv
 	Zdxsv::LiveStreams s_live_got; // inputs not in s_play_inputs yet (part of a frame)
 	std::string s_live_close; // "" = running
 	bool s_live_catchup = false, s_live_close_logged = false;
-	int s_live_waits = 0;
+	int s_live_waits = 0, s_live_hold_want = -1;
 	double s_live_wait_ms = 0;
+	Common::Timer s_live_hold_wait;
 	std::unique_ptr<LiveWait> s_live_wait;
 	std::string s_live_next_url; // the battle auto-next moved on to, "" = ZDXSV_REPLAY
 
@@ -289,22 +290,31 @@ namespace Zdxsv
 		s_pace_stall = 0;
 	}
 
-	// PlayNext, before frame next: the received frames taken in, the wait at the newest frame, catch-up.
+	bool LiveHold()
+	{
+		if (!s_live_down)
+			return false;
+		LiveTake();
+		const int next = s_net_frame + 1;
+		if (s_live_hold_want < 0)
+		{
+			if (next < s_play_frames || !s_live_close.empty())
+				return false;
+			s_live_hold_want = next + (s_run_load >= 0 || s_play_target >= 0 || s_live_catchup ? 1 : LIVE_BUFFER);
+			s_live_hold_wait.Reset();
+		}
+		if (s_play_frames < s_live_hold_want && s_live_close.empty() && s_play_req.load() == INT_MIN)
+			return true;
+		s_live_hold_want = -1;
+		s_live_waits++;
+		s_live_wait_ms += s_live_hold_wait.GetTimeMilliseconds();
+		return false;
+	}
+
+	// PlayNext, before frame next: the received frames taken in, catch-up.
 	void LiveNext(int next)
 	{
 		LiveTake();
-		if (next >= s_play_frames && s_live_close.empty())
-		{
-			const int want = next + (s_run_load >= 0 || s_play_target >= 0 || s_live_catchup ? 1 : LIVE_BUFFER);
-			Common::Timer wait;
-			while (s_play_frames < want && s_live_close.empty())
-			{
-				Threading::Sleep(2);
-				LiveTake();
-			}
-			s_live_waits++;
-			s_live_wait_ms += wait.GetTimeMilliseconds();
-		}
 		if (!s_live_close.empty() && next >= s_play_frames && !std::exchange(s_live_close_logged, true))
 			Console.WriteLn("ZdxsvGgpo: live: stream closed (%s) at frame %d, %d waits %.0f ms", s_live_close.c_str(), s_play_frames,
 				s_live_waits, s_live_wait_ms);

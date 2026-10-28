@@ -583,6 +583,7 @@ namespace Zdxsv
 		s_live_close.clear();
 		s_live_catchup = s_live_close_logged = false;
 		s_live_waits = 0;
+		s_live_hold_want = -1;
 		s_live_wait_ms = 0;
 		s_play_inputs.clear();
 		s_play_frames = 0;

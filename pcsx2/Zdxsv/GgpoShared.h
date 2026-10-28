@@ -328,8 +328,9 @@ namespace Zdxsv
 	extern Zdxsv::LiveStreams s_live_got; // inputs not in s_play_inputs yet (part of a frame)
 	extern std::string s_live_close; // "" = running
 	extern bool s_live_catchup, s_live_close_logged;
-	extern int s_live_waits;
+	extern int s_live_waits, s_live_hold_want; // the frame count the hold at the newest frame waits for, -1 = none
 	extern double s_live_wait_ms;
+	extern Common::Timer s_live_hold_wait;
 
 	// Live auto-next: after a closed stream, a thread polls the lobby for the newest battle not watched yet.
 	struct LiveWait
@@ -349,6 +350,9 @@ namespace Zdxsv
 	bool LiveAutoNext(bool skip = false);
 	void LiveCatchupEnd(int f);
 	void LivePaceReset();
+	// Returned, before PlayNext: true = hold the frame, the newest one is played and the stream is open; until
+	// LIVE_BUFFER more frames, the stream's close or a seek.
+	bool LiveHold();
 	void LiveNext(int next);
 	extern bool s_sync_chase; // s_play_req is a chase, not a host seek for the guests
 	void SyncStop();

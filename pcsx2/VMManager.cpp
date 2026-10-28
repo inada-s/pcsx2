@@ -2777,7 +2777,8 @@ void VMManager::Execute()
 	}
 
 	// Execute until we're asked to stop.
-	Cpu->Execute();
+	if (!Zdxsv::g_ggpo_active || !Zdxsv::GgpoHoldsFrame())
+		Cpu->Execute();
 	if (Zdxsv::g_ggpo_active)
 		Zdxsv::GgpoOnExecuteReturned();
 }
