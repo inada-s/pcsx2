@@ -25,6 +25,11 @@
 
 namespace Zdxsv
 {
+	// A player's address for logs players paste (streams): IPv4 digits after the first octet and IPv6
+	// digits after the third group become one 'x' per part, the port stays ("1.x.x.x:7001",
+	// "[2001:db8:1:x::x]:7001"). As flycast's mask_ip_address, but without the digit count.
+	std::string MaskIpAddress(const std::string& addr);
+
 	// A peer's UDP address: numeric IPv4 ("1.2.3.4") or IPv6 ("2001:db8::1") ip, host order port.
 	struct PeerAddr
 	{
@@ -32,6 +37,7 @@ namespace Zdxsv
 		uint16_t port = 0;
 		bool V6() const { return ip.find(':') != std::string::npos; }
 		std::string String() const { return V6() ? "[" + ip + "]:" + std::to_string(port) : ip + ":" + std::to_string(port); }
+		std::string Masked() const { return MaskIpAddress(String()); }
 		bool operator==(const PeerAddr& o) const { return ip == o.ip && port == o.port; }
 	};
 
