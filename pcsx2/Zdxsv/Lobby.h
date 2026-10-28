@@ -135,6 +135,7 @@ namespace Zdxsv
 	// stop (optional) set ends it with nat=unknown.
 	std::string UdpTest(uint32_t stunIP, uint16_t stunPort, uint16_t bindPort, std::string& summary,
 		const std::atomic<bool>* stop = nullptr);
+	// summary: the result in words for the OSD, without addresses or ports (the log line has them).
 	// UdpTest on its own thread: returns at once; done(natLine, summary) is called from that thread
 	// when it ends, unless cancelled (StopUdpTest). One test at a time: a call while one runs does
 	// nothing and returns false.
