@@ -645,6 +645,7 @@ namespace Zdxsv
 				sock_t s = INVALID_SOCKET; // socket of its family, INVALID_SOCKET = not pinged
 				PeerAddr addr;
 				int64_t sum = 0, pongs = 0;
+				std::vector<sockaddr_storage> answered; // relay path: pong sources other than sa, at most 2
 				int Rtt() const { return pongs ? static_cast<int>((sum + pongs - 1) / pongs) : -1; }
 			};
 
@@ -821,11 +822,17 @@ namespace Zdxsv
 				{
 					const RelayPacket& rp = buf.rp;
 					Cand* c = rp.relayIdx < m_nr ? &m_rpath[rp.relayIdx][s == m_s6 ? 1 : 0] : nullptr;
-					if (c && rp.type == RELAY_PONG && rp.sessionId == m_session && rp.peer == m_me && rp.token == m_relays[rp.relayIdx].token &&
-						SameAddr(from, c->sa))
+					// the token proves the relay, not the source: a multi-homed or NATed relay answers from another
+					// address, which GGPO then accepts for it too (ggpo_add_relay_server_source)
+					const bool other = c && !SameAddr(from, c->sa);
+					if (c && c->s != INVALID_SOCKET && rp.type == RELAY_PONG && rp.sessionId == m_session && rp.peer == m_me &&
+						rp.token == m_relays[rp.relayIdx].token && (!other || c->answered.size() < 2 ||
+							std::any_of(c->answered.begin(), c->answered.end(), [&from](const sockaddr_storage& a) { return SameAddr(from, a); })))
 					{
 						c->sum += std::max<int64_t>(1, static_cast<int64_t>(NowMs() - rp.timestamp));
 						c->pongs++;
+						if (other && std::none_of(c->answered.begin(), c->answered.end(), [&from](const sockaddr_storage& a) { return SameAddr(from, a); }))
+							c->answered.push_back(from);
 					}
 					else
 						m_dropped++;
@@ -924,6 +931,12 @@ namespace Zdxsv
 					const int f = RelayBest(k);
 					const bool useAddr6 = f >= 0 && !rl.addr6.ip.empty() && (f == 1) != rl.addr.V6();
 					servers.push_back(useAddr6 ? RelayServerAddr{rl.addr6, rl.addr} : RelayServerAddr{rl.addr, rl.addr6});
+					for (int i = 0; i < 2; i++)
+						for (const sockaddr_storage& a : m_rpath[k][i].answered)
+						{
+							servers.back().sources.push_back(FromSockaddr(a));
+							line += " answers from " + servers.back().sources.back().String();
+						}
 				}
 			}
 

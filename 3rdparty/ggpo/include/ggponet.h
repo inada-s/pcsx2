@@ -635,6 +635,15 @@ GGPO_API GGPOErrorCode __cdecl ggpo_set_disconnect_without_rollback(GGPOSession*
 GGPO_API GGPOErrorCode __cdecl ggpo_add_relay_server(GGPOSession*, const char *ip, unsigned short port,
                                                      const char *alt_ip);
 
+/*
+ * ggpo_add_relay_server_source --
+ *
+ * Adds an address the relay server added last answers from, when it is not
+ * the one this peer sends to (a multi-homed server or one behind NAT).
+ * Packets from it count as coming from that server.
+ */
+GGPO_API GGPOErrorCode __cdecl ggpo_add_relay_server_source(GGPOSession*, const char *ip, unsigned short port);
+
 #ifdef __cplusplus
 };
 #endif

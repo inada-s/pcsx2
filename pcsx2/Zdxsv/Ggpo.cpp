@@ -627,6 +627,9 @@ namespace Zdxsv
 						return "start failed";
 					Console.WriteLn("ZdxsvGgpo: relay server %s%s%s", r.addr.String().c_str(), r.alt.ip.empty() ? "" : " alt ",
 						r.alt.ip.empty() ? "" : r.alt.String().c_str());
+					for (const Zdxsv::PeerAddr& a : r.sources)
+						if (ggpo_add_relay_server_source(s_session, a.ip.c_str(), a.port) != GGPO_OK)
+							return "start failed";
 				}
 			for (int p = 0; p < s_players; p++)
 			{

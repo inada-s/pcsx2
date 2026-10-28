@@ -368,14 +368,25 @@ UdpProtocol::HandlesMsg(sockaddr_storage &from, UdpMsg *msg)
    // let an off-path third party inject inputs or a disconnect. Once the peer address is
    // known, only that source drives this endpoint. With a relay the peer address is the
    // relay node (set by UseRelayServer / Init for a relayed player, or when a relayed
-   // packet first arrives below), which is still one fixed source.
+   // packet first arrives below). A relay server may answer from other addresses than the
+   // one this peer sends to (multi-homed or behind NAT): those registered for it count too.
    if (_peer_addr_len == 0) {
        _peer_addr = from;
        _peer_addr_len = sizeof(from); // XXX
        return true;
    }
 
-   return SameAddress(from, _peer_addr);
+   if (SameAddress(from, _peer_addr)) {
+      return true;
+   }
+   if (_relay) {
+      for (const auto &s : _relay_sources) {
+         if (SameAddress(from, s)) {
+            return true;
+         }
+      }
+   }
+   return false;
 }
 
 /*
@@ -1015,7 +1026,7 @@ bool UdpProtocol::SameAddress(const sockaddr_storage &a, const sockaddr_storage 
     return false;
 }
 
-void UdpProtocol::UseRelayServer(const sockaddr_storage &server, int index)
+void UdpProtocol::UseRelayServer(const sockaddr_storage &server, int index, const std::vector<sockaddr_storage> &sources)
 {
    // Two peers that picked different servers settle on the earlier one. Only ever moving to an earlier server
    // keeps packets still in flight through the other from switching back.
@@ -1028,6 +1039,7 @@ void UdpProtocol::UseRelayServer(const sockaddr_storage &server, int index)
       _peer_addr_len = sizeof(server);
       _relay = true;
       _relay_server_idx = index;
+      _relay_sources = sources;
    }
    LogInfo("udpproto%d | using relay server %d", _queue, index);
    if (_test_log) {

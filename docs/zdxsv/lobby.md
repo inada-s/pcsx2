@@ -94,7 +94,9 @@ Runs on the GGPO UDP port for `ggpo_ping_ms`, from an IPv4 and an IPv6
 socket, with flycast's `UdpPingPong` packet. Packets with another session,
 position or source address are dropped, except the pings of a peer the
 battle info lists without an address: their sources become its candidates
-(at most 4).
+(at most 4). A relay pong with the battle's relay token counts from any
+source (a multi-homed or NATed relay); up to 2 such sources per relay path
+are kept, and GGPO accepts that relay's packets from them too.
 
 Address candidates of a peer, in order: its public IPv4 address (its local
 one when behind the same public IP), its other IPv4 address, its IPv6
