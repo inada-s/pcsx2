@@ -134,6 +134,13 @@
       <item row="4" column="1">
        <widget class="QLineEdit" name="zdxsvReplayStateUrl"/>
       </item>
+      <item row="5" column="0" colspan="2">
+       <widget class="QCheckBox" name="zdxsvReplayUpload">
+        <property name="text">
+         <string>Upload the replay of each lobby battle to the zdxsv server.</string>
+        </property>
+       </widget>
+      </item>
      </layout>
     </widget>
    </item>

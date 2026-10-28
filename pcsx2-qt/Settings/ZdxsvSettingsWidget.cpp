@@ -42,6 +42,7 @@ ZdxsvSettingsWidget::ZdxsvSettingsWidget(SettingsWindow* settings_dialog, QWidge
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvReplaySkipMs, "DEV9/Eth", "ZdxsvReplaySkipMs", true);
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvReplayKeyDisplay, "DEV9/Eth", "ZdxsvReplayKeyDisplay", false);
 	SettingWidgetBinder::BindWidgetToIntSetting(sif, m_ui.zdxsvReplayBar, "DEV9/Eth", "ZdxsvReplayBar", 0);
+	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvReplayUpload, "DEV9/Eth", "ZdxsvReplayUpload", true);
 	SettingWidgetBinder::BindWidgetToStringSetting(
 		sif, m_ui.zdxsvReplayStateUrl, "DEV9/Eth", "ZdxsvReplayStateUrl", Zdxsv::REPLAY_STATE_URL);
 
@@ -54,6 +55,7 @@ ZdxsvSettingsWidget::ZdxsvSettingsWidget(SettingsWindow* settings_dialog, QWidge
 	MarkEnvOverride(m_ui.zdxsvReplayKeyDisplay, "ZDXSV_REPLAY_KEY_DISPLAY");
 	MarkEnvOverride(m_ui.zdxsvReplayBar, "ZDXSV_REPLAY_BAR");
 	MarkEnvOverride(m_ui.zdxsvReplayStateUrl, "ZDXSV_REPLAY_STATE");
+	MarkEnvOverride(m_ui.zdxsvReplayUpload, "ZDXSV_GGPO", "upload=");
 
 	dialog()->registerWidgetHelp(m_ui.zdxsvGgpo, tr("Rollback Netcode (GGPO)"), tr("Checked"),
 		tr("Online battles of the game run over GGPO rollback netcode. Takes effect at the next game start. Other games are never affected."));
@@ -73,6 +75,8 @@ ZdxsvSettingsWidget::ZdxsvSettingsWidget(SettingsWindow* settings_dialog, QWidge
 		tr("When the replay control bar is shown."));
 	dialog()->registerWidgetHelp(m_ui.zdxsvReplayStateUrl, tr("Start State"), QString::fromUtf8(Zdxsv::REPLAY_STATE_URL),
 		tr("Save state replays and live battles start from: a URL (downloaded once into the cache folder) or a file. Empty: the state of the running game."));
+	dialog()->registerWidgetHelp(m_ui.zdxsvReplayUpload, tr("Upload Replays"), tr("Checked"),
+		tr("After each lobby battle, its replay is posted to the zdxsv server, where anyone can watch it (Tools → zdxsv Replays, Remote)."));
 }
 
 ZdxsvSettingsWidget::~ZdxsvSettingsWidget() = default;

@@ -2,11 +2,13 @@
 // SPDX-License-Identifier: GPL-3.0+
 
 #include "Zdxsv/Dev9Hooks.h"
+#include "Zdxsv/ServerHosts.h"
 
 #include "common/Console.h"
 #include "common/StringUtil.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cstring>
 #include <iterator>
 
@@ -29,6 +31,8 @@ namespace Zdxsv
 		// Address the game hosts were mapped to by default host entries.
 		constexpr u8 kStaleAddress[4] = {153, 121, 44, 150};
 
+		std::atomic<bool> s_used_server_host{false};
+
 		bool IsGameHost(const char* url)
 		{
 			return std::any_of(std::begin(kGameHosts), std::end(kGameHosts),
@@ -41,8 +45,14 @@ namespace Zdxsv
 		if (!IsGameHost(url))
 			return url;
 		Console.WriteLn("DEV9: DNS: %s looked up as %s", url, kServerHost);
+		s_used_server_host = true;
 		HttpsLatencyStart();
 		return kServerHost;
+	}
+
+	bool DnsUsedServerHost()
+	{
+		return s_used_server_host;
 	}
 
 	bool DnsIsStaleHostEntry(const char* url, const u8* address)

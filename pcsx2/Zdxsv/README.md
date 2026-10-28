@@ -63,7 +63,7 @@ options: `docs/zdxsv/`.
 | `LobbyConnection.cpp` | A DEV9 TCP connection to the lobby: platform info message, GGPO lobby setup, lobby filter |
 | `HttpsLatency.cpp` | HTTPS latency test to the cloud regions, sent in the platform info |
 | `SpectateSync.cpp`, `SpectateSync.h` | Four-screen replay: one PCSX2 per position, kept on the same frame through shared memory |
-| `ServerHosts.cpp` | The game's server hosts, looked up as the zdxsv server's hostname by the internal DNS server |
+| `ServerHosts.cpp`, `ServerHosts.h` | The game's server hosts, looked up as the zdxsv server's hostname by the internal DNS server; whether it was (public server) |
 | `InputLatency.cpp`, `InputLatency.h` | Debug: pad input latency measurement |
 | `RecHooks.cpp`, `RecHooks.h` | EE recompiler: emits the hook calls (net RPC, recv, step copy, load step) before an instruction |
 | `IntHooks.cpp` | EE interpreter and ARM64 EE recompiler: the hook calls of `RecHooks.cpp` but the probes |

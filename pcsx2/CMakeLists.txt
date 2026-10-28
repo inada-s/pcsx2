@@ -242,6 +242,7 @@ set(pcsx2Headers
 	Zdxsv/MediaHooks.h
 	Zdxsv/UiHooks.h
 	Zdxsv/Settings.h
+	Zdxsv/ServerHosts.h
 	Zdxsv/TestOptions.h
 	VUops.h)
 

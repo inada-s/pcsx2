@@ -4,6 +4,7 @@
 // Replay recording of a GGPO battle (.pb), its upload and the live stream.
 
 #include "Zdxsv/GgpoShared.h"
+#include "Zdxsv/ServerHosts.h"
 
 namespace Zdxsv
 {
@@ -78,9 +79,15 @@ namespace Zdxsv
 			return s_lobby ? Path::Combine(EmuFolders::DataRoot, "replays") : std::string();
 		}
 
+		// upload=URL, else the settings, but only when the game found the public server by DNS: a lobby reached
+		// through a host entry (a rig, a local server) posts nowhere without upload= (as flycast's !is_local_test_).
 		std::string ReplayUploadUrl()
 		{
-			return !s_upload_url.empty() ? s_upload_url : Host::GetStringSettingValue("DEV9/Eth", "ZdxsvReplayUploadUrl", "");
+			if (!s_upload_url.empty())
+				return s_upload_url;
+			if (!DnsUsedServerHost() || !Host::GetBoolSettingValue("DEV9/Eth", "ZdxsvReplayUpload", true))
+				return {};
+			return Host::GetStringSettingValue("DEV9/Eth", "ZdxsvReplayUploadUrl", REPLAY_UPLOAD_URL);
 		}
 
 		// As flycast's GdxsvBackendRollback::SaveReplay: every player posts <battle_code>.pb (multipart field "file")
