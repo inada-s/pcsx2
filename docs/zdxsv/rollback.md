@@ -111,6 +111,11 @@ The game runs with its own input delay 0; GGPO adds the input delay.
   when a peer disconnects.
 - A VM shutdown or reset ends the session at once, as a disconnect: the
   replay is saved, the old VM's states are dropped.
+- An input send splits the pending inputs over packets of at most 8192 bits
+  of inputs (IPv6 minimum MTU); a pcsx2 input is 32 bytes, so a burst could
+  outgrow one packet. A packet that starts past the receiver's next frame (an
+  earlier split packet was lost) is skipped; the sender resends from the
+  oldest unacked frame.
 
 Three mechanisms keep the peers on the same frame:
 

@@ -9,6 +9,7 @@
 #define _UDP_MSG_H
 
 #define MAX_COMPRESSED_BITS       32768 // zdxsv: 18 bits per changed input bit
+#define MAX_SEND_INPUT_BITS       8192 // zdxsv: a sent input packet stops adding frames here (fits the IPv6 minimum MTU)
 #define UDP_MSG_MAX_PLAYERS          4
 #define MAX_VERIFICATION_SIZE      256
 #define MAX_APPDATA_SIZE           512
