@@ -611,9 +611,9 @@ namespace Zdxsv
 				s_session = nullptr;
 				return false;
 			}
-			// ZDXSV_NET_DISCONNECT_MS=ms (default 5000): longer lets a peer stall (ZDXSV_RAM_DUMP) without a disconnect.
+			// ZDXSV_NET_DISCONNECT_MS=ms (default 10000, as flycast): longer lets a peer stall (ZDXSV_RAM_DUMP) without a disconnect.
 			const char* dms = Zdxsv::TestEnv("ZDXSV_NET_DISCONNECT_MS");
-			ggpo_set_disconnect_timeout(s_session, dms ? std::atoi(dms) : 5000);
+			ggpo_set_disconnect_timeout(s_session, dms ? std::atoi(dms) : 10000);
 			ggpo_set_disconnect_notify_start(s_session, 1000);
 			// relay servers before the players, in the battle info's order on every peer (ggpo_add_relay_server)
 			if (s_lobby)

@@ -116,7 +116,7 @@ off. Any other value turns it on. Without `net=1` the session is a synctest. Log
 | `ZDXSV_RERUN_EE_DRAW=1` | off | control | The game's render callbacks run in every rerun frame. Default: not in rerun frames but the last two (see rollback.md). |
 | `ZDXSV_RERUN_DRAW=0` | on | control | The GS drops the draw calls of rollback rerun frames. Default: drawn (not presented; the next frame draws over them). |
 | `ZDXSV_NET_TAIL=n` | 300 | tuning | Frames run after the battle end message before the session stops. |
-| `ZDXSV_NET_DISCONNECT_MS=ms` | 5000 | tuning | GGPO disconnect timeout. |
+| `ZDXSV_NET_DISCONNECT_MS=ms` | 10000 | tuning | GGPO disconnect timeout (as flycast). |
 | `ZDXSV_NET_PUMP=0` | on | control | No GGPO pump thread: the sockets are polled only by the frame loop, so pings and relayed packets wait up to a frame. |
 | `ZDXSV_SYNC_FORCE=0` | forced | control | Sync-relevant settings are not forced (`Zdxsv/SyncSettings.cpp`); the log names those that would have been (`ZdxsvSync: ZDXSV_SYNC_FORCE=0, not forced:`). The fingerprint is sent anyway. |
 | `ZDXSV_SYNC_SALT=s` | none | test | s is mixed into the sync fingerprint, as another build would be: a lobby battle with this client is cut. |
