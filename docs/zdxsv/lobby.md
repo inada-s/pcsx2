@@ -122,6 +122,13 @@ A peer is reached through:
 
 A relayed peer shows `(R)` on the OSD.
 
+## Addresses in the log
+
+Player addresses (own, peers, ping test candidates, the match report's
+`addr_<pos>`) are logged masked, as flycast's `mask_ip_address` but one `x` per part: `1.x.x.x:7001`,
+`[2001:db8:1:x::x]:7001`. Relay server addresses stay whole. The lobby
+messages carry them whole.
+
 ## P2P connectivity test
 
 On the first lobby connection the emulator tests the GGPO port against the

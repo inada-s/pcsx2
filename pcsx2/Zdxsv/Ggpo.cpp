@@ -636,7 +636,9 @@ namespace Zdxsv
 					StringUtil::Strlcpy(player.u.remote.ip_address, a.ip.c_str(), sizeof(player.u.remote.ip_address));
 					player.u.remote.port = a.port;
 					player.u.remote.relay = p < static_cast<int>(s_net_via.size()) && s_net_via[p] != 0;
-					Console.WriteLn("ZdxsvGgpo: lobby peer position %d at %s%s", p, a.String().c_str(), player.u.remote.relay ? " (relay)" : "");
+					// a relay is a zdxsv server, not a player: its address stays whole
+					Console.WriteLn("ZdxsvGgpo: lobby peer position %d at %s%s", p,
+						(player.u.remote.relay ? a.String() : a.Masked()).c_str(), player.u.remote.relay ? " (relay)" : "");
 				}
 				else if (player.type == GGPO_PLAYERTYPE_REMOTE)
 				{
