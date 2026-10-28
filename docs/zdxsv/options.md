@@ -44,7 +44,8 @@ page greys it out and its tooltip names the variable.
 | `[DEV9/Eth] ZdxsvReplayBar` | `0` | feature | Replay control bar: `0` shown while paused and for 3 s after the mouse moves over the bottom quarter, `1` always, `2` never. `ZDXSV_REPLAY_BAR` overrides it. |
 | `[DEV9/Eth] ZdxsvReplayStateUrl` | the hosted `rbk-p1.p2s` | feature | The post-entry state a replay or live battle starts from: URL (downloaded once into the cache folder) or file; empty = the booted state. `ZDXSV_REPLAY_STATE` overrides it. |
 | `[DEV9/Eth] ZdxsvLobbyApiUrl` | `https://lbs.zdxsv.net:8443` | feature | The lobby's public API (`http://host:port`, zdxsv `ZDXSV_LOBBY_API_ADDR`) the replay window's Remote (`/lbs/replay`) and Live (`/lbs/live`) tabs ask; edited in the window; empty = none. A live battle is watched at `udp://<its host>:8201/<code>` (`ZDXSV_STUN_PORT` overrides the port). |
-| `[DEV9/Eth] ZdxsvReplayUploadUrl` | empty | feature | Replay uploader a lobby battle's `.pb` is posted to; empty = no upload. `upload=` overrides it. |
+| `[DEV9/Eth] ZdxsvReplayUpload` | `true` | feature | Post each lobby battle's `.pb` to `ZdxsvReplayUploadUrl` (flycast `UploadReplay`, on by default). Only when the game found the server by DNS (no host entry for the game hosts): a local server's battles post nowhere. `upload=` overrides it. |
+| `[DEV9/Eth] ZdxsvReplayUploadUrl` | `https://lbs.zdxsv.net:8443/lbs/replay_upload` | feature | The lobby's replay upload API (zdxsv `/lbs/replay_upload`, as gdxsv lbs); empty = no upload. |
 
 ## Network
 
@@ -93,7 +94,7 @@ off. Any other value turns it on. Without `net=1` the session is a synctest. Log
 | `lobby=1` | off | feature | Battles come from the zdxsv lobby. See [lobby.md](lobby.md). |
 | `osd=0` / `osd=1` | the setting | feature | Hide or show the network status OSD, over `ZdxsvNetOsd`. |
 | `replay=DIR` | see meaning | feature | Save every battle to `DIR`. Lobby battles save to `<data dir>/replays` without it. `replay=0` turns saving off (upload and live streaming still run). |
-| `upload=URL` | the setting | test | Replay uploader, over `ZdxsvReplayUploadUrl`. |
+| `upload=URL` | the setting | test | Replay upload API, over `ZdxsvReplayUpload` and `ZdxsvReplayUploadUrl`, also with a host entry. |
 | `badsession=1` | off | control | The ping test of this client uses another session id, so no peer answers it and every client cuts the battle connection. |
 | `advertise=P` | off | test | The platform info announces only `127.0.0.1:P`, so peers reach this client through a local `udprelay.py` at P that adds latency. |
 

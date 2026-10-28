@@ -936,6 +936,7 @@
     <ClInclude Include="Zdxsv\MediaHooks.h" />
     <ClInclude Include="Zdxsv\UiHooks.h" />
     <ClInclude Include="Zdxsv\Settings.h" />
+    <ClInclude Include="Zdxsv\ServerHosts.h" />
     <ClInclude Include="Zdxsv\TestOptions.h" />
     <ClInclude Include="x86\iR5900Analysis.h" />
     <ClInclude Include="x86\microVU.h" />

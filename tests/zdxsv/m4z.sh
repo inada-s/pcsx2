@@ -16,13 +16,13 @@
 #   BATTLES=N (CLIENTS="1 3", 1v1): N battles in the same processes (EXIT from 作戦後部屋, Lobby 02 again);
 #   the result and GGPO checks then expect N battle codes and N GGPO battle ends per client.
 #   GOPT=opts (GGPO): appended to every ZDXSV_GGPO (e.g. GOPT=replay=0: saving off; live streams anyway).
-#   UPLOAD=1 (GGPO): replay upload as gdxsv. The lobby's ops api on 127.0.0.1:9880 (db migrated first), a local
-#   zdxsv infra/uploader (UPLOADER, default $ZDXSV/bin/uploader.exe) on :8281 storing into OUT/upload, served on
-#   :8282; clients post (ZDXSV_GGPO upload=). Checks per battle code: the stored .pb = one client's saved one,
+#   UPLOAD=1 (GGPO): replay upload as gdxsv. Clients post (ZDXSV_GGPO upload=) to the lobby's public api on
+#   127.0.0.1:9881 (/lbs/replay_upload, db migrated first), stored in OUT/upload (ZDXSV_LOBBY_REPLAY_DIR, served
+#   at /lbs/replays/). Checks per battle code: the stored .pb = one client's saved one,
 #   one client's upload ok + the rest 409, every db record's replay_url = the stored file's url.
 #   REPLAY_API=N (UPLOAD=1, a ZBIN with the lobby's /lbs/replay): after the upload checks, instance N (not a
 #   client) plays ZDXSV_REPLAY=http://127.0.0.1:9881/lbs/replay?battle_code=<first code> (the lobby's public API
-#   -> replay_url -> the uploader's .pb). Checks: the replay_url it took = the stored url, played to its end; with
+#   -> replay_url -> the stored .pb). Checks: the replay_url it took = the stored url, played to its end; with
 #   PWTRACE=1 its player work + rng = the players' (pwcheck, OUT/trace-api.txt).
 #   LIVE=N (GGPO): once the lobby logs `live uplink`, instance N (not a client) plays
 #   ZDXSV_REPLAY=udp://127.0.0.1:8201 (the lobby's UDP socket, the newest live battle) with PW hashes
@@ -93,7 +93,7 @@ cenv() {
   [ "$1" = "${SYNC_SALT:-}" ] && echo ZDXSV_SYNC_SALT=m4z
   # GGPO_DEFAULT=K (GGPO, GDELAY=auto): client K has no ZDXSV_GGPO, its GGPO options come from the setting
   [ -n "${GGPO:-}" ] && [ "$1" = "${GGPO_DEFAULT:-}" ] && { echo ZDXSV_GGPO=default; return; }
-  case " ${GGPO_CLIENTS:-$CLIENTS} " in *" $1 "*) [ -n "${GGPO:-}" ] && echo "ZDXSV_GGPO=net=1,lobby=1,port=$((GGPO + $1 - 1))$([ "${GDELAY:-1}" = auto ] || echo ",delay=${GDELAY:-1}")${GMIN:+,mindelay=$GMIN}${UPLOAD:+,upload=http://127.0.0.1:8281/}${GOPT:+,$GOPT}$([ "$1" = "${BAD_SESSION:-}" ] && echo ,badsession=1)$([ -n "${GGPO_LAT:-}" ] && echo ",advertise=$((7300 + ($1 == 1)))")";; esac  # GDELAY=auto: no delay= (rtt pick, floor GMIN)
+  case " ${GGPO_CLIENTS:-$CLIENTS} " in *" $1 "*) [ -n "${GGPO:-}" ] && echo "ZDXSV_GGPO=net=1,lobby=1,port=$((GGPO + $1 - 1))$([ "${GDELAY:-1}" = auto ] || echo ",delay=${GDELAY:-1}")${GMIN:+,mindelay=$GMIN}${UPLOAD:+,upload=http://127.0.0.1:9881/lbs/replay_upload}${GOPT:+,$GOPT}$([ "$1" = "${BAD_SESSION:-}" ] && echo ,badsession=1)$([ -n "${GGPO_LAT:-}" ] && echo ",advertise=$((7300 + ($1 == 1)))")";; esac  # GDELAY=auto: no delay= (rtt pick, floor GMIN)
 }
 mkdir -p "$OUT"
 cp "$RUN/zdxsv.db" "$OUT/zdxsv.db" || exit 1
@@ -121,12 +121,8 @@ ZDXSV=$ZDXSV bash "$here/zbincheck.sh" "${ZBIN:-$ZDXSV/bin/zdxsv.exe}" || exit 1
 RELAY_PATH=${RELAY_PATH:-direct}
 if [ -n "${UPLOAD:-}" ]; then
   [ -n "${GGPO:-}" ] || { echo "FAIL UPLOAD needs GGPO"; exit 1; }
-  export ZDXSV_LOBBY_OPS_ADDR=127.0.0.1:9880 ZDXSV_LOBBY_REPLAY_URL_PREFIX=http://127.0.0.1:8282/replays/
-  [ -n "${REPLAY_API:-}" ] && export ZDXSV_LOBBY_API_ADDR=127.0.0.1:9881
+  export ZDXSV_LOBBY_API_ADDR=127.0.0.1:9881 ZDXSV_LOBBY_REPLAY_DIR="$OUT/upload"
   ZDXSV_DB_NAME="$OUT/zdxsv.db" "${ZBIN:-$ZDXSV/bin/zdxsv.exe}" migratedb > "$OUT/migratedb.log" 2>&1  # replay_url column
-  FUNCTION_TARGET=FunctionEntryPoint PORT=8281 UPLOADER_LOCAL_DIR="$OUT/upload" UPLOADER_LOCAL_ADDR=127.0.0.1:8282 \
-    UPLOADER_LOCAL_URL=http://127.0.0.1:8282 UPLOADER_LOBBY_URL=http://127.0.0.1:9880/ops/replay_uploaded \
-    "${UPLOADER:-$ZDXSV/bin/uploader.exe}" > "$OUT/uploader.log" 2>&1 & pids+=($!)
 fi
 LOBBY_ARGS=-v=2 RUN="$OUT" bash "$here/stack.sh" "$IP" > "$OUT/stack.out" 2>&1 & pids+=($!)
 if [ -n "${GGPO_LAT:-}" ]; then
@@ -297,7 +293,7 @@ if [ -n "${EMU:-}" ] && [ -n "${GGPO:-}" ]; then
       # each client's file is its own (position, frame 0 state): the first upload is kept
       same=0; for i in ${GGPO_CLIENTS:-$CLIENTS}; do cmp -s "$pb" "$RUN/p$i/PCSX2/replays/$code.pb" && same=$((same + 1)); done
       check "$code: stored .pb = exactly one client's saved .pb" "[ $same -eq 1 ]"
-      check "$code: every db record's replay_url = stored url" "[ \"\$('$PY' -I -c 'import sqlite3,sys; print(*sorted(set(r[0] for r in sqlite3.connect(sys.argv[1]).execute(\"select replay_url from battle_record where battle_code=?\", (sys.argv[2],)))), sep=\";\")' '$OUT/zdxsv.db' $code | tr -d '\r')\" = 'http://127.0.0.1:8282/replays/$code.pb' ]"
+      check "$code: every db record's replay_url = stored url" "[ \"\$('$PY' -I -c 'import sqlite3,sys; print(*sorted(set(r[0] for r in sqlite3.connect(sys.argv[1]).execute(\"select replay_url from battle_record where battle_code=?\", (sys.argv[2],)))), sep=\";\")' '$OUT/zdxsv.db' $code | tr -d '\r')\" = 'http://127.0.0.1:9881/lbs/replays/$code.pb' ]"
     done
     check "uploads x$((ng * B)): $B ok + $(((ng - 1) * B)) already there, no failure" "[ \$(cat '$RUN'/p[1-4]/PCSX2/logs/emulog.txt | grep -a -c 'replay upload.*: ok') -eq $B ] && [ \$(cat '$RUN'/p[1-4]/PCSX2/logs/emulog.txt | grep -a -c 'replay upload.*: already there') -eq $(((ng - 1) * B)) ] && ! cat '$RUN'/p[1-4]/PCSX2/logs/emulog.txt | grep -a -q 'replay upload.*failed'"
     if [ -n "${REPLAY_API:-}" ]; then
@@ -315,7 +311,7 @@ if [ -n "${EMU:-}" ] && [ -n "${GGPO:-}" ]; then
       for t in $(seq 60); do tasklist //FI "PID eq ${pid:-0}" | grep -q " ${pid:-0} " || break; sleep 1; done
       grep -a 'ZdxsvGgpo: replay' "$f" | tr -d '\r' | cut -c1-200 | head -3
       grep -a 'ZdxsvGgpo: replay end' "$f" | tr -d '\r' | cut -c1-200
-      check "$code: API replay_url = stored url" "grep -a -q 'replay_url http://127.0.0.1:8282/replays/$code.pb' '$f'"
+      check "$code: API replay_url = stored url" "grep -a -q 'replay_url http://127.0.0.1:9881/lbs/replays/$code.pb' '$f'"
       check "$code: API replay played to its end, instance exited" "grep -a -o 'ZdxsvGgpo: replay end at frame [0-9]* of [0-9]*' '$f' | awk '{exit !(\$6 + 1 == \$8)}' && ! tasklist //FI 'PID eq ${pid:-0}' | grep -q ' ${pid:-0} '"
       if [ -n "${PWTRACE:-}" ]; then
         "$PY" -I "$TOOLS/pwcheck.py" --own --battle $code "$OUT/trace-api.txt" $(for i in $CLIENTS; do echo "$OUT/trace-p$i.txt"; done) > "$OUT/pwcheck-api.txt"
