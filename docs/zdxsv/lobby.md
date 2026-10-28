@@ -91,17 +91,20 @@ No battle runs on the battle server.
 ## Ping test
 
 Runs on the GGPO UDP port for `ggpo_ping_ms`, from an IPv4 and an IPv6
-socket, with flycast's `UdpPingPong` packet. Packets with another session,
-position or source address are dropped, except the pings of a peer the
-battle info lists without an address: their sources become its candidates
-(at most 4). A relay pong with the battle's relay token counts from any
+socket, with flycast's `UdpPingPong` packet. Packets with another session or
+position are dropped. A peer's ping or pong from a source that is not one of
+its candidates (its NAT mapping, or a peer listed without an address) adds
+that source as a candidate (as flycast; at most 4 per peer). Every ping is
+answered, and a pong counts for the candidate it names, whatever its source.
+A relay pong with the battle's relay token counts from any
 source (a multi-homed or NATed relay); up to 2 such sources per relay path
 are kept, and GGPO accepts that relay's packets from them too.
 
 Address candidates of a peer, in order: its public IPv4 address (its local
 one when behind the same public IP), its other IPv4 address, its IPv6
 address. Each peer is reached at the candidate with the best score: lowest
-RTT, plus 100 for loopback, 50 for a private address, 20 for IPv6.
+RTT, plus 100 for loopback, 50 for a private address, 20 for IPv6, 1 for a
+source the peer sends from.
 
 The input delay is max(`mindelay`, ceil(mean RTT of the slowest peer / 2 /
 16 ms)), as flycast's rollback backend. `delay=` fixes it and skips the test.

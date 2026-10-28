@@ -10,6 +10,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstdio>
+#include <cstring>
 #include <thread>
 
 using Clock = std::chrono::steady_clock;
@@ -163,6 +164,54 @@ int main()
 		std::string err;
 		Zdxsv::FinishPingTest(nullptr, &err);
 		Check(ms < 200 && err.empty() && !called, "ping test on the port cancels the connectivity test, done not called (ms)", ms);
+	}
+	// a peer listed at :27141 answers from :27142 (its NAT mapping): the pongs count, :27142 is picked
+	{
+		SOCKET pa = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP), pb = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+		sockaddr_in a{};
+		a.sin_family = AF_INET;
+		a.sin_addr.s_addr = inet_addr("127.0.0.1");
+		a.sin_port = htons(27141);
+		bool bound = bind(pa, (sockaddr*)&a, sizeof(a)) == 0;
+		a.sin_port = htons(27142);
+		bound = bind(pb, (sockaddr*)&a, sizeof(a)) == 0 && bound;
+		std::atomic<bool> stop{false};
+		std::thread peer([&] {
+			while (!stop)
+			{
+				fd_set rd;
+				FD_ZERO(&rd);
+				FD_SET(pa, &rd);
+				FD_SET(pb, &rd);
+				timeval tv{0, 20000};
+				if (select(0, &rd, nullptr, nullptr, &tv) <= 0)
+					continue;
+				for (SOCKET s : {pa, pb})
+				{
+					if (!FD_ISSET(s, &rd))
+						continue;
+					unsigned char pk[44];
+					sockaddr_in from{};
+					int fl = sizeof(from);
+					if (recvfrom(s, (char*)pk, sizeof(pk), 0, (sockaddr*)&from, &fl) != 44 || pk[8] != 1)
+						continue;
+					pk[8] = 2; // pong
+					std::swap(pk[9], pk[10]);
+					std::memcpy(pk + 20, pk + 12, 8);
+					sendto(pb, (const char*)pk, sizeof(pk), 0, (sockaddr*)&from, fl);
+				}
+			}
+		});
+		const std::vector<std::vector<Zdxsv::PeerAddr>> listed = {{}, {Zdxsv::PeerAddr{"127.0.0.1", 27141}}};
+		Zdxsv::StartPingTest(81, 0, listed, 27140, 1200);
+		std::string err;
+		const auto r = Zdxsv::FinishPingTest(nullptr, &err);
+		stop = true;
+		peer.join();
+		closesocket(pa);
+		closesocket(pb);
+		Check(bound && r.size() == 2 && r[1].rtt > 0, "pong from another source: peer 1 answered (rtt)", r.size() == 2 ? r[1].rtt : -2);
+		Check(r.size() == 2 && r[1].addr.port == 27142, "pong from another source: its source picked (port)", r.size() == 2 ? r[1].addr.port : -2);
 	}
 	// relay rtts of a peer behind a symmetric NAT reach us only through the peer that reaches it (peer 3)
 	{
