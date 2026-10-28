@@ -1220,13 +1220,13 @@ namespace Zdxsv
 		else if (mapped.empty())
 			nat = "unknown", summary = "unknown (no answer from the server)", detail = "no STUN answer from " + AddrString(stun);
 		else if (open)
-			nat = "open", summary = "open", detail = "port " + std::to_string(bindPort) + " reachable from any source, public " + mapped;
+			nat = "open", summary = "open", detail = "port " + std::to_string(bindPort) + " reachable from any source, public " + MaskIpAddress(mapped);
 		else if (mappedTest.empty() || !ParseAddr(mapped, ip1, port1) || !ParseAddr(mappedTest, ip2, port2))
 			nat = "unknown", summary = "unknown (no answer from the server's test socket)", detail = "no answer from the STUN test socket " + AddrString(test);
 		else if (port1 == port2 && ip1 == ip2)
-			nat = "cone", summary = "cone NAT (port closed)", detail = "port " + std::to_string(bindPort) + " closed, same public " + mapped + " for both servers";
+			nat = "cone", summary = "cone NAT (port closed)", detail = "port " + std::to_string(bindPort) + " closed, same public " + MaskIpAddress(mapped) + " for both servers";
 		else
-			nat = "symmetric", summary = "symmetric NAT (port closed)", detail = "port " + std::to_string(bindPort) + " closed, public " + mapped + " / " + mappedTest;
+			nat = "symmetric", summary = "symmetric NAT (port closed)", detail = "port " + std::to_string(bindPort) + " closed, public " + MaskIpAddress(mapped) + " / " + MaskIpAddress(mappedTest);
 		Log("udp test: nat=" + nat + ": " + summary + ": " + detail);
 		return "nat=" + nat + "\n";
 	}
