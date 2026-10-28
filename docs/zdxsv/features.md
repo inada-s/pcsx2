@@ -75,6 +75,7 @@ zdxsv checkout, save states): `tests/zdxsv/README.md`.
 | HTTPS latency test (cloud regions, as flycast's ping test) | when the game goes online; `ZDXSV_HTTPS_LATENCY=0` turns it off | 1v1 `m4z.sh` with `HTTPS=1`: one test per client, its platform info in `lobby.log` has `asia-northeast1` | `HTTPS_OFF=3`: that client's platform info has no region |
 | Bounded lobby network waits | lobby battle | `lobbytest.sh`: unit test of `Zdxsv/Lobby.cpp` with a fake STUN | none |
 | Network status OSD | `net=1`; setting `ZdxsvNetOsd`, `osd=0` hides it | `EMU=1 GGPO=7101 OSD=1 m4z.sh`: the logged OSD text of each client has its delay and every opponent's user id, name, pilot name and ping; names and pilot names equal the lobby db (`osdname.py`) | none |
+| Network OSD held 10 s after a disconnect, shown with the OSD off while a peer is interrupted or gone | `net=1` | `rbk.sh 2 1` with `ENV0=ZDXSV_VM_TEST=1500:shutdown` (also with `GGPO=net=1,players=2,delay=2,osd=0`): the peer logs `peer disconnected`, then `osd held 10 s: ... 1P \| Disconnected`; `PCSX2_ENV_P4=ZDXSV_VM_TEST=1500:shutdown GDELAY=1 m4ggpo.sh`: clients 1-3 log `osd held` with `4P ... \| Disconnected` and `osd hold over` 10 s later | the build without it: `peer disconnected` only |
 | UDP sockets ignore ICMP port unreachable on Windows | always in GGPO | unit: `GGPO.UdpReadsPastPortUnreachable`: after a send to a closed port, the next poll still reads the datagram behind the error | the same test with the `SIO_UDP_CONNRESET` call removed from `udp.cpp`: 0 datagrams read |
 
 ## Replays
