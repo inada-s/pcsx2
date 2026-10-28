@@ -636,7 +636,8 @@ namespace Zdxsv
 		// and each relay path, answers the peers' pings, then picks a path per position.
 		class PingRun
 		{
-			// candidate k of position p: byPosition[p][k], the index sent in its pings' candidate byte
+			// candidate k of position p: byPosition[p][k], then the sources added from its packets; k is the
+			// index sent in its pings' candidate byte, and a pong counts for candidate k whatever its source
 			struct Cand
 			{
 				sockaddr_storage sa{};
@@ -644,6 +645,7 @@ namespace Zdxsv
 				sock_t s = INVALID_SOCKET; // socket of its family, INVALID_SOCKET = not pinged
 				PeerAddr addr;
 				int64_t sum = 0, pongs = 0;
+				bool sends = false; // the peer's packets come from sa
 				std::vector<sockaddr_storage> answered; // relay path: pong sources other than sa, at most 2
 				int Rtt() const { return pongs ? static_cast<int>((sum + pongs - 1) / pongs) : -1; }
 			};
@@ -840,21 +842,26 @@ namespace Zdxsv
 				if (got < static_cast<int>(sizeof(PingPacket)))
 					return;
 				const bool head = pk.magic == PING_MAGIC && pk.sessionId == m_session && pk.toPeer == m_me && pk.fromPeer < m_n && pk.fromPeer != m_me;
-				const std::vector<Cand>* fc = head ? &m_cand[pk.fromPeer] : nullptr;
-				// a peer listed without an address: the sources of its pings become its candidates, at most 4
-				if (head && pk.type == PING_TYPE && m_byPosition[pk.fromPeer].empty() && fc->size() < 4 &&
-					std::none_of(fc->begin(), fc->end(), [&from](const Cand& c) { return SameAddr(from, c.sa); }))
+				std::vector<Cand>* fc = head ? &m_cand[pk.fromPeer] : nullptr;
+				// an unlisted source of a peer's ping or pong (its NAT mapping) becomes its candidate, at most 4 per peer
+				if (head && (pk.type == PING_TYPE || pk.type == PONG_TYPE))
 				{
-					Cand c;
-					c.sa = from;
-					c.len = len;
-					c.s = s;
-					c.addr = FromSockaddr(from);
-					m_cand[pk.fromPeer].push_back(c);
+					auto it = std::find_if(fc->begin(), fc->end(), [&from](const Cand& c) { return SameAddr(from, c.sa); });
+					if (it == fc->end() && fc->size() < m_byPosition[pk.fromPeer].size() + 4)
+					{
+						Cand c;
+						c.sa = from;
+						c.len = len;
+						c.s = s;
+						c.addr = FromSockaddr(from);
+						fc->push_back(c);
+						it = fc->end() - 1;
+					}
+					if (it != fc->end())
+						it->sends = true;
 				}
 				bool ok = false;
-				if (head && pk.type == PING_TYPE &&
-					std::any_of(fc->begin(), fc->end(), [&from](const Cand& c) { return SameAddr(from, c.sa); }))
+				if (head && pk.type == PING_TYPE)
 				{
 					OwnRow();
 					PingPacketRelays pong{};
@@ -870,9 +877,9 @@ namespace Zdxsv
 					m_pongsIn[pk.fromPeer]++;
 					ok = true;
 				}
-				else if (head && pk.type == PONG_TYPE && pk.candidate < fc->size() && SameAddr(from, (*fc)[pk.candidate].sa))
+				else if (head && pk.type == PONG_TYPE && pk.candidate < fc->size())
 				{
-					Cand& c = m_cand[pk.fromPeer][pk.candidate];
+					Cand& c = (*fc)[pk.candidate];
 					c.sum += std::max<int64_t>(1, static_cast<int64_t>(NowMs() - pk.pingTimestamp));
 					c.pongs++;
 					ok = true;
@@ -895,7 +902,7 @@ namespace Zdxsv
 				{
 					if (p == m_me)
 						continue;
-					// highest 10000 - rtt, +100 loopback, +50 private, +20 IPv6
+					// highest 10000 - rtt, +100 loopback, +50 private, +20 IPv6, +1 the peer sends from it
 					float best = 0;
 					line += "; peer " + std::to_string(p);
 					for (size_t k = 0; k < m_cand[p].size(); k++)
@@ -906,7 +913,7 @@ namespace Zdxsv
 						if (r <= 0)
 							continue;
 						const float score = 10000.f - r + (IsLoopback(c.sa) ? 100.f : 0.f) + (IsPrivate(c.sa) ? 50.f : 0.f) +
-											(c.sa.ss_family == AF_INET6 ? 20.f : 0.f);
+											(c.sa.ss_family == AF_INET6 ? 20.f : 0.f) + (c.sends ? 1.f : 0.f);
 						if (score > best)
 							best = score, direct[p] = {r, c.addr};
 					}
