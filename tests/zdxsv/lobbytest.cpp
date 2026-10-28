@@ -107,10 +107,10 @@ int main()
 	// a 2nd StartPingTest cancels the running one instead of waiting for it
 	const std::vector<std::vector<Zdxsv::PeerAddr>> byPos = {{}, {Zdxsv::PeerAddr{"127.0.0.1", 9}}};
 	{
-		Zdxsv::StartPingTest(77, byPos, 27110, 3000);
+		Zdxsv::StartPingTest(77, 0, byPos, 27110, 3000);
 		std::this_thread::sleep_for(std::chrono::milliseconds(200));
 		const auto t0 = Clock::now();
-		Zdxsv::StartPingTest(78, byPos, 27110, 600);
+		Zdxsv::StartPingTest(78, 0, byPos, 27110, 600);
 		const long ms = Ms(t0);
 		Check(ms < 300, "2nd StartPingTest during a 3000 ms test returns (ms)", ms);
 		std::string err;
@@ -133,7 +133,7 @@ int main()
 		a6.sin6_family = AF_INET6;
 		a6.sin6_port = htons(27120);
 		const bool held = bind(h4, (sockaddr*)&a4, sizeof(a4)) == 0 && bind(h6, (sockaddr*)&a6, sizeof(a6)) == 0;
-		Zdxsv::StartPingTest(79, byPos, 27120, 600);
+		Zdxsv::StartPingTest(79, 0, byPos, 27120, 600);
 		std::string err;
 		const auto r = Zdxsv::FinishPingTest(nullptr, &err);
 		Check(held && r.empty() && err.find("bind :27120 failed") != std::string::npos, "port held: no results, bind error", (long)r.size());
@@ -158,7 +158,7 @@ int main()
 		Zdxsv::StartUdpTest(lo, 27203, 27130, [&](const std::string&, const std::string&) { called = true; });
 		std::this_thread::sleep_for(std::chrono::milliseconds(100));
 		t0 = Clock::now();
-		Zdxsv::StartPingTest(80, byPos, 27130, 600);
+		Zdxsv::StartPingTest(80, 0, byPos, 27130, 600);
 		const long ms = Ms(t0);
 		std::string err;
 		Zdxsv::FinishPingTest(nullptr, &err);

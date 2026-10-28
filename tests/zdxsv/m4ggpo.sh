@@ -18,6 +18,8 @@
 #   RELAY=1 (GDELAY=auto, with GGPO_LAT): a `zdxsv relay` on 127.0.0.1:8203 (m4.sh ZRELAY) and fake_lobby.py --relay;
 #   every path `relay 0`, peers at the relay, lobby delay max(GMIN or 2), relay.log forwarded > 0.
 #   GDELAY=auto without RELAY: every path `direct`.
+#   NOADDR=K (GDELAY=auto; fake_lobby.py --no-addr): the others get no address of client K; the ping test
+#   finds it at the source of its pings, so the checks are the plain ones (control: a build without that: cut).
 set -u
 D=$(cd "$(dirname "$0")" && pwd)
 . "$D/env.sh"
@@ -32,11 +34,13 @@ for i in $GC; do
 done
 P2P=${P2P:-v4}
 BAD=${BAD_SESSION:-}
+NOADDR=${NOADDR:-}
+[ -n "$NOADDR" ] && [ "$GDELAY" != auto ] && { echo "m4ggpo: NOADDR needs GDELAY=auto (got $GDELAY)"; exit 2; }
 [ -n "$BAD" ] && export NORESULT=1 MAXS=${MAXS:-360}
 RELAY=${RELAY:-}
 RA=127.0.0.1:8203 RS=1234:abcd
 [ -n "$RELAY" ] && export ZRELAY=$RA ZRELAY_SESSION=$RS
-FAKE_ARGS="--ggpo $PORT --ggpo-clients $(echo $GC | tr -d ' ')${GGPO_LAT:+ --ggpo-delay $GGPO_LAT} --p2p $P2P${BAD:+ --bad-session $BAD}${RELAY:+ --relay $RA --relay-session $RS}" bash "$D/m4.sh"
+FAKE_ARGS="--ggpo $PORT --ggpo-clients $(echo $GC | tr -d ' ')${GGPO_LAT:+ --ggpo-delay $GGPO_LAT} --p2p $P2P${BAD:+ --bad-session $BAD}${NOADDR:+ --no-addr $NOADDR}${RELAY:+ --relay $RA --relay-session $RS}" bash "$D/m4.sh"
 rc=$?
 n=$(echo $GC | wc -w)
 ok() { if eval "$2"; then echo "PASS $1"; else echo "FAIL $1"; rc=1; fi; }

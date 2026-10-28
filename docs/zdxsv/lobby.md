@@ -79,10 +79,12 @@ How the battle ran, as flycast's `lbsP2PMatchingReport`.
 
 1. The platform info announces the GGPO port and the addresses of the client.
 2. The battle info lists the players. The ping test starts on the GGPO port.
-3. At the first key message of the battle: if a player has no GGPO port, the
-   battle info is incomplete, or a peer answered the ping test on no address,
-   the battle connection is cut. Otherwise the battle runs over GGPO with the
-   addresses and the input delay the ping test picked.
+3. At the first key message of the battle: if the battle info is incomplete
+   or a peer answered the ping test on no address, the battle connection is
+   cut. Otherwise the battle runs over GGPO with the addresses and the input
+   delay the ping test picked. A player without a GGPO port or address still
+   joins the ping test (as flycast): it is reached at the sources of its pings
+   or through a relay; with `delay=` (no ping test) the battle is cut.
 
 No battle runs on the battle server.
 
@@ -90,7 +92,9 @@ No battle runs on the battle server.
 
 Runs on the GGPO UDP port for `ggpo_ping_ms`, from an IPv4 and an IPv6
 socket, with flycast's `UdpPingPong` packet. Packets with another session,
-position or source address are dropped.
+position or source address are dropped, except the pings of a peer the
+battle info lists without an address: their sources become its candidates
+(at most 4).
 
 Address candidates of a peer, in order: its public IPv4 address (its local
 one when behind the same public IP), its other IPv4 address, its IPv6

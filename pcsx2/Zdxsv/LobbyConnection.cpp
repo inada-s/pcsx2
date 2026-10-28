@@ -65,7 +65,7 @@ namespace Zdxsv
 			if (port > 0)
 				SetBattleInfoListener([](const BattleInfo& info) {
 					std::vector<std::vector<PeerAddr>> byPosition;
-					const bool ok = GgpoPeers(info, PublicIP(), byPosition);
+					const int me = GgpoPeers(info, PublicIP(), byPosition);
 					std::vector<LobbyPlayer> players;
 					for (const std::string& u : info.users)
 					{
@@ -79,7 +79,7 @@ namespace Zdxsv
 					std::string ids = "battle_code=" + info.battleCode + "\nuser_id=" + info.userId + "\n";
 					if (info.liveUplink && !LobbyUdpAddr().empty())
 						ids += "live_uplink=" + LobbyUdpAddr() + "\n"; // Ggpo.cpp ReplayBegin streams the battle there
-					SetLobbyPeers(ok, std::move(byPosition), info.ggpoSession, info.ggpoPingMs, std::move(ids), std::move(players), info.relays);
+					SetLobbyPeers(me, std::move(byPosition), info.ggpoSession, info.ggpoPingMs, std::move(ids), std::move(players), info.relays);
 				});
 			return port;
 		}
