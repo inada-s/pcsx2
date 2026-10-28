@@ -9,7 +9,7 @@ battle that the lobby matched runs over GGPO. Option names and defaults are in
 
 A new configuration points at zdxsv: adapter on, Sockets API, `Auto` device,
 DHCP intercepted, internal DNS, no host entries. The internal DNS server looks
-up the game's server hosts as `zdxsv.net` (`Zdxsv/ServerHosts.cpp`), so a
+up the game's server hosts as `lbs.zdxsv.net` (`Zdxsv/ServerHosts.cpp`), so a
 server move needs no new release. A host entry for one of these names wins;
 entries that map one to the stale address `153.121.44.150` are dropped
 when the config loads.
@@ -122,12 +122,20 @@ A peer is reached through:
 
 A relayed peer shows `(R)` on the OSD.
 
+## Addresses in the log
+
+Player addresses (own, peers, ping test candidates, the match report's
+`addr_<pos>`) are logged masked, as flycast's `mask_ip_address` but one `x` per part: `1.x.x.x:7001`,
+`[2001:db8:1:x::x]:7001`. Relay server addresses stay whole. The lobby
+messages carry them whole.
+
 ## P2P connectivity test
 
 On the first lobby connection the emulator tests the GGPO port against the
 lobby's STUN and its test socket at the STUN port + 1, as flycast's
 feasibility test: `open`, `cone NAT`, `symmetric NAT` or `unknown`. Shown on
-the OSD, logged and sent as `nat=`. It runs on its own thread; a ping test
+the OSD in words only (no address or port: streams), logged with the
+addresses and sent as `nat=`. It runs on its own thread; a ping test
 cancels it. A missing STUN answer is asked again on the next connection.
 
 ## HTTPS latency test

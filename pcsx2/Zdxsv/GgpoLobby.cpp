@@ -118,7 +118,7 @@ namespace Zdxsv
 					                                std::to_string(p) + "=" + path : "") + "\n";
 					if (pings[p].rtt > 0)
 						Console.WriteLn("ZdxsvGgpo: lobby path to position %zu: %s, rtt %d ms, at %s", p, path.c_str(),
-							pings[p].rtt, pings[p].addr.String().c_str());
+							pings[p].rtt, (pings[p].via == 2 ? pings[p].addr.String() : pings[p].addr.Masked()).c_str());
 				}
 			rtts += "relays=" + std::to_string(servers.size()) + "\n";
 			if (!pingError.empty())

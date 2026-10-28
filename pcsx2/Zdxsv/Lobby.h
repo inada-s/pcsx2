@@ -25,6 +25,11 @@
 
 namespace Zdxsv
 {
+	// A player's address for logs players paste (streams): IPv4 digits after the first octet and IPv6
+	// digits after the third group become one 'x' per part, the port stays ("1.x.x.x:7001",
+	// "[2001:db8:1:x::x]:7001"). As flycast's mask_ip_address, but without the digit count.
+	std::string MaskIpAddress(const std::string& addr);
+
 	// A peer's UDP address: numeric IPv4 ("1.2.3.4") or IPv6 ("2001:db8::1") ip, host order port.
 	struct PeerAddr
 	{
@@ -32,6 +37,7 @@ namespace Zdxsv
 		uint16_t port = 0;
 		bool V6() const { return ip.find(':') != std::string::npos; }
 		std::string String() const { return V6() ? "[" + ip + "]:" + std::to_string(port) : ip + ":" + std::to_string(port); }
+		std::string Masked() const { return MaskIpAddress(String()); }
 		bool operator==(const PeerAddr& o) const { return ip == o.ip && port == o.port; }
 	};
 
@@ -135,6 +141,7 @@ namespace Zdxsv
 	// stop (optional) set ends it with nat=unknown.
 	std::string UdpTest(uint32_t stunIP, uint16_t stunPort, uint16_t bindPort, std::string& summary,
 		const std::atomic<bool>* stop = nullptr);
+	// summary: the result in words for the OSD, without addresses or ports (the log line has them).
 	// UdpTest on its own thread: returns at once; done(natLine, summary) is called from that thread
 	// when it ends, unless cancelled (StopUdpTest). One test at a time: a call while one runs does
 	// nothing and returns false.

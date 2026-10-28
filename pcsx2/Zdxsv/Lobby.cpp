@@ -6,6 +6,7 @@
 
 #include <array>
 #include <algorithm>
+#include <cctype>
 #include <atomic>
 #include <chrono>
 #include <cstdio>
@@ -69,6 +70,36 @@ namespace Zdxsv
 	{
 		std::lock_guard lock(g_mtx);
 		g_log = std::move(log);
+	}
+
+	std::string MaskIpAddress(const std::string& addr)
+	{
+		const bool v6 = std::count(addr.begin(), addr.end(), ':') >= 2;
+		// masked part: IPv4 from the first '.', IPv6 from the third ':', up to the port's ':'
+		size_t from = std::string::npos;
+		if (v6)
+		{
+			int colons = 0;
+			for (size_t i = 0; i < addr.size() && from == std::string::npos; i++)
+				if (addr[i] == ':' && ++colons == 3)
+					from = i;
+		}
+		else
+			from = addr.find('.');
+		const size_t to = v6 ? addr.rfind(':') : addr.find(':');
+		std::string out;
+		for (size_t i = 0; i < addr.size(); i++)
+		{
+			const unsigned char c = static_cast<unsigned char>(addr[i]);
+			const bool hide = from != std::string::npos && i > from && (to == std::string::npos || i < to) &&
+							  (v6 ? std::isxdigit(c) : std::isdigit(c));
+			// a run of hidden digits becomes one 'x': the digit count is not shown either
+			if (!hide)
+				out += addr[i];
+			else if (out.empty() || out.back() != 'x')
+				out += 'x';
+		}
+		return out;
 	}
 
 	// "a.b.c.d:port" -> network byte order ip, host order port
@@ -829,7 +860,7 @@ namespace Zdxsv
 					{
 						const Cand& c = m_cand[p][k];
 						const int r = c.Rtt();
-						line += " " + m_byPosition[p][k].String() + " rtt " + std::to_string(r) + " ms (" + std::to_string(c.pongs) + " pongs)";
+						line += " " + m_byPosition[p][k].Masked() + " rtt " + std::to_string(r) + " ms (" + std::to_string(c.pongs) + " pongs)";
 						if (r <= 0)
 							continue;
 						const float score = 10000.f - r + (IsLoopback(c.sa) ? 100.f : 0.f) + (IsPrivate(c.sa) ? 50.f : 0.f) +
@@ -1070,8 +1101,8 @@ namespace Zdxsv
 			g_udpLines += "udp_local=" + local + "\n";
 		if (!pub6.empty())
 			g_udpLines += "udp_addr6=" + pub6 + "\n";
-		Log("udp: port " + std::to_string(port) + ", public " + (pub.empty() ? "unknown (no STUN answer from " + AddrString(stun) + ")" : pub) +
-			", local " + local + ", IPv6 " + (pub6.empty() ? "none" : pub6));
+		Log("udp: port " + std::to_string(port) + ", public " + (pub.empty() ? "unknown (no STUN answer from " + AddrString(stun) + ")" : MaskIpAddress(pub)) +
+			", local " + MaskIpAddress(local) + ", IPv6 " + (pub6.empty() ? "none" : MaskIpAddress(pub6)));
 		return g_udpLines;
 	}
 
@@ -1087,8 +1118,8 @@ namespace Zdxsv
 		{
 			if (s != INVALID_SOCKET)
 				closesocket(s);
-			summary = "unknown (port " + std::to_string(bindPort) + " busy)";
-			Log("udp test: " + summary);
+			summary = "unknown (port busy)";
+			Log("udp test: " + summary + ": port " + std::to_string(bindPort));
 			return "nat=unknown\n";
 		}
 		const sockaddr_in stun = MakeAddr(stunIP, stunPort);
@@ -1138,20 +1169,21 @@ namespace Zdxsv
 
 		uint32_t ip1 = 0, ip2 = 0;
 		uint16_t port1 = 0, port2 = 0;
-		std::string nat;
+		// summary is shown to the player (streams): words only; addresses go to the log line only
+		std::string nat, detail;
 		if (stopped())
-			nat = "unknown", summary = "unknown (test cancelled: port " + std::to_string(bindPort) + " taken by the ping test)";
+			nat = "unknown", summary = "unknown (test cancelled)", detail = "port " + std::to_string(bindPort) + " taken by the ping test";
 		else if (mapped.empty())
-			nat = "unknown", summary = "unknown (no STUN answer from " + AddrString(stun) + ")";
+			nat = "unknown", summary = "unknown (no answer from the server)", detail = "no STUN answer from " + AddrString(stun);
 		else if (open)
-			nat = "open", summary = "open (port " + std::to_string(bindPort) + " reachable from any source, public " + mapped + ")";
+			nat = "open", summary = "open", detail = "port " + std::to_string(bindPort) + " reachable from any source, public " + mapped;
 		else if (mappedTest.empty() || !ParseAddr(mapped, ip1, port1) || !ParseAddr(mappedTest, ip2, port2))
-			nat = "unknown", summary = "unknown (no answer from the STUN test socket " + AddrString(test) + ")";
+			nat = "unknown", summary = "unknown (no answer from the server's test socket)", detail = "no answer from the STUN test socket " + AddrString(test);
 		else if (port1 == port2 && ip1 == ip2)
-			nat = "cone", summary = "cone NAT (port " + std::to_string(bindPort) + " closed, same public " + mapped + " for both servers)";
+			nat = "cone", summary = "cone NAT (port closed)", detail = "port " + std::to_string(bindPort) + " closed, same public " + mapped + " for both servers";
 		else
-			nat = "symmetric", summary = "symmetric NAT (port " + std::to_string(bindPort) + " closed, public " + mapped + " / " + mappedTest + ")";
-		Log("udp test: nat=" + nat + ": " + summary);
+			nat = "symmetric", summary = "symmetric NAT (port closed)", detail = "port " + std::to_string(bindPort) + " closed, public " + mapped + " / " + mappedTest;
+		Log("udp test: nat=" + nat + ": " + summary + ": " + detail);
 		return "nat=" + nat + "\n";
 	}
 

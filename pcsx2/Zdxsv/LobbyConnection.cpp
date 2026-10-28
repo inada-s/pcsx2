@@ -39,6 +39,25 @@ namespace Zdxsv
 {
 	namespace
 	{
+		// The match report on one line for the log, addr_<pos> values masked (the lobby gets them whole).
+		std::string ReportLogLine(const std::string& report)
+		{
+			std::string out;
+			size_t start = 0;
+			while (start < report.size())
+			{
+				size_t end = report.find('\n', start);
+				if (end == std::string::npos)
+					end = report.size();
+				std::string line = report.substr(start, end - start);
+				if (const size_t eq = line.find('='); line.starts_with("addr_") && eq != std::string::npos)
+					line = line.substr(0, eq + 1) + MaskIpAddress(line.substr(eq + 1));
+				out += (out.empty() ? "" : " ") + line;
+				start = end + 1;
+			}
+			return out;
+		}
+
 		// ZDXSV_GGPO net=1,lobby=1: battle infos go to Zdxsv/Ggpo.cpp as GGPO peers. Returns our GGPO port, 0 = off.
 		int ListenGgpo()
 		{
@@ -179,7 +198,7 @@ namespace Zdxsv
 		if (!report.empty() && report.size() < 0x8000)
 		{
 			append(0x52, report);
-			Console.WriteLn("DEV9: TCP: zdxsv matching report: %s", StringUtil::ReplaceAll(report, "\n", " ").c_str());
+			Console.WriteLn("DEV9: TCP: zdxsv matching report: %s", ReportLogLine(report).c_str());
 		}
 
 		size_t sent = 0;

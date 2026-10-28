@@ -23,7 +23,7 @@ namespace Zdxsv
 			const char* e = Zdxsv::TestEnv("ZDXSV_NET_TAIL");
 			return e ? std::atoi(e) : 300;
 		}();
-		bool NetStart(GGPOSessionCallbacks& cb);
+		const char* NetStart(GGPOSessionCallbacks& cb);
 		bool NetNextInputs();
 		bool NetSyncAndApply();
 		void NetLoaded(int frame);
@@ -555,7 +555,8 @@ namespace Zdxsv
 			}
 		}
 
-		bool Start()
+		// nullptr, or the close reason
+		const char* Start()
 		{
 			ggpo_set_log_function(OnLog);
 			GGPOSessionCallbacks cb{};
@@ -571,20 +572,20 @@ namespace Zdxsv
 			if (ggpo_start_synctest(&s_session, &cb, "zdxsv", PLAYERS, sizeof(Input), s_check) != GGPO_OK)
 			{
 				s_session = nullptr;
-				return false;
+				return "start failed";
 			}
 			ggpo_idle(s_session, 0);
 			for (int p = 0; p < PLAYERS; p++)
 			{
 				GGPOPlayer player{sizeof(GGPOPlayer), GGPO_PLAYERTYPE_LOCAL, p + 1};
 				if (ggpo_add_player(s_session, &player, &s_handles[p]) != GGPO_OK)
-					return false;
+					return "start failed";
 			}
 			s_rng.seed(s_seed);
 			Console.WriteLn("ZdxsvGgpo: synctest start=%d frames=%d check=%d seed=%u input=%s mask=%04x control=%d hash=%s",
 				s_start, s_frames, s_check, s_seed, s_host_input ? "host" : s_no_input ? "none" : "random", s_mask, s_control_input,
 				s_hash == Hash::Full ? "full" : s_hash == Hash::Pos ? "pos" : "pw");
-			return true;
+			return nullptr;
 		}
 
 		void NetLoaded(int frame)
@@ -593,12 +594,12 @@ namespace Zdxsv
 			s_rb = s_net_at[frame & 127];
 		}
 
-		bool NetStart(GGPOSessionCallbacks& cb)
+		const char* NetStart(GGPOSessionCallbacks& cb)
 		{
 			if (s_net_me < 0 || s_net_me >= s_players)
 			{
 				Console.Error("ZdxsvGgpo: net position %d not below players=%d", s_net_me, s_players);
-				return false;
+				return "start failed";
 			}
 			const int local_port = s_lobby ? s_port : s_port + s_net_me;
 			if (s_net_trace) // battle start marker (pwcheck.py --battle): BATTLES=N lobby battles in one process
@@ -609,18 +610,18 @@ namespace Zdxsv
 			if (ggpo_start_session(&s_session, &cb, "zdxsv", s_players, sizeof(NetInput), static_cast<unsigned short>(local_port), nullptr, 0) != GGPO_OK)
 			{
 				s_session = nullptr;
-				return false;
+				return "start failed";
 			}
-			// ZDXSV_NET_DISCONNECT_MS=ms (default 5000): longer lets a peer stall (ZDXSV_RAM_DUMP) without a disconnect.
+			// ZDXSV_NET_DISCONNECT_MS=ms (default 10000, as flycast): longer lets a peer stall (ZDXSV_RAM_DUMP) without a disconnect.
 			const char* dms = Zdxsv::TestEnv("ZDXSV_NET_DISCONNECT_MS");
-			ggpo_set_disconnect_timeout(s_session, dms ? std::atoi(dms) : 5000);
+			ggpo_set_disconnect_timeout(s_session, dms ? std::atoi(dms) : 10000);
 			ggpo_set_disconnect_notify_start(s_session, 1000);
 			// relay servers before the players, in the battle info's order on every peer (ggpo_add_relay_server)
 			if (s_lobby)
 				for (const Zdxsv::RelayServerAddr& r : s_net_servers)
 				{
 					if (ggpo_add_relay_server(s_session, r.addr.ip.c_str(), r.addr.port, r.alt.ip.empty() ? nullptr : r.alt.ip.c_str()) != GGPO_OK)
-						return false;
+						return "start failed";
 					Console.WriteLn("ZdxsvGgpo: relay server %s%s%s", r.addr.String().c_str(), r.alt.ip.empty() ? "" : " alt ",
 						r.alt.ip.empty() ? "" : r.alt.String().c_str());
 				}
@@ -636,7 +637,9 @@ namespace Zdxsv
 					StringUtil::Strlcpy(player.u.remote.ip_address, a.ip.c_str(), sizeof(player.u.remote.ip_address));
 					player.u.remote.port = a.port;
 					player.u.remote.relay = p < static_cast<int>(s_net_via.size()) && s_net_via[p] != 0;
-					Console.WriteLn("ZdxsvGgpo: lobby peer position %d at %s%s", p, a.String().c_str(), player.u.remote.relay ? " (relay)" : "");
+					// a relay is a zdxsv server, not a player: its address stays whole
+					Console.WriteLn("ZdxsvGgpo: lobby peer position %d at %s%s", p,
+						(player.u.remote.relay ? a.String() : a.Masked()).c_str(), player.u.remote.relay ? " (relay)" : "");
 				}
 				else if (player.type == GGPO_PLAYERTYPE_REMOTE)
 				{
@@ -644,26 +647,27 @@ namespace Zdxsv
 					player.u.remote.port = static_cast<unsigned short>(s_relay ? s_relay + 8 * s_net_me + p : s_port + p);
 				}
 				if (ggpo_add_player(s_session, &player, &s_handles[p]) != GGPO_OK)
-					return false;
+					return "start failed";
 				if (player.type == GGPO_PLAYERTYPE_LOCAL)
 					ggpo_set_frame_delay(s_session, s_handles[p], s_delay);
 			}
-			// Every peer arms at its own first key msg: block until all are synchronized.
+			// Every peer arms at its own first key msg: block until all are synchronized (as flycast, 10 s).
+			constexpr double START_TIMEOUT_S = 10;
 			Common::Timer wait;
-			while (!s_running && wait.GetTimeSeconds() < 60)
+			while (!s_running && wait.GetTimeSeconds() < START_TIMEOUT_S)
 			{
 				ggpo_idle(s_session, 0);
 				Threading::Sleep(1);
 			}
 			if (!s_running)
 			{
-				Console.Error("ZdxsvGgpo: net peers not synchronized in 60 s");
-				return false;
+				Console.Error("ZdxsvGgpo: net peers not synchronized in %.0f s", START_TIMEOUT_S);
+				return "start timeout";
 			}
 			Console.WriteLn("ZdxsvGgpo: net player %d of %d port %d delay %d, %zu msgs sent before the start, waited %.1f s",
 				s_net_me + 1, s_players, local_port, s_delay, s_net_sent.size(), wait.GetTimeSeconds());
 			PumpStart();
-			return true;
+			return nullptr;
 		}
 
 		bool NetNextInputs()
@@ -955,9 +959,9 @@ namespace Zdxsv
 		}
 		if (!s_session)
 		{
-			if (!Start())
+			if (const char* fail = Start())
 			{
-				Stop("start failed");
+				Stop(fail);
 				return;
 			}
 			if (s_net)
