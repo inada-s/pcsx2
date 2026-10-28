@@ -35,6 +35,7 @@ cases=(
   "nominal|SPEED0=0.5"
   "turbo|Framerate:TurboScalar=1"
   "framerate|EmuCore/GS:FramerateNTSC=50"
+  "hostsync|EmuCore/GS:SyncToHostRefreshRate=true"
 )
 [ "${1:-}" = list ] && { printf '%s\n' "${cases[@]}" | tr '|' '\t'; exit 0; }
 OUT=${OUT:?OUT=dir for logs}

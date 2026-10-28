@@ -90,7 +90,8 @@ void ZdxsvSettingsWidget::markSyncForced(QWidget* window)
 		{"vu1RoundingMode", false}, {"eeClampMode", false}, {"vu0ClampMode", false}, {"vu1ClampMode", false},
 		{"extraMemory", false}, {"gameFixes", false}, {"gsDownloadMode", false}, {"eeCycleRate", true},
 		{"eeCycleSkipping", true}, {"MTVU", true}, {"fastCDVD", true}, {"eeINTCSpinDetection", true},
-		{"eeWaitLoopDetection", true}, {"vuFlagHack", true}, {"instantVU1", true}, {"normalSpeed", true}};
+		{"eeWaitLoopDetection", true}, {"vuFlagHack", true}, {"instantVU1", true}, {"normalSpeed", true},
+		{"syncToHostRefreshRate", true}};
 	std::vector<std::pair<QWidget*, bool>> found;
 	for (const auto& w : widgets)
 		// findChildren: the Folders page has a QLineEdit "cheats" (a path, never forced)

@@ -132,7 +132,8 @@ itself, runs turbo until the battle, and exits when the session ends.
   hardcore mode: cheats off; recompilers, EE/VU rounding and clamping, game
   fixes (GameDB only), extra memory and GS hardware download mode at their
   defaults. During battles, replays and live spectating also speedhacks,
-  emulation speed and frame rate. An OSD message names the overridden
+  emulation speed, frame rate and sync to host refresh rate (off: it runs
+  the game up to 5 % off nominal speed). An OSD message names the overridden
   settings; the settings page greys them out.
 - Sync fingerprint: a hash of the build, those settings and the recompiler
   settings (not the BIOS), sent in the platform info and logged as

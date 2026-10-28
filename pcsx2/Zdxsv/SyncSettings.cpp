@@ -89,6 +89,9 @@ namespace Zdxsv
 			note(c.GS.FramerateNTSC != Pcsx2Config::GSOptions::DEFAULT_FRAME_RATE_NTSC, "frame rate");
 			c.GS.FramerateNTSC = Pcsx2Config::GSOptions::DEFAULT_FRAME_RATE_NTSC;
 			c.GS.FrameratePAL = Pcsx2Config::GSOptions::DEFAULT_FRAME_RATE_PAL;
+			// on, VMManager UpdateTargetSpeed runs the game up to 5 % off nominal speed, away from the peers
+			note(c.EmulationSpeed.SyncToHostRefreshRate, "sync to host refresh rate");
+			c.EmulationSpeed.SyncToHostRefreshRate = false;
 		}
 
 		// FNV-1a 64 of the build and the forced settings (round modes, not FPCR bits: x86 and ARM builds agree)
