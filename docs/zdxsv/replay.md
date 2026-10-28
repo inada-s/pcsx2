@@ -47,6 +47,9 @@ battle-socket emulation as a live battle, without GGPO.
   ends the replay.
 - A replay of a `ZDXSV_RBK` battle needs the recording's `ZDXSV_EE_CLAMP`.
 - A VM reset plays the replay again from the start.
+- A file that cannot be read or played (download failed, corrupted, an
+  older format) or a common state that cannot be loaded: an error OSD
+  message (as flycast's); the game boots to its title screen.
 
 ## Replay window
 
