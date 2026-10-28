@@ -50,6 +50,7 @@ namespace Zdxsv
 		bool s_osd = true; // osd=
 		std::mutex s_osd_mtx;
 		std::vector<GgpoOsdLine> s_osd_lines;
+		Common::Timer::Value s_osd_hold_until = 0; // nonzero: the session ended on a disconnect, its last lines stay up until then
 		bool s_running = false; // net: GGPO_EVENTCODE_RUNNING seen
 		bool s_disconnected = false;
 		int s_frames_ahead = 0; // net: last GGPO_EVENTCODE_TIMESYNC
@@ -314,10 +315,17 @@ namespace Zdxsv
 		}
 
 		// net, once per frame: the OSD lines (GgpoOsdLines). log: also to the log, one line.
+		// With the OSD off, shown only while a peer is interrupted or disconnected (as flycast).
 		void UpdateOsd(bool log)
 		{
-			if (!s_osd || !s_net || !s_session)
+			if (!s_net || !s_session)
 				return;
+			if (!s_osd && std::all_of(std::begin(s_peer_state), std::end(s_peer_state), [](int s) { return s == 0; }))
+			{
+				std::lock_guard lock(s_osd_mtx);
+				s_osd_lines.clear();
+				return;
+			}
 			std::vector<GgpoOsdLine> lines;
 			// flycast's delay colors
 			lines.push_back({fmt::format("Delay {}fr", s_delay), s_delay >= 13 ? OsdColor(255, 38, 31) : s_delay >= 10 ? OsdColor(255, 128, 0) :
@@ -521,6 +529,8 @@ namespace Zdxsv
 		{
 			s_pump.Stop();
 			std::lock_guard ggpo_lock(s_ggpo_mtx);
+			if (s_disconnected)
+				UpdateOsd(false); // the frame's lines predate the disconnect event
 			if (s_session)
 				ggpo_close_session(s_session);
 			s_session = nullptr;
@@ -531,8 +541,18 @@ namespace Zdxsv
 			Zdxsv::DeltaStateClear();
 			Report(what);
 			{
+				// flycast keeps its stats up 10 s after a disconnect, so the player sees who left
 				std::lock_guard lock(s_osd_mtx);
-				s_osd_lines.clear();
+				if (s_disconnected && !s_osd_lines.empty())
+				{
+					s_osd_hold_until = Common::Timer::GetCurrentValue() + Common::Timer::ConvertSecondsToValue(10.0);
+					std::string all;
+					for (const GgpoOsdLine& l : s_osd_lines)
+						all += (all.empty() ? "" : " |") + l.text;
+					Console.WriteLn("ZdxsvGgpo: osd held 10 s: %s", all.c_str());
+				}
+				else
+					s_osd_lines.clear();
 			}
 			if (s_lobby)
 			{
@@ -848,6 +868,11 @@ namespace Zdxsv
 			k3.clear();
 		s_pw.clear();
 		std::fill(std::begin(s_peer_state), std::end(s_peer_state), 0);
+		{
+			std::lock_guard lock(s_osd_mtx);
+			s_osd_hold_until = 0;
+			s_osd_lines.clear();
+		}
 		std::fill(std::begin(s_handles), std::end(s_handles), GGPOPlayerHandle{});
 		s_frames_ahead = s_waits = s_save_skipped = s_session_frames = s_top_frame = s_reruns_left = 0;
 		s_rollback_frames = s_loads = s_mismatches = s_ggpo_warnings = s_diff_logged = 0;
@@ -1230,6 +1255,12 @@ namespace Zdxsv
 	std::vector<GgpoOsdLine> GgpoOsdLines()
 	{
 		std::lock_guard lock(s_osd_mtx);
+		if (s_osd_hold_until && Common::Timer::GetCurrentValue() >= s_osd_hold_until)
+		{
+			s_osd_hold_until = 0;
+			s_osd_lines.clear();
+			Console.WriteLn("ZdxsvGgpo: osd hold over");
+		}
 		return s_osd_lines;
 	}
 	// EE probe (iR5900.cpp): GGPO frame being run, the frame numbers of NET_TRACE H lines and PW dumps.

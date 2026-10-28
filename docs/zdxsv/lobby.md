@@ -153,6 +153,11 @@ the input delay, rollback and wait frames, and per opponent the position,
 user id, name, pilot name, ping (or `Interrupted`, `Disconnected`) and
 predicted frames.
 
+With the OSD off (`ZdxsvNetOsd`, `osd=0`) it shows only while an opponent is
+interrupted or disconnected, as flycast. A battle that ends on a disconnect
+keeps its last lines up 10 s (`osd held 10 s` in the log), so the player sees
+who left.
+
 ## Save states while online
 
 A save state does not hold the network adapter, as upstream, except:
