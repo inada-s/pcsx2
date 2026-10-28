@@ -38,7 +38,8 @@ the first battle of the lobby's public API
 Common start (as gdxsv's slot 99): playback loads a save state of the game
 at the post-entry point (logged in, before the lobby's battle start; any
 user's), from `ZdxsvReplayStateUrl` (downloaded once into the cache
-folder). The game then plays the battle start from the recorded lobby
+folder, one file per URL: a new state needs a new URL; a cached copy that
+does not load is downloaded again once). The game then plays the battle start from the recorded lobby
 answers, menus turbo, with the chosen point of view as the own position.
 From GGPO frame 0 every frame gets the recorded inputs through the same
 battle-socket emulation as a live battle, without GGPO.
