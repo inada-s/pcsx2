@@ -36,6 +36,7 @@ page greys it out and its tooltip names the variable.
 |---|---|---|---|
 | `[DEV9/Eth] ZdxsvGgpo` | `true` | feature | Lobby battles run over GGPO (`ZDXSV_GGPO` options `net=1,lobby=1`). Read when the game starts. |
 | `[DEV9/Eth] ZdxsvGgpoMinDelay` | `2` | feature | Lowest GGPO input delay (frames, 2..6) a lobby battle picks, and the replay takeover delay; as gdxsv's `MinDelay`. Read when the game starts. `mindelay=` overrides it. |
+| `[DEV9/Eth] ZdxsvGgpoPort` | `0` | feature | UDP port of lobby battles (ping test and GGPO). 0 or out of range: a random port in 29700..29800, picked when the game starts with `lobby=1` and saved to the setting. `port=` overrides it. |
 | `[EmuCore/GS] ZdxsvLowLatencyVsync` | `true` | feature | Present the finished frame before the frame limiter sleeps, and poll input right before the next frame runs. |
 | `[DEV9/Eth] ZdxsvLiveAutoNext` | `false` | feature | Live spectating: when a stream ends, watch the lobby's next live battle. `ZDXSV_LIVE_NEXT` overrides it. |
 | `[DEV9/Eth] ZdxsvNetOsd` | `true` | feature | Network status OSD in GGPO battles. Read when the game starts. `osd=` overrides it. Off: shown only while an opponent is interrupted or disconnected. |
@@ -86,7 +87,7 @@ off. Any other value turns it on. Without `net=1` the session is a synctest. Log
 |---|---|---|---|
 | `net=1` | off | feature | A battle between peers instead of a synctest. It starts when the game opens its battle socket. |
 | `players=N` | 4 | test | Number of peers, 2 to 4. GGPO player = battle position + 1. A lobby battle takes it from the battle info. |
-| `port=P` | 7001 | tuning | UDP port. Position p listens on P + p. With `lobby=1` the emulator listens on P itself. |
+| `port=P` | 7001; with `lobby=1` the setting `ZdxsvGgpoPort` | tuning | UDP port. Position p listens on P + p. With `lobby=1` the emulator listens on P itself. |
 | `host=H` | 127.0.0.1 | test | Address of the peers. Not used with `lobby=1`. |
 | `relay=R` | off | test | Remote position p is at port R + 8 * own position + p, so each pair can go through its own `udprelay.py`. |
 | `delay=N` | 0 | tuning | Fixed GGPO input delay in frames. Without it a lobby battle picks the delay from the ping test. |

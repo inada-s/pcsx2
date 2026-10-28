@@ -38,6 +38,11 @@ delete `inis\PCSX2.ini` to get a new one with these defaults.
 
 If Windows Firewall asks whether PCSX2 can use the network, allow it.
 
+Battles use one UDP port: Settings → zdxsv → "UDP port for battles". At the first game
+start, PCSX2 picks a random port between 29700 and 29800 and saves it there. If you
+cannot connect to opponents directly, forward this UDP port to your PC on your router.
+Two players behind the same router need different ports.
+
 When a battle cannot start, a message beginning with "No battle:" says why
 (an opponent did not answer, the network port is in use, an opponent's build or
 settings differ), and the game returns to the lobby.
