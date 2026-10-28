@@ -13,7 +13,7 @@
 #   control: `connection cut: a peer has no GGPO address` on each lobby=1 client, no `net player` anywhere.
 #   BAD_SESSION=K (GDELAY=auto; fake_lobby.py --bad-session): client K's ping test gets no answer and drops
 #   packets; every other client gets rtt -1 from K only, and drops packets; then every client cuts the battle
-#   connection (no GGPO, no TCP fallback), the game gives up on it and
+#   connection (no GGPO, no TCP fallback) with the opponent-did-not-answer OSD, the game gives up on it and
 #   reconnects to the lobby (m4.sh NORESULT: no BATTLE RESULT, conn from x8; MAXS default 360).
 #   RELAY=1 (GDELAY=auto, with GGPO_LAT): a `zdxsv relay` on 127.0.0.1:8203 (m4.sh ZRELAY) and fake_lobby.py --relay;
 #   every path `relay 0`, peers at the relay, lobby delay max(GMIN or 2), relay.log forwarded > 0.
@@ -57,13 +57,14 @@ for i in $GC; do
     if [ -n "$BAD" ]; then
       ok "p$i connection cut (unanswered ping test), no ggpo session" "grep -a -q 'ZdxsvGgpo: lobby battle connection cut: [0-9] of 3 peers answered the ping test' '$f' && ! grep -a -q 'ZdxsvGgpo: net player' '$f'"
       ok "p$i game gave up the battle connection (cut ended)" "grep -a -q 'ZdxsvGgpo: lobby battle connection cut ended' '$f'"
+      ok "p$i cut OSD (opponent did not answer)" "grep -a -q 'OSD \[ZdxsvBattleCut\]: No battle: an opponent did not answer' '$f'"
     else
       ok "p$i ggpo session" "grep -a -q 'ZdxsvGgpo: net player' '$f'"
     fi
     if [ -z "$BAD" ]; then
       [ "$GDELAY" = auto ] && ok "p$i ping test 3 peers" "grep -a 'zdxsv: ping test' '$f' | grep -a -q 'rtt [0-9].*rtt [0-9].*rtt [0-9]'"
     elif [ "$i" = "$BAD" ]; then
-      ok "p$i (bad session) no peer answered, drops" "grep -a 'zdxsv: ping test' '$f' | grep -a -v 'rtt [0-9]' | grep -a -q ' [1-9][0-9]* dropped'"
+      ok "p$i (bad session) no peer answered, drops" "grep -a 'zdxsv: ping test' '$f' | grep -a -v 'rtt [0-9][0-9]* ms' | grep -a -q ' [1-9][0-9]* dropped'"
     else
       ok "p$i 2 peers answered, p$BAD rtt -1, drops" "grep -a 'zdxsv: ping test' '$f' | grep -a 'rtt [0-9].*rtt [0-9]' | grep -a 'rtt -1' | grep -a -q ' [1-9][0-9]* dropped'"
     fi

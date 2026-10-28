@@ -18,6 +18,11 @@ namespace Zdxsv
 		std::vector<std::vector<Zdxsv::PeerAddr>> s_lobby_peers; // candidates per position
 		std::vector<Zdxsv::BattleInfo::Relay> s_lobby_relays; // relay servers of the last battle info
 		u32 s_lobby_gen = 0, s_armed_gen = 0; // battle infos received; the one the last GGPO battle armed with
+
+		void LobbyCutOsd(std::string message)
+		{
+			Host::AddIconOSDMessage("ZdxsvBattleCut", ICON_FA_TRIANGLE_EXCLAMATION, std::move(message), Host::OSD_ERROR_DURATION);
+		}
 	} // namespace
 
 	// lobby=1: peers of the last battle info (SetLobbyPeers, DEV9 thread)
@@ -81,10 +86,12 @@ namespace Zdxsv
 				{
 					Console.WriteLn("ZdxsvGgpo: sync fingerprint %s, differing positions %s", sync.empty() ? "none" : sync.c_str(), sync_bad.c_str());
 					s_report += "sync=" + sync + "\nsync_differ=" + sync_bad + "\n";
-					Host::AddIconOSDMessage("ZdxsvSyncDiffer", ICON_FA_TRIANGLE_EXCLAMATION,
-						TRANSLATE_STR("Zdxsv", "No battle: an opponent's emulator build or settings differ from yours."),
-						Host::OSD_ERROR_DURATION);
+					LobbyCutOsd(TRANSLATE_STR("Zdxsv", "No battle: an opponent's emulator build or settings differ from yours."));
 				}
+				else if (unlisted && s_delay_set)
+					LobbyCutOsd(TRANSLATE_STR("Zdxsv", "No battle: an opponent could not be reached (no network address)."));
+				else
+					LobbyCutOsd(TRANSLATE_STR("Zdxsv", "No battle: the battle information from the lobby is incomplete."));
 			}
 			s_lobby_logged = true;
 			return false;
@@ -141,6 +148,9 @@ namespace Zdxsv
 				s_cut_sends = 0;
 				report("cut");
 				s_report += "answered=" + std::to_string(up) + "\n" + rtts;
+				LobbyCutOsd(!pingError.empty() ?
+								TRANSLATE_STR("Zdxsv", "No battle: the network port is in use by another program.") :
+								TRANSLATE_STR("Zdxsv", "No battle: an opponent did not answer. Check your router and firewall (UDP)."));
 				return false;
 			}
 			s_delay = std::max(s_min_delay, rtt > 0 ? (rtt + 31) / 32 : 0);
