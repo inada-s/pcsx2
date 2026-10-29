@@ -409,6 +409,8 @@ namespace Zdxsv
 					s_frames_ahead = ev->u.timesync.frames_ahead;
 					break;
 				case GGPO_EVENTCODE_DISCONNECTED_FROM_PEER:
+					if (s_net_end >= 0)
+						break;
 					s_disconnected = true;
 					SetPeerState(ev->u.disconnected.player, 2);
 					Console.Warning("ZdxsvGgpo: peer disconnected");
@@ -762,6 +764,24 @@ namespace Zdxsv
 			return nullptr;
 		}
 
+		// net: the battle ended once every input of the frame that sent the end msg is here (a mispredicted
+		// timeline can send one that the rerun does not). The session then leaves the peers, so it never waits
+		// for a peer that already stopped; s_net_tail frames still run for the game. Inputs after the confirmed
+		// frame are no longer the peers': the replay and the pw hashes stop there.
+		void NetEndCheck()
+		{
+			if (!s_net || s_net_end >= 0 || s_rb.end_frame < 0)
+				return;
+			int confirmed = INT_MAX;
+			ggpo_get_last_confirmed_frame(s_session, &confirmed);
+			if (confirmed < s_rb.end_frame)
+				return;
+			s_net_end = 0;
+			s_net_last_real = confirmed;
+			Console.WriteLn("ZdxsvGgpo: net end msg of frame %d confirmed at frame %d, leaving the peers", s_rb.end_frame, s_net_frame);
+			ggpo_disconnect_player(s_session, s_handles[s_net_me]);
+		}
+
 		bool NetNextInputs()
 		{
 			NetInput in = NetPack(s_rand_env ? RandInput() : HostInput());
@@ -774,6 +794,7 @@ namespace Zdxsv
 				{
 					ggpo_idle(s_session, 0);
 					Threading::Sleep(1);
+					NetEndCheck();
 					rc = ggpo_add_local_input(s_session, s_handles[s_net_me], &in, sizeof(in));
 				}
 				s_wait_ms.Add(wait.GetTimeMilliseconds());
@@ -863,6 +884,7 @@ namespace Zdxsv
 	RollbackState s_rb;
 	FrameRings s_rings;
 	int s_net_end = -1; // frames since the end msg (kind f) was sent or received, -1 = not yet
+	int s_net_last_real = INT_MAX;
 	NetStats s_ns = {};
 	Hash s_hash = Hash::Pw; // hash= (synctest checksum)
 	int s_port = 7001, s_delay = 0;
@@ -922,6 +944,7 @@ namespace Zdxsv
 		s_net_frame = 0;
 		std::fill(std::begin(s_net_at), std::end(s_net_at), RollbackState{});
 		s_net_end = -1;
+		s_net_last_real = INT_MAX;
 		s_ns = {};
 		s_rings = {};
 		s_zd_steps = s_zd_changed = s_zds_echo = s_zds_skip = s_zds_k3rel = 0;
@@ -1097,24 +1120,13 @@ namespace Zdxsv
 			return;
 		}
 		s_session_frames++;
-		// net: the battle ended (end msg sent in a frame whose inputs are all confirmed: a mispredicted timeline
-		// can send one that the rerun does not); s_net_tail frames for the peers to get it too.
-		if (s_net && s_net_end < 0 && s_rb.end_frame >= 0)
-		{
-			int confirmed = INT_MAX;
-			ggpo_get_last_confirmed_frame(s_session, &confirmed);
-			if (confirmed >= s_rb.end_frame)
-			{
-				s_net_end = 0;
-				Console.WriteLn("ZdxsvGgpo: net end msg of frame %d confirmed at frame %d", s_rb.end_frame, s_net_frame);
-			}
-		}
+		NetEndCheck();
 		if (s_net && s_net_end >= 0 && ++s_net_end > s_net_tail)
 		{
 			Stop("net battle end");
 			return;
 		}
-		if (s_disconnected)
+		if (s_disconnected && s_net_end < 0)
 		{
 			Stop("disconnected");
 			return;
@@ -1346,6 +1358,7 @@ namespace Zdxsv
 			s_rb.zds_seen[0], s_rb.zds_seen[1], s_rb.zds_seen[2], s_rb.zds_seen[3], s_rb.zds_rel, s_zds_k3rel);
 		if (s_pw_hash && s_net_trace)
 		{
+			s_pw.erase(s_pw.upper_bound(s_net_last_real), s_pw.end());
 			for (const auto& [f, h] : s_pw)
 				std::fprintf(s_net_trace, "0 H %d %016llx %016llx %016llx %016llx %08llx\n", f, static_cast<unsigned long long>(h[0]),
 					static_cast<unsigned long long>(h[1]), static_cast<unsigned long long>(h[2]), static_cast<unsigned long long>(h[3]),
