@@ -617,6 +617,13 @@ namespace Zdxsv
 			if (s_net)
 			{
 				s_net_over = true; // the battle sock goes back to the IOP
+				// a lobby battle that broke: the cut fails the battle poll, so the game gives up the battle at once
+				if (s_lobby && !s_play_env && std::strcmp(what, "net battle end") != 0)
+				{
+					s_lobby_cut = true;
+					s_cut_sends = 0;
+					Console.WriteLn("ZdxsvGgpo: lobby battle connection cut (%s) at vsync %u", what, g_FrameCount);
+				}
 				ReplayWrite(what);
 				NetReport();
 			}

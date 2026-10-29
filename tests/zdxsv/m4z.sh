@@ -45,6 +45,9 @@
 #   GGPO client cuts (`a peer has no GGPO address`); the same wait and checks as BAD_SESSION.
 #   SYNC_SALT=K (GGPO): client K gets ZDXSV_SYNC_SALT=m4z (another sync fingerprint, as another build): every
 #   GGPO client cuts (`settings or build differ`); the same wait and checks as BAD_SESSION.
+#   BREAK=K (GGPO): client K shuts down at GGPO frame BREAK_FRAME (default 1500) of the battle; waits for the other
+#   clients to log in to the lobby again. Checks per other client: peer disconnected, the battle connection cut, the
+#   cut ended; prints the s from the disconnect to its next TCP connect.
 #   Both: CUTMAX=V fails a cut that took more than V vsyncs to end.
 #   REPORT=1: the lobby logged one 0x9952 match report per
 #   client for the results' battle code: result=ggpo + close_reason=net battle end + 0 mismatches (cut: result=cut).
@@ -98,6 +101,7 @@ cenv() {
   # CENV="K=V ...": extra env for every emulator client (e.g. a battle timer ZDXSV_EE_CLAMP for a time-up)
   [ -n "${CENV:-}" ] && echo "$CENV"
   [ "$1" = "${SYNC_SALT:-}" ] && echo ZDXSV_SYNC_SALT=m4z
+  [ "$1" = "${BREAK:-}" ] && echo "ZDXSV_VM_TEST=${BREAK_FRAME:-1500}:shutdown"
   # GGPO_DEFAULT=K (GGPO, GDELAY=auto): client K has no ZDXSV_GGPO, its GGPO options come from the setting
   [ -n "${GGPO:-}" ] && [ "$1" = "${GGPO_DEFAULT:-}" ] && { echo ZDXSV_GGPO=default; return; }
   case " ${GGPO_CLIENTS:-$CLIENTS} " in *" $1 "*) [ -n "${GGPO:-}" ] && echo "ZDXSV_GGPO=net=1,lobby=1,port=$((GGPO + $1 - 1))$([ "${GDELAY:-1}" = auto ] || echo ",delay=${GDELAY:-1}")${GMIN:+,mindelay=$GMIN}${UPLOAD:+,upload=http://127.0.0.1:9881/lbs/replay_upload}${GOPT:+,$GOPT}$([ "$1" = "${BAD_SESSION:-}" ] && echo ,badsession=1)$([ -n "${GGPO_LAT:-}" ] && echo ",advertise=$((7300 + ($1 == 1)))")";; esac  # GDELAY=auto: no delay= (rtt pick, floor GMIN)
@@ -290,6 +294,23 @@ if [ -n "$CUT" ]; then
   fi
   exit $ok
 fi
+breakwait() {
+  local t0=$SECONDS c f i
+  while [ $((SECONDS - t0)) -lt "${MAXS:-300}" ]; do
+    sleep 10
+    c=$(grep -c "A new tcp connection open" "$OUT/lobby.log")
+    echo "$((SECONDS - t0)) s: lobby tcp conns $c/$((2 * nc - 1))"
+    [ "$c" -ge $((2 * nc - 1)) ] && break
+  done
+  for i in $CLIENTS; do
+    [ "$i" = "$BREAK" ] && continue
+    f="$RUN/p$i/PCSX2/logs/emulog.txt"
+    check "p$i peer disconnected" "grep -a -q 'ZdxsvGgpo: peer disconnected' '$f'"
+    check "p$i battle connection cut, cut ended" "grep -a -q 'ZdxsvGgpo: lobby battle connection cut (' '$f' && grep -a -q 'connection cut ended' '$f'"
+    awk -v p="p$i" '/ZdxsvGgpo: peer disconnected/ && !d {d = substr($0, 2, 11) + 0} d && /Creating New TCP Connection to/ {printf "%s TCP connect to %s %.1f s after the disconnect\n", p, $NF, substr($0, 2, 11) - d; exit}' "$f"
+  done
+  check "the other clients back in the lobby (tcp conns x$((2 * nc - 1)))" "[ \$(grep -c 'A new tcp connection open' '$OUT/lobby.log') -ge $((2 * nc - 1)) ]"
+}
 B=${BATTLES:-1}
 for b in $(seq "$B"); do
   if [ "$b" -gt 1 ]; then
@@ -304,6 +325,7 @@ for b in $(seq "$B"); do
   fi
   $DRIVE mash $CLIENTS 2>&1 | grep -v memgate | tail -1
   t0=$SECONDS
+  [ -n "${BREAK:-}" ] && { breakwait; exit $ok; }
   while [ $((SECONDS - t0)) -lt "${MAXS:-2100}" ]; do
     sleep 30
     results; r=$(grep -c '^result' "$OUT/results.txt")

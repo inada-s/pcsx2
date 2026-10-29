@@ -155,6 +155,10 @@ connection failure; there is no fallback to the battle server. Sends on the
 battle socket are dropped and its poll fails, so the game sets its connection
 error at once and goes back to the lobby.
 
+A GGPO session of a lobby battle that ends other than by the battle end (a
+peer disconnected, a GGPO error, a start timeout) cuts the battle connection the
+same way, until the game closes the battle socket.
+
 ## Relay servers
 
 As flycast with gdxsv's `relay`. The ping test also pings each relay server of

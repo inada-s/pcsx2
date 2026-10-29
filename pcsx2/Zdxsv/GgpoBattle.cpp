@@ -539,6 +539,8 @@ namespace Zdxsv
 		const s16 len = *reinterpret_cast<const s16*>(ram + NET_REQ_LEN);
 		u8* d = ram + NET_REQ_DATA;
 		const bool key = fno == NET_FNO_SEND && sock == NET_BATTLE_SOCK && len > 0 && len <= 0x3ca && HasKeyMsg(d, len);
+		if (s_lobby_cut)
+			return LobbyCutCall(fno, sock, len);
 		if (s_net_over)
 		{
 			// lobby=1: the first key msg of a battle with a new battle info starts the next GGPO battle; the
@@ -550,8 +552,6 @@ namespace Zdxsv
 		}
 		if (s_rbk && !s_net_armed && !key) // connect (fno 7) has the address in the sock field
 			return RbkCall(fno, len, d);
-		if (s_lobby_cut)
-			return LobbyCutCall(fno, sock, len);
 		if (sock != NET_BATTLE_SOCK)
 			return false;
 		if (!s_net_armed)

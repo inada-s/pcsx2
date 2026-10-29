@@ -191,7 +191,7 @@ namespace Zdxsv
 					g_FrameCount, fno, s_cut_sends);
 				s_lobby_cut = false;
 				std::lock_guard lock(s_lobby_mtx);
-				if (!s_report.empty())
+				if (!s_report.empty() && !s_net_over)
 					s_report += "cut_sends=" + std::to_string(s_cut_sends) + "\n";
 			}
 			return false;
