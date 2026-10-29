@@ -204,16 +204,20 @@ namespace Zdxsv
 	// Server-to-game lobby stream: passes whole frames through, keeps partial
 	// ones until complete, consumes notice 0x9951 (SetBattleInfo).
 	// Output is queued: Take() hands out at most what the game's window allows.
+	// answerLineChecks (the game is paused): line check questions 0x6001 are consumed and
+	// their answers queued for the server (TakeAnswers), as the game would answer them.
 	class LobbyFilter
 	{
 	public:
-		void Feed(const uint8_t* data, size_t len);
+		void Feed(const uint8_t* data, size_t len, bool answerLineChecks = false);
 		size_t Ready() const { return ready.size(); }
 		size_t Take(uint8_t* dst, size_t max);
+		std::vector<uint8_t> TakeAnswers() { return std::exchange(answers, {}); }
 
 	private:
 		std::vector<uint8_t> buf; // incomplete frame
 		std::vector<uint8_t> ready; // frames for the game
+		std::vector<uint8_t> answers; // frames for the server
 	};
 
 	// Battle-start answers 0x6911..0x6917 (whole lobby frames) the game got since the last battle start notice

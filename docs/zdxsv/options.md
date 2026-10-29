@@ -56,6 +56,7 @@ page greys it out and its tooltip names the variable.
 | `ZDXSV_STUN_PORT=port` | 8201 | tuning | STUN port of the lobby. Asked only with `ZDXSV_GGPO` `lobby=1`. The connectivity test also uses port + 1; a server without that socket gives `nat=unknown`. |
 | `ZDXSV_HTTPS_LATENCY=0` | on | test | No HTTPS latency test, no `<region>=ms` platform info. `=name:host,...` measures these hosts (`https://host/api/ping`) instead of the regions. See [lobby.md](lobby.md). |
 | `ZDXSV_LOBBY_STATE=1` | off | feature | Save states made online keep working after a load. See [lobby.md](lobby.md). |
+| `ZDXSV_PAUSE_LINE_CHECK=0` | on | control | While the VM is paused, leave the lobby's line checks (0x6001) to the game: a pause over 2 min drops the connection. |
 | `ZDXSV_UPDATE_URL=url` | GitHub releases of this fork | test | The updater reads its release list from this URL. |
 
 ## ZDXSV_GGPO

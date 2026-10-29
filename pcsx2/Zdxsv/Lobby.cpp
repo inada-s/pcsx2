@@ -306,7 +306,7 @@ namespace Zdxsv
 		return n;
 	}
 
-	void LobbyFilter::Feed(const uint8_t* data, size_t len)
+	void LobbyFilter::Feed(const uint8_t* data, size_t len, bool answerLineChecks)
 	{
 		constexpr size_t header = 12;
 		buf.insert(buf.end(), data, data + len);
@@ -325,6 +325,11 @@ namespace Zdxsv
 					SetBattleInfo(info);
 				else
 					Log("bad battle info notice");
+			}
+			else if (answerLineChecks && f[0] == 0x18 && f[1] == 0x01 && f[2] == 0x60 && f[3] == 0x01)
+			{
+				const uint8_t answer[header] = {0x81, 0x02, 0x60, 0x01, 0x00, 0x00, f[6], f[7], 0x00, 0xFF, 0xFF, 0xFF};
+				answers.insert(answers.end(), answer, answer + header);
 			}
 			else
 			{

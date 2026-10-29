@@ -35,6 +35,7 @@ zdxsv checkout, save states): `tests/zdxsv/README.md`.
 | A console behind a separate zproxy process | `ZDXSV_PLATFORM_INFO=0`, server set to zproxy's address by the lobby | the same `m4z.sh` run, `ZP="1 3"` (default): zproxy runs with `-upnp=false`, registers with the lobby, the PS2 connects to it and it joins the battle server over UDP (P2P on); no UPnP line in its log | none |
 | First login from a blank memory card | always | `launch.ps1 -Memcard <blank>`, then `drive.py fresh`, `register`, `newlogin` | none |
 | Lobby save states (DEV9 kept in save states, connections taken over after a load) | `ZDXSV_LOBBY_STATE=1` | no test of its own; `m4.sh` starts its clients from lobby save states | none |
+| Lobby connection kept while paused: the lobby's line checks (0x6001) are answered for the paused game | always on a zdxsv lobby | `CLIENTS=1 EMU=1 SHOW=1 PAUSE=150 PAUSE_ONLY=1 m4z.sh`: no `Recv Timeout` in the lobby log, >= 13 line checks answered while paused | `CENV=ZDXSV_PAUSE_LINE_CHECK=0`: `Recv Timeout` about 2 min into the pause |
 | Settings page Settings → zdxsv (environment variable > setting > default; an overridden setting greyed out) | always | none (checked by hand) | none |
 
 ## Input latency
