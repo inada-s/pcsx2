@@ -45,7 +45,8 @@
 #   GGPO client cuts (`a peer has no GGPO address`); the same wait and checks as BAD_SESSION.
 #   SYNC_SALT=K (GGPO): client K gets ZDXSV_SYNC_SALT=m4z (another sync fingerprint, as another build): every
 #   GGPO client cuts (`settings or build differ`); the same wait and checks as BAD_SESSION.
-#   BREAK=K (GGPO): client K shuts down at GGPO frame BREAK_FRAME (default 1500) of the battle; waits for the other
+#   BREAK=K (GGPO): client K shuts down at GGPO frame BREAK_FRAME (default 1500) of the battle (BREAK_MODE=mute: its GGPO
+#   packets are dropped from then on, its battle TCP stays up); waits for the other
 #   clients to log in to the lobby again. Checks per other client: peer disconnected, the battle connection cut, the
 #   cut ended; prints the s from the disconnect to its next TCP connect.
 #   Both: CUTMAX=V fails a cut that took more than V vsyncs to end.
@@ -101,7 +102,7 @@ cenv() {
   # CENV="K=V ...": extra env for every emulator client (e.g. a battle timer ZDXSV_EE_CLAMP for a time-up)
   [ -n "${CENV:-}" ] && echo "$CENV"
   [ "$1" = "${SYNC_SALT:-}" ] && echo ZDXSV_SYNC_SALT=m4z
-  [ "$1" = "${BREAK:-}" ] && echo "ZDXSV_VM_TEST=${BREAK_FRAME:-1500}:shutdown"
+  [ "$1" = "${BREAK:-}" ] && echo "ZDXSV_VM_TEST=${BREAK_FRAME:-1500}:${BREAK_MODE:-shutdown}"
   # GGPO_DEFAULT=K (GGPO, GDELAY=auto): client K has no ZDXSV_GGPO, its GGPO options come from the setting
   [ -n "${GGPO:-}" ] && [ "$1" = "${GGPO_DEFAULT:-}" ] && { echo ZDXSV_GGPO=default; return; }
   case " ${GGPO_CLIENTS:-$CLIENTS} " in *" $1 "*) [ -n "${GGPO:-}" ] && echo "ZDXSV_GGPO=net=1,lobby=1,port=$((GGPO + $1 - 1))$([ "${GDELAY:-1}" = auto ] || echo ",delay=${GDELAY:-1}")${GMIN:+,mindelay=$GMIN}${UPLOAD:+,upload=http://127.0.0.1:9881/lbs/replay_upload}${GOPT:+,$GOPT}$([ "$1" = "${BAD_SESSION:-}" ] && echo ,badsession=1)$([ -n "${GGPO_LAT:-}" ] && echo ",advertise=$((7300 + ($1 == 1)))")";; esac  # GDELAY=auto: no delay= (rtt pick, floor GMIN)

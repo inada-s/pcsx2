@@ -113,7 +113,7 @@ Udp::SendTo(char *buffer, int len, int flags, struct sockaddr *dst, int destlen)
    SOCKET sock = v4 ? _socket_v4 : _socket_v6;
    // FIXME: Using sizeof(sockaddr_storage) as destlen causes sendto to fail, at least on macOS.
    destlen = v4 ? sizeof(sockaddr_in) : sizeof(sockaddr_in6);
-   if (sock == INVALID_SOCKET) {
+   if (sock == INVALID_SOCKET || _mute) {
       return;
    }
    int res = sendto(sock, buffer, len, flags, dst, destlen);
@@ -195,6 +195,9 @@ Udp::ReadSockets()
             inet_ntop(AF_INET6, &((sockaddr_in6*)&recv_addr)->sin6_addr, src_ip, ARRAY_SIZE(src_ip));
             int port = ntohs(((sockaddr_in6*)&recv_addr)->sin6_port);
             Log("recvfrom returned (len:%d  from:%s:%d).", len, src_ip, port);
+         }
+         if (_mute) {
+            continue;
          }
          UdpMsg *msg = (UdpMsg *)recv_buf;
          if (_callbacks->TryForward(recv_addr, msg, len)) {
