@@ -56,6 +56,8 @@ namespace Zdxsv
 		bool s_disconnected = false;
 		int s_frames_ahead = 0; // net: last GGPO_EVENTCODE_TIMESYNC
 		int s_waits = 0; // net: frames that waited for a peer
+		int s_sync_frames = 0; // net: frames slept for GGPO time sync
+		double s_sync_max_ms = 0;
 		// ZDXSV_SAVE_ALL=1: delta-save every GGPO frame. Default (net, sync=0): skip the save of a frame at or
 		// below GGPO's last confirmed frame (all inputs received: never a rollback target).
 		const bool s_save_all = [] {
@@ -360,7 +362,7 @@ namespace Zdxsv
 			std::vector<GgpoOsdLine> lines;
 			lines.push_back({fmt::format("Delay {}fr", s_delay), s_delay >= 13 ? OsdColor(255, 38, 31) : s_delay >= 10 ? OsdColor(255, 128, 0) :
 			                                                      s_delay >= 5   ? OsdColor(255, 217, 0) : OSD_TEXT});
-			lines.push_back({fmt::format("Roll {}  Wait {}", s_rollback_frames, s_waits), OSD_TEXT});
+			lines.push_back({fmt::format("Roll {}  Wait {}  Sync {}", s_rollback_frames, s_waits, s_sync_frames), OSD_TEXT});
 			for (int p = 0; p < s_players; p++)
 			{
 				if (p == s_net_me)
@@ -937,7 +939,8 @@ namespace Zdxsv
 			s_osd_lines.clear();
 		}
 		std::fill(std::begin(s_handles), std::end(s_handles), GGPOPlayerHandle{});
-		s_frames_ahead = s_waits = s_save_skipped = s_session_frames = s_top_frame = s_reruns_left = 0;
+		s_frames_ahead = s_waits = s_sync_frames = s_save_skipped = s_session_frames = s_top_frame = s_reruns_left = 0;
+		s_sync_max_ms = 0;
 		s_rollback_frames = s_loads = s_mismatches = s_ggpo_warnings = s_diff_logged = 0;
 		s_save_ms = s_hash_ms = s_load_ms = s_rerun_ms = s_wait_ms = s_sleep_ms = s_emu_ms = s_exit_ms = s_ours_ms = {};
 		s_throttle_deferred = false;
@@ -1119,15 +1122,19 @@ namespace Zdxsv
 			Stop("disconnected");
 			return;
 		}
-		// net: ahead of the peer, give it time to catch up (GGPO's suggested frames, at 60 fps).
-		if (const int ahead = std::exchange(s_frames_ahead, 0); ahead > 0)
+		// net: ahead of the peer, give it time to catch up: GGPO's suggested frames, one frame (at 60 fps) every
+		// 10 frames, so the catch-up is not one visible hitch.
+		if (s_frames_ahead > 0 && s_session_frames % 10 == 0)
 		{
+			s_frames_ahead--;
+			s_sync_frames++;
 			Common::Timer wait;
-			while (wait.GetTimeMilliseconds() < ahead * 1000.0 / 60.0)
+			while (wait.GetTimeMilliseconds() < 1000.0 / 60.0)
 			{
 				ggpo_idle(s_session, 0);
 				Threading::Sleep(1);
 			}
+			s_sync_max_ms = std::max(s_sync_max_ms, wait.GetTimeMilliseconds());
 			s_wait_ms.Add(wait.GetTimeMilliseconds());
 		}
 		if (s_session_frames >= s_frames)
@@ -1339,9 +1346,9 @@ namespace Zdxsv
 
 	void NetReport()
 	{
-		Console.WriteLn("ZdxsvGgpo: net sends %u msgs %u (sent %zu, unsent %zu) recvs %u rxmsgs %u rxbytes %u polls %u other %u nowait %u senddiff %u toolong %u maxq %u waits %d k3lag %d restamp %u late %u",
+		Console.WriteLn("ZdxsvGgpo: net sends %u msgs %u (sent %zu, unsent %zu) recvs %u rxmsgs %u rxbytes %u polls %u other %u nowait %u senddiff %u toolong %u maxq %u waits %d sync %d (max %.1f ms) k3lag %d restamp %u late %u",
 			s_ns.sends, s_ns.msgs, s_net_sent.size(), s_net_out.size(), s_ns.recvs, s_ns.rxmsgs, s_ns.rxbytes, s_ns.polls,
-			s_ns.other, s_ns.nowait, s_ns.senddiff, s_ns.toolong, s_ns.maxq, s_waits, s_k3_lag, s_ns.restamp, s_ns.late);
+			s_ns.other, s_ns.nowait, s_ns.senddiff, s_ns.toolong, s_ns.maxq, s_waits, s_sync_frames, s_sync_max_ms, s_k3_lag, s_ns.restamp, s_ns.late);
 		Console.WriteLn("ZdxsvGgpo: zd steps %u changed %u echo %u skip %u k3 %d/%d/%d/%d rel %d (fwd %u)", s_zd_steps, s_zd_changed, s_zds_echo, s_zds_skip,
 			s_rb.zds_seen[0], s_rb.zds_seen[1], s_rb.zds_seen[2], s_rb.zds_seen[3], s_rb.zds_rel, s_zds_k3rel);
 		if (s_pw_hash && s_net_trace)
