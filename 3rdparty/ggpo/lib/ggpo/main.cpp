@@ -309,3 +309,11 @@ GGPOErrorCode ggpo_forward_relayed(GGPOSession *ggpo, int *forwarded)
 
 	return ggpo->ForwardRelayed(forwarded);
 }
+
+GGPOErrorCode ggpo_set_mute(GGPOSession *ggpo, bool mute)
+{
+	if (ggpo == nullptr)
+		return GGPO_ERRORCODE_INVALID_SESSION;
+
+	return ggpo->SetMute(mute);
+}

@@ -654,6 +654,14 @@ GGPO_API GGPOErrorCode __cdecl ggpo_add_relay_server_source(GGPOSession*, const 
  */
 GGPO_API GGPOErrorCode __cdecl ggpo_forward_relayed(GGPOSession*, int *forwarded);
 
+/*
+ * ggpo_set_mute --
+ *
+ * Tests: true drops every packet the session sends and receives, as a network
+ * that went silent; the peers time out as on a lost connection.
+ */
+GGPO_API GGPOErrorCode __cdecl ggpo_set_mute(GGPOSession*, bool mute);
+
 #ifdef __cplusplus
 };
 #endif
