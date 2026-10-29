@@ -48,6 +48,10 @@
 #   Both: CUTMAX=V fails a cut that took more than V vsyncs to end.
 #   REPORT=1: the lobby logged one 0x9952 match report per
 #   client for the results' battle code: result=ggpo + close_reason=net battle end + 0 mismatches (cut: result=cut).
+#   PAUSE=S (SHOW: the clients to pause): after the logins every SHOW client is paused (TogglePause = Space)
+#   for S s, then resumed. Checks: the lobby closed no connection for silence (Recv Timeout), each paused
+#   client answered >= S/10-2 line checks. PAUSE_ONLY=1: exit after these checks. Control:
+#   CENV=ZDXSV_PAUSE_LINE_CHECK=0 (S > 120: Recv Timeout).
 #   OSD=1: each GGPO client's last `osd frame` log line (-> osd-pN.txt)
 #   has its delay and every opponent's user id, name (battle info name_), pilot name (pilot_) and ping;
 #   names, pilot names = zdxsv.db (osdname.py).
@@ -175,11 +179,28 @@ for i in $CLIENTS; do
   echo "$l" | tail -1
   # a refused launch (probelint) ran 7 min of blind routes before the entry check
   echo "$l" | grep -q "pid .* slot" || { echo "FAIL launch p$i"; exit 1; }
+  cpid[i]=$(echo "$l" | sed -n 's/.* pid \([0-9]*\) slot.*/\1/p' | tail -1)
   # top starts from a fresh boot (f1500): no other client's route in between
   $DRIVE top $i 2>&1 | grep -v memgate | tail -1
   $DRIVE login $i 2>&1 | grep -v memgate | tail -1
   echo "client $i: login results $(grep -c '== BattleResult ==' "$OUT/lobby.log")"
 done
+if [ -n "${PAUSE:-}" ]; then
+  # every client in SHOW is paused together, past the lobby's 2 min receive timeout
+  for i in ${SHOW:?PAUSE needs SHOW}; do
+    powershell -NoProfile -File "$here/pcsx2ctl.ps1" -ProcId "${cpid[i]}" -Seq Space 2>&1 | tail -1
+  done
+  sleep "$PAUSE"
+  for i in $SHOW; do
+    powershell -NoProfile -File "$here/pcsx2ctl.ps1" -ProcId "${cpid[i]}" -Seq Space 2>&1 | tail -1
+  done
+  sleep 12
+  check "paused ${PAUSE} s: no lobby Recv Timeout" "! grep -a -q 'Recv Timeout' '$OUT/lobby.log'"
+  for i in $SHOW; do
+    check "p$i paused + resumed, line checks answered paused >= $((PAUSE / 10 - 2))" "grep -a -q 'Pausing' '$RUN/p$i/PCSX2/logs/emulog.txt' && grep -a -q 'Resuming' '$RUN/p$i/PCSX2/logs/emulog.txt' && [ \$(grep -a -c 'answered the lobby line check (paused)' '$RUN/p$i/PCSX2/logs/emulog.txt') -ge $((PAUSE / 10 - 2)) ]"
+  done
+  [ -n "${PAUSE_ONLY:-}" ] && exit $ok
+fi
 grep -a "Register zproxy" "$OUT/lobby.log" | tail -$nz | cut -c1-160
 # entries close together: with one client per ~3 min (entry right after its login)
 # each saw ジャブロー2 "1人". One at a time: `entry 1 2` in parallel dropped p2's Down

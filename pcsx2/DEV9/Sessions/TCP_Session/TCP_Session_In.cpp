@@ -186,7 +186,7 @@ namespace Sessions
 				if (zdxsvLobbyFilter)
 				{
 					// Strips the lobby's battle info notice; may hold back a partial frame.
-					zdxsvLobbyFilter->Feed(buffer.get(), recived);
+					Zdxsv::LobbyFeed(*zdxsvLobbyFilter, client, buffer.get(), recived);
 					recived = static_cast<int>(zdxsvLobbyFilter->Take(buffer.get(), maxSize));
 					if (recived == 0)
 						return std::nullopt;

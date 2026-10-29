@@ -44,6 +44,9 @@ namespace Zdxsv
 	LobbyFilter* LobbyOnFirstData(uptr socket, u32 serverIp, const u8* data, int len);
 	// A connection adopted after a state load.
 	LobbyFilter* LobbyOnAdopted(u32 serverIp);
+	// Server bytes into the connection's filter. While the VM is paused the lobby's line checks are
+	// answered on socket, so a long pause does not drop the player.
+	void LobbyFeed(LobbyFilter& filter, uptr socket, const u8* data, int len);
 
 	// Zdxsv/ServerHosts.cpp. The internal DNS server looks up the game's server hosts (login, DNAS,
 	// lobby) as the zdxsv server's hostname. A host entry for the same name is checked first and wins.

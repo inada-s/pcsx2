@@ -11,6 +11,7 @@
 #include "BuildVersion.h"
 #include "Host.h"
 #include "IconsFontAwesome.h"
+#include "VMManager.h"
 
 #include "common/Console.h"
 #include "common/StringUtil.h"
@@ -172,6 +173,8 @@ namespace Zdxsv
 		int ggpoPort;
 		LobbyFilter* filter = nullptr;
 		const std::string udpLines = OpenLobby(serverIp, ggpoPort, filter);
+		if (!filter)
+			filter = new LobbyFilter();
 		const int advertise = GgpoLobbyAdvertisePort();
 		if (ggpoPort > 0 && advertise > 0)
 		{
@@ -227,5 +230,23 @@ namespace Zdxsv
 		}
 		Console.WriteLn("DEV9: TCP: zdxsv lobby detected, sent platform info (%zu bytes)", msg.size());
 		return filter;
+	}
+
+	// A paused game reads nothing: the lobby would close the connection after its receive timeout.
+	void LobbyFeed(LobbyFilter& filter, uptr socket, const u8* data, int len)
+	{
+		static const bool off = [] {
+			const char* env = TestEnv("ZDXSV_PAUSE_LINE_CHECK");
+			return env && std::string(env) == "0";
+		}();
+		filter.Feed(data, static_cast<size_t>(len), !off && VMManager::GetState() == VMState::Paused);
+		const std::vector<u8> answers = filter.TakeAnswers();
+		if (answers.empty())
+			return;
+		const int ret = send(static_cast<sock_t>(socket), reinterpret_cast<const char*>(answers.data()), static_cast<int>(answers.size()), 0);
+		if (ret == static_cast<int>(answers.size()))
+			Console.WriteLn("DEV9: TCP: zdxsv answered the lobby line check (paused)");
+		else
+			Console.Error("DEV9: TCP: zdxsv paused line check answer: sent %d of %zu bytes", ret, answers.size());
 	}
 } // namespace Zdxsv
