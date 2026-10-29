@@ -75,7 +75,8 @@ CreateSocket(uint16 bind_port, bool v6)
 Udp::Udp() :
    _socket_v4(INVALID_SOCKET),
    _socket_v6(INVALID_SOCKET),
-   _callbacks(NULL)
+   _callbacks(NULL),
+   _recv_dropped(0)
 {
 }
 
@@ -136,10 +137,34 @@ Udp::SendTo(char *buffer, int len, int flags, struct sockaddr *dst, int destlen)
    Log("sent packet length %d to %s:%d (ret:%d).", len, dst_ip, port, res);
 }
 
+// zdxsv: at most this many packets wait for OnMsg; more are dropped like a full socket buffer.
+constexpr size_t MAX_QUEUED_PACKETS = 256;
+
+int
+Udp::ForwardRelayed()
+{
+   std::lock_guard<std::mutex> lock(_recv_mutex);
+   return ReadSockets();
+}
+
 bool
 Udp::OnLoopPoll(void *cookie)
 {
+   std::lock_guard<std::mutex> lock(_recv_mutex);
+   ReadSockets();
+   while (!_recv_queue.empty()) {
+      RecvPacket &packet = _recv_queue.front();
+      _callbacks->OnMsg(packet.from, (UdpMsg *)packet.data, packet.len);
+      _recv_queue.pop_front();
+   }
+   return true;
+}
+
+int
+Udp::ReadSockets()
+{
    uint8 recv_buf[MAX_UDP_PACKET_SIZE];
+   int forwarded = 0;
 
    for (int s = 0; s < 2; s++) for (;;) {
       SOCKET sock = s == 0 ? _socket_v4 : _socket_v6;
@@ -172,8 +197,22 @@ Udp::OnLoopPoll(void *cookie)
             Log("recvfrom returned (len:%d  from:%s:%d).", len, src_ip, port);
          }
          UdpMsg *msg = (UdpMsg *)recv_buf;
-         _callbacks->OnMsg(recv_addr, msg, len);
-      } 
+         if (_callbacks->TryForward(recv_addr, msg, len)) {
+            forwarded++;
+            continue;
+         }
+         if (_recv_queue.size() >= MAX_QUEUED_PACKETS) {
+            if (++_recv_dropped % 100 == 1) {
+               LogInfo("receive queue full, %d packets dropped", _recv_dropped);
+            }
+            continue;
+         }
+         _recv_queue.emplace_back();
+         RecvPacket &packet = _recv_queue.back();
+         packet.from = recv_addr;
+         packet.len = len;
+         memcpy(packet.data, recv_buf, len);
+      }
    }
-   return true;
+   return forwarded;
 }
