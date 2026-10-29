@@ -33,14 +33,28 @@ namespace Zdxsv
 		void LiveTake()
 		{
 			const bool ok = s_live_down->Take(s_live_got, LIVE_STALL_MS);
-			const size_t fb = s_players * sizeof(NetInput);
-			if (s_live_got.frameBytes > 0 && static_cast<size_t>(s_live_got.frameBytes) != fb && s_live_close.empty())
-				s_live_close = fmt::format("frame size {}, not {}", s_live_got.frameBytes, fb);
+			const size_t in_bytes = s_players * sizeof(NetInput);
+			const size_t got = static_cast<size_t>(s_live_got.frameBytes);
+			const bool hashed = got == in_bytes + sizeof(u32);
+			if (got > 0 && got != in_bytes && !hashed && s_live_close.empty())
+				s_live_close = fmt::format("frame size {}, not {}", got, in_bytes);
+			const size_t fb = hashed ? got : in_bytes;
 			if (const size_t n = s_live_got.inputs.size() / fb; n > 0 && s_live_close.empty())
 			{
+				const bool add_hashes = hashed && s_play_hashes.size() == static_cast<size_t>(s_play_frames);
 				const size_t at = s_play_inputs.size();
 				s_play_inputs.resize(at + n * s_players);
-				std::memcpy(&s_play_inputs[at], s_live_got.inputs.data(), n * fb);
+				for (size_t i = 0; i < n; i++)
+				{
+					const u8* record = s_live_got.inputs.data() + i * fb;
+					std::memcpy(&s_play_inputs[at + i * s_players], record, in_bytes);
+					if (add_hashes)
+					{
+						u32 hash;
+						std::memcpy(&hash, record + in_bytes, sizeof(hash));
+						s_play_hashes.push_back(hash);
+					}
+				}
 				s_live_got.inputs.erase(s_live_got.inputs.begin(), s_live_got.inputs.begin() + n * fb);
 				s_play_frames += static_cast<int>(n);
 			}
@@ -204,7 +218,21 @@ namespace Zdxsv
 		using namespace Pb;
 		std::vector<u8> pb = std::move(s_live_got.header);
 		PutInt(pb, 48, static_cast<int64_t>(frames));
-		PutBytes(pb, 49, s_live_got.inputs.data(), frames * fb);
+		// An uplink appends the frame's state hash to each record: never a whole number of inputs.
+		if (fb % sizeof(NetInput) == sizeof(u32))
+		{
+			const size_t in_bytes = fb - sizeof(u32);
+			std::vector<u8> inputs(frames * in_bytes), hashes(frames * sizeof(u32));
+			for (size_t f = 0; f < frames; f++)
+			{
+				std::memcpy(&inputs[f * in_bytes], &s_live_got.inputs[f * fb], in_bytes);
+				std::memcpy(&hashes[f * sizeof(u32)], &s_live_got.inputs[f * fb + in_bytes], sizeof(u32));
+			}
+			PutBytes(pb, 49, inputs.data(), inputs.size());
+			PutBytes(pb, 52, hashes.data(), hashes.size());
+		}
+		else
+			PutBytes(pb, 49, s_live_got.inputs.data(), frames * fb);
 		s_live_got.inputs.erase(s_live_got.inputs.begin(), s_live_got.inputs.begin() + frames * fb);
 		const std::string code = s_live_down->Code();
 		LiveSeen(code);

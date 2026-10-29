@@ -435,6 +435,9 @@ elif [ -n "${LIVE:-}" ]; then
     check "$code: spectator stream closed at the uplink's saved frame count" "[ -n '$sf' ] && [ '$fr' = '$sf' ]"
     check "$code: lobby closed the live battle with that count" "grep -a -q 'live close $code .* frames $fr\$' '$OUT/lobby.log'"
   done
+  sc=$(grep -a -o 'replay state check: hashes [0-9]* checked, [0-9]* differ' "$f" | tail -1)
+  echo "spectator ${sc:-no state check}"
+  check "spectator checked the stream's state hashes, none differ" "echo '$sc' | awk '{exit !(\$5 > 0 && \$7 == 0)}'"
   # per watched battle: the traces' lines from its `B <code>` line (pwcheck-live-<code>.txt)
   [ -n "${PWTRACE:-}" ] && for code in $codes; do
     "$PY" -I "$TOOLS/pwcheck.py" --own --battle $code "$OUT/trace-live.txt" $(for i in $CLIENTS; do echo "$OUT/trace-p$i.txt"; done) > "$OUT/pwcheck-live-$code.txt" 2>&1
