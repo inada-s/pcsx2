@@ -22,6 +22,9 @@
 #   GDELAY=auto without RELAY: every path `direct`.
 #   NOADDR=K (GDELAY=auto; fake_lobby.py --no-addr): the others get no address of client K; the ping test
 #   finds it at the source of its pings, so the checks are the plain ones (control: a build without that: cut).
+#   BLOCK=K-L (GDELAY=auto, with GGPO_LAT; fake_lobby.py --ggpo-block): clients K and L get no path to each
+#   other, so each reaches the other through a third peer: K and L `path ... peer` x1 and `(relay)` x1, every
+#   other path `direct`, K and L take the lobby delay from the peer path rtt (control: the plain checks on those logs fail on K and L).
 set -u
 D=$(cd "$(dirname "$0")" && pwd)
 . "$D/env.sh"
@@ -38,19 +41,22 @@ P2P=${P2P:-v4}
 BAD=${BAD_SESSION:-}
 NOADDR=${NOADDR:-}
 [ -n "$NOADDR" ] && [ "$GDELAY" != auto ] && { echo "m4ggpo: NOADDR needs GDELAY=auto (got $GDELAY)"; exit 2; }
+BLOCK=${BLOCK:-}
+[ -n "$BLOCK" ] && { [ "$GDELAY" != auto ] || [ -z "${GGPO_LAT:-}" ]; } && { echo "m4ggpo: BLOCK needs GDELAY=auto and GGPO_LAT"; exit 2; }
 [ -n "$BAD" ] && export NORESULT=1 MAXS=${MAXS:-360}
 RELAY=${RELAY:-}
 RA=127.0.0.1:8203 RS=1234:abcd
 [ -n "$RELAY" ] && export ZRELAY=$RA ZRELAY_SESSION=$RS
 # RELAY_ALT=1: the relay listens on every address and is advertised at 127.0.0.2, so it answers from 127.0.0.1
 [ -n "$RELAY" ] && [ -n "${RELAY_ALT:-}" ] && RA=127.0.0.2:8203 ZRELAY=:8203
-FAKE_ARGS="--ggpo $PORT --ggpo-clients $(echo $GC | tr -d ' ')${GGPO_LAT:+ --ggpo-delay $GGPO_LAT} --p2p $P2P${BAD:+ --bad-session $BAD}${NOADDR:+ --no-addr $NOADDR}${RELAY:+ --relay $RA --relay-session $RS}" bash "$D/m4.sh"
+FAKE_ARGS="--ggpo $PORT --ggpo-clients $(echo $GC | tr -d ' ')${GGPO_LAT:+ --ggpo-delay $GGPO_LAT} --p2p $P2P${BAD:+ --bad-session $BAD}${NOADDR:+ --no-addr $NOADDR}${BLOCK:+ --ggpo-block $BLOCK}${RELAY:+ --relay $RA --relay-session $RS}" bash "$D/m4.sh"
 rc=$?
 n=$(echo $GC | wc -w)
 ok() { if eval "$2"; then echo "PASS $1"; else echo "FAIL $1"; rc=1; fi; }
 E=$(( (2 * ${GGPO_LAT:-0} + 31) / 32 )); M=${GMIN:-2}; [ -n "$RELAY" ] && E=0; [ "$E" -lt "$M" ] && E=$M
 for i in $GC; do
   f="$RUN/p$i/PCSX2/logs/emulog.txt"
+  blk=; [ -n "$BLOCK" ] && case "-$BLOCK-" in *-$i-*) blk=1;; esac
   grep -a "ZdxsvGgpo: \(lobby\|net player\|net armed\)\|zdxsv: ping test" "$f" | cut -c1-300 | sed "s/^/p$i /"
   if [ "$n" -eq 4 ]; then
     [ -z "$BAD" ] && ok "p$i lobby peers x3" "[ \$(grep -a -c 'ZdxsvGgpo: lobby peer position' '$f') -eq 3 ]"
@@ -68,7 +74,7 @@ for i in $GC; do
     else
       ok "p$i 2 peers answered, p$BAD rtt -1, drops" "grep -a 'zdxsv: ping test' '$f' | grep -a 'rtt [0-9].*rtt [0-9]' | grep -a 'rtt -1' | grep -a -q ' [1-9][0-9]* dropped'"
     fi
-    [ "$GDELAY" = auto ] && [ -z "$BAD" ] && ok "p$i lobby delay $E" "grep -a -q 'ZdxsvGgpo: lobby delay $E:' '$f'"
+    [ "$GDELAY" = auto ] && [ -z "$BAD" ] && [ -z "$blk" ] && ok "p$i lobby delay $E" "grep -a -q 'ZdxsvGgpo: lobby delay $E:' '$f'"
     [ "$P2P" = v6 ] && ok "p$i peers at IPv6 x3" "[ \$(grep -a -c 'ZdxsvGgpo: lobby peer position [0-9] at \[' '$f') -eq 3 ]"
     [ "$P2P" = dual ] && [ "$GDELAY" = auto ] && ok "p$i IPv6 candidates answered x3" "[ \$(grep -a 'zdxsv: ping test' '$f' | grep -a -o '\]:[0-9]* rtt [0-9]' | wc -l) -eq 3 ]"
     [ "$P2P" != v4 ] && ok "p$i own IPv6" "grep -a -q 'zdxsv: udp: port.*IPv6 \[' '$f'"
@@ -77,6 +83,11 @@ for i in $GC; do
       [ -n "${RELAY_ALT:-}" ] && ok "p$i relay answers from 127.0.0.1" "grep -a 'zdxsv: ping test' '$f' | grep -a -q 'pongs) answers from 127.0.0.1:8203'"
       ok "p$i paths relay 0 x3" "[ \$(grep -a -c 'ZdxsvGgpo: lobby path to position [0-9]: relay 0' '$f') -eq 3 ]"
       ok "p$i peers via relay x3" "[ \$(grep -a -c 'ZdxsvGgpo: lobby peer position [0-9] at $RA (relay)' '$f') -eq 3 ]"
+    elif [ -n "$blk" ]; then
+      ok "p$i paths direct x2, peer x1" "[ \$(grep -a -c 'ZdxsvGgpo: lobby path to position [0-9]: direct' '$f') -eq 2 ] && [ \$(grep -a -c 'ZdxsvGgpo: lobby path to position [0-9]: peer [0-9]' '$f') -eq 1 ]"
+      ok "p$i peer via relay x1" "[ \$(grep -a -c 'ZdxsvGgpo: lobby peer position [0-9] at .* (relay)' '$f') -eq 1 ]"
+      R=$(grep -a -o 'lobby path to position [0-9]: peer [0-9], rtt [0-9]*' "$f" | grep -o '[0-9]*$')
+      ok "p$i lobby delay from the peer path (rtt $R)" "grep -a -q 'ZdxsvGgpo: lobby delay [0-9]*: slowest peer rtt ${R:-x} ms' '$f'"
     elif [ "$n" -eq 4 ] && [ -z "$BAD" ] && [ "$GDELAY" = auto ]; then
       ok "p$i paths direct x3" "[ \$(grep -a -c 'ZdxsvGgpo: lobby path to position [0-9]: direct' '$f') -eq 3 ]"
     fi

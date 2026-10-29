@@ -19,7 +19,7 @@ With --trace (a `zdxsv -v=2 lobby` log of a real battle, lobby_trace.py):
   trace). 0x6915 gets a fresh battle code; 0x6916 the battle server, after the custom 0x9951
   battle info (session, users, p2p_<user>=addr from the STUN answers below, ggpo_<user> with --ggpo;
   ggpo_session + ggpo_ping_ms as zdxsv (--bad-session K: client K's differs); --no-addr K: client K has no p2p_ / ggpo_ line; --ggpo-delay D: ggpo_ = a udprelay.py per pair, D ms one way,
-  so the GGPO ping test and battle see 2*D ms rtt); --relay ADDR: relay_0 for a `zdxsv relay` there, ggpo_session from --relay-session.
+  so the GGPO ping test and battle see 2*D ms rtt); --ggpo-block K-L: no relay for that pair, so they reach each other only through another peer; --relay ADDR: relay_0 for a `zdxsv relay` there, ggpo_session from --relay-session.
 - STUN on UDP --port+1 (zproxy Ping -> Pong{public_addr}). The emulator pings it right
   before its adopted connection sends, so the k-th unbound ping address belongs to the k-th
   adopted connection (launch / drive the games one at a time).
@@ -201,6 +201,10 @@ class Battle:
         for i, x in enumerate(gg):
             for y in gg[i + 1:]:
                 relays[(x, y)], relays[(y, x)] = port, port + 1
+                if {self.conns.index(x) + 1, self.conns.index(y) + 1} == self.args.ggpo_block:
+                    log("relay %s <-> %s: %d / %d, blocked (nothing listens)" % (x.user, y.user, port, port + 1))
+                    port += 2
+                    continue
                 cmd = [sys.executable, "-u", UDPRELAY, "--a", str(port), "--b", str(port + 1),
                        "--p1", str(self.ggpo_port(x)), "--p2", str(self.ggpo_port(y)), "--delay", str(self.args.ggpo_delay),
                        "--seconds", "3600", "--idle", "600"]
@@ -404,6 +408,7 @@ def main():
     ap.add_argument("--ggpo-clients", default="1234", help="adopted clients (1-based) that get a ggpo_ line")
     ap.add_argument("--ggpo-delay", type=float, default=0, help="one-way ms: ggpo_ ports point at a udprelay.py per pair")
     ap.add_argument("--ggpo-relay-port", type=int, default=7301, help="first relay port (2 per pair)")
+    ap.add_argument("--ggpo-block", default="", help="K-L (adopted clients, 1-based, with --ggpo-delay): their pair gets relay ports that nothing listens on")
     ap.add_argument("--bad-session", type=int, default=0, help="the k-th adopted client (1-based) gets a different ggpo_session")
     ap.add_argument("--no-addr", type=int, default=0, help="the k-th adopted client (1-based) gets no p2p_ / ggpo_ line in the others' battle infos")
     ap.add_argument("--p2p", choices=("v4", "v6", "dual"), default="v4",
@@ -413,6 +418,9 @@ def main():
     ap.add_argument("--relay-session", default="1234:abcd", help="--relay: ggpo_session:hex token, as given to `zdxsv relay`")
     ap.add_argument("--battlereg",default=os.environ.get("BATTLEREG", os.path.join(here, "battlereg", "battlereg.exe")))
     a = ap.parse_args()
+    a.ggpo_block = {int(k) for k in a.ggpo_block.split("-")} if a.ggpo_block else set()
+    if a.ggpo_block and (len(a.ggpo_block) != 2 or not a.ggpo_delay):
+        sys.exit("--ggpo-block K-L: two clients, with --ggpo-delay")
     if a.p2p != "v4" and a.ggpo_delay:
         sys.exit("--p2p %s: the --ggpo-delay relays are IPv4 only" % a.p2p)
     if a.ggpo_delay and not os.path.isfile(UDPRELAY):
