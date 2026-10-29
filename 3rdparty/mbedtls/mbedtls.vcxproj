@@ -1,0 +1,151 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(SolutionDir)common\vsprops\BaseProjectConfig.props" />
+  <Import Project="$(SolutionDir)common\vsprops\WinSDK.props" />
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>{CDA384DA-F4F1-489C-B640-F2C861CDCC41}</ProjectGuid>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
+  <PropertyGroup Label="Configuration">
+    <ConfigurationType>StaticLibrary</ConfigurationType>
+    <PlatformToolset Condition="!$(Configuration.Contains(Clang))">$(DefaultPlatformToolset)</PlatformToolset>
+    <PlatformToolset Condition="$(Configuration.Contains(Clang))">ClangCL</PlatformToolset>
+    <CharacterSet>MultiByte</CharacterSet>
+    <WholeProgramOptimization Condition="$(Configuration.Contains(Release))">true</WholeProgramOptimization>
+    <UseDebugLibraries Condition="$(Configuration.Contains(Debug))">true</UseDebugLibraries>
+    <UseDebugLibraries Condition="!$(Configuration.Contains(Debug))">false</UseDebugLibraries>
+  </PropertyGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
+  <ImportGroup Label="ExtensionSettings" />
+  <ImportGroup Label="PropertySheets">
+    <Import Project="..\DefaultProjectRootDir.props" />
+    <Import Project="..\3rdparty.props" />
+    <Import Condition="$(Configuration.Contains(Debug))" Project="..\..\common\vsprops\CodeGen_Debug.props" />
+    <Import Condition="$(Configuration.Contains(Devel))" Project="..\..\common\vsprops\CodeGen_Devel.props" />
+    <Import Condition="$(Configuration.Contains(Release))" Project="..\..\common\vsprops\CodeGen_Release.props" />
+    <Import Condition="!$(Configuration.Contains(Release))" Project="..\..\common\vsprops\IncrementalLinking.props" />
+  </ImportGroup>
+  <PropertyGroup Label="UserMacros" />
+  <PropertyGroup>
+    <CodeAnalysisRuleSet>AllRules.ruleset</CodeAnalysisRuleSet>
+  </PropertyGroup>
+  <ItemGroup>
+    <ClCompile Include="library\aes.c" />
+    <ClCompile Include="library\aesce.c" />
+    <ClCompile Include="library\aesni.c" />
+    <ClCompile Include="library\aria.c" />
+    <ClCompile Include="library\asn1parse.c" />
+    <ClCompile Include="library\asn1write.c" />
+    <ClCompile Include="library\base64.c" />
+    <ClCompile Include="library\bignum.c" />
+    <ClCompile Include="library\bignum_core.c" />
+    <ClCompile Include="library\bignum_mod.c" />
+    <ClCompile Include="library\bignum_mod_raw.c" />
+    <ClCompile Include="library\block_cipher.c" />
+    <ClCompile Include="library\camellia.c" />
+    <ClCompile Include="library\ccm.c" />
+    <ClCompile Include="library\chacha20.c" />
+    <ClCompile Include="library\chachapoly.c" />
+    <ClCompile Include="library\cipher.c" />
+    <ClCompile Include="library\cipher_wrap.c" />
+    <ClCompile Include="library\cmac.c" />
+    <ClCompile Include="library\constant_time.c" />
+    <ClCompile Include="library\ctr_drbg.c" />
+    <ClCompile Include="library\debug.c" />
+    <ClCompile Include="library\des.c" />
+    <ClCompile Include="library\dhm.c" />
+    <ClCompile Include="library\ecdh.c" />
+    <ClCompile Include="library\ecdsa.c" />
+    <ClCompile Include="library\ecjpake.c" />
+    <ClCompile Include="library\ecp.c" />
+    <ClCompile Include="library\ecp_curves.c" />
+    <ClCompile Include="library\ecp_curves_new.c" />
+    <ClCompile Include="library\entropy.c" />
+    <ClCompile Include="library\entropy_poll.c" />
+    <ClCompile Include="library\error.c" />
+    <ClCompile Include="library\gcm.c" />
+    <ClCompile Include="library\hkdf.c" />
+    <ClCompile Include="library\hmac_drbg.c" />
+    <ClCompile Include="library\lmots.c" />
+    <ClCompile Include="library\lms.c" />
+    <ClCompile Include="library\md.c" />
+    <ClCompile Include="library\md5.c" />
+    <ClCompile Include="library\memory_buffer_alloc.c" />
+    <ClCompile Include="library\mps_reader.c" />
+    <ClCompile Include="library\mps_trace.c" />
+    <ClCompile Include="library\net_sockets.c" />
+    <ClCompile Include="library\nist_kw.c" />
+    <ClCompile Include="library\oid.c" />
+    <ClCompile Include="library\padlock.c" />
+    <ClCompile Include="library\pem.c" />
+    <ClCompile Include="library\pk.c" />
+    <ClCompile Include="library\pk_ecc.c" />
+    <ClCompile Include="library\pk_wrap.c" />
+    <ClCompile Include="library\pkcs12.c" />
+    <ClCompile Include="library\pkcs5.c" />
+    <ClCompile Include="library\pkcs7.c" />
+    <ClCompile Include="library\pkparse.c" />
+    <ClCompile Include="library\pkwrite.c" />
+    <ClCompile Include="library\platform.c" />
+    <ClCompile Include="library\platform_util.c" />
+    <ClCompile Include="library\poly1305.c" />
+    <ClCompile Include="library\psa_crypto.c" />
+    <ClCompile Include="library\psa_crypto_aead.c" />
+    <ClCompile Include="library\psa_crypto_cipher.c" />
+    <ClCompile Include="library\psa_crypto_client.c" />
+    <ClCompile Include="library\psa_crypto_driver_wrappers_no_static.c" />
+    <ClCompile Include="library\psa_crypto_ecp.c" />
+    <ClCompile Include="library\psa_crypto_ffdh.c" />
+    <ClCompile Include="library\psa_crypto_hash.c" />
+    <ClCompile Include="library\psa_crypto_mac.c" />
+    <ClCompile Include="library\psa_crypto_pake.c" />
+    <ClCompile Include="library\psa_crypto_random.c" />
+    <ClCompile Include="library\psa_crypto_rsa.c" />
+    <ClCompile Include="library\psa_crypto_se.c" />
+    <ClCompile Include="library\psa_crypto_slot_management.c" />
+    <ClCompile Include="library\psa_crypto_storage.c" />
+    <ClCompile Include="library\psa_its_file.c" />
+    <ClCompile Include="library\psa_util.c" />
+    <ClCompile Include="library\ripemd160.c" />
+    <ClCompile Include="library\rsa.c" />
+    <ClCompile Include="library\rsa_alt_helpers.c" />
+    <ClCompile Include="library\sha1.c" />
+    <ClCompile Include="library\sha256.c" />
+    <ClCompile Include="library\sha3.c" />
+    <ClCompile Include="library\sha512.c" />
+    <ClCompile Include="library\ssl_cache.c" />
+    <ClCompile Include="library\ssl_ciphersuites.c" />
+    <ClCompile Include="library\ssl_client.c" />
+    <ClCompile Include="library\ssl_cookie.c" />
+    <ClCompile Include="library\ssl_debug_helpers_generated.c" />
+    <ClCompile Include="library\ssl_msg.c" />
+    <ClCompile Include="library\ssl_ticket.c" />
+    <ClCompile Include="library\ssl_tls.c" />
+    <ClCompile Include="library\ssl_tls12_client.c" />
+    <ClCompile Include="library\ssl_tls12_server.c" />
+    <ClCompile Include="library\ssl_tls13_client.c" />
+    <ClCompile Include="library\ssl_tls13_generic.c" />
+    <ClCompile Include="library\ssl_tls13_keys.c" />
+    <ClCompile Include="library\ssl_tls13_server.c" />
+    <ClCompile Include="library\threading.c" />
+    <ClCompile Include="library\timing.c" />
+    <ClCompile Include="library\version.c" />
+    <ClCompile Include="library\version_features.c" />
+    <ClCompile Include="library\x509.c" />
+    <ClCompile Include="library\x509_create.c" />
+    <ClCompile Include="library\x509_crl.c" />
+    <ClCompile Include="library\x509_crt.c" />
+    <ClCompile Include="library\x509_csr.c" />
+    <ClCompile Include="library\x509write.c" />
+    <ClCompile Include="library\x509write_crt.c" />
+    <ClCompile Include="library\x509write_csr.c" />
+  </ItemGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <WarningLevel>TurnOffAllWarnings</WarningLevel>
+      <AdditionalIncludeDirectories>$(SolutionDir)3rdparty\mbedtls\include;$(SolutionDir)3rdparty\mbedtls\library;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+  </ItemDefinitionGroup>
+  <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ImportGroup Label="ExtensionTargets" />
+</Project>
