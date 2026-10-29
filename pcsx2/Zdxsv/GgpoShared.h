@@ -179,6 +179,7 @@ namespace Zdxsv
 	};
 	extern Hash s_hash;
 	extern int s_port, s_delay;
+	extern int s_lobby_port; // setting DEV9/Eth ZdxsvGgpoPort (0: a random port, saved); port= overrides it
 	extern bool s_delay_set; // delay= given: fixed; else a lobby battle picks it from the peers' rtt
 	extern int s_min_delay; // mindelay=, else setting DEV9/Eth ZdxsvGgpoMinDelay
 	extern bool s_lobby; // lobby=1

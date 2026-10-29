@@ -34,7 +34,7 @@
 #   LIVE_SPEED=X: the spectator runs at normal speed X (launch.ps1 -Speed), off the stream's rate: a pacing
 #   test (the pace lines' gap and waits, with and without ZDXSV_LIVE_PACING=0).
 #   GGPO_DEFAULT=K: client K gets no ZDXSV_GGPO (launch.ps1 ZDXSV_GGPO=default), so the ZdxsvGgpo setting
-#   gives its options (port 7001); check: its log names the default options.
+#   gives its options (port: the ZdxsvGgpoPort setting); check: its log names the default options.
 #   BAD_SESSION=K (GDELAY=auto): client K gets badsession=1: every ping test fails,
 #   every client cuts the battle connection; no mash; waits for each cut to end + 2 lobby tcp conns per client;
 #   checks: cut + cut ended per client, no GGPO session, no result with frames.
@@ -274,6 +274,7 @@ if [ -n "${EMU:-}" ] && [ -n "${GGPO:-}" ]; then
     check "p$i ggpo session, $((nc - 1)) lobby peers x$B" "grep -a -q 'ZdxsvGgpo: net player' '$f' && [ \$(grep -a -c 'ZdxsvGgpo: lobby peer position' '$f') -eq $(((nc - 1) * B)) ]"
   done
   [ -n "${GGPO_DEFAULT:-}" ] && check "p$GGPO_DEFAULT GGPO from the setting" "grep -a -q \"ZdxsvGgpo: options 'net=1,lobby=1' (serial SLPS-25419, setting 1)\" '$RUN/p$GGPO_DEFAULT/PCSX2/logs/emulog.txt'"
+  [ -n "${GGPO_DEFAULT:-}" ] && check "p$GGPO_DEFAULT GGPO port from the setting" "p=\$(grep -a -o '^ZdxsvGgpoPort = [0-9]*' '$RUN/p$GGPO_DEFAULT/PCSX2/inis/PCSX2.ini' | grep -o '[0-9]*\$') && [ \"\$p\" -gt 0 ] && grep -a -q \"ZdxsvGgpo: net player .* port \$p \" '$RUN/p$GGPO_DEFAULT/PCSX2/logs/emulog.txt'"
   # every GGPO client: $B GGPO battle ends; per battle the same end frame; 0 mismatches
   ends=$(for i in ${GGPO_CLIENTS:-$CLIENTS}; do grep -a -o 'net battle end frames [0-9]* rollback frames [0-9]* loads [0-9]* mismatches [0-9]*' "$RUN/p$i/PCSX2/logs/emulog.txt" | awk -v p=$i '{print "p" p, "battle", NR, "frames", $5, "mismatches", $NF}'; done)
   echo "$ends" | sed 's/^/ggpo end /'

@@ -118,6 +118,7 @@ namespace Zdxsv
 		void Parse()
 		{
 			s_osd = Host::GetBoolSettingValue("DEV9/Eth", "ZdxsvNetOsd", true); // osd= overrides it
+			s_port = s_options.find("lobby=1") != std::string::npos ? s_lobby_port : 7001;
 			for (const std::string_view item : StringUtil::SplitString(s_options, ','))
 			{
 				const size_t eq = item.find('=');
@@ -812,6 +813,7 @@ namespace Zdxsv
 	NetStats s_ns = {};
 	Hash s_hash = Hash::Pw; // hash= (synctest checksum)
 	int s_port = 7001, s_delay = 0;
+	int s_lobby_port = 7001;
 	bool s_delay_set = false; // delay= given: fixed; else a lobby battle picks it from the peers' rtt
 	int s_min_delay = 2; // mindelay=, else setting DEV9/Eth ZdxsvGgpoMinDelay
 	bool s_lobby = false; // lobby=1
@@ -1110,6 +1112,18 @@ namespace Zdxsv
 			s_options = e ? e : lobby_default ? DEFAULT_OPTIONS : "";
 		// mindelay= overrides it
 		s_min_delay = std::clamp(Host::GetIntSettingValue("DEV9/Eth", "ZdxsvGgpoMinDelay", 2), 2, 6);
+		if (s_options.find("lobby=1") != std::string::npos)
+		{
+			s_lobby_port = Host::GetIntSettingValue("DEV9/Eth", "ZdxsvGgpoPort", 0);
+			if (s_lobby_port <= 0 || s_lobby_port > 0xFFFF)
+			{
+				std::random_device rd;
+				s_lobby_port = std::uniform_int_distribution<int>(29700, 29800)(rd);
+				Host::SetBaseIntSettingValue("DEV9/Eth", "ZdxsvGgpoPort", s_lobby_port);
+				Host::CommitBaseSettingChanges();
+				Console.WriteLn("ZdxsvGgpo: battle port %d picked and saved", s_lobby_port);
+			}
+		}
 		g_ggpo_enabled = !s_options.empty() || s_play_env;
 		s_net_env = s_options.find("net=1") != std::string::npos || s_play_env;
 		g_net_hook = s_net_trace != nullptr || s_net_env;
