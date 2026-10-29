@@ -1129,12 +1129,16 @@ namespace Zdxsv
 			s_frames_ahead--;
 			s_sync_frames++;
 			Common::Timer wait;
+			double idle_ms = 0;
 			while (wait.GetTimeMilliseconds() < 1000.0 / 60.0)
 			{
+				Common::Timer idle;
 				ggpo_idle(s_session, 0);
+				idle_ms += idle.GetTimeMilliseconds();
 				Threading::Sleep(1);
 			}
-			s_sync_max_ms = std::max(s_sync_max_ms, wait.GetTimeMilliseconds());
+			// ggpo_idle can run a rollback: that is game work, not part of the wait.
+			s_sync_max_ms = std::max(s_sync_max_ms, wait.GetTimeMilliseconds() - idle_ms);
 			s_wait_ms.Add(wait.GetTimeMilliseconds());
 		}
 		if (s_session_frames >= s_frames)
