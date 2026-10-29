@@ -18939,6 +18939,11 @@ Right click to clear binding</source>
       <translation>ツール(&amp;T)</translation>
     </message>
     <message>
+      <location filename="../MainWindow.cpp" line="547"/>
+      <source>zdxsv Replays...</source>
+      <translation>zdxsv リプレイ...</translation>
+    </message>
+    <message>
       <location filename="../MainWindow.ui" line="235"/>
       <source>Toolbar</source>
       <translation>ツールバー</translation>
@@ -23508,6 +23513,11 @@ Do you want to create this directory?</source>
       <location filename="../Settings/SettingsWindow.cpp" line="174"/>
       <source>&lt;strong&gt;Network &amp; HDD Settings&lt;/strong&gt;&lt;hr&gt;These options control the network connectivity and internal HDD storage of the console.&lt;br&gt;&lt;br&gt;Mouse over an option for additional information, and Shift+Wheel to scroll this panel.</source>
       <translation>&lt;strong&gt;ネットワーク &amp; HDD 設定&lt;/strong&gt;&lt;hr&gt;これらのオプションは、ゲーム機のネットワーク接続と内蔵 HDD ストレージを制御します。&lt;br&gt;&lt;br&gt;オプションにマウスオーバーすると追加情報が表示され、Shift+ホイールでパネルをスクロールできます。</translation>
+    </message>
+    <message>
+      <location filename="../Settings/SettingsWindow.cpp" line="180"/>
+      <source>&lt;strong&gt;zdxsv Settings&lt;/strong&gt;&lt;hr&gt;Online battles, replays and live spectating of Mobile Suit Gundam: Gundam vs. Zeta Gundam (SLPS-25419). Other games are not affected.&lt;br&gt;&lt;br&gt;Mouse over an option for additional information, and Shift+Wheel to scroll this panel.</source>
+      <translation>&lt;strong&gt;zdxsv 設定&lt;/strong&gt;&lt;hr&gt;機動戦士ガンダム ガンダムVS.Zガンダム (SLPS-25419) のオンライン対戦、リプレイ、ライブ観戦の設定です。他のゲームには影響しません。&lt;br&gt;&lt;br&gt;オプションにマウスオーバーすると追加情報が表示され、Shift+ホイールでパネルをスクロールできます。</translation>
     </message>
     <message>
       <location filename="../Settings/SettingsWindow.cpp" line="208"/>
