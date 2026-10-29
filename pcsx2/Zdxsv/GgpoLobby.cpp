@@ -207,7 +207,7 @@ namespace Zdxsv
 		// s_options only changes in GgpoOnVmInitialize, before the DEV9 thread that calls this runs
 		if (s_options.find("net=1") == std::string::npos || s_options.find("lobby=1") == std::string::npos)
 			return 0;
-		int p = 7001;
+		int p = s_lobby_port;
 		for (const std::string_view item : StringUtil::SplitString(s_options, ','))
 			if (item.starts_with("port="))
 				p = StringUtil::FromChars<int>(item.substr(5)).value_or(0);

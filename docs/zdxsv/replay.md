@@ -34,7 +34,9 @@ desync.
 
 `ZDXSV_REPLAY=<file.pb>` plays a replay; `http(s)://` downloads a `.pb`, or
 the first battle of the lobby's public API
-`http://<lobby api>/lbs/replay?battle_code=<code>` (as gdxsv lbsapi).
+`http://<lobby api>/lbs/replay?battle_code=<code>` (as gdxsv lbsapi). A download
+that starts with the gzip magic (the lobby's bucket serves them gzip encoded) is
+decompressed first.
 
 Common start (as gdxsv's slot 99): playback loads a save state of the game
 at the post-entry point (logged in, before the lobby's battle start; any
@@ -122,17 +124,22 @@ A lobby GGPO battle is streamed to the lobby while it runs, as gdxsv does
 - Uplink: the lobby marks one GGPO player per battle (`live_uplink=1` in the
   battle info). That client sends the replay header and every confirmed
   frame to the lobby's UDP address, then the close; whether saving or
-  upload is on or not.
+  upload is on or not. A frame record is the inputs plus the frame's u32 state
+  hash (`frame_bytes` = players x 32 + 4); records without it still play.
 - Transfer: 1000-byte datagrams, go-back-N on the receiver's ack, both
   uplink to lobby and lobby to spectator.
 - Spectator: `ZDXSV_REPLAY=udp://host:port[/battle code]` (no code = the
   newest live battle). It starts from the common state and plays as a
-  replay from the uplink's point of view.
+  replay from the uplink's point of view, checking the state hashes as a
+  replay file's.
 - Pacing (as flycast `gdxsv:LiveBufferFrames`): at the newest frame it waits
   until 30 more frames are there; far behind it runs unthrottled to catch
   up. In between the frame limiter's period is trimmed by a few ms per frame
   to stay 30 frames behind without stalls. Nothing from the lobby for 30 s =
   stream lost.
+- The wait at the newest frame holds the frame (as flycast): the CPU does
+  not run, the VM loop does. Pause, shutdown and closing the window answer
+  at once while waiting; the screen and the replay bar keep redrawing.
 - Auto-next (as flycast `gdxsv:LiveAutoNext`, setting `ZdxsvLiveAutoNext`):
   at the end of a stream the spectator asks the lobby for its newest live
   battle not watched yet, resets the VM and watches it from its start.

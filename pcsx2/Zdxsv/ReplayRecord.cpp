@@ -65,9 +65,18 @@ namespace Zdxsv
 		{
 			if (!s_live)
 				return;
-			frames = std::min(frames, s_replay_inputs.size() / s_players);
-			if (const size_t have = s_live->Frames(); frames > have)
-				s_live->AddFrames(s_replay_inputs.data() + have * s_players, frames - have);
+			frames = std::min({frames, s_replay_inputs.size() / s_players, s_replay_hashes.size()});
+			const size_t have = s_live->Frames();
+			if (frames <= have)
+				return;
+			const size_t in_bytes = s_players * sizeof(NetInput);
+			std::vector<u8> records((frames - have) * (in_bytes + sizeof(u32)));
+			for (size_t f = have, at = 0; f < frames; f++, at += in_bytes + sizeof(u32))
+			{
+				std::memcpy(&records[at], s_replay_inputs.data() + f * s_players, in_bytes);
+				std::memcpy(&records[at + in_bytes], &s_replay_hashes[f], sizeof(u32));
+			}
+			s_live->AddFrames(records.data(), frames - have);
 		}
 
 		std::string ReplayDir()
@@ -218,7 +227,7 @@ namespace Zdxsv
 		s_replay_answers = Zdxsv::LobbyStartAnswers();
 		s_live.reset();
 		if (!to.empty())
-			s_live = std::make_shared<Zdxsv::LiveUp>(to, code, s_lobby_session, ReplayHeader(code, ids), s_players * sizeof(NetInput));
+			s_live = std::make_shared<Zdxsv::LiveUp>(to, code, s_lobby_session, ReplayHeader(code, ids), s_players * sizeof(NetInput) + sizeof(u32));
 		Console.WriteLn("ZdxsvGgpo: replay: recording (save %s, upload %d, live %d)", dir.empty() ? "off" : dir.c_str(), upload ? 1 : 0,
 			to.empty() ? 0 : 1);
 	}

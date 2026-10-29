@@ -198,9 +198,10 @@ namespace Zdxsv
 		append(0x50, body);
 		// The last lobby battle's report (0x9952 P2PMatchingReport).
 		const std::string report = ggpoPort > 0 ? TakeLobbyReport() : "";
-		if (!report.empty() && report.size() < 0x8000)
+		const std::vector<uint8_t> encoded = EncodeMatchingReport(report);
+		if (!report.empty() && encoded.size() < 0x8000)
 		{
-			append(0x52, report);
+			append(0x52, std::string(encoded.begin(), encoded.end()));
 			Console.WriteLn("DEV9: TCP: zdxsv matching report: %s", ReportLogLine(report).c_str());
 		}
 

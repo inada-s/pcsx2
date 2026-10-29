@@ -9,6 +9,7 @@
 #include "Zdxsv/SyncSettings.h"
 #include "Zdxsv/ReplayList.h"
 #include "MTGS.h"
+#include "Input/InputManager.h"
 
 namespace Zdxsv
 {
@@ -118,6 +119,7 @@ namespace Zdxsv
 		void Parse()
 		{
 			s_osd = Host::GetBoolSettingValue("DEV9/Eth", "ZdxsvNetOsd", true); // osd= overrides it
+			s_port = s_options.find("lobby=1") != std::string::npos ? s_lobby_port : 7001;
 			for (const std::string_view item : StringUtil::SplitString(s_options, ','))
 			{
 				const size_t eq = item.find('=');
@@ -303,6 +305,36 @@ namespace Zdxsv
 			for (int p = 0; p < GGPO_MAX_PLAYERS; p++)
 				if (s_handles[p] == h)
 					s_peer_state[p] = state;
+		}
+
+		std::vector<int> s_peer_pings[GGPO_MAX_PLAYERS]; // ms, sampled once a second for the report
+
+		void SamplePeerPings()
+		{
+			for (int p = 0; p < s_players; p++)
+			{
+				GGPONetworkStats st{};
+				if (p != s_net_me && s_peer_state[p] == 0 && ggpo_get_network_stats(s_session, s_handles[p], &st) == GGPO_OK &&
+					st.network.ping > 0)
+					s_peer_pings[p].push_back(st.network.ping);
+			}
+		}
+
+		// report lines: disconnected_positions=0,2 (empty: none), ping_<position>=min/median/max ms (none: -1/-1/-1)
+		std::string PeerReport()
+		{
+			std::string left, pings;
+			for (int p = 0; p < s_players; p++)
+			{
+				if (s_peer_state[p] == 2)
+					left += (left.empty() ? "" : ",") + std::to_string(p);
+				if (p == s_net_me)
+					continue;
+				std::vector<int> v = s_peer_pings[p];
+				std::sort(v.begin(), v.end());
+				pings += v.empty() ? fmt::format("ping_{}=-1/-1/-1\n", p) : fmt::format("ping_{}={}/{}/{}\n", p, v.front(), v[v.size() / 2], v.back());
+			}
+			return "disconnected_positions=" + left + "\n" + pings;
 		}
 
 		constexpr u32 OsdColor(u32 r, u32 g, u32 b) { return 0xff000000u | (b << 16) | (g << 8) | r; } // IM_COL32
@@ -494,6 +526,7 @@ namespace Zdxsv
 		struct PumpThread
 		{
 			std::thread t;
+			std::atomic<int> held_relayed{0};
 			void Stop()
 			{
 				s_pump_run = false;
@@ -509,14 +542,27 @@ namespace Zdxsv
 			if (e && std::strcmp(e, "0") == 0)
 				return;
 			s_pump.Stop();
+			s_pump.held_relayed = 0;
 			s_pump_run = true;
 			s_pump.t = std::thread([] {
 				Threading::SetNameOfCurrentThread("ZdxsvGgpoPump");
 				while (s_pump_run)
 				{
 					// try_lock: Stop joins this thread while it holds the lock
-					if (std::unique_lock lock(s_ggpo_mtx, std::try_to_lock); lock.owns_lock() && s_session)
-						ggpo_idle(s_session, -1);
+					std::unique_lock lock(s_ggpo_mtx, std::try_to_lock);
+					if (lock.owns_lock())
+					{
+						if (s_session)
+							ggpo_idle(s_session, -1);
+					}
+					else
+					{
+						// the frame loop is in GGPO (a rollback, a wait): relay for the others now
+						int n = 0;
+						ggpo_forward_relayed(s_session, &n);
+						s_pump.held_relayed += n;
+					}
+					lock = {};
 					Threading::Sleep(1);
 				}
 			});
@@ -538,6 +584,7 @@ namespace Zdxsv
 				Host::RunOnCPUThread([] { SyncSettingsOnBattle(false); });
 			Zdxsv::DeltaStateClear();
 			Report(what);
+			Console.WriteLn("ZdxsvGgpo: %s relayed while the frame loop held GGPO %d", what, s_pump.held_relayed.load());
 			{
 				// the stats stay up 10 s after a disconnect, so the player sees who left
 				std::lock_guard lock(s_osd_mtx);
@@ -552,13 +599,20 @@ namespace Zdxsv
 				else
 					s_osd_lines.clear();
 			}
+			const std::string peers = s_net ? PeerReport() : std::string();
+			if (s_net)
+			{
+				std::string line = peers;
+				std::replace(line.begin(), line.end(), '\n', ' ');
+				Console.WriteLn("ZdxsvGgpo: peer report: %s", line.c_str());
+			}
 			if (s_lobby)
 			{
 				std::lock_guard lock(s_lobby_mtx);
 				if (!s_report.empty())
 					s_report += std::string("close=") + what + "\nframes=" + std::to_string(s_session_frames) +
 					            "\nrollback_frames=" + std::to_string(s_rollback_frames) + "\nmismatches=" + std::to_string(s_mismatches) +
-					            "\ndisconnected=" + (s_disconnected ? "1" : "0") + "\n";
+					            "\ndisconnected=" + (s_disconnected ? "1" : "0") + "\n" + peers;
 			}
 			if (s_net)
 			{
@@ -609,7 +663,10 @@ namespace Zdxsv
 		void NetLoaded(int frame)
 		{
 			s_net_frame = frame;
+			const int end_frame = s_rb.end_frame;
 			s_rb = s_net_at[frame & 127];
+			if (end_frame >= 0 && s_rb.end_frame < 0)
+				Console.WriteLn("ZdxsvGgpo: net end msg of frame %d rolled back to frame %d", end_frame, frame);
 		}
 
 		const char* NetStart(GGPOSessionCallbacks& cb)
@@ -809,6 +866,7 @@ namespace Zdxsv
 	NetStats s_ns = {};
 	Hash s_hash = Hash::Pw; // hash= (synctest checksum)
 	int s_port = 7001, s_delay = 0;
+	int s_lobby_port = 7001;
 	bool s_delay_set = false; // delay= given: fixed; else a lobby battle picks it from the peers' rtt
 	int s_min_delay = 2; // mindelay=, else setting DEV9/Eth ZdxsvGgpoMinDelay
 	bool s_lobby = false; // lobby=1
@@ -822,6 +880,8 @@ namespace Zdxsv
 	GGPOSession* s_session = nullptr;
 	bool s_started = false; // the session was opened (lobby=1: until the next battle's NetReset)
 	bool s_frame_ended = false; // the CPU left Execute() at a vsync
+	static bool s_frame_hold = false; // the next frame waits, the CPU does not run (GgpoHoldsFrame)
+	static Common::Timer s_hold_poll;
 	int s_session_frames = 0;
 	std::array<float, PadDualshock2::Inputs::LENGTH> s_host = {};
 
@@ -869,6 +929,8 @@ namespace Zdxsv
 			k3.clear();
 		s_pw.clear();
 		std::fill(std::begin(s_peer_state), std::end(s_peer_state), 0);
+		for (auto& v : s_peer_pings)
+			v.clear();
 		{
 			std::lock_guard lock(s_osd_mtx);
 			s_osd_hold_until = 0;
@@ -989,12 +1051,30 @@ namespace Zdxsv
 		s_ours_ms.Add(Common::Timer::ConvertValueToMilliseconds(s_t_returned - t0));
 	}
 
+	bool GgpoHoldsFrame()
+	{
+		if (!s_frame_hold)
+			return false;
+		Threading::Sleep(2);
+		if (s_hold_poll.GetTimeMilliseconds() >= 16)
+		{
+			s_hold_poll.Reset();
+			InputManager::PollSources();
+			MTGS::PresentCurrentFrame();
+		}
+		s_t_vsync = 0;
+		s_frame_ended = true;
+		return true;
+	}
+
 	static void Returned()
 	{
 		std::lock_guard ggpo_lock(s_ggpo_mtx);
 		if (s_play_env)
 		{
-			s_play_common ? PlayCommonStart() : PlayNext();
+			s_frame_hold = !s_play_common && LiveHold();
+			if (!s_frame_hold)
+				s_play_common ? PlayCommonStart() : PlayNext();
 			return;
 		}
 		if (!s_session)
@@ -1017,7 +1097,18 @@ namespace Zdxsv
 			return;
 		}
 		s_session_frames++;
-		// net: the battle ended (end msg sent or received); s_net_tail frames for the peers to get it too.
+		// net: the battle ended (end msg sent in a frame whose inputs are all confirmed: a mispredicted timeline
+		// can send one that the rerun does not); s_net_tail frames for the peers to get it too.
+		if (s_net && s_net_end < 0 && s_rb.end_frame >= 0)
+		{
+			int confirmed = INT_MAX;
+			ggpo_get_last_confirmed_frame(s_session, &confirmed);
+			if (confirmed >= s_rb.end_frame)
+			{
+				s_net_end = 0;
+				Console.WriteLn("ZdxsvGgpo: net end msg of frame %d confirmed at frame %d", s_rb.end_frame, s_net_frame);
+			}
+		}
 		if (s_net && s_net_end >= 0 && ++s_net_end > s_net_tail)
 		{
 			Stop("net battle end");
@@ -1047,6 +1138,8 @@ namespace Zdxsv
 		if (s_session_frames % 600 == 0)
 			Report("progress");
 		UpdateOsd(s_session_frames % 600 == 0);
+		if (s_net && s_session_frames % 60 == 0)
+			SamplePeerPings();
 		DeferredThrottle();
 		if (!s_session) // the input poll ran a VM shutdown or reset
 			return;
@@ -1096,6 +1189,18 @@ namespace Zdxsv
 			s_options = e ? e : lobby_default ? DEFAULT_OPTIONS : "";
 		// mindelay= overrides it
 		s_min_delay = std::clamp(Host::GetIntSettingValue("DEV9/Eth", "ZdxsvGgpoMinDelay", 2), 2, 6);
+		if (s_options.find("lobby=1") != std::string::npos)
+		{
+			s_lobby_port = Host::GetIntSettingValue("DEV9/Eth", "ZdxsvGgpoPort", 0);
+			if (s_lobby_port <= 0 || s_lobby_port > 0xFFFF)
+			{
+				std::random_device rd;
+				s_lobby_port = std::uniform_int_distribution<int>(29700, 29800)(rd);
+				Host::SetBaseIntSettingValue("DEV9/Eth", "ZdxsvGgpoPort", s_lobby_port);
+				Host::CommitBaseSettingChanges();
+				Console.WriteLn("ZdxsvGgpo: battle port %d picked and saved", s_lobby_port);
+			}
+		}
 		g_ggpo_enabled = !s_options.empty() || s_play_env;
 		s_net_env = s_options.find("net=1") != std::string::npos || s_play_env;
 		g_net_hook = s_net_trace != nullptr || s_net_env;
@@ -1294,6 +1399,7 @@ namespace Zdxsv
 		NetReset();
 		RbkReset();
 		g_ggpo_in_rollback = false;
+		s_frame_hold = s_frame_ended = false;
 		s_vsyncs = 0; // the next VM start or the reset VM parses the options again (and loads a replay again)
 	}
 } // namespace Zdxsv

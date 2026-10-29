@@ -218,6 +218,7 @@ namespace Sessions
 		endpoint.sin_family = AF_INET;
 		endpoint.sin_addr = std::bit_cast<in_addr>(destIP);
 		endpoint.sin_port = htons(destPort);
+		Zdxsv::TlsOnConnect(&endpoint); // zdxsv
 
 		ret = connect(client, reinterpret_cast<const sockaddr*>(&endpoint), sizeof(endpoint));
 

@@ -13,6 +13,9 @@
 #include "ggponet.h"
 #include "ring_buffer.h"
 
+#include <deque>
+#include <mutex>
+
 #define MAX_UDP_ENDPOINTS     16
 
 constexpr size_t MAX_UDP_PACKET_SIZE = sizeof(UdpMsg);
@@ -29,6 +32,9 @@ public:
    struct Callbacks {
       virtual ~Callbacks() { }
       virtual void OnMsg(sockaddr_storage &from, UdpMsg *msg, int len) = 0;
+      // zdxsv: called as soon as a packet is read, with RecvMutex held, also from ForwardRelayed on
+      // another thread. True: handled there (a relayed packet); otherwise it is queued for OnMsg.
+      virtual bool TryForward(sockaddr_storage &from, UdpMsg *msg, int len) { return false; }
    };
 
    Udp();
@@ -38,6 +44,12 @@ public:
    void SendTo(char *buffer, int len, int flags, struct sockaddr *dst, int destlen);
 
    virtual bool OnLoopPoll(void *cookie);
+
+   // zdxsv: reads the sockets now and forwards relayed packets; the rest wait for OnLoopPoll.
+   // Safe while another thread is in a GGPO call. Returns the packets TryForward handled.
+   int ForwardRelayed();
+   // zdxsv: held while reading the sockets and handling packets. Guards what TryForward reads.
+   std::mutex &RecvMutex() { return _recv_mutex; }
 
 public:
    ~Udp(void);
@@ -49,6 +61,17 @@ protected:
 
    // state management
    Callbacks      *_callbacks;
+
+   int ReadSockets();
+
+   struct RecvPacket {
+      sockaddr_storage from;
+      int              len;
+      uint8            data[MAX_UDP_PACKET_SIZE];
+   };
+   std::mutex             _recv_mutex;
+   std::deque<RecvPacket> _recv_queue;
+   int                    _recv_dropped;
 };
 
 #endif

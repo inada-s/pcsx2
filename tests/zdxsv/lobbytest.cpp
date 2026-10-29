@@ -3,6 +3,7 @@
 // Exit 0 = every check passed; a failed check prints FAIL.
 // Uses 127.0.0.1 UDP ports 27110-27130 and 27201-27203.
 #include "Zdxsv/Lobby.h"
+#include "Zdxsv/Proto.h"
 
 #include <winsock2.h>
 #include <ws2tcpip.h>
@@ -10,6 +11,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <thread>
 
@@ -82,10 +84,171 @@ int main()
 	Zdxsv::LobbySetLogger([](const std::string& s) { std::printf("  log: %s\n", s.c_str()); });
 	const uint32_t lo = inet_addr("127.0.0.1");
 
-	// ggpo_ping_ms has an upper bound (the CPU thread waits for the whole ping test)
+	// battle info: the bytes zdxsv's TestBattleInfoNoticeP2P builds (pkg/lobby/testdata/p2p_matching.bin)
+	static const uint8_t kBattleInfo[] = {
+	  0x0a, 0x0d, 0x31, 0x36, 0x39, 0x36, 0x34, 0x39, 0x32, 0x38, 0x30, 0x30,
+	  0x30, 0x30, 0x30, 0x10, 0xae, 0xac, 0x9e, 0xb9, 0x05, 0x20, 0x01, 0x30,
+	  0xcc, 0x3a, 0x4a, 0x44, 0x0a, 0x06, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41,
+	  0x12, 0x09, 0xe3, 0x82, 0xa2, 0xe3, 0x83, 0xa0, 0xe3, 0x83, 0xad, 0x1a,
+	  0x18, 0xe3, 0x82, 0xab, 0xe3, 0x83, 0x9f, 0xe3, 0x83, 0xbc, 0xe3, 0x83,
+	  0xa6, 0xe3, 0x83, 0xbb, 0xe3, 0x83, 0x93, 0xe3, 0x83, 0x80, 0xe3, 0x83,
+	  0xb3, 0xc0, 0x02, 0xd9, 0x36, 0xca, 0x02, 0x10, 0x66, 0x65, 0x64, 0x63,
+	  0x62, 0x61, 0x39, 0x38, 0x37, 0x36, 0x35, 0x34, 0x33, 0x32, 0x31, 0x30,
+	  0x4a, 0x20, 0x0a, 0x06, 0x42, 0x42, 0x42, 0x42, 0x42, 0x42, 0x12, 0x03,
+	  0x42, 0x6f, 0x62, 0xca, 0x02, 0x10, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35,
+	  0x36, 0x37, 0x38, 0x39, 0x61, 0x62, 0x63, 0x64, 0x65, 0x66, 0x4a, 0x08,
+	  0x0a, 0x06, 0x43, 0x43, 0x43, 0x43, 0x43, 0x43, 0x4a, 0x08, 0x0a, 0x06,
+	  0x44, 0x44, 0x44, 0x44, 0x44, 0x44, 0x52, 0x1b, 0x0a, 0x06, 0x41, 0x41,
+	  0x41, 0x41, 0x41, 0x41, 0x10, 0x00, 0x1a, 0x0b, 0x32, 0x30, 0x33, 0x2e,
+	  0x30, 0x2e, 0x31, 0x31, 0x33, 0x2e, 0x35, 0x20, 0xc1, 0xb8, 0x02, 0x52,
+	  0x1c, 0x0a, 0x06, 0x41, 0x41, 0x41, 0x41, 0x41, 0x41, 0x10, 0x00, 0x1a,
+	  0x0c, 0x31, 0x39, 0x32, 0x2e, 0x31, 0x36, 0x38, 0x2e, 0x31, 0x2e, 0x32,
+	  0x30, 0x20, 0xc1, 0xb8, 0x02, 0x52, 0x1b, 0x0a, 0x06, 0x41, 0x41, 0x41,
+	  0x41, 0x41, 0x41, 0x10, 0x00, 0x1a, 0x0b, 0x32, 0x30, 0x30, 0x31, 0x3a,
+	  0x64, 0x62, 0x38, 0x3a, 0x3a, 0x35, 0x20, 0xc1, 0xb8, 0x02, 0x52, 0x1c,
+	  0x0a, 0x06, 0x43, 0x43, 0x43, 0x43, 0x43, 0x43, 0x10, 0x02, 0x1a, 0x0c,
+	  0x31, 0x39, 0x32, 0x2e, 0x31, 0x36, 0x38, 0x2e, 0x31, 0x2e, 0x32, 0x31,
+	  0x20, 0xc3, 0xb8, 0x02, 0x52, 0x1c, 0x0a, 0x06, 0x43, 0x43, 0x43, 0x43,
+	  0x43, 0x43, 0x10, 0x02, 0x1a, 0x0c, 0x32, 0x30, 0x30, 0x31, 0x3a, 0x64,
+	  0x62, 0x38, 0x3a, 0x3a, 0x32, 0x31, 0x20, 0xc3, 0xb8, 0x02, 0x52, 0x1c,
+	  0x0a, 0x06, 0x43, 0x43, 0x43, 0x43, 0x43, 0x43, 0x10, 0x02, 0x1a, 0x0c,
+	  0x31, 0x39, 0x38, 0x2e, 0x35, 0x31, 0x2e, 0x31, 0x30, 0x30, 0x2e, 0x39,
+	  0x20, 0xc3, 0xb8, 0x02, 0xc2, 0x02, 0x07, 0x53, 0x42, 0x42, 0x42, 0x42,
+	  0x42, 0x42, 0xca, 0x02, 0x10, 0x31, 0x39, 0x32, 0x2e, 0x31, 0x36, 0x38,
+	  0x2e, 0x31, 0x2e, 0x38, 0x3a, 0x38, 0x32, 0x31, 0x30
+	};
+	const std::string golden(reinterpret_cast<const char*>(kBattleInfo), sizeof(kBattleInfo));
 	Zdxsv::BattleInfo info;
-	const bool ok = Zdxsv::ParseBattleInfo("session_id=1\nuser_id=A\nbattle_server=1.2.3.4:5\nusers=A,B\nggpo_ping_ms=600000\n", info);
-	Check(ok && info.ggpoPingMs == Zdxsv::MAX_PING_MS, "ggpo_ping_ms=600000 parsed as MAX_PING_MS", info.ggpoPingMs);
+	bool ok = Zdxsv::ParseBattleInfo(golden, info);
+	Check(ok && info.userId == "BBBBBB" && info.sessionId == "SBBBBBB" && info.battleCode == "1696492800000" &&
+			  info.serverIP == inet_addr("192.168.1.8") && info.serverPort == 8210 && info.users.size() == 4,
+		"battle info: own user, session, code, server, users", (int)info.users.size());
+	Check(info.names.size() == 2 && info.names["AAAAAA"] == "\xe3\x82\xa2\xe3\x83\xa0\xe3\x83\xad" && info.names["BBBBBB"] == "Bob" &&
+			  info.pilots.size() == 1 && info.syncs.size() == 2 && info.syncs["BBBBBB"] == "0123456789abcdef",
+		"battle info: names, pilots, syncs", (int)info.syncs.size());
+	Check(info.ggpo.size() == 1 && info.ggpo["AAAAAA"] == 7001 && info.ggpoSession == 1462212142 && info.ggpoPingMs == 7500 &&
+			  !info.liveUplink && info.relays.empty(),
+		"battle info: ggpo ports, session, ping test", (int)info.ggpo.size());
+	Check(info.p2p.size() == 2 && info.p2p[0].userId == "AAAAAA" && info.p2p[0].addrs.size() == 3 &&
+			  info.p2p[0].addrs[2].ip == "2001:db8::5" && info.p2p[0].addrs[2].port == 40001 && info.p2p[1].userId == "CCCCCC" &&
+			  info.p2p[1].addrs.size() == 3 && info.p2p[1].addrs[2].ip == "198.51.100.9",
+		"battle info: candidates by user, IPv6", (int)info.p2p.size());
+	int truncated = 0;
+	for (size_t n = 0; n < golden.size(); n++)
+		truncated += Zdxsv::ParseBattleInfo(golden.substr(0, n), info);
+	Check(truncated == 0, "battle info: every truncation rejected", truncated);
+
+	auto user = [](std::vector<uint8_t>& m, const std::string& id) {
+		std::vector<uint8_t> u;
+		Zdxsv::Pb::PutString(u, 1, id);
+		Zdxsv::Pb::PutBytes(m, 9, u.data(), u.size());
+	};
+	auto base = [&](int peer, int users) {
+		std::vector<uint8_t> m;
+		Zdxsv::Pb::PutInt(m, 4, peer);
+		for (int i = 0; i < users; i++)
+			user(m, "U" + std::to_string(i));
+		Zdxsv::Pb::PutString(m, 40, "S");
+		Zdxsv::Pb::PutString(m, 41, "1.2.3.4:5");
+		return m;
+	};
+	auto parse = [&](const std::vector<uint8_t>& m) { return Zdxsv::ParseBattleInfo(std::string(m.begin(), m.end()), info); };
+	std::vector<uint8_t> m = base(1, 2);
+	Zdxsv::Pb::PutInt(m, 6, 600000);
+	ok = parse(m);
+	Check(ok && info.ggpoPingMs == Zdxsv::MAX_PING_MS && info.userId == "U1", "ping_test_duration 600000 as MAX_PING_MS", info.ggpoPingMs);
+	m = base(1, 2);
+	Zdxsv::Pb::PutInt(m, 6, -5);
+	Check(parse(m) && info.ggpoPingMs == 0, "negative ping_test_duration as 0", info.ggpoPingMs);
+	Check(!parse(base(2, 2)) && !parse(base(-1, 2)), "peer_id out of users rejected", 0);
+	Check(parse(base(0, 8)) && !parse(base(0, 9)), "8 users kept, 9 rejected", 0);
+	m = base(0, 2);
+	user(m, "U1");
+	Check(!parse(m), "duplicate user rejected", 0);
+	m = base(0, 2);
+	Zdxsv::Pb::PutString(m, 1, std::string(257, 'x'));
+	Check(!parse(m), "257-byte string rejected", 0);
+	m = base(0, 2);
+	Zdxsv::Pb::PutUint(m, 2, 0x100000000ull);
+	Check(!parse(m), "session_id over 32 bits rejected", 0);
+	m = base(0, 2);
+	for (int i = 0; i < 65; i++)
+	{
+		std::vector<uint8_t> c;
+		Zdxsv::Pb::PutString(c, 1, "U1");
+		Zdxsv::Pb::PutString(c, 3, "1.2.3." + std::to_string(i));
+		Zdxsv::Pb::PutInt(c, 4, 7000);
+		Zdxsv::Pb::PutBytes(m, 10, c.data(), c.size());
+	}
+	Check(!parse(m), "65 candidates rejected", 0);
+	m = base(0, 2);
+	for (const int port : {7000, 0, 70000})
+	{
+		std::vector<uint8_t> c;
+		Zdxsv::Pb::PutString(c, 1, "U1");
+		Zdxsv::Pb::PutString(c, 3, "1.2.3.4");
+		Zdxsv::Pb::PutInt(c, 4, port);
+		Zdxsv::Pb::PutBytes(m, 10, c.data(), c.size());
+	}
+	Check(parse(m) && info.p2p.size() == 1 && info.p2p[0].addrs.size() == 1, "candidate ports 0 and 70000 dropped",
+		info.p2p.empty() ? 0 : (int)info.p2p[0].addrs.size());
+	m = base(0, 2);
+	for (const uint64_t token : {0x1234ull, 0ull, 0x5678ull})
+	{
+		std::vector<uint8_t> rl;
+		Zdxsv::Pb::PutString(rl, 2, "1.2.3.4");
+		Zdxsv::Pb::PutInt(rl, 3, 8203);
+		Zdxsv::Pb::PutUint(rl, 4, token);
+		Zdxsv::Pb::PutString(rl, 5, "2001:db8::8");
+		Zdxsv::Pb::PutInt(rl, 40, 8204);
+		Zdxsv::Pb::PutBytes(m, 11, rl.data(), rl.size());
+	}
+	Check(parse(m) && info.relays.size() == 1 && info.relays[0].token == 0x1234 && info.relays[0].addr6.ip == "2001:db8::8" &&
+			  info.relays[0].addr6.port == 8204,
+		"relays up to the first malformed one, IPv6 port", (int)info.relays.size());
+
+	// the report zdxsv's TestP2PMatchingReport decodes (pkg/lobby/testdata/p2p_matching_report.bin)
+	const std::vector<uint8_t> report = Zdxsv::EncodeMatchingReport(
+		"battle_code=1696492800000\nuser_id=BBBBBB\nlive_uplink=127.0.0.1:9100\nresult=ggpo\nposition=1\nplayers=2\n"
+		"delay=2\nmin_delay=1\nrtt_0=12\naddr_0=203.0.113.5:7001\npath_0=direct\nrelays=0\nping_wait_ms=1500\n"
+		"close=net battle end\nframes=21563\nrollback_frames=812\nmismatches=0\ndisconnected=1\n"
+		"disconnected_positions=0\nping_0=201/215/250\n");
+	if (const char* path = std::getenv("ZDXSV_REPORT_OUT"))
+		if (FILE* f = std::fopen(path, "wb"))
+			std::fwrite(report.data(), 1, report.size(), f), std::fclose(f);
+	struct ReportPeers
+	{
+		bool ok;
+		int peers, rtt;
+		std::string pings;
+		std::vector<int64_t> left;
+	};
+	auto readReport = [](const std::vector<uint8_t>& r) {
+		ReportPeers out{true, 0, 0, {}, {}};
+		Zdxsv::Pb::Reader rr{r.data(), r.data() + r.size()};
+		out.ok = rr.Fields([&](uint32_t field, uint32_t wt, uint64_t v, const uint8_t* b, size_t n) {
+			if (field == 55)
+				return Zdxsv::Pb::ReadInts(wt, v, b, n, out.left);
+			if (field != 31)
+				return true;
+			out.peers++;
+			Zdxsv::Pb::Reader pr{b, b + n};
+			return pr.Fields([&](uint32_t f, uint32_t, uint64_t pv, const uint8_t*, size_t) {
+				if (f == 40)
+					out.rtt = (int)pv;
+				if (f >= 4 && f <= 6)
+					out.pings += std::to_string(f) + ":" + std::to_string(pv) + " ";
+				return true;
+			});
+		});
+		return out;
+	};
+	ReportPeers rp = readReport(report);
+	Check(rp.ok && rp.peers == 1 && rp.rtt == 12 && rp.pings == "4:201 5:215 6:250 " && rp.left == std::vector<int64_t>{0},
+		"report: one remote peer with its rtt and ping min/median/max, disconnected position 0", (int)report.size());
+	rp = readReport(Zdxsv::EncodeMatchingReport("position=0\nrtt_1=30\ndisconnected=0\ndisconnected_positions=\nping_1=-1/-1/-1\n"));
+	Check(rp.ok && rp.peers == 1 && rp.rtt == 30 && rp.pings.empty() && rp.left.empty(),
+		"report: no ping sample and no disconnected position leave the fields unset", rp.peers);
 
 	// OpenUdp: 3 tries of 200 ms each; no answer is not cached, an answer is
 	{

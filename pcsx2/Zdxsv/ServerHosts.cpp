@@ -11,6 +11,8 @@
 #include <atomic>
 #include <cstring>
 #include <iterator>
+#include <mutex>
+#include <vector>
 
 namespace Zdxsv
 {
@@ -32,6 +34,13 @@ namespace Zdxsv
 		constexpr u8 kStaleAddress[4] = {153, 121, 44, 150};
 
 		std::atomic<bool> s_used_server_host{false};
+
+		struct ServerAddresses
+		{
+			std::mutex mutex;
+			std::vector<u32> ips;
+		};
+		ServerAddresses s_servers;
 
 		bool IsGameHost(const char* url)
 		{
@@ -58,5 +67,22 @@ namespace Zdxsv
 	bool DnsIsStaleHostEntry(const char* url, const u8* address)
 	{
 		return IsGameHost(url) && std::memcmp(address, kStaleAddress, sizeof(kStaleAddress)) == 0;
+	}
+
+	void DnsOnAnswer(const char* name, const u8* address)
+	{
+		if (!IsGameHost(name))
+			return;
+		u32 ip;
+		std::memcpy(&ip, address, sizeof(ip));
+		std::lock_guard lock(s_servers.mutex);
+		if (std::find(s_servers.ips.begin(), s_servers.ips.end(), ip) == s_servers.ips.end())
+			s_servers.ips.push_back(ip);
+	}
+
+	bool IsServerAddress(u32 ip)
+	{
+		std::lock_guard lock(s_servers.mutex);
+		return std::find(s_servers.ips.begin(), s_servers.ips.end(), ip) != s_servers.ips.end();
 	}
 } // namespace Zdxsv

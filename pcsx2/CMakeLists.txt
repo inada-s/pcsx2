@@ -359,6 +359,7 @@ set(pcsx2DEV9Sources
 	Zdxsv/LobbyConnection.cpp
 	Zdxsv/ServerHosts.cpp
 	Zdxsv/HttpsLatency.cpp
+	Zdxsv/TlsTunnel.cpp
 	DEV9/smap.cpp
 	DEV9/sockets.cpp
 	DEV9/DEV9.cpp
@@ -1220,6 +1221,7 @@ target_link_libraries(PCSX2_FLAGS INTERFACE
 	PNG::PNG
 	LZMA::LZMA
 	GGPO::GGPO
+	pcsx2-mbedtls
 	Zstd::Zstd
 	demanglegnu
 	ccc

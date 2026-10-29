@@ -6,6 +6,8 @@
 #include "Zdxsv/GgpoShared.h"
 #include "IconsFontAwesome.h"
 
+#include <zlib.h>
+
 namespace Zdxsv
 {
 	namespace
@@ -94,6 +96,35 @@ namespace Zdxsv
 			});
 		}
 
+		// The lobby stores replays gzip encoded with Cache-Control: no-transform, so its bucket serves them compressed
+		// whatever the request's Accept-Encoding, and the HTTP clients do not decode them.
+		std::optional<std::vector<u8>> Gunzip(const std::string& url, const std::vector<u8>& in)
+		{
+			z_stream z = {};
+			if (inflateInit2(&z, 16 + MAX_WBITS) != Z_OK)
+				return std::nullopt;
+			z.next_in = const_cast<Bytef*>(in.data());
+			z.avail_in = static_cast<uInt>(in.size());
+			std::vector<u8> out;
+			int rc = Z_OK;
+			while (rc == Z_OK)
+			{
+				out.resize(out.size() + std::max<size_t>(in.size() * 4, 1 << 16));
+				z.next_out = out.data() + z.total_out;
+				z.avail_out = static_cast<uInt>(out.size() - z.total_out);
+				rc = inflate(&z, Z_NO_FLUSH);
+			}
+			out.resize(z.total_out);
+			inflateEnd(&z);
+			if (rc != Z_STREAM_END)
+			{
+				Console.Error("ZdxsvGgpo: replay %s: bad gzip data (zlib %d)", url.c_str(), rc);
+				return std::nullopt;
+			}
+			Console.WriteLn("ZdxsvGgpo: replay %s: gzip %zu -> %zu bytes", url.c_str(), in.size(), out.size());
+			return out;
+		}
+
 		std::optional<std::vector<u8>> HttpGet(const std::string& url)
 		{
 			std::unique_ptr<HTTPDownloader> http = HTTPDownloader::Create(Host::GetHTTPUserAgent());
@@ -111,6 +142,8 @@ namespace Zdxsv
 					Console.Error("ZdxsvGgpo: replay %s: status %d", url.c_str(), status); // 204: no such battle
 			});
 			http->WaitForAllRequests();
+			if (got && got->size() >= 2 && (*got)[0] == 0x1f && (*got)[1] == 0x8b)
+				got = Gunzip(url, *got);
 			return got;
 		}
 

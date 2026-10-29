@@ -36,6 +36,7 @@ page greys it out and its tooltip names the variable.
 |---|---|---|---|
 | `[DEV9/Eth] ZdxsvGgpo` | `true` | feature | Lobby battles run over GGPO (`ZDXSV_GGPO` options `net=1,lobby=1`). Read when the game starts. |
 | `[DEV9/Eth] ZdxsvGgpoMinDelay` | `2` | feature | Lowest GGPO input delay (frames, 2..6) a lobby battle picks, and the replay takeover delay; as gdxsv's `MinDelay`. Read when the game starts. `mindelay=` overrides it. |
+| `[DEV9/Eth] ZdxsvGgpoPort` | `0` | feature | UDP port of lobby battles (ping test and GGPO). 0 or out of range: a random port in 29700..29800, picked when the game starts with `lobby=1` and saved to the setting. `port=` overrides it. |
 | `[EmuCore/GS] ZdxsvLowLatencyVsync` | `true` | feature | Present the finished frame before the frame limiter sleeps, and poll input right before the next frame runs. |
 | `[DEV9/Eth] ZdxsvLiveAutoNext` | `false` | feature | Live spectating: when a stream ends, watch the lobby's next live battle. `ZDXSV_LIVE_NEXT` overrides it. |
 | `[DEV9/Eth] ZdxsvNetOsd` | `true` | feature | Network status OSD in GGPO battles. Read when the game starts. `osd=` overrides it. Off: shown only while an opponent is interrupted or disconnected. |
@@ -55,6 +56,8 @@ page greys it out and its tooltip names the variable.
 | `ZDXSV_GAME_CRC=hex` | `435D8236` | control | The CRC taken as the Z game's (Game check). Another value runs the Z game as a foreign game: everything off. |
 | `ZDXSV_STUN_PORT=port` | 8201 | tuning | STUN port of the lobby. Asked only with `ZDXSV_GGPO` `lobby=1`. The connectivity test also uses port + 1; a server without that socket gives `nat=unknown`. |
 | `ZDXSV_HTTPS_LATENCY=0` | on | test | No HTTPS latency test, no `<region>=ms` platform info. `=name:host,...` measures these hosts (`https://host/api/ping`) instead of the regions. See [lobby.md](lobby.md). |
+| `ZDXSV_TLS=0` | on when the client has pins | test | TCP to the zdxsv server without TLS (a server without TLS ports). See [lobby.md](lobby.md). |
+| `ZDXSV_TLS_TEST_PIN=1` | off | test | Trusts the zdxsv test CA (`pkg/tlsconf/testdata` in the zdxsv repository), which also turns TLS on. See [lobby.md](lobby.md). |
 | `ZDXSV_LOBBY_STATE=1` | off | feature | Save states made online keep working after a load. See [lobby.md](lobby.md). |
 | `ZDXSV_PAUSE_LINE_CHECK=0` | on | control | While the VM is paused, leave the lobby's line checks (0x6001) to the game: a pause over 2 min drops the connection. |
 | `ZDXSV_UPDATE_URL=url` | GitHub releases of this fork | test | The updater reads its release list from this URL. |
@@ -87,7 +90,7 @@ off. Any other value turns it on. Without `net=1` the session is a synctest. Log
 |---|---|---|---|
 | `net=1` | off | feature | A battle between peers instead of a synctest. It starts when the game opens its battle socket. |
 | `players=N` | 4 | test | Number of peers, 2 to 4. GGPO player = battle position + 1. A lobby battle takes it from the battle info. |
-| `port=P` | 7001 | tuning | UDP port. Position p listens on P + p. With `lobby=1` the emulator listens on P itself. |
+| `port=P` | 7001; with `lobby=1` the setting `ZdxsvGgpoPort` | tuning | UDP port. Position p listens on P + p. With `lobby=1` the emulator listens on P itself. |
 | `host=H` | 127.0.0.1 | test | Address of the peers. Not used with `lobby=1`. |
 | `relay=R` | off | test | Remote position p is at port R + 8 * own position + p, so each pair can go through its own `udprelay.py`. |
 | `delay=N` | 0 | tuning | Fixed GGPO input delay in frames. Without it a lobby battle picks the delay from the ping test. |
@@ -117,7 +120,7 @@ off. Any other value turns it on. Without `net=1` the session is a synctest. Log
 | `ZDXSV_PRESENT_FIRST=0` | on | control | With `ZdxsvLowLatencyVsync` in a GGPO session: the limiter sleep and the input poll come before the rollback. Default: present, rollback, then sleep and poll, so a rollback shorter than the sleep does not delay the next present; a corrected frame shows one frame later. |
 | `ZDXSV_RERUN_EE_DRAW=1` | off | control | The game's render callbacks run in every rerun frame. Default: not in rerun frames but the last two (see rollback.md). |
 | `ZDXSV_RERUN_DRAW=0` | on | control | The GS drops the draw calls of rollback rerun frames. Default: drawn (not presented; the next frame draws over them). |
-| `ZDXSV_NET_TAIL=n` | 300 | tuning | Frames run after the battle end message before the session stops. |
+| `ZDXSV_NET_TAIL=n` | 300 | tuning | Frames run after the battle end message is confirmed, before the session stops. |
 | `ZDXSV_NET_DISCONNECT_MS=ms` | 10000 | tuning | GGPO disconnect timeout (as flycast). |
 | `ZDXSV_NET_SESSION=s` | battle code | test | GGPO session code sent in the sync handshake instead of the battle code; a peer with another code is refused (`session mismatch`). |
 | `ZDXSV_NET_PUMP=0` | on | control | No GGPO pump thread: the sockets are polled only by the frame loop, so pings and relayed packets wait up to a frame. |
