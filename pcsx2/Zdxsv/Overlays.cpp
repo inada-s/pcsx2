@@ -3,6 +3,7 @@
 
 #include "Zdxsv/UiHooks.h"
 #include "Zdxsv/Ggpo.h"
+#include "Zdxsv/Lobby.h"
 
 #include "Host.h"
 #include "IconsPromptFont.h"
@@ -396,10 +397,98 @@ namespace Zdxsv
 			ImGui::End();
 			ImGui::PopFont();
 		}
+
+		// Connection diagram during the lobby ping test: a dot per player (the first half of the positions on
+		// top, the rest below) and five bars from each player toward each other one, fewer and redder as that
+		// player's rtt to it grows; grey = no answer yet. Shown from 1.55 s into the test until 0.6 s before its end.
+		// 0 up to 30 ms, 1 up to 60 ms, ... 4 over 120 ms
+		int PingLevel(int ms)
+		{
+			return std::clamp((ms - 1) / 30, 0, 4);
+		}
+
+		ImU32 PingColor(int ms, float alpha)
+		{
+			static constexpr ImU32 colors[5] = {IM_COL32(87, 213, 213, 255), IM_COL32(0, 255, 149, 255), IM_COL32(255, 255, 0, 255),
+				IM_COL32(255, 170, 0, 255), IM_COL32(255, 0, 0, 255)};
+			ImColor c(ms <= 0 ? IM_COL32(64, 64, 64, 255) : colors[PingLevel(ms)]);
+			c.Value.w *= alpha;
+			return c;
+		}
+
+		int PingBars(int ms)
+		{
+			return 5 - PingLevel(ms);
+		}
+
+		// five widening bars from anchor in direction dir (0 = down, then clockwise by 45 degrees); the
+		// first `bars` lit, one of them highlighted in turn every 100 ms
+		void DrawPingBars(ImDrawList* dl, ImVec2 anchor, int ms, float alpha, float scale, int dir, int elapsed)
+		{
+			const float rad = 3.14159265f / 4.0f * dir;
+			const float cs = std::cos(rad), sn = std::sin(rad);
+			const int bars = PingBars(ms);
+			for (int i = 0; i < 5; i++)
+			{
+				const float hx = 2.5f * (1.0f + i * 0.5f) * scale, hy = 1.75f * scale;
+				const float cy = (i * 5.3f + 9.5f) * scale;
+				const float xs[4] = {-hx, hx, hx, -hx}, ys[4] = {cy - hy, cy - hy, cy + hy, cy + hy};
+				ImVec2 pts[4];
+				for (int k = 0; k < 4; k++)
+					pts[k] = ImVec2(anchor.x + xs[k] * cs - ys[k] * sn, anchor.y + ys[k] * cs + xs[k] * sn);
+				ImU32 c = PingColor(i < bars ? ms : 0, alpha);
+				if (i < bars && i == elapsed / 100 % 5)
+					c = ImColor(1.0f, 1.0f, 1.0f, alpha);
+				dl->AddConvexPolyFilled(pts, 4, c);
+				dl->AddPolyline(pts, 4, IM_COL32(0, 0, 0, 128), scale, ImDrawFlags_Closed);
+			}
+		}
+
+		void DrawPingDiagram()
+		{
+			int elapsed = 0, duration = 0, n = 0;
+			uint8_t rtt[4][4];
+			if (FullscreenUI::HasActiveWindow() || !Zdxsv::PingTestView(elapsed, duration, n, rtt))
+				return;
+			const int start = 1550, end = duration - 600;
+			if (elapsed <= start || elapsed >= end || n < 2 || n > 4)
+				return;
+			const float alpha = std::clamp(std::min((elapsed - start) / 250.0f, (end - elapsed) / 300.0f), 0.0f, 1.0f);
+
+			const float w = ImGuiManager::GetWindowWidth(), h = ImGuiManager::GetWindowHeight();
+			const float scale = std::min(w / 640.0f, h / 480.0f);
+			const auto at = [&](float x, float y) { return ImVec2(w / 2.0f + x * scale, h / 2.0f + y * scale); };
+			ImDrawList* dl = ImGui::GetBackgroundDrawList();
+			const ImU32 shade = ImColor(0, 0, 0, static_cast<int>(128 * alpha));
+			dl->AddRectFilled(at(-45, -97), at(45.25f, -51.875f), shade);
+			dl->AddRectFilled(at(-45, 53.125f), at(45.25f, 98.25f), shade);
+
+			// corners: 0 top left, 1 top right, 2 bottom left, 3 bottom right
+			const ImVec2 corner[4] = {at(-36, -89), at(36, -89), at(-36, 89), at(36, 89)};
+			static constexpr int dirs[4][4] = {{0, 6, 0, 7}, {2, 0, 1, 0}, {4, 5, 0, 6}, {3, 4, 2, 0}};
+			const int top = (n + 1) / 2;
+			int pos[4];
+			for (int p = 0; p < n; p++)
+				pos[p] = p < top ? p : 2 + p - top;
+			for (int i = 0; i < n; i++)
+			{
+				int worst = 0;
+				for (int j = 0; j < n; j++)
+				{
+					if (i == j)
+						continue;
+					DrawPingBars(dl, corner[pos[i]], rtt[i][j], alpha, scale, dirs[pos[i]][pos[j]], elapsed);
+					worst = std::max(worst, static_cast<int>(rtt[i][j]));
+				}
+				dl->AddCircleFilled(corner[pos[i]], 6.5f * scale, shade, 20);
+				dl->AddCircleFilled(corner[pos[i]], 5.5f * scale, PingColor(worst, alpha), 20);
+			}
+		}
 	} // namespace
 
 	void DrawOverlays(float scale, float margin, float spacing)
 	{
+		DrawPingDiagram();
 		DrawGgpoOverlay(scale, margin, spacing);
 		DrawReplayKeys(scale, margin);
 		DrawReplayBar(scale, margin);

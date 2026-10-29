@@ -716,6 +716,18 @@ namespace Zdxsv
 		std::unique_ptr<PingTest> g_ping;
 		std::string g_pingError; // why the last StartPingTest ran no test
 
+		// the running test's matrix for PingTestView
+		struct PingView
+		{
+			std::mutex mtx;
+			bool active = false;
+			Clock::time_point start{};
+			int durationMs = 0;
+			int n = 0;
+			uint8_t rtt[4][4] = {};
+		};
+		PingView g_pingView;
+
 		// StartUdpTest's thread
 		struct UdpTestRun
 		{
@@ -831,6 +843,8 @@ namespace Zdxsv
 					}
 					for (const sock_t s : Readable({m_s4, m_s6}, 10))
 						Receive(s);
+					std::lock_guard lock(g_pingView.mtx);
+					std::memcpy(g_pingView.rtt, m_rtt, sizeof(m_rtt));
 				}
 				if (m_s4 != INVALID_SOCKET)
 					closesocket(m_s4);
@@ -1157,6 +1171,14 @@ namespace Zdxsv
 			Log(std::string("ping test: no IPv") + (s4 == INVALID_SOCKET ? "4" : "6") + " socket on :" + std::to_string(port) + ", its candidates skipped");
 		g_ping = std::make_unique<PingTest>();
 		g_ping->result.assign(n, {});
+		{
+			std::lock_guard lock(g_pingView.mtx);
+			g_pingView.active = true;
+			g_pingView.start = Clock::now();
+			g_pingView.durationMs = durationMs;
+			g_pingView.n = n;
+			std::memset(g_pingView.rtt, 0, sizeof(g_pingView.rtt));
+		}
 		PingTest* t = g_ping.get();
 		t->thread = std::thread([t, s4, s6, session, byPosition, me, durationMs, relays] {
 			PingRun run(s4, s6, session, byPosition, me, relays);
@@ -1172,6 +1194,10 @@ namespace Zdxsv
 		if (error)
 			*error = g_pingError;
 		g_pingError.clear();
+		{
+			std::lock_guard lock(g_pingView.mtx);
+			g_pingView.active = false;
+		}
 		if (!g_ping)
 			return {};
 		if (g_ping->thread.joinable())
@@ -1181,6 +1207,18 @@ namespace Zdxsv
 		std::vector<PingResult> result = std::move(g_ping->result);
 		g_ping.reset();
 		return result;
+	}
+
+	bool PingTestView(int& elapsedMs, int& durationMs, int& players, uint8_t rtt[4][4])
+	{
+		std::lock_guard lock(g_pingView.mtx);
+		if (!g_pingView.active)
+			return false;
+		elapsedMs = static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - g_pingView.start).count());
+		durationMs = g_pingView.durationMs;
+		players = g_pingView.n;
+		std::memcpy(rtt, g_pingView.rtt, sizeof(g_pingView.rtt));
+		return true;
 	}
 
 	std::string PublicIP()
