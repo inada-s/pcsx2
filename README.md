@@ -33,6 +33,7 @@ Everything is on only for the one game build it was made for; any other disc run
 - Lobby battles over GGPO (on by default): ping test, relay servers, match report, connectivity and HTTPS latency tests, network status OSD.
 - Battle start and MS select load barriers.
 - GGPO network pump thread: sockets read and written every 1 ms.
+- Pause, speed changes, frame advance and state loads refused during a net battle.
 
 ### Replays
 

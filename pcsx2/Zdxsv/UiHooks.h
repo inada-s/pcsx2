@@ -8,9 +8,16 @@
 
 #include "common/Pcsx2Defs.h"
 
+class Error;
+
 namespace Zdxsv
 {
 	extern bool g_ggpo_enabled; // GGPO options (ZDXSV_GGPO or the ZdxsvGgpo setting) or a replay
+	extern bool g_ggpo_active; // a session runs
+
+	// VMManager pause, frame advance, speed change and state load: true (refused) during a net battle, the
+	// reason in `error`, else an OSD notice. A paused or fast peer stalls every other peer of the battle.
+	bool GgpoBattleRefuses(Error* error = nullptr);
 
 	// Replay play (ZDXSV_REPLAY): seek by `frames` from the current frame (hotkeys "Zdxsv Replay: Seek
 	// Back / Forward 10 s"), done at the next frame start; at the end (paused) it plays on. No-op otherwise.

@@ -967,6 +967,15 @@ namespace Zdxsv
 			vm_test = nullptr;
 			if (std::strstr(std::getenv("ZDXSV_VM_TEST"), ":reset"))
 				Host::RunOnCPUThread([] { VMManager::Reset(); });
+			else if (std::strstr(std::getenv("ZDXSV_VM_TEST"), ":ui"))
+				Host::RunOnCPUThread([] {
+					VMManager::SetLimiterMode(LimiterModeType::Turbo);
+					VMManager::FrameAdvance(1);
+					Error error;
+					if (!VMManager::LoadStateFromSlot(1, false, &error))
+						Console.WriteLn("ZdxsvGgpo: vm test load state: %s", error.GetDescription().c_str());
+					VMManager::SetPaused(true);
+				});
 			else
 				Host::RunOnCPUThread([] { Host::RequestVMShutdown(false, false, false); });
 			Console.WriteLn("ZdxsvGgpo: vm test %s at frame %d", std::getenv("ZDXSV_VM_TEST"), s_net_frame);
