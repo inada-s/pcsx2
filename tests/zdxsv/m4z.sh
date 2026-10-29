@@ -34,7 +34,7 @@
 #   LIVE_SPEED=X: the spectator runs at normal speed X (launch.ps1 -Speed), off the stream's rate: a pacing
 #   test (the pace lines' gap and waits, with and without ZDXSV_LIVE_PACING=0).
 #   LIVE_STALL=S (LIVE): S s after the spectator starts, the lobby process is suspended (the stream stalls at its
-#   newest frame), 3 s later the spectator's window gets a close (taskkill), then the lobby resumes. Check, instead
+#   newest frame), 3 s later the spectator's windows get a close (WM_CLOSE), then the lobby resumes. Check, instead
 #   of the LIVE ones: the spectator exits within 5 s (a CPU thread stuck waiting for live data exits after ~30 s).
 #   GGPO_DEFAULT=K: client K gets no ZDXSV_GGPO (launch.ps1 ZDXSV_GGPO=default), so the ZdxsvGgpo setting
 #   gives its options (port 7001); check: its log names the default options.
@@ -126,7 +126,9 @@ live_stall() {
   lobby_suspend Suspend
   sleep 3
   t=$SECONDS
-  taskkill //PID "$pid" > /dev/null 2>&1
+  # taskkill closes only the first top-level window in z-order: in a spectator that can be a hidden
+  # Qt _q_titlebar window, which drops it; a WM_CLOSE to every window reaches the display surface
+  powershell -NoProfile -Command "Add-Type 'using System; using System.Runtime.InteropServices; public static class Wc { public delegate bool EnumProc(IntPtr h, IntPtr l); [DllImport(\"user32.dll\")] public static extern bool EnumWindows(EnumProc f, IntPtr l); [DllImport(\"user32.dll\")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint p); [DllImport(\"user32.dll\")] public static extern bool PostMessage(IntPtr h, uint m, IntPtr w, IntPtr l); public static void Close(uint pid) { EnumWindows((h, l) => { uint p; GetWindowThreadProcessId(h, out p); if (p == pid) PostMessage(h, 0x10, IntPtr.Zero, IntPtr.Zero); return true; }, IntPtr.Zero); } }'; [Wc]::Close($pid)"
   while [ $((SECONDS - t)) -lt 60 ] && tasklist //FI "PID eq $pid" 2>/dev/null | grep -q " $pid "; do sleep 0.5; done
   echo "stall: exit after $((SECONDS - t)) s"
   lobby_suspend Resume
