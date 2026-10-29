@@ -297,7 +297,7 @@ namespace Zdxsv
 	std::vector<uint8_t> EncodeMatchingReport(const std::string& lines)
 	{
 		std::map<std::string, std::string> kv;
-		std::map<int, std::map<std::string, std::string>> peers; // rtt_ / addr_ / path_<position>
+		std::map<int, std::map<std::string, std::string>> peers; // rtt_ / addr_ / path_ / ping_<position>
 		std::istringstream in(lines);
 		std::string line;
 		while (std::getline(in, line))
@@ -308,7 +308,7 @@ namespace Zdxsv
 			const std::string k = line.substr(0, eq), v = line.substr(eq + 1);
 			const size_t us = k.find('_');
 			const std::string prefix = us == std::string::npos ? "" : k.substr(0, us);
-			if ((prefix == "rtt" || prefix == "addr" || prefix == "path") && k.find_first_not_of("0123456789", us + 1) == std::string::npos &&
+			if ((prefix == "rtt" || prefix == "addr" || prefix == "path" || prefix == "ping") && k.find_first_not_of("0123456789", us + 1) == std::string::npos &&
 				us + 1 < k.size())
 				peers[std::atoi(k.c_str() + us + 1)][prefix] = v;
 			else
@@ -332,6 +332,11 @@ namespace Zdxsv
 				{
 					std::vector<uint8_t> peer;
 					Pb::PutInt(peer, 1, pos);
+					int ping[3];
+					if (auto it = m.find("ping"); it != m.end() &&
+						std::sscanf(it->second.c_str(), "%d/%d/%d", &ping[0], &ping[1], &ping[2]) == 3 && ping[0] >= 0)
+						for (int i = 0; i < 3; i++)
+							Pb::PutInt(peer, 4 + i, ping[i]); // ping_min_ms, ping_median_ms, ping_max_ms
 					if (auto it = m.find("path"); it != m.end())
 						Pb::PutString(peer, 7, it->second);
 					if (auto it = m.find("rtt"); it != m.end())
@@ -347,6 +352,14 @@ namespace Zdxsv
 				Pb::PutString(o, f.field, it->second);
 			else
 				Pb::PutInt(o, f.field, std::atoll(it->second.c_str()));
+		}
+		if (auto it = kv.find("disconnected_positions"); it != kv.end() && !it->second.empty())
+		{
+			std::vector<int64_t> left;
+			std::istringstream ps(it->second);
+			for (std::string p; std::getline(ps, p, ',');)
+				left.push_back(std::atoll(p.c_str()));
+			Pb::PutPackedInts(o, 55, left); // disconnected_peer_ids
 		}
 		return o;
 	}
