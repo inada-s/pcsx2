@@ -64,6 +64,7 @@ Lets the server tell emulators from real PS2s.
 | Key | Sent | Meaning |
 |---|---|---|
 | `emulator`, `version`, `os`, `cpu` | always | what runs the game |
+| `machine_id` | Windows, macOS | 16 hex digits: XXH64 (seed 37) of the host id (Windows `MachineGuid`, the macOS serial number), never the raw id; the same on every install and portable folder of a PC. Not sent on Linux (as flycast) |
 | `udp=1` | lobby GGPO on | the client wants battle infos |
 | `udp_addr`, `udp_local` | lobby GGPO on | public IPv4 address from the lobby's STUN, and the local one |
 | `udp_addr6` | lobby GGPO on, with a global IPv6 address | global IPv6 address |

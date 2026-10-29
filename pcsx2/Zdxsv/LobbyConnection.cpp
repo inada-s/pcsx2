@@ -16,6 +16,10 @@
 #include "common/Console.h"
 #include "common/StringUtil.h"
 
+#include "fmt/format.h"
+#define XXH_INLINE_ALL 1
+#include "xxhash.h"
+
 #include <bit>
 #include <cstdlib>
 #include <mutex>
@@ -33,6 +37,9 @@ using sock_t = SOCKET;
 #include <errno.h>
 #include <sys/socket.h>
 using sock_t = int;
+#ifdef __APPLE__
+#include <IOKit/IOKitLib.h>
+#endif
 #define SOCKET_ERROR -1
 #endif
 
@@ -40,6 +47,34 @@ namespace Zdxsv
 {
 	namespace
 	{
+		// The host id hashed, never sent raw: Windows MachineGuid, the macOS serial number; empty elsewhere.
+		std::string MachineId()
+		{
+			std::string id;
+#if defined(_WIN32)
+			char value[256];
+			DWORD size = sizeof(value);
+			if (RegGetValueA(HKEY_LOCAL_MACHINE, "SOFTWARE\\Microsoft\\Cryptography", "MachineGuid", RRF_RT_REG_SZ, nullptr, value, &size) ==
+				ERROR_SUCCESS)
+				id = value;
+#elif defined(__APPLE__)
+			const io_service_t expert = IOServiceGetMatchingService(MACH_PORT_NULL, IOServiceMatching("IOPlatformExpertDevice"));
+			if (expert)
+			{
+				if (const CFTypeRef serial = IORegistryEntryCreateCFProperty(expert, CFSTR(kIOPlatformSerialNumberKey), kCFAllocatorDefault, 0))
+				{
+					char value[256];
+					if (CFGetTypeID(serial) == CFStringGetTypeID() &&
+						CFStringGetCString(static_cast<CFStringRef>(serial), value, sizeof(value), kCFStringEncodingUTF8))
+						id = value;
+					CFRelease(serial);
+				}
+				IOObjectRelease(expert);
+			}
+#endif
+			return id.empty() ? id : fmt::format("{:016x}", XXH64(id.data(), id.size(), 37));
+		}
+
 		// The match report on one line for the log, addr_<pos> values masked (the lobby gets them whole).
 		std::string ReportLogLine(const std::string& report)
 		{
@@ -169,6 +204,9 @@ namespace Zdxsv
 #else
 		body += "cpu=unknown\n";
 #endif
+		const std::string machineId = MachineId();
+		if (!machineId.empty())
+			body += "machine_id=" + machineId + "\n";
 		// lobby=1: udp=1 asks the lobby for battle info (0x9951); relay_server=1: GGPO may go through its relay servers.
 		int ggpoPort;
 		LobbyFilter* filter = nullptr;
@@ -228,7 +266,8 @@ namespace Zdxsv
 			else
 				sent += ret;
 		}
-		Console.WriteLn("DEV9: TCP: zdxsv lobby detected, sent platform info (%zu bytes)", msg.size());
+		Console.WriteLn("DEV9: TCP: zdxsv lobby detected, sent platform info (%zu bytes, machine_id %s)", msg.size(),
+			machineId.empty() ? "none" : machineId.c_str());
 		return filter;
 	}
 
