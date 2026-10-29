@@ -73,6 +73,8 @@ How the battle ran, as flycast's `lbsP2PMatchingReport`.
 | `relays`, `ping_wait_ms`, `delay` | ping test ran | relay server count, time waited for the test, GGPO input delay |
 | `ping_error` | the ping test could not start | why, e.g. the GGPO port could not be bound |
 | `close`, `frames`, `rollback_frames`, `mismatches`, `disconnected` | GGPO battle | why the session ended and its counters |
+| `disconnected_positions` | GGPO battle | positions whose peer disconnected, comma separated, empty if none |
+| `ping_<position>` | GGPO battle | `min/median/max` ms of that peer's ping, sampled once a second while connected; `-1/-1/-1` with no sample |
 | `answered`, `cut_sends` | cut | peers that answered, and sends dropped during the cut |
 
 ## How a lobby battle starts

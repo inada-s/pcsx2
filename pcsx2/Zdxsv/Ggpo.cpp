@@ -305,6 +305,36 @@ namespace Zdxsv
 					s_peer_state[p] = state;
 		}
 
+		std::vector<int> s_peer_pings[GGPO_MAX_PLAYERS]; // ms, sampled once a second for the report
+
+		void SamplePeerPings()
+		{
+			for (int p = 0; p < s_players; p++)
+			{
+				GGPONetworkStats st{};
+				if (p != s_net_me && s_peer_state[p] == 0 && ggpo_get_network_stats(s_session, s_handles[p], &st) == GGPO_OK &&
+					st.network.ping > 0)
+					s_peer_pings[p].push_back(st.network.ping);
+			}
+		}
+
+		// report lines: disconnected_positions=0,2 (empty: none), ping_<position>=min/median/max ms (none: -1/-1/-1)
+		std::string PeerReport()
+		{
+			std::string left, pings;
+			for (int p = 0; p < s_players; p++)
+			{
+				if (s_peer_state[p] == 2)
+					left += (left.empty() ? "" : ",") + std::to_string(p);
+				if (p == s_net_me)
+					continue;
+				std::vector<int> v = s_peer_pings[p];
+				std::sort(v.begin(), v.end());
+				pings += v.empty() ? fmt::format("ping_{}=-1/-1/-1\n", p) : fmt::format("ping_{}={}/{}/{}\n", p, v.front(), v[v.size() / 2], v.back());
+			}
+			return "disconnected_positions=" + left + "\n" + pings;
+		}
+
 		constexpr u32 OsdColor(u32 r, u32 g, u32 b) { return 0xff000000u | (b << 16) | (g << 8) | r; } // IM_COL32
 		constexpr u32 OSD_TEXT = OsdColor(255, 255, 255);
 		u32 OsdPingColor(int ms)
@@ -552,13 +582,20 @@ namespace Zdxsv
 				else
 					s_osd_lines.clear();
 			}
+			const std::string peers = s_net ? PeerReport() : std::string();
+			if (s_net)
+			{
+				std::string line = peers;
+				std::replace(line.begin(), line.end(), '\n', ' ');
+				Console.WriteLn("ZdxsvGgpo: peer report: %s", line.c_str());
+			}
 			if (s_lobby)
 			{
 				std::lock_guard lock(s_lobby_mtx);
 				if (!s_report.empty())
 					s_report += std::string("close=") + what + "\nframes=" + std::to_string(s_session_frames) +
 					            "\nrollback_frames=" + std::to_string(s_rollback_frames) + "\nmismatches=" + std::to_string(s_mismatches) +
-					            "\ndisconnected=" + (s_disconnected ? "1" : "0") + "\n";
+					            "\ndisconnected=" + (s_disconnected ? "1" : "0") + "\n" + peers;
 			}
 			if (s_net)
 			{
@@ -869,6 +906,8 @@ namespace Zdxsv
 			k3.clear();
 		s_pw.clear();
 		std::fill(std::begin(s_peer_state), std::end(s_peer_state), 0);
+		for (auto& v : s_peer_pings)
+			v.clear();
 		{
 			std::lock_guard lock(s_osd_mtx);
 			s_osd_hold_until = 0;
@@ -1047,6 +1086,8 @@ namespace Zdxsv
 		if (s_session_frames % 600 == 0)
 			Report("progress");
 		UpdateOsd(s_session_frames % 600 == 0);
+		if (s_net && s_session_frames % 60 == 0)
+			SamplePeerPings();
 		DeferredThrottle();
 		if (!s_session) // the input poll ran a VM shutdown or reset
 			return;
