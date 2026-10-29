@@ -34,7 +34,9 @@ desync.
 
 `ZDXSV_REPLAY=<file.pb>` plays a replay; `http(s)://` downloads a `.pb`, or
 the first battle of the lobby's public API
-`http://<lobby api>/lbs/replay?battle_code=<code>` (as gdxsv lbsapi).
+`http://<lobby api>/lbs/replay?battle_code=<code>` (as gdxsv lbsapi). A download
+that starts with the gzip magic (the lobby's bucket serves them gzip encoded) is
+decompressed first.
 
 Common start (as gdxsv's slot 99): playback loads a save state of the game
 at the post-entry point (logged in, before the lobby's battle start; any
