@@ -122,12 +122,14 @@ A lobby GGPO battle is streamed to the lobby while it runs, as gdxsv does
 - Uplink: the lobby marks one GGPO player per battle (`live_uplink=1` in the
   battle info). That client sends the replay header and every confirmed
   frame to the lobby's UDP address, then the close; whether saving or
-  upload is on or not.
+  upload is on or not. A frame record is the inputs plus the frame's u32 state
+  hash (`frame_bytes` = players x 32 + 4); records without it still play.
 - Transfer: 1000-byte datagrams, go-back-N on the receiver's ack, both
   uplink to lobby and lobby to spectator.
 - Spectator: `ZDXSV_REPLAY=udp://host:port[/battle code]` (no code = the
   newest live battle). It starts from the common state and plays as a
-  replay from the uplink's point of view.
+  replay from the uplink's point of view, checking the state hashes as a
+  replay file's.
 - Pacing (as flycast `gdxsv:LiveBufferFrames`): at the newest frame it waits
   until 30 more frames are there; far behind it runs unthrottled to catch
   up. In between the frame limiter's period is trimmed by a few ms per frame
