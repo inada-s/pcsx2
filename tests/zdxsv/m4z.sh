@@ -206,6 +206,13 @@ check "join udp peer x$nz" "[ \$(grep -c 'join udp peer' '$OUT/battle.log') -eq 
 check "join tcp x$((nc - nz))" "[ \$(grep -c 'join success' '$OUT/battle.log') -eq $((nc - nz)) ]"
 [ -n "${EMU:-}" ] && check "platform info sent x$nc" "[ \$(cat '$RUN'/p[1-4]/PCSX2/logs/emulog.txt | grep -a -c 'sent platform info') -ge $nc ]"
 [ -z "${EMU:-}" ] && check "platform info off x4, no bridge" "[ \$(cat '$RUN'/p[1-4]/PCSX2/logs/emulog.txt | grep -a -c 'platform info off') -ge 4 ] && ! cat '$RUN'/p[1-4]/PCSX2/logs/emulog.txt | grep -a -q 'bridge'"
+if [ -n "${EMU:-}" ] && [ "${ZDXSV_TLS_TEST_PIN:-}" = 1 ]; then
+  for i in ${CLIENTS:-1 2 3 4}; do
+    el="$RUN/p$i/PCSX2/logs/emulog.txt"; tp="8220 8221"; [ -z "${GGPO:-}" ] && tp="$tp 8222"
+    for t in $tp; do check "p$i TLS port $t" "grep -a -q 'Zdxsv: TLS: .* through TLS port $t' '$el'"; done
+    check "p$i no TLS failure" "! grep -a -q 'OSD \[ZdxsvTls\]' '$el'"
+  done
+fi
 [ "$(grep -c 'join udp peer\|join success' "$OUT/battle.log")" -ge 1 ] || { echo "FAIL no battle"; exit 1; }
 # a peer missing from the battle: 4 results never come
 [ $ok -eq 0 ] || exit 1

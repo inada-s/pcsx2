@@ -85,6 +85,7 @@ set(CMAKE_FIND_FRAMEWORK ${FIND_FRAMEWORK_BACKUP})
 
 add_subdirectory(3rdparty/fast_float EXCLUDE_FROM_ALL)
 add_subdirectory(3rdparty/lzma EXCLUDE_FROM_ALL)
+add_subdirectory(3rdparty/mbedtls EXCLUDE_FROM_ALL)
 add_subdirectory(3rdparty/ggpo EXCLUDE_FROM_ALL)
 disable_compiler_warnings_for_target(pcsx2-ggpo)
 add_subdirectory(3rdparty/libchdr EXCLUDE_FROM_ALL)

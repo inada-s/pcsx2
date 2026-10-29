@@ -52,6 +52,12 @@ namespace Zdxsv
 	// url -> address is a game host mapped to the fixed address the defaults once held. The config drops
 	// such entries on load, so the lookup above applies.
 	bool DnsIsStaleHostEntry(const char* url, const u8* address);
+	// The DNS server answers name with address (4 bytes); a game host's address is a zdxsv server.
+	void DnsOnAnswer(const char* name, const u8* address);
+
+	// Zdxsv/TlsTunnel.cpp. TCP_Session before connect, endpoint is its sockaddr_in. A connection to a zdxsv
+	// server port is redirected to a local tunnel that carries it through TLS to the server's TLS port.
+	void TlsOnConnect(void* endpoint);
 
 	// Zdxsv/HttpsLatency.cpp. HTTPS latency to the cloud regions, once per run, on its own
 	// threads. Started when the game goes online (a game host lookup or the first lobby connection).

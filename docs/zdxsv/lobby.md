@@ -19,6 +19,33 @@ when the config loads.
 The game always talks TCP to the battle server, as on a PS2. When a battle
 runs over GGPO, the emulator answers the game's battle socket itself.
 
+## TLS to the zdxsv server
+
+The emulator carries the game's TCP connections to the zdxsv server through
+TLS (`Zdxsv/TlsTunnel.cpp`); the game still sees plain TCP. A connection is
+wrapped when its port is in the table below and its address is a DNS answer
+for a game host, or the battle server of the last battle info.
+
+| Game port | TLS port | Server |
+|---|---|---|
+| 443 | 8220 | DNAS |
+| 8200 | 8221 | lobby |
+| 8210 | 8222 | battle (TCP) |
+
+- The connection goes to a local port; a thread there connects to the
+  server's TLS port and copies the bytes both ways.
+- Trust: public-key pins (SHA-256 of the SubjectPublicKeyInfo) of the zdxsv
+  CA and the backup CA. A pinned server key is accepted as is; a pinned key
+  higher in the chain the server sends must have signed the server
+  certificate. No hostname or expiry check. Making and rotating the keys: the
+  zdxsv repository, `docs/TLS.md`.
+- No plain-text fallback. A failed connect, handshake or pin check resets
+  the game's connection and shows an OSD message.
+- TLS is off while the client has no pins. Rigs: `ZDXSV_TLS_TEST_PIN=1`
+  trusts the zdxsv test CA, `ZDXSV_TLS=0` turns TLS off.
+- Not covered: the login pages (port 80), UDP (GGPO, relays, live streams),
+  real PS2s and zproxy.
+
 ## Messages added to the lobby connection
 
 Three custom messages; the game never sees them. Each body is a list of
