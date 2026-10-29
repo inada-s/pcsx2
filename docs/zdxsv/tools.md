@@ -9,7 +9,7 @@
   `pcsx2-zdxsv-windows-x64.7z` for the updater and `.zip` for a first install.
 - A tag with a suffix, such as `zdxsv-0.0.1-rc1`, becomes a prerelease. The
   updater skips prereleases.
-- The release zip holds `portable.txt` and `ZDXSV.md`.
+- The release zip holds `portable.txt`, `ZDXSV.md` and `ZDXSV.ja.md`.
 
 ## CI
 

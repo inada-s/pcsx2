@@ -3,7 +3,7 @@
 A fork of [PCSX2](https://github.com/PCSX2/pcsx2) for playing Mobile Suit Gundam: Gundam vs. Zeta Gundam (PS2)
 online on [zdxsv](https://github.com/inada-s/zdxsv).
 
-- Players: see [ZDXSV.md](ZDXSV.md) for setup.
+- Players: see [ZDXSV.md](ZDXSV.md) for setup (Japanese: [ZDXSV.ja.md](ZDXSV.ja.md)).
 - Upstream base: PCSX2 `fd9d310c`. Main branch: `zdxsv-master`.
 - License, BIOS requirement, and everything not listed here: same as upstream PCSX2.
 
@@ -59,6 +59,7 @@ Everything is on only for the one game build it was made for; any other disc run
 | Document | Content |
 |---|---|
 | [ZDXSV.md](ZDXSV.md) | Player setup. Shipped in the release zip. |
+| [ZDXSV.ja.md](ZDXSV.ja.md) | Player setup in Japanese, same content. Shipped in the release zip. |
 | [docs/zdxsv/features.md](docs/zdxsv/features.md) | Every feature with how to turn it on and its tests. |
 | [docs/zdxsv/options.md](docs/zdxsv/options.md) | Every option and setting: name, default, use; the game check. |
 | [docs/zdxsv/lobby.md](docs/zdxsv/lobby.md) | Network defaults, lobby messages, ping test, relay servers, how a lobby battle starts. |
