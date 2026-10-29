@@ -68,6 +68,34 @@
         </property>
        </widget>
       </item>
+      <item>
+       <layout class="QHBoxLayout" name="zdxsvPresetLayout">
+        <item>
+         <widget class="QPushButton" name="zdxsvPresetLow">
+          <property name="text">
+           <string>Recommended Settings
+for Low-Spec PC</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="zdxsvPresetMid">
+          <property name="text">
+           <string>Recommended Settings
+for Mid-Spec PC</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="zdxsvPresetHigh">
+          <property name="text">
+           <string>Recommended Settings
+for High-Spec PC</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
      </layout>
     </widget>
    </item>

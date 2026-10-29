@@ -36,6 +36,7 @@ zdxsv checkout, save states): `tests/zdxsv/README.md`.
 | First login from a blank memory card | always | `launch.ps1 -Memcard <blank>`, then `drive.py fresh`, `register`, `newlogin` | none |
 | Lobby save states (DEV9 kept in save states, connections taken over after a load) | `ZDXSV_LOBBY_STATE=1` | no test of its own; `m4.sh` starts its clients from lobby save states | none |
 | Settings page Settings → zdxsv (environment variable > setting > default; an overridden setting greyed out) | always | none (checked by hand) | none |
+| Recommended-settings buttons on Settings → zdxsv: Low (Native, minimum input delay 3), Mid (2x, 2), High (3x, 2) | always | `settingsui.ps1 -DataPath <new dir> -Click zdxsvPresetHigh -Match 'zdxsvGgpoMinDelay$'`: the ini gets `upscale_multiplier = 3`, `ZdxsvGgpoMinDelay = 2`; `-Click zdxsvPresetLow`: `ZdxsvGgpoMinDelay = 3` | none |
 
 ## Input latency
 
