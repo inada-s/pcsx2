@@ -40,6 +40,27 @@ import lobby_trace
 
 HDR = struct.Struct(">BBHHHI")
 Q, A, N, C = 0x01, 0x02, 0x10, 0xFF
+
+
+def pb_varint(v):
+    v &= (1 << 64) - 1
+    out = b""
+    while v >= 0x80:
+        out += bytes([v & 0x7F | 0x80])
+        v >>= 7
+    return out + bytes([v])
+
+
+def pb_int(field, v):
+    return pb_varint(field << 3) + pb_varint(v)
+
+
+def pb_bytes(field, b):
+    return pb_varint(field << 3 | 2) + pb_varint(len(b)) + b
+
+
+def pb_str(field, s):
+    return pb_bytes(field, s.encode())
 # question -> answer body, as zdxsv pkg/lobby/msg_lobby.go (empty lobby: no other users)
 ANSWERS = {
     0x6305: lambda b: b"",  # EnterLobby
@@ -190,18 +211,25 @@ class Battle:
         return relays
 
     def info(self, conn):
-        users = [c.user for c in self.order]
-        lines = "session_id=%s\nuser_id=%s\nbattle_server=%s\nusers=%s\n" % (conn.session, conn.user, self.args.battle, ",".join(users))
+        """A P2PMatching (zdxsv pkg/proto/zdxsv.proto), as zdxsv's battleInfoNotice."""
+        users, candidates = [], b""
         ggpo = False
-        for c in self.order:
+        for i, c in enumerate(self.order):
+            user = pb_str(1, c.user)
             if c is not conn and c.udp and not (self.args.no_addr and self.conns.index(c) + 1 == self.args.no_addr):
                 r = self.relays.get((conn, c))
-                v4 = "127.0.0.1:" + c.udp.split(":")[1] if r else c.udp
-                v6 = "[%s]:%s" % (self.args.v6, c.udp.split(":")[1])
-                lines += "p2p_%s=%s\n" % (c.user, ",".join({"v4": [v4], "v6": [v6], "dual": [v4, v6]}[self.args.p2p]))
+                port = int(c.udp.split(":")[1])
+                v4 = ("127.0.0.1" if r else c.udp.split(":")[0], port)
+                v6 = (self.args.v6, port)
+                for ip, p in {"v4": [v4], "v6": [v6], "dual": [v4, v6]}[self.args.p2p]:
+                    candidates += pb_bytes(10, pb_str(1, c.user) + pb_int(2, i) + pb_str(3, ip) + pb_int(4, p))
                 if self.ggpo_port(c):
-                    lines += "ggpo_%s=%d\n" % (c.user, r or self.ggpo_port(c))
+                    user += pb_int(40, r or self.ggpo_port(c))
                     ggpo = True
+            users.append(user)
+        m = pb_str(1, self.code) + pb_int(4, self.order.index(conn))
+        m += b"".join(pb_bytes(9, u) for u in users) + candidates
+        tail = pb_str(40, conn.session) + pb_str(41, self.args.battle)
         if ggpo:
             # as zdxsv: ggpo_session = FNV-1 32 of the battle code, ping test 7500 ms
             h = 2166136261
@@ -211,11 +239,12 @@ class Battle:
                 # the relay knows one session (zdxsv relay <id> <token>); zdxsv gives every battle its own
                 sid, token = self.args.relay_session.split(":")
                 h = int(sid)
-                lines += "relay_0=%s,%s\n" % (token, self.args.relay)
+                ip, port = self.args.relay.rsplit(":", 1)
+                m += pb_bytes(11, pb_str(2, ip) + pb_int(3, int(port)) + pb_int(4, int(token, 16)))
             if self.args.bad_session and self.conns.index(conn) + 1 == self.args.bad_session:
                 h ^= 0x5A5A5A5A  # negative test: this client's ping packets carry a foreign session
-            lines += "ggpo_session=%d\nggpo_ping_ms=7500\n" % h
-        return lines.encode()
+            m += pb_int(2, h) + pb_int(6, 7500)
+        return m + tail
 
 
 class Conn:

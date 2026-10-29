@@ -46,34 +46,33 @@ namespace Zdxsv
 
 	struct BattleInfo
 	{
-		std::string sessionId;
-		std::string userId;
-		std::string battleCode; // "battle_code=", for the report
-		uint32_t serverIP = 0; // network byte order
+		std::string sessionId; // lobby_session_id
+		std::string userId; // users[peer_id]
+		std::string battleCode; // for the report
+		uint32_t serverIP = 0; // battle_server, network byte order
 		uint16_t serverPort = 0;
 		std::vector<std::string> users; // every player, self included
-		std::map<std::string, std::string> names; // "name_<user>=" (UTF-8): network status OSD
-		std::map<std::string, std::string> pilots; // "pilot_<user>=" (UTF-8): pilot name, OSD
-		std::map<std::string, std::string> syncs; // "sync_<user>=": settings fingerprint (16 hex digits), GgpoLobby LobbyArm
-		// "p2p_<user>=ip:port,ip:port,[ip6]:port": UDP addresses of peers that reported them
-		// (udp_addr public, udp_local, udp_addr6); GgpoPeers takes the IPs.
+		std::map<std::string, std::string> names; // users[].user_name (UTF-8): network status OSD
+		std::map<std::string, std::string> pilots; // users[].pilot_name (UTF-8): OSD
+		std::map<std::string, std::string> syncs; // users[].sync: settings fingerprint (16 hex digits), GgpoLobby LobbyArm
+		// candidates: UDP addresses of peers that reported them, in users order
+		// (udp_addr public, udp_local, udp_addr6, TCP source); GgpoPeers takes the IPs.
 		struct Peer
 		{
 			std::string userId;
 			std::vector<PeerAddr> addrs;
 		};
 		std::vector<Peer> p2p;
-		// "ggpo_<user>=port": GGPO UDP port of peers that announced one (platform info ggpo=).
+		// users[].ggpo_port: GGPO UDP port of peers that announced one (platform info ggpo=).
 		std::map<std::string, uint16_t> ggpo;
-		// "ggpo_session=": the battle's id in GGPO ping test packets (0 = none: no GGPO);
-		// "ggpo_ping_ms=": ping test length, clamped to
+		// session_id: the battle's id in GGPO ping test packets (0 = none: no GGPO);
+		// ping_test_duration: ping test length in ms, clamped to
 		// [0, MAX_PING_MS]: the CPU thread waits for the whole test (LobbyArm).
 		uint32_t ggpoSession = 0;
 		int ggpoPingMs = 0;
-		// "live_uplink=1": this client streams the battle to live spectators (LiveUp)
+		// spectator_uplink: this client streams the battle to live spectators (LiveUp)
 		bool liveUplink = false;
-		// "relay_<k>=<token hex>,<ip:port>[,<[ip6]:port>]" (k = 0..3): relay servers
-		// of the battle, in the lobby's order.
+		// relays (at most 4): relay servers of the battle, in the lobby's order.
 		struct Relay
 		{
 			uint64_t token = 0;
@@ -153,8 +152,12 @@ namespace Zdxsv
 	// Log sink (pcsx2: Console). Default: none.
 	void LobbySetLogger(std::function<void(const std::string&)> log);
 
-	// "key=value" lines of notice 0x9951. False if a key is missing or malformed.
+	// Notice 0x9951: a P2PMatching (zdxsv pkg/proto/zdxsv.proto). False if malformed, over the
+	// limits (8 users, 64 candidates, 4 relays, 256-byte strings) or without its own user.
 	bool ParseBattleInfo(const std::string& body, BattleInfo& out);
+
+	// Message 0x9952: the report's "key=value" lines (TakeLobbyReport) as a P2PMatchingReport.
+	std::vector<uint8_t> EncodeMatchingReport(const std::string& lines);
 
 	// Keeps info (IsBattleServer) and passes it to the listener.
 	void SetBattleInfo(const BattleInfo& info);

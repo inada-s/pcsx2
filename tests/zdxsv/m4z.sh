@@ -44,7 +44,7 @@
 #   GGPO client cuts (`settings or build differ`); the same wait and checks as BAD_SESSION.
 #   Both: CUTMAX=V fails a cut that took more than V vsyncs to end.
 #   REPORT=1: the lobby logged one 0x9952 match report per
-#   client for the results' battle code: result=ggpo + close=net battle end + 0 mismatches (cut: result=cut).
+#   client for the results' battle code: result=ggpo + close_reason=net battle end + 0 mismatches (cut: result=cut).
 #   OSD=1: each GGPO client's last `osd frame` log line (-> osd-pN.txt)
 #   has its delay and every opponent's user id, name (battle info name_), pilot name (pilot_) and ping;
 #   names, pilot names = zdxsv.db (osdname.py).
@@ -282,7 +282,7 @@ if [ -n "${EMU:-}" ] && [ -n "${GGPO:-}" ]; then
     ng=$(echo ${GGPO_CLIENTS:-$CLIENTS} | wc -w)
     grep -a 'p2p matching report:' "$OUT/lobby.log" | cut -c1-300
     check "no match report without a battle code" "! grep -a -q 'p2p matching report: battle_code=\"\"' '$OUT/lobby.log'"
-    check "match report x$ng: battle code $(report_code), result ggpo, net battle end, 0 mismatches" "[ \$(grep -a 'p2p matching report: battle_code=\"$(report_code)\"' '$OUT/lobby.log' | grep 'result=\"ggpo\"' | grep 'close=\"net battle end\"' | grep -c 'mismatches=\"0\"') -eq $ng ]"
+    check "match report x$ng: battle code $(report_code), result ggpo, net battle end, 0 mismatches" "[ \$(grep -a 'p2p matching report: battle_code=\"$(report_code)\"' '$OUT/lobby.log' | grep 'result=\"ggpo\"' | grep 'close_reason=\"net battle end\"' | grep -c 'mismatches=\"0\"') -eq $ng ]"
   fi
   if [ -n "${UPLOAD:-}" ]; then
     sleep 10  # uploads run detached after the battle end
