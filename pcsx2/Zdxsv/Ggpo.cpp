@@ -9,6 +9,7 @@
 #include "Zdxsv/SyncSettings.h"
 #include "Zdxsv/ReplayList.h"
 #include "MTGS.h"
+#include "Input/InputManager.h"
 
 namespace Zdxsv
 {
@@ -827,6 +828,8 @@ namespace Zdxsv
 	GGPOSession* s_session = nullptr;
 	bool s_started = false; // the session was opened (lobby=1: until the next battle's NetReset)
 	bool s_frame_ended = false; // the CPU left Execute() at a vsync
+	static bool s_frame_hold = false; // the next frame waits, the CPU does not run (GgpoHoldsFrame)
+	static Common::Timer s_hold_poll;
 	int s_session_frames = 0;
 	std::array<float, PadDualshock2::Inputs::LENGTH> s_host = {};
 
@@ -994,12 +997,30 @@ namespace Zdxsv
 		s_ours_ms.Add(Common::Timer::ConvertValueToMilliseconds(s_t_returned - t0));
 	}
 
+	bool GgpoHoldsFrame()
+	{
+		if (!s_frame_hold)
+			return false;
+		Threading::Sleep(2);
+		if (s_hold_poll.GetTimeMilliseconds() >= 16)
+		{
+			s_hold_poll.Reset();
+			InputManager::PollSources();
+			MTGS::PresentCurrentFrame();
+		}
+		s_t_vsync = 0;
+		s_frame_ended = true;
+		return true;
+	}
+
 	static void Returned()
 	{
 		std::lock_guard ggpo_lock(s_ggpo_mtx);
 		if (s_play_env)
 		{
-			s_play_common ? PlayCommonStart() : PlayNext();
+			s_frame_hold = !s_play_common && LiveHold();
+			if (!s_frame_hold)
+				s_play_common ? PlayCommonStart() : PlayNext();
 			return;
 		}
 		if (!s_session)
@@ -1322,6 +1343,7 @@ namespace Zdxsv
 		NetReset();
 		RbkReset();
 		g_ggpo_in_rollback = false;
+		s_frame_hold = s_frame_ended = false;
 		s_vsyncs = 0; // the next VM start or the reset VM parses the options again (and loads a replay again)
 	}
 } // namespace Zdxsv

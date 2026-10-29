@@ -33,6 +33,9 @@
 #   checks above run per watched battle, plus K+1 different battles watched (pwcheck too: --battle <code>).
 #   LIVE_SPEED=X: the spectator runs at normal speed X (launch.ps1 -Speed), off the stream's rate: a pacing
 #   test (the pace lines' gap and waits, with and without ZDXSV_LIVE_PACING=0).
+#   LIVE_STALL=S (LIVE): S s after the spectator starts, the lobby process is suspended (the stream stalls at its
+#   newest frame), 3 s later the spectator's windows get a close (WM_CLOSE), then the lobby resumes. Check, instead
+#   of the LIVE ones: the spectator exits within 5 s (a CPU thread stuck waiting for live data exits after ~30 s).
 #   GGPO_DEFAULT=K: client K gets no ZDXSV_GGPO (launch.ps1 ZDXSV_GGPO=default), so the ZdxsvGgpo setting
 #   gives its options (port: the ZdxsvGgpoPort setting); check: its log names the default options.
 #   BAD_SESSION=K (GDELAY=auto): client K gets badsession=1: every ping test fails,
@@ -113,6 +116,23 @@ cleanup() {
 trap 'cleanup; rig_release' EXIT
 ok=0
 check() { if eval "$2"; then echo "PASS $1"; else echo "FAIL $1"; ok=1; fi; }
+lobby_suspend() {  # $1 = Suspend / Resume
+  powershell -NoProfile -Command "Add-Type 'using System; using System.Runtime.InteropServices; public static class Nt { [DllImport(\"ntdll.dll\")] public static extern int NtSuspendProcess(IntPtr h); [DllImport(\"ntdll.dll\")] public static extern int NtResumeProcess(IntPtr h); }'; Get-Process zdxsv* -EA 0 | % { [void][Nt]::Nt$1Process(\$_.Handle) }"
+}
+live_stall() {
+  local pid t
+  pid=$(grep -o 'pid [0-9]*' "$OUT/live-launch.txt" | head -1 | cut -d' ' -f2)
+  sleep "$LIVE_STALL"
+  lobby_suspend Suspend
+  sleep 3
+  t=$SECONDS
+  # taskkill closes only the first top-level window in z-order: in a spectator that can be a hidden
+  # Qt _q_titlebar window, which drops it; a WM_CLOSE to every window reaches the display surface
+  powershell -NoProfile -Command "Add-Type 'using System; using System.Runtime.InteropServices; public static class Wc { public delegate bool EnumProc(IntPtr h, IntPtr l); [DllImport(\"user32.dll\")] public static extern bool EnumWindows(EnumProc f, IntPtr l); [DllImport(\"user32.dll\")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint p); [DllImport(\"user32.dll\")] public static extern bool PostMessage(IntPtr h, uint m, IntPtr w, IntPtr l); public static void Close(uint pid) { EnumWindows((h, l) => { uint p; GetWindowThreadProcessId(h, out p); if (p == pid) PostMessage(h, 0x10, IntPtr.Zero, IntPtr.Zero); return true; }, IntPtr.Zero); } }'; [Wc]::Close($pid)"
+  while [ $((SECONDS - t)) -lt 60 ] && tasklist //FI "PID eq $pid" 2>/dev/null | grep -q " $pid "; do sleep 0.5; done
+  echo "stall: exit after $((SECONDS - t)) s"
+  lobby_suspend Resume
+}
 
 # stack.sh runs in the background: its binary check fails here, before any client
 ZDXSV=$ZDXSV bash "$here/zbincheck.sh" "${ZBIN:-$ZDXSV/bin/zdxsv.exe}" || exit 1
@@ -146,6 +166,7 @@ if [ -n "${LIVE:-}" ]; then
     echo "live uplink after $((SECONDS - t1)) s: spectator p$LIVE"
     env ZDXSV_REPLAY="udp://127.0.0.1:8201" ZDXSV_LIVE_NEXT=${LIVE_NEXT:-0} ZDXSV_REPLAY_EXIT=1 ZDXSV_PW_HASH=1 ZDXSV_NET_TRACE="$OUT/trace-live.txt" \
       powershell -NoProfile -Command "& '$here/launch.ps1' -N $LIVE -Headless -StateFile ${LIVE_STATE:-$RBKSTATES/rbk-p1.p2s}${LIVE_SPEED:+ -Speed $LIVE_SPEED}" 2>&1 | tail -1
+    [ -z "${LIVE_STALL:-}" ] || live_stall
   ) > "$OUT/live-launch.txt" 2>&1 & pids+=($!)
 fi
 for i in $CLIENTS; do
@@ -372,7 +393,12 @@ if [ -n "${GGPO_LAT:-}" ]; then
   echo "udprelay: $(grep -a 'relay \(end\|stats\)' "$OUT/udprelay.txt" | tail -1 | tr -d '\r')"
   check "udprelay forwarded (the ping test reached it)" "grep -a 'relay \(end\|stats\)' '$OUT/udprelay.txt' | tail -1 | grep -a -q 'packets in [1-9]'"
 fi
-if [ -n "${LIVE:-}" ]; then
+if [ -n "${LIVE_STALL:-}" ]; then
+  for t in $(seq 120); do grep -q '^stall: ' "$OUT/live-launch.txt" && break; sleep 1; done
+  cp "$RUN/p$LIVE/PCSX2/logs/emulog.txt" "$OUT/emulog-live.txt" 2>/dev/null
+  cat "$OUT/live-launch.txt"
+  check "live stall: the spectator exits within 5 s of its window's close" "grep -q '^stall: exit after [0-5] s' '$OUT/live-launch.txt'"
+elif [ -n "${LIVE:-}" ]; then
   f=$RUN/p$LIVE/PCSX2/logs/emulog.txt
   # the spectator trails the players (buffer wait; the close goes out after the replay write)
   nw=$((${LIVE_NEXT:-0} + 1))
