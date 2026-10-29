@@ -113,7 +113,9 @@ The game runs with its own input delay 0; GGPO adds the input delay.
   flycast's `ggpoIdleLoop`. A mutex keeps it off GGPO while the frame loop
   runs its GGPO calls.
 - The session ends `ZDXSV_NET_TAIL` frames after the battle end message, or
-  when a peer disconnects.
+  when a peer disconnects. The countdown starts once every input of the frame
+  that sent the message is confirmed: a message sent in a predicted frame that
+  a rollback undoes does not end the session.
 - A VM shutdown or reset ends the session at once, as a disconnect: the
   replay is saved, the old VM's states are dropped.
 - An input send splits the pending inputs over packets of at most 8192 bits
