@@ -1,5 +1,6 @@
-# settingsui.ps1 [-Exe pcsx2-qtx64.exe] [-DataPath dir] [-Iso game.iso [-Boot 30]] [-Page zdxsv] [-Match regex] [-Shot out.png]
+# settingsui.ps1 [-Exe pcsx2-qtx64.exe] [-DataPath dir] [-Iso game.iso [-Boot 30]] [-Page zdxsv] [-Match regex] [-Shot out.png] [-Click name]
 # Start a portable PCSX2 (portable.ini or portable.txt next to the exe; -DataPath: -datapath dir instead), open Settings -> page -Page,
+# -Click: invoke the button whose AutomationId ends with that name (3 s for the settings save), then
 # print each control whose AutomationId or name matches -Match (default: the page name) with its enabled
 # state and value, save a PrintWindow capture of the settings window to -Shot, close PCSX2.
 # Env overrides (ZDXSV_*) set by the caller apply, e.g. to see env-overridden settings greyed out.
@@ -12,7 +13,8 @@
 #   with the mouse at its UIA rectangle.
 # Exit 1 with the visible element names when a step finds nothing.
 param([string]$Exe = (Join-Path $PSScriptRoot '..\..\bin\pcsx2-qtx64.exe'), [string]$Page = 'zdxsv',
-      [string]$Match = '', [string]$Shot = '', [string]$DataPath = '', [string]$Iso = '', [int]$Boot = 30)
+      [string]$Match = '', [string]$Shot = '', [string]$DataPath = '', [string]$Iso = '', [int]$Boot = 30,
+      [string]$Click = '')
 $ErrorActionPreference = 'Stop'
 if (-not $Match) { $Match = $Page }
 $dir = Split-Path -Parent (Resolve-Path $Exe)
@@ -20,7 +22,8 @@ if (-not $DataPath -and -not ((Test-Path "$dir\portable.ini") -or (Test-Path "$d
   "FAIL: $dir has no portable.ini/portable.txt: PCSX2 would use the user's Documents settings"; exit 1
 }
 $ini = if ($DataPath) { "$DataPath\PCSX2\inis\PCSX2.ini" } else { "$dir\inis\PCSX2.ini" }
-$lines = if (Test-Path $ini) { @(Get-Content $ini) } else { New-Item -ItemType Directory -Force (Split-Path $ini) | Out-Null; @() }
+if (-not (Test-Path $ini)) { New-Item -ItemType Directory -Force (Split-Path $ini) | Out-Null }
+$lines = @(if (Test-Path $ini) { Get-Content $ini })
 $want = [ordered]@{ SetupWizardIncomplete = 'false'; SettingsVersion = '1'; Language = 'en-US'; StartFullscreen = 'false' }
 $ui = [Array]::IndexOf($lines, '[UI]')
 if ($ui -lt 0) { $lines = @('[UI]') + $lines; $ui = 0 }
@@ -88,6 +91,13 @@ try {
   [void][SUI]::SetCursorPos([int]($r.X + $r.Width / 2), [int]($r.Y + $r.Height / 2))
   [SUI]::mouse_event(2, 0, 0, 0, [UIntPtr]::Zero); [SUI]::mouse_event(4, 0, 0, 0, [UIntPtr]::Zero)
   Start-Sleep 2
+  if ($Click) {
+    $btn = $null
+    foreach ($e in $win.FindAll('Descendants', $all)) { if ($e.Current.AutomationId -match "\.$Click`$") { $btn = $e } }
+    if (-not $btn) { "FAIL: no button '$Click'"; exit 1 }
+    $btn.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+    "clicked $Click"; Start-Sleep 3
+  }
   $n = 0
   foreach ($e in $win.FindAll('Descendants', $all)) {
     $id = $e.Current.AutomationId; $nm = $e.Current.Name

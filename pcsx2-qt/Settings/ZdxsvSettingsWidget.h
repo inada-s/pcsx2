@@ -19,5 +19,7 @@ public:
 	static void markSyncForced(QWidget* window);
 
 private:
+	void applyPreset(float upscale_multiplier, int min_delay);
+
 	Ui::ZdxsvSettingsWidget m_ui;
 };

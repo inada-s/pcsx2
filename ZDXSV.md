@@ -47,6 +47,12 @@ When a battle cannot start, a message beginning with "No battle:" says why
 (an opponent did not answer, the network port is in use, an opponent's build or
 settings differ), and the game returns to the lobby.
 
+## Recommended settings
+
+Settings → zdxsv has three buttons, for a low-, mid- and high-spec PC. Each sets
+the internal resolution (Native, 2x or 3x) and the minimum input delay (3, 2 or 2).
+If the game slows down in battles, use the low-spec button.
+
 ## First time in the game
 
 If your memory card is empty, the game makes the files it needs by itself:

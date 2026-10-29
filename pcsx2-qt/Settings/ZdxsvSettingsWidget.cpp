@@ -10,7 +10,9 @@
 #include "pcsx2/Zdxsv/SyncSettings.h"
 
 #include <QtCore/QTimer>
+#include <QtWidgets/QComboBox>
 #include <QtWidgets/QLineEdit>
+#include <QtWidgets/QPushButton>
 
 #include <cstdlib>
 #include <cstring>
@@ -81,9 +83,32 @@ ZdxsvSettingsWidget::ZdxsvSettingsWidget(SettingsWindow* settings_dialog, QWidge
 		tr("Save state replays and live battles start from: a URL (downloaded once into the cache folder) or a file. Empty: the state of the running game."));
 	dialog()->registerWidgetHelp(m_ui.zdxsvReplayUpload, tr("Upload Replays"), tr("Checked"),
 		tr("After each lobby battle, its replay is posted to the zdxsv server, where anyone can watch it (Tools → zdxsv Replays, Remote)."));
+
+	connect(m_ui.zdxsvPresetLow, &QPushButton::clicked, this, [this]() { applyPreset(1.0f, 3); });
+	connect(m_ui.zdxsvPresetMid, &QPushButton::clicked, this, [this]() { applyPreset(2.0f, 2); });
+	connect(m_ui.zdxsvPresetHigh, &QPushButton::clicked, this, [this]() { applyPreset(3.0f, 2); });
+	dialog()->registerWidgetHelp(m_ui.zdxsvPresetLow, tr("Recommended Settings for Low-Spec PC"), tr("None"),
+		tr("Sets Internal Resolution to Native (PS2) and Minimum Input Delay to 3."));
+	dialog()->registerWidgetHelp(m_ui.zdxsvPresetMid, tr("Recommended Settings for Mid-Spec PC"), tr("None"),
+		tr("Sets Internal Resolution to 2x Native (~720p) and Minimum Input Delay to 2."));
+	dialog()->registerWidgetHelp(m_ui.zdxsvPresetHigh, tr("Recommended Settings for High-Spec PC"), tr("None"),
+		tr("Sets Internal Resolution to 3x Native (~1080p) and Minimum Input Delay to 2."));
 }
 
 ZdxsvSettingsWidget::~ZdxsvSettingsWidget() = default;
+
+void ZdxsvSettingsWidget::applyPreset(float upscale_multiplier, int min_delay)
+{
+	if (m_ui.zdxsvGgpoMinDelay->isEnabled())
+		m_ui.zdxsvGgpoMinDelay->setValue(min_delay);
+	// The Graphics page shows the value from its combo box and saves on a change: set it through the combo box.
+	QComboBox* upscale = dialog()->findChild<QComboBox*>(QStringLiteral("upscaleMultiplier"));
+	const int index = upscale ? upscale->findData(QVariant(upscale_multiplier)) : -1;
+	if (index >= 0)
+		upscale->setCurrentIndex(index);
+	else
+		dialog()->setFloatSettingValue("EmuCore/GS", "upscale_multiplier", upscale_multiplier);
+}
 
 void ZdxsvSettingsWidget::markSyncForced(QWidget* window)
 {
