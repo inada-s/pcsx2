@@ -801,10 +801,21 @@ namespace Zdxsv
 				socklen_t len = 0;
 				sock_t s = INVALID_SOCKET; // socket of its family, INVALID_SOCKET = not pinged
 				PeerAddr addr;
-				int64_t sum = 0, pongs = 0;
+				std::vector<int> samples;
+				int rtt = -1; // median of the samples, so a few late pongs do not raise the delay
 				bool sends = false; // the peer's packets come from sa
 				std::vector<sockaddr_storage> answered; // relay path: pong sources other than sa, at most 2
-				int Rtt() const { return pongs ? static_cast<int>((sum + pongs - 1) / pongs) : -1; }
+				int Rtt() const { return rtt; }
+				void Pong(int64_t ms)
+				{
+					if (samples.size() >= 256)
+						return;
+					samples.push_back(static_cast<int>(std::clamp<int64_t>(ms, 1, 60000)));
+					std::vector<int> s = samples;
+					auto mid = s.begin() + (s.size() - 1) / 2;
+					std::nth_element(s.begin(), mid, s.end());
+					rtt = *mid;
+				}
 			};
 
 		public:
@@ -989,8 +1000,7 @@ namespace Zdxsv
 						rp.token == m_relays[rp.relayIdx].token && (!other || c->answered.size() < 2 ||
 							std::any_of(c->answered.begin(), c->answered.end(), [&from](const sockaddr_storage& a) { return SameAddr(from, a); })))
 					{
-						c->sum += std::max<int64_t>(1, static_cast<int64_t>(NowMs() - rp.timestamp));
-						c->pongs++;
+						c->Pong(static_cast<int64_t>(NowMs() - rp.timestamp));
 						if (other && std::none_of(c->answered.begin(), c->answered.end(), [&from](const sockaddr_storage& a) { return SameAddr(from, a); }))
 							c->answered.push_back(from);
 					}
@@ -1039,8 +1049,7 @@ namespace Zdxsv
 				else if (head && pk.type == PONG_TYPE && pk.candidate < fc->size())
 				{
 					Cand& c = (*fc)[pk.candidate];
-					c.sum += std::max<int64_t>(1, static_cast<int64_t>(NowMs() - pk.pingTimestamp));
-					c.pongs++;
+					c.Pong(static_cast<int64_t>(NowMs() - pk.pingTimestamp));
 					ok = true;
 				}
 				else
@@ -1068,7 +1077,7 @@ namespace Zdxsv
 					{
 						const Cand& c = m_cand[p][k];
 						const int r = c.Rtt();
-						line += " " + c.addr.Masked() + " rtt " + std::to_string(r) + " ms (" + std::to_string(c.pongs) + " pongs)";
+						line += " " + c.addr.Masked() + " rtt " + std::to_string(r) + " ms (" + std::to_string(c.samples.size()) + " pongs)";
 						if (r <= 0)
 							continue;
 						const float score = 10000.f - r + (IsLoopback(c.sa) ? 100.f : 0.f) + (IsPrivate(c.sa) ? 50.f : 0.f) +
@@ -1091,7 +1100,7 @@ namespace Zdxsv
 					for (int i = 0; i < 2; i++)
 						if (m_rpath[k][i].s != INVALID_SOCKET)
 							line += " " + (rl.addr.V6() == (i == 1) ? rl.addr : rl.addr6).String() + " rtt " + std::to_string(m_rpath[k][i].Rtt()) +
-									" ms (" + std::to_string(m_rpath[k][i].pongs) + " pongs)";
+									" ms (" + std::to_string(m_rpath[k][i].samples.size()) + " pongs)";
 					// GGPO's address of the relay: the faster family that answered, else addr; alt = the other one
 					const int f = RelayBest(k);
 					const bool useAddr6 = f >= 0 && !rl.addr6.ip.empty() && (f == 1) != rl.addr.V6();
