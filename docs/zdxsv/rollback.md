@@ -111,7 +111,11 @@ The game runs with its own input delay 0; GGPO adds the input delay.
 - Once synchronized, a thread pumps the GGPO sockets every 1 ms
   (`ggpo_idle(-1)`: receive, send, relay forwarding; no callbacks), as
   flycast's `ggpoIdleLoop`. A mutex keeps it off GGPO while the frame loop
-  runs its GGPO calls.
+  runs its GGPO calls. While the frame loop holds it (a rollback, a wait),
+  the thread still reads the sockets (`ggpo_forward_relayed`): packets this
+  peer relays for others go out at once, the rest wait for the frame loop.
+  So a relaying peer's rollbacks do not delay the peers it relays for
+  (flycast does this on a separate network thread).
 - The session ends `ZDXSV_NET_TAIL` frames after the battle end message, or
   when a peer disconnects. The countdown starts once every input of the frame
   that sent the message is confirmed: a message sent in a predicted frame that

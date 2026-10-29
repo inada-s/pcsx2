@@ -300,3 +300,12 @@ GGPOErrorCode ggpo_add_relay_server_source(GGPOSession *ggpo, const char *ip, un
 
 	return ggpo->AddRelayServerSource(ip, port);
 }
+
+GGPOErrorCode ggpo_forward_relayed(GGPOSession *ggpo, int *forwarded)
+{
+	*forwarded = 0;
+	if (ggpo == nullptr)
+		return GGPO_ERRORCODE_INVALID_SESSION;
+
+	return ggpo->ForwardRelayed(forwarded);
+}

@@ -496,6 +496,7 @@ namespace Zdxsv
 		struct PumpThread
 		{
 			std::thread t;
+			std::atomic<int> held_relayed{0};
 			void Stop()
 			{
 				s_pump_run = false;
@@ -511,14 +512,27 @@ namespace Zdxsv
 			if (e && std::strcmp(e, "0") == 0)
 				return;
 			s_pump.Stop();
+			s_pump.held_relayed = 0;
 			s_pump_run = true;
 			s_pump.t = std::thread([] {
 				Threading::SetNameOfCurrentThread("ZdxsvGgpoPump");
 				while (s_pump_run)
 				{
 					// try_lock: Stop joins this thread while it holds the lock
-					if (std::unique_lock lock(s_ggpo_mtx, std::try_to_lock); lock.owns_lock() && s_session)
-						ggpo_idle(s_session, -1);
+					std::unique_lock lock(s_ggpo_mtx, std::try_to_lock);
+					if (lock.owns_lock())
+					{
+						if (s_session)
+							ggpo_idle(s_session, -1);
+					}
+					else
+					{
+						// the frame loop is in GGPO (a rollback, a wait): relay for the others now
+						int n = 0;
+						ggpo_forward_relayed(s_session, &n);
+						s_pump.held_relayed += n;
+					}
+					lock = {};
 					Threading::Sleep(1);
 				}
 			});
@@ -540,6 +554,7 @@ namespace Zdxsv
 				Host::RunOnCPUThread([] { SyncSettingsOnBattle(false); });
 			Zdxsv::DeltaStateClear();
 			Report(what);
+			Console.WriteLn("ZdxsvGgpo: %s relayed while the frame loop held GGPO %d", what, s_pump.held_relayed.load());
 			{
 				// the stats stay up 10 s after a disconnect, so the player sees who left
 				std::lock_guard lock(s_osd_mtx);

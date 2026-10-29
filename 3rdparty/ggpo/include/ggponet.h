@@ -644,6 +644,16 @@ GGPO_API GGPOErrorCode __cdecl ggpo_add_relay_server(GGPOSession*, const char *i
  */
 GGPO_API GGPOErrorCode __cdecl ggpo_add_relay_server_source(GGPOSession*, const char *ip, unsigned short port);
 
+/*
+ * ggpo_forward_relayed --
+ *
+ * Reads the session's sockets and forwards the packets this peer relays for
+ * others at once; other packets wait for the next ggpo_idle. Unlike every other
+ * call, it may run on another thread while one is in a GGPO call (a rollback),
+ * but not concurrently with ggpo_close_session. forwarded: the packets relayed.
+ */
+GGPO_API GGPOErrorCode __cdecl ggpo_forward_relayed(GGPOSession*, int *forwarded);
+
 #ifdef __cplusplus
 };
 #endif

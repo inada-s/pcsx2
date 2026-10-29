@@ -83,7 +83,8 @@ Peer2PeerBackend::AddRemotePlayer(char *ip,
     * Start the state machine (xxx: no)
     */
    _synchronizing = true;
-   
+
+   std::lock_guard<std::mutex> lock(_udp.RecvMutex());
    _endpoints[queue].Init(&_udp, _poll, queue, ip, port, relay, _local_connect_status);
    for (int k = 0; k < (int)_relay_servers.size(); k++) {
       if (relay && _endpoints[queue].IsPeerAddress(_relay_servers[k].addr)) {
@@ -703,28 +704,34 @@ Peer2PeerBackend::PlayerHandleToQueue(GGPOPlayerHandle player, int *queue)
 }
 
  
+bool
+Peer2PeerBackend::TryForward(sockaddr_storage &from, UdpMsg *msg, int len)
+{
+   if (msg->hdr.type != UdpMsg::Relay) {
+      return false;
+   }
+   if (msg->hdr.relay_magic == RELAY_MAGIC) {
+      int i = msg->hdr.relay_to_endpoint;
+      // Only relay real message types; the receiver validates the payload itself.
+      const bool valid_type = UdpMsg::SyncRequest <= msg->hdr.org_type && msg->hdr.org_type <= UdpMsg::AppData;
+      if (i < _num_players && valid_type) {
+         Log("Relay msg %d->%d->%d type:%d seq:%d", msg->hdr.remote_endpoint, _local_player_queue, msg->hdr.relay_to_endpoint, msg->hdr.org_type, msg->hdr.sequence_number);
+         msg->hdr.type = msg->hdr.org_type;
+         msg->hdr.org_type = UdpMsg::Invalid;
+         msg->hdr.relay_magic = 0;
+         msg->hdr.relay_to_endpoint = 0;
+         if (_test_log && ++_relay_forwards % 500 == 1) {
+            LogInfo("RBKTEST relay forward n=%d to=%d", _relay_forwards, i);
+         }
+         _endpoints[i].SendUnmanagedMsg(msg, len, from);
+      }
+   }
+   return true;
+}
+
 void
 Peer2PeerBackend::OnMsg(sockaddr_storage &from, UdpMsg *msg, int len)
 {
-   if (msg->hdr.type == UdpMsg::Relay) {
-      if (msg->hdr.relay_magic == RELAY_MAGIC) {
-         int i = msg->hdr.relay_to_endpoint;
-         // Only relay real message types; the receiver validates the payload itself.
-         const bool valid_type = UdpMsg::SyncRequest <= msg->hdr.org_type && msg->hdr.org_type <= UdpMsg::AppData;
-         if (i < _num_players && valid_type) {
-            Log("Relay msg %d->%d->%d type:%d seq:%d", msg->hdr.remote_endpoint, _local_player_queue, msg->hdr.relay_to_endpoint, msg->hdr.org_type, msg->hdr.sequence_number);
-            msg->hdr.type = msg->hdr.org_type;
-            msg->hdr.org_type = UdpMsg::Invalid;
-            msg->hdr.relay_magic = 0;
-            msg->hdr.relay_to_endpoint = 0;
-            if (_test_log && ++_relay_forwards % 500 == 1) {
-               LogInfo("RBKTEST relay forward n=%d to=%d", _relay_forwards, i);
-            }
-            _endpoints[i].SendUnmanagedMsg(msg, len, from);
-         }
-      }
-      return;
-   }
    for (int i = 0; i < _num_players; i++) {
       if (_endpoints[i].HandlesMsg(from, msg)) {
          const int server = RelayServerIndex(from);
