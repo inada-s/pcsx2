@@ -55,6 +55,8 @@ page greys it out and its tooltip names the variable.
 | `ZDXSV_GAME_CRC=hex` | `435D8236` | control | The CRC taken as the Z game's (Game check). Another value runs the Z game as a foreign game: everything off. |
 | `ZDXSV_STUN_PORT=port` | 8201 | tuning | STUN port of the lobby. Asked only with `ZDXSV_GGPO` `lobby=1`. The connectivity test also uses port + 1; a server without that socket gives `nat=unknown`. |
 | `ZDXSV_HTTPS_LATENCY=0` | on | test | No HTTPS latency test, no `<region>=ms` platform info. `=name:host,...` measures these hosts (`https://host/api/ping`) instead of the regions. See [lobby.md](lobby.md). |
+| `ZDXSV_TLS=0` | on when the client has pins | test | TCP to the zdxsv server without TLS (a server without TLS ports). See [lobby.md](lobby.md). |
+| `ZDXSV_TLS_TEST_PIN=1` | off | test | Trusts the zdxsv test CA (`pkg/tlsconf/testdata` in the zdxsv repository), which also turns TLS on. See [lobby.md](lobby.md). |
 | `ZDXSV_LOBBY_STATE=1` | off | feature | Save states made online keep working after a load. See [lobby.md](lobby.md). |
 | `ZDXSV_UPDATE_URL=url` | GitHub releases of this fork | test | The updater reads its release list from this URL. |
 
