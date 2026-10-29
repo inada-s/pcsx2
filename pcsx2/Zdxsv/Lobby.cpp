@@ -140,88 +140,228 @@ namespace Zdxsv
 		return true;
 	}
 
+	static bool PbString(uint32_t wt, const uint8_t* b, size_t n, std::string& s)
+	{
+		if (wt != 2 || n > 256)
+			return false;
+		s.assign(reinterpret_cast<const char*>(b), n);
+		return true;
+	}
+
+	static bool PbInt(uint32_t wt, uint64_t v, int64_t& out)
+	{
+		out = static_cast<int64_t>(v);
+		return wt == 0;
+	}
+
+	// "ip" (IPv6 without brackets) and a port -> PeerAddr
+	static bool PbPeerAddr(const std::string& ip, int64_t port, PeerAddr& out)
+	{
+		if (port <= 0 || port > 0xFFFF)
+			return false;
+		const std::string host = ip.find(':') == std::string::npos ? ip : "[" + ip + "]";
+		return ParsePeerAddr(host + ":" + std::to_string(port), out);
+	}
+
 	bool ParseBattleInfo(const std::string& body, BattleInfo& out)
 	{
-		std::map<std::string, std::string> kv;
-		std::istringstream in(body);
-		std::string line;
-		while (std::getline(in, line))
+		constexpr size_t MAX_USERS = 8, MAX_CANDIDATES = 64, MAX_RELAYS = 4;
+		struct User
 		{
-			const size_t eq = line.find('=');
-			if (eq != std::string::npos)
-				kv[line.substr(0, eq)] = line.substr(eq + 1);
-		}
+			std::string id, name, pilot, sync;
+			int64_t ggpo = 0;
+		};
+		struct Candidate
+		{
+			std::string userId, ip;
+			int64_t port = 0;
+		};
+		struct Relay
+		{
+			std::string ip, ip6;
+			int64_t port = 0, port6 = 0;
+			uint64_t token = 0;
+		};
+		std::vector<User> users;
+		std::vector<Candidate> candidates;
+		std::vector<Relay> relays;
+		std::string battleServer;
+		int64_t peerId = -1, session = 0, pingMs = 0, uplink = 0;
 		BattleInfo info;
-		info.sessionId = kv["session_id"];
-		info.userId = kv["user_id"];
-		info.battleCode = kv["battle_code"];
-		if (info.sessionId.empty() || info.userId.empty() ||
-			!ParseAddr(kv["battle_server"], info.serverIP, info.serverPort))
+		const uint8_t* p = reinterpret_cast<const uint8_t*>(body.data());
+		Pb::Reader r{p, p + body.size()};
+		const bool ok = r.Fields([&](uint32_t field, uint32_t wt, uint64_t v, const uint8_t* b, size_t n) {
+			Pb::Reader sub{b, b + n};
+			switch (field)
+			{
+				case 1: return PbString(wt, b, n, info.battleCode);
+				case 2: return PbInt(wt, v, session) && v <= 0xFFFFFFFFu;
+				case 4: return PbInt(wt, v, peerId);
+				case 6: return PbInt(wt, v, pingMs);
+				case 9:
+					if (wt != 2 || users.size() >= MAX_USERS)
+						return false;
+					users.emplace_back();
+					return sub.Fields([&u = users.back()](uint32_t f, uint32_t w, uint64_t x, const uint8_t* s, size_t len) {
+						switch (f)
+						{
+							case 1: return PbString(w, s, len, u.id);
+							case 2: return PbString(w, s, len, u.name);
+							case 3: return PbString(w, s, len, u.pilot);
+							case 40: return PbInt(w, x, u.ggpo);
+							case 41: return PbString(w, s, len, u.sync);
+							default: return true;
+						}
+					});
+				case 10:
+					if (wt != 2 || candidates.size() >= MAX_CANDIDATES)
+						return false;
+					candidates.emplace_back();
+					return sub.Fields([&c = candidates.back()](uint32_t f, uint32_t w, uint64_t x, const uint8_t* s, size_t len) {
+						switch (f)
+						{
+							case 1: return PbString(w, s, len, c.userId);
+							case 3: return PbString(w, s, len, c.ip);
+							case 4: return PbInt(w, x, c.port);
+							default: return true;
+						}
+					});
+				case 11:
+					if (wt != 2 || relays.size() >= MAX_RELAYS)
+						return false;
+					relays.emplace_back();
+					return sub.Fields([&rl = relays.back()](uint32_t f, uint32_t w, uint64_t x, const uint8_t* s, size_t len) {
+						switch (f)
+						{
+							case 2: return PbString(w, s, len, rl.ip);
+							case 3: return PbInt(w, x, rl.port);
+							case 4: rl.token = x; return w == 0;
+							case 5: return PbString(w, s, len, rl.ip6);
+							case 40: return PbInt(w, x, rl.port6);
+							default: return true;
+						}
+					});
+				case 12: return PbInt(wt, v, uplink);
+				case 40: return PbString(wt, b, n, info.sessionId);
+				case 41: return PbString(wt, b, n, battleServer);
+				default: return true;
+			}
+		});
+		if (!ok || peerId < 0 || peerId >= static_cast<int64_t>(users.size()) || info.sessionId.empty() ||
+			!ParseAddr(battleServer, info.serverIP, info.serverPort))
 			return false;
-		std::istringstream users(kv["users"]);
-		std::string id;
-		while (std::getline(users, id, ','))
-			if (!id.empty())
-				info.users.push_back(id);
-		if (std::find(info.users.begin(), info.users.end(), info.userId) == info.users.end())
-			return false;
-		for (const std::string& u : info.users)
+		for (const User& u : users)
 		{
-			auto it = kv.find("p2p_" + u);
-			if (u == info.userId || it == kv.end())
-				continue;
-			BattleInfo::Peer peer{u, {}};
-			std::istringstream addrs(it->second);
-			std::string a;
-			while (std::getline(addrs, a, ','))
+			if (u.id.empty() || std::find(info.users.begin(), info.users.end(), u.id) != info.users.end())
+				return false;
+			info.users.push_back(u.id);
+		}
+		info.userId = users[peerId].id;
+		for (const User& u : users)
+		{
+			if (!u.name.empty())
+				info.names[u.id] = u.name;
+			if (!u.pilot.empty())
+				info.pilots[u.id] = u.pilot;
+			if (u.sync.size() == 16 && u.sync.find_first_not_of("0123456789abcdef") == std::string::npos)
+				info.syncs[u.id] = u.sync;
+			if (u.id != info.userId && u.ggpo > 0 && u.ggpo <= 0xFFFF)
+				info.ggpo[u.id] = static_cast<uint16_t>(u.ggpo);
+			BattleInfo::Peer peer{u.id, {}};
+			for (const Candidate& c : candidates)
 			{
 				PeerAddr addr;
-				if (ParsePeerAddr(a, addr))
+				if (c.userId == u.id && u.id != info.userId && PbPeerAddr(c.ip, c.port, addr))
 					peer.addrs.push_back(addr);
 			}
 			if (!peer.addrs.empty())
 				info.p2p.push_back(std::move(peer));
 		}
-		for (const std::string& u : info.users)
+		info.ggpoSession = static_cast<uint32_t>(session);
+		info.ggpoPingMs = static_cast<int>(std::clamp<int64_t>(pingMs, 0, MAX_PING_MS));
+		info.liveUplink = uplink != 0;
+		// a malformed relay ends the list, so the indexes stay the lobby's
+		for (const Relay& rl : relays)
 		{
-			auto it = kv.find("ggpo_" + u);
-			const int port = it == kv.end() ? 0 : std::atoi(it->second.c_str());
-			if (u != info.userId && port > 0 && port <= 0xFFFF)
-				info.ggpo[u] = static_cast<uint16_t>(port);
-		}
-		info.ggpoSession = static_cast<uint32_t>(std::strtoul(kv["ggpo_session"].c_str(), nullptr, 10));
-		info.ggpoPingMs = std::clamp(std::atoi(kv["ggpo_ping_ms"].c_str()), 0, MAX_PING_MS);
-		info.liveUplink = kv["live_uplink"] == "1";
-		for (const std::string& u : info.users)
-		{
-			if (auto it = kv.find("name_" + u); it != kv.end())
-				info.names[u] = it->second;
-			if (auto it = kv.find("pilot_" + u); it != kv.end())
-				info.pilots[u] = it->second;
-			if (auto it = kv.find("sync_" + u); it != kv.end() && it->second.size() == 16 &&
-				it->second.find_first_not_of("0123456789abcdef") == std::string::npos)
-				info.syncs[u] = it->second;
-		}
-		// relay_0.. in order; a malformed one ends the list, so the indexes stay the lobby's
-		for (int k = 0; k < 4; k++)
-		{
-			auto it = kv.find("relay_" + std::to_string(k));
-			if (it == kv.end())
+			BattleInfo::Relay br;
+			br.token = rl.token;
+			if (!rl.token || !PbPeerAddr(rl.ip, rl.port, br.addr) ||
+				(!rl.ip6.empty() && !PbPeerAddr(rl.ip6, rl.port6 ? rl.port6 : rl.port, br.addr6)))
 				break;
-			std::istringstream fields(it->second);
-			std::string token, a4, a6;
-			std::getline(fields, token, ',');
-			std::getline(fields, a4, ',');
-			std::getline(fields, a6, ',');
-			BattleInfo::Relay r;
-			char* end = nullptr;
-			r.token = std::strtoull(token.c_str(), &end, 16);
-			if (token.empty() || *end || !ParsePeerAddr(a4, r.addr) || (!a6.empty() && !ParsePeerAddr(a6, r.addr6)))
-				break;
-			info.relays.push_back(r);
+			info.relays.push_back(br);
 		}
 		out = std::move(info);
 		return true;
+	}
+
+	std::vector<uint8_t> EncodeMatchingReport(const std::string& lines)
+	{
+		std::map<std::string, std::string> kv;
+		std::map<int, std::map<std::string, std::string>> peers; // rtt_ / addr_ / path_ / ping_<position>
+		std::istringstream in(lines);
+		std::string line;
+		while (std::getline(in, line))
+		{
+			const size_t eq = line.find('=');
+			if (eq == std::string::npos)
+				continue;
+			const std::string k = line.substr(0, eq), v = line.substr(eq + 1);
+			const size_t us = k.find('_');
+			const std::string prefix = us == std::string::npos ? "" : k.substr(0, us);
+			if ((prefix == "rtt" || prefix == "addr" || prefix == "path" || prefix == "ping") && k.find_first_not_of("0123456789", us + 1) == std::string::npos &&
+				us + 1 < k.size())
+				peers[std::atoi(k.c_str() + us + 1)][prefix] = v;
+			else
+				kv[k] = v;
+		}
+		static constexpr struct
+		{
+			const char* key;
+			uint32_t field;
+			bool string;
+		} FIELDS[] = {{"battle_code", 1, true}, {"players", 3, false}, {"position", 4, false}, {"close", 5, true},
+			{"frames", 6, false}, {"delay", 21, false}, {"user_id", 40, true}, {"result", 41, true}, {"reason", 42, true},
+			{"sync", 43, true}, {"sync_differ", 44, true}, {"answered", 45, false}, {"relays", 46, false},
+			{"ping_error", 47, true}, {"ping_wait_ms", 48, false}, {"min_delay", 49, false}, {"fixed_delay", 50, false},
+			{"cut_sends", 51, false}, {"rollback_frames", 52, false}, {"mismatches", 53, false}, {"disconnected", 54, false}};
+		std::vector<uint8_t> o;
+		for (const auto& f : FIELDS)
+		{
+			if (f.field == 40) // remote_peers (31) in field order
+				for (const auto& [pos, m] : peers)
+				{
+					std::vector<uint8_t> peer;
+					Pb::PutInt(peer, 1, pos);
+					int ping[3];
+					if (auto it = m.find("ping"); it != m.end() &&
+						std::sscanf(it->second.c_str(), "%d/%d/%d", &ping[0], &ping[1], &ping[2]) == 3 && ping[0] >= 0)
+						for (int i = 0; i < 3; i++)
+							Pb::PutInt(peer, 4 + i, ping[i]); // ping_min_ms, ping_median_ms, ping_max_ms
+					if (auto it = m.find("path"); it != m.end())
+						Pb::PutString(peer, 7, it->second);
+					if (auto it = m.find("rtt"); it != m.end())
+						Pb::PutInt(peer, 40, std::atoll(it->second.c_str()));
+					if (auto it = m.find("addr"); it != m.end())
+						Pb::PutString(peer, 41, it->second);
+					Pb::PutBytes(o, 31, peer.data(), peer.size());
+				}
+			const auto it = kv.find(f.key);
+			if (it == kv.end())
+				continue;
+			if (f.string)
+				Pb::PutString(o, f.field, it->second);
+			else
+				Pb::PutInt(o, f.field, std::atoll(it->second.c_str()));
+		}
+		if (auto it = kv.find("disconnected_positions"); it != kv.end() && !it->second.empty())
+		{
+			std::vector<int64_t> left;
+			std::istringstream ps(it->second);
+			for (std::string p; std::getline(ps, p, ',');)
+				left.push_back(std::atoll(p.c_str()));
+			Pb::PutPackedInts(o, 55, left); // disconnected_peer_ids
+		}
+		return o;
 	}
 
 	void SetBattleInfo(const BattleInfo& info)
@@ -589,6 +729,18 @@ namespace Zdxsv
 		std::unique_ptr<PingTest> g_ping;
 		std::string g_pingError; // why the last StartPingTest ran no test
 
+		// the running test's matrix for PingTestView
+		struct PingView
+		{
+			std::mutex mtx;
+			bool active = false;
+			Clock::time_point start{};
+			int durationMs = 0;
+			int n = 0;
+			uint8_t rtt[4][4] = {};
+		};
+		PingView g_pingView;
+
 		// StartUdpTest's thread
 		struct UdpTestRun
 		{
@@ -704,6 +856,8 @@ namespace Zdxsv
 					}
 					for (const sock_t s : Readable({m_s4, m_s6}, 10))
 						Receive(s);
+					std::lock_guard lock(g_pingView.mtx);
+					std::memcpy(g_pingView.rtt, m_rtt, sizeof(m_rtt));
 				}
 				if (m_s4 != INVALID_SOCKET)
 					closesocket(m_s4);
@@ -1030,6 +1184,14 @@ namespace Zdxsv
 			Log(std::string("ping test: no IPv") + (s4 == INVALID_SOCKET ? "4" : "6") + " socket on :" + std::to_string(port) + ", its candidates skipped");
 		g_ping = std::make_unique<PingTest>();
 		g_ping->result.assign(n, {});
+		{
+			std::lock_guard lock(g_pingView.mtx);
+			g_pingView.active = true;
+			g_pingView.start = Clock::now();
+			g_pingView.durationMs = durationMs;
+			g_pingView.n = n;
+			std::memset(g_pingView.rtt, 0, sizeof(g_pingView.rtt));
+		}
 		PingTest* t = g_ping.get();
 		t->thread = std::thread([t, s4, s6, session, byPosition, me, durationMs, relays] {
 			PingRun run(s4, s6, session, byPosition, me, relays);
@@ -1045,6 +1207,10 @@ namespace Zdxsv
 		if (error)
 			*error = g_pingError;
 		g_pingError.clear();
+		{
+			std::lock_guard lock(g_pingView.mtx);
+			g_pingView.active = false;
+		}
 		if (!g_ping)
 			return {};
 		if (g_ping->thread.joinable())
@@ -1054,6 +1220,18 @@ namespace Zdxsv
 		std::vector<PingResult> result = std::move(g_ping->result);
 		g_ping.reset();
 		return result;
+	}
+
+	bool PingTestView(int& elapsedMs, int& durationMs, int& players, uint8_t rtt[4][4])
+	{
+		std::lock_guard lock(g_pingView.mtx);
+		if (!g_pingView.active)
+			return false;
+		elapsedMs = static_cast<int>(std::chrono::duration_cast<std::chrono::milliseconds>(Clock::now() - g_pingView.start).count());
+		durationMs = g_pingView.durationMs;
+		players = g_pingView.n;
+		std::memcpy(rtt, g_pingView.rtt, sizeof(g_pingView.rtt));
+		return true;
 	}
 
 	std::string PublicIP()

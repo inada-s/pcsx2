@@ -45,6 +45,9 @@ namespace Zdxsv
 	// GgpoOnExecuteReturned does the limiter sleep and the input poll after the rollback, so a
 	// rollback shorter than the sleep does not delay the next present (ZDXSV_PRESENT_FIRST=0: false).
 	bool GgpoDeferThrottle();
+	// In VMManager::Execute, before the CPU runs. true: the frame is held (a live replay waits for data at its
+	// newest frame): the CPU does not run, GgpoOnExecuteReturned asks again, and the VM loop handles events between.
+	bool GgpoHoldsFrame();
 	// In VMManager::Execute, after the CPU returned.
 	void GgpoOnExecuteReturned();
 

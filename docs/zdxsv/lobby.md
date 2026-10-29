@@ -19,6 +19,33 @@ when the config loads.
 The game always talks TCP to the battle server, as on a PS2. When a battle
 runs over GGPO, the emulator answers the game's battle socket itself.
 
+## TLS to the zdxsv server
+
+The emulator carries the game's TCP connections to the zdxsv server through
+TLS (`Zdxsv/TlsTunnel.cpp`); the game still sees plain TCP. A connection is
+wrapped when its port is in the table below and its address is a DNS answer
+for a game host, or the battle server of the last battle info.
+
+| Game port | TLS port | Server |
+|---|---|---|
+| 443 | 8220 | DNAS |
+| 8200 | 8221 | lobby |
+| 8210 | 8222 | battle (TCP) |
+
+- The connection goes to a local port; a thread there connects to the
+  server's TLS port and copies the bytes both ways.
+- Trust: public-key pins (SHA-256 of the SubjectPublicKeyInfo) of the zdxsv
+  CA and the backup CA. A pinned server key is accepted as is; a pinned key
+  higher in the chain the server sends must have signed the server
+  certificate. No hostname or expiry check. Making and rotating the keys: the
+  zdxsv repository, `docs/TLS.md`.
+- No plain-text fallback. A failed connect, handshake or pin check resets
+  the game's connection and shows an OSD message.
+- TLS is off while the client has no pins. Rigs: `ZDXSV_TLS_TEST_PIN=1`
+  trusts the zdxsv test CA, `ZDXSV_TLS=0` turns TLS off.
+- Not covered: the login pages (port 80), UDP (GGPO, relays, live streams),
+  real PS2s and zproxy.
+
 ## Messages added to the lobby connection
 
 Three custom messages; the game never sees them. Each body is a list of
@@ -49,33 +76,43 @@ Lets the server tell emulators from real PS2s.
 
 ### Battle info `0x9951`
 
-| Key | Meaning |
+A `P2PMatching` protobuf message (zdxsv `pkg/proto/zdxsv.proto`). Field numbers
+follow gdxsv's `P2PMatching` where the meaning is the same; zdxsv's own fields
+start at 40. The client decodes it with the codec in `Proto.h` and rejects a
+message with more than 8 users, 64 candidates or 4 relays, a string over 256
+bytes, or a `peer_id` outside `users`.
+
+| Field | Meaning |
 |---|---|
-| `ggpo_<user>=port` | GGPO port of each player that announced one |
-| `p2p_<user>=addr,...` | UDP addresses of each player |
-| `ggpo_session=` | id of the battle (gdxsv: FNV-1 32 of the battle code). Without it there is no GGPO. |
-| `ggpo_ping_ms=` | length of the ping test, at most 10000 |
-| `name_<user>=`, `pilot_<user>=` | player name and pilot name, for the OSD and the replay |
-| `relay_<k>=<hex token>,<ip:port>[,<[ip6]:port>]` | relay servers of the battle, k = 0 to 3 |
-| `battle_code=`, `user_id=` | name the battle in the match report and the replay |
-| `live_uplink=1` | this client streams the battle for live spectating ([replay.md](replay.md)) |
+| `battle_code` (1) | names the battle in the match report and the replay |
+| `session_id` (2) | id of the battle in the ping test packets (zdxsv: random per battle). 0: no GGPO. |
+| `peer_id` (4) | own index in `users` |
+| `ping_test_duration` (6) | length of the ping test in ms, at most 10000 |
+| `users` (9) | every player in battle order: `user_id`, `user_name`, `pilot_name` (OSD, replay), `ggpo_port` (40), `sync` (41, settings fingerprint) |
+| `candidates` (10) | UDP addresses of the other players: `user_id`, `peer_id`, `ip`, `port` |
+| `relays` (11) | relay servers: `ip`, `port`, `token`, `ip6`, `port6` (40) |
+| `spectator_uplink` (12) | this client streams the battle for live spectating ([replay.md](replay.md)) |
+| `lobby_session_id` (40), `battle_server` (41) | the lobby session and the battle server `ip:port` |
 
 ### Match report `0x9952`
 
-How the battle ran, as flycast's `lbsP2PMatchingReport`.
+How the battle ran: a `P2PMatchingReport` (field numbers as gdxsv's where the
+meaning is the same). The client collects `key=value` lines during the battle
+and encodes them when it sends the report; the lobby logs the report as one
+`p2p matching report:` line of `field="value"`.
 
-| Key | Sent | Meaning |
+| Field | Sent | Meaning |
 |---|---|---|
-| `battle_code`, `user_id` | always | from the battle info |
-| `result` | always | `ggpo` or `cut`; a cut before the ping test adds `reason` |
-| `position`, `players` | always | own battle position and the player count |
-| `rtt_<pos>`, `addr_<pos>`, `path_<pos>` | ping test ran | RTT per peer (-1 = no answer), the picked address and path |
-| `relays`, `ping_wait_ms`, `delay` | ping test ran | relay server count, time waited for the test, GGPO input delay |
-| `ping_error` | the ping test could not start | why, e.g. the GGPO port could not be bound |
-| `close`, `frames`, `rollback_frames`, `mismatches`, `disconnected` | GGPO battle | why the session ended and its counters |
-| `disconnected_positions` | GGPO battle | positions whose peer disconnected, comma separated, empty if none |
-| `ping_<position>` | GGPO battle | `min/median/max` ms of that peer's ping, sampled once a second while connected; `-1/-1/-1` with no sample |
-| `answered`, `cut_sends` | cut | peers that answered, and sends dropped during the cut |
+| `battle_code` (1), `user_id` (40) | always | from the battle info |
+| `result` (41) | always | `ggpo` or `cut`; a cut before the ping test adds `cut_reason` (42) |
+| `peer_id` (4), `player_count` (3) | always | own battle position and the player count |
+| `remote_peers` (31) | ping test ran | per peer: `peer_id`, `rtt_ms` (40, -1 = no answer), the picked `addr` (41) and `route` (7) |
+| `relay_count` (46), `ping_wait_ms` (48), `input_delay` (21), `min_delay` (49), `fixed_delay` (50) | ping test ran | relay server count, time waited for the test, GGPO input delay |
+| `ping_error` (47) | the ping test could not start | why, e.g. the GGPO port could not be bound |
+| `close_reason` (5), `frame_count` (6), `rollback_frames` (52), `mismatches` (53), `disconnected` (54) | GGPO battle | why the session ended and its counters |
+| `disconnected_peer_ids` (55) | GGPO battle | positions whose peer disconnected |
+| `remote_peers`: `ping_min_ms` (4), `ping_median_ms` (5), `ping_max_ms` (6) | GGPO battle | that peer's GGPO ping in ms, sampled once a second while connected; unset with no sample |
+| `answered` (45), `cut_sends` (51), `sync` (43), `sync_differ` (44) | cut | peers that answered, sends dropped during the cut, differing settings |
 
 ## How a lobby battle starts
 

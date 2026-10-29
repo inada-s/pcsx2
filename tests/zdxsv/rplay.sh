@@ -17,7 +17,7 @@
 # <= SPREAD (default 4) frames. With PCSX2_ENV=ZDXSV_REPLAY_SYNC=0 (control: no waiting) the spread check FAILs.
 # Control bar: KEYS="15:bar:show,w600,bar:timeline:0.7,shot:$OUT/a.png" (pcsx2ctl.ps1 mouse tokens).
 # API=1: plays ZDXSV_REPLAY=http://127.0.0.1:API_PORT/lbs/replay?battle_code=<FILE's name> from apiserve.py (API_PORT,
-# default 9891), whose replay_url serves FILE; checks the replay_url line too.
+# default 9891), whose replay_url serves FILE; checks the replay_url line too. GZIP=1: replay_url serves FILE gzip encoded (Content-Encoding: gzip), as GCS serves the lobby's objects.
 # BAD=1: FILE is not a playable replay: exit 0 if the player is told it did not start (`replay: not started`).
 here=$(cd "$(dirname "$0")" && pwd -W)
 . "$here/riglock.sh"  # one rig at a time
@@ -56,7 +56,7 @@ if [ -n "$KEYS" ]; then
 fi
 play=$FILE api=
 if [ "${API:-}" = 1 ]; then
-  "$PY" -I "$here/apiserve.py" ${API_PORT:-9891} "$FILE" > "$OUT/apiserve.log" 2>&1 & api=$!
+  "$PY" -I "$here/apiserve.py" ${API_PORT:-9891} "$FILE" ${GZIP:+gzip} > "$OUT/apiserve.log" 2>&1 & api=$!
   play="http://127.0.0.1:${API_PORT:-9891}/lbs/replay?battle_code=$(basename "$FILE" .pb)"
 fi
 env ZDXSV_REPLAY="$play" ${POV:+ZDXSV_REPLAY_POV=$POV} ZDXSV_REPLAY_EXIT=1 $([ "$WINDOW" = 1 ] || echo ZDXSV_REPLAY_TURBO=1) ${CLAMP:+ZDXSV_EE_CLAMP=$CLAMP} \

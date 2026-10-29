@@ -55,6 +55,33 @@
        </layout>
       </item>
       <item>
+       <layout class="QHBoxLayout" name="zdxsvGgpoPortLayout">
+        <item>
+         <widget class="QLabel" name="zdxsvGgpoPortLabel">
+          <property name="text">
+           <string>UDP port for battles. 0 picks a random port at the next game start and keeps it. Forward this UDP port on your router if direct connections fail.</string>
+          </property>
+          <property name="wordWrap">
+           <bool>true</bool>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QSpinBox" name="zdxsvGgpoPort">
+          <property name="minimum">
+           <number>0</number>
+          </property>
+          <property name="maximum">
+           <number>65535</number>
+          </property>
+          <property name="value">
+           <number>0</number>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
        <widget class="QCheckBox" name="zdxsvNetOsd">
         <property name="text">
          <string>Show the network status overlay during online battles. Takes effect at the next game start.</string>

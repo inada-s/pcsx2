@@ -40,8 +40,11 @@ public:
    GGPOErrorCode GetCurrentFrame(int* frame) override { *frame = _sync.GetFrameCount(); return GGPO_OK; }
    GGPOErrorCode GetLastConfirmedFrame(int* frame) override { *frame = _sync.GetLastConfirmedFrame(); return GGPO_OK; }
 
+   GGPOErrorCode ForwardRelayed(int *forwarded) override { *forwarded = _udp.ForwardRelayed(); return GGPO_OK; }
+
 public:
    void OnMsg(sockaddr_storage &from, UdpMsg *msg, int len) override;
+   bool TryForward(sockaddr_storage &from, UdpMsg *msg, int len) override;
 
 protected:
    GGPOErrorCode PlayerHandleToQueue(GGPOPlayerHandle player, int *queue);

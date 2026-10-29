@@ -52,6 +52,7 @@ namespace InternalServers
 	int DNS_Server::DNS_State::AddAnswer(const std::string& answer, IP_Address address)
 	{
 		answers[answer] = address;
+		Zdxsv::DnsOnAnswer(answer.c_str(), address.bytes); // zdxsv
 		return --counter;
 	}
 	int DNS_Server::DNS_State::AddNoAnswer(const std::string& answer)

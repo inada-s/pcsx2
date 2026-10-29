@@ -33,8 +33,11 @@
 #   checks above run per watched battle, plus K+1 different battles watched (pwcheck too: --battle <code>).
 #   LIVE_SPEED=X: the spectator runs at normal speed X (launch.ps1 -Speed), off the stream's rate: a pacing
 #   test (the pace lines' gap and waits, with and without ZDXSV_LIVE_PACING=0).
+#   LIVE_STALL=S (LIVE): S s after the spectator starts, the lobby process is suspended (the stream stalls at its
+#   newest frame), 3 s later the spectator's windows get a close (WM_CLOSE), then the lobby resumes. Check, instead
+#   of the LIVE ones: the spectator exits within 5 s (a CPU thread stuck waiting for live data exits after ~30 s).
 #   GGPO_DEFAULT=K: client K gets no ZDXSV_GGPO (launch.ps1 ZDXSV_GGPO=default), so the ZdxsvGgpo setting
-#   gives its options (port 7001); check: its log names the default options.
+#   gives its options (port: the ZdxsvGgpoPort setting); check: its log names the default options.
 #   BAD_SESSION=K (GDELAY=auto): client K gets badsession=1: every ping test fails,
 #   every client cuts the battle connection; no mash; waits for each cut to end + 2 lobby tcp conns per client;
 #   checks: cut + cut ended per client, no GGPO session, no result with frames.
@@ -44,7 +47,7 @@
 #   GGPO client cuts (`settings or build differ`); the same wait and checks as BAD_SESSION.
 #   Both: CUTMAX=V fails a cut that took more than V vsyncs to end.
 #   REPORT=1: the lobby logged one 0x9952 match report per
-#   client for the results' battle code: result=ggpo + close=net battle end + 0 mismatches (cut: result=cut).
+#   client for the results' battle code: result=ggpo + close_reason=net battle end + 0 mismatches (cut: result=cut).
 #   OSD=1: each GGPO client's last `osd frame` log line (-> osd-pN.txt)
 #   has its delay and every opponent's user id, name (battle info name_), pilot name (pilot_) and ping;
 #   names, pilot names = zdxsv.db (osdname.py).
@@ -113,6 +116,23 @@ cleanup() {
 trap 'cleanup; rig_release' EXIT
 ok=0
 check() { if eval "$2"; then echo "PASS $1"; else echo "FAIL $1"; ok=1; fi; }
+lobby_suspend() {  # $1 = Suspend / Resume
+  powershell -NoProfile -Command "Add-Type 'using System; using System.Runtime.InteropServices; public static class Nt { [DllImport(\"ntdll.dll\")] public static extern int NtSuspendProcess(IntPtr h); [DllImport(\"ntdll.dll\")] public static extern int NtResumeProcess(IntPtr h); }'; Get-Process zdxsv* -EA 0 | % { [void][Nt]::Nt$1Process(\$_.Handle) }"
+}
+live_stall() {
+  local pid t
+  pid=$(grep -o 'pid [0-9]*' "$OUT/live-launch.txt" | head -1 | cut -d' ' -f2)
+  sleep "$LIVE_STALL"
+  lobby_suspend Suspend
+  sleep 3
+  t=$SECONDS
+  # taskkill closes only the first top-level window in z-order: in a spectator that can be a hidden
+  # Qt _q_titlebar window, which drops it; a WM_CLOSE to every window reaches the display surface
+  powershell -NoProfile -Command "Add-Type 'using System; using System.Runtime.InteropServices; public static class Wc { public delegate bool EnumProc(IntPtr h, IntPtr l); [DllImport(\"user32.dll\")] public static extern bool EnumWindows(EnumProc f, IntPtr l); [DllImport(\"user32.dll\")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint p); [DllImport(\"user32.dll\")] public static extern bool PostMessage(IntPtr h, uint m, IntPtr w, IntPtr l); public static void Close(uint pid) { EnumWindows((h, l) => { uint p; GetWindowThreadProcessId(h, out p); if (p == pid) PostMessage(h, 0x10, IntPtr.Zero, IntPtr.Zero); return true; }, IntPtr.Zero); } }'; [Wc]::Close($pid)"
+  while [ $((SECONDS - t)) -lt 60 ] && tasklist //FI "PID eq $pid" 2>/dev/null | grep -q " $pid "; do sleep 0.5; done
+  echo "stall: exit after $((SECONDS - t)) s"
+  lobby_suspend Resume
+}
 
 # stack.sh runs in the background: its binary check fails here, before any client
 ZDXSV=$ZDXSV bash "$here/zbincheck.sh" "${ZBIN:-$ZDXSV/bin/zdxsv.exe}" || exit 1
@@ -146,6 +166,7 @@ if [ -n "${LIVE:-}" ]; then
     echo "live uplink after $((SECONDS - t1)) s: spectator p$LIVE"
     env ZDXSV_REPLAY="udp://127.0.0.1:8201" ZDXSV_LIVE_NEXT=${LIVE_NEXT:-0} ZDXSV_REPLAY_EXIT=1 ZDXSV_PW_HASH=1 ZDXSV_NET_TRACE="$OUT/trace-live.txt" \
       powershell -NoProfile -Command "& '$here/launch.ps1' -N $LIVE -Headless -StateFile ${LIVE_STATE:-$RBKSTATES/rbk-p1.p2s}${LIVE_SPEED:+ -Speed $LIVE_SPEED}" 2>&1 | tail -1
+    [ -z "${LIVE_STALL:-}" ] || live_stall
   ) > "$OUT/live-launch.txt" 2>&1 & pids+=($!)
 fi
 for i in $CLIENTS; do
@@ -185,6 +206,13 @@ check "join udp peer x$nz" "[ \$(grep -c 'join udp peer' '$OUT/battle.log') -eq 
 check "join tcp x$((nc - nz))" "[ \$(grep -c 'join success' '$OUT/battle.log') -eq $((nc - nz)) ]"
 [ -n "${EMU:-}" ] && check "platform info sent x$nc" "[ \$(cat '$RUN'/p[1-4]/PCSX2/logs/emulog.txt | grep -a -c 'sent platform info') -ge $nc ]"
 [ -z "${EMU:-}" ] && check "platform info off x4, no bridge" "[ \$(cat '$RUN'/p[1-4]/PCSX2/logs/emulog.txt | grep -a -c 'platform info off') -ge 4 ] && ! cat '$RUN'/p[1-4]/PCSX2/logs/emulog.txt | grep -a -q 'bridge'"
+if [ -n "${EMU:-}" ] && [ "${ZDXSV_TLS_TEST_PIN:-}" = 1 ]; then
+  for i in ${CLIENTS:-1 2 3 4}; do
+    el="$RUN/p$i/PCSX2/logs/emulog.txt"; tp="8220 8221"; [ -z "${GGPO:-}" ] && tp="$tp 8222"
+    for t in $tp; do check "p$i TLS port $t" "grep -a -q 'Zdxsv: TLS: .* through TLS port $t' '$el'"; done
+    check "p$i no TLS failure" "! grep -a -q 'OSD \[ZdxsvTls\]' '$el'"
+  done
+fi
 [ "$(grep -c 'join udp peer\|join success' "$OUT/battle.log")" -ge 1 ] || { echo "FAIL no battle"; exit 1; }
 # a peer missing from the battle: 4 results never come
 [ $ok -eq 0 ] || exit 1
@@ -274,6 +302,7 @@ if [ -n "${EMU:-}" ] && [ -n "${GGPO:-}" ]; then
     check "p$i ggpo session, $((nc - 1)) lobby peers x$B" "grep -a -q 'ZdxsvGgpo: net player' '$f' && [ \$(grep -a -c 'ZdxsvGgpo: lobby peer position' '$f') -eq $(((nc - 1) * B)) ]"
   done
   [ -n "${GGPO_DEFAULT:-}" ] && check "p$GGPO_DEFAULT GGPO from the setting" "grep -a -q \"ZdxsvGgpo: options 'net=1,lobby=1' (serial SLPS-25419, setting 1)\" '$RUN/p$GGPO_DEFAULT/PCSX2/logs/emulog.txt'"
+  [ -n "${GGPO_DEFAULT:-}" ] && check "p$GGPO_DEFAULT GGPO port from the setting" "p=\$(grep -a -o '^ZdxsvGgpoPort = [0-9]*' '$RUN/p$GGPO_DEFAULT/PCSX2/inis/PCSX2.ini' | grep -o '[0-9]*\$') && [ \"\$p\" -gt 0 ] && grep -a -q \"ZdxsvGgpo: net player .* port \$p \" '$RUN/p$GGPO_DEFAULT/PCSX2/logs/emulog.txt'"
   # every GGPO client: $B GGPO battle ends; per battle the same end frame; 0 mismatches
   ends=$(for i in ${GGPO_CLIENTS:-$CLIENTS}; do grep -a -o 'net battle end frames [0-9]* rollback frames [0-9]* loads [0-9]* mismatches [0-9]*' "$RUN/p$i/PCSX2/logs/emulog.txt" | awk -v p=$i '{print "p" p, "battle", NR, "frames", $5, "mismatches", $NF}'; done)
   echo "$ends" | sed 's/^/ggpo end /'
@@ -282,7 +311,7 @@ if [ -n "${EMU:-}" ] && [ -n "${GGPO:-}" ]; then
     ng=$(echo ${GGPO_CLIENTS:-$CLIENTS} | wc -w)
     grep -a 'p2p matching report:' "$OUT/lobby.log" | cut -c1-300
     check "no match report without a battle code" "! grep -a -q 'p2p matching report: battle_code=\"\"' '$OUT/lobby.log'"
-    check "match report x$ng: battle code $(report_code), result ggpo, net battle end, 0 mismatches" "[ \$(grep -a 'p2p matching report: battle_code=\"$(report_code)\"' '$OUT/lobby.log' | grep 'result=\"ggpo\"' | grep 'close=\"net battle end\"' | grep -c 'mismatches=\"0\"') -eq $ng ]"
+    check "match report x$ng: battle code $(report_code), result ggpo, net battle end, 0 mismatches" "[ \$(grep -a 'p2p matching report: battle_code=\"$(report_code)\"' '$OUT/lobby.log' | grep 'result=\"ggpo\"' | grep 'close_reason=\"net battle end\"' | grep -c 'mismatches=\"0\"') -eq $ng ]"
   fi
   if [ -n "${UPLOAD:-}" ]; then
     sleep 10  # uploads run detached after the battle end
@@ -371,7 +400,12 @@ if [ -n "${GGPO_LAT:-}" ]; then
   echo "udprelay: $(grep -a 'relay \(end\|stats\)' "$OUT/udprelay.txt" | tail -1 | tr -d '\r')"
   check "udprelay forwarded (the ping test reached it)" "grep -a 'relay \(end\|stats\)' '$OUT/udprelay.txt' | tail -1 | grep -a -q 'packets in [1-9]'"
 fi
-if [ -n "${LIVE:-}" ]; then
+if [ -n "${LIVE_STALL:-}" ]; then
+  for t in $(seq 120); do grep -q '^stall: ' "$OUT/live-launch.txt" && break; sleep 1; done
+  cp "$RUN/p$LIVE/PCSX2/logs/emulog.txt" "$OUT/emulog-live.txt" 2>/dev/null
+  cat "$OUT/live-launch.txt"
+  check "live stall: the spectator exits within 5 s of its window's close" "grep -q '^stall: exit after [0-5] s' '$OUT/live-launch.txt'"
+elif [ -n "${LIVE:-}" ]; then
   f=$RUN/p$LIVE/PCSX2/logs/emulog.txt
   # the spectator trails the players (buffer wait; the close goes out after the replay write)
   nw=$((${LIVE_NEXT:-0} + 1))

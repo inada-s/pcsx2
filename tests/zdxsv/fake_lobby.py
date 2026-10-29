@@ -19,7 +19,7 @@ With --trace (a `zdxsv -v=2 lobby` log of a real battle, lobby_trace.py):
   trace). 0x6915 gets a fresh battle code; 0x6916 the battle server, after the custom 0x9951
   battle info (session, users, p2p_<user>=addr from the STUN answers below, ggpo_<user> with --ggpo;
   ggpo_session + ggpo_ping_ms as zdxsv (--bad-session K: client K's differs); --no-addr K: client K has no p2p_ / ggpo_ line; --ggpo-delay D: ggpo_ = a udprelay.py per pair, D ms one way,
-  so the GGPO ping test and battle see 2*D ms rtt); --relay ADDR: relay_0 for a `zdxsv relay` there, ggpo_session from --relay-session.
+  so the GGPO ping test and battle see 2*D ms rtt); --ggpo-block K-L: no relay for that pair, so they reach each other only through another peer; --relay ADDR: relay_0 for a `zdxsv relay` there, ggpo_session from --relay-session.
 - STUN on UDP --port+1 (zproxy Ping -> Pong{public_addr}). The emulator pings it right
   before its adopted connection sends, so the k-th unbound ping address belongs to the k-th
   adopted connection (launch / drive the games one at a time).
@@ -40,6 +40,27 @@ import lobby_trace
 
 HDR = struct.Struct(">BBHHHI")
 Q, A, N, C = 0x01, 0x02, 0x10, 0xFF
+
+
+def pb_varint(v):
+    v &= (1 << 64) - 1
+    out = b""
+    while v >= 0x80:
+        out += bytes([v & 0x7F | 0x80])
+        v >>= 7
+    return out + bytes([v])
+
+
+def pb_int(field, v):
+    return pb_varint(field << 3) + pb_varint(v)
+
+
+def pb_bytes(field, b):
+    return pb_varint(field << 3 | 2) + pb_varint(len(b)) + b
+
+
+def pb_str(field, s):
+    return pb_bytes(field, s.encode())
 # question -> answer body, as zdxsv pkg/lobby/msg_lobby.go (empty lobby: no other users)
 ANSWERS = {
     0x6305: lambda b: b"",  # EnterLobby
@@ -180,6 +201,10 @@ class Battle:
         for i, x in enumerate(gg):
             for y in gg[i + 1:]:
                 relays[(x, y)], relays[(y, x)] = port, port + 1
+                if {self.conns.index(x) + 1, self.conns.index(y) + 1} == self.args.ggpo_block:
+                    log("relay %s <-> %s: %d / %d, blocked (nothing listens)" % (x.user, y.user, port, port + 1))
+                    port += 2
+                    continue
                 cmd = [sys.executable, "-u", UDPRELAY, "--a", str(port), "--b", str(port + 1),
                        "--p1", str(self.ggpo_port(x)), "--p2", str(self.ggpo_port(y)), "--delay", str(self.args.ggpo_delay),
                        "--seconds", "3600", "--idle", "600"]
@@ -190,18 +215,25 @@ class Battle:
         return relays
 
     def info(self, conn):
-        users = [c.user for c in self.order]
-        lines = "session_id=%s\nuser_id=%s\nbattle_server=%s\nusers=%s\n" % (conn.session, conn.user, self.args.battle, ",".join(users))
+        """A P2PMatching (zdxsv pkg/proto/zdxsv.proto), as zdxsv's battleInfoNotice."""
+        users, candidates = [], b""
         ggpo = False
-        for c in self.order:
+        for i, c in enumerate(self.order):
+            user = pb_str(1, c.user)
             if c is not conn and c.udp and not (self.args.no_addr and self.conns.index(c) + 1 == self.args.no_addr):
                 r = self.relays.get((conn, c))
-                v4 = "127.0.0.1:" + c.udp.split(":")[1] if r else c.udp
-                v6 = "[%s]:%s" % (self.args.v6, c.udp.split(":")[1])
-                lines += "p2p_%s=%s\n" % (c.user, ",".join({"v4": [v4], "v6": [v6], "dual": [v4, v6]}[self.args.p2p]))
+                port = int(c.udp.split(":")[1])
+                v4 = ("127.0.0.1" if r else c.udp.split(":")[0], port)
+                v6 = (self.args.v6, port)
+                for ip, p in {"v4": [v4], "v6": [v6], "dual": [v4, v6]}[self.args.p2p]:
+                    candidates += pb_bytes(10, pb_str(1, c.user) + pb_int(2, i) + pb_str(3, ip) + pb_int(4, p))
                 if self.ggpo_port(c):
-                    lines += "ggpo_%s=%d\n" % (c.user, r or self.ggpo_port(c))
+                    user += pb_int(40, r or self.ggpo_port(c))
                     ggpo = True
+            users.append(user)
+        m = pb_str(1, self.code) + pb_int(4, self.order.index(conn))
+        m += b"".join(pb_bytes(9, u) for u in users) + candidates
+        tail = pb_str(40, conn.session) + pb_str(41, self.args.battle)
         if ggpo:
             # as zdxsv: ggpo_session = FNV-1 32 of the battle code, ping test 7500 ms
             h = 2166136261
@@ -211,11 +243,12 @@ class Battle:
                 # the relay knows one session (zdxsv relay <id> <token>); zdxsv gives every battle its own
                 sid, token = self.args.relay_session.split(":")
                 h = int(sid)
-                lines += "relay_0=%s,%s\n" % (token, self.args.relay)
+                ip, port = self.args.relay.rsplit(":", 1)
+                m += pb_bytes(11, pb_str(2, ip) + pb_int(3, int(port)) + pb_int(4, int(token, 16)))
             if self.args.bad_session and self.conns.index(conn) + 1 == self.args.bad_session:
                 h ^= 0x5A5A5A5A  # negative test: this client's ping packets carry a foreign session
-            lines += "ggpo_session=%d\nggpo_ping_ms=7500\n" % h
-        return lines.encode()
+            m += pb_int(2, h) + pb_int(6, 7500)
+        return m + tail
 
 
 class Conn:
@@ -375,6 +408,7 @@ def main():
     ap.add_argument("--ggpo-clients", default="1234", help="adopted clients (1-based) that get a ggpo_ line")
     ap.add_argument("--ggpo-delay", type=float, default=0, help="one-way ms: ggpo_ ports point at a udprelay.py per pair")
     ap.add_argument("--ggpo-relay-port", type=int, default=7301, help="first relay port (2 per pair)")
+    ap.add_argument("--ggpo-block", default="", help="K-L (adopted clients, 1-based, with --ggpo-delay): their pair gets relay ports that nothing listens on")
     ap.add_argument("--bad-session", type=int, default=0, help="the k-th adopted client (1-based) gets a different ggpo_session")
     ap.add_argument("--no-addr", type=int, default=0, help="the k-th adopted client (1-based) gets no p2p_ / ggpo_ line in the others' battle infos")
     ap.add_argument("--p2p", choices=("v4", "v6", "dual"), default="v4",
@@ -384,6 +418,9 @@ def main():
     ap.add_argument("--relay-session", default="1234:abcd", help="--relay: ggpo_session:hex token, as given to `zdxsv relay`")
     ap.add_argument("--battlereg",default=os.environ.get("BATTLEREG", os.path.join(here, "battlereg", "battlereg.exe")))
     a = ap.parse_args()
+    a.ggpo_block = {int(k) for k in a.ggpo_block.split("-")} if a.ggpo_block else set()
+    if a.ggpo_block and (len(a.ggpo_block) != 2 or not a.ggpo_delay):
+        sys.exit("--ggpo-block K-L: two clients, with --ggpo-delay")
     if a.p2p != "v4" and a.ggpo_delay:
         sys.exit("--p2p %s: the --ggpo-delay relays are IPv4 only" % a.p2p)
     if a.ggpo_delay and not os.path.isfile(UDPRELAY):
