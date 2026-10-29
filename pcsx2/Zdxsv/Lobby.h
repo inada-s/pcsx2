@@ -194,6 +194,9 @@ namespace Zdxsv
 	// servers (optional): every relay of the test, in order. error (optional): why the last
 	// StartPingTest ran no test (bind failure), "" otherwise.
 	std::vector<PingResult> FinishPingTest(std::vector<RelayServerAddr>* servers = nullptr, std::string* error = nullptr);
+	// The running ping test, for the connection diagram (any thread): ms since its start, its length, the
+	// player count and the rtt matrix ([i][j]: i's rtt to j in ms, 255 max, 0 = unknown). False when none runs.
+	bool PingTestView(int& elapsedMs, int& durationMs, int& players, uint8_t rtt[4][4]);
 	// Merges a ping packet's relay rtt matrix ([peer][relay], 0 = unknown) from position from into dst:
 	// from's row as is, other rows when non-zero, own row kept.
 	void MergeRelayRtt(uint8_t dst[4][4], const uint8_t src[4][4], int self, int from);
