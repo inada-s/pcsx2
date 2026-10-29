@@ -361,6 +361,10 @@ namespace Zdxsv
 				left.push_back(std::atoll(p.c_str()));
 			Pb::PutPackedInts(o, 55, left); // disconnected_peer_ids
 		}
+		if (auto it = kv.find("rollback_budget"); it != kv.end())
+			Pb::PutFloat(o, 56, std::strtof(it->second.c_str(), nullptr));
+		if (auto it = kv.find("rollback_budget_used"); it != kv.end())
+			Pb::PutFloat(o, 57, std::strtof(it->second.c_str(), nullptr));
 		return o;
 	}
 

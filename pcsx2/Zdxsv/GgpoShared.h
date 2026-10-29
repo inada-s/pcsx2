@@ -370,4 +370,9 @@ namespace Zdxsv
 	void RbkReset();
 	bool LobbyArm(int me);
 	bool LobbyCutCall(u32 fno, s16 sock, s16 len);
+	float GgpoBudgetLearned();
+	float GgpoBudgetUsed();
+	int GgpoBudgetDelay(int rtt, int min_delay, float budget);
+	void GgpoBudgetFrame(bool sample, double rerun_ms, double wait_ms, double sleep_ms);
+	void GgpoBudgetSessionEnd(bool learn);
 } // namespace Zdxsv

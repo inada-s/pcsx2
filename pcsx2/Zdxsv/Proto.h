@@ -48,6 +48,15 @@ namespace Zdxsv::Pb
 		PutUint(o, field, static_cast<uint64_t>(v));
 	}
 
+	inline void PutFloat(std::vector<uint8_t>& o, uint32_t field, float v)
+	{
+		uint32_t bits;
+		std::memcpy(&bits, &v, sizeof(bits));
+		PutVarint(o, (field << 3) | 5);
+		for (int i = 0; i < 4; i++)
+			o.push_back(static_cast<uint8_t>(bits >> (8 * i)));
+	}
+
 	// Packed repeated varint (proto3 default for repeated int32 / uint64).
 	inline void PutPackedInts(std::vector<uint8_t>& o, uint32_t field, const std::vector<int64_t>& vs)
 	{

@@ -153,11 +153,13 @@ namespace Zdxsv
 								TRANSLATE_STR("Zdxsv", "No battle: an opponent did not answer. Check your router and firewall (UDP)."));
 				return false;
 			}
-			s_delay = std::max(s_min_delay, rtt > 0 ? (rtt + 31) / 32 : 0);
-			Console.WriteLn("ZdxsvGgpo: lobby delay %d: slowest peer rtt %d ms (%d of %d peers measured), min %d, waited %.1f s for the ping test",
-				s_delay, rtt, up, n - 1, s_min_delay, wait.GetTimeSeconds());
+			const float learned = GgpoBudgetLearned(), used = GgpoBudgetUsed();
+			s_delay = GgpoBudgetDelay(rtt, s_min_delay, used);
+			Console.WriteLn("ZdxsvGgpo: lobby delay %d: slowest peer rtt %d ms (%d of %d peers measured), min %d, rollback budget %.2f (learned %.2f), waited %.1f s for the ping test",
+				s_delay, rtt, up, n - 1, s_min_delay, used, learned, wait.GetTimeSeconds());
 			report("ggpo");
-			s_report += "delay=" + std::to_string(s_delay) + "\nmin_delay=" + std::to_string(s_min_delay) + "\n" + rtts;
+			s_report += "delay=" + std::to_string(s_delay) + "\nmin_delay=" + std::to_string(s_min_delay) + "\nrollback_budget=" +
+			            fmt::format("{:.2f}", learned) + "\nrollback_budget_used=" + fmt::format("{:.2f}", used) + "\n" + rtts;
 		}
 		else
 		{
