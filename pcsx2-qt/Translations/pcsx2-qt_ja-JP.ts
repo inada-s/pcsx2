@@ -27405,4 +27405,550 @@ PCSX2 will be able to run once you&apos;ve placed your BIOS image inside the fol
       <translation>テクスチャダンピングが有効になっているため、テクスチャは継続的にダンプされます。</translation>
     </message>
   </context>
+  <context>
+    <name>QObject</name>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="29"/>
+      <source>Overridden by the environment variable %1=%2</source>
+      <translation>環境変数 %1=%2 で上書きされています</translation>
+    </message>
+  </context>
+  <context>
+    <name>ZdxsvReplayDialog</name>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="111"/>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="463"/>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="479"/>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="487"/>
+      <source>zdxsv Replays</source>
+      <translation>zdxsv リプレイ</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="119"/>
+      <source>http://host:port of the lobby's public API (remote and live lists)</source>
+      <translation>ロビーの公開 API の http://ホスト:ポート (リモートとライブの一覧)</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="121"/>
+      <source>Lobby API:</source>
+      <translation>ロビー API:</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="125"/>
+      <source>Local</source>
+      <translation>ローカル</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="126"/>
+      <source>Remote</source>
+      <translation>リモート</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="127"/>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="383"/>
+      <source>Live</source>
+      <translation>ライブ</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="131"/>
+      <source>Point of view:</source>
+      <translation>視点:</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="133"/>
+      <source>Recorder</source>
+      <translation>録画したプレイヤー</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="135"/>
+      <source>%1P</source>
+      <translation>%1P</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="138"/>
+      <source>Play</source>
+      <translation>再生</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="145"/>
+      <source>Close</source>
+      <translation>閉じる</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="182"/>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="226"/>
+      <source>Date</source>
+      <translation>日時</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="182"/>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="226"/>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="249"/>
+      <source>Battle Code</source>
+      <translation>バトルコード</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="182"/>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="226"/>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="249"/>
+      <source>Players</source>
+      <translation>プレイヤー</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="182"/>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="226"/>
+      <source>Rounds</source>
+      <translation>ラウンド</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="182"/>
+      <source>Length</source>
+      <translation>長さ</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="182"/>
+      <source>File</source>
+      <translation>ファイル</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="187"/>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="254"/>
+      <source>Refresh</source>
+      <translation>更新</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="190"/>
+      <source>Open Folder</source>
+      <translation>フォルダを開く</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="197"/>
+      <source>Browse...</source>
+      <translation>参照...</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="212"/>
+      <source>Battle code</source>
+      <translation>バトルコード</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="214"/>
+      <source>Player name</source>
+      <translation>プレイヤー名</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="216"/>
+      <source>Pilot name</source>
+      <translation>パイロット名</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="217"/>
+      <source>Search</source>
+      <translation>検索</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="231"/>
+      <source>Newer</source>
+      <translation>新しい順へ</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="232"/>
+      <source>Older</source>
+      <translation>古い順へ</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="249"/>
+      <source>Started</source>
+      <translation>開始</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="249"/>
+      <source>Elapsed</source>
+      <translation>経過</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="249"/>
+      <source>State</source>
+      <translation>状態</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="249"/>
+      <source>Spectators</source>
+      <translation>観戦者</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="283"/>
+      <source>(unreadable)</source>
+      <translation>(読み込めません)</translation>
+    </message>
+    <message numerus="yes">
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="289"/>
+      <source>%n replay(s) in %1</source>
+      <translation>
+        <numerusform>%1 に %n 件のリプレイ</numerusform>
+      </translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="297"/>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="354"/>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="463"/>
+      <source>Set the lobby API URL above.</source>
+      <translation>上でロビー API の URL を設定してください。</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="315"/>
+      <source>Searching...</source>
+      <translation>検索中...</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="325"/>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="364"/>
+      <source>The lobby API did not answer (status %1).</source>
+      <translation>ロビー API が応答しませんでした (ステータス %1)。</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="343"/>
+      <source>No replays found.</source>
+      <translation>リプレイが見つかりません。</translation>
+    </message>
+    <message numerus="yes">
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="343"/>
+      <source>Page %1: %n replay(s)</source>
+      <translation>
+        <numerusform>%1 ページ: %n 件のリプレイ</numerusform>
+      </translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="383"/>
+      <source>Ended</source>
+      <translation>終了</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="389"/>
+      <source>No live battles.</source>
+      <translation>ライブ中のバトルはありません。</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="389"/>
+      <source>%1 live, %2 ended</source>
+      <translation>ライブ %1 件、終了 %2 件</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="395"/>
+      <source>Select Replay</source>
+      <translation>リプレイを選択</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="396"/>
+      <source>zdxsv Replays (*.pb);;All Files (*.*)</source>
+      <translation>zdxsv リプレイ (*.pb);;すべてのファイル (*.*)</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="480"/>
+      <source>Mobile Suit Gundam: Gundam vs. Zeta Gundam (%1) is not in the game list. Add its folder in Settings → Game List.</source>
+      <translation>機動戦士ガンダム ガンダムVS.Zガンダム (%1) がゲーム一覧にありません。設定 → ゲーム一覧 でそのフォルダを追加してください。</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="487"/>
+      <source>Shut down the running game and play the replay?</source>
+      <translation>実行中のゲームを終了してリプレイを再生しますか?</translation>
+    </message>
+  </context>
+  <context>
+    <name>ZdxsvSettingsWidget</name>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.ui" line="20"/>
+      <source>Online Battles</source>
+      <translation>オンライン対戦</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.ui" line="26"/>
+      <source>Rollback netcode (GGPO) for online battles. Takes effect at the next game start.</source>
+      <translation>オンライン対戦にロールバック方式のネットコード (GGPO) を使います。次のゲーム起動から有効です。</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.ui" line="35"/>
+      <source>Minimum input delay (frames). The delay is picked from the ping to the opponents, never below this. Takes effect at the next game start.</source>
+      <translation>最小入力遅延 (フレーム)。遅延は対戦相手との ping から決まり、この値より小さくはなりません。次のゲーム起動から有効です。</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.ui" line="62"/>
+      <source>UDP port for battles. 0 picks a random port at the next game start and keeps it. Forward this UDP port on your router if direct connections fail.</source>
+      <translation>対戦用の UDP ポート。0 にすると次のゲーム起動時にランダムなポートを選んで保存します。直接接続できない場合はルーターでこの UDP ポートを転送してください。</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.ui" line="87"/>
+      <source>Show the network status overlay during online battles. Takes effect at the next game start.</source>
+      <translation>オンライン対戦中に通信状態を画面に表示します。次のゲーム起動から有効です。</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.ui" line="94"/>
+      <source>Low-latency vsync: show each frame before the frame limiter waits (shorter input lag).</source>
+      <translation>低遅延 VSync: フレームリミッターが待つ前に各フレームを表示します (入力遅延が短くなります)。</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.ui" line="103"/>
+      <source>Recommended Settings
+for Low-Spec PC</source>
+      <translation>低スペック PC 向けの
+おすすめ設定</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.ui" line="111"/>
+      <source>Recommended Settings
+for Mid-Spec PC</source>
+      <translation>中スペック PC 向けの
+おすすめ設定</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.ui" line="119"/>
+      <source>Recommended Settings
+for High-Spec PC</source>
+      <translation>高スペック PC 向けの
+おすすめ設定</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.ui" line="132"/>
+      <source>Replays and Live Spectating</source>
+      <translation>リプレイとライブ観戦</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.ui" line="138"/>
+      <source>Live spectating: watch the next live battle automatically.</source>
+      <translation>ライブ観戦: 次のライブバトルを自動で観戦します。</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.ui" line="145"/>
+      <source>Skip the mobile suit selection.</source>
+      <translation>機体選択をスキップします。</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.ui" line="152"/>
+      <source>Start with the key display on.</source>
+      <translation>キー表示をオンにして開始します。</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.ui" line="159"/>
+      <source>Control bar:</source>
+      <translation>コントロールバー:</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.ui" line="167"/>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="80"/>
+      <source>When paused or the mouse moves</source>
+      <translation>一時停止中またはマウス操作時</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.ui" line="172"/>
+      <source>Always</source>
+      <translation>常に表示</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.ui" line="177"/>
+      <source>Never</source>
+      <translation>表示しない</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.ui" line="185"/>
+      <source>Start state (URL or file):</source>
+      <translation>開始ステート (URL またはファイル):</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.ui" line="195"/>
+      <source>Upload the replay of each lobby battle to the zdxsv server.</source>
+      <translation>ロビー対戦ごとのリプレイを zdxsv サーバーにアップロードします。</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.ui" line="205"/>
+      <source>An environment variable overrides the setting it names: such a setting is greyed out here, and its tooltip names the variable.</source>
+      <translation>環境変数は対応する設定を上書きします。その設定はここで灰色になり、ツールチップに変数名が表示されます。</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="37"/>
+      <source>zdxsv</source>
+      <translation>zdxsv</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="64"/>
+      <source>Rollback Netcode (GGPO)</source>
+      <translation>ロールバックネットコード (GGPO)</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="64"/>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="70"/>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="72"/>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="76"/>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="84"/>
+      <source>Checked</source>
+      <translation>オン</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="65"/>
+      <source>Online battles of the game run over GGPO rollback netcode. Takes effect at the next game start. Other games are never affected.</source>
+      <translation>このゲームのオンライン対戦を GGPO ロールバックネットコードで行います。次のゲーム起動から有効です。他のゲームには影響しません。</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="66"/>
+      <source>Minimum Input Delay</source>
+      <translation>最小入力遅延</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="66"/>
+      <source>2</source>
+      <translation>2</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="67"/>
+      <source>Lowest GGPO input delay (frames, 2 to 6) a battle picks from the ping test. Also the delay of a replay takeover.</source>
+      <translation>対戦時に ping テストから選ばれる GGPO 入力遅延の下限 (フレーム、2〜6)。リプレイからの操作引き継ぎの遅延にも使います。</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="68"/>
+      <source>Battle UDP Port</source>
+      <translation>対戦用 UDP ポート</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="68"/>
+      <source>0</source>
+      <translation>0</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="69"/>
+      <source>UDP port the emulator uses for online battles. 0: a random port (29700 to 29800) is picked at the next game start and saved here.</source>
+      <translation>エミュレーターがオンライン対戦に使う UDP ポート。0: 次のゲーム起動時にランダムなポート (29700〜29800) を選んでここに保存します。</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="70"/>
+      <source>Network Status</source>
+      <translation>通信状態</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="71"/>
+      <source>Shows the network status overlay (one line per opponent) during online battles.</source>
+      <translation>オンライン対戦中に通信状態 (対戦相手ごとに 1 行) を画面に表示します。</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="72"/>
+      <source>Low-Latency Vsync</source>
+      <translation>低遅延 VSync</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="73"/>
+      <source>Presents the finished frame before the frame limiter sleeps, and polls input right before the next frame runs. Other games are never affected.</source>
+      <translation>フレームリミッターが待つ前に完成したフレームを表示し、次のフレームの直前に入力を読み取ります。他のゲームには影響しません。</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="74"/>
+      <source>Live Auto-Next</source>
+      <translation>ライブ自動切り替え</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="74"/>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="78"/>
+      <source>Unchecked</source>
+      <translation>オフ</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="75"/>
+      <source>Live spectating: when a stream ends, watch the lobby's next live battle.</source>
+      <translation>ライブ観戦: 配信が終わったら、ロビーの次のライブバトルを観戦します。</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="76"/>
+      <source>Skip Mobile Suit Selection</source>
+      <translation>機体選択をスキップ</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="77"/>
+      <source>A replay runs at full speed up to the briefing.</source>
+      <translation>リプレイをブリーフィングまで最高速で進めます。</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="78"/>
+      <source>Key Display</source>
+      <translation>キー表示</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="79"/>
+      <source>Replays start with the key display on. The Toggle Key Display hotkey switches it.</source>
+      <translation>リプレイをキー表示オンで開始します。「キー表示の切り替え」ホットキーで切り替えられます。</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="80"/>
+      <source>Control Bar</source>
+      <translation>コントロールバー</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="81"/>
+      <source>When the replay control bar is shown.</source>
+      <translation>リプレイのコントロールバーを表示するタイミング。</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="82"/>
+      <source>Start State</source>
+      <translation>開始ステート</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="83"/>
+      <source>Save state replays and live battles start from: a URL (downloaded once into the cache folder) or a file. Empty: the state of the running game.</source>
+      <translation>リプレイとライブバトルを開始するセーブステート: URL (キャッシュフォルダに一度だけダウンロード) またはファイル。空欄: 実行中のゲームのステート。</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="84"/>
+      <source>Upload Replays</source>
+      <translation>リプレイをアップロード</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="85"/>
+      <source>After each lobby battle, its replay is posted to the zdxsv server, where anyone can watch it (Tools → zdxsv Replays, Remote).</source>
+      <translation>ロビー対戦のたびにリプレイを zdxsv サーバーに送信し、誰でも観られるようにします (ツール → zdxsv リプレイ、リモート)。</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="90"/>
+      <source>Recommended Settings for Low-Spec PC</source>
+      <translation>低スペック PC 向けのおすすめ設定</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="90"/>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="92"/>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="94"/>
+      <source>None</source>
+      <translation>なし</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="91"/>
+      <source>Sets Internal Resolution to Native (PS2) and Minimum Input Delay to 3.</source>
+      <translation>内部解像度をネイティブ (PS2)、最小入力遅延を 3 にします。</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="92"/>
+      <source>Recommended Settings for Mid-Spec PC</source>
+      <translation>中スペック PC 向けのおすすめ設定</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="93"/>
+      <source>Sets Internal Resolution to 2x Native (~720p) and Minimum Input Delay to 2.</source>
+      <translation>内部解像度を 2x ネイティブ (~720p)、最小入力遅延を 2 にします。</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="94"/>
+      <source>Recommended Settings for High-Spec PC</source>
+      <translation>高スペック PC 向けのおすすめ設定</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="95"/>
+      <source>Sets Internal Resolution to 3x Native (~1080p) and Minimum Input Delay to 2.</source>
+      <translation>内部解像度を 3x ネイティブ (~1080p)、最小入力遅延を 2 にします。</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="145"/>
+      <source>Set to the default during online battles, replays and live spectating (the same on every player's emulator).</source>
+      <translation>オンライン対戦、リプレイ、ライブ観戦中は既定値になります (全プレイヤーのエミュレーターで同じ値)。</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="147"/>
+      <source>Set to the default while Gundam vs. Z Gundam runs (the same on every player's emulator).</source>
+      <translation>ガンダムVS.Zガンダムの実行中は既定値になります (全プレイヤーのエミュレーターで同じ値)。</translation>
+    </message>
+  </context>
 </TS>
