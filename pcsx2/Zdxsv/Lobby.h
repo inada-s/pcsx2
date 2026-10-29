@@ -81,7 +81,7 @@ namespace Zdxsv
 		std::vector<Relay> relays;
 	};
 	// Asks the lobby's UDP STUN at stunIP:stunPort for our public address, from a UDP socket on
-	// bindPort (0 = any). The first answer is cached for the process.
+	// bindPort (the GGPO port, so udp_addr is its NAT mapping; any port if it is taken or 0). Asks on every call.
 	// Returns platform info lines "udp_addr=..\nudp_local=..\nudp_addr6=[..]:..\n" (udp_addr only if
 	// STUN answered, udp_addr6 only with a global IPv6 address); "" if the socket can't be opened.
 	std::string OpenUdp(uint32_t stunIP, uint16_t stunPort, uint16_t bindPort = 0);
@@ -167,7 +167,8 @@ namespace Zdxsv
 
 	// GGPO address candidates of every player by battle position (own position empty); the first one is
 	// the default without a ping test. ownPublicIP "" = unknown. A player without a GGPO port or p2p
-	// address gets none (the ping test may still find a path). Returns our position, -1 if not listed.
+	// address gets none (the ping test may still find a path). A player whose candidates carry its GGPO
+	// port (STUN asked from it) keeps their ports, else every candidate gets the GGPO port. Returns our position, -1 if not listed.
 	int GgpoPeers(const BattleInfo& info, const std::string& ownPublicIP, std::vector<std::vector<PeerAddr>>& byPosition);
 
 	// GGPO ping test before a lobby GGPO battle: pings every candidate

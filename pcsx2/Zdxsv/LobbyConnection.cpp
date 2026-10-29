@@ -96,7 +96,7 @@ namespace Zdxsv
 			// The lobby's UDP STUN is on its host at 8201 (zdxsv docker-compose); ZDXSV_STUN_PORT overrides.
 			const char* stunPortEnv = std::getenv("ZDXSV_STUN_PORT");
 			const u16 stunPort = stunPortEnv ? static_cast<u16>(std::atoi(stunPortEnv)) : 8201;
-			std::string lines = OpenUdp(serverIp, stunPort);
+			std::string lines = OpenUdp(serverIp, stunPort, static_cast<u16>(ggpoPort));
 			// Connectivity test of the GGPO port, once per run, on its own thread so the DEV9 rx thread does
 			// not stall: its nat= line goes out from the first lobby connection after it ended. Not on an
 			// adopted connection: it sends no platform info.
