@@ -1442,7 +1442,8 @@ namespace Zdxsv
 	}
 
 	bool StartUdpTest(uint32_t stunIP, uint16_t stunPort, uint16_t bindPort,
-		std::function<void(const std::string& natLine, const std::string& summary)> done)
+		std::function<void(const std::string& natLine, const std::string& summary)> done,
+		std::function<bool(std::string& lines)> openPort)
 	{
 		std::lock_guard lock(g_udpTestMtx);
 		if (g_udpTestRunning)
@@ -1451,11 +1452,19 @@ namespace Zdxsv
 		g_udpTestRunning = true;
 		g_udpTest = std::make_unique<UdpTestRun>();
 		UdpTestRun* t = g_udpTest.get();
-		t->thread = std::thread([t, stunIP, stunPort, bindPort, done = std::move(done)] {
+		t->thread = std::thread([t, stunIP, stunPort, bindPort, done = std::move(done), openPort = std::move(openPort)] {
 			std::string summary;
-			const std::string line = UdpTest(stunIP, stunPort, bindPort, summary, &t->stop);
+			std::string line = UdpTest(stunIP, stunPort, bindPort, summary, &t->stop);
+			std::string extra;
+			if (openPort && !t->stop && line != "nat=open\n" && openPort(extra) && !t->stop)
+			{
+				std::string retest;
+				const std::string again = UdpTest(stunIP, stunPort, bindPort, retest, &t->stop);
+				if (again != "nat=unknown\n" || line == "nat=unknown\n")
+					line = again, summary = retest;
+			}
 			if (done && !t->stop)
-				done(line, summary);
+				done(line + extra, summary);
 			g_udpTestRunning = false;
 		});
 		return true;

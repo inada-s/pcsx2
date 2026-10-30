@@ -89,6 +89,13 @@
        </widget>
       </item>
       <item>
+       <widget class="QCheckBox" name="zdxsvUPnP">
+        <property name="text">
+         <string>Open the battle UDP port on the router with UPnP when the connectivity test finds it closed.</string>
+        </property>
+       </widget>
+      </item>
+      <item>
        <widget class="QCheckBox" name="zdxsvLowLatencyVsync">
         <property name="text">
          <string>Low-latency vsync: show each frame before the frame limiter waits (shorter input lag).</string>

@@ -7,6 +7,7 @@
 #include "Zdxsv/Lobby.h"
 #include "Zdxsv/SyncSettings.h"
 #include "Zdxsv/TestOptions.h"
+#include "Zdxsv/Upnp.h"
 
 #include "BuildVersion.h"
 #include "Host.h"
@@ -169,6 +170,16 @@ namespace Zdxsv
 							TRANSLATE_STR("Zdxsv", "P2P connectivity:") + " " + UdpSummaryText(summary), 10.0f);
 						std::lock_guard lock(natMutex);
 						natLine = line;
+					},
+					[ggpoPort](std::string& lines) {
+						if (!UpnpEnabled())
+							return false;
+						std::string error;
+						const bool mapped = UpnpMapUdp(static_cast<u16>(ggpoPort), error);
+						lines = "upnp_result=" + (mapped ? std::string("Success") : error) + "\n";
+						if (const std::string local = UpnpLocalAddress(); !local.empty())
+							lines += "upnp_local_ip=" + local + "\n";
+						return mapped;
 					});
 			return lines + natLine;
 		}

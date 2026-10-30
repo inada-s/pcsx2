@@ -72,6 +72,7 @@ Lets the server tell emulators from real PS2s.
 | `ggpo=P` | lobby GGPO on | GGPO UDP port |
 | `relay_server=1` | lobby GGPO on | the client can route GGPO through relay servers |
 | `nat=` | lobby GGPO on, after the connectivity test | result of the connectivity test |
+| `upnp_result=`, `upnp_local_ip=` | with `nat=`, when the port was not open and `ZdxsvUPnP` is on | UPnP mapping of the GGPO port: `Success` or the error; the LAN address the router maps to |
 | `<region>=ms` | after the HTTPS latency test | HTTPS round trip to that cloud region (gdxsv's keys) |
 
 "Lobby GGPO on" means `ZDXSV_GGPO` with `net=1,lobby=1` (the default).
@@ -192,6 +193,20 @@ feasibility test: `open`, `cone NAT`, `symmetric NAT` or `unknown`. Shown on
 the OSD in words only (no address or port: streams), logged with the
 addresses and sent as `nat=`. It runs on its own thread; a ping test
 cancels it.
+
+When the result is not `open` and `ZdxsvUPnP` is on, the emulator asks the
+router (UPnP IGD, miniupnpc in `3rdparty/miniupnpc`) to forward the GGPO UDP
+port to this PC, as flycast's `EnableUPnP`, and runs the test again. The
+retest's result replaces the first, unless only the retest got no answer.
+`upnp_result=` (`Success` or the error) and `upnp_local_ip=` go with `nat=`.
+The mapping has a 1-day lease and is removed when PCSX2 exits normally.
+
+Unlike flycast, there is no "UPnP Now" button yet. A router whose IGD
+reports no routable WAN address (`0.0.0.0`, as on a shared IPv4 behind
+MAP-E) counts as no gateway (`error 2`): such a router accepts mappings but
+opens nothing (measured on a ZTE F2886Q from an outside host: 0 packets
+through a mapped port, 184 through a punched one). `ZDXSV_UPNP_ANY_IGD=1`
+accepts it, for tests.
 
 ## HTTPS latency test
 

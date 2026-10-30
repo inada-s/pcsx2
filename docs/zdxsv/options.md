@@ -40,6 +40,7 @@ page greys it out and its tooltip names the variable.
 | `[DEV9/Eth] ZdxsvGgpoPort` | `0` | feature | UDP port of lobby battles (ping test and GGPO). 0 or out of range: a random port in 29700..29800, picked when the game starts with `lobby=1` and saved to the setting. `port=` overrides it. |
 | `[EmuCore/GS] ZdxsvLowLatencyVsync` | `true` | feature | Present the finished frame before the frame limiter sleeps, and poll input right before the next frame runs. |
 | `[DEV9/Eth] ZdxsvLiveAutoNext` | `false` | feature | Live spectating: when a stream ends, watch the lobby's next live battle. `ZDXSV_LIVE_NEXT` overrides it. |
+| `[DEV9/Eth] ZdxsvUPnP` | `true` | feature | When the connectivity test finds the GGPO port not open, map it on the router with UPnP and test again (`lobby.md`). |
 | `[DEV9/Eth] ZdxsvNetOsd` | `true` | feature | Network status OSD in GGPO battles. Read when the game starts. `osd=` overrides it. Off: shown only while an opponent is interrupted or disconnected. |
 | `[DEV9/Eth] ZdxsvReplaySkipMs` | `true` | feature | A replay skips the mobile suit selection. `ZDXSV_REPLAY_SKIP_MS` overrides it. |
 | `[DEV9/Eth] ZdxsvReplayKeyDisplay` | `false` | feature | Replays start with the key display on. `ZDXSV_REPLAY_KEY_DISPLAY` overrides it. |
@@ -55,6 +56,7 @@ page greys it out and its tooltip names the variable.
 |---|---|---|---|
 | `ZDXSV_PLATFORM_INFO=0` | on | test | Send no platform info. The server sees a real PS2. |
 | `ZDXSV_GAME_CRC=hex` | `435D8236` | control | The CRC taken as the Z game's (Game check). Another value runs the Z game as a foreign game: everything off. |
+| `ZDXSV_UPNP_ANY_IGD=1` | off | test | UPnP also uses a router whose IGD reports no routable WAN address (`0.0.0.0`); see [lobby.md](lobby.md). |
 | `ZDXSV_STUN_PORT=port` | 8201 | tuning | STUN port of the lobby. Asked only with `ZDXSV_GGPO` `lobby=1`. The connectivity test also uses port + 1; a server without that socket gives `nat=unknown`. |
 | `ZDXSV_HTTPS_LATENCY=0` | on | test | No HTTPS latency test, no `<region>=ms` platform info. `=name:host,...` measures these hosts (`https://host/api/ping`) instead of the regions. See [lobby.md](lobby.md). |
 | `ZDXSV_TLS=0` | on when the client has pins | test | TCP to the zdxsv server without TLS (a server without TLS ports). See [lobby.md](lobby.md). |
