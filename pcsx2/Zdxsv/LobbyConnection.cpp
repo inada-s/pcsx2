@@ -120,6 +120,27 @@ namespace Zdxsv
 			return port;
 		}
 
+		// The texts must match the summaries UdpTest sets; any other summary is shown untranslated.
+		std::string UdpSummaryText(const std::string& summary)
+		{
+			static constexpr const char* texts[] = {
+				TRANSLATE_NOOP("Zdxsv", "open"),
+				TRANSLATE_NOOP("Zdxsv", "cone NAT (port closed)"),
+				TRANSLATE_NOOP("Zdxsv", "symmetric NAT (port closed)"),
+				TRANSLATE_NOOP("Zdxsv", "unknown"),
+				TRANSLATE_NOOP("Zdxsv", "unknown (port busy)"),
+				TRANSLATE_NOOP("Zdxsv", "unknown (test cancelled)"),
+				TRANSLATE_NOOP("Zdxsv", "unknown (no answer from the server)"),
+				TRANSLATE_NOOP("Zdxsv", "unknown (no answer from the server's test socket)"),
+			};
+			for (const char* text : texts)
+			{
+				if (summary == text)
+					return Host::TranslateToString("Zdxsv", text);
+			}
+			return summary;
+		}
+
 		// lobby=1: battle infos go to GGPO. Returns the platform info lines of OpenUdp and our GGPO port
 		// (0 = off: the connection is plain TCP). filter: the connection's lobby filter when on.
 		std::string OpenLobby(u32 serverIp, int& ggpoPort, LobbyFilter*& filter, bool natTest = true)
@@ -132,7 +153,7 @@ namespace Zdxsv
 			// The lobby's UDP STUN is on its host at 8201 (zdxsv docker-compose); ZDXSV_STUN_PORT overrides.
 			const char* stunPortEnv = std::getenv("ZDXSV_STUN_PORT");
 			const u16 stunPort = stunPortEnv ? static_cast<u16>(std::atoi(stunPortEnv)) : 8201;
-			std::string lines = OpenUdp(serverIp, stunPort);
+			std::string lines = OpenUdp(serverIp, stunPort, static_cast<u16>(ggpoPort));
 			// Connectivity test of the GGPO port, once per run, on its own thread so the DEV9 rx thread does
 			// not stall: its nat= line goes out from the first lobby connection after it ended. Not on an
 			// adopted connection: it sends no platform info.
@@ -143,7 +164,8 @@ namespace Zdxsv
 			if (natTest && !natStarted)
 				natStarted = StartUdpTest(serverIp, stunPort, static_cast<u16>(ggpoPort),
 					[](const std::string& line, const std::string& summary) {
-						Host::AddIconOSDMessage("ZdxsvUdpTest", ICON_FA_NETWORK_WIRED, "P2P connectivity: " + summary, 10.0f);
+						Host::AddIconOSDMessage("ZdxsvUdpTest", ICON_FA_NETWORK_WIRED,
+							TRANSLATE_STR("Zdxsv", "P2P connectivity:") + " " + UdpSummaryText(summary), 10.0f);
 						std::lock_guard lock(natMutex);
 						natLine = line;
 					});

@@ -270,12 +270,15 @@ namespace Zdxsv
 				u16 to_target, to_current;
 				float to_left;
 				Zdxsv::ReplayTakeoverInfo(to_phase, to_target, to_current, to_left);
-				if (button("##takeover", to_phase == 3 ? ICON_FA_ROTATE_LEFT " Retry" : ICON_FA_GAMEPAD " Take over", to_phase == 0 || to_phase == 3))
+				const std::string retry_label = fmt::format(ICON_FA_ROTATE_LEFT " {}", TRANSLATE_SV("Zdxsv", "Retry"));
+				const std::string takeover_label = fmt::format(ICON_FA_GAMEPAD " {}", TRANSLATE_SV("Zdxsv", "Take over"));
+				const std::string toreplay_label = fmt::format(ICON_FA_FILM " {}", TRANSLATE_SV("Zdxsv", "Replay"));
+				if (button("##takeover", to_phase == 3 ? retry_label.c_str() : takeover_label.c_str(), to_phase == 0 || to_phase == 3))
 				{
 					Console.WriteLn("ZdxsvGgpo: replay bar: takeover at frame %d", frame);
 					Host::RunOnCPUThread([] { Zdxsv::ReplayTakeover(); });
 				}
-				if (to_phase == 3 && button("##toreplay", ICON_FA_FILM " Replay", true))
+				if (to_phase == 3 && button("##toreplay", toreplay_label.c_str(), true))
 				{
 					Console.WriteLn("ZdxsvGgpo: replay bar: back to the replay at frame %d", frame);
 					Host::RunOnCPUThread([] { Zdxsv::ReplayTakeoverReturn(); });
@@ -372,27 +375,27 @@ namespace Zdxsv
 			{
 				if (phase == 1)
 				{
-					ImGui::TextUnformatted("Takeover: hold the replay's input");
-					ImGui::Text("Replay: %s", BIcons(target).c_str());
-					ImGui::Text("You:    %s", BIcons(current).c_str());
+					ImGui::TextUnformatted(TRANSLATE("Zdxsv", "Takeover: hold the replay's input"));
+					ImGui::Text("%s %s", TRANSLATE("Zdxsv", "Replay:"), BIcons(target).c_str());
+					ImGui::Text("%s %s", TRANSLATE("Zdxsv", "You:"), BIcons(current).c_str());
 				}
 				else
 				{
-					ImGui::TextUnformatted("Takeover starts");
+					ImGui::TextUnformatted(TRANSLATE("Zdxsv", "Takeover starts"));
 					ImGui::ProgressBar(1.0f - left, ImVec2(300.0f * scale, 0.0f), "");
 				}
-				if (phase == 1 && ImGui::Button("Skip matching (START)"))
+				if (phase == 1 && ImGui::Button(TRANSLATE("Zdxsv", "Skip matching (START)")))
 				{
 					Console.WriteLn("ZdxsvGgpo: takeover panel: skip");
 					Host::RunOnCPUThread([] { Zdxsv::ReplayTakeoverSkip(); });
 				}
 				ImGui::SameLine();
-				if (ImGui::Button("Cancel"))
+				if (ImGui::Button(TRANSLATE("Zdxsv", "Cancel")))
 				{
 					Console.WriteLn("ZdxsvGgpo: takeover panel: cancel");
 					Host::RunOnCPUThread([] { Zdxsv::ReplayTakeoverCancel(); });
 				}
-				ImGui::TextDisabled("While taken over, START retries from the same frame.");
+				ImGui::TextDisabled("%s", TRANSLATE("Zdxsv", "While taken over, START retries from the same frame."));
 			}
 			ImGui::End();
 			ImGui::PopFont();

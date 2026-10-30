@@ -2058,6 +2058,9 @@ u32 VMManager::DeleteSaveStates(const char* game_serial, u32 game_crc, bool also
 
 bool VMManager::LoadState(const char* filename, Error* error)
 {
+	if (Zdxsv::g_ggpo_active && Zdxsv::GgpoBattleRefuses(error))
+		return false;
+
 	if (Achievements::IsHardcoreModeActive())
 	{
 		Error::SetString(error,
@@ -2084,6 +2087,9 @@ bool VMManager::LoadState(const char* filename, Error* error)
 
 bool VMManager::LoadStateFromSlot(s32 slot, bool backup, Error* error)
 {
+	if (Zdxsv::g_ggpo_active && Zdxsv::GgpoBattleRefuses(error))
+		return false;
+
 	const std::string filename = GetCurrentSaveStateFileName(slot, backup);
 	if (filename.empty() || !FileSystem::FileExists(filename.c_str()))
 	{
@@ -2174,6 +2180,9 @@ LimiterModeType VMManager::GetLimiterMode()
 
 void VMManager::SetLimiterMode(LimiterModeType type)
 {
+	if (type != LimiterModeType::Nominal && Zdxsv::g_ggpo_active && Zdxsv::GgpoBattleRefuses())
+		return;
+
 	if (s_limiter_mode == type)
 		return;
 
@@ -2329,6 +2338,9 @@ void VMManager::Internal::FrameRateChanged()
 
 void VMManager::FrameAdvance(u32 num_frames /*= 1*/)
 {
+	if (Zdxsv::g_ggpo_active && Zdxsv::GgpoBattleRefuses())
+		return;
+
 	if (!HasValidVM())
 		return;
 
@@ -2803,6 +2815,9 @@ void VMManager::IdlePollUpdate()
 
 void VMManager::SetPaused(bool paused)
 {
+	if (paused && Zdxsv::g_ggpo_active && Zdxsv::GgpoBattleRefuses())
+		return;
+
 	if (!HasValidVM())
 		return;
 

@@ -401,9 +401,10 @@ namespace Zdxsv
 			const auto peer = std::find_if(info.p2p.begin(), info.p2p.end(), [&u](const BattleInfo::Peer& p) { return p.userId == u; });
 			if (port == info.ggpo.end() || peer == info.p2p.end())
 				continue;
+			const bool announced = std::any_of(peer->addrs.begin(), peer->addrs.end(), [&port](const PeerAddr& a) { return a.port == port->second; });
 			std::vector<PeerAddr> v4, v6;
 			for (const PeerAddr& a : peer->addrs)
-				(a.V6() ? v6 : v4).push_back({a.ip, port->second});
+				(a.V6() ? v6 : v4).push_back({a.ip, announced ? a.port : port->second});
 			// same NAT (its public IPv4 is ours): its local IPv4 (the last one) first
 			if (v4.size() > 1 && !ownPublicIP.empty() && v4.front().ip == ownPublicIP)
 				std::rotate(v4.begin(), v4.end() - 1, v4.end());
@@ -658,9 +659,7 @@ namespace Zdxsv
 			return std::chrono::duration_cast<std::chrono::nanoseconds>(Clock::now().time_since_epoch()).count();
 		}
 
-		// OpenUdp's platform info lines, kept for the emulator's life: a reconnect to the lobby
-		// (after a battle) reports the same address. DEV9 thread only.
-		bool g_udpOpened = false;
+		// The platform info lines of the last OpenUdp. DEV9 thread only.
 		std::string g_udpLines;
 		std::string g_udpAddr; // the STUN address OpenUdp asked (LobbyUdpAddr)
 	} // namespace
@@ -801,10 +800,21 @@ namespace Zdxsv
 				socklen_t len = 0;
 				sock_t s = INVALID_SOCKET; // socket of its family, INVALID_SOCKET = not pinged
 				PeerAddr addr;
-				int64_t sum = 0, pongs = 0;
+				std::vector<int> samples;
+				int rtt = -1; // median of the samples, so a few late pongs do not raise the delay
 				bool sends = false; // the peer's packets come from sa
 				std::vector<sockaddr_storage> answered; // relay path: pong sources other than sa, at most 2
-				int Rtt() const { return pongs ? static_cast<int>((sum + pongs - 1) / pongs) : -1; }
+				int Rtt() const { return rtt; }
+				void Pong(int64_t ms)
+				{
+					if (samples.size() >= 256)
+						return;
+					samples.push_back(static_cast<int>(std::clamp<int64_t>(ms, 1, 60000)));
+					std::vector<int> s = samples;
+					auto mid = s.begin() + (s.size() - 1) / 2;
+					std::nth_element(s.begin(), mid, s.end());
+					rtt = *mid;
+				}
 			};
 
 		public:
@@ -989,8 +999,7 @@ namespace Zdxsv
 						rp.token == m_relays[rp.relayIdx].token && (!other || c->answered.size() < 2 ||
 							std::any_of(c->answered.begin(), c->answered.end(), [&from](const sockaddr_storage& a) { return SameAddr(from, a); })))
 					{
-						c->sum += std::max<int64_t>(1, static_cast<int64_t>(NowMs() - rp.timestamp));
-						c->pongs++;
+						c->Pong(static_cast<int64_t>(NowMs() - rp.timestamp));
 						if (other && std::none_of(c->answered.begin(), c->answered.end(), [&from](const sockaddr_storage& a) { return SameAddr(from, a); }))
 							c->answered.push_back(from);
 					}
@@ -1039,8 +1048,7 @@ namespace Zdxsv
 				else if (head && pk.type == PONG_TYPE && pk.candidate < fc->size())
 				{
 					Cand& c = (*fc)[pk.candidate];
-					c.sum += std::max<int64_t>(1, static_cast<int64_t>(NowMs() - pk.pingTimestamp));
-					c.pongs++;
+					c.Pong(static_cast<int64_t>(NowMs() - pk.pingTimestamp));
 					ok = true;
 				}
 				else
@@ -1068,7 +1076,7 @@ namespace Zdxsv
 					{
 						const Cand& c = m_cand[p][k];
 						const int r = c.Rtt();
-						line += " " + c.addr.Masked() + " rtt " + std::to_string(r) + " ms (" + std::to_string(c.pongs) + " pongs)";
+						line += " " + c.addr.Masked() + " rtt " + std::to_string(r) + " ms (" + std::to_string(c.samples.size()) + " pongs)";
 						if (r <= 0)
 							continue;
 						const float score = 10000.f - r + (IsLoopback(c.sa) ? 100.f : 0.f) + (IsPrivate(c.sa) ? 50.f : 0.f) +
@@ -1091,7 +1099,7 @@ namespace Zdxsv
 					for (int i = 0; i < 2; i++)
 						if (m_rpath[k][i].s != INVALID_SOCKET)
 							line += " " + (rl.addr.V6() == (i == 1) ? rl.addr : rl.addr6).String() + " rtt " + std::to_string(m_rpath[k][i].Rtt()) +
-									" ms (" + std::to_string(m_rpath[k][i].pongs) + " pongs)";
+									" ms (" + std::to_string(m_rpath[k][i].samples.size()) + " pongs)";
 					// GGPO's address of the relay: the faster family that answered, else addr; alt = the other one
 					const int f = RelayBest(k);
 					const bool useAddr6 = f >= 0 && !rl.addr6.ip.empty() && (f == 1) != rl.addr.V6();
@@ -1251,21 +1259,30 @@ namespace Zdxsv
 
 	std::string OpenUdp(uint32_t stunIP, uint16_t stunPort, uint16_t bindPort)
 	{
-		// The socket is only for the STUN question: peers take the public IP, GGPO has its own port.
-		if (g_udpOpened)
-			return g_udpLines;
 		g_udpLines.clear();
 		g_udpAddr = AddrString(stunIP, stunPort);
-		sock_t s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 		sockaddr_in addr{};
-		addr.sin_family = AF_INET;
-		addr.sin_port = htons(bindPort);
 		socklen_t len = sizeof(addr);
-		if (s == INVALID_SOCKET || bind(s, reinterpret_cast<const sockaddr*>(&addr), sizeof(addr)) != 0 ||
-			getsockname(s, reinterpret_cast<sockaddr*>(&addr), &len) != 0)
-		{
-			if (s != INVALID_SOCKET)
+		const auto open = [&addr, &len](uint16_t p) {
+			sock_t s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+			addr = MakeAddr(0, p);
+			len = sizeof(addr);
+			if (s != INVALID_SOCKET && (bind(s, reinterpret_cast<const sockaddr*>(&addr), sizeof(addr)) != 0 ||
+										   getsockname(s, reinterpret_cast<sockaddr*>(&addr), &len) != 0))
+			{
 				closesocket(s);
+				s = INVALID_SOCKET;
+			}
+			return s;
+		};
+		sock_t s = open(bindPort);
+		if (s == INVALID_SOCKET && bindPort != 0)
+		{
+			Log("udp: port " + std::to_string(bindPort) + " taken, STUN from another port");
+			s = open(0);
+		}
+		if (s == INVALID_SOCKET)
+		{
 			Log("udp: socket failed, no STUN");
 			return "";
 		}
@@ -1328,7 +1345,6 @@ namespace Zdxsv
 			}
 		}
 		closesocket(s);
-		g_udpOpened = !pub.empty(); // no answer: the next lobby connection asks again
 		if (!pub.empty())
 			g_udpLines += "udp_addr=" + pub + "\nudp_rtt=" + std::to_string(rtt) + "\n"; // the lobby picks the live uplink by it
 		if (!local.empty())
