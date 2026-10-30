@@ -47,6 +47,9 @@ When a battle cannot start, a message beginning with "No battle:" says why
 (an opponent did not answer, the network port is in use, an opponent's build or
 settings differ), and the game returns to the lobby.
 
+During an online battle, pause, fast forward, slow motion, frame advance and
+loading a save state are not available ("Not available during an online battle.").
+
 ## Recommended settings
 
 Settings → zdxsv has three buttons, for a low-, mid- and high-spec PC. Each sets

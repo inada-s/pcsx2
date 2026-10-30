@@ -5,6 +5,8 @@
 // RPCs of the battle sock (OnNetCall) and the built-in battle start of a rig run (RbkCall).
 
 #include "Zdxsv/GgpoShared.h"
+#include "Zdxsv/UiHooks.h"
+#include "IconsFontAwesome.h"
 
 namespace Zdxsv
 {
@@ -570,10 +572,10 @@ namespace Zdxsv
 			{
 				s_rb.net_rx.insert(s_rb.net_rx.end(), s_rbk_rx.begin(), s_rbk_rx.end());
 				s_rbk_rx.clear();
-				// ZDXSV_RBK_TURBO=1: the battle runs turbo too (GGPO paces the peers by frame)
-				if (!Zdxsv::TestEnv("ZDXSV_RBK_TURBO"))
-					VMManager::SetLimiterMode(LimiterModeType::Nominal);
 			}
+			// ZDXSV_RBK_TURBO=1: the battle runs turbo too (GGPO paces the peers by frame)
+			if (!s_rbk || !Zdxsv::TestEnv("ZDXSV_RBK_TURBO"))
+				VMManager::SetLimiterMode(LimiterModeType::Nominal);
 			if (me >= 0)
 				s_net_me = me;
 			Console.WriteLn("ZdxsvGgpo: net armed at vsync %u, position %d", g_FrameCount, s_net_me);
@@ -621,6 +623,19 @@ namespace Zdxsv
 		*reinterpret_cast<s32*>(ram + NET_RES_LEN) = result;
 		cpuRegs.GPR.n.v0.SD[0] = result;
 		cpuRegs.pc = cpuRegs.GPR.n.ra.UL[0];
+		return true;
+	}
+
+	bool GgpoBattleRefuses(Error* error)
+	{
+		if (!g_ggpo_active || !s_net || s_play_env)
+			return false;
+		const std::string_view msg = TRANSLATE_SV("Zdxsv", "Not available during an online battle.");
+		Console.WriteLn("ZdxsvGgpo: refused during the battle (pause, speed or state load)");
+		if (error)
+			Error::SetString(error, std::string(msg));
+		else
+			Host::AddIconOSDMessage("ZdxsvBattleRefuses", ICON_FA_TRIANGLE_EXCLAMATION, std::string(msg), Host::OSD_WARNING_DURATION);
 		return true;
 	}
 } // namespace Zdxsv
