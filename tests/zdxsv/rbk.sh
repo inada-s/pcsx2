@@ -98,6 +98,8 @@ done
 # parallel launches: serial ones put p4 ~7.5 s behind p1. Only these: a bare wait also waits for
 # the LAT relays (start check after the battle; a failed launch hung to the relay's 1200 s).
 wait $lpids
+# STALL=ms: suspend the peer at position 1 for ms every 5 s, 8 times from 40 s (stall.ps1), so the others run ahead.
+[ -n "${STALL:-}" ] && { powershell -NoProfile -File "$here/stall.ps1" -Peer "p${P[1]}" -Ms "$STALL" > "$OUT/stall.txt" 2>&1 & }
 # Start check: each pcsx2 logs `rbk env` (pcsx2 ZdxsvGgpo, 1st vsync) with the knobs it received; stop at
 # once on a mismatch (glued env vars once ran a whole rig without input/turbo). ENV0/PCSX2_ENV may
 # override knobs on purpose: those peers are only shown.
@@ -145,5 +147,12 @@ fi
 # players >= N have no player work in this battle (their slots differ by start state)
 [ "${TRACE-1}" = 0 ] || awk -v n=$N '$1=="player" && $2+0 < n {s += $4} $1=="rng:" {s += $3} $1=="common" {c = $3} END {exit !(c > 0 && s == 0)}' "$OUT/pwcheck.txt" \
   || { echo "FAIL coordinates (players < $N) or RNG differ, or no frames"; ok=1; }
+# STALL: peer 0 waited for time sync (>= 2 one-frame waits), its longest wait outside ggpo_idle under 25 ms (2 frames = 33 ms)
+if [ -n "${STALL:-}" ]; then
+  tail -2 "$OUT/stall.txt" | tr -d '\r'
+  s=$(grep -a -o 'sync [0-9]* (max [0-9.]* ms)' "$RUN/p${P[0]}/PCSX2/logs/emulog.txt" | tail -1)
+  echo "p${P[0]} ${s:-no sync count}"
+  echo "$s" | awk 'NF && $2 >= 2 && $4 + 0 < 25 {ok = 1} END {exit !ok}' || { echo "FAIL STALL: no time sync waits, or one longer than a frame"; ok=1; }
+fi
 echo "rbk N=$N seed=${SEED:-none}: $((SECONDS - t0)) s, $([ $ok = 0 ] && echo PASS || echo FAIL)"
 exit $ok

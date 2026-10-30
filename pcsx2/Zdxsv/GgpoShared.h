@@ -166,6 +166,7 @@ namespace Zdxsv
 	};
 	extern FrameRings s_rings;
 	extern int s_net_end; // frames since the end msg (kind f) was sent or received, -1 = not yet
+	extern int s_net_last_real; // last frame with the peers' inputs (the session left them at the end), INT_MAX = none
 	struct NetStats
 	{
 		u32 sends, msgs, recvs, rxmsgs, rxbytes, polls, other, nowait, senddiff, toolong, maxq, restamp, late;

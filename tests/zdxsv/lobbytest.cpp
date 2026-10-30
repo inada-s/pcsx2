@@ -1,7 +1,7 @@
 // Unit test of the waits in pcsx2/Zdxsv/Lobby.cpp (no PCSX2, no game): a fake zdxsv STUN on
 // 127.0.0.1 (silent, or answering after a delay) and held UDP ports. Build and run: lobbytest.sh.
 // Exit 0 = every check passed; a failed check prints FAIL.
-// Uses 127.0.0.1 UDP ports 27110-27130 and 27201-27203.
+// Uses 127.0.0.1 UDP ports 27110-27130 and 27150-27151, 27201-27203.
 #include "Zdxsv/Lobby.h"
 #include "Zdxsv/Proto.h"
 
@@ -250,7 +250,7 @@ int main()
 	Check(rp.ok && rp.peers == 1 && rp.rtt == 30 && rp.pings.empty() && rp.left.empty(),
 		"report: no ping sample and no disconnected position leave the fields unset", rp.peers);
 
-	// OpenUdp: 3 tries of 200 ms each; no answer is not cached, an answer is
+	// OpenUdp: 3 tries of 200 ms each, asked again on every call
 	{
 		FakeStun stun(27201);
 		auto t0 = Clock::now();
@@ -264,8 +264,8 @@ int main()
 		stun.mode = 0;
 		t0 = Clock::now();
 		l = Zdxsv::OpenUdp(lo, 27201);
-		const long cached = Ms(t0);
-		Check(l.find("udp_addr=1.2.3.4:5555") != std::string::npos && cached < 50, "after an answer: cached udp_addr (ms)", cached);
+		const long again = Ms(t0);
+		Check(l.find("udp_addr=") == std::string::npos && again >= 550, "after an answer: asks again, silent STUN: no udp_addr (ms)", again);
 	}
 
 	// a 2nd StartPingTest cancels the running one instead of waiting for it
@@ -375,6 +375,49 @@ int main()
 		closesocket(pb);
 		Check(bound && r.size() == 2 && r[1].rtt > 0, "pong from another source: peer 1 answered (rtt)", r.size() == 2 ? r[1].rtt : -2);
 		Check(r.size() == 2 && r[1].addr.port == 27142, "pong from another source: its source picked (port)", r.size() == 2 ? r[1].addr.port : -2);
+	}
+	// a peer whose every 4th pong is 400 ms late
+	{
+		SOCKET pa = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+		sockaddr_in a{};
+		a.sin_family = AF_INET;
+		a.sin_addr.s_addr = inet_addr("127.0.0.1");
+		a.sin_port = htons(27151);
+		const bool bound = bind(pa, (sockaddr*)&a, sizeof(a)) == 0;
+		std::atomic<bool> stop{false};
+		std::atomic<int> n{0};
+		std::thread peer([&] {
+			while (!stop)
+			{
+				fd_set rd;
+				FD_ZERO(&rd);
+				FD_SET(pa, &rd);
+				timeval tv{0, 20000};
+				if (select(0, &rd, nullptr, nullptr, &tv) <= 0)
+					continue;
+				unsigned char pk[44];
+				sockaddr_in from{};
+				int fl = sizeof(from);
+				if (recvfrom(pa, (char*)pk, sizeof(pk), 0, (sockaddr*)&from, &fl) != 44 || pk[8] != 1)
+					continue;
+				pk[8] = 2;
+				std::swap(pk[9], pk[10]);
+				uint64_t ts;
+				std::memcpy(&ts, pk + 12, 8);
+				if (n++ % 4 == 3)
+					ts -= 400;
+				std::memcpy(pk + 20, &ts, 8);
+				sendto(pa, (const char*)pk, sizeof(pk), 0, (sockaddr*)&from, fl);
+			}
+		});
+		const std::vector<std::vector<Zdxsv::PeerAddr>> listed = {{}, {Zdxsv::PeerAddr{"127.0.0.1", 27151}}};
+		Zdxsv::StartPingTest(82, 0, listed, 27150, 1200);
+		std::string err;
+		const auto r = Zdxsv::FinishPingTest(nullptr, &err);
+		stop = true;
+		peer.join();
+		closesocket(pa);
+		Check(bound && r.size() == 2 && r[1].rtt > 0 && r[1].rtt < 50, "every 4th pong 400 ms late: rtt is the median (rtt)", r.size() == 2 ? r[1].rtt : -2);
 	}
 	// relay rtts of a peer behind a symmetric NAT reach us only through the peer that reaches it (peer 3)
 	{
