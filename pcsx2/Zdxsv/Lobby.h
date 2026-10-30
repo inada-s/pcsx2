@@ -137,7 +137,8 @@ namespace Zdxsv
 
 	// Connectivity test of bindPort against the lobby's STUN (stunPort) and its test socket (stunPort + 1):
 	// returns the platform info line "nat=open|cone|symmetric|unknown\n"; summary = the result for people.
-	// stop (optional) set ends it with nat=unknown.
+	// A closed port is also asked from two STUN servers on other networks (ZDXSV_NAT_STUN): different
+	// mappings there = symmetric. stop (optional) set ends it with nat=unknown.
 	std::string UdpTest(uint32_t stunIP, uint16_t stunPort, uint16_t bindPort, std::string& summary,
 		const std::atomic<bool>* stop = nullptr);
 	// summary: the result in words for the OSD, without addresses or ports (the log line has them).
