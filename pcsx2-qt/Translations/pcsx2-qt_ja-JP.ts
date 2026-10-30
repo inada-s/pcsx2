@@ -27118,6 +27118,244 @@ Skipped {}, last: {}</source>
     </message>
   </context>
   <context>
+    <name>ZdxsvMs</name>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="33" />
+      <source>Gundam</source>
+      <translation>ガンダム</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="34" />
+      <source>Guncannon</source>
+      <translation>ガンキャノン</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="35" />
+      <source>GM</source>
+      <translation>ＧＭ</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="36" />
+      <source>Old Zaku</source>
+      <translation>旧型ザク</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="37" />
+      <source>Zaku</source>
+      <translation>ザク</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="38" />
+      <source>Char&apos;s Zaku</source>
+      <translation>シャア専用ザク</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="39" />
+      <source>Gouf</source>
+      <translation>グフ</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="40" />
+      <source>Dom</source>
+      <translation>ドム</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="41" />
+      <source>Rick Dom</source>
+      <translation>リック・ドム</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="42" />
+      <source>Gelgoog</source>
+      <translation>ゲルググ</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="43" />
+      <source>Char&apos;s Gelgoog</source>
+      <translation>シャア専用ゲルググ</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="44" />
+      <source>Gyan</source>
+      <translation>ギャン</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="45" />
+      <source>Gogg</source>
+      <translation>ゴッグ</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="46" />
+      <source>Acguy</source>
+      <translation>アッガイ</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="47" />
+      <source>Z&apos;Gok</source>
+      <translation>ズゴック</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="48" />
+      <source>Char&apos;s Z&apos;Gok</source>
+      <translation>シャア専用ズゴック</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="49" />
+      <source>Zock</source>
+      <translation>ゾック</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="50" />
+      <source>Guntank</source>
+      <translation>ガンタンク</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="51" />
+      <source>Zeong</source>
+      <translation>ジオング</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="52" />
+      <source>Ground Type Gundam</source>
+      <translation>陸戦型ガンダム</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="53" />
+      <source>Ground Type GM</source>
+      <translation>陸戦型ＧＭ</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="54" />
+      <source>Gundam Mk-II</source>
+      <translation>ガンダムMk-Ⅱ</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="55" />
+      <source>GM II</source>
+      <translation>ＧＭⅡ</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="56" />
+      <source>Rick Dias</source>
+      <translation>リック・ディアス</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="57" />
+      <source>Hyaku Shiki</source>
+      <translation>百式</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="58" />
+      <source>Nemo</source>
+      <translation>ネモ</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="59" />
+      <source>Zeta Gundam</source>
+      <translation>Ｚガンダム</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="60" />
+      <source>Methuss</source>
+      <translation>メタス</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="61" />
+      <source>Dijeh</source>
+      <translation>ディジェ</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="62" />
+      <source>Hi-Zack</source>
+      <translation>ハイザック</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="63" />
+      <source>Galbaldy Beta</source>
+      <translation>ガルバルディβ</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="64" />
+      <source>Marasai</source>
+      <translation>マラサイ</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="65" />
+      <source>Messala</source>
+      <translation>メッサーラ</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="66" />
+      <source>Asshimar</source>
+      <translation>アッシマー</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="67" />
+      <source>Gaplant</source>
+      <translation>ギャプラン</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="68" />
+      <source>Psyco Gundam</source>
+      <translation>サイコ・ガンダム</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="69" />
+      <source>Gabthley</source>
+      <translation>ガブスレイ</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="70" />
+      <source>Hambrabi</source>
+      <translation>ハンブラビ</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="71" />
+      <source>Palace Athene</source>
+      <translation>パラス・アテネ</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="72" />
+      <source>Barzam</source>
+      <translation>バーザム</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="73" />
+      <source>Psyco Gundam Mk-II</source>
+      <translation>サイコMk-Ⅱ</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="74" />
+      <source>Byarlant</source>
+      <translation>バイアラン</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="75" />
+      <source>Bound Doc</source>
+      <translation>バウンド・ドック</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="76" />
+      <source>Bolinoak Sammahn</source>
+      <translation>ボリノーク・サマーン</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="77" />
+      <source>The O</source>
+      <translation>ジ・オ</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="78" />
+      <source>Gaza-C</source>
+      <translation>ガザＣ</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="79" />
+      <source>Qubeley</source>
+      <translation>キュベレイ</translation>
+    </message>
+  </context>
+  <context>
     <name>VMManager</name>
     <message>
       <location filename="../../pcsx2/VMManager.cpp" line="1072"/>

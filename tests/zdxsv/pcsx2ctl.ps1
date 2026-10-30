@@ -4,7 +4,7 @@
 # -ProcId : pcsx2 pid (default: first pcsx2-qtx64). Keys go via SetForegroundWindow + keybd_event.
 # Mouse tokens in -Seq (pixels of the render surface = the child window of the bar's layout size):
 #   mv:X:Y move; ck:X:Y move + left click; bar:show moves over the bottom (shows the replay control bar);
-#   bar:NAME[:F] clicks a bar element (pause back forward prevround nextround timeline pov) at fraction F of its width (default
+#   bar:NAME[:F] clicks a bar element (pause back forward prevround nextround results timeline pov) at fraction F of its width (default
 #   0.5), from the last `replay bar: layout` line in the instance's emulog. shot:out.png = winshot.ps1 (overlays).
 # -Check -Ini PCSX2.ini : only the binding check of -Seq against that ini, no process, nothing sent (rc 2 = unbound;
 #   rplay.sh runs it on every KEYS step before launch).
@@ -69,7 +69,7 @@ function Get-BarLayout {
   $f = $line.Matches[0].Groups[1].Value.Trim() -split '\s+'
   $wh = $f[0] -split 'x'; $yy = $f[2] -split '-'
   $b = @{ w = [int]$wh[0]; h = [int]$wh[1]; y0 = [int]$yy[0]; y1 = [int]$yy[1] }
-  for ($i = 3; $i + 1 -lt $f.Count; $i += 2) { $xx = $f[$i + 1] -split '-'; $b[$f[$i]] = @([int]$xx[0], [int]$xx[1]) }
+  for ($i = 3; $i + 1 -lt $f.Count; $i += 2) { $xx = $f[$i + 1] -split '-'; $b[($f[$i] -split ':')[0]] = @([int]$xx[0], [int]$xx[1]) }
   $b
 }
 # the render surface: the child window whose client size is WxH (else the largest child)

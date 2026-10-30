@@ -107,6 +107,8 @@ Hotkeys are under Settings > Hotkeys, group "Zdxsv Replay".
   Previous round goes to the round before the one shown.
 - **Round results**: the bar shows each round's W / L / D for the shown
   position's team; playback logs a round whose result differs from the file.
+  Hovering them lists each round's mobile suits (the file's `used_ms`, else
+  the ones at the round end): the shown team's, then the other team's.
 - **Takeover** (as gdxsv): the shown position plays from the current frame
   with the host pad, input delay `mindelay`. Hold the replay's input shown
   in the panel for 1 s, or press START to skip the matching. START while
