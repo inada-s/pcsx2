@@ -401,9 +401,10 @@ namespace Zdxsv
 			const auto peer = std::find_if(info.p2p.begin(), info.p2p.end(), [&u](const BattleInfo::Peer& p) { return p.userId == u; });
 			if (port == info.ggpo.end() || peer == info.p2p.end())
 				continue;
+			const bool announced = std::any_of(peer->addrs.begin(), peer->addrs.end(), [&port](const PeerAddr& a) { return a.port == port->second; });
 			std::vector<PeerAddr> v4, v6;
 			for (const PeerAddr& a : peer->addrs)
-				(a.V6() ? v6 : v4).push_back({a.ip, port->second});
+				(a.V6() ? v6 : v4).push_back({a.ip, announced ? a.port : port->second});
 			// same NAT (its public IPv4 is ours): its local IPv4 (the last one) first
 			if (v4.size() > 1 && !ownPublicIP.empty() && v4.front().ip == ownPublicIP)
 				std::rotate(v4.begin(), v4.end() - 1, v4.end());
@@ -658,9 +659,7 @@ namespace Zdxsv
 			return std::chrono::duration_cast<std::chrono::nanoseconds>(Clock::now().time_since_epoch()).count();
 		}
 
-		// OpenUdp's platform info lines, kept for the emulator's life: a reconnect to the lobby
-		// (after a battle) reports the same address. DEV9 thread only.
-		bool g_udpOpened = false;
+		// The platform info lines of the last OpenUdp. DEV9 thread only.
 		std::string g_udpLines;
 		std::string g_udpAddr; // the STUN address OpenUdp asked (LobbyUdpAddr)
 	} // namespace
@@ -1251,21 +1250,30 @@ namespace Zdxsv
 
 	std::string OpenUdp(uint32_t stunIP, uint16_t stunPort, uint16_t bindPort)
 	{
-		// The socket is only for the STUN question: peers take the public IP, GGPO has its own port.
-		if (g_udpOpened)
-			return g_udpLines;
 		g_udpLines.clear();
 		g_udpAddr = AddrString(stunIP, stunPort);
-		sock_t s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 		sockaddr_in addr{};
-		addr.sin_family = AF_INET;
-		addr.sin_port = htons(bindPort);
 		socklen_t len = sizeof(addr);
-		if (s == INVALID_SOCKET || bind(s, reinterpret_cast<const sockaddr*>(&addr), sizeof(addr)) != 0 ||
-			getsockname(s, reinterpret_cast<sockaddr*>(&addr), &len) != 0)
-		{
-			if (s != INVALID_SOCKET)
+		const auto open = [&addr, &len](uint16_t p) {
+			sock_t s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+			addr = MakeAddr(0, p);
+			len = sizeof(addr);
+			if (s != INVALID_SOCKET && (bind(s, reinterpret_cast<const sockaddr*>(&addr), sizeof(addr)) != 0 ||
+										   getsockname(s, reinterpret_cast<sockaddr*>(&addr), &len) != 0))
+			{
 				closesocket(s);
+				s = INVALID_SOCKET;
+			}
+			return s;
+		};
+		sock_t s = open(bindPort);
+		if (s == INVALID_SOCKET && bindPort != 0)
+		{
+			Log("udp: port " + std::to_string(bindPort) + " taken, STUN from another port");
+			s = open(0);
+		}
+		if (s == INVALID_SOCKET)
+		{
 			Log("udp: socket failed, no STUN");
 			return "";
 		}
@@ -1328,7 +1336,6 @@ namespace Zdxsv
 			}
 		}
 		closesocket(s);
-		g_udpOpened = !pub.empty(); // no answer: the next lobby connection asks again
 		if (!pub.empty())
 			g_udpLines += "udp_addr=" + pub + "\nudp_rtt=" + std::to_string(rtt) + "\n"; // the lobby picks the live uplink by it
 		if (!local.empty())

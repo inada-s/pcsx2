@@ -250,7 +250,7 @@ int main()
 	Check(rp.ok && rp.peers == 1 && rp.rtt == 30 && rp.pings.empty() && rp.left.empty(),
 		"report: no ping sample and no disconnected position leave the fields unset", rp.peers);
 
-	// OpenUdp: 3 tries of 200 ms each; no answer is not cached, an answer is
+	// OpenUdp: 3 tries of 200 ms each, asked again on every call
 	{
 		FakeStun stun(27201);
 		auto t0 = Clock::now();
@@ -264,8 +264,8 @@ int main()
 		stun.mode = 0;
 		t0 = Clock::now();
 		l = Zdxsv::OpenUdp(lo, 27201);
-		const long cached = Ms(t0);
-		Check(l.find("udp_addr=1.2.3.4:5555") != std::string::npos && cached < 50, "after an answer: cached udp_addr (ms)", cached);
+		const long again = Ms(t0);
+		Check(l.find("udp_addr=") == std::string::npos && again >= 550, "after an answer: asks again, silent STUN: no udp_addr (ms)", again);
 	}
 
 	// a 2nd StartPingTest cancels the running one instead of waiting for it
