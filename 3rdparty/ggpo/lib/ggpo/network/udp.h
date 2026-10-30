@@ -13,6 +13,7 @@
 #include "ggponet.h"
 #include "ring_buffer.h"
 
+#include <atomic>
 #include <deque>
 #include <mutex>
 
@@ -50,6 +51,8 @@ public:
    int ForwardRelayed();
    // zdxsv: held while reading the sockets and handling packets. Guards what TryForward reads.
    std::mutex &RecvMutex() { return _recv_mutex; }
+   // zdxsv (tests): drops every packet sent and received from now on, as a network that went silent.
+   void SetMute(bool mute) { _mute = mute; }
 
 public:
    ~Udp(void);
@@ -61,6 +64,7 @@ protected:
 
    // state management
    Callbacks      *_callbacks;
+   std::atomic<bool> _mute{false};
 
    int ReadSockets();
 

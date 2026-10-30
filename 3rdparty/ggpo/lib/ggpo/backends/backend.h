@@ -31,6 +31,7 @@ struct GGPOSession {
    virtual GGPOErrorCode GetCurrentFrame(int *frame) { return GGPO_ERRORCODE_UNSUPPORTED; }
    virtual GGPOErrorCode GetLastConfirmedFrame(int *frame) { return GGPO_ERRORCODE_UNSUPPORTED; }
    virtual GGPOErrorCode ForwardRelayed(int *forwarded) { *forwarded = 0; return GGPO_ERRORCODE_UNSUPPORTED; }
+   virtual GGPOErrorCode SetMute(bool mute) { return GGPO_ERRORCODE_UNSUPPORTED; }
 };
 
 typedef struct GGPOSession Quark, IQuarkBackend; /* XXX: nuke this */

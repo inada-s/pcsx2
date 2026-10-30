@@ -986,12 +986,14 @@ namespace Zdxsv
 			Console.WriteLn("ZdxsvGgpo: rbk env pos=%d/%d rand=%s turbo=%s clamp=%s ggpo=%s", s_rbk_me, s_rbk_n,
 				env("ZDXSV_RAND_INPUT"), env("ZDXSV_RBK_TURBO"), env("ZDXSV_EE_CLAMP"), env("ZDXSV_GGPO"));
 		}
-		// ZDXSV_VM_TEST=frame:shutdown|reset (tests of GgpoOnVmShutdown): once, when a session or replay reaches GGPO frame `frame`
+		// ZDXSV_VM_TEST=frame:shutdown|reset|mute|ui (tests of GgpoOnVmShutdown; mute: the GGPO network goes silent): once, when a session or replay reaches GGPO frame `frame`
 		static const char* vm_test = std::getenv("ZDXSV_VM_TEST");
 		if (vm_test && g_ggpo_active && !g_ggpo_in_rollback && s_net_frame == std::atoi(vm_test))
 		{
 			vm_test = nullptr;
-			if (std::strstr(std::getenv("ZDXSV_VM_TEST"), ":reset"))
+			if (std::strstr(std::getenv("ZDXSV_VM_TEST"), ":mute"))
+				ggpo_set_mute(s_session, true);
+			else if (std::strstr(std::getenv("ZDXSV_VM_TEST"), ":reset"))
 				Host::RunOnCPUThread([] { VMManager::Reset(); });
 			else if (std::strstr(std::getenv("ZDXSV_VM_TEST"), ":ui"))
 				Host::RunOnCPUThread([] {
