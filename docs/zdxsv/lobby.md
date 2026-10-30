@@ -143,9 +143,11 @@ Address candidates of a peer, in order: its public IPv4 address (its local
 one when behind the same public IP), its other IPv4 address, its IPv6
 address. Their ports are the ones it sent when one of them is its GGPO port (it asked STUN from that port), else its GGPO port (a client that asked from another port, or found the GGPO port taken). Each peer is reached at the candidate with the best score: lowest
 RTT, plus 100 for loopback, 50 for a private address, 20 for IPv6, 1 for a
-source the peer sends from.
+source the peer sends from. A candidate's RTT is the median of its first 256
+pongs (the lower middle one for an even count), so a few late pongs change
+neither the delay nor the route.
 
-The input delay is max(`mindelay`, ceil(mean RTT of the slowest peer / 2 /
+The input delay is max(`mindelay`, ceil(RTT of the slowest peer / 2 /
 16 ms)), as flycast's rollback backend. `delay=` fixes it and skips the test.
 
 ### Connection cut
