@@ -192,6 +192,14 @@ the OSD in words only (no address or port: streams), logged with the
 addresses and sent as `nat=`. It runs on its own thread; a ping test
 cancels it.
 
+When the test socket reaches the port and a udptest URL is set
+(`ZdxsvUdpTestUrl`), the emulator also posts `addr=<public ip:port>` to it
+(zdxsv `infra/udptest`, a Cloud Function on another network) and waits 3 s
+for its `Hello`. The test socket shares the lobby's IP, which an
+address-restricted NAT lets through; without the `Hello` the result is
+`cone NAT (open to the server only)` (`nat=cone`). A failed request keeps the
+server's result. flycast does the same check against gdxsv's function.
+
 ## HTTPS latency test
 
 When the game goes online, the emulator measures the HTTPS latency to the

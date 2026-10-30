@@ -1360,7 +1360,8 @@ namespace Zdxsv
 		return g_udpLines;
 	}
 
-	std::string UdpTest(uint32_t stunIP, uint16_t stunPort, uint16_t bindPort, std::string& summary, const std::atomic<bool>* stop)
+	std::string UdpTest(uint32_t stunIP, uint16_t stunPort, uint16_t bindPort, std::string& summary, const std::atomic<bool>* stop,
+		const UdpReachAsk& reachAsk)
 	{
 		const auto stopped = [stop] { return stop && stop->load(); };
 		// A "udptest" Ping makes the server answer from both sockets: the test socket's Pong arrives only
@@ -1419,6 +1420,26 @@ namespace Zdxsv
 		ask(stun, "udptest", [&] { return open || (!mapped.empty() && Clock::now() - start > std::chrono::milliseconds(500)); });
 		if (!mapped.empty() && !open)
 			ask(test, "", [&] { return !mappedTest.empty(); });
+		// "" = not asked; the server's test socket shares its IP, so an address-restricted NAT passes it
+		std::string reach;
+		if (open && reachAsk && !stopped())
+		{
+			reach = "no answer";
+			if (!reachAsk(mapped, stop))
+				reach = "not asked (request failed)";
+			const auto until = Clock::now() + std::chrono::seconds(3);
+			while (reach == "no answer" && !stopped() && Clock::now() < until)
+			{
+				if (!WaitReadable(s, 50))
+					continue;
+				char buf[64];
+				sockaddr_in from{};
+				socklen_t fromLen = sizeof(from);
+				const int n = recvfrom(s, buf, sizeof(buf), 0, reinterpret_cast<sockaddr*>(&from), &fromLen);
+				if (n == 5 && std::memcmp(buf, "Hello", 5) == 0)
+					reach = "Hello from " + MaskIpAddress(AddrString(from));
+			}
+		}
 		closesocket(s);
 
 		uint32_t ip1 = 0, ip2 = 0;
@@ -1429,8 +1450,10 @@ namespace Zdxsv
 			nat = "unknown", summary = "unknown (test cancelled)", detail = "port " + std::to_string(bindPort) + " taken by the ping test";
 		else if (mapped.empty())
 			nat = "unknown", summary = "unknown (no answer from the server)", detail = "no STUN answer from " + AddrString(stun);
+		else if (open && reach == "no answer")
+			nat = "cone", summary = "cone NAT (open to the server only)", detail = "port " + std::to_string(bindPort) + " open to the server's IP, no Hello from the udptest function, public " + MaskIpAddress(mapped);
 		else if (open)
-			nat = "open", summary = "open", detail = "port " + std::to_string(bindPort) + " reachable from any source, public " + MaskIpAddress(mapped);
+			nat = "open", summary = "open", detail = "port " + std::to_string(bindPort) + " reachable from any source, public " + MaskIpAddress(mapped) + ", udptest " + (reach.empty() ? "off" : reach);
 		else if (mappedTest.empty() || !ParseAddr(mapped, ip1, port1) || !ParseAddr(mappedTest, ip2, port2))
 			nat = "unknown", summary = "unknown (no answer from the server's test socket)", detail = "no answer from the STUN test socket " + AddrString(test);
 		else if (port1 == port2 && ip1 == ip2)
@@ -1441,7 +1464,7 @@ namespace Zdxsv
 		return "nat=" + nat + "\n";
 	}
 
-	bool StartUdpTest(uint32_t stunIP, uint16_t stunPort, uint16_t bindPort,
+	bool StartUdpTest(uint32_t stunIP, uint16_t stunPort, uint16_t bindPort, UdpReachAsk reachAsk,
 		std::function<void(const std::string& natLine, const std::string& summary)> done)
 	{
 		std::lock_guard lock(g_udpTestMtx);
@@ -1451,9 +1474,9 @@ namespace Zdxsv
 		g_udpTestRunning = true;
 		g_udpTest = std::make_unique<UdpTestRun>();
 		UdpTestRun* t = g_udpTest.get();
-		t->thread = std::thread([t, stunIP, stunPort, bindPort, done = std::move(done)] {
+		t->thread = std::thread([t, stunIP, stunPort, bindPort, reachAsk = std::move(reachAsk), done = std::move(done)] {
 			std::string summary;
-			const std::string line = UdpTest(stunIP, stunPort, bindPort, summary, &t->stop);
+			const std::string line = UdpTest(stunIP, stunPort, bindPort, summary, &t->stop, reachAsk);
 			if (done && !t->stop)
 				done(line, summary);
 			g_udpTestRunning = false;

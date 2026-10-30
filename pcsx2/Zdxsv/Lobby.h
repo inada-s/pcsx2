@@ -135,16 +135,22 @@ namespace Zdxsv
 		std::unique_ptr<Impl> m;
 	};
 
+	// Asks a host on another network (the udptest function) to send "Hello" to publicAddr ("ip:port");
+	// true once the request was accepted. stop set: give up at once.
+	using UdpReachAsk = std::function<bool(const std::string& publicAddr, const std::atomic<bool>* stop)>;
+
 	// Connectivity test of bindPort against the lobby's STUN (stunPort) and its test socket (stunPort + 1):
 	// returns the platform info line "nat=open|cone|symmetric|unknown\n"; summary = the result for people.
+	// When the server finds the port open and reachAsk is set, open also needs reachAsk's "Hello";
+	// without it the port is open to the server's IP only (nat=cone).
 	// stop (optional) set ends it with nat=unknown.
 	std::string UdpTest(uint32_t stunIP, uint16_t stunPort, uint16_t bindPort, std::string& summary,
-		const std::atomic<bool>* stop = nullptr);
+		const std::atomic<bool>* stop = nullptr, const UdpReachAsk& reachAsk = {});
 	// summary: the result in words for the OSD, without addresses or ports (the log line has them).
 	// UdpTest on its own thread: returns at once; done(natLine, summary) is called from that thread
 	// when it ends, unless cancelled (StopUdpTest). One test at a time: a call while one runs does
 	// nothing and returns false.
-	bool StartUdpTest(uint32_t stunIP, uint16_t stunPort, uint16_t bindPort,
+	bool StartUdpTest(uint32_t stunIP, uint16_t stunPort, uint16_t bindPort, UdpReachAsk reachAsk,
 		std::function<void(const std::string& natLine, const std::string& summary)> done);
 	// Cancels a running StartUdpTest and waits for its thread (< 100 ms): it frees the GGPO port.
 	void StopUdpTest();

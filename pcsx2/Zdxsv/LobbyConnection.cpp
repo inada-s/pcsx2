@@ -14,14 +14,18 @@
 #include "VMManager.h"
 
 #include "common/Console.h"
+#include "common/HTTPDownloader.h"
 #include "common/StringUtil.h"
 
 #include "fmt/format.h"
 #define XXH_INLINE_ALL 1
 #include "xxhash.h"
 
+#include <atomic>
 #include <bit>
+#include <chrono>
 #include <cstdlib>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -120,12 +124,39 @@ namespace Zdxsv
 			return port;
 		}
 
+		std::string UdpTestUrl()
+		{
+			if (const char* env = std::getenv("ZDXSV_UDPTEST_URL"))
+				return env;
+			return Host::GetStringSettingValue("DEV9/Eth", "ZdxsvUdpTestUrl", "");
+		}
+
+		bool AskUdpReach(const std::string& url, const std::string& addr, const std::atomic<bool>* stop)
+		{
+			std::unique_ptr<HTTPDownloader> http = HTTPDownloader::Create(Host::GetHTTPUserAgent());
+			if (!http)
+				return false;
+			http->SetTimeout(5.0f);
+			s32 status = HTTPDownloader::HTTP_STATUS_ERROR;
+			http->CreatePostRequest(url, "addr=" + addr, [&status](s32 code, const std::string&, HTTPDownloader::Request::Data) { status = code; },
+				nullptr, "application/x-www-form-urlencoded");
+			while (http->HasAnyRequests() && !(stop && stop->load()))
+			{
+				http->PollRequests();
+				std::this_thread::sleep_for(std::chrono::milliseconds(20));
+			}
+			if (status != HTTPDownloader::HTTP_STATUS_OK)
+				Console.Warning("DEV9: udp test: %s answered %d", url.c_str(), status);
+			return status == HTTPDownloader::HTTP_STATUS_OK;
+		}
+
 		// The texts must match the summaries UdpTest sets; any other summary is shown untranslated.
 		std::string UdpSummaryText(const std::string& summary)
 		{
 			static constexpr const char* texts[] = {
 				TRANSLATE_NOOP("Zdxsv", "open"),
 				TRANSLATE_NOOP("Zdxsv", "cone NAT (port closed)"),
+				TRANSLATE_NOOP("Zdxsv", "cone NAT (open to the server only)"),
 				TRANSLATE_NOOP("Zdxsv", "symmetric NAT (port closed)"),
 				TRANSLATE_NOOP("Zdxsv", "unknown"),
 				TRANSLATE_NOOP("Zdxsv", "unknown (port busy)"),
@@ -163,6 +194,9 @@ namespace Zdxsv
 			std::lock_guard natLock(natMutex);
 			if (natTest && !natStarted)
 				natStarted = StartUdpTest(serverIp, stunPort, static_cast<u16>(ggpoPort),
+					UdpTestUrl().empty() ? UdpReachAsk{} : [url = UdpTestUrl()](const std::string& addr, const std::atomic<bool>* stop) {
+						return AskUdpReach(url, addr, stop);
+					},
 					[](const std::string& line, const std::string& summary) {
 						Host::AddIconOSDMessage("ZdxsvUdpTest", ICON_FA_NETWORK_WIRED,
 							TRANSLATE_STR("Zdxsv", "P2P connectivity:") + " " + UdpSummaryText(summary), 10.0f);
