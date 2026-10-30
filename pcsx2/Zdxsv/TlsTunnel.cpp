@@ -209,7 +209,7 @@ namespace Zdxsv
 			{
 				Console.Error("Zdxsv: TLS: %s:%u (TLS port %u): %s", server_ip.c_str(), plain_port, tls_port, why.c_str());
 				Host::AddIconOSDMessage("ZdxsvTls", ICON_FA_TRIANGLE_EXCLAMATION,
-					"Secure connection to the zdxsv server failed: " + why, Host::OSD_ERROR_DURATION);
+					TRANSLATE_STR("Zdxsv", "Secure connection to the zdxsv server failed:") + " " + why, Host::OSD_ERROR_DURATION);
 				ResetLocal(&local);
 			}
 

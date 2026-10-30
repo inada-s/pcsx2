@@ -253,7 +253,7 @@ namespace Zdxsv
 		s_replay_ps.push_back(s_rb.ps.rel);
 		int confirmed = -1;
 		if (s_session && ggpo_get_last_confirmed_frame(s_session, &confirmed) == GGPO_OK)
-			s_replay_confirmed = std::max(s_replay_confirmed, confirmed);
+			s_replay_confirmed = std::max(s_replay_confirmed, std::min(confirmed, s_net_last_real));
 		LiveFeed(static_cast<size_t>(s_replay_confirmed + 1));
 	}
 

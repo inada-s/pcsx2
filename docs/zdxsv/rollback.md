@@ -116,10 +116,23 @@ The game runs with its own input delay 0; GGPO adds the input delay.
   peer relays for others go out at once, the rest wait for the frame loop.
   So a relaying peer's rollbacks do not delay the peers it relays for
   (flycast does this on a separate network thread).
+- Time sync: when GGPO reports this peer ahead, it waits one frame
+  (1/60 s, `ggpo_idle` while waiting) every 10 frames until the suggested
+  frames are used, as flycast. The count is `Sync N` on the network OSD and
+  `sync N (max X ms)` in the `net sends` log line (X: the longest wait, without
+  the time `ggpo_idle` spent running a rollback).
 - The session ends `ZDXSV_NET_TAIL` frames after the battle end message, or
   when a peer disconnects. The countdown starts once every input of the frame
   that sent the message is confirmed: a message sent in a predicted frame that
   a rollback undoes does not end the session.
+- At that confirmed end each peer disconnects itself from the others
+  (`ggpo_disconnect_player` on its own player, as flycast): the tail frames
+  no longer wait for a peer whose tail is shorter or that already closed, and
+  a disconnect after the confirmed end is a `net battle end`, not
+  `disconnected`. The tail frames run on zero inputs for the peers, so the
+  replay and the pw hashes stop at the frame confirmed at the end. GGPO's
+  `disconnect_without_rollback` stays off: a peer that stops sending
+  mid-battle still rolls back to its last received input.
 - A VM shutdown or reset ends the session at once, as a disconnect: the
   replay is saved, the old VM's states are dropped.
 - An input send splits the pending inputs over packets of at most 8192 bits

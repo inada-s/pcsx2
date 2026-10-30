@@ -43,9 +43,12 @@ start, PCSX2 picks a random port between 29700 and 29800 and saves it there. If 
 cannot connect to opponents directly, forward this UDP port to your PC on your router.
 Two players behind the same router need different ports.
 
-When a battle cannot start, a message beginning with "No battle:" says why
+When a battle cannot start, a message beginning with "No battle:" (Japanese: "対戦できません:") says why
 (an opponent did not answer, the network port is in use, an opponent's build or
 settings differ), and the game returns to the lobby.
+
+During an online battle, pause, fast forward, slow motion, frame advance and
+loading a save state are not available ("Not available during an online battle.").
 
 ## Recommended settings
 

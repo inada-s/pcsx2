@@ -65,7 +65,7 @@ Lets the server tell emulators from real PS2s.
 |---|---|---|
 | `emulator`, `version`, `os`, `cpu` | always | what runs the game |
 | `udp=1` | lobby GGPO on | the client wants battle infos |
-| `udp_addr`, `udp_local` | lobby GGPO on | public IPv4 address from the lobby's STUN, and the local one |
+| `udp_addr`, `udp_local` | lobby GGPO on | the GGPO port's public IPv4 address from the lobby's STUN (asked from that port on every lobby connection, as flycast's `NotifyWanPort`), and the local one |
 | `udp_addr6` | lobby GGPO on, with a global IPv6 address | global IPv6 address |
 | `ggpo=P` | lobby GGPO on | GGPO UDP port |
 | `relay_server=1` | lobby GGPO on | the client can route GGPO through relay servers |
@@ -142,11 +142,13 @@ are kept, and GGPO accepts that relay's packets from them too.
 
 Address candidates of a peer, in order: its public IPv4 address (its local
 one when behind the same public IP), its other IPv4 address, its IPv6
-address. Each peer is reached at the candidate with the best score: lowest
+address. Their ports are the ones it sent when one of them is its GGPO port (it asked STUN from that port), else its GGPO port (a client that asked from another port, or found the GGPO port taken). Each peer is reached at the candidate with the best score: lowest
 RTT, plus 100 for loopback, 50 for a private address, 20 for IPv6, 1 for a
-source the peer sends from.
+source the peer sends from. A candidate's RTT is the median of its first 256
+pongs (the lower middle one for an even count), so a few late pongs change
+neither the delay nor the route.
 
-The input delay is max(`mindelay`, ceil(mean RTT of the slowest peer / 2 /
+The input delay is max(`mindelay`, ceil(RTT of the slowest peer / 2 /
 16 ms - the rollback budget)), the budget in `rollback.md`. `delay=` fixes it
 and skips the test.
 
@@ -187,7 +189,7 @@ lobby's STUN and its test socket at the STUN port + 1, as flycast's
 feasibility test: `open`, `cone NAT`, `symmetric NAT` or `unknown`. Shown on
 the OSD in words only (no address or port: streams), logged with the
 addresses and sent as `nat=`. It runs on its own thread; a ping test
-cancels it. A missing STUN answer is asked again on the next connection.
+cancels it.
 
 ## HTTPS latency test
 
