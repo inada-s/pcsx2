@@ -150,7 +150,8 @@ the agent's context.
 - Options: one row each in `docs/zdxsv/options.md`; other documents do not
   repeat defaults.
 - Tests are named only in `docs/zdxsv/features.md`.
-- `ZDXSV.md`: for players, ships in the release; update on visible changes.
+- `ZDXSV.md` and its Japanese copy `ZDXSV.ja.md`: for players, ship in the release;
+  update both on visible changes.
 - Documents describe current behavior: no history, session ids or run numbers.
 - A behavior change updates the documents it makes wrong, in the same PR.
 - `AGENTS.md`: lasting rules only.
