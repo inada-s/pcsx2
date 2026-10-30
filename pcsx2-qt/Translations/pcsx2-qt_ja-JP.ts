@@ -26963,6 +26963,161 @@ Xbox 360 turntables require a 256x multiplier, most other turntables can use the
     </message>
   </context>
   <context>
+    <name>Zdxsv</name>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/LobbyConnection.cpp" line="47" />
+      <source>open</source>
+      <translation>開放</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/LobbyConnection.cpp" line="48" />
+      <source>cone NAT (port closed)</source>
+      <translation>コーン型 NAT (ポート閉鎖)</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/LobbyConnection.cpp" line="49" />
+      <source>symmetric NAT (port closed)</source>
+      <translation>対称型 NAT (ポート閉鎖)</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/LobbyConnection.cpp" line="50" />
+      <source>unknown</source>
+      <translation>不明</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/LobbyConnection.cpp" line="51" />
+      <source>unknown (port busy)</source>
+      <translation>不明 (ポート使用中)</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/LobbyConnection.cpp" line="52" />
+      <source>unknown (test cancelled)</source>
+      <translation>不明 (テスト中止)</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/LobbyConnection.cpp" line="53" />
+      <source>unknown (no answer from the server)</source>
+      <translation>不明 (サーバーから応答なし)</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/LobbyConnection.cpp" line="54" />
+      <source>unknown (no answer from the server's test socket)</source>
+      <translation>不明 (サーバーのテスト用ソケットから応答なし)</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/LobbyConnection.cpp" line="133" />
+      <source>P2P connectivity:</source>
+      <translation>P2P 接続性:</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/TlsTunnel.cpp" line="212" />
+      <source>Secure connection to the zdxsv server failed:</source>
+      <translation>zdxsv サーバーへの暗号化接続に失敗しました:</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="273" />
+      <source>Retry</source>
+      <translation>やり直す</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="274" />
+      <source>Take over</source>
+      <translation>操作を引き継ぐ</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="275" />
+      <source>Replay</source>
+      <translation>リプレイ</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="378" />
+      <source>Takeover: hold the replay's input</source>
+      <translation>引き継ぎ: リプレイと同じ入力を押し続けてください</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="379" />
+      <source>Replay:</source>
+      <translation>リプレイ:</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="380" />
+      <source>You:</source>
+      <translation>あなた:</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="384" />
+      <source>Takeover starts</source>
+      <translation>引き継ぎを開始します</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="387" />
+      <source>Skip matching (START)</source>
+      <translation>入力合わせを省略 (START)</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="393" />
+      <source>Cancel</source>
+      <translation>キャンセル</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="398" />
+      <source>While taken over, START retries from the same frame.</source>
+      <translation>引き継ぎ中は START で同じフレームからやり直せます。</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/GgpoLobby.cpp" line="89" />
+      <source>No battle: an opponent's emulator build or settings differ from yours.</source>
+      <translation>対戦できません: 対戦相手のエミュレーターのビルドまたは設定があなたと異なります。</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/GgpoLobby.cpp" line="92" />
+      <source>No battle: an opponent could not be reached (no network address).</source>
+      <translation>対戦できません: 対戦相手に接続できません (ネットワークアドレスがありません)。</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/GgpoLobby.cpp" line="94" />
+      <source>No battle: the battle information from the lobby is incomplete.</source>
+      <translation>対戦できません: ロビーからの対戦情報が不完全です。</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/GgpoLobby.cpp" line="152" />
+      <source>No battle: the network port is in use by another program.</source>
+      <translation>対戦できません: ネットワークポートが他のプログラムで使用中です。</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/GgpoLobby.cpp" line="153" />
+      <source>No battle: an opponent did not answer. Check your router and firewall (UDP).</source>
+      <translation>対戦できません: 対戦相手から応答がありません。ルーターとファイアウォールの設定 (UDP) を確認してください。</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/ReplayLive.cpp" line="275" />
+      <source>Waiting for the next live battle: {:.0f} s, {} watched. Resume to stop.</source>
+      <translation>次のライブバトルを待っています: {:.0f} 秒、{} 件観戦済み。再開すると停止します。</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/ReplayLive.cpp" line="278" />
+      <source>
+Skipped {}, last: {}</source>
+      <translation>
+{} 件スキップ、最後の理由: {}</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/ReplayLoad.cpp" line="514" />
+      <source>Failed to start the replay. The replay file could not be read, or it is corrupted or outdated.</source>
+      <translation>リプレイを開始できませんでした。リプレイファイルを読めないか、壊れているか古い形式です。</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/ReplayLoad.cpp" line="527" />
+      <source>Failed to start the replay. The common start state could not be downloaded or loaded.</source>
+      <translation>リプレイを開始できませんでした。共通の開始ステートをダウンロードまたは読み込みできませんでした。</translation>
+    </message>
+    <message>
+      <location filename="../../pcsx2/Zdxsv/SyncSettings.cpp" line="154" />
+      <source>Online play: {} set to the defaults.</source>
+      <translation>オンライン対戦: {} を既定値にしました。</translation>
+    </message>
+  </context>
+  <context>
     <name>VMManager</name>
     <message>
       <location filename="../../pcsx2/VMManager.cpp" line="1072"/>
