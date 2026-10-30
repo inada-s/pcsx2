@@ -64,7 +64,7 @@ Lets the server tell emulators from real PS2s.
 | Key | Sent | Meaning |
 |---|---|---|
 | `emulator`, `version`, `os`, `cpu` | always | what runs the game |
-| `pcsx2` | built from a `zdxsv-X.Y.Z` release tag or a commit after one | release version: `zdxsv-X.Y.Z` on the tag, `zdxsv-X.Y.(Z+1)-dev.N` N commits after it. The lobby refuses a login below its minimum client version (zdxsv master data) |
+| `pcsx2` | built from a `zdxsv-X.Y.Z` release tag or a commit after one | release version: `zdxsv-X.Y.Z` on the tag, `zdxsv-X.Y.(Z+1)-dev.N` N commits after it. The lobby refuses a login below its minimum client version (zdxsv master data); PCSX2 then shows an OSD message |
 | `machine_id` | Windows, macOS | 16 hex digits: XXH64 (seed 37) of the host id (Windows `MachineGuid`, the macOS serial number), never the raw id; the same on every install and portable folder of a PC. Not sent on Linux (as flycast) |
 | `udp=1` | lobby GGPO on | the client wants battle infos |
 | `udp_addr`, `udp_local` | lobby GGPO on | the GGPO port's public IPv4 address from the lobby's STUN (asked from that port on every lobby connection, as flycast's `NotifyWanPort`), and the local one |

@@ -81,5 +81,6 @@ Press "Download and Install...": PCSX2 downloads the new version, closes, replac
 files and starts again. Your settings, memory cards and save states are kept.
 "Remind Me Later" asks again on the next start; "Skip This Update" waits for the next version.
 You can also check by hand from the Help menu (Check for Updates).
-If the game shows "PLEASE UPDATE PCSX2" when you connect, the server no longer accepts your
+If the game shows "PLEASE UPDATE PCSX2" when you connect (PCSX2 also shows "The lobby refused this PCSX2
+as outdated"), the server no longer accepts your
 version: update as above, then connect again.

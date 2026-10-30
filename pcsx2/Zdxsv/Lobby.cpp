@@ -479,6 +479,10 @@ namespace Zdxsv
 			}
 			else
 			{
+				constexpr std::string_view update = "PLEASE UPDATE PCSX2";
+				if (f[0] == 0x18 && f[1] == 0x10 && f[2] == 0x60 && f[3] == 0x03 &&
+					std::string_view(reinterpret_cast<const char*>(f + header), total - header).find(update) != std::string_view::npos)
+					pleaseUpdate = true;
 				LobbyNoteFrame(f, total);
 				out.insert(out.end(), f, f + total);
 			}
