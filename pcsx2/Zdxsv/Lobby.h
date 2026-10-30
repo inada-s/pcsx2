@@ -95,6 +95,7 @@ namespace Zdxsv
 	{
 		std::vector<uint8_t> header; // a replay BattleLogFile without inputs
 		std::vector<uint8_t> inputs; // frames x frameBytes
+		std::vector<uint8_t> rounds; // the round results so far: BattleLogFile round_data entries (field 18)
 		int frameBytes = 0;
 		bool closed = false;
 		std::string close;
@@ -107,6 +108,7 @@ namespace Zdxsv
 		LiveUp(const std::string& to, std::string code, uint32_t session, std::vector<uint8_t> header, int frameBytes);
 		~LiveUp(); // stops the thread
 		void AddFrames(const void* data, size_t frames); // the next confirmed frames, in order
+		void AddRound(const std::vector<uint8_t>& entry); // a BattleLogFile round_data entry (field 18), once confirmed
 		size_t Frames();
 		void Close(const std::string& reason);
 		bool Done(); // the lobby acked the close, or the thread gave up
@@ -126,8 +128,8 @@ namespace Zdxsv
 		// (running ones first), else the newest running one not in skip (auto-next); "" = none or no answer
 		// in timeoutMs. A lobby older than skip answers as if it were empty.
 		static std::string Newest(const std::string& hostPort, const std::vector<std::string>& skip, int timeoutMs);
-		// Moves the frames received since the last call into s.inputs (with the header on the
-		// first call), sets s.closed / s.close; false = nothing from the lobby for stallMs.
+		// Moves the frames received since the last call into s.inputs (with the header on the first call),
+		// copies the round results to s.rounds, sets s.closed / s.close; false = nothing from the lobby for stallMs.
 		bool Take(LiveStreams& s, int stallMs);
 	private:
 		LiveDown();

@@ -29,6 +29,9 @@
 #   (OUT/trace-live.txt). Checks: one client was the uplink, the spectator's stream closed at the uplink's saved
 #   .pb frame count, the lobby logged the close with that count; with PWTRACE=1 its player work + rng = the
 #   players' (pwcheck).
+#   LIVE_AT=S (LIVE): the spectator starts S s after the uplink, a late join. Checks (one battle): the round
+#   results the uplink sent = the ones the spectator got from the stream, none differs from its own playback;
+#   with LIVE_AT the spectator had some at its open.
 #   LIVE_NEXT=K (with BATTLES=K+1): the spectator moves on to the next battle K times (ZDXSV_LIVE_NEXT); the
 #   checks above run per watched battle, plus K+1 different battles watched (pwcheck too: --battle <code>).
 #   LIVE_SPEED=X: the spectator runs at normal speed X (launch.ps1 -Speed), off the stream's rate: a pacing
@@ -172,6 +175,7 @@ if [ -n "${LIVE:-}" ]; then
     for t in $(seq 1800); do grep -a -q 'live uplink' "$OUT/lobby.log" 2>/dev/null && break; sleep 2; done
     grep -a -q 'live uplink' "$OUT/lobby.log" || { echo "no live uplink in $((SECONDS - t1)) s"; exit 0; }
     echo "live uplink after $((SECONDS - t1)) s: spectator p$LIVE"
+    [ -z "${LIVE_AT:-}" ] || sleep "$LIVE_AT"
     env ZDXSV_REPLAY="udp://127.0.0.1:8201" ZDXSV_LIVE_NEXT=${LIVE_NEXT:-0} ZDXSV_REPLAY_EXIT=1 ZDXSV_PW_HASH=1 ZDXSV_NET_TRACE="$OUT/trace-live.txt" \
       powershell -NoProfile -Command "& '$here/launch.ps1' -N $LIVE -Headless -StateFile ${LIVE_STATE:-$RBKSTATES/rbk-p1.p2s}${LIVE_SPEED:+ -Speed $LIVE_SPEED}" 2>&1 | tail -1
     [ -z "${LIVE_STALL:-}" ] || live_stall
@@ -480,6 +484,15 @@ elif [ -n "${LIVE:-}" ]; then
   sc=$(grep -a -o 'replay state check: hashes [0-9]* checked, [0-9]* differ' "$f" | tail -1)
   echo "spectator ${sc:-no state check}"
   check "spectator checked the stream's state hashes, none differ" "echo '$sc' | awk '{exit !(\$5 > 0 && \$7 == 0)}'"
+  if [ $nw = 1 ]; then
+    # the uplink's round results as sent, the spectator's as received (also ahead of its playback)
+    rup=$(grep -a -h 'ZdxsvGgpo: live: round result win_team' $(for i in $CLIENTS; do echo "$RUN/p$i/PCSX2/logs/emulog.txt"; done) | sed 's/.*win_team \(-*[0-9]*\).*/\1/' | tr '\n' ' ')
+    rsp=$(grep -a 'ZdxsvGgpo: live: round result [0-9]*: win_team' "$f" | sed 's/.*win_team \(-*[0-9]*\).*/\1/' | tr '\n' ' ')
+    echo "round results: uplink [$rup] spectator [$rsp]"
+    check "spectator got the uplink's round results from the stream" "[ -n '$rup' ] && [ '$rup' = '$rsp' ]"
+    check "spectator's played rounds = the stream's" "! grep -a -q 'differs from the file' '$f'"
+    [ -z "${LIVE_AT:-}" ] || check "late spectator had round results at its open" "grep -a -q 'live: battle .*, [1-9][0-9]* bytes of round results' '$f'"
+  fi
   # per watched battle: the traces' lines from its `B <code>` line (pwcheck-live-<code>.txt)
   [ -n "${PWTRACE:-}" ] && for code in $codes; do
     "$PY" -I "$TOOLS/pwcheck.py" --own --battle $code "$OUT/trace-live.txt" $(for i in $CLIENTS; do echo "$OUT/trace-p$i.txt"; done) > "$OUT/pwcheck-live-$code.txt" 2>&1

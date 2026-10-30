@@ -60,6 +60,19 @@ namespace Zdxsv
 			return pb;
 		}
 
+		// The BattleLogFile round_data entry (field 18) for the round result between frames f - 1 and f.
+		std::vector<uint8_t> RoundEntry(size_t f, int win)
+		{
+			std::vector<uint8_t> round, entry;
+			Pb::PutInt(round, 1, win);
+			std::vector<int64_t> used_ms; // by position, 1-based
+			for (int p = 0; p < s_players; p++)
+				used_ms.push_back(((s_replay_ms[f] >> (p * 8)) & 0xff) + 1);
+			Pb::PutPackedInts(round, 2, used_ms);
+			Pb::PutBytes(entry, 18, round.data(), round.size());
+			return entry;
+		}
+
 		// The confirmed frames not yet given to the live uplink.
 		void LiveFeed(size_t frames)
 		{
@@ -77,6 +90,14 @@ namespace Zdxsv
 				std::memcpy(&records[at + in_bytes], &s_replay_hashes[f], sizeof(u32));
 			}
 			s_live->AddFrames(records.data(), frames - have);
+			for (size_t f = std::max<size_t>(have, 1); f < std::min(frames, s_replay_records.size()); f++)
+			{
+				if (const int win = RoundResult(s_replay_records[f - 1], s_replay_records[f]))
+				{
+					s_live->AddRound(RoundEntry(f, win));
+					Console.WriteLn("ZdxsvGgpo: live: round result win_team %d at frame %zu to the uplink", win, f - 1);
+				}
+			}
 		}
 
 		std::string ReplayDir()
@@ -308,13 +329,8 @@ namespace Zdxsv
 		{
 			if (const int win = RoundResult(s_replay_records[f - 1], s_replay_records[f]))
 			{
-				std::vector<uint8_t> round;
-				PutInt(round, 1, win);
-				std::vector<int64_t> used_ms; // by position, 1-based
-				for (int p = 0; p < s_players; p++)
-					used_ms.push_back(((s_replay_ms[f] >> (p * 8)) & 0xff) + 1);
-				PutPackedInts(round, 2, used_ms);
-				PutBytes(pb, 18, round.data(), round.size());
+				const std::vector<uint8_t> entry = RoundEntry(f, win);
+				pb.insert(pb.end(), entry.begin(), entry.end());
 				Console.WriteLn("ZdxsvGgpo: replay round result: win_team %d at frame %zu, MS ids %08x", win, f - 1, s_replay_ms[f]);
 			}
 		}
