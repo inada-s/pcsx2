@@ -1664,11 +1664,12 @@ namespace Zdxsv
 		uint32_t session = 0;
 		int frameBytes = 0;
 		std::mutex mtx;
-		std::vector<uint8_t> header, inputs;
+		std::vector<uint8_t> header, inputs, rounds;
+		size_t roundAck = 0; // bytes of rounds the lobby holds
 		bool closeSet = false, headerAck = false, closeAck = false;
 		std::string close;
 		LiveWindow in;
-		Clock::time_point headerSent{}, closeSent{}, closeAt{};
+		Clock::time_point headerSent{}, roundSent{}, closeSent{}, closeAt{};
 		std::atomic<bool> quit{false}, done{false};
 		std::thread t;
 
@@ -1696,6 +1697,7 @@ namespace Zdxsv
 				{
 					headerAck = headerAck || nums[40] != 0;
 					in.Ack(nums[2], now);
+					roundAck = std::max<size_t>(roundAck, nums[43]);
 					closeAck = closeAck || nums[42] != 0;
 				}
 				if (closeAck || (closeSet && now - closeAt > LIVE_CLOSE_GIVEUP))
@@ -1722,7 +1724,15 @@ namespace Zdxsv
 					LiveSend(s, to, LIVE_PUSH, m);
 					sent++;
 				});
-				if (closeSet && headerAck && in.acked == frames && now - closeSent >= LIVE_RESEND)
+				if (headerAck && roundAck < rounds.size() && now - roundSent >= LIVE_RESEND)
+				{
+					std::vector<uint8_t> m = Push();
+					Pb::PutBytes(m, 45, rounds.data(), rounds.size());
+					LiveSend(s, to, LIVE_PUSH, m);
+					roundSent = now;
+					sent++;
+				}
+				if (closeSet && headerAck && in.acked == frames && roundAck >= rounds.size() && now - closeSent >= LIVE_RESEND)
 				{
 					std::vector<uint8_t> m = Push();
 					Pb::PutInt(m, 3, static_cast<int64_t>(frames));
@@ -1768,6 +1778,13 @@ namespace Zdxsv
 		std::lock_guard lock(m->mtx);
 		const uint8_t* p = static_cast<const uint8_t*>(data);
 		m->inputs.insert(m->inputs.end(), p, p + frames * m->frameBytes);
+	}
+
+	void LiveUp::AddRound(const std::vector<uint8_t>& entry)
+	{
+		std::lock_guard lock(m->mtx);
+		m->rounds.insert(m->rounds.end(), entry.begin(), entry.end());
+		m->roundSent = {};
 	}
 
 	size_t LiveUp::Frames()
@@ -1848,6 +1865,8 @@ namespace Zdxsv
 							frames += in.size() / fb;
 						}
 					}
+					if (const auto r = bytes.find(45); r != bytes.end() && r->second.size() > g.rounds.size())
+						g.rounds.assign(r->second.begin(), r->second.end());
 					// the lobby's close push carries no frame_bytes
 					if (bytes.count(8) && nums[3] == frames && !g.closed)
 					{
@@ -1859,6 +1878,7 @@ namespace Zdxsv
 					Pb::PutInt(ack, 2, static_cast<int64_t>(frames));
 					Pb::PutInt(ack, 40, headerTaken || !g.header.empty() ? 1 : 0);
 					Pb::PutInt(ack, 42, g.closed ? 1 : 0);
+					Pb::PutInt(ack, 43, static_cast<int64_t>(g.rounds.size()));
 					LiveSend(s, to, LIVE_ACK, ack);
 				}
 				if (!got.closed && now - subscribed >= LIVE_KEEPALIVE)
@@ -1957,6 +1977,7 @@ namespace Zdxsv
 		}
 		s.inputs.insert(s.inputs.end(), g.inputs.begin(), g.inputs.end());
 		g.inputs.clear();
+		s.rounds = g.rounds;
 		s.frameBytes = g.frameBytes;
 		s.closed = g.closed;
 		s.close = g.close;

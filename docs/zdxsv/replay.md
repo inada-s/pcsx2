@@ -126,6 +126,13 @@ A lobby GGPO battle is streamed to the lobby while it runs, as gdxsv does
   frame to the lobby's UDP address, then the close; whether saving or
   upload is on or not. A frame record is the inputs plus the frame's u32 state
   hash (`frame_bytes` = players x 32 + 4); records without it still play.
+- Round results: at each confirmed round end the uplink adds the round's
+  `round_data` entry (winner, MS per position) and sends all of them so far
+  (`round_data` 45, acked by its length in `round_ack` 43). The lobby keeps
+  the longest and sends it to each spectator after the header, so one who
+  joins at round 3 has rounds 1-2 before its catch-up replays them. The
+  spectator shows them as a file's `round_data` and logs a round its own
+  playback ends with another winner.
 - Transfer: 1000-byte datagrams, go-back-N on the receiver's ack, both
   uplink to lobby and lobby to spectator.
 - Spectator: `ZDXSV_REPLAY=udp://host:port[/battle code]` (no code = the
