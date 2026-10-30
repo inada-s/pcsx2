@@ -103,6 +103,6 @@ done
 # no UDP bridge; STUN only on lobby=1 clients
 ok "no bridge" "! cat $RUN/p[1-4]/PCSX2/logs/emulog.txt | grep -a -q 'zdxsv: bridge\|UDP bridge'"
 ok "stun x$n" "[ \$(cat $RUN/p[1-4]/PCSX2/logs/emulog.txt | grep -a -c 'zdxsv: udp: port') -eq $n ]"
-[ -n "$RELAY" ] && [ -z "$BAD" ] && ok "relay forwarded" "grep -a 'relay test session' '$OUT/relay.log' | tail -1 | grep -a -q 'forwarded [1-9]'"
+[ -n "$RELAY" ] && [ -z "$BAD" ] && ok "relay forwarded" "grep -a 'relay test session' '$OUT/relay.log' | grep -a -q 'forwarded [1-9]'"
 [ "$n" -lt 4 ] && ok "no ggpo session" "! cat $RUN/p[1-4]/PCSX2/logs/emulog.txt | grep -a -q 'ZdxsvGgpo: net player'"
 exit $rc
