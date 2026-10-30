@@ -50,8 +50,10 @@ namespace Zdxsv
 	namespace
 	{
 		// Public-key pins (SHA-256 of the SubjectPublicKeyInfo, hex) of the zdxsv CA and the backup CA.
-		// Empty: TLS stays off until they are set (docs/zdxsv/lobby.md).
-		constexpr std::array<std::string_view, 0> kPins{};
+		constexpr std::array<std::string_view, 2> kPins{
+			"59c321a216b77fa3428869e87a47abba9587972998cef63f943a461f64778d94", // zdxsv ca
+			"c784e5d5659c3190cb1d867c5d97e7acde181c6b076f650534c43c4f70c9dca5", // zdxsv backup-ca
+		};
 
 		// The zdxsv test CA (zdxsv repository, pkg/tlsconf/testdata/ca.crt). Trusted only with ZDXSV_TLS_TEST_PIN=1.
 		constexpr std::string_view kTestPin = "0af329b315307efed87292e042cc0726ce5d1e37cd52301aac53d5c72674b6b7";
