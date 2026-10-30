@@ -328,6 +328,12 @@ namespace Zdxsv
 			return env && std::string(env) == "0";
 		}();
 		filter.Feed(data, static_cast<size_t>(len), !off && VMManager::GetState() == VMState::Paused);
+		if (filter.TakePleaseUpdate())
+		{
+			Console.Warning("DEV9: TCP: zdxsv lobby refused this PCSX2 as outdated");
+			Host::AddIconOSDMessage("ZdxsvPleaseUpdate", ICON_FA_TRIANGLE_EXCLAMATION,
+				TRANSLATE_STR("Zdxsv", "The lobby refused this PCSX2 as outdated. Please update it."), Host::OSD_ERROR_DURATION);
+		}
 		const std::vector<u8> answers = filter.TakeAnswers();
 		if (answers.empty())
 			return;

@@ -27080,6 +27080,11 @@ Xbox 360 turntables require a 256x multiplier, most other turntables can use the
       <translation>対戦できません: ロビーからの対戦情報が不完全です。</translation>
     </message>
     <message>
+      <location filename="../../pcsx2/Zdxsv/LobbyConnection.cpp" line="335" />
+      <source>The lobby refused this PCSX2 as outdated. Please update it.</source>
+      <translation>この PCSX2 は古いためロビーに接続できません。更新してください。</translation>
+    </message>
+    <message>
       <location filename="../../pcsx2/Zdxsv/GgpoLobby.cpp" line="152" />
       <source>No battle: the network port is in use by another program.</source>
       <translation>対戦できません: ネットワークポートが他のプログラムで使用中です。</translation>

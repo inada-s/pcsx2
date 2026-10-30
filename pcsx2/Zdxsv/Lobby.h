@@ -226,11 +226,13 @@ namespace Zdxsv
 		size_t Ready() const { return ready.size(); }
 		size_t Take(uint8_t* dst, size_t max);
 		std::vector<uint8_t> TakeAnswers() { return std::exchange(answers, {}); }
+		bool TakePleaseUpdate() { return std::exchange(pleaseUpdate, false); }
 
 	private:
 		std::vector<uint8_t> buf; // incomplete frame
 		std::vector<uint8_t> ready; // frames for the game
 		std::vector<uint8_t> answers; // frames for the server
+		bool pleaseUpdate = false; // passed the lobby's notice 0x6003 refusing an outdated pcsx2
 	};
 
 	// Battle-start answers 0x6911..0x6917 (whole lobby frames) the game got since the last battle start notice
