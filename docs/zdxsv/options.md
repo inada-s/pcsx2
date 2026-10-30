@@ -36,6 +36,7 @@ page greys it out and its tooltip names the variable.
 |---|---|---|---|
 | `[DEV9/Eth] ZdxsvGgpo` | `true` | feature | Lobby battles run over GGPO (`ZDXSV_GGPO` options `net=1,lobby=1`). Read when the game starts. |
 | `[DEV9/Eth] ZdxsvGgpoMinDelay` | `2` | feature | Lowest GGPO input delay (frames, 2..6) a lobby battle picks, and the replay takeover delay; as gdxsv's `MinDelay`. Read when the game starts. `mindelay=` overrides it. |
+| `[DEV9/Eth] ZdxsvRollbackBudget` | `1.0` | internal | Rollback budget learned per PC (frames, 0..1.5), saved after each long net battle (`rollback.md`). |
 | `[DEV9/Eth] ZdxsvGgpoPort` | `0` | feature | UDP port of lobby battles (ping test and GGPO). 0 or out of range: a random port in 29700..29800, picked when the game starts with `lobby=1` and saved to the setting. `port=` overrides it. |
 | `[EmuCore/GS] ZdxsvLowLatencyVsync` | `true` | feature | Present the finished frame before the frame limiter sleeps, and poll input right before the next frame runs. |
 | `[DEV9/Eth] ZdxsvLiveAutoNext` | `false` | feature | Live spectating: when a stream ends, watch the lobby's next live battle. `ZDXSV_LIVE_NEXT` overrides it. |
@@ -120,6 +121,7 @@ off. Any other value turns it on. Without `net=1` the session is a synctest. Log
 | `ZDXSV_PRESENT_FIRST=0` | on | control | With `ZdxsvLowLatencyVsync` in a GGPO session: the limiter sleep and the input poll come before the rollback. Default: present, rollback, then sleep and poll, so a rollback shorter than the sleep does not delay the next present; a corrected frame shows one frame later. |
 | `ZDXSV_RERUN_EE_DRAW=1` | off | control | The game's render callbacks run in every rerun frame. Default: not in rerun frames but the last two (see rollback.md). |
 | `ZDXSV_RERUN_DRAW=0` | on | control | The GS drops the draw calls of rollback rerun frames. Default: drawn (not presented; the next frame draws over them). |
+| `ZDXSV_ROLLBACK_BUDGET=1` | off | test | The lobby delay subtracts the learned `ZdxsvRollbackBudget` instead of 0. |
 | `ZDXSV_NET_TAIL=n` | 300 | tuning | Frames run after the battle end message is confirmed, before the session stops. |
 | `ZDXSV_NET_DISCONNECT_MS=ms` | 10000 | tuning | GGPO disconnect timeout (as flycast). |
 | `ZDXSV_NET_SESSION=s` | battle code | test | GGPO session code sent in the sync handshake instead of the battle code; a peer with another code is refused (`session mismatch`). |

@@ -588,6 +588,7 @@ namespace Zdxsv
 				Host::RunOnCPUThread([] { SyncSettingsOnBattle(false); });
 			Zdxsv::DeltaStateClear();
 			Report(what);
+			GgpoBudgetSessionEnd(s_net);
 			Console.WriteLn("ZdxsvGgpo: %s relayed while the frame loop held GGPO %d", what, s_pump.held_relayed.load());
 			{
 				// the stats stay up 10 s after a disconnect, so the player sees who left
@@ -1082,10 +1083,12 @@ namespace Zdxsv
 		if (s_t_vsync)
 			s_exit_ms.Add(Common::Timer::ConvertValueToMilliseconds(t0 - s_t_vsync));
 		SyncSettingsOnBattle(true); // before the session's first frame
+		const bool framed = s_session && s_t_vsync;
 		Returned();
 		DeferredThrottle(); // a Returned that ended the session
 		s_t_returned = Common::Timer::GetCurrentValue();
 		s_ours_ms.Add(Common::Timer::ConvertValueToMilliseconds(s_t_returned - t0));
+		GgpoBudgetFrame(framed && s_session, s_rerun_ms.sum, s_wait_ms.sum, s_sleep_ms.sum);
 	}
 
 	bool GgpoHoldsFrame()

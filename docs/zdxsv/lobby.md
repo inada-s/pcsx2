@@ -109,6 +109,7 @@ and encodes them when it sends the report; the lobby logs the report as one
 | `peer_id` (4), `player_count` (3) | always | own battle position and the player count |
 | `remote_peers` (31) | ping test ran | per peer: `peer_id`, `rtt_ms` (40, -1 = no answer), the picked `addr` (41) and `route` (7) |
 | `relay_count` (46), `ping_wait_ms` (48), `input_delay` (21), `min_delay` (49), `fixed_delay` (50) | ping test ran | relay server count, time waited for the test, GGPO input delay |
+| `rollback_budget` (56), `rollback_budget_used` (57) | ping test ran | learned and used rollback budget (frames, float) |
 | `ping_error` (47) | the ping test could not start | why, e.g. the GGPO port could not be bound |
 | `close_reason` (5), `frame_count` (6), `rollback_frames` (52), `mismatches` (53), `disconnected` (54) | GGPO battle | why the session ended and its counters |
 | `disconnected_peer_ids` (55) | GGPO battle | positions whose peer disconnected |
@@ -149,7 +150,8 @@ pongs (the lower middle one for an even count), so a few late pongs change
 neither the delay nor the route.
 
 The input delay is max(`mindelay`, ceil(RTT of the slowest peer / 2 /
-16 ms)), as flycast's rollback backend. `delay=` fixes it and skips the test.
+16 ms - the rollback budget)), the budget in `rollback.md`. `delay=` fixes it
+and skips the test.
 
 ### Connection cut
 

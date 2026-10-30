@@ -152,6 +152,23 @@ Three mechanisms keep the peers on the same frame:
   into the input a fixed number of GGPO frames after the game sent it, more
   than GGPO's prediction window, so it does not depend on network timing.
 
+### Rollback budget
+
+The lobby input delay is max(`mindelay`, ceil(RTT / 2 / 16 ms - budget)): the
+budget is the part of the one-way latency left to rollbacks.
+
+- Each battle frame (frame loop to frame loop, limiter sleep left out) gives
+  its slack: the frame period (59.94 Hz) less the work besides rollback
+  reruns, in frames of its own emulation (net waits left out): the rollback
+  depth that fits. A histogram in steps of 0.05 frames gives the median.
+- After a net battle of at least 1800 frames the learned budget moves halfway
+  to clamp(median - 1, 0, 1.5) and is saved (`ZdxsvRollbackBudget`).
+- The delay uses 0 for now, so it is ceil(RTT / 32 ms) as before: rollbacks
+  still cost too much on PS2, and a deeper rollback would
+  drop frames. The budget gets used once reruns are cheaper; the switch is
+  `kBudgetUsed` in `GgpoBudget.cpp` (`ZDXSV_ROLLBACK_BUDGET=1` for tests).
+- The lobby log line `lobby delay` and the match report (`rollback_budget`,
+  `rollback_budget_used`) carry the learned and the used budget.
 ### Rollback test mode
 
 `ZDXSV_RBK=i/N` runs a battle without any server, from a save state taken

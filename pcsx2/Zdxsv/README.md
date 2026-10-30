@@ -46,6 +46,7 @@ options: `docs/zdxsv/`.
 | `GgpoShared.h` | Types, state and functions shared by the `Ggpo*.cpp` and `Replay*.cpp` files; included by them only |
 | `GgpoBattle.cpp` | The game's battle socket emulated over GGPO; built-in battle start of a rig run (`ZDXSV_RBK`) |
 | `GgpoLobby.cpp` | Arming a GGPO battle from the lobby: battle info, frame delay, the cut connection |
+| `GgpoBudget.cpp` | Rollback budget: frame slack histogram, the per-PC learned budget, the input delay formula |
 | `GgpoGameState.cpp` | Game RAM reads for sync checks and replays: player work hash, RNG, tick state, round records |
 | `GgpoTrace.cpp` | Debug: `NET_TRACE` lines of the pad and the battle msgs' key slots |
 | `GgpoTest.cpp` | Local rollback test harness (synctest): state diffs of rerun frames, random pad input |

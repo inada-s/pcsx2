@@ -139,6 +139,7 @@ set(pcsx2Sources
 	Zdxsv/DeltaFreeze.cpp
 	Zdxsv/Ggpo.cpp
 	Zdxsv/GgpoBattle.cpp
+	Zdxsv/GgpoBudget.cpp
 	Zdxsv/GgpoGameState.cpp
 	Zdxsv/GgpoLobby.cpp
 	Zdxsv/GgpoTest.cpp

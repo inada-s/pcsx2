@@ -454,6 +454,7 @@
     <ClCompile Include="Zdxsv\DeltaFreeze.cpp" />
     <ClCompile Include="Zdxsv\Ggpo.cpp" />
     <ClCompile Include="Zdxsv\GgpoBattle.cpp" />
+    <ClCompile Include="Zdxsv\GgpoBudget.cpp" />
     <ClCompile Include="Zdxsv\GgpoGameState.cpp" />
     <ClCompile Include="Zdxsv\GgpoLobby.cpp" />
     <ClCompile Include="Zdxsv\GgpoTest.cpp" />
