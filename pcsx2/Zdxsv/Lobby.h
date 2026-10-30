@@ -143,9 +143,12 @@ namespace Zdxsv
 	// summary: the result in words for the OSD, without addresses or ports (the log line has them).
 	// UdpTest on its own thread: returns at once; done(natLine, summary) is called from that thread
 	// when it ends, unless cancelled (StopUdpTest). One test at a time: a call while one runs does
-	// nothing and returns false.
+	// nothing and returns false. openPort (optional) runs when the port is not open: it may open it
+	// (UPnP) and add platform info lines; true runs the test again, whose result replaces the first
+	// unless only the retest got no answer.
 	bool StartUdpTest(uint32_t stunIP, uint16_t stunPort, uint16_t bindPort,
-		std::function<void(const std::string& natLine, const std::string& summary)> done);
+		std::function<void(const std::string& natLine, const std::string& summary)> done,
+		std::function<bool(std::string& lines)> openPort = nullptr);
 	// Cancels a running StartUdpTest and waits for its thread (< 100 ms): it frees the GGPO port.
 	void StopUdpTest();
 
