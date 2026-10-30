@@ -1502,7 +1502,8 @@ namespace Zdxsv
 		return g_udpLines;
 	}
 
-	std::string UdpTest(uint32_t stunIP, uint16_t stunPort, uint16_t bindPort, std::string& summary, const std::atomic<bool>* stop)
+	std::string UdpTest(uint32_t stunIP, uint16_t stunPort, uint16_t bindPort, std::string& summary, const std::atomic<bool>* stop,
+		const UdpReachAsk& reachAsk)
 	{
 		const auto stopped = [stop] { return stop && stop->load(); };
 		// A "udptest" Ping makes the server answer from both sockets: the test socket's Pong arrives only
@@ -1561,6 +1562,26 @@ namespace Zdxsv
 		ask(stun, "udptest", [&] { return open || (!mapped.empty() && Clock::now() - start > std::chrono::milliseconds(500)); });
 		if (!mapped.empty() && !open)
 			ask(test, "", [&] { return !mappedTest.empty(); });
+		// "" = not asked; the server's test socket shares its IP, so an address-restricted NAT passes it
+		std::string reach;
+		if (open && reachAsk && !stopped())
+		{
+			reach = "no answer";
+			if (!reachAsk(mapped, stop))
+				reach = "not asked (request failed)";
+			const auto until = Clock::now() + std::chrono::seconds(3);
+			while (reach == "no answer" && !stopped() && Clock::now() < until)
+			{
+				if (!WaitReadable(s, 50))
+					continue;
+				char buf[64];
+				sockaddr_in from{};
+				socklen_t fromLen = sizeof(from);
+				const int n = recvfrom(s, buf, sizeof(buf), 0, reinterpret_cast<sockaddr*>(&from), &fromLen);
+				if (n == 5 && std::memcmp(buf, "Hello", 5) == 0)
+					reach = "Hello from " + MaskIpAddress(AddrString(from));
+			}
+		}
 		// the server's two sockets share one IP: a NAT that maps per destination IP looks like a cone to them
 		std::vector<std::string> outside;
 		if (!mapped.empty() && !open && !stopped())
@@ -1578,8 +1599,10 @@ namespace Zdxsv
 			nat = "unknown", summary = "unknown (test cancelled)", detail = "port " + std::to_string(bindPort) + " taken by the ping test";
 		else if (mapped.empty())
 			nat = "unknown", summary = "unknown (no answer from the server)", detail = "no STUN answer from " + AddrString(stun);
+		else if (open && reach == "no answer")
+			nat = "cone", summary = "cone NAT (open to the server only)", detail = "port " + std::to_string(bindPort) + " open to the server's IP, no Hello from the udptest function, public " + MaskIpAddress(mapped);
 		else if (open)
-			nat = "open", summary = "open", detail = "port " + std::to_string(bindPort) + " reachable from any source, public " + MaskIpAddress(mapped);
+			nat = "open", summary = "open", detail = "port " + std::to_string(bindPort) + " reachable from any source, public " + MaskIpAddress(mapped) + ", udptest " + (reach.empty() ? "off" : reach);
 		else
 		{
 			const bool serverPair = !mappedTest.empty() && ParseAddr(mapped, ip1, port1) && ParseAddr(mappedTest, ip2, port2);
@@ -1600,7 +1623,7 @@ namespace Zdxsv
 		return "nat=" + nat + "\n";
 	}
 
-	bool StartUdpTest(uint32_t stunIP, uint16_t stunPort, uint16_t bindPort,
+	bool StartUdpTest(uint32_t stunIP, uint16_t stunPort, uint16_t bindPort, UdpReachAsk reachAsk,
 		std::function<void(const std::string& natLine, const std::string& summary)> done,
 		std::function<bool(std::string& lines)> openPort)
 	{
@@ -1611,14 +1634,14 @@ namespace Zdxsv
 		g_udpTestRunning = true;
 		g_udpTest = std::make_unique<UdpTestRun>();
 		UdpTestRun* t = g_udpTest.get();
-		t->thread = std::thread([t, stunIP, stunPort, bindPort, done = std::move(done), openPort = std::move(openPort)] {
+		t->thread = std::thread([t, stunIP, stunPort, bindPort, reachAsk = std::move(reachAsk), done = std::move(done), openPort = std::move(openPort)] {
 			std::string summary;
-			std::string line = UdpTest(stunIP, stunPort, bindPort, summary, &t->stop);
+			std::string line = UdpTest(stunIP, stunPort, bindPort, summary, &t->stop, reachAsk);
 			std::string extra;
 			if (openPort && !t->stop && line != "nat=open\n" && openPort(extra) && !t->stop)
 			{
 				std::string retest;
-				const std::string again = UdpTest(stunIP, stunPort, bindPort, retest, &t->stop);
+				const std::string again = UdpTest(stunIP, stunPort, bindPort, retest, &t->stop, reachAsk);
 				if (again != "nat=unknown\n" || line == "nat=unknown\n")
 					line = again, summary = retest;
 			}

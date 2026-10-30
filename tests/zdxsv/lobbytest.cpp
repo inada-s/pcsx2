@@ -1,7 +1,7 @@
 // Unit test of the waits in pcsx2/Zdxsv/Lobby.cpp (no PCSX2, no game): a fake zdxsv STUN on
 // 127.0.0.1 (silent, or answering after a delay) and held UDP ports. Build and run: lobbytest.sh.
 // Exit 0 = every check passed; a failed check prints FAIL.
-// Uses 127.0.0.1 UDP ports 27110-27130 and 27150-27151, 27201-27203, 27211-27216, 27132.
+// Uses 127.0.0.1 UDP ports 27110-27130 and 27150-27151, 27201-27205, 27211-27216, 27131-27132.
 #include "Zdxsv/Lobby.h"
 #include "Zdxsv/Proto.h"
 
@@ -383,15 +383,15 @@ int main()
 		auto t0 = Clock::now();
 		std::atomic<int> doneMs{-1};
 		std::string line;
-		const bool started = Zdxsv::StartUdpTest(lo, 27203, 27130, [&](const std::string& l, const std::string&) { line = l; doneMs = Ms(t0); });
+		const bool started = Zdxsv::StartUdpTest(lo, 27203, 27130, {}, [&](const std::string& l, const std::string&) { line = l; doneMs = Ms(t0); });
 		const long ret = Ms(t0);
 		Check(started && ret < 50, "StartUdpTest returns at once (ms)", ret);
-		Check(!Zdxsv::StartUdpTest(lo, 27203, 27130, nullptr), "2nd StartUdpTest while one runs: refused", 0);
+		Check(!Zdxsv::StartUdpTest(lo, 27203, 27130, {}, nullptr), "2nd StartUdpTest while one runs: refused", 0);
 		while (doneMs < 0 && Ms(t0) < 5000)
 			std::this_thread::sleep_for(std::chrono::milliseconds(10));
 		Check(doneMs >= 0 && line == "nat=unknown\n", "silent STUN: done with nat=unknown (ms)", doneMs);
 		std::atomic<bool> called{false};
-		Zdxsv::StartUdpTest(lo, 27203, 27130, [&](const std::string&, const std::string&) { called = true; });
+		Zdxsv::StartUdpTest(lo, 27203, 27130, {}, [&](const std::string&, const std::string&) { called = true; });
 		std::this_thread::sleep_for(std::chrono::milliseconds(100));
 		t0 = Clock::now();
 		Zdxsv::StartPingTest(80, 0, byPos, 27130, 600);
@@ -399,6 +399,53 @@ int main()
 		std::string err;
 		Zdxsv::FinishPingTest(nullptr, &err);
 		Check(ms < 200 && err.empty() && !called, "ping test on the port cancels the connectivity test, done not called (ms)", ms);
+	}
+	// the server's test socket (:27205) reaches us; open then also needs the udptest function's Hello
+	{
+		FakeStun stun(27204);
+		stun.mode = 1;
+		SOCKET ts = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+		sockaddr_in ta{};
+		ta.sin_family = AF_INET;
+		ta.sin_port = htons(27205);
+		ta.sin_addr.s_addr = inet_addr("127.0.0.1");
+		bind(ts, (sockaddr*)&ta, sizeof(ta));
+		sockaddr_in me = ta;
+		me.sin_port = htons(27131);
+		const auto run = [&](const Zdxsv::UdpReachAsk& ask, std::string& summary) {
+			std::thread pongs([&] {
+				Zdxsv::ProtoPacket pong;
+				pong.type = Zdxsv::ProtoPong;
+				pong.publicAddr = "1.2.3.4:5555";
+				const std::vector<uint8_t> d = Zdxsv::ProtoEncode(pong);
+				for (int i = 0; i < 3; i++)
+				{
+					std::this_thread::sleep_for(std::chrono::milliseconds(100));
+					sendto(ts, (const char*)d.data(), (int)d.size(), 0, (const sockaddr*)&me, sizeof(me));
+				}
+			});
+			const std::string line = Zdxsv::UdpTest(lo, 27204, 27131, summary, nullptr, ask);
+			pongs.join();
+			return line;
+		};
+		std::string summary, asked;
+		Check(run({}, summary) == "nat=open\n", "test socket answers, no udptest: nat=open", 0);
+		auto t0 = Clock::now();
+		std::string line = run([&](const std::string& addr, const std::atomic<bool>*) {
+			asked = addr;
+			std::thread([ts, me] {
+				std::this_thread::sleep_for(std::chrono::milliseconds(200));
+				sendto(ts, "Hello", 5, 0, (const sockaddr*)&me, sizeof(me));
+			}).detach();
+			return true;
+		}, summary);
+		Check(line == "nat=open\n" && asked == "1.2.3.4:5555", "udptest Hello: nat=open, asked for the STUN address (ms)", Ms(t0));
+		t0 = Clock::now();
+		line = run([](const std::string&, const std::atomic<bool>*) { return true; }, summary);
+		Check(line == "nat=cone\n" && summary == "cone NAT (open to the server only)", "no udptest Hello: nat=cone (ms)", Ms(t0));
+		line = run([](const std::string&, const std::atomic<bool>*) { return false; }, summary);
+		Check(line == "nat=open\n", "udptest request failed: server result kept, nat=open", 0);
+		closesocket(ts);
 	}
 	// a peer listed at :27141 answers from :27142 (its NAT mapping): the pongs count, :27142 is picked
 	{
