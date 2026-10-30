@@ -5,6 +5,7 @@
 #include "Zdxsv/CpuHooks.h"
 #include "Zdxsv/Ggpo.h"
 #include "Zdxsv/Lobby.h"
+#include "Zdxsv/Settings.h"
 #include "Zdxsv/SyncSettings.h"
 #include "Zdxsv/TestOptions.h"
 #include "Zdxsv/Upnp.h"
@@ -130,7 +131,7 @@ namespace Zdxsv
 		{
 			if (const char* env = std::getenv("ZDXSV_UDPTEST_URL"))
 				return env;
-			return Host::GetStringSettingValue("DEV9/Eth", "ZdxsvUdpTestUrl", "");
+			return Host::GetStringSettingValue("DEV9/Eth", "ZdxsvUdpTestUrl", UDPTEST_URL);
 		}
 
 		bool AskUdpReach(const std::string& url, const std::string& addr, const std::atomic<bool>* stop)

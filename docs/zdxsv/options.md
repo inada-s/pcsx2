@@ -49,7 +49,7 @@ page greys it out and its tooltip names the variable.
 | `[DEV9/Eth] ZdxsvLobbyApiUrl` | `https://lbs.zdxsv.net:8443` | feature | The lobby's public API (`http://host:port`, zdxsv `ZDXSV_LOBBY_API_ADDR`) the replay window's Remote (`/lbs/replay`) and Live (`/lbs/live`) tabs ask; edited in the window; empty = none. A live battle is watched at `udp://<its host>:8201/<code>` (`ZDXSV_STUN_PORT` overrides the port). |
 | `[DEV9/Eth] ZdxsvReplayUpload` | `true` | feature | Post each lobby battle's `.pb` to `ZdxsvReplayUploadUrl` (flycast `UploadReplay`, on by default). Only when the game found the server by DNS (no host entry for the game hosts): a local server's battles post nowhere. `upload=` overrides it. |
 | `[DEV9/Eth] ZdxsvReplayUploadUrl` | `https://lbs.zdxsv.net:8443/lbs/replay_upload` | feature | The lobby's replay upload API (zdxsv `/lbs/replay_upload`, as gdxsv lbs); empty = no upload. |
-| `[DEV9/Eth] ZdxsvUdpTestUrl` | empty | feature | The udptest function (zdxsv `infra/udptest`) the connectivity test asks for a `Hello` from another network before it reports `open`; empty = not asked. `ZDXSV_UDPTEST_URL` overrides it. |
+| `[DEV9/Eth] ZdxsvUdpTestUrl` | `https://asia-northeast1-zdxsv-157317.cloudfunctions.net/udptest` | feature | The udptest function (zdxsv `infra/udptest`) the connectivity test asks for a `Hello` from another network before it reports `open`; empty = not asked. `ZDXSV_UDPTEST_URL` overrides it. |
 
 ## Network
 

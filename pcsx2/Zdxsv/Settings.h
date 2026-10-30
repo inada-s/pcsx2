@@ -16,6 +16,8 @@ namespace Zdxsv
 	inline constexpr const char* REPLAY_STATE_URL = "https://storage.googleapis.com/zdxsv/misc/rbk-p1.p2s";
 	// default of ZdxsvReplayUploadUrl: the lobby's replay upload API
 	inline constexpr const char* REPLAY_UPLOAD_URL = "https://lbs.zdxsv.net:8443/lbs/replay_upload";
+	// default of ZdxsvUdpTestUrl: the udptest function (zdxsv infra/udptest)
+	inline constexpr const char* UDPTEST_URL = "https://asia-northeast1-zdxsv-157317.cloudfunctions.net/udptest";
 
 	// env: "0" = off, any other value = on
 	inline bool BoolSetting(const char* key, bool default_value, const char* env)
