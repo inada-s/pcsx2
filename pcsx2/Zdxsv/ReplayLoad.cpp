@@ -27,6 +27,7 @@ namespace Zdxsv
 			std::vector<int64_t> load_frames, load_rngs;
 			std::vector<int64_t> play_starts, game_ends, round_ends;
 			std::vector<int> rounds; // round_data win_team
+			std::vector<u32> round_ms; // round_data used_ms as MsIds packs them, 0xff = unknown
 		};
 
 		bool ReplayParse(std::string_view all, ReplayFile& r)
@@ -62,14 +63,22 @@ namespace Zdxsv
 					else if (field == 18)
 					{
 						int win = 0;
+						std::vector<int64_t> used;
 						Pb::Reader round{b, b + n};
-						if (!round.Fields([&win](uint32_t f, uint32_t w, uint64_t x, const uint8_t*, size_t) {
+						if (!round.Fields([&win, &used](uint32_t f, uint32_t w, uint64_t x, const uint8_t* rb, size_t rn) {
 								if (f == 1 && w == 0)
 									win = static_cast<int32_t>(x);
+								else if (f == 2)
+									return Pb::ReadInts(w, x, rb, rn, used);
 								return true;
 							}))
 							return false;
+						u32 ms = 0xffffffffu;
+						for (size_t p = 0; p < std::min<size_t>(used.size(), 4); p++)
+							if (used[p] >= 1 && used[p] <= 0xff)
+								ms = (ms & ~(0xffu << (p * 8))) | static_cast<u32>(used[p] - 1) << (p * 8);
 						r.rounds.push_back(win);
+						r.round_ms.push_back(ms);
 					}
 					else if (field == 45)
 						r.rx0.assign(b, b + n);
@@ -270,6 +279,7 @@ namespace Zdxsv
 			{
 				std::lock_guard lock(s_battle_loads_mtx);
 				s_play_file_rounds = r.rounds;
+				s_play_file_ms = r.round_ms;
 			}
 			s_play_rng_pos = static_cast<int>(me);
 			s_players = static_cast<int>(players);

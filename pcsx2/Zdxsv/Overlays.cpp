@@ -28,6 +28,86 @@ namespace Zdxsv
 {
 	namespace
 	{
+		// Indexed by the battle MS id (player work +0x1f2a); the game's name table at 0x695d30 in the same order.
+		constexpr const char* MS_NAMES[] = {
+			TRANSLATE_NOOP("ZdxsvMs", "Gundam"),
+			TRANSLATE_NOOP("ZdxsvMs", "Guncannon"),
+			TRANSLATE_NOOP("ZdxsvMs", "GM"),
+			TRANSLATE_NOOP("ZdxsvMs", "Old Zaku"),
+			TRANSLATE_NOOP("ZdxsvMs", "Zaku"),
+			TRANSLATE_NOOP("ZdxsvMs", "Char's Zaku"),
+			TRANSLATE_NOOP("ZdxsvMs", "Gouf"),
+			TRANSLATE_NOOP("ZdxsvMs", "Dom"),
+			TRANSLATE_NOOP("ZdxsvMs", "Rick Dom"),
+			TRANSLATE_NOOP("ZdxsvMs", "Gelgoog"),
+			TRANSLATE_NOOP("ZdxsvMs", "Char's Gelgoog"),
+			TRANSLATE_NOOP("ZdxsvMs", "Gyan"),
+			TRANSLATE_NOOP("ZdxsvMs", "Gogg"),
+			TRANSLATE_NOOP("ZdxsvMs", "Acguy"),
+			TRANSLATE_NOOP("ZdxsvMs", "Z'Gok"),
+			TRANSLATE_NOOP("ZdxsvMs", "Char's Z'Gok"),
+			TRANSLATE_NOOP("ZdxsvMs", "Zock"),
+			TRANSLATE_NOOP("ZdxsvMs", "Guntank"),
+			TRANSLATE_NOOP("ZdxsvMs", "Zeong"),
+			TRANSLATE_NOOP("ZdxsvMs", "Ground Type Gundam"),
+			TRANSLATE_NOOP("ZdxsvMs", "Ground Type GM"),
+			TRANSLATE_NOOP("ZdxsvMs", "Gundam Mk-II"),
+			TRANSLATE_NOOP("ZdxsvMs", "GM II"),
+			TRANSLATE_NOOP("ZdxsvMs", "Rick Dias"),
+			TRANSLATE_NOOP("ZdxsvMs", "Hyaku Shiki"),
+			TRANSLATE_NOOP("ZdxsvMs", "Nemo"),
+			TRANSLATE_NOOP("ZdxsvMs", "Zeta Gundam"),
+			TRANSLATE_NOOP("ZdxsvMs", "Methuss"),
+			TRANSLATE_NOOP("ZdxsvMs", "Dijeh"),
+			TRANSLATE_NOOP("ZdxsvMs", "Hi-Zack"),
+			TRANSLATE_NOOP("ZdxsvMs", "Galbaldy Beta"),
+			TRANSLATE_NOOP("ZdxsvMs", "Marasai"),
+			TRANSLATE_NOOP("ZdxsvMs", "Messala"),
+			TRANSLATE_NOOP("ZdxsvMs", "Asshimar"),
+			TRANSLATE_NOOP("ZdxsvMs", "Gaplant"),
+			TRANSLATE_NOOP("ZdxsvMs", "Psyco Gundam"),
+			TRANSLATE_NOOP("ZdxsvMs", "Gabthley"),
+			TRANSLATE_NOOP("ZdxsvMs", "Hambrabi"),
+			TRANSLATE_NOOP("ZdxsvMs", "Palace Athene"),
+			TRANSLATE_NOOP("ZdxsvMs", "Barzam"),
+			TRANSLATE_NOOP("ZdxsvMs", "Psyco Gundam Mk-II"),
+			TRANSLATE_NOOP("ZdxsvMs", "Byarlant"),
+			TRANSLATE_NOOP("ZdxsvMs", "Bound Doc"),
+			TRANSLATE_NOOP("ZdxsvMs", "Bolinoak Sammahn"),
+			TRANSLATE_NOOP("ZdxsvMs", "The O"),
+			TRANSLATE_NOOP("ZdxsvMs", "Gaza-C"),
+			TRANSLATE_NOOP("ZdxsvMs", "Qubeley"),
+		};
+
+		// One line per round: "R1 W  own team's MS vs the other team's", positions in order; empty when no MS is known.
+		std::string RoundMsText(const std::string& results, int pov)
+		{
+			int players = 0;
+			const std::vector<u32> ms = Zdxsv::ReplayRoundMs(players);
+			if (players < 2 || players > 4 || pov < 0 || pov >= players)
+				return {};
+			const int half = players / 2;
+			const int own = pov < half ? 0 : half, other = half - own;
+			const auto team = [&](u32 ids, int first) {
+				std::string s;
+				for (int p = first; p < first + half; p++)
+				{
+					const u32 id = (ids >> (p * 8)) & 0xff;
+					s += s.empty() ? "" : " ";
+					s += id < std::size(MS_NAMES) ? TRANSLATE("ZdxsvMs", MS_NAMES[id]) : "?";
+				}
+				return s;
+			};
+			std::string text;
+			for (size_t r = 0; r < ms.size() && r < results.size(); r++)
+			{
+				if (ms[r] == 0xffffffffu)
+					continue;
+				text += fmt::format("{}R{} {}  {} vs {}", text.empty() ? "" : "\n", r + 1, results[r], team(ms[r], own), team(ms[r], other));
+			}
+			return text;
+		}
+
 		// zdxsv network status (Zdxsv::GgpoOsdLines) during a GGPO battle: left edge, below the game's top HUD.
 		void DrawGgpoOverlay(float scale, float margin, float spacing)
 		{
@@ -263,6 +343,22 @@ namespace Zdxsv
 				{
 					const float tw = text_at(x, results.c_str(), text_col);
 					layout += fmt::format(" results:{} {:.0f}-{:.0f}", results, x, x + tw);
+					if (ImGui::IsMouseHoveringRect(ImVec2(x, y0), ImVec2(x + tw, y0 + bar_h)))
+					{
+						s_idle = 3.0f;
+						if (const std::string tip = RoundMsText(results, pov); !tip.empty())
+						{
+							ImGui::SetTooltip("%s", tip.c_str());
+							static std::string s_tip; // logged when it changes, for test drivers
+							if (tip != s_tip)
+							{
+								s_tip = tip;
+								std::string line = tip;
+								std::replace(line.begin(), line.end(), '\n', '|');
+								Console.WriteLn("ZdxsvGgpo: replay bar: round MS %s", line.c_str());
+							}
+						}
+					}
 					x += tw + pad;
 				}
 				// takeover: take over the own position here; while taken over, retry from its frame or back to the replay

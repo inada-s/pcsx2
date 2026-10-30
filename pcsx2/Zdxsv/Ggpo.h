@@ -41,6 +41,8 @@ namespace Zdxsv
 	std::vector<int> ReplayRoundStarts();
 	// Replay play: per round, W / L / D (draw) for the shown position's team; the file's round_data, else the rounds played so far.
 	std::string ReplayRoundResults();
+	// Replay play: per round of ReplayRoundResults, the MS id by position (u8 from position 0, 0xff = unknown); players = the file's count.
+	std::vector<u32> ReplayRoundMs(int& players);
 	// Replay play: the key display's input runs of the shown position (buttons, held frames); false when off.
 	bool ReplayKeys(std::vector<std::pair<u16, int>>& runs);
 

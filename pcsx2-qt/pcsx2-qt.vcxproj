@@ -91,6 +91,9 @@
     <ProjectReference Include="..\3rdparty\ggpo\ggpo.vcxproj">
       <Project>{e737b23d-5ba0-4cba-b7bf-068f77749e0f}</Project>
     </ProjectReference>
+    <ProjectReference Include="..\3rdparty\miniupnpc\miniupnpc.vcxproj">
+      <Project>{5c2e7a9b-3d41-4f6e-9a8b-1e2d3c4b5a69}</Project>
+    </ProjectReference>
   </ItemGroup>
   <ItemGroup>
     <Manifest Include="..\pcsx2\windows\PCSX2.manifest" />

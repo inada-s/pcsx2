@@ -15,6 +15,7 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <random>
 #include <sstream>
 #include <thread>
 
@@ -561,6 +562,147 @@ namespace Zdxsv
 		std::string AddrString(const sockaddr_in& a)
 		{
 			return AddrString(a.sin_addr.s_addr, ntohs(a.sin_port));
+		}
+
+		// RFC 5389 STUN servers on other networks for the connectivity test; ZDXSV_NAT_STUN overrides
+		// ("host:port,host:port"; none = no item with a port)
+		std::vector<std::string> NatStunServers()
+		{
+			const char* env = std::getenv("ZDXSV_NAT_STUN");
+			std::stringstream list(env ? env : "stun.l.google.com:19302,stun.cloudflare.com:3478");
+			std::vector<std::string> out;
+			for (std::string item; std::getline(list, item, ',');)
+				if (!item.empty())
+					out.push_back(item);
+			return out;
+		}
+
+		// IPv4 of each "host:port" that resolves within 2 s. getaddrinfo cannot be cancelled, so each runs
+		// on a detached thread that stop or the timeout leaves behind.
+		std::vector<sockaddr_in> ResolveStunServers(const std::vector<std::string>& hostPorts, const std::function<bool()>& stopped)
+		{
+			struct Job
+			{
+				std::mutex mtx;
+				bool done = false;
+				bool ok = false;
+				sockaddr_in addr{};
+			};
+			std::vector<std::shared_ptr<Job>> jobs;
+			for (const std::string& hp : hostPorts)
+			{
+				const size_t colon = hp.rfind(':');
+				if (colon == std::string::npos)
+					continue;
+				auto job = std::make_shared<Job>();
+				jobs.push_back(job);
+				std::thread([job, host = hp.substr(0, colon), port = hp.substr(colon + 1)] {
+					addrinfo hints{};
+					hints.ai_family = AF_INET;
+					hints.ai_socktype = SOCK_DGRAM;
+					addrinfo* res = nullptr;
+					const bool ok = getaddrinfo(host.c_str(), port.c_str(), &hints, &res) == 0 && res;
+					std::lock_guard lock(job->mtx);
+					if (ok)
+						job->addr = *reinterpret_cast<const sockaddr_in*>(res->ai_addr);
+					job->ok = ok;
+					job->done = true;
+					if (res)
+						freeaddrinfo(res);
+				}).detach();
+			}
+			const auto allDone = [&] {
+				return std::all_of(jobs.begin(), jobs.end(), [](const std::shared_ptr<Job>& j) {
+					std::lock_guard lock(j->mtx);
+					return j->done;
+				});
+			};
+			const auto until = Clock::now() + std::chrono::seconds(2);
+			while (!allDone() && !stopped() && Clock::now() < until)
+				std::this_thread::sleep_for(std::chrono::milliseconds(20));
+			std::vector<sockaddr_in> out;
+			for (const auto& j : jobs)
+			{
+				std::lock_guard lock(j->mtx);
+				if (j->done && j->ok)
+					out.push_back(j->addr);
+			}
+			return out;
+		}
+
+		// RFC 5389 magic cookie: bytes 4-7 of every STUN message, the XOR key of XOR-MAPPED-ADDRESS
+		constexpr uint8_t StunMagic[4] = {0x21, 0x12, 0xA4, 0x42};
+
+		// "ip:port" of a Binding success response to tid (XOR-MAPPED-ADDRESS, else MAPPED-ADDRESS); "" if it is not one
+		std::string StunMappedAddr(const uint8_t* p, int n, const uint8_t* tid)
+		{
+			if (n < 20 || p[0] != 0x01 || p[1] != 0x01 || std::memcmp(p + 4, StunMagic, 4) != 0 || std::memcmp(p + 8, tid, 12) != 0)
+				return "";
+			const int end = 20 + ((p[2] << 8) | p[3]);
+			if (end > n)
+				return "";
+			std::string plain;
+			for (int i = 20; i + 4 <= end;)
+			{
+				const int type = (p[i] << 8) | p[i + 1];
+				const int len = (p[i + 2] << 8) | p[i + 3];
+				const int v = i + 4;
+				if (v + len > end)
+					break;
+				if ((type == 0x0020 || type == 0x0001) && len >= 8 && p[v + 1] == 0x01)
+				{
+					const bool x = type == 0x0020;
+					const uint16_t port = static_cast<uint16_t>(((p[v + 2] ^ (x ? StunMagic[0] : 0)) << 8) | (p[v + 3] ^ (x ? StunMagic[1] : 0)));
+					uint8_t ip[4];
+					for (int k = 0; k < 4; k++)
+						ip[k] = p[v + 4 + k] ^ (x ? StunMagic[k] : 0);
+					uint32_t ipn;
+					std::memcpy(&ipn, ip, 4);
+					if (x)
+						return AddrString(ipn, port);
+					plain = AddrString(ipn, port);
+				}
+				i = v + ((len + 3) & ~3);
+			}
+			return plain;
+		}
+
+		// Binding requests from s to each server (3 tries, 300 ms each): the "ip:port" each one saw, "" for no answer
+		std::vector<std::string> StunMapped(sock_t s, const std::vector<sockaddr_in>& servers, const std::function<bool()>& stopped)
+		{
+			std::vector<std::string> mapped(servers.size());
+			std::vector<std::array<uint8_t, 12>> tids(servers.size());
+			std::random_device rd;
+			for (auto& tid : tids)
+				for (uint8_t& b : tid)
+					b = static_cast<uint8_t>(rd());
+			const auto all = [&] { return std::none_of(mapped.begin(), mapped.end(), [](const std::string& m) { return m.empty(); }); };
+			for (int i = 0; i < 3 && !all() && !stopped(); i++)
+			{
+				for (size_t k = 0; k < servers.size(); k++)
+				{
+					if (!mapped[k].empty())
+						continue;
+					uint8_t req[20] = {0x00, 0x01, 0x00, 0x00};
+					std::memcpy(req + 4, StunMagic, 4);
+					std::memcpy(req + 8, tids[k].data(), 12);
+					sendto(s, reinterpret_cast<const char*>(req), sizeof(req), 0, reinterpret_cast<const sockaddr*>(&servers[k]), sizeof(servers[k]));
+				}
+				const auto until = Clock::now() + std::chrono::milliseconds(300);
+				while (!all() && !stopped() && Clock::now() < until)
+				{
+					if (!WaitReadable(s, 50))
+						continue;
+					uint8_t buf[512];
+					sockaddr_in from{};
+					socklen_t fromLen = sizeof(from);
+					const int n = recvfrom(s, reinterpret_cast<char*>(buf), sizeof(buf), 0, reinterpret_cast<sockaddr*>(&from), &fromLen);
+					for (size_t k = 0; k < servers.size(); k++)
+						if (mapped[k].empty() && SameAddr(from, servers[k]))
+							mapped[k] = StunMappedAddr(buf, n, tids[k].data());
+				}
+			}
+			return mapped;
 		}
 
 		// numeric PeerAddr -> sockaddr_in / sockaddr_in6; false if the ip doesn't parse
@@ -1440,6 +1582,13 @@ namespace Zdxsv
 					reach = "Hello from " + MaskIpAddress(AddrString(from));
 			}
 		}
+		// the server's two sockets share one IP: a NAT that maps per destination IP looks like a cone to them
+		std::vector<std::string> outside;
+		if (!mapped.empty() && !open && !stopped())
+		{
+			outside = StunMapped(s, ResolveStunServers(NatStunServers(), stopped), stopped);
+			outside.erase(std::remove(outside.begin(), outside.end(), std::string()), outside.end());
+		}
 		closesocket(s);
 
 		uint32_t ip1 = 0, ip2 = 0;
@@ -1454,18 +1603,29 @@ namespace Zdxsv
 			nat = "cone", summary = "cone NAT (open to the server only)", detail = "port " + std::to_string(bindPort) + " open to the server's IP, no Hello from the udptest function, public " + MaskIpAddress(mapped);
 		else if (open)
 			nat = "open", summary = "open", detail = "port " + std::to_string(bindPort) + " reachable from any source, public " + MaskIpAddress(mapped) + ", udptest " + (reach.empty() ? "off" : reach);
-		else if (mappedTest.empty() || !ParseAddr(mapped, ip1, port1) || !ParseAddr(mappedTest, ip2, port2))
-			nat = "unknown", summary = "unknown (no answer from the server's test socket)", detail = "no answer from the STUN test socket " + AddrString(test);
-		else if (port1 == port2 && ip1 == ip2)
-			nat = "cone", summary = "cone NAT (port closed)", detail = "port " + std::to_string(bindPort) + " closed, same public " + MaskIpAddress(mapped) + " for both servers";
 		else
-			nat = "symmetric", summary = "symmetric NAT (port closed)", detail = "port " + std::to_string(bindPort) + " closed, public " + MaskIpAddress(mapped) + " / " + MaskIpAddress(mappedTest);
+		{
+			const bool serverPair = !mappedTest.empty() && ParseAddr(mapped, ip1, port1) && ParseAddr(mappedTest, ip2, port2);
+			const bool outsideSplit = std::any_of(outside.begin(), outside.end(), [&](const std::string& a) { return a != outside.front(); });
+			std::string seen = "port " + std::to_string(bindPort) + " closed, public " + MaskIpAddress(mapped) + " / " +
+							   (mappedTest.empty() ? "none" : MaskIpAddress(mappedTest)) + " (server), ";
+			for (size_t i = 0; i < outside.size(); i++)
+				seen += (i ? " / " : "") + MaskIpAddress(outside[i]);
+			seen += outside.empty() ? "none (outside STUN)" : " (outside STUN)";
+			if (outsideSplit || (serverPair && (port1 != port2 || ip1 != ip2)))
+				nat = "symmetric", summary = "symmetric NAT (port closed)", detail = seen;
+			else if (serverPair || outside.size() >= 2)
+				nat = "cone", summary = "cone NAT (port closed)", detail = seen;
+			else
+				nat = "unknown", summary = "unknown (no answer from the server's test socket)", detail = "no answer from the STUN test socket " + AddrString(test) + ", " + seen;
+		}
 		Log("udp test: nat=" + nat + ": " + summary + ": " + detail);
 		return "nat=" + nat + "\n";
 	}
 
 	bool StartUdpTest(uint32_t stunIP, uint16_t stunPort, uint16_t bindPort, UdpReachAsk reachAsk,
-		std::function<void(const std::string& natLine, const std::string& summary)> done)
+		std::function<void(const std::string& natLine, const std::string& summary)> done,
+		std::function<bool(std::string& lines)> openPort)
 	{
 		std::lock_guard lock(g_udpTestMtx);
 		if (g_udpTestRunning)
@@ -1474,11 +1634,19 @@ namespace Zdxsv
 		g_udpTestRunning = true;
 		g_udpTest = std::make_unique<UdpTestRun>();
 		UdpTestRun* t = g_udpTest.get();
-		t->thread = std::thread([t, stunIP, stunPort, bindPort, reachAsk = std::move(reachAsk), done = std::move(done)] {
+		t->thread = std::thread([t, stunIP, stunPort, bindPort, reachAsk = std::move(reachAsk), done = std::move(done), openPort = std::move(openPort)] {
 			std::string summary;
-			const std::string line = UdpTest(stunIP, stunPort, bindPort, summary, &t->stop, reachAsk);
+			std::string line = UdpTest(stunIP, stunPort, bindPort, summary, &t->stop, reachAsk);
+			std::string extra;
+			if (openPort && !t->stop && line != "nat=open\n" && openPort(extra) && !t->stop)
+			{
+				std::string retest;
+				const std::string again = UdpTest(stunIP, stunPort, bindPort, retest, &t->stop, reachAsk);
+				if (again != "nat=unknown\n" || line == "nat=unknown\n")
+					line = again, summary = retest;
+			}
 			if (done && !t->stop)
-				done(line, summary);
+				done(line + extra, summary);
 			g_udpTestRunning = false;
 		});
 		return true;
@@ -1678,11 +1846,12 @@ namespace Zdxsv
 		uint32_t session = 0;
 		int frameBytes = 0;
 		std::mutex mtx;
-		std::vector<uint8_t> header, inputs;
+		std::vector<uint8_t> header, inputs, rounds;
+		size_t roundAck = 0; // bytes of rounds the lobby holds
 		bool closeSet = false, headerAck = false, closeAck = false;
 		std::string close;
 		LiveWindow in;
-		Clock::time_point headerSent{}, closeSent{}, closeAt{};
+		Clock::time_point headerSent{}, roundSent{}, closeSent{}, closeAt{};
 		std::atomic<bool> quit{false}, done{false};
 		std::thread t;
 
@@ -1710,6 +1879,7 @@ namespace Zdxsv
 				{
 					headerAck = headerAck || nums[40] != 0;
 					in.Ack(nums[2], now);
+					roundAck = std::max<size_t>(roundAck, nums[43]);
 					closeAck = closeAck || nums[42] != 0;
 				}
 				if (closeAck || (closeSet && now - closeAt > LIVE_CLOSE_GIVEUP))
@@ -1736,7 +1906,15 @@ namespace Zdxsv
 					LiveSend(s, to, LIVE_PUSH, m);
 					sent++;
 				});
-				if (closeSet && headerAck && in.acked == frames && now - closeSent >= LIVE_RESEND)
+				if (headerAck && roundAck < rounds.size() && now - roundSent >= LIVE_RESEND)
+				{
+					std::vector<uint8_t> m = Push();
+					Pb::PutBytes(m, 45, rounds.data(), rounds.size());
+					LiveSend(s, to, LIVE_PUSH, m);
+					roundSent = now;
+					sent++;
+				}
+				if (closeSet && headerAck && in.acked == frames && roundAck >= rounds.size() && now - closeSent >= LIVE_RESEND)
 				{
 					std::vector<uint8_t> m = Push();
 					Pb::PutInt(m, 3, static_cast<int64_t>(frames));
@@ -1782,6 +1960,13 @@ namespace Zdxsv
 		std::lock_guard lock(m->mtx);
 		const uint8_t* p = static_cast<const uint8_t*>(data);
 		m->inputs.insert(m->inputs.end(), p, p + frames * m->frameBytes);
+	}
+
+	void LiveUp::AddRound(const std::vector<uint8_t>& entry)
+	{
+		std::lock_guard lock(m->mtx);
+		m->rounds.insert(m->rounds.end(), entry.begin(), entry.end());
+		m->roundSent = {};
 	}
 
 	size_t LiveUp::Frames()
@@ -1862,6 +2047,8 @@ namespace Zdxsv
 							frames += in.size() / fb;
 						}
 					}
+					if (const auto r = bytes.find(45); r != bytes.end() && r->second.size() > g.rounds.size())
+						g.rounds.assign(r->second.begin(), r->second.end());
 					// the lobby's close push carries no frame_bytes
 					if (bytes.count(8) && nums[3] == frames && !g.closed)
 					{
@@ -1873,6 +2060,7 @@ namespace Zdxsv
 					Pb::PutInt(ack, 2, static_cast<int64_t>(frames));
 					Pb::PutInt(ack, 40, headerTaken || !g.header.empty() ? 1 : 0);
 					Pb::PutInt(ack, 42, g.closed ? 1 : 0);
+					Pb::PutInt(ack, 43, static_cast<int64_t>(g.rounds.size()));
 					LiveSend(s, to, LIVE_ACK, ack);
 				}
 				if (!got.closed && now - subscribed >= LIVE_KEEPALIVE)
@@ -1971,6 +2159,7 @@ namespace Zdxsv
 		}
 		s.inputs.insert(s.inputs.end(), g.inputs.begin(), g.inputs.end());
 		g.inputs.clear();
+		s.rounds = g.rounds;
 		s.frameBytes = g.frameBytes;
 		s.closed = g.closed;
 		s.close = g.close;

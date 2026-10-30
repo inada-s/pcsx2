@@ -1,7 +1,7 @@
 // Unit test of the waits in pcsx2/Zdxsv/Lobby.cpp (no PCSX2, no game): a fake zdxsv STUN on
 // 127.0.0.1 (silent, or answering after a delay) and held UDP ports. Build and run: lobbytest.sh.
 // Exit 0 = every check passed; a failed check prints FAIL.
-// Uses 127.0.0.1 UDP ports 27110-27130 and 27150-27151, 27201-27205, 27131.
+// Uses 127.0.0.1 UDP ports 27110-27130 and 27150-27151, 27201-27205, 27211-27216, 27131-27132.
 #include "Zdxsv/Lobby.h"
 #include "Zdxsv/Proto.h"
 
@@ -77,12 +77,84 @@ struct FakeStun
 	}
 };
 
+// fake RFC 5389 STUN on 127.0.0.1:port: answers a Binding request with XOR-MAPPED-ADDRESS 1.2.3.4:mappedPort;
+// badTid: with the request's transaction id changed
+struct FakeRfcStun
+{
+	SOCKET s;
+	std::atomic<bool> stop{false};
+	std::thread th;
+	FakeRfcStun(uint16_t port, uint16_t mappedPort, bool badTid = false)
+	{
+		s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+		sockaddr_in a{};
+		a.sin_family = AF_INET;
+		a.sin_port = htons(port);
+		a.sin_addr.s_addr = inet_addr("127.0.0.1");
+		if (bind(s, (sockaddr*)&a, sizeof(a)) != 0)
+			std::printf("FAIL fake RFC STUN bind :%u\n", port), g_fails++;
+		th = std::thread([this, mappedPort, badTid] {
+			while (!stop)
+			{
+				fd_set rd;
+				FD_ZERO(&rd);
+				FD_SET(s, &rd);
+				timeval tv{0, 20000};
+				if (select(0, &rd, nullptr, nullptr, &tv) <= 0)
+					continue;
+				uint8_t req[512];
+				sockaddr_in from{};
+				int fl = sizeof(from);
+				const int n = recvfrom(s, (char*)req, sizeof(req), 0, (sockaddr*)&from, &fl);
+				if (n != 20 || req[0] != 0x00 || req[1] != 0x01)
+					continue;
+				const uint8_t ip[4] = {1, 2, 3, 4};
+				uint8_t r[32] = {0x01, 0x01, 0x00, 0x0c};
+				std::memcpy(r + 4, req + 4, 16);
+				r[8] ^= badTid ? 1 : 0;
+				r[20] = 0x00, r[21] = 0x20, r[22] = 0x00, r[23] = 0x08, r[24] = 0x00, r[25] = 0x01;
+				r[26] = (uint8_t)((mappedPort >> 8) ^ 0x21), r[27] = (uint8_t)((mappedPort & 0xff) ^ 0x12);
+				for (int k = 0; k < 4; k++)
+					r[28 + k] = ip[k] ^ req[4 + k];
+				sendto(s, (const char*)r, sizeof(r), 0, (const sockaddr*)&from, sizeof(from));
+			}
+		});
+	}
+	~FakeRfcStun()
+	{
+		stop = true;
+		th.join();
+		closesocket(s);
+	}
+};
+
 int main()
 {
 	WSADATA w;
 	WSAStartup(MAKEWORD(2, 2), &w);
 	Zdxsv::LobbySetLogger([](const std::string& s) { std::printf("  log: %s\n", s.c_str()); });
 	const uint32_t lo = inet_addr("127.0.0.1");
+
+	// port closed (no test-socket Pong to "udptest"), the server's two sockets see one mapping:
+	// the outside STUN servers decide between cone and symmetric
+	{
+		FakeStun stun(27211), test(27212);
+		stun.mode = 1;
+		test.mode = 1;
+		FakeRfcStun same1(27213, 5555), same2(27214, 5555), split(27215, 6666), bad(27216, 6666, true);
+		const auto run = [&](const char* servers) {
+			_putenv_s("ZDXSV_NAT_STUN", servers);
+			std::string summary;
+			return Zdxsv::UdpTest(lo, 27211, 27132, summary);
+		};
+		Check(run("127.0.0.1:27213,127.0.0.1:27214") == "nat=cone\n", "outside STUN same mapping: cone", 0);
+		Check(run("127.0.0.1:27213,127.0.0.1:27215") == "nat=symmetric\n", "outside STUN mappings differ: symmetric", 0);
+		Check(run("none") == "nat=cone\n", "no outside STUN: cone from the server's sockets", 0);
+		Check(run("127.0.0.1:27213,127.0.0.1:27299") == "nat=cone\n", "one outside STUN silent: cone from the server's sockets", 0);
+		Check(run("127.0.0.1:27213,127.0.0.1:27216") == "nat=cone\n", "reply with another transaction id ignored: cone", 0);
+		Check(run("127.0.0.1:27213,no-such-host.invalid:3478") == "nat=cone\n", "unresolved outside STUN skipped: cone", 0);
+		_putenv_s("ZDXSV_NAT_STUN", "");
+	}
 
 	// battle info: the bytes zdxsv's TestBattleInfoNoticeP2P builds (pkg/lobby/testdata/p2p_matching.bin)
 	static const uint8_t kBattleInfo[] = {

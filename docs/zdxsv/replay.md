@@ -107,6 +107,8 @@ Hotkeys are under Settings > Hotkeys, group "Zdxsv Replay".
   Previous round goes to the round before the one shown.
 - **Round results**: the bar shows each round's W / L / D for the shown
   position's team; playback logs a round whose result differs from the file.
+  Hovering them lists each round's mobile suits (the file's `used_ms`, else
+  the ones at the round end): the shown team's, then the other team's.
 - **Takeover** (as gdxsv): the shown position plays from the current frame
   with the host pad, input delay `mindelay`. Hold the replay's input shown
   in the panel for 1 s, or press START to skip the matching. START while
@@ -126,6 +128,13 @@ A lobby GGPO battle is streamed to the lobby while it runs, as gdxsv does
   frame to the lobby's UDP address, then the close; whether saving or
   upload is on or not. A frame record is the inputs plus the frame's u32 state
   hash (`frame_bytes` = players x 32 + 4); records without it still play.
+- Round results: at each confirmed round end the uplink adds the round's
+  `round_data` entry (winner, MS per position) and sends all of them so far
+  (`round_data` 45, acked by its length in `round_ack` 43). The lobby keeps
+  the longest and sends it to each spectator after the header, so one who
+  joins at round 3 has rounds 1-2 before its catch-up replays them. The
+  spectator shows them as a file's `round_data` and logs a round its own
+  playback ends with another winner.
 - Transfer: 1000-byte datagrams, go-back-N on the receiver's ack, both
   uplink to lobby and lobby to spectator.
 - Spectator: `ZDXSV_REPLAY=udp://host:port[/battle code]` (no code = the

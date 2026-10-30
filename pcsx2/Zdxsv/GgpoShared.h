@@ -290,6 +290,7 @@ namespace Zdxsv
 	extern std::vector<int> s_battle_loads; // written on the CPU thread; the GS thread reads it under s_battle_loads_mtx
 	extern int s_play_hi, s_tick_f;
 	extern std::vector<int> s_play_file_rounds, s_round_results;
+	extern std::vector<u32> s_play_file_ms, s_round_ms; // per round, as MsIds packs them
 	extern int s_run_load; // running unlimited until this load has ended, -1 = none (skip MS selection = 1)
 	extern std::atomic<int> s_play_round_req; // requested round, 0 = briefing, INT_MIN = none
 	extern std::deque<std::pair<int, int>> s_play_round_at; // ZDXSV_REPLAY_ROUND_AT=frame:round,...

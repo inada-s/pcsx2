@@ -64,6 +64,7 @@ Lets the server tell emulators from real PS2s.
 | Key | Sent | Meaning |
 |---|---|---|
 | `emulator`, `version`, `os`, `cpu` | always | what runs the game |
+| `pcsx2` | built from a `zdxsv-X.Y.Z` release tag or a commit after one | release version: `zdxsv-X.Y.Z` on the tag, `zdxsv-X.Y.(Z+1)-dev.N` N commits after it. The lobby refuses a login below its minimum client version (zdxsv master data) |
 | `machine_id` | Windows, macOS | 16 hex digits: XXH64 (seed 37) of the host id (Windows `MachineGuid`, the macOS serial number), never the raw id; the same on every install and portable folder of a PC. Not sent on Linux (as flycast) |
 | `udp=1` | lobby GGPO on | the client wants battle infos |
 | `udp_addr`, `udp_local` | lobby GGPO on | the GGPO port's public IPv4 address from the lobby's STUN (asked from that port on every lobby connection, as flycast's `NotifyWanPort`), and the local one |
@@ -71,6 +72,7 @@ Lets the server tell emulators from real PS2s.
 | `ggpo=P` | lobby GGPO on | GGPO UDP port |
 | `relay_server=1` | lobby GGPO on | the client can route GGPO through relay servers |
 | `nat=` | lobby GGPO on, after the connectivity test | result of the connectivity test |
+| `upnp_result=`, `upnp_local_ip=` | with `nat=`, when the port was not open and `ZdxsvUPnP` is on | UPnP mapping of the GGPO port: `Success` or the error; the LAN address the router maps to |
 | `<region>=ms` | after the HTTPS latency test | HTTPS round trip to that cloud region (gdxsv's keys) |
 
 "Lobby GGPO on" means `ZDXSV_GGPO` with `net=1,lobby=1` (the default).
@@ -187,7 +189,10 @@ messages carry them whole.
 
 On the first lobby connection the emulator tests the GGPO port against the
 lobby's STUN and its test socket at the STUN port + 1, as flycast's
-feasibility test: `open`, `cone NAT`, `symmetric NAT` or `unknown`. Shown on
+feasibility test: `open`, `cone NAT`, `symmetric NAT` or `unknown`. A closed
+port is also asked from Google's and Cloudflare's STUN, as flycast: the
+server's two sockets share one IP, so a NAT that maps per destination IP
+looks like a cone to them; different mappings there = `symmetric NAT`. Shown on
 the OSD in words only (no address or port: streams), logged with the
 addresses and sent as `nat=`. It runs on its own thread; a ping test
 cancels it.
@@ -199,6 +204,20 @@ for its `Hello`. The test socket shares the lobby's IP, which an
 address-restricted NAT lets through; without the `Hello` the result is
 `cone NAT (open to the server only)` (`nat=cone`). A failed request keeps the
 server's result. flycast does the same check against gdxsv's function.
+
+When the result is not `open` and `ZdxsvUPnP` is on, the emulator asks the
+router (UPnP IGD, miniupnpc in `3rdparty/miniupnpc`) to forward the GGPO UDP
+port to this PC, as flycast's `EnableUPnP`, and runs the test again. The
+retest's result replaces the first, unless only the retest got no answer.
+`upnp_result=` (`Success` or the error) and `upnp_local_ip=` go with `nat=`.
+The mapping has a 1-day lease and is removed when PCSX2 exits normally.
+
+Unlike flycast, there is no "UPnP Now" button yet. A router whose IGD
+reports no routable WAN address (`0.0.0.0`, as on a shared IPv4 behind
+MAP-E) counts as no gateway (`error 2`): such a router accepts mappings but
+opens nothing (measured on a ZTE F2886Q from an outside host: 0 packets
+through a mapped port, 184 through a punched one). `ZDXSV_UPNP_ANY_IGD=1`
+accepts it, for tests.
 
 ## HTTPS latency test
 
