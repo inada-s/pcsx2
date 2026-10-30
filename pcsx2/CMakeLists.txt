@@ -245,6 +245,7 @@ set(pcsx2Headers
 	Zdxsv/Settings.h
 	Zdxsv/ServerHosts.h
 	Zdxsv/TestOptions.h
+	Zdxsv/Upnp.h
 	VUops.h)
 
 # CDVD sources
@@ -358,6 +359,7 @@ set(pcsx2DEV9Sources
 	DEV9/Sessions/UDP_Session/UDP_Session.cpp
 	Zdxsv/Lobby.cpp
 	Zdxsv/LobbyConnection.cpp
+	Zdxsv/Upnp.cpp
 	Zdxsv/ServerHosts.cpp
 	Zdxsv/HttpsLatency.cpp
 	Zdxsv/TlsTunnel.cpp
@@ -1222,6 +1224,7 @@ target_link_libraries(PCSX2_FLAGS INTERFACE
 	PNG::PNG
 	LZMA::LZMA
 	GGPO::GGPO
+	MiniUPnPc::MiniUPnPc
 	pcsx2-mbedtls
 	Zstd::Zstd
 	demanglegnu

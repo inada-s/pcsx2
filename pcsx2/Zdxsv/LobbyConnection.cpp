@@ -7,6 +7,7 @@
 #include "Zdxsv/Lobby.h"
 #include "Zdxsv/SyncSettings.h"
 #include "Zdxsv/TestOptions.h"
+#include "Zdxsv/Upnp.h"
 
 #include "BuildVersion.h"
 #include "Host.h"
@@ -21,6 +22,7 @@
 #include "xxhash.h"
 
 #include <bit>
+#include <cstdio>
 #include <cstdlib>
 #include <mutex>
 #include <string>
@@ -168,8 +170,31 @@ namespace Zdxsv
 							TRANSLATE_STR("Zdxsv", "P2P connectivity:") + " " + UdpSummaryText(summary), 10.0f);
 						std::lock_guard lock(natMutex);
 						natLine = line;
+					},
+					[ggpoPort](std::string& lines) {
+						if (!UpnpEnabled())
+							return false;
+						std::string error;
+						const bool mapped = UpnpMapUdp(static_cast<u16>(ggpoPort), error);
+						lines = "upnp_result=" + (mapped ? std::string("Success") : error) + "\n";
+						if (const std::string local = UpnpLocalAddress(); !local.empty())
+							lines += "upnp_local_ip=" + local + "\n";
+						return mapped;
 					});
 			return lines + natLine;
+		}
+
+		// Release builds: their tag zdxsv-X.Y.Z. Builds N commits after one: zdxsv-X.Y.(Z+1)-dev.N, which sorts
+		// above X.Y.Z and below the next release. Empty without a zdxsv release tag (local and upstream builds).
+		std::string ClientVersion()
+		{
+			int major, minor, patch, ahead;
+			char end;
+			if (std::sscanf(BuildVersion::GitTag, "zdxsv-%d.%d.%d%c", &major, &minor, &patch, &end) == 3)
+				return fmt::format("zdxsv-{}.{}.{}", major, minor, patch);
+			if (std::sscanf(BuildVersion::GitRev, "zdxsv-%d.%d.%d-%d-g%c", &major, &minor, &patch, &ahead, &end) == 5)
+				return fmt::format("zdxsv-{}.{}.{}-dev.{}", major, minor, patch + 1, ahead);
+			return "";
 		}
 	} // namespace
 
@@ -209,6 +234,8 @@ namespace Zdxsv
 
 		std::string body = "emulator=pcsx2\n";
 		body += std::string("version=") + BuildVersion::GitRev + "\n";
+		if (const std::string version = ClientVersion(); !version.empty())
+			body += "pcsx2=" + version + "\n";
 		// the lobby passes it to the battle's peers (sync_<user>); no battle unless all agree (LobbyArm)
 		if (const std::string sync = SyncFingerprint(); !sync.empty())
 			body += "sync=" + sync + "\n";

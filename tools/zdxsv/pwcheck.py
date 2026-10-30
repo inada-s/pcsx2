@@ -43,6 +43,8 @@ def load(path, battle):
         if not on:
             continue
         if len(f) >= 3 and f[1] == "H":
+            if len(f) != 8 and not line.endswith("\n"):
+                break  # the last line of a killed writer
             if len(f) != 8:
                 sys.exit("%s: H line without the rng column (pcsx2 before the coordinate + RNG check): %s" % (path, line.strip()))
             h[int(f[2])] = f[3:8]

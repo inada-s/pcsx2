@@ -30,9 +30,53 @@ namespace Zdxsv
 				s_live_seen.push_back(code);
 		}
 
+		size_t s_live_round_bytes = 0; // of s_live_got.rounds already in s_play_file_rounds
+
+		// BattleLogFile round_data entries -> win_team per round
+		std::optional<std::vector<int>> LiveWins(const std::vector<u8>& r)
+		{
+			std::vector<int> wins;
+			Pb::Reader rd{r.data(), r.data() + r.size()};
+			if (!rd.Fields([&wins](uint32_t field, uint32_t, uint64_t, const uint8_t* b, size_t n) {
+					if (field != 18)
+						return true;
+					Pb::Reader round{b, b + n};
+					wins.push_back(0);
+					return round.Fields([&wins](uint32_t f, uint32_t w, uint64_t x, const uint8_t*, size_t) {
+						if (f == 1 && w == 0)
+							wins.back() = static_cast<int32_t>(x);
+						return true;
+					});
+				}))
+				return std::nullopt;
+			return wins;
+		}
+
+		void LogLiveWins(const std::vector<int>& wins, size_t from)
+		{
+			for (size_t i = from; i < wins.size(); i++)
+				Console.WriteLn("ZdxsvGgpo: live: round result %zu: win_team %d from the stream", i + 1, wins[i]);
+		}
+
+		// The stream's round results (ahead of playback) as the file's round_data.
+		void LiveRounds()
+		{
+			const std::vector<u8>& r = s_live_got.rounds;
+			if (r.size() <= s_live_round_bytes)
+				return;
+			std::optional<std::vector<int>> wins = LiveWins(r);
+			if (!wins)
+				return;
+			s_live_round_bytes = r.size();
+			std::lock_guard lock(s_battle_loads_mtx);
+			LogLiveWins(*wins, s_play_file_rounds.size());
+			s_play_file_rounds = std::move(*wins);
+		}
+
 		void LiveTake()
 		{
 			const bool ok = s_live_down->Take(s_live_got, LIVE_STALL_MS);
+			LiveRounds();
 			const size_t in_bytes = s_players * sizeof(NetInput);
 			const size_t got = static_cast<size_t>(s_live_got.frameBytes);
 			const bool hashed = got == in_bytes + sizeof(u32);
@@ -234,11 +278,15 @@ namespace Zdxsv
 		else
 			PutBytes(pb, 49, s_live_got.inputs.data(), frames * fb);
 		s_live_got.inputs.erase(s_live_got.inputs.begin(), s_live_got.inputs.begin() + frames * fb);
+		pb.insert(pb.end(), s_live_got.rounds.begin(), s_live_got.rounds.end());
+		s_live_round_bytes = s_live_got.rounds.size();
+		if (const std::optional<std::vector<int>> wins = LiveWins(s_live_got.rounds))
+			LogLiveWins(*wins, 0);
 		const std::string code = s_live_down->Code();
 		LiveSeen(code);
 		if (!s_live_next_url.empty() && s_live_next_left > 0)
 			s_live_next_left--; // a battle moved on to that does not open is skipped, not counted
-		Console.WriteLn("ZdxsvGgpo: live: battle %s, %zu frames so far%s", code.c_str(), frames,
+		Console.WriteLn("ZdxsvGgpo: live: battle %s, %zu frames, %zu bytes of round results so far%s", code.c_str(), frames, s_live_round_bytes,
 			s_live_got.closed ? ", closed" : "");
 		return pb;
 	}
