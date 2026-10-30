@@ -45,9 +45,14 @@ ok=0
 check() { if eval "$2"; then echo "PASS $1"; else echo "FAIL $1"; ok=1; fi; }
 
 (cd "$RUN" && exec "$Z" battle > "$OUT/battle.log" 2>&1) & pids+=($!)
-# ZRELAY=ip:port ZRELAY_SESSION=id:hex token: a `zdxsv relay` (GGPO relay server) there, log relay.log
+# ZRELAY=ip:port[,ip:port...] ZRELAY_SESSION=id:hex token: a `zdxsv relay` (GGPO relay server) at each, logs relay.log, relay2.log, ...
 if [ -n "${ZRELAY:-}" ]; then
-  (cd "$RUN" && ZDXSV_LOBBY_RELAY_ADDR=$ZRELAY exec "$Z" relay ${ZRELAY_SESSION%%:*} ${ZRELAY_SESSION##*:} > "$OUT/relay.log" 2>&1) & pids+=($!)
+  k=1
+  for a in ${ZRELAY//,/ }; do
+    log=relay.log; [ $k -gt 1 ] && log=relay$k.log
+    (cd "$RUN" && ZDXSV_LOBBY_RELAY_ADDR=$a exec "$Z" relay ${ZRELAY_SESSION%%:*} ${ZRELAY_SESSION##*:} > "$OUT/$log" 2>&1) & pids+=($!)
+    k=$((k + 1))
+  done
 fi
 sleep 2
 "$PY" -u "$here/fake_lobby.py" --trace "$STATES/lobby-trace.log" --battle "$IP:8210" ${FAKE_ARGS:-} > "$OUT/fake.log" 2>&1 & pids+=($!)
