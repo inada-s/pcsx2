@@ -548,6 +548,7 @@ namespace Zdxsv
 		s_rings = {};
 		s_net_frame = 0;
 		s_net_end = -1;
+		s_net_last_real = INT_MAX;
 		s_zd_steps = s_zd_changed = s_zds_echo = s_zds_skip = s_zds_k3rel = 0;
 		for (auto& k3 : s_zds_k3)
 			k3.clear();
