@@ -79,7 +79,7 @@ try {
   $win = $null
   for ($i = 0; $i -lt 30 -and -not $win; $i++) {
     Start-Sleep -Milliseconds 300
-    foreach ($w in Wins) { if ($w.Current.Name -match 'Settings|\.ini\]$') { $win = $w } }
+    foreach ($w in Wins) { if ($w.Current.NativeWindowHandle -ne $main.Current.NativeWindowHandle) { $win = $w } }
   }
   if (-not $win) { "FAIL: no settings window; windows: $(foreach ($w in Wins) { "[$($w.Current.Name)]" })"; exit 1 }
   "settings window: $($win.Current.Name)"

@@ -28500,5 +28500,46 @@ for High-Spec PC</source>
       <source>Set to the default while Gundam vs. Z Gundam runs (the same on every player's emulator).</source>
       <translation>ガンダムVS.Zガンダムの実行中は既定値になります (全プレイヤーのエミュレーターで同じ値)。</translation>
     </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.ui" line="94"/>
+      <source>Open the battle UDP port on the router with UPnP when the connectivity test finds it closed.</source>
+      <translation>接続テストで対戦用 UDP ポートが閉じていた場合、UPnP でルーターのポートを開きます。</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.ui" line="103"/>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="107"/>
+      <source>UPnP Now</source>
+      <translation>今すぐ UPnP</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="82"/>
+      <source>UPnP</source>
+      <translation>UPnP</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="83"/>
+      <source>When the connectivity test at the first lobby connection finds the battle UDP port closed, asks the router (UPnP) to forward it to this PC, then tests again. The mapping is removed when PCSX2 exits.</source>
+      <translation>最初のロビー接続時の接続テストで対戦用 UDP ポートが閉じていた場合、ルーターに (UPnP で) この PC への転送を依頼してから再テストします。転送設定は PCSX2 の終了時に削除されます。</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="108"/>
+      <source>Asks the router (UPnP) now to forward the battle UDP port to this PC, and shows the result. The mapping is removed when PCSX2 exits.</source>
+      <translation>対戦用 UDP ポートをこの PC へ転送するよう今すぐルーターに (UPnP で) 依頼し、結果を表示します。転送設定は PCSX2 の終了時に削除されます。</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="137"/>
+      <source>Set a battle UDP port first (0 picks one at the next game start).</source>
+      <translation>先に対戦用 UDP ポートを設定してください (0 の場合は次のゲーム起動時に選ばれます)。</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="141"/>
+      <source>Please wait...</source>
+      <translation>お待ちください...</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="145"/>
+      <source>UDP port %1 opened (until PCSX2 exits).</source>
+      <translation>UDP ポート %1 を開きました (PCSX2 の終了まで)。</translation>
+    </message>
   </context>
 </TS>
