@@ -115,6 +115,7 @@ and encodes them when it sends the report; the lobby logs the report as one
 | `ping_error` (47) | the ping test could not start | why, e.g. the GGPO port could not be bound |
 | `close_reason` (5), `frame_count` (6), `rollback_frames` (52), `mismatches` (53), `disconnected` (54) | GGPO battle | why the session ended and its counters |
 | `disconnected_peer_ids` (55) | GGPO battle | positions whose peer disconnected |
+| `round_data` (20) | GGPO battle with a replay recorded (saved, uploaded or live) | per round: `win_team` (1) and `used_ms` (2: per position, the MS id + 1); the lobby keeps each player's mobile suits for the replay search |
 | `remote_peers`: `ping_min_ms` (4), `ping_median_ms` (5), `ping_max_ms` (6) | GGPO battle | that peer's GGPO ping in ms, sampled once a second while connected; unset with no sample |
 | `answered` (45), `cut_sends` (51), `sync` (43), `sync_differ` (44) | cut | peers that answered, sends dropped during the cut, differing settings |
 
