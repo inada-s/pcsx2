@@ -27,6 +27,9 @@
 #   BLOCK=K-L (GDELAY=auto, with GGPO_LAT; fake_lobby.py --ggpo-block): clients K and L get no path to each
 #   other, so each reaches the other through a third peer: K and L `path ... peer` x1 and `(relay)` x1, every
 #   other path `direct`, K and L take the lobby delay from the peer path rtt (control: the plain checks on those logs fail on K and L).
+#   UNREACH=K (GDELAY=auto, with GGPO_LAT; fake_lobby.py --ggpo-block K-x for every other client x): nobody has a
+#   path to client K, not even through a peer: K gets no answer, every other client gets rtt -1 from K only;
+#   then the BAD_SESSION checks (every client cuts, the game gives up and reconnects to the lobby).
 set -u
 D=$(cd "$(dirname "$0")" && pwd)
 . "$D/env.sh"
@@ -45,7 +48,15 @@ NOADDR=${NOADDR:-}
 [ -n "$NOADDR" ] && [ "$GDELAY" != auto ] && { echo "m4ggpo: NOADDR needs GDELAY=auto (got $GDELAY)"; exit 2; }
 BLOCK=${BLOCK:-}
 [ -n "$BLOCK" ] && { [ "$GDELAY" != auto ] || [ -z "${GGPO_LAT:-}" ]; } && { echo "m4ggpo: BLOCK needs GDELAY=auto and GGPO_LAT"; exit 2; }
-[ -n "$BAD" ] && export NORESULT=1 MAXS=${MAXS:-360}
+UNREACH=${UNREACH:-}
+[ -n "$UNREACH" ] && { [ "$GDELAY" != auto ] || [ -z "${GGPO_LAT:-}" ]; } && { echo "m4ggpo: UNREACH needs GDELAY=auto and GGPO_LAT"; exit 2; }
+GB=$BLOCK
+[ -n "$UNREACH" ] && GB=$(for i in $GC; do [ "$i" = "$UNREACH" ] || printf '%s-%s,' "$UNREACH" "$i"; done | sed 's/,$//')
+CUT=${BAD:-$UNREACH}
+# a bad session's packets arrive and are dropped; an unreachable peer's never arrive
+CUTK="bad session" DL=drops DQ=' [1-9][0-9]* dropped'
+[ -n "$UNREACH" ] && CUTK=unreachable DL="0 dropped" DQ=' 0 dropped'
+[ -n "$CUT" ] && export NORESULT=1 MAXS=${MAXS:-360}
 RELAY=${RELAY:-}
 RA=127.0.0.1:8203 RS=1234:abcd
 [ -n "$RELAY" ] && export ZRELAY=$RA ZRELAY_SESSION=$RS
@@ -54,7 +65,7 @@ RA=127.0.0.1:8203 RS=1234:abcd
 # RELAY=4: relay_0..3 offered, nothing listens at 0 and 1, 2 (RA) and 3 run: every path takes relay 2
 RL=$RA RI=0
 [ "$RELAY" = 4 ] && RL=127.0.0.1:8261,127.0.0.1:8262,$RA,127.0.0.1:8263 RI=2 ZRELAY=$RA,127.0.0.1:8263
-FAKE_ARGS="--ggpo $PORT --ggpo-clients $(echo $GC | tr -d ' ')${GGPO_LAT:+ --ggpo-delay $GGPO_LAT} --p2p $P2P${BAD:+ --bad-session $BAD}${NOADDR:+ --no-addr $NOADDR}${BLOCK:+ --ggpo-block $BLOCK}${RELAY:+ --relay $RL --relay-session $RS}" bash "$D/m4.sh"
+FAKE_ARGS="--ggpo $PORT --ggpo-clients $(echo $GC | tr -d ' ')${GGPO_LAT:+ --ggpo-delay $GGPO_LAT} --p2p $P2P${BAD:+ --bad-session $BAD}${NOADDR:+ --no-addr $NOADDR}${GB:+ --ggpo-block $GB}${RELAY:+ --relay $RL --relay-session $RS}" bash "$D/m4.sh"
 rc=$?
 n=$(echo $GC | wc -w)
 ok() { if eval "$2"; then echo "PASS $1"; else echo "FAIL $1"; rc=1; fi; }
@@ -64,26 +75,26 @@ for i in $GC; do
   blk=; [ -n "$BLOCK" ] && case "-$BLOCK-" in *-$i-*) blk=1;; esac
   grep -a "ZdxsvGgpo: \(lobby\|net player\|net armed\)\|zdxsv: ping test" "$f" | cut -c1-300 | sed "s/^/p$i /"
   if [ "$n" -eq 4 ]; then
-    [ -z "$BAD" ] && ok "p$i lobby peers x3" "[ \$(grep -a -c 'ZdxsvGgpo: lobby peer position' '$f') -eq 3 ]"
-    if [ -n "$BAD" ]; then
+    [ -z "$CUT" ] && ok "p$i lobby peers x3" "[ \$(grep -a -c 'ZdxsvGgpo: lobby peer position' '$f') -eq 3 ]"
+    if [ -n "$CUT" ]; then
       ok "p$i connection cut (unanswered ping test), no ggpo session" "grep -a -q 'ZdxsvGgpo: lobby battle connection cut: [0-9] of 3 peers answered the ping test' '$f' && ! grep -a -q 'ZdxsvGgpo: net player' '$f'"
       ok "p$i game gave up the battle connection (cut ended)" "grep -a -q 'ZdxsvGgpo: lobby battle connection cut ended' '$f'"
-      ok "p$i cut OSD (opponent did not answer)" "grep -a -q 'OSD \[ZdxsvBattleCut\]: No battle: an opponent did not answer' '$f'"
+      ok "p$i cut OSD (opponent did not answer)" "grep -a -q -e 'OSD \[ZdxsvBattleCut\]: No battle: an opponent did not answer' -e 'OSD \[ZdxsvBattleCut\]: 対戦できません: 対戦相手から応答がありません' '$f'"
     else
       ok "p$i ggpo session" "grep -a -q 'ZdxsvGgpo: net player' '$f'"
     fi
-    if [ -z "$BAD" ]; then
+    if [ -z "$CUT" ]; then
       [ "$GDELAY" = auto ] && ok "p$i ping test 3 peers" "grep -a 'zdxsv: ping test' '$f' | grep -a -q 'rtt [0-9].*rtt [0-9].*rtt [0-9]'"
-    elif [ "$i" = "$BAD" ]; then
-      ok "p$i (bad session) no peer answered, drops" "grep -a 'zdxsv: ping test' '$f' | grep -a -v 'rtt [0-9][0-9]* ms' | grep -a -q ' [1-9][0-9]* dropped'"
+    elif [ "$i" = "$CUT" ]; then
+      ok "p$i ($CUTK) no peer answered, $DL" "grep -a 'zdxsv: ping test' '$f' | grep -a -v 'rtt [0-9][0-9]* ms' | grep -a -q '$DQ'"
     else
-      ok "p$i 2 peers answered, p$BAD rtt -1, drops" "grep -a 'zdxsv: ping test' '$f' | grep -a 'rtt [0-9].*rtt [0-9]' | grep -a 'rtt -1' | grep -a -q ' [1-9][0-9]* dropped'"
+      ok "p$i 2 peers answered, p$CUT rtt -1, $DL" "grep -a 'zdxsv: ping test' '$f' | grep -a 'rtt [0-9].*rtt [0-9]' | grep -a 'rtt -1' | grep -a -q '$DQ'"
     fi
-    [ "$GDELAY" = auto ] && [ -z "$BAD" ] && [ -z "$blk" ] && ok "p$i lobby delay $E" "grep -a -q 'ZdxsvGgpo: lobby delay $E:' '$f'"
+    [ "$GDELAY" = auto ] && [ -z "$CUT" ] && [ -z "$blk" ] && ok "p$i lobby delay $E" "grep -a -q 'ZdxsvGgpo: lobby delay $E:' '$f'"
     [ "$P2P" = v6 ] && ok "p$i peers at IPv6 x3" "[ \$(grep -a -c 'ZdxsvGgpo: lobby peer position [0-9] at \[' '$f') -eq 3 ]"
     [ "$P2P" = dual ] && [ "$GDELAY" = auto ] && ok "p$i IPv6 candidates answered x3" "[ \$(grep -a 'zdxsv: ping test' '$f' | grep -a -o '\]:[0-9]* rtt [0-9]' | wc -l) -eq 3 ]"
     [ "$P2P" != v4 ] && ok "p$i own IPv6" "grep -a -q 'zdxsv: udp: port.*IPv6 \[' '$f'"
-    if [ -n "$RELAY" ] && [ -z "$BAD" ]; then
+    if [ -n "$RELAY" ] && [ -z "$CUT" ]; then
       for a in ${RL//,/ }; do ok "p$i relay server $a registered" "grep -a -q 'ZdxsvGgpo: relay server $a' '$f'"; done
       [ -n "${RELAY_ALT:-}" ] && ok "p$i relay answers from 127.0.0.1" "grep -a 'zdxsv: ping test' '$f' | grep -a -q 'pongs) answers from 127.0.0.1:8203'"
       ok "p$i paths relay $RI x3" "[ \$(grep -a -c 'ZdxsvGgpo: lobby path to position [0-9]: relay $RI' '$f') -eq 3 ]"
@@ -93,7 +104,7 @@ for i in $GC; do
       ok "p$i peer via relay x1" "[ \$(grep -a -c 'ZdxsvGgpo: lobby peer position [0-9] at .* (relay)' '$f') -eq 1 ]"
       R=$(grep -a -o 'lobby path to position [0-9]: peer [0-9], rtt [0-9]*' "$f" | grep -o '[0-9]*$')
       ok "p$i lobby delay from the peer path (rtt $R)" "grep -a -q 'ZdxsvGgpo: lobby delay [0-9]*: slowest peer rtt ${R:-x} ms' '$f'"
-    elif [ "$n" -eq 4 ] && [ -z "$BAD" ] && [ "$GDELAY" = auto ]; then
+    elif [ "$n" -eq 4 ] && [ -z "$CUT" ] && [ "$GDELAY" = auto ]; then
       ok "p$i paths direct x3" "[ \$(grep -a -c 'ZdxsvGgpo: lobby path to position [0-9]: direct' '$f') -eq 3 ]"
     fi
   else
@@ -103,6 +114,6 @@ done
 # no UDP bridge; STUN only on lobby=1 clients
 ok "no bridge" "! cat $RUN/p[1-4]/PCSX2/logs/emulog.txt | grep -a -q 'zdxsv: bridge\|UDP bridge'"
 ok "stun x$n" "[ \$(cat $RUN/p[1-4]/PCSX2/logs/emulog.txt | grep -a -c 'zdxsv: udp: port') -eq $n ]"
-[ -n "$RELAY" ] && [ -z "$BAD" ] && ok "relay forwarded" "grep -a 'relay test session' '$OUT/relay.log' | grep -a -q 'forwarded [1-9]'"
+[ -n "$RELAY" ] && [ -z "$CUT" ] && ok "relay forwarded" "grep -a 'relay test session' '$OUT/relay.log' | grep -a -q 'forwarded [1-9]'"
 [ "$n" -lt 4 ] && ok "no ggpo session" "! cat $RUN/p[1-4]/PCSX2/logs/emulog.txt | grep -a -q 'ZdxsvGgpo: net player'"
 exit $rc
