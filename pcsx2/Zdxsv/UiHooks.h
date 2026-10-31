@@ -12,7 +12,7 @@ class Error;
 
 namespace Zdxsv
 {
-	extern bool g_ggpo_enabled; // GGPO options (ZDXSV_GGPO or the ZdxsvGgpo setting) or a replay
+	extern bool g_ggpo_enabled; // GGPO options (ZDXSV_GGPO, else on by default) or a replay
 	extern bool g_ggpo_active; // a session runs
 
 	// VMManager pause, frame advance, speed change and state load: true (refused) during a net battle, the

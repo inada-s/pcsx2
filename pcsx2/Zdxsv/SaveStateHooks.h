@@ -18,7 +18,7 @@ extern void SaveState_DeltaMarkScratch(size_t pos, size_t size);
 
 namespace Zdxsv
 {
-	extern bool g_ggpo_enabled; // GGPO options (ZDXSV_GGPO or the ZdxsvGgpo setting) or a replay
+	extern bool g_ggpo_enabled; // GGPO options (ZDXSV_GGPO, else on by default) or a replay
 
 	// Lobby save states, a debugging feature, off unless ZDXSV_LOBBY_STATE=1:
 	// DEV9 state is saved/loaded with save states, and after a load DEV9 adopts

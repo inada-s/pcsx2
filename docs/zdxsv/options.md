@@ -28,13 +28,12 @@ the recompiler hooks and the platform info are off, and `ZDXSV_GGPO` or
 
 ## Settings in PCSX2.ini
 
-All but `ZdxsvReplayUploadUrl`, `ZdxsvUdpTestUrl` (ini only), `ZdxsvLobbyApiUrl` and `ZdxsvReplayFavorites` (set in the replay
+All but `ZdxsvReplayUploadUrl`, `ZdxsvUdpTestUrl`, `ZdxsvReplayStateUrl` (ini only), `ZdxsvLobbyApiUrl` and `ZdxsvReplayFavorites` (set in the replay
 window) are on the page Settings → zdxsv (global or per game). An environment variable named in a row overrides the setting; the
 page greys it out and its tooltip names the variable.
 
 | Setting | Default | Use | Meaning |
 |---|---|---|---|
-| `[DEV9/Eth] ZdxsvGgpo` | `true` | feature | Lobby battles run over GGPO (`ZDXSV_GGPO` options `net=1,lobby=1`). Read when the game starts. |
 | `[DEV9/Eth] ZdxsvGgpoMinDelay` | `2` | feature | Lowest GGPO input delay (frames, 2..6) a lobby battle picks, and the replay takeover delay; as gdxsv's `MinDelay`. Read when the game starts. `mindelay=` overrides it. |
 | `[DEV9/Eth] ZdxsvRollbackBudget` | `1.0` | internal | Rollback budget learned per PC (frames, 0..1.5), saved after each long net battle (`rollback.md`). |
 | `[DEV9/Eth] ZdxsvGgpoPort` | `0` | feature | UDP port of lobby battles (ping test and GGPO). 0 or out of range: a random port in 29700..29800, picked when the game starts with `lobby=1` and saved to the setting. `port=` overrides it. |
@@ -74,7 +73,7 @@ page greys it out and its tooltip names the variable.
 ## ZDXSV_GGPO
 
 `ZDXSV_GGPO="key=value,..."` starts a GGPO session in a running game. It
-replaces the options of the `ZdxsvGgpo` setting; `ZDXSV_GGPO=0` turns GGPO
+replaces the default options (GGPO is on by default); `ZDXSV_GGPO=0` turns GGPO
 off. Any other value turns it on. Without `net=1` the session is a synctest. Log lines start with
 `ZdxsvGgpo`. See [rollback.md](rollback.md) and [lobby.md](lobby.md).
 

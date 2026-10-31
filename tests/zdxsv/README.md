@@ -59,7 +59,7 @@ USERS=AAAAAA BBBBBB CCCCCC DDDDDD
 - One rig at a time: every rig takes the lock in `riglock.sh` / `riglock.ps1`
   (the instances share fixed ports).
 - `launch.ps1` gives a client without `ZDXSV_GGPO` the value `0` (GGPO off,
-  whatever the `ZdxsvGgpo` setting); `ZDXSV_GGPO=default` leaves it to the setting.
+  which is otherwise on by default); `ZDXSV_GGPO=default` leaves it on.
 - `launch.ps1` runs `probelint.py` first and refuses a PCSX2 build older than
   its sources.
 - Run from the repository root, e.g. `OUT=D:/zdxsv-run/out bash tests/zdxsv/rbk.sh 2 1`.

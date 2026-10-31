@@ -10,7 +10,7 @@
 
 namespace Zdxsv
 {
-	extern bool g_ggpo_enabled; // GGPO options (ZDXSV_GGPO or the ZdxsvGgpo setting) or a replay
+	extern bool g_ggpo_enabled; // GGPO options (ZDXSV_GGPO, else on by default) or a replay
 	extern bool g_ggpo_active; // a session runs
 	extern bool g_ggpo_in_rollback; // rerunning frames: no throttle
 	extern u64 g_rerun_vu1_ticks; // Common::Timer ticks in VU1 microcode during rerun frames (microVU.cpp)
@@ -32,7 +32,7 @@ namespace Zdxsv
 	void SyncSettingsEnforce();
 
 	// In VMManager::Initialize, once the disc serial and CRC are known and before the CPU runs: the GGPO options
-	// of this VM (ZDXSV_GGPO, else the ZdxsvGgpo setting) and the flags above that follow them. Any other
+	// of this VM (ZDXSV_GGPO, else the default) and the flags above that follow them. Any other
 	// game (or another build of it): all off, the hooks too, whatever ZDXSV_GGPO / ZDXSV_REPLAY say.
 	void GgpoOnVmInitialize(const char* serial, u32 crc);
 	// In VMManager::Shutdown and VMManager::Reset, CPU thread, before the VM state goes: a running session ends
