@@ -18,6 +18,10 @@ namespace Zdxsv
 	// UI thread, before the VM starts: that VM plays src (a ZDXSV_REPLAY value) from point of view pov (0-based,
 	// -1 = the recorder's). ZDXSV_REPLAY / ZDXSV_REPLAY_POV win. Only the next VM start takes it.
 	void SetNextReplay(std::string src, int pov);
+
+	// Translated name of a battle MS id (player work +0x1f2a); nullptr past the known names.
+	const char* MsName(u32 id);
+
 	// GgpoOnVmInitialize: the SetNextReplay pick, cleared; false = none.
 	bool TakeNextReplay(std::string& src, int& pov);
 
