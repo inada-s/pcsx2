@@ -310,6 +310,7 @@ namespace Zdxsv
 		}
 
 		std::vector<int> s_peer_pings[GGPO_MAX_PLAYERS]; // ms, sampled once a second for the report
+		std::pair<int, int> s_peer_loss[GGPO_MAX_PLAYERS]; // GGPO packets lost: received, sent
 
 		void SamplePeerPings()
 		{
@@ -319,7 +320,23 @@ namespace Zdxsv
 				if (p != s_net_me && s_peer_state[p] == 0 && ggpo_get_network_stats(s_session, s_handles[p], &st) == GGPO_OK &&
 					st.network.ping > 0)
 					s_peer_pings[p].push_back(st.network.ping);
+				// GGPO's counters are totals and stop once the peer is gone: the last sample is the battle's
+				if (p != s_net_me && s_peer_state[p] == 0 && ggpo_get_network_stats(s_session, s_handles[p], &st) == GGPO_OK)
+					s_peer_loss[p] = {st.network.recv_packet_loss, st.network.send_packet_loss};
 			}
+		}
+
+		Common::Timer s_fps_timer;
+		int s_fps_mark = 0;
+		std::vector<int> s_fps_history; // frames run in each second, for the report
+
+		void SampleFps()
+		{
+			if (s_fps_timer.GetTimeSeconds() < 1.0 || s_fps_history.size() >= 3600)
+				return;
+			s_fps_timer.Reset();
+			s_fps_history.push_back(s_session_frames - s_fps_mark);
+			s_fps_mark = s_session_frames;
 		}
 
 		// report lines: disconnected_positions=0,2 (empty: none), ping_<position>=min/median/max ms (none: -1/-1/-1)
@@ -335,8 +352,13 @@ namespace Zdxsv
 				std::vector<int> v = s_peer_pings[p];
 				std::sort(v.begin(), v.end());
 				pings += v.empty() ? fmt::format("ping_{}=-1/-1/-1\n", p) : fmt::format("ping_{}={}/{}/{}\n", p, v.front(), v[v.size() / 2], v.back());
+				pings += fmt::format("loss_{}={}/{}\n", p, s_peer_loss[p].first, s_peer_loss[p].second);
 			}
-			return "disconnected_positions=" + left + "\n" + pings;
+			std::string fps;
+			for (int f : s_fps_history)
+				fps += (fps.empty() ? "" : ",") + std::to_string(f);
+			return "disconnected_positions=" + left + "\n" + pings + "timesync=" + std::to_string(s_sync_frames) +
+			       "\ninput_blocks=" + std::to_string(s_waits) + "\nfps_history=" + fps + "\n";
 		}
 
 		constexpr u32 OsdColor(u32 r, u32 g, u32 b) { return 0xff000000u | (b << 16) | (g << 8) | r; } // IM_COL32
@@ -957,6 +979,10 @@ namespace Zdxsv
 		std::fill(std::begin(s_peer_state), std::end(s_peer_state), 0);
 		for (auto& v : s_peer_pings)
 			v.clear();
+		std::fill(std::begin(s_peer_loss), std::end(s_peer_loss), std::pair<int, int>{});
+		s_fps_history.clear();
+		s_fps_mark = 0;
+		s_fps_timer.Reset();
 		{
 			std::lock_guard lock(s_osd_mtx);
 			s_osd_hold_until = 0;
@@ -1177,6 +1203,8 @@ namespace Zdxsv
 		UpdateOsd(s_session_frames % 600 == 0);
 		if (s_net && s_session_frames % 60 == 0)
 			SamplePeerPings();
+		if (s_net)
+			SampleFps();
 		DeferredThrottle();
 		if (!s_session) // the input poll ran a VM shutdown or reset
 			return;
