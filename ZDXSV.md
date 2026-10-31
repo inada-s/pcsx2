@@ -40,7 +40,9 @@ If Windows Firewall asks whether PCSX2 can use the network, allow it.
 
 Battles use one UDP port: Settings → zdxsv → "UDP port for battles". At the first game
 start, PCSX2 picks a random port between 29700 and 29800 and saves it there. If you
-cannot connect to opponents directly, forward this UDP port to your PC on your router.
+cannot connect to opponents directly, forward this UDP port to your PC on your router,
+or press "UPnP Now" on the same page to ask a UPnP router to do it (the result shows
+next to the button; the forward is removed when PCSX2 exits).
 Two players behind the same router need different ports.
 
 When a battle cannot start, a message beginning with "No battle:" (Japanese: "対戦できません:") says why

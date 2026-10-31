@@ -20,6 +20,7 @@ public:
 
 private:
 	void applyPreset(float upscale_multiplier, int min_delay);
+	void mapUpnpNow();
 
 	Ui::ZdxsvSettingsWidget m_ui;
 };

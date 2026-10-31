@@ -212,7 +212,10 @@ retest's result replaces the first, unless only the retest got no answer.
 `upnp_result=` (`Success` or the error) and `upnp_local_ip=` go with `nat=`.
 The mapping has a 1-day lease and is removed when PCSX2 exits normally.
 
-Unlike flycast, there is no "UPnP Now" button yet. A router whose IGD
+The "UPnP Now" button on Settings → zdxsv maps the `ZdxsvGgpoPort` port at
+once (as flycast's button) and shows `opened` or the error next to it; with
+the port at 0 it asks for one, since the random port is picked only at game
+start. The same exit cleanup removes it. A router whose IGD
 reports no routable WAN address (`0.0.0.0`, as on a shared IPv4 behind
 MAP-E) counts as no gateway (`error 2`): such a router accepts mappings but
 opens nothing (measured on a ZTE F2886Q from an outside host: 0 packets
