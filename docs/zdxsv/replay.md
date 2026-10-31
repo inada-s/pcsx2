@@ -62,7 +62,8 @@ Tools → zdxsv Replays, as flycast's replay lists:
 - **Local**: the `.pb` files in the `replays` folder (date, battle code,
   players, rounds, length); Browse... plays any file.
 - **Remote**: the lobby's `/lbs/replay` search by battle code, player name or
-  pilot name (a part of the name matches), user ID, player count and rated
+  pilot name (a part of the name matches), user ID, player count, mobile suit
+  (used by a player matching the name filters) and rated
   battles only, newest first (or oldest first), 100 per page.
   Plays the row's `replay_url`. Add to Favorites keeps the row.
 - **Favorites**: the kept rows (`ZdxsvReplayFavorites`); Play asks the lobby
