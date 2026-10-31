@@ -9,7 +9,11 @@
 #include "pcsx2/GameList.h"
 #include "pcsx2/Host.h"
 #include "pcsx2/VMManager.h"
+#include "pcsx2/Zdxsv/Lobby.h"
 #include "pcsx2/Zdxsv/ReplayList.h"
+#include "pcsx2/Zdxsv/UiHooks.h"
+
+#include "common/Console.h"
 
 #include "common/FileSystem.h"
 #include "common/HTTPDownloader.h"
@@ -138,9 +142,32 @@ namespace
 		return tree;
 	}
 
-	void BootReplay(const std::string& disc, const QString& src, int pov)
+	void ReturnFromReplay(const std::string& disc)
+	{
+		std::string state;
+		if (!Zdxsv::TakeReplayReturn(state))
+			return;
+		std::shared_ptr<VMBootParameters> params = std::make_shared<VMBootParameters>();
+		params->filename = disc;
+		if (!state.empty() && FileSystem::FileExists(state.c_str()))
+			params->save_state = state;
+		Console.WriteLn("Zdxsv: replay return: %s", params->save_state.empty() ? "boot" : params->save_state.c_str());
+		g_emu_thread->startVM(std::move(params));
+		ZdxsvReplayDialog::openDialog(g_main_window);
+	}
+
+	void BootReplay(const std::string& disc, const QString& src, int pov, bool back, const std::string& state)
 	{
 		Zdxsv::SetNextReplay(src.toStdString(), pov);
+		if (back)
+		{
+			Zdxsv::SetReplayReturn(state);
+			// connected once the replay VM runs: the stop of the game shut down for it must not count
+			QObject::connect(g_emu_thread, &EmuThread::onVMStarted, g_main_window, [disc]() {
+				QObject::connect(g_emu_thread, &EmuThread::onVMStopped, g_main_window,
+					[disc]() { ReturnFromReplay(disc); }, Qt::SingleShotConnection);
+			}, Qt::SingleShotConnection);
+		}
 		std::shared_ptr<VMBootParameters> params = std::make_shared<VMBootParameters>();
 		params->filename = disc;
 		g_emu_thread->startVM(std::move(params));
@@ -644,13 +671,23 @@ void ZdxsvReplayDialog::play(const QString& src)
 		return;
 	}
 	const int pov = m_pov->currentData().toInt();
+	const bool back = Host::GetBaseBoolSettingValue("DEV9/Eth", "ZdxsvReplayReturn", true);
 	if (QtHost::IsVMValid())
 	{
 		if (QMessageBox::question(this, tr("zdxsv Replays"), tr("Shut down the running game and play the replay?")) != QMessageBox::Yes)
 			return;
+		std::string state;
+		if (back && VMManager::GetDiscSerial() == Zdxsv::GAME_SERIAL && !Zdxsv::LobbyConnectionOpen() && !Zdxsv::g_ggpo_active)
+		{
+			state = Path::Combine(Zdxsv::ReplayDir(), "return.p2s");
+			FileSystem::DeleteFilePath(state.c_str());
+			Host::RunOnCPUThread([state]() { VMManager::SaveState(state.c_str(), false, false, [](const std::string& error) {
+				Console.Error("Zdxsv: replay return state: %s", error.c_str());
+			}); });
+		}
 		// the boot waits for the VM to stop; the dialog may be gone by then
 		const QMetaObject::Connection boot = connect(g_emu_thread, &EmuThread::onVMStopped, g_main_window,
-			[disc, src, pov]() { BootReplay(disc, src, pov); }, Qt::SingleShotConnection);
+			[disc, src, pov, back, state]() { BootReplay(disc, src, pov, back, state); }, Qt::SingleShotConnection);
 		if (!g_main_window->requestShutdown(false, false, false))
 		{
 			disconnect(boot);
@@ -658,7 +695,7 @@ void ZdxsvReplayDialog::play(const QString& src)
 		}
 	}
 	else
-		BootReplay(disc, src, pov);
+		BootReplay(disc, src, pov, back, {});
 	close();
 }
 

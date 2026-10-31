@@ -75,6 +75,11 @@ Tools → zdxsv Replays, as flycast's replay lists:
 - **Play** (or a double click) boots the game from the game list (it must
   hold the Z game) with the pick; it applies to that boot only: the next
   boot is a normal one. `ZDXSV_REPLAY` in the environment wins over it.
+- **Return** (setting `ZdxsvReplayReturn`): Play with the Z game running and
+  no lobby connection or net battle saves `replays/return.p2s` first. When
+  the replay ends (resumed at its end, or `ZDXSV_REPLAY_EXIT=1`) the VM shuts
+  down, the game boots again from that state (else a plain boot) and the
+  window opens again. Stopping the replay VM by hand does not return.
 
 ## Controls
 
