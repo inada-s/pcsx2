@@ -11,6 +11,7 @@
 #include <miniupnpc.h>
 #include <upnpcommands.h>
 
+#include <algorithm>
 #include <cstring>
 #include <mutex>
 #include <string>
@@ -102,7 +103,8 @@ namespace Zdxsv
 			Console.WriteLn("DEV9: zdxsv UPnP: %s", error.c_str());
 			return false;
 		}
-		u.mappedPorts.push_back(portStr);
+		if (std::find(u.mappedPorts.begin(), u.mappedPorts.end(), portStr) == u.mappedPorts.end())
+			u.mappedPorts.push_back(portStr);
 		Console.WriteLn("DEV9: zdxsv UPnP: UDP port %s mapped", portStr.c_str());
 		return true;
 	}
