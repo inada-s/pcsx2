@@ -62,8 +62,12 @@ Tools → zdxsv Replays, as flycast's replay lists:
 - **Local**: the `.pb` files in the `replays` folder (date, battle code,
   players, rounds, length); Browse... plays any file.
 - **Remote**: the lobby's `/lbs/replay` search by battle code, player name or
-  pilot name (a part of the name matches), newest first, 100 per page.
-  Plays the row's `replay_url`.
+  pilot name (a part of the name matches), user ID, player count, mobile suit
+  (used by a player matching the name filters) and rated
+  battles only, newest first (or oldest first), 100 per page.
+  Plays the row's `replay_url`. Add to Favorites keeps the row.
+- **Favorites**: the kept rows (`ZdxsvReplayFavorites`); Play asks the lobby
+  API for the battle's `replay_url`.
 - **Live**: the lobby's `/lbs/live` (running battles first, refreshed every 10 s
   while the tab is shown). Plays `udp://<API host>:8201/<code>`.
 - **Lobby API** (Remote, Live): setting `ZdxsvLobbyApiUrl` (`options.md`).
@@ -71,6 +75,11 @@ Tools → zdxsv Replays, as flycast's replay lists:
 - **Play** (or a double click) boots the game from the game list (it must
   hold the Z game) with the pick; it applies to that boot only: the next
   boot is a normal one. `ZDXSV_REPLAY` in the environment wins over it.
+- **Return** (setting `ZdxsvReplayReturn`): Play with the Z game running and
+  no lobby connection or net battle saves `replays/return.p2s` first. When
+  the replay ends (resumed at its end, or `ZDXSV_REPLAY_EXIT=1`) the VM shuts
+  down, the game boots again from that state (else a plain boot) and the
+  window opens again. Stopping the replay VM by hand does not return.
 
 ## Controls
 

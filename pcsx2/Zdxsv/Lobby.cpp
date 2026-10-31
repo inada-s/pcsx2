@@ -422,6 +422,26 @@ namespace Zdxsv
 		return me;
 	}
 
+	namespace
+	{
+		std::atomic<int> s_lobby_filters{0};
+	} // namespace
+
+	LobbyFilter::LobbyFilter()
+	{
+		s_lobby_filters++;
+	}
+
+	LobbyFilter::~LobbyFilter()
+	{
+		s_lobby_filters--;
+	}
+
+	bool LobbyConnectionOpen()
+	{
+		return s_lobby_filters.load() > 0;
+	}
+
 	void LobbyFilterDeleter::operator()(LobbyFilter* filter) const
 	{
 		delete filter;
