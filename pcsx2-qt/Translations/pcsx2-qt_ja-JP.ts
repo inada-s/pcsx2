@@ -28168,6 +28168,31 @@ for High-Spec PC</source>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.ui" line="205"/>
+      <source>Save the replay of each lobby battle on this PC.</source>
+      <translation>ロビー対戦ごとのリプレイをこの PC に保存します。</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.ui" line="212"/>
+      <source>Replay folder:</source>
+      <translation>リプレイフォルダ:</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.ui" line="222"/>
+      <source>Browse...</source>
+      <translation>参照...</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.ui" line="229"/>
+      <source>Open...</source>
+      <translation>開く...</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.ui" line="236"/>
+      <source>Reset</source>
+      <translation>リセット</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.ui" line="205"/>
       <source>An environment variable overrides the setting it names: such a setting is greyed out here, and its tooltip names the variable.</source>
       <translation>環境変数は対応する設定を上書きします。その設定はここで灰色になり、ツールチップに変数名が表示されます。</translation>
     </message>
@@ -28310,6 +28335,31 @@ for High-Spec PC</source>
       <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="85"/>
       <source>After each lobby battle, its replay is posted to the zdxsv server, where anyone can watch it (Tools → zdxsv Replays, Remote).</source>
       <translation>ロビー対戦のたびにリプレイを zdxsv サーバーに送信し、誰でも観られるようにします (ツール → zdxsv リプレイ、リモート)。</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="91"/>
+      <source>Save Replays</source>
+      <translation>リプレイを保存</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="92"/>
+      <source>After each lobby battle, its replay is saved in the replay folder (Tools → zdxsv Replays, Local).</source>
+      <translation>ロビー対戦のたびにリプレイをリプレイフォルダに保存します (ツール → zdxsv リプレイ、ローカル)。</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="93"/>
+      <source>Replay Folder</source>
+      <translation>リプレイフォルダ</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="93"/>
+      <source>replays in the data folder</source>
+      <translation>データフォルダ内の replays</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="94"/>
+      <source>Where replays are saved and the Local replay list reads from. A folder that cannot be created falls back to the default.</source>
+      <translation>リプレイの保存先で、ローカルのリプレイ一覧もここから読みます。作成できないフォルダの場合は既定のフォルダを使います。</translation>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="90"/>

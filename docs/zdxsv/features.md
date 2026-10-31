@@ -100,7 +100,7 @@ zdxsv checkout, save states): `tests/zdxsv/README.md`.
 
 | Feature | How to turn on | Test | Control |
 |---|---|---|---|
-| Save a GGPO battle as a replay | `replay=DIR` in `ZDXSV_GGPO`; default for lobby battles | `rbk.sh 2 1` with `replay=DIR`, then `replay_check.py` on the file of every peer: same inputs on the common frames. Real lobby: 1v1 `m4z.sh`, then `replay_check.py` | a copy with 1 input byte changed fails at that frame |
+| Save a GGPO battle as a replay | `replay=DIR` in `ZDXSV_GGPO`; lobby battles: setting `ZdxsvSaveReplay` (on), folder `ZdxsvReplayPath` | `rbk.sh 2 1` with `replay=DIR`, then `replay_check.py` on the file of every peer: same inputs on the common frames. Real lobby: 1v1 `m4z.sh`, then `replay_check.py` | a copy with 1 input byte changed fails at that frame |
 | Upload a lobby battle's replay (as flycast) | on by default (setting `ZdxsvReplayUpload`) when the game found the server by DNS; `upload=URL` in `ZDXSV_GGPO` | `UPLOAD=1 CLIENTS="1 3" EMU=1 GGPO=7101 GDELAY=auto m4z.sh` (`upload=` to the local lobby's `/lbs/replay_upload`): the stored `.pb` = one client's, one upload ok + the rest 409, every record's `replay_url` = the stored url. The default URL and the DNS gate: none (they need the public server) | the same run without `UPLOAD=1` (host entries, no `upload=`): no `replay upload` line |
 | Play a replay | `ZDXSV_REPLAY=file.pb` | `rplay.sh` against the trace of the live battle: player work equal on every frame | a copy with changed buttons fails from the changed frame |
 | Replay that does not start: error OSD message | always | `BAD=1 FILE=<random bytes> rplay.sh`: logs `replay: not started` (the OSD text) | the build without it: only `not a replay file`, FAIL |

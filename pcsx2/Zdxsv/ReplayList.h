@@ -21,7 +21,8 @@ namespace Zdxsv
 	// GgpoOnVmInitialize: the SetNextReplay pick, cleared; false = none.
 	bool TakeNextReplay(std::string& src, int& pov);
 
-	// <data dir>/replays: where lobby battles save without replay=DIR.
+	// Where lobby battles save without replay=DIR: setting DEV9/Eth ZdxsvReplayPath (relative: to the data dir), else
+	// or when it cannot be created <data dir>/replays.
 	std::string ReplayDir();
 
 	struct ReplayFileUser

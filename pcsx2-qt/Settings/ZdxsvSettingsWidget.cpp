@@ -49,6 +49,9 @@ ZdxsvSettingsWidget::ZdxsvSettingsWidget(SettingsWindow* settings_dialog, QWidge
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvReplayUpload, "DEV9/Eth", "ZdxsvReplayUpload", true);
 	SettingWidgetBinder::BindWidgetToStringSetting(
 		sif, m_ui.zdxsvReplayStateUrl, "DEV9/Eth", "ZdxsvReplayStateUrl", Zdxsv::REPLAY_STATE_URL);
+	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvSaveReplay, "DEV9/Eth", "ZdxsvSaveReplay", true);
+	SettingWidgetBinder::BindWidgetToFolderSetting(sif, m_ui.zdxsvReplayPath, m_ui.zdxsvReplayPathBrowse, m_ui.zdxsvReplayPathOpen,
+		m_ui.zdxsvReplayPathReset, "DEV9/Eth", "ZdxsvReplayPath", Path::Combine(EmuFolders::DataRoot, "replays"));
 
 	// ZDXSV_GGPO replaces the options of the GGPO setting; its mindelay= and osd= keys override those settings.
 	MarkEnvOverride(m_ui.zdxsvGgpo, "ZDXSV_GGPO");
@@ -61,6 +64,8 @@ ZdxsvSettingsWidget::ZdxsvSettingsWidget(SettingsWindow* settings_dialog, QWidge
 	MarkEnvOverride(m_ui.zdxsvReplayBar, "ZDXSV_REPLAY_BAR");
 	MarkEnvOverride(m_ui.zdxsvReplayStateUrl, "ZDXSV_REPLAY_STATE");
 	MarkEnvOverride(m_ui.zdxsvReplayUpload, "ZDXSV_GGPO", "upload=");
+	MarkEnvOverride(m_ui.zdxsvSaveReplay, "ZDXSV_GGPO", "replay=");
+	MarkEnvOverride(m_ui.zdxsvReplayPath, "ZDXSV_GGPO", "replay=");
 
 	dialog()->registerWidgetHelp(m_ui.zdxsvGgpo, tr("Rollback Netcode (GGPO)"), tr("Checked"),
 		tr("Online battles of the game run over GGPO rollback netcode. Takes effect at the next game start. Other games are never affected."));
@@ -86,6 +91,10 @@ ZdxsvSettingsWidget::ZdxsvSettingsWidget(SettingsWindow* settings_dialog, QWidge
 		tr("Save state replays and live battles start from: a URL (downloaded once into the cache folder) or a file. Empty: the state of the running game."));
 	dialog()->registerWidgetHelp(m_ui.zdxsvReplayUpload, tr("Upload Replays"), tr("Checked"),
 		tr("After each lobby battle, its replay is posted to the zdxsv server, where anyone can watch it (Tools → zdxsv Replays, Remote)."));
+	dialog()->registerWidgetHelp(m_ui.zdxsvSaveReplay, tr("Save Replays"), tr("Checked"),
+		tr("After each lobby battle, its replay is saved in the replay folder (Tools → zdxsv Replays, Local)."));
+	dialog()->registerWidgetHelp(m_ui.zdxsvReplayPath, tr("Replay Folder"), tr("replays in the data folder"),
+		tr("Where replays are saved and the Local replay list reads from. A folder that cannot be created falls back to the default."));
 
 	connect(m_ui.zdxsvPresetLow, &QPushButton::clicked, this, [this]() { applyPreset(1.0f, 3); });
 	connect(m_ui.zdxsvPresetMid, &QPushButton::clicked, this, [this]() { applyPreset(2.0f, 2); });

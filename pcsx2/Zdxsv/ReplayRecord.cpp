@@ -4,6 +4,7 @@
 // Replay recording of a GGPO battle (.pb), its upload and the live stream.
 
 #include "Zdxsv/GgpoShared.h"
+#include "Zdxsv/ReplayList.h"
 #include "Zdxsv/ServerHosts.h"
 
 namespace Zdxsv
@@ -100,13 +101,13 @@ namespace Zdxsv
 			}
 		}
 
-		std::string ReplayDir()
+		std::string RecordDir()
 		{
 			if (s_replay_off || !s_net)
 				return {};
 			if (!s_replay_dir.empty())
 				return s_replay_dir;
-			return s_lobby ? Path::Combine(EmuFolders::DataRoot, "replays") : std::string();
+			return s_lobby && Host::GetBoolSettingValue("DEV9/Eth", "ZdxsvSaveReplay", true) ? Zdxsv::ReplayDir() : std::string();
 		}
 
 		// upload=URL, else the settings, but only when the game found the public server by DNS: a lobby reached
@@ -218,7 +219,7 @@ namespace Zdxsv
 	{
 		if (!s_net)
 			return;
-		std::string dir = ReplayDir();
+		std::string dir = RecordDir();
 		const std::string ids = ReplayIds(), code = IdValue(ids, "battle_code"), to = IdValue(ids, "live_uplink");
 		Error error;
 		if (!dir.empty() && !FileSystem::DirectoryExists(dir.c_str()) && !FileSystem::CreateDirectoryPath(dir.c_str(), true, &error))
