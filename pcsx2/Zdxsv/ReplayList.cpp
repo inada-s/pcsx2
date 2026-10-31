@@ -5,6 +5,7 @@
 #include "Zdxsv/Proto.h"
 #include "Config.h"
 #include "Host.h"
+#include "common/Console.h"
 #include "common/FileSystem.h"
 #include "common/Path.h"
 
@@ -39,7 +40,16 @@ namespace Zdxsv
 
 	std::string ReplayDir()
 	{
-		return Path::Combine(EmuFolders::DataRoot, "replays");
+		const std::string fallback = Path::Combine(EmuFolders::DataRoot, "replays");
+		std::string dir = Host::GetStringSettingValue("DEV9/Eth", "ZdxsvReplayPath");
+		if (dir.empty())
+			return fallback;
+		if (!Path::IsAbsolute(dir))
+			dir = Path::Canonicalize(Path::Combine(EmuFolders::DataRoot, dir));
+		if (FileSystem::DirectoryExists(dir.c_str()) || FileSystem::CreateDirectoryPath(dir.c_str(), true))
+			return dir;
+		Console.Warning("ZdxsvGgpo: replay folder %s not usable, saving to %s", dir.c_str(), fallback.c_str());
+		return fallback;
 	}
 
 	bool ReadReplayInfo(const std::string& path, ReplayFileInfo* info)

@@ -6,7 +6,9 @@ Option names and defaults are in [options.md](options.md).
 ## Saving
 
 `replay=DIR` in `ZDXSV_GGPO` saves every `net=1` battle to `DIR`; lobby
-battles save to `<data dir>/replays` without it.
+battles save to the replay folder without it (settings `ZdxsvSaveReplay`,
+`ZdxsvReplayPath`; a folder that cannot be created falls back to
+`<data dir>/replays`).
 
 - The file name is `<battle_code>.pb`, else `rbk-<start time>-p<position>.pb`.
 - Only frames GGPO confirmed are written, so every peer's file of one battle
@@ -59,7 +61,7 @@ battle-socket emulation as a live battle, without GGPO.
 
 Tools → zdxsv Replays, as flycast's replay lists:
 
-- **Local**: the `.pb` files in the `replays` folder (date, battle code,
+- **Local**: the `.pb` files in the replay folder (date, battle code,
   players, rounds, length); Browse... plays any file.
 - **Remote**: the lobby's `/lbs/replay` search by battle code, player name or
   pilot name (a part of the name matches), newest first, 100 per page.
