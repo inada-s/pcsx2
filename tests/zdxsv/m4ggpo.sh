@@ -19,6 +19,8 @@
 #   every path `relay 0`, peers at the relay, lobby delay max(GMIN or 2), relay.log forwarded > 0.
 #   RELAY=1 RELAY_ALT=1: the relay advertised at another address than it answers from; the same checks
 #   (control: a build that requires the advertised source: every path `direct`).
+#   RELAY=4: relay_0..3 offered, nothing at 0 and 1, `zdxsv relay`s at 2 and 3: every path `relay 2`, the other
+#   checks as RELAY=1.
 #   GDELAY=auto without RELAY: every path `direct`.
 #   NOADDR=K (GDELAY=auto; fake_lobby.py --no-addr): the others get no address of client K; the ping test
 #   finds it at the source of its pings, so the checks are the plain ones (control: a build without that: cut).
@@ -49,7 +51,10 @@ RA=127.0.0.1:8203 RS=1234:abcd
 [ -n "$RELAY" ] && export ZRELAY=$RA ZRELAY_SESSION=$RS
 # RELAY_ALT=1: the relay listens on every address and is advertised at 127.0.0.2, so it answers from 127.0.0.1
 [ -n "$RELAY" ] && [ -n "${RELAY_ALT:-}" ] && RA=127.0.0.2:8203 ZRELAY=:8203
-FAKE_ARGS="--ggpo $PORT --ggpo-clients $(echo $GC | tr -d ' ')${GGPO_LAT:+ --ggpo-delay $GGPO_LAT} --p2p $P2P${BAD:+ --bad-session $BAD}${NOADDR:+ --no-addr $NOADDR}${BLOCK:+ --ggpo-block $BLOCK}${RELAY:+ --relay $RA --relay-session $RS}" bash "$D/m4.sh"
+# RELAY=4: relay_0..3 offered, nothing listens at 0 and 1, 2 (RA) and 3 run: every path takes relay 2
+RL=$RA RI=0
+[ "$RELAY" = 4 ] && RL=127.0.0.1:8261,127.0.0.1:8262,$RA,127.0.0.1:8263 RI=2 ZRELAY=$RA,127.0.0.1:8263
+FAKE_ARGS="--ggpo $PORT --ggpo-clients $(echo $GC | tr -d ' ')${GGPO_LAT:+ --ggpo-delay $GGPO_LAT} --p2p $P2P${BAD:+ --bad-session $BAD}${NOADDR:+ --no-addr $NOADDR}${BLOCK:+ --ggpo-block $BLOCK}${RELAY:+ --relay $RL --relay-session $RS}" bash "$D/m4.sh"
 rc=$?
 n=$(echo $GC | wc -w)
 ok() { if eval "$2"; then echo "PASS $1"; else echo "FAIL $1"; rc=1; fi; }
@@ -79,9 +84,9 @@ for i in $GC; do
     [ "$P2P" = dual ] && [ "$GDELAY" = auto ] && ok "p$i IPv6 candidates answered x3" "[ \$(grep -a 'zdxsv: ping test' '$f' | grep -a -o '\]:[0-9]* rtt [0-9]' | wc -l) -eq 3 ]"
     [ "$P2P" != v4 ] && ok "p$i own IPv6" "grep -a -q 'zdxsv: udp: port.*IPv6 \[' '$f'"
     if [ -n "$RELAY" ] && [ -z "$BAD" ]; then
-      ok "p$i relay server registered" "grep -a -q 'ZdxsvGgpo: relay server $RA' '$f'"
+      for a in ${RL//,/ }; do ok "p$i relay server $a registered" "grep -a -q 'ZdxsvGgpo: relay server $a' '$f'"; done
       [ -n "${RELAY_ALT:-}" ] && ok "p$i relay answers from 127.0.0.1" "grep -a 'zdxsv: ping test' '$f' | grep -a -q 'pongs) answers from 127.0.0.1:8203'"
-      ok "p$i paths relay 0 x3" "[ \$(grep -a -c 'ZdxsvGgpo: lobby path to position [0-9]: relay 0' '$f') -eq 3 ]"
+      ok "p$i paths relay $RI x3" "[ \$(grep -a -c 'ZdxsvGgpo: lobby path to position [0-9]: relay $RI' '$f') -eq 3 ]"
       ok "p$i peers via relay x3" "[ \$(grep -a -c 'ZdxsvGgpo: lobby peer position [0-9] at $RA (relay)' '$f') -eq 3 ]"
     elif [ -n "$blk" ]; then
       ok "p$i paths direct x2, peer x1" "[ \$(grep -a -c 'ZdxsvGgpo: lobby path to position [0-9]: direct' '$f') -eq 2 ] && [ \$(grep -a -c 'ZdxsvGgpo: lobby path to position [0-9]: peer [0-9]' '$f') -eq 1 ]"
@@ -98,6 +103,6 @@ done
 # no UDP bridge; STUN only on lobby=1 clients
 ok "no bridge" "! cat $RUN/p[1-4]/PCSX2/logs/emulog.txt | grep -a -q 'zdxsv: bridge\|UDP bridge'"
 ok "stun x$n" "[ \$(cat $RUN/p[1-4]/PCSX2/logs/emulog.txt | grep -a -c 'zdxsv: udp: port') -eq $n ]"
-[ -n "$RELAY" ] && [ -z "$BAD" ] && ok "relay forwarded" "grep -a 'relay test session' '$OUT/relay.log' | tail -1 | grep -a -q 'forwarded [1-9]'"
+[ -n "$RELAY" ] && [ -z "$BAD" ] && ok "relay forwarded" "grep -a 'relay test session' '$OUT/relay.log' | grep -a -q 'forwarded [1-9]'"
 [ "$n" -lt 4 ] && ok "no ggpo session" "! cat $RUN/p[1-4]/PCSX2/logs/emulog.txt | grep -a -q 'ZdxsvGgpo: net player'"
 exit $rc

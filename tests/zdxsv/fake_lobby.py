@@ -243,8 +243,9 @@ class Battle:
                 # the relay knows one session (zdxsv relay <id> <token>); zdxsv gives every battle its own
                 sid, token = self.args.relay_session.split(":")
                 h = int(sid)
-                ip, port = self.args.relay.rsplit(":", 1)
-                m += pb_bytes(11, pb_str(2, ip) + pb_int(3, int(port)) + pb_int(4, int(token, 16)))
+                for addr in self.args.relay.split(","):
+                    ip, port = addr.rsplit(":", 1)
+                    m += pb_bytes(11, pb_str(2, ip) + pb_int(3, int(port)) + pb_int(4, int(token, 16)))
             if self.args.bad_session and self.conns.index(conn) + 1 == self.args.bad_session:
                 h ^= 0x5A5A5A5A  # negative test: this client's ping packets carry a foreign session
             m += pb_int(2, h) + pb_int(6, 7500)
@@ -414,7 +415,7 @@ def main():
     ap.add_argument("--p2p", choices=("v4", "v6", "dual"), default="v4",
                     help="p2p_ addresses: the STUN one (v4), [--v6]:port (v6), both (dual; as zdxsv with udp_addr6)")
     ap.add_argument("--v6", help="IPv6 address for --p2p v6/dual (default: this box's global one)")
-    ap.add_argument("--relay", help="relay server ip:port (a `zdxsv relay` run): battle info relay_0, as zdxsv with ZDXSV_LOBBY_RELAY_ADDR")
+    ap.add_argument("--relay", help="relay server ip:port[,ip:port...] (`zdxsv relay` runs): battle info relay_0, relay_1, ..., as zdxsv with ZDXSV_LOBBY_RELAY_ADDR")
     ap.add_argument("--relay-session", default="1234:abcd", help="--relay: ggpo_session:hex token, as given to `zdxsv relay`")
     ap.add_argument("--battlereg",default=os.environ.get("BATTLEREG", os.path.join(here, "battlereg", "battlereg.exe")))
     a = ap.parse_args()
