@@ -120,6 +120,12 @@ namespace Zdxsv
 
 		void Parse()
 		{
+			// a VM started in this process after one with other options (a replay after a lobby game)
+			s_net = s_lobby = s_bad_session = false;
+			s_relay = 0;
+			s_upload_url.clear();
+			s_sync = true;
+			s_frames = 3000;
 			s_osd = Host::GetBoolSettingValue("DEV9/Eth", "ZdxsvNetOsd", true); // osd= overrides it
 			s_port = s_options.find("lobby=1") != std::string::npos ? s_lobby_port : 7001;
 			for (const std::string_view item : StringUtil::SplitString(s_options, ','))
