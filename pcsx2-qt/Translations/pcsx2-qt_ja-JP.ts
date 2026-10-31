@@ -27909,6 +27909,11 @@ PCSX2 will be able to run once you&apos;ve placed your BIOS image inside the fol
       <translation>ラウンド</translation>
     </message>
     <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="324"/>
+      <source>Views</source>
+      <translation>再生数</translation>
+    </message>
+    <message>
       <location filename="../Tools/ZdxsvReplayDialog.cpp" line="182"/>
       <source>Length</source>
       <translation>長さ</translation>

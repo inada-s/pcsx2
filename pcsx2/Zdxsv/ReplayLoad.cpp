@@ -4,6 +4,7 @@
 // Replay files: parse, load, common start, start of playback, switch of position, next battle.
 
 #include "Zdxsv/GgpoShared.h"
+#include "Zdxsv/ReplayList.h"
 #include "IconsFontAwesome.h"
 
 #include <zlib.h>
@@ -202,6 +203,26 @@ namespace Zdxsv
 			return HttpGet(pb);
 		}
 
+		// Counted only for a pick of the replay list, whose remote replays come from LobbyApiUrl(): a ZDXSV_REPLAY url may
+		// come from another server than the setting names.
+		void ReplayPlayed(const std::string& code)
+		{
+			if (code.empty() || !std::all_of(code.begin(), code.end(), [](char c) {
+					return (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '-' || c == '_';
+				}))
+				return;
+			std::thread([url = LobbyApiUrl() + "/lbs/replay_played?battle_code=" + code] {
+				std::unique_ptr<HTTPDownloader> http = HTTPDownloader::Create(Host::GetHTTPUserAgent());
+				if (!http)
+					return;
+				http->SetTimeout(30.0f);
+				http->CreateRequest(url, [&](s32 status, const std::string&, HTTPDownloader::Request::Data) {
+					Console.WriteLn("ZdxsvGgpo: replay played %s: status %d", url.c_str(), status);
+				});
+				http->WaitForAllRequests();
+			}).detach();
+		}
+
 		// Reads the file; returns its recorder's position, -1 = not used. One file holds every position's inputs, so it
 		// plays any point of view: each starts from the common state with its own lobby answers (PlayCommonStart).
 		int PlayLoadFile(const std::string& path)
@@ -316,6 +337,8 @@ namespace Zdxsv
 				(r.start_rng ? 1 : 0) + std::min(r.load_frames.size(), r.load_rngs.size()));
 			if (s_net_trace) // battle start marker: pwcheck.py --battle splits a multi-battle trace (live auto-next)
 				std::fprintf(s_net_trace, "%u B %s\n", g_FrameCount, r.code.empty() ? "-" : r.code.c_str());
+			if (http && s_play_listed)
+				ReplayPlayed(r.code);
 			return static_cast<int>(me);
 		}
 
