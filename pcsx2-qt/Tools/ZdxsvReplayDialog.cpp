@@ -280,6 +280,13 @@ QWidget* ZdxsvReplayDialog::createRemoteTab()
 	m_remote_players->addItem(tr("2 players"), 2);
 	m_remote_players->addItem(tr("4 players"), 4);
 	filters2->addWidget(m_remote_players);
+	m_remote_ms = new QComboBox(tab);
+	m_remote_ms->setAccessibleName(tr("Mobile suit"));
+	m_remote_ms->setToolTip(tr("Battles where a player matching the name filters (any player without them) used this mobile suit."));
+	m_remote_ms->addItem(tr("Any mobile suit"), 0);
+	for (u32 id = 0; const char* name = Zdxsv::MsName(id); id++)
+		m_remote_ms->addItem(QString::fromUtf8(name), id + 1);
+	filters2->addWidget(m_remote_ms);
 	m_remote_rated = new QCheckBox(tr("Rated only"), tab);
 	m_remote_rated->setToolTip(tr("Only battles counted in the players' records."));
 	filters2->addWidget(m_remote_rated);
@@ -450,6 +457,8 @@ void ZdxsvReplayDialog::searchRemote(int page)
 	add("user_id", m_remote_user->text(), false);
 	if (const int players = m_remote_players->currentData().toInt(); players > 0)
 		query.append(QStringLiteral("players=%1").arg(players));
+	if (const int ms = m_remote_ms->currentData().toInt(); ms > 0)
+		query.append(QStringLiteral("used_ms=%1").arg(ms));
 	if (m_remote_rated->isChecked())
 		query.append(QStringLiteral("aggregate=1"));
 	const bool reverse = m_remote_reverse->isChecked();

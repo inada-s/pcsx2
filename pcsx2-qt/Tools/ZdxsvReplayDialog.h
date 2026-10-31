@@ -66,6 +66,7 @@ private:
 	QLineEdit* m_remote_pilot = nullptr;
 	QLineEdit* m_remote_user = nullptr;
 	QComboBox* m_remote_players = nullptr;
+	QComboBox* m_remote_ms = nullptr;
 	QCheckBox* m_remote_rated = nullptr;
 	QCheckBox* m_remote_reverse = nullptr;
 	QPushButton* m_remote_prev = nullptr;
