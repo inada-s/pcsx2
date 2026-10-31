@@ -871,6 +871,7 @@ namespace Zdxsv
 	const char* s_play_env = nullptr;
 	std::string s_play_picked;
 	int s_play_picked_pov = -1;
+	bool s_play_listed = false;
 	// Common start: the replay has no start state (or ZDXSV_REPLAY_COMMON=1). The booted state (any post-entry
 	// state, tests/zdxsv/rbkprep.sh) plays the battle start with the file's lobby answers through RbkCall up to the
 	// arm, which is GGPO frame 0 (PlayCommonStart).
@@ -1247,6 +1248,7 @@ namespace Zdxsv
 		TakeNextReplay(s_play_picked, s_play_picked_pov);
 		const char* play = std::getenv("ZDXSV_REPLAY");
 		s_play_env = play ? play : s_play_picked.empty() ? nullptr : s_play_picked.c_str();
+		s_play_listed = !play && !s_play_picked.empty();
 		const char* e = std::getenv("ZDXSV_GGPO");
 		// Read here only, so not a config field: a change takes effect at the next VM start.
 		const bool setting = Host::GetBoolSettingValue("DEV9/Eth", "ZdxsvGgpo", true);

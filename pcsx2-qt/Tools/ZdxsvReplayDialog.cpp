@@ -321,7 +321,7 @@ QWidget* ZdxsvReplayDialog::createRemoteTab()
 	filters2->addWidget(m_remote_reverse);
 	filters2->addStretch(1);
 	layout->addLayout(filters2);
-	m_remote = CreateTree({tr("Date"), tr("Battle Code"), tr("Players"), tr("Rounds")});
+	m_remote = CreateTree({tr("Date"), tr("Battle Code"), tr("Players"), tr("Rounds"), tr("Views")});
 	layout->addWidget(m_remote, 1);
 	QHBoxLayout* pages = new QHBoxLayout();
 	m_remote_status = new QLabel(tab);
@@ -523,6 +523,8 @@ void ZdxsvReplayDialog::searchRemote(int page)
 			item->setText(1, code);
 			item->setText(2, JsonPlayers(o["users"].toArray()));
 			item->setText(3, o["round"].toInt() > 0 ? QString::number(o["round"].toInt()) : QString());
+			if (o.contains(QStringLiteral("play_count")))
+				item->setText(4, QString::number(o["play_count"].toInt()));
 			item->setData(0, SOURCE_ROLE, src);
 			item->setData(0, START_ROLE, start);
 		}
