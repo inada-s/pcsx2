@@ -49,6 +49,8 @@ page greys it out and its tooltip names the variable.
 | `[DEV9/Eth] ZdxsvLobbyApiUrl` | `https://lbs.zdxsv.net:8443` | feature | The lobby's public API (`http://host:port`, zdxsv `ZDXSV_LOBBY_API_ADDR`) the replay window's Remote (`/lbs/replay`) and Live (`/lbs/live`) tabs ask; edited in the window; empty = none. A live battle is watched at `udp://<its host>:8201/<code>` (`ZDXSV_STUN_PORT` overrides the port). |
 | `[DEV9/Eth] ZdxsvReplayUpload` | `true` | feature | Post each lobby battle's `.pb` to `ZdxsvReplayUploadUrl` (flycast `UploadReplay`, on by default). Only when the game found the server by DNS (no host entry for the game hosts): a local server's battles post nowhere. `upload=` overrides it. |
 | `[DEV9/Eth] ZdxsvReplayUploadUrl` | `https://lbs.zdxsv.net:8443/lbs/replay_upload` | feature | The lobby's replay upload API (zdxsv `/lbs/replay_upload`, as gdxsv lbs); empty = no upload. |
+| `[DEV9/Eth] ZdxsvSaveReplay` | `true` | feature | Save each lobby battle's `.pb` to `ZdxsvReplayPath`. `replay=` in `ZDXSV_GGPO` overrides it. |
+| `[DEV9/Eth] ZdxsvReplayPath` | `<data dir>/replays` | feature | Folder lobby battles save to and the Local replay list reads; relative to the data dir. A folder that cannot be created: the default. |
 | `[DEV9/Eth] ZdxsvUdpTestUrl` | `https://asia-northeast1-zdxsv-157317.cloudfunctions.net/udptest` | feature | The udptest function (zdxsv `infra/udptest`) the connectivity test asks for a `Hello` from another network before it reports `open`; empty = not asked. `ZDXSV_UDPTEST_URL` overrides it. |
 
 ## Network
@@ -102,7 +104,7 @@ off. Any other value turns it on. Without `net=1` the session is a synctest. Log
 | `mindelay=N` | the setting | tuning | Lower bound of the picked delay and the replay takeover delay. Overrides `ZdxsvGgpoMinDelay`. |
 | `lobby=1` | off | feature | Battles come from the zdxsv lobby. See [lobby.md](lobby.md). |
 | `osd=0` / `osd=1` | the setting | feature | Hide or show the network status OSD, over `ZdxsvNetOsd`. |
-| `replay=DIR` | see meaning | feature | Save every battle to `DIR`. Lobby battles save to `<data dir>/replays` without it. `replay=0` turns saving off (upload and live streaming still run). |
+| `replay=DIR` | see meaning | feature | Save every battle to `DIR`. Lobby battles save to the folder of `ZdxsvSaveReplay` / `ZdxsvReplayPath` without it. `replay=0` turns saving off (upload and live streaming still run). |
 | `upload=URL` | the setting | test | Replay upload API, over `ZdxsvReplayUpload` and `ZdxsvReplayUploadUrl`, also with a host entry. |
 | `badsession=1` | off | control | The ping test of this client uses another session id, so no peer answers it and every client cuts the battle connection. |
 | `advertise=P` | off | test | The platform info announces only `127.0.0.1:P`, so peers reach this client through a local `udprelay.py` at P that adds latency. |
