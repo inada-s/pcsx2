@@ -284,7 +284,7 @@ int main()
 		"battle_code=1696492800000\nuser_id=BBBBBB\nlive_uplink=127.0.0.1:9100\nresult=ggpo\nposition=1\nplayers=2\n"
 		"delay=2\nmin_delay=1\nrtt_0=12\naddr_0=203.0.113.5:7001\npath_0=direct\nrelays=0\nping_wait_ms=1500\n"
 		"close=net battle end\nframes=21563\nrollback_frames=812\nmismatches=0\ndisconnected=1\n"
-		"disconnected_positions=0\nping_0=201/215/250\n");
+		"disconnected_positions=0\nping_0=201/215/250\nloss_0=3/5\ntimesync=17\ninput_blocks=42\nfps_history=60,59,60\n");
 	if (const char* path = std::getenv("ZDXSV_REPORT_OUT"))
 		if (FILE* f = std::fopen(path, "wb"))
 			std::fwrite(report.data(), 1, report.size(), f), std::fclose(f);
@@ -293,14 +293,19 @@ int main()
 		bool ok;
 		int peers, rtt;
 		std::string pings;
-		std::vector<int64_t> left;
+		std::vector<int64_t> left, fps;
+		std::string stats;
 	};
 	auto readReport = [](const std::vector<uint8_t>& r) {
-		ReportPeers out{true, 0, 0, {}, {}};
+		ReportPeers out{true, 0, 0, {}, {}, {}, {}};
 		Zdxsv::Pb::Reader rr{r.data(), r.data() + r.size()};
 		out.ok = rr.Fields([&](uint32_t field, uint32_t wt, uint64_t v, const uint8_t* b, size_t n) {
 			if (field == 55)
 				return Zdxsv::Pb::ReadInts(wt, v, b, n, out.left);
+			if (field == 60)
+				return Zdxsv::Pb::ReadInts(wt, v, b, n, out.fps);
+			if (field == 58 || field == 59)
+				out.stats += std::to_string(field) + ":" + std::to_string(v) + " ";
 			if (field != 31)
 				return true;
 			out.peers++;
@@ -308,7 +313,7 @@ int main()
 			return pr.Fields([&](uint32_t f, uint32_t, uint64_t pv, const uint8_t*, size_t) {
 				if (f == 40)
 					out.rtt = (int)pv;
-				if (f >= 4 && f <= 6)
+				if ((f >= 4 && f <= 6) || f == 42 || f == 43)
 					out.pings += std::to_string(f) + ":" + std::to_string(pv) + " ";
 				return true;
 			});
@@ -316,10 +321,11 @@ int main()
 		return out;
 	};
 	ReportPeers rp = readReport(report);
-	Check(rp.ok && rp.peers == 1 && rp.rtt == 12 && rp.pings == "4:201 5:215 6:250 " && rp.left == std::vector<int64_t>{0},
-		"report: one remote peer with its rtt and ping min/median/max, disconnected position 0", (int)report.size());
-	rp = readReport(Zdxsv::EncodeMatchingReport("position=0\nrtt_1=30\ndisconnected=0\ndisconnected_positions=\nping_1=-1/-1/-1\n"));
-	Check(rp.ok && rp.peers == 1 && rp.rtt == 30 && rp.pings.empty() && rp.left.empty(),
+	Check(rp.ok && rp.peers == 1 && rp.rtt == 12 && rp.pings == "4:201 5:215 6:250 42:3 43:5 " && rp.left == std::vector<int64_t>{0} &&
+			  rp.stats == "58:17 59:42 " && rp.fps == std::vector<int64_t>{60, 59, 60},
+		"report: one remote peer with its rtt, ping min/median/max and loss, disconnected position 0, timesync, input blocks, fps history", (int)report.size());
+	rp = readReport(Zdxsv::EncodeMatchingReport("position=0\nrtt_1=30\ndisconnected=0\ndisconnected_positions=\nping_1=-1/-1/-1\nfps_history=\n"));
+	Check(rp.ok && rp.peers == 1 && rp.rtt == 30 && rp.pings.empty() && rp.left.empty() && rp.stats.empty() && rp.fps.empty(),
 		"report: no ping sample and no disconnected position leave the fields unset", rp.peers);
 
 	// OpenUdp: 3 tries of 200 ms each, asked again on every call

@@ -116,6 +116,9 @@ and encodes them when it sends the report; the lobby logs the report as one
 | `close_reason` (5), `frame_count` (6), `rollback_frames` (52), `mismatches` (53), `disconnected` (54) | GGPO battle | why the session ended and its counters |
 | `disconnected_peer_ids` (55) | GGPO battle | positions whose peer disconnected |
 | `remote_peers`: `ping_min_ms` (4), `ping_median_ms` (5), `ping_max_ms` (6) | GGPO battle | that peer's GGPO ping in ms, sampled once a second while connected; unset with no sample |
+| `remote_peers`: `recv_loss` (42), `send_loss` (43) | GGPO battle | GGPO packets from that peer never received, and to it that it reported lost; totals at the last once-a-second sample |
+| `total_timesync` (58), `input_block_count` (59) | GGPO battle | frames slept so a peer could catch up; frames that waited for a peer's input (GGPO prediction limit) |
+| `fps_history` (60) | GGPO battle, after 1 s | frames run in each second of the session (at most 3600 entries) |
 | `answered` (45), `cut_sends` (51), `sync` (43), `sync_differ` (44) | cut | peers that answered, sends dropped during the cut, differing settings |
 
 ## How a lobby battle starts
