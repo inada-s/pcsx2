@@ -636,6 +636,8 @@ namespace Zdxsv
 			if (s_lobby)
 			{
 				std::lock_guard lock(s_lobby_mtx);
+				if (const std::string rounds = ReplayRoundsReport(); !s_report.empty() && !rounds.empty())
+					s_report += "rounds=" + rounds + "\n";
 				if (!s_report.empty())
 					s_report += std::string("close=") + what + "\nframes=" + std::to_string(s_session_frames) +
 					            "\nrollback_frames=" + std::to_string(s_rollback_frames) + "\nmismatches=" + std::to_string(s_mismatches) +

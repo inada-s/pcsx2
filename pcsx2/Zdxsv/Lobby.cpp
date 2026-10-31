@@ -359,6 +359,24 @@ namespace Zdxsv
 			else
 				Pb::PutInt(o, f.field, std::atoll(it->second.c_str()));
 		}
+		if (auto it = kv.find("rounds"); it != kv.end())
+		{
+			std::istringstream rs(it->second);
+			for (std::string r; std::getline(rs, r, ';');)
+			{
+				const size_t colon = r.find(':');
+				if (colon == std::string::npos)
+					continue;
+				std::vector<int64_t> ms;
+				std::istringstream ss(r.substr(colon + 1));
+				for (std::string m; std::getline(ss, m, ',');)
+					ms.push_back(std::atoll(m.c_str()));
+				std::vector<uint8_t> round;
+				Pb::PutInt(round, 1, std::atoll(r.c_str()));
+				Pb::PutPackedInts(round, 2, ms);
+				Pb::PutBytes(o, 20, round.data(), round.size()); // round_data
+			}
+		}
 		if (auto it = kv.find("disconnected_positions"); it != kv.end() && !it->second.empty())
 		{
 			std::vector<int64_t> left;
