@@ -28061,6 +28061,78 @@ PCSX2 will be able to run once you&apos;ve placed your BIOS image inside the fol
       <source>Shut down the running game and play the replay?</source>
       <translation>実行中のゲームを終了してリプレイを再生しますか?</translation>
     </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp"/>
+      <source>Favorites</source>
+      <translation>お気に入り</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp"/>
+      <source>User ID</source>
+      <translation>ユーザーID</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp"/>
+      <source>Any players</source>
+      <translation>人数指定なし</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp"/>
+      <source>2 players</source>
+      <translation>2人</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp"/>
+      <source>4 players</source>
+      <translation>4人</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp"/>
+      <source>Rated only</source>
+      <translation>戦績対象のみ</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp"/>
+      <source>Only battles counted in the players' records.</source>
+      <translation>プレイヤーの戦績に数えられた対戦のみ。</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp"/>
+      <source>Oldest first</source>
+      <translation>古い順</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp"/>
+      <source>Add to Favorites</source>
+      <translation>お気に入りに追加</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp"/>
+      <source>Remove</source>
+      <translation>削除</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp"/>
+      <source>%1 is already a favorite.</source>
+      <translation>%1 は既にお気に入りです。</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp"/>
+      <source>Favorites are full (%1): remove some first.</source>
+      <translation>お気に入りが上限 (%1) です。先にいくつか削除してください。</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp"/>
+      <source>Added %1 to Favorites.</source>
+      <translation>%1 をお気に入りに追加しました。</translation>
+    </message>
+    <message numerus="yes">
+      <location filename="../Tools/ZdxsvReplayDialog.cpp"/>
+      <source>%n favorite(s)</source>
+      <translation>
+        <numerusform>お気に入り %n 件</numerusform>
+      </translation>
+    </message>
   </context>
   <context>
     <name>ZdxsvSettingsWidget</name>
