@@ -22,6 +22,7 @@
 #include <QtCore/QJsonObject>
 #include <QtCore/QPointer>
 #include <QtCore/QUrl>
+#include <QtWidgets/QCheckBox>
 #include <QtWidgets/QComboBox>
 #include <QtWidgets/QFileDialog>
 #include <QtWidgets/QFormLayout>
@@ -44,8 +45,49 @@ namespace
 	constexpr int LIVE_REFRESH_MS = 10000;
 	constexpr double FRAMES_PER_SECOND = 59.94;
 	constexpr int SOURCE_ROLE = Qt::UserRole;
+	constexpr int START_ROLE = Qt::UserRole + 1;
+	constexpr int TAB_LIVE = 2;
+	constexpr int TAB_FAVORITES = 3;
+	constexpr int MAX_FAVORITES = 1000;
+	constexpr const char* FAVORITES_SECTION = "DEV9/Eth";
+	constexpr const char* FAVORITES_KEY = "ZdxsvReplayFavorites";
 
 	QPointer<ZdxsvReplayDialog> s_dialog;
+
+	// a favorite: battle code, start time, players and rounds, tab-separated
+	struct Favorite
+	{
+		QString code;
+		qint64 start_unix = 0;
+		QString players;
+		int rounds = 0;
+	};
+
+	std::vector<Favorite> LoadFavorites()
+	{
+		std::vector<Favorite> list;
+		for (const std::string& value : Host::GetBaseStringListSetting(FAVORITES_SECTION, FAVORITES_KEY))
+		{
+			const QStringList f = QString::fromStdString(value).split(QLatin1Char('\t'));
+			if (f[0].isEmpty())
+				continue;
+			list.push_back({f[0], f.size() > 1 ? f[1].toLongLong() : 0, f.size() > 2 ? f[2] : QString(), f.size() > 3 ? f[3].toInt() : 0});
+		}
+		return list;
+	}
+
+	void SaveFavorites(const std::vector<Favorite>& list)
+	{
+		std::vector<std::string> values;
+		for (const Favorite& f : list)
+		{
+			QString players = f.players;
+			players.replace(QLatin1Char('\t'), QLatin1Char(' '));
+			values.push_back(QStringLiteral("%1\t%2\t%3\t%4").arg(f.code).arg(f.start_unix).arg(players).arg(f.rounds).toStdString());
+		}
+		Host::SetBaseStringListSettingValue(FAVORITES_SECTION, FAVORITES_KEY, values);
+		Host::CommitBaseSettingChanges();
+	}
 
 	QString FormatDate(qint64 unix_seconds)
 	{
@@ -125,6 +167,7 @@ ZdxsvReplayDialog::ZdxsvReplayDialog(QWidget* parent)
 	m_tabs->addTab(createLocalTab(), tr("Local"));
 	m_tabs->addTab(createRemoteTab(), tr("Remote"));
 	m_tabs->addTab(createLiveTab(), tr("Live"));
+	m_tabs->addTab(createFavoritesTab(), tr("Favorites"));
 	layout->addWidget(m_tabs, 1);
 
 	QHBoxLayout* bottom = new QHBoxLayout();
@@ -148,7 +191,7 @@ ZdxsvReplayDialog::ZdxsvReplayDialog(QWidget* parent)
 	layout->addLayout(bottom);
 
 	connect(m_tabs, &QTabWidget::currentChanged, this, [this](int index) {
-		if (index == 2)
+		if (index == TAB_LIVE)
 		{
 			refreshLive();
 			m_live_timer.start();
@@ -161,6 +204,7 @@ ZdxsvReplayDialog::ZdxsvReplayDialog(QWidget* parent)
 	connect(&m_live_timer, &QTimer::timeout, this, &ZdxsvReplayDialog::refreshLive);
 
 	refreshLocal();
+	refreshFavorites();
 	updatePlayButton();
 }
 
@@ -217,12 +261,32 @@ QWidget* ZdxsvReplayDialog::createRemoteTab()
 	QPushButton* search = new QPushButton(tr("Search"), tab);
 	for (QLineEdit* e : {m_remote_code, m_remote_name, m_remote_pilot})
 	{
+		e->setAccessibleName(e->placeholderText());
 		filters->addWidget(e);
 		connect(e, &QLineEdit::returnPressed, this, [this]() { searchRemote(0); });
 	}
 	connect(search, &QPushButton::clicked, this, [this]() { searchRemote(0); });
 	filters->addWidget(search);
 	layout->addLayout(filters);
+	QHBoxLayout* filters2 = new QHBoxLayout();
+	m_remote_user = new QLineEdit(tab);
+	m_remote_user->setPlaceholderText(tr("User ID"));
+	m_remote_user->setAccessibleName(m_remote_user->placeholderText());
+	connect(m_remote_user, &QLineEdit::returnPressed, this, [this]() { searchRemote(0); });
+	filters2->addWidget(m_remote_user);
+	m_remote_players = new QComboBox(tab);
+	m_remote_players->setAccessibleName(tr("Players"));
+	m_remote_players->addItem(tr("Any players"), -1);
+	m_remote_players->addItem(tr("2 players"), 2);
+	m_remote_players->addItem(tr("4 players"), 4);
+	filters2->addWidget(m_remote_players);
+	m_remote_rated = new QCheckBox(tr("Rated only"), tab);
+	m_remote_rated->setToolTip(tr("Only battles counted in the players' records."));
+	filters2->addWidget(m_remote_rated);
+	m_remote_reverse = new QCheckBox(tr("Oldest first"), tab);
+	filters2->addWidget(m_remote_reverse);
+	filters2->addStretch(1);
+	layout->addLayout(filters2);
 	m_remote = CreateTree({tr("Date"), tr("Battle Code"), tr("Players"), tr("Rounds")});
 	layout->addWidget(m_remote, 1);
 	QHBoxLayout* pages = new QHBoxLayout();
@@ -236,6 +300,9 @@ QWidget* ZdxsvReplayDialog::createRemoteTab()
 	connect(m_remote_next, &QPushButton::clicked, this, [this]() { searchRemote(m_remote_page + 1); });
 	pages->addWidget(m_remote_prev);
 	pages->addWidget(m_remote_next);
+	QPushButton* favorite = new QPushButton(tr("Add to Favorites"), tab);
+	connect(favorite, &QPushButton::clicked, this, &ZdxsvReplayDialog::addFavorite);
+	pages->addWidget(favorite);
 	layout->addLayout(pages);
 	connect(m_remote, &QTreeWidget::itemActivated, this, &ZdxsvReplayDialog::playItem);
 	connect(m_remote, &QTreeWidget::currentItemChanged, this, &ZdxsvReplayDialog::updatePlayButton);
@@ -258,6 +325,77 @@ QWidget* ZdxsvReplayDialog::createLiveTab()
 	connect(m_live, &QTreeWidget::itemActivated, this, &ZdxsvReplayDialog::playItem);
 	connect(m_live, &QTreeWidget::currentItemChanged, this, &ZdxsvReplayDialog::updatePlayButton);
 	return tab;
+}
+
+QWidget* ZdxsvReplayDialog::createFavoritesTab()
+{
+	QWidget* tab = new QWidget(this);
+	QVBoxLayout* layout = new QVBoxLayout(tab);
+	m_favorites = CreateTree({tr("Date"), tr("Battle Code"), tr("Players"), tr("Rounds")});
+	layout->addWidget(m_favorites, 1);
+	QHBoxLayout* buttons = new QHBoxLayout();
+	m_favorites_status = new QLabel(tab);
+	buttons->addWidget(m_favorites_status, 1);
+	QPushButton* remove = new QPushButton(tr("Remove"), tab);
+	connect(remove, &QPushButton::clicked, this, &ZdxsvReplayDialog::removeFavorite);
+	buttons->addWidget(remove);
+	layout->addLayout(buttons);
+	connect(m_favorites, &QTreeWidget::itemActivated, this, &ZdxsvReplayDialog::playItem);
+	connect(m_favorites, &QTreeWidget::currentItemChanged, this, &ZdxsvReplayDialog::updatePlayButton);
+	return tab;
+}
+
+void ZdxsvReplayDialog::refreshFavorites()
+{
+	m_favorites->clear();
+	const std::string api = Zdxsv::LobbyApiUrl();
+	const std::vector<Favorite> list = LoadFavorites();
+	for (const Favorite& f : list)
+	{
+		QTreeWidgetItem* item = new QTreeWidgetItem(m_favorites);
+		item->setText(0, FormatDate(f.start_unix));
+		item->setText(1, f.code);
+		item->setText(2, f.players);
+		item->setText(3, f.rounds > 0 ? QString::number(f.rounds) : QString());
+		if (!api.empty())
+			item->setData(0, SOURCE_ROLE, QString::fromStdString(api) + QStringLiteral("/lbs/replay?battle_code=") + QString::fromLatin1(QUrl::toPercentEncoding(f.code)));
+	}
+	m_favorites_status->setText(tr("%n favorite(s)", nullptr, static_cast<int>(list.size())));
+}
+
+void ZdxsvReplayDialog::addFavorite()
+{
+	const QTreeWidgetItem* item = m_remote->currentItem();
+	if (!item)
+		return;
+	std::vector<Favorite> list = LoadFavorites();
+	const QString code = item->text(1);
+	if (std::any_of(list.begin(), list.end(), [&code](const Favorite& f) { return f.code == code; }))
+	{
+		m_remote_status->setText(tr("%1 is already a favorite.").arg(code));
+		return;
+	}
+	if (list.size() >= MAX_FAVORITES)
+	{
+		m_remote_status->setText(tr("Favorites are full (%1): remove some first.").arg(MAX_FAVORITES));
+		return;
+	}
+	list.push_back({code, item->data(0, START_ROLE).toLongLong(), item->text(2), item->text(3).toInt()});
+	SaveFavorites(list);
+	refreshFavorites();
+	m_remote_status->setText(tr("Added %1 to Favorites.").arg(code));
+}
+
+void ZdxsvReplayDialog::removeFavorite()
+{
+	const QTreeWidgetItem* item = m_favorites->currentItem();
+	if (!item)
+		return;
+	std::vector<Favorite> list = LoadFavorites();
+	const QString code = item->text(1);
+	list.erase(std::remove_if(list.begin(), list.end(), [&code](const Favorite& f) { return f.code == code; }), list.end());
+	SaveFavorites(list);
+	refreshFavorites();
 }
 
 void ZdxsvReplayDialog::refreshLocal()
@@ -309,6 +447,16 @@ void ZdxsvReplayDialog::searchRemote(int page)
 	add("battle_code", m_remote_code->text(), false);
 	add("user_name", m_remote_name->text(), true);
 	add("pilot_name", m_remote_pilot->text(), true);
+	add("user_id", m_remote_user->text(), false);
+	if (const int players = m_remote_players->currentData().toInt(); players > 0)
+		query.append(QStringLiteral("players=%1").arg(players));
+	if (m_remote_rated->isChecked())
+		query.append(QStringLiteral("aggregate=1"));
+	const bool reverse = m_remote_reverse->isChecked();
+	if (reverse)
+		query.append(QStringLiteral("reverse=1"));
+	m_remote_prev->setText(reverse ? tr("Older") : tr("Newer"));
+	m_remote_next->setText(reverse ? tr("Newer") : tr("Older"));
 	query.append(QStringLiteral("page=%1").arg(page));
 	const std::string url = api + "/lbs/replay?" + query.join(QLatin1Char('&')).toStdString();
 	const int req = ++m_remote_req;
@@ -334,11 +482,13 @@ void ZdxsvReplayDialog::searchRemote(int page)
 			if (src.isEmpty()) // the replay loader asks the API for the replay_url itself
 				src = QString::fromStdString(api) + QStringLiteral("/lbs/replay?battle_code=") + code;
 			QTreeWidgetItem* item = new QTreeWidgetItem(m_remote);
-			item->setText(0, FormatDate(static_cast<qint64>(o["start_unix"].toDouble())));
+			const qint64 start = static_cast<qint64>(o["start_unix"].toDouble());
+			item->setText(0, FormatDate(start));
 			item->setText(1, code);
 			item->setText(2, JsonPlayers(o["users"].toArray()));
 			item->setText(3, o["round"].toInt() > 0 ? QString::number(o["round"].toInt()) : QString());
 			item->setData(0, SOURCE_ROLE, src);
+			item->setData(0, START_ROLE, start);
 		}
 		m_remote_status->setText(list.isEmpty() ? tr("No replays found.") : tr("Page %1: %n replay(s)", nullptr, list.size()).arg(page + 1));
 		m_remote_prev->setEnabled(page > 0);
@@ -407,7 +557,8 @@ void ZdxsvReplayDialog::onApiUrlEdited()
 	Host::CommitBaseSettingChanges();
 	m_remote->clear();
 	m_live->clear();
-	if (m_tabs->currentIndex() == 2)
+	refreshFavorites();
+	if (m_tabs->currentIndex() == TAB_LIVE)
 		refreshLive();
 }
 
@@ -446,8 +597,10 @@ QTreeWidget* ZdxsvReplayDialog::currentTree() const
 			return m_local;
 		case 1:
 			return m_remote;
-		case 2:
+		case TAB_LIVE:
 			return m_live;
+		case TAB_FAVORITES:
+			return m_favorites;
 		default:
 			return nullptr;
 	}
