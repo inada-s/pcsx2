@@ -1,14 +1,16 @@
-# replayui.ps1 -DataPath <dir> [-Exe pcsx2-qtx64.exe] [-Tab Local|Remote|Live] [-Row regex] [-Pov 2P] [-Wait 90] [-Shot out.png]
+# replayui.ps1 -DataPath <dir> [-Exe pcsx2-qtx64.exe] [-Tab Local|Remote|Live] [-Row regex] [-Set spec] [-Button name] [-Pov 2P] [-Wait 90] [-Shot out.png]
 # Replay dialog test: starts PCSX2 with -datapath <dir> (its game list must hold the Z game: ini [GameList] Paths),
 # opens Tools -> zdxsv Replays, shows tab -Tab (Remote: Search, Live: Refresh), prints the rows, clicks the first
 # row matching -Row, picks point of view -Pov (combo text) and invokes Play. After -Wait s: -Shot (PrintWindow of
 # the display window), PCSX2 closed. The replay's own log lines are in <dir>\PCSX2\logs\emulog.txt (or the
 # data dir's logs\). No -Row: lists only.
+# -Set 'Edit:<name>=<text>;Check:<name>;Combo:<name>=<item>' fills the tab's fields first (UIA accessible names).
+# -Button <name>: invokes that button on the picked row instead of Play.
 # - The lobby API URL (Remote, Live) comes from the ini ([DEV9/Eth] ZdxsvLobbyApiUrl).
 # - Qt menus do not answer UIA Invoke: menu and rows are clicked with the mouse at their UIA rectangles.
 # Exit 1 with the visible element names when a step finds nothing.
 param([Parameter(Mandatory)][string]$DataPath, [string]$Exe = '',
-      [string]$Tab = 'Local', [string]$Row = '', [string]$Pov = '', [int]$Wait = 90, [string]$Shot = '')
+      [string]$Tab = 'Local', [string]$Row = '', [string]$Set = '', [string]$Button = '', [string]$Pov = '', [int]$Wait = 90, [string]$Shot = '')
 $ErrorActionPreference = 'Stop'
 if (-not $Exe) { $Exe = Join-Path $PSScriptRoot '..\..\bin\pcsx2-qtx64.exe' }
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes, System.Drawing
@@ -76,6 +78,24 @@ try {
   $tabItem = Find $dlg $CT::TabItem "^$Tab$"
   if (-not $tabItem) { "FAIL: no tab $Tab : $(Names $dlg)"; exit 1 }
   Click $tabItem
+  foreach ($s in @($Set -split ';' | Where-Object { $_ })) {
+    if ($s -notmatch '^(Edit|Check|Combo):([^=]+)(=(.*))?$') { "FAIL: bad -Set $s"; exit 1 }
+    $kind, $name, $value = $Matches[1], $Matches[2], $Matches[4]
+    $e = Find $dlg $CT::$(if ($kind -eq 'Check') { 'CheckBox' } else { $kind -replace 'Combo', 'ComboBox' }) "^$([regex]::Escape($name))$"
+    if (-not $e) { "FAIL: no $kind $name : $(Names $dlg)"; exit 1 }
+    switch ($kind) {
+      'Edit' { $e.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue($value) }
+      'Check' { $e.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern).Toggle() }
+      'Combo' {
+        Click $e
+        $opt = $null
+        foreach ($w in @($dlg) + (Wins)) { if (-not $opt) { $opt = Find $w $CT::ListItem "^$([regex]::Escape($value))$" 3 } }
+        if (-not $opt) { "FAIL: no $value in $name"; exit 1 }
+        Click $opt
+      }
+    }
+    "set $s"
+  }
   $btn = switch ($Tab) { 'Remote' { 'Search' } 'Live' { 'Refresh' } default { '' } }
   if ($btn) {
     $b = Find $dlg $CT::Button "^$btn$"
@@ -96,8 +116,18 @@ try {
   $hit = $rows | Where-Object { (($_.Group | ForEach-Object { $_.Current.Name }) -join ' | ') -match $Row } | Select-Object -First 1
   if (-not $hit) { "FAIL: no row matches $Row"; exit 1 }
   Click ($hit.Group | Sort-Object { $_.Current.BoundingRectangle.X } | Select-Object -First 1)
+  if ($Button) {
+    $b = Find $dlg $CT::Button "^$([regex]::Escape($Button))$"
+    if (-not $b -or -not $b.Current.IsEnabled) { "FAIL: $Button missing or disabled"; exit 1 }
+    $b.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+    Start-Sleep 3 # settings are written 1 s after a change
+    "pressed $Button; labels: $(@(foreach ($e in $dlg.FindAll('Descendants', (New-Object System.Windows.Automation.PropertyCondition($A::ControlTypeProperty, $CT::Text)))) { if (-not $e.Current.IsOffscreen) { $e.Current.Name } }) -join ' | ')"
+    exit 0
+  }
   if ($Pov) {
-    $combo = Find $dlg $CT::ComboBox '.*'
+    # the point of view combo is the dialog's bottom one
+    $combo = @($dlg.FindAll('Descendants', (New-Object System.Windows.Automation.PropertyCondition($A::ControlTypeProperty, $CT::ComboBox))) |
+      Where-Object { -not $_.Current.IsOffscreen } | Sort-Object { $_.Current.BoundingRectangle.Y }) | Select-Object -Last 1
     Click $combo
     $opt = $null
     foreach ($w in @($dlg) + (Wins)) { if (-not $opt) { $opt = Find $w $CT::ListItem "^$Pov$" 3 } }

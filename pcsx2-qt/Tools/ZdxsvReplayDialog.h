@@ -9,6 +9,7 @@
 #include <functional>
 #include <string>
 
+class QCheckBox;
 class QComboBox;
 class QLabel;
 class QLineEdit;
@@ -18,7 +19,7 @@ class QTreeWidget;
 class QTreeWidgetItem;
 
 // Tools → zdxsv Replays: local .pb files, the lobby's uploaded replays
-// (/lbs/replay) and its live battles (/lbs/live). Play boots the Z game with the pick (Zdxsv::SetNextReplay).
+// (/lbs/replay), its live battles (/lbs/live) and the remote replays kept as favorites. Play boots the Z game with the pick (Zdxsv::SetNextReplay).
 class ZdxsvReplayDialog final : public QDialog
 {
 	Q_OBJECT
@@ -33,10 +34,14 @@ private:
 	QWidget* createLocalTab();
 	QWidget* createRemoteTab();
 	QWidget* createLiveTab();
+	QWidget* createFavoritesTab();
 
 	void refreshLocal();
 	void searchRemote(int page);
 	void refreshLive();
+	void refreshFavorites();
+	void addFavorite();
+	void removeFavorite();
 	void browseFile();
 	void onApiUrlEdited();
 	void updatePlayButton();
@@ -59,6 +64,11 @@ private:
 	QLineEdit* m_remote_code = nullptr;
 	QLineEdit* m_remote_name = nullptr;
 	QLineEdit* m_remote_pilot = nullptr;
+	QLineEdit* m_remote_user = nullptr;
+	QComboBox* m_remote_players = nullptr;
+	QComboBox* m_remote_ms = nullptr;
+	QCheckBox* m_remote_rated = nullptr;
+	QCheckBox* m_remote_reverse = nullptr;
 	QPushButton* m_remote_prev = nullptr;
 	QPushButton* m_remote_next = nullptr;
 	QTreeWidget* m_remote = nullptr;
@@ -70,4 +80,7 @@ private:
 	QLabel* m_live_status = nullptr;
 	QTimer m_live_timer;
 	int m_live_req = 0;
+
+	QTreeWidget* m_favorites = nullptr;
+	QLabel* m_favorites_status = nullptr;
 };

@@ -27125,237 +27125,237 @@ Skipped {}, last: {}</source>
   <context>
     <name>ZdxsvMs</name>
     <message>
-      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="33" />
+      <location filename="../../pcsx2/Zdxsv/ReplayList.cpp" line="26" />
       <source>Gundam</source>
       <translation>ガンダム</translation>
     </message>
     <message>
-      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="34" />
+      <location filename="../../pcsx2/Zdxsv/ReplayList.cpp" line="27" />
       <source>Guncannon</source>
       <translation>ガンキャノン</translation>
     </message>
     <message>
-      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="35" />
+      <location filename="../../pcsx2/Zdxsv/ReplayList.cpp" line="28" />
       <source>GM</source>
       <translation>ＧＭ</translation>
     </message>
     <message>
-      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="36" />
+      <location filename="../../pcsx2/Zdxsv/ReplayList.cpp" line="29" />
       <source>Old Zaku</source>
       <translation>旧型ザク</translation>
     </message>
     <message>
-      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="37" />
+      <location filename="../../pcsx2/Zdxsv/ReplayList.cpp" line="30" />
       <source>Zaku</source>
       <translation>ザク</translation>
     </message>
     <message>
-      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="38" />
+      <location filename="../../pcsx2/Zdxsv/ReplayList.cpp" line="31" />
       <source>Char&apos;s Zaku</source>
       <translation>シャア専用ザク</translation>
     </message>
     <message>
-      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="39" />
+      <location filename="../../pcsx2/Zdxsv/ReplayList.cpp" line="32" />
       <source>Gouf</source>
       <translation>グフ</translation>
     </message>
     <message>
-      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="40" />
+      <location filename="../../pcsx2/Zdxsv/ReplayList.cpp" line="33" />
       <source>Dom</source>
       <translation>ドム</translation>
     </message>
     <message>
-      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="41" />
+      <location filename="../../pcsx2/Zdxsv/ReplayList.cpp" line="34" />
       <source>Rick Dom</source>
       <translation>リック・ドム</translation>
     </message>
     <message>
-      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="42" />
+      <location filename="../../pcsx2/Zdxsv/ReplayList.cpp" line="35" />
       <source>Gelgoog</source>
       <translation>ゲルググ</translation>
     </message>
     <message>
-      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="43" />
+      <location filename="../../pcsx2/Zdxsv/ReplayList.cpp" line="36" />
       <source>Char&apos;s Gelgoog</source>
       <translation>シャア専用ゲルググ</translation>
     </message>
     <message>
-      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="44" />
+      <location filename="../../pcsx2/Zdxsv/ReplayList.cpp" line="37" />
       <source>Gyan</source>
       <translation>ギャン</translation>
     </message>
     <message>
-      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="45" />
+      <location filename="../../pcsx2/Zdxsv/ReplayList.cpp" line="38" />
       <source>Gogg</source>
       <translation>ゴッグ</translation>
     </message>
     <message>
-      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="46" />
+      <location filename="../../pcsx2/Zdxsv/ReplayList.cpp" line="39" />
       <source>Acguy</source>
       <translation>アッガイ</translation>
     </message>
     <message>
-      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="47" />
+      <location filename="../../pcsx2/Zdxsv/ReplayList.cpp" line="40" />
       <source>Z&apos;Gok</source>
       <translation>ズゴック</translation>
     </message>
     <message>
-      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="48" />
+      <location filename="../../pcsx2/Zdxsv/ReplayList.cpp" line="41" />
       <source>Char&apos;s Z&apos;Gok</source>
       <translation>シャア専用ズゴック</translation>
     </message>
     <message>
-      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="49" />
+      <location filename="../../pcsx2/Zdxsv/ReplayList.cpp" line="42" />
       <source>Zock</source>
       <translation>ゾック</translation>
     </message>
     <message>
-      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="50" />
+      <location filename="../../pcsx2/Zdxsv/ReplayList.cpp" line="43" />
       <source>Guntank</source>
       <translation>ガンタンク</translation>
     </message>
     <message>
-      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="51" />
+      <location filename="../../pcsx2/Zdxsv/ReplayList.cpp" line="44" />
       <source>Zeong</source>
       <translation>ジオング</translation>
     </message>
     <message>
-      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="52" />
+      <location filename="../../pcsx2/Zdxsv/ReplayList.cpp" line="45" />
       <source>Ground Type Gundam</source>
       <translation>陸戦型ガンダム</translation>
     </message>
     <message>
-      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="53" />
+      <location filename="../../pcsx2/Zdxsv/ReplayList.cpp" line="46" />
       <source>Ground Type GM</source>
       <translation>陸戦型ＧＭ</translation>
     </message>
     <message>
-      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="54" />
+      <location filename="../../pcsx2/Zdxsv/ReplayList.cpp" line="47" />
       <source>Gundam Mk-II</source>
       <translation>ガンダムMk-Ⅱ</translation>
     </message>
     <message>
-      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="55" />
+      <location filename="../../pcsx2/Zdxsv/ReplayList.cpp" line="48" />
       <source>GM II</source>
       <translation>ＧＭⅡ</translation>
     </message>
     <message>
-      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="56" />
+      <location filename="../../pcsx2/Zdxsv/ReplayList.cpp" line="49" />
       <source>Rick Dias</source>
       <translation>リック・ディアス</translation>
     </message>
     <message>
-      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="57" />
+      <location filename="../../pcsx2/Zdxsv/ReplayList.cpp" line="50" />
       <source>Hyaku Shiki</source>
       <translation>百式</translation>
     </message>
     <message>
-      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="58" />
+      <location filename="../../pcsx2/Zdxsv/ReplayList.cpp" line="51" />
       <source>Nemo</source>
       <translation>ネモ</translation>
     </message>
     <message>
-      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="59" />
+      <location filename="../../pcsx2/Zdxsv/ReplayList.cpp" line="52" />
       <source>Zeta Gundam</source>
       <translation>Ｚガンダム</translation>
     </message>
     <message>
-      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="60" />
+      <location filename="../../pcsx2/Zdxsv/ReplayList.cpp" line="53" />
       <source>Methuss</source>
       <translation>メタス</translation>
     </message>
     <message>
-      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="61" />
+      <location filename="../../pcsx2/Zdxsv/ReplayList.cpp" line="54" />
       <source>Dijeh</source>
       <translation>ディジェ</translation>
     </message>
     <message>
-      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="62" />
+      <location filename="../../pcsx2/Zdxsv/ReplayList.cpp" line="55" />
       <source>Hi-Zack</source>
       <translation>ハイザック</translation>
     </message>
     <message>
-      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="63" />
+      <location filename="../../pcsx2/Zdxsv/ReplayList.cpp" line="56" />
       <source>Galbaldy Beta</source>
       <translation>ガルバルディβ</translation>
     </message>
     <message>
-      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="64" />
+      <location filename="../../pcsx2/Zdxsv/ReplayList.cpp" line="57" />
       <source>Marasai</source>
       <translation>マラサイ</translation>
     </message>
     <message>
-      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="65" />
+      <location filename="../../pcsx2/Zdxsv/ReplayList.cpp" line="58" />
       <source>Messala</source>
       <translation>メッサーラ</translation>
     </message>
     <message>
-      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="66" />
+      <location filename="../../pcsx2/Zdxsv/ReplayList.cpp" line="59" />
       <source>Asshimar</source>
       <translation>アッシマー</translation>
     </message>
     <message>
-      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="67" />
+      <location filename="../../pcsx2/Zdxsv/ReplayList.cpp" line="60" />
       <source>Gaplant</source>
       <translation>ギャプラン</translation>
     </message>
     <message>
-      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="68" />
+      <location filename="../../pcsx2/Zdxsv/ReplayList.cpp" line="61" />
       <source>Psyco Gundam</source>
       <translation>サイコ・ガンダム</translation>
     </message>
     <message>
-      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="69" />
+      <location filename="../../pcsx2/Zdxsv/ReplayList.cpp" line="62" />
       <source>Gabthley</source>
       <translation>ガブスレイ</translation>
     </message>
     <message>
-      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="70" />
+      <location filename="../../pcsx2/Zdxsv/ReplayList.cpp" line="63" />
       <source>Hambrabi</source>
       <translation>ハンブラビ</translation>
     </message>
     <message>
-      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="71" />
+      <location filename="../../pcsx2/Zdxsv/ReplayList.cpp" line="64" />
       <source>Palace Athene</source>
       <translation>パラス・アテネ</translation>
     </message>
     <message>
-      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="72" />
+      <location filename="../../pcsx2/Zdxsv/ReplayList.cpp" line="65" />
       <source>Barzam</source>
       <translation>バーザム</translation>
     </message>
     <message>
-      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="73" />
+      <location filename="../../pcsx2/Zdxsv/ReplayList.cpp" line="66" />
       <source>Psyco Gundam Mk-II</source>
       <translation>サイコMk-Ⅱ</translation>
     </message>
     <message>
-      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="74" />
+      <location filename="../../pcsx2/Zdxsv/ReplayList.cpp" line="67" />
       <source>Byarlant</source>
       <translation>バイアラン</translation>
     </message>
     <message>
-      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="75" />
+      <location filename="../../pcsx2/Zdxsv/ReplayList.cpp" line="68" />
       <source>Bound Doc</source>
       <translation>バウンド・ドック</translation>
     </message>
     <message>
-      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="76" />
+      <location filename="../../pcsx2/Zdxsv/ReplayList.cpp" line="69" />
       <source>Bolinoak Sammahn</source>
       <translation>ボリノーク・サマーン</translation>
     </message>
     <message>
-      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="77" />
+      <location filename="../../pcsx2/Zdxsv/ReplayList.cpp" line="70" />
       <source>The O</source>
       <translation>ジ・オ</translation>
     </message>
     <message>
-      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="78" />
+      <location filename="../../pcsx2/Zdxsv/ReplayList.cpp" line="71" />
       <source>Gaza-C</source>
       <translation>ガザＣ</translation>
     </message>
     <message>
-      <location filename="../../pcsx2/Zdxsv/Overlays.cpp" line="79" />
+      <location filename="../../pcsx2/Zdxsv/ReplayList.cpp" line="72" />
       <source>Qubeley</source>
       <translation>キュベレイ</translation>
     </message>
@@ -28060,6 +28060,93 @@ PCSX2 will be able to run once you&apos;ve placed your BIOS image inside the fol
       <location filename="../Tools/ZdxsvReplayDialog.cpp" line="487"/>
       <source>Shut down the running game and play the replay?</source>
       <translation>実行中のゲームを終了してリプレイを再生しますか?</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp"/>
+      <source>Favorites</source>
+      <translation>お気に入り</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp"/>
+      <source>User ID</source>
+      <translation>ユーザーID</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp"/>
+      <source>Any players</source>
+      <translation>人数指定なし</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp"/>
+      <source>2 players</source>
+      <translation>2人</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp"/>
+      <source>4 players</source>
+      <translation>4人</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp"/>
+      <source>Rated only</source>
+      <translation>戦績対象のみ</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp"/>
+      <source>Only battles counted in the players' records.</source>
+      <translation>プレイヤーの戦績に数えられた対戦のみ。</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp"/>
+      <source>Oldest first</source>
+      <translation>古い順</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp"/>
+      <source>Mobile suit</source>
+      <translation>機体</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp"/>
+      <source>Any mobile suit</source>
+      <translation>すべての機体</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp"/>
+      <source>Battles where a player matching the name filters (any player without them) used this mobile suit.</source>
+      <translation>名前の条件に合うプレイヤー (条件がなければ誰か) がこの機体を使った対戦。</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp"/>
+      <source>Add to Favorites</source>
+      <translation>お気に入りに追加</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp"/>
+      <source>Remove</source>
+      <translation>削除</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp"/>
+      <source>%1 is already a favorite.</source>
+      <translation>%1 は既にお気に入りです。</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp"/>
+      <source>Favorites are full (%1): remove some first.</source>
+      <translation>お気に入りが上限 (%1) です。先にいくつか削除してください。</translation>
+    </message>
+    <message>
+      <location filename="../Tools/ZdxsvReplayDialog.cpp"/>
+      <source>Added %1 to Favorites.</source>
+      <translation>%1 をお気に入りに追加しました。</translation>
+    </message>
+    <message numerus="yes">
+      <location filename="../Tools/ZdxsvReplayDialog.cpp"/>
+      <source>%n favorite(s)</source>
+      <translation>
+        <numerusform>お気に入り %n 件</numerusform>
+      </translation>
     </message>
   </context>
   <context>
