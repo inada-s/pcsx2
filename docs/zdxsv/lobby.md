@@ -91,7 +91,7 @@ bytes, or a `peer_id` outside `users`.
 | `session_id` (2) | id of the battle in the ping test packets (zdxsv: random per battle). 0: no GGPO. |
 | `peer_id` (4) | own index in `users` |
 | `ping_test_duration` (6) | length of the ping test in ms, at most 10000 |
-| `users` (9) | every player in battle order: `user_id`, `user_name`, `pilot_name` (OSD, replay), `ggpo_port` (40), `sync` (41, settings fingerprint) |
+| `users` (9) | every player in battle order: `user_id`, `user_name`, `pilot_name` (OSD, replay), `team` (9, entry side 1 / 2: the ping test diagram rows), `ggpo_port` (40), `sync` (41, settings fingerprint) |
 | `candidates` (10) | UDP addresses of the other players: `user_id`, `peer_id`, `ip`, `port` |
 | `relays` (11) | relay servers: `ip`, `port`, `token`, `ip6`, `port6` (40) |
 | `spectator_uplink` (12) | this client streams the battle for live spectating ([replay.md](replay.md)) |

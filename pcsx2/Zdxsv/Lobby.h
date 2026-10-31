@@ -55,6 +55,7 @@ namespace Zdxsv
 		std::map<std::string, std::string> names; // users[].user_name (UTF-8): network status OSD
 		std::map<std::string, std::string> pilots; // users[].pilot_name (UTF-8): OSD
 		std::map<std::string, std::string> syncs; // users[].sync: settings fingerprint (16 hex digits), GgpoLobby LobbyArm
+		std::map<std::string, int> teams; // users[].team: 1 / 2 (entry side); absent when unknown
 		// candidates: UDP addresses of peers that reported them, in users order
 		// (udp_addr public, udp_local, udp_addr6, TCP source); GgpoPeers takes the IPs.
 		struct Peer
@@ -187,8 +188,9 @@ namespace Zdxsv
 	// of every peer of byPosition and every relay for durationMs on the GGPO port, and answers their
 	// pings. A ping also joins us to the relay's session. Cancels a running test or StartUdpTest first.
 	// me = our position. A peer without candidates is reached at the sources of its pings.
+	// teams: per position, 1 / 2, 0 = unknown (the connection diagram rows).
 	void StartPingTest(uint32_t session, int me, const std::vector<std::vector<PeerAddr>>& byPosition, uint16_t port, int durationMs,
-		const std::vector<BattleInfo::Relay>& relays = {});
+		const std::vector<BattleInfo::Relay>& relays = {}, const std::vector<int>& teams = {});
 	// Per battle position, the path picked: direct, unless a relaying peer is 32 ms
 	// or a relay server 16 ms faster. rtt in ms (the whole path), -1 = unreachable (and own position).
 	struct PingResult
@@ -211,8 +213,9 @@ namespace Zdxsv
 	// StartPingTest ran no test (bind failure), "" otherwise.
 	std::vector<PingResult> FinishPingTest(std::vector<RelayServerAddr>* servers = nullptr, std::string* error = nullptr);
 	// The running ping test, for the connection diagram (any thread): ms since its start, its length, the
-	// player count and the rtt matrix ([i][j]: i's rtt to j in ms, 255 max, 0 = unknown). False when none runs.
-	bool PingTestView(int& elapsedMs, int& durationMs, int& players, uint8_t rtt[4][4]);
+	// player count, the rtt matrix ([i][j]: i's rtt to j in ms, 255 max, 0 = unknown) and the teams by position
+	// (StartPingTest teams). False when none runs.
+	bool PingTestView(int& elapsedMs, int& durationMs, int& players, uint8_t rtt[4][4], int teams[4]);
 	// Merges a ping packet's relay rtt matrix ([peer][relay], 0 = unknown) from position from into dst:
 	// from's row as is, other rows when non-zero, own row kept.
 	void MergeRelayRtt(uint8_t dst[4][4], const uint8_t src[4][4], int self, int from);
