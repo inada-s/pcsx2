@@ -356,10 +356,11 @@ if [ -n "${EMU:-}" ] && [ -n "${GGPO:-}" ]; then
   done
   [ -n "${GGPO_DEFAULT:-}" ] && check "p$GGPO_DEFAULT GGPO from the setting" "grep -a -q \"ZdxsvGgpo: options 'net=1,lobby=1' (serial SLPS-25419, setting 1)\" '$RUN/p$GGPO_DEFAULT/PCSX2/logs/emulog.txt'"
   [ -n "${GGPO_DEFAULT:-}" ] && check "p$GGPO_DEFAULT GGPO port from the setting" "p=\$(grep -a -o '^ZdxsvGgpoPort = [0-9]*' '$RUN/p$GGPO_DEFAULT/PCSX2/inis/PCSX2.ini' | grep -o '[0-9]*\$') && [ \"\$p\" -gt 0 ] && grep -a -q \"ZdxsvGgpo: net player .* port \$p \" '$RUN/p$GGPO_DEFAULT/PCSX2/logs/emulog.txt'"
-  # every GGPO client: $B GGPO battle ends; per battle the same end frame; 0 mismatches
-  ends=$(for i in ${GGPO_CLIENTS:-$CLIENTS}; do grep -a -o 'net battle end frames [0-9]* rollback frames [0-9]* loads [0-9]* mismatches [0-9]*' "$RUN/p$i/PCSX2/logs/emulog.txt" | awk -v p=$i '{print "p" p, "battle", NR, "frames", $5, "mismatches", $NF}'; done)
+  # every GGPO client: $B GGPO battle ends; per battle the same end msg frame (the stop frame follows each
+  # peer's own confirmation); 0 mismatches
+  ends=$(for i in ${GGPO_CLIENTS:-$CLIENTS}; do f="$RUN/p$i/PCSX2/logs/emulog.txt"; paste -d' ' <(grep -a -o 'net end msg of frame [0-9]* confirmed' "$f" | awk '{print $6}') <(grep -a -o 'net battle end frames [0-9]* rollback frames [0-9]* loads [0-9]* mismatches [0-9]*' "$f" | awk '{print $NF}') | awk -v p=$i '{print "p" p, "battle", NR, "end_msg", $1, "mismatches", $2}'; done)
   echo "$ends" | sed 's/^/ggpo end /'
-  check "ggpo end frame agrees per battle ($B), 0 mismatches" "echo '$ends' | awk '{n++; if (\$7 != 0) bad=1; if ((\$3 in f) && f[\$3] != \$5) bad=1; f[\$3]=\$5} END{u=0; for(x in f)u++; exit !(n==$(echo ${GGPO_CLIENTS:-$CLIENTS} | wc -w) * $B && u==$B && !bad)}'"
+  check "ggpo end msg frame agrees per battle ($B), 0 mismatches" "echo '$ends' | awk '{n++; if (\$7 != 0) bad=1; if ((\$3 in f) && f[\$3] != \$5) bad=1; f[\$3]=\$5} END{u=0; for(x in f)u++; exit !(n==$(echo ${GGPO_CLIENTS:-$CLIENTS} | wc -w) * $B && u==$B && !bad)}'"
   if [ -n "${REPORT:-}" ]; then
     ng=$(echo ${GGPO_CLIENTS:-$CLIENTS} | wc -w)
     grep -a 'p2p matching report:' "$OUT/lobby.log" | cut -c1-300
