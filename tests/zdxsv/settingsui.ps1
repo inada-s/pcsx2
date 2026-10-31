@@ -1,8 +1,9 @@
-# settingsui.ps1 [-Exe pcsx2-qtx64.exe] [-DataPath dir] [-Iso game.iso [-Boot 30]] [-Page zdxsv] [-Match regex] [-Shot out.png] [-Click name]
+# settingsui.ps1 [-Exe pcsx2-qtx64.exe] [-DataPath dir] [-Iso game.iso [-Boot 30]] [-Page zdxsv] [-Match regex] [-Shot out.png] [-Click name [-Wait 3]] [-Quit]
 # Start a portable PCSX2 (portable.ini or portable.txt next to the exe; -DataPath: -datapath dir instead), open Settings -> page -Page,
-# -Click: invoke the button whose AutomationId ends with that name (3 s for the settings save), then
+# -Click: invoke the button whose AutomationId ends with that name, wait -Wait s (default 3: the settings save), then
 # print each control whose AutomationId or name matches -Match (default: the page name) with its enabled
 # state and value, save a PrintWindow capture of the settings window to -Shot, close PCSX2.
+# -Quit: close the windows and wait for a normal exit (exit-time cleanup runs); without it PCSX2 is killed.
 # Env overrides (ZDXSV_*) set by the caller apply, e.g. to see env-overridden settings greyed out.
 # -Iso: boots the game first and opens Settings -Boot s later (e.g. the Z game: sync-forced items greyed out).
 #   With a game running, Alt+N Enter opens its Game Properties (the same settings window, per-game ini).
@@ -14,7 +15,7 @@
 # Exit 1 with the visible element names when a step finds nothing.
 param([string]$Exe = (Join-Path $PSScriptRoot '..\..\bin\pcsx2-qtx64.exe'), [string]$Page = 'zdxsv',
       [string]$Match = '', [string]$Shot = '', [string]$DataPath = '', [string]$Iso = '', [int]$Boot = 30,
-      [string]$Click = '')
+      [string]$Click = '', [int]$Wait = 3, [switch]$Quit)
 $ErrorActionPreference = 'Stop'
 if (-not $Match) { $Match = $Page }
 $dir = Split-Path -Parent (Resolve-Path $Exe)
@@ -96,7 +97,7 @@ try {
     foreach ($e in $win.FindAll('Descendants', $all)) { if ($e.Current.AutomationId -match "\.$Click`$") { $btn = $e } }
     if (-not $btn) { "FAIL: no button '$Click'"; exit 1 }
     $btn.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
-    "clicked $Click"; Start-Sleep 3
+    "clicked $Click"; Start-Sleep $Wait
   }
   $n = 0
   foreach ($e in $win.FindAll('Descendants', $all)) {
@@ -115,6 +116,11 @@ try {
     $bmp = New-Object System.Drawing.Bitmap ($wr.R - $wr.L), ($wr.B - $wr.T)
     $g = [System.Drawing.Graphics]::FromImage($bmp); $hdc = $g.GetHdc(); [void][SUI]::PrintWindow($h, $hdc, 2); $g.ReleaseHdc($hdc); $g.Dispose()
     $bmp.Save($Shot, [System.Drawing.Imaging.ImageFormat]::Png); "shot $Shot $($bmp.Width)x$($bmp.Height)"
+  }
+  if ($Quit) {
+    $win.GetCurrentPattern([System.Windows.Automation.WindowPattern]::Pattern).Close(); Start-Sleep 1
+    [void]$p.CloseMainWindow()
+    if ($p.WaitForExit(20000)) { "quit rc=$($p.ExitCode)" } else { "FAIL: still running 20 s after close"; exit 1 }
   }
 } finally {
   Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue

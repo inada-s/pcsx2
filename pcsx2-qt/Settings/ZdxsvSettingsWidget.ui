@@ -96,6 +96,27 @@
        </widget>
       </item>
       <item>
+       <layout class="QHBoxLayout" name="zdxsvUPnPNowLayout">
+        <item>
+         <widget class="QPushButton" name="zdxsvUPnPNow">
+          <property name="text">
+           <string>UPnP Now</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLabel" name="zdxsvUPnPResult">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+      <item>
        <widget class="QCheckBox" name="zdxsvLowLatencyVsync">
         <property name="text">
          <string>Low-latency vsync: show each frame before the frame limiter waits (shorter input lag).</string>

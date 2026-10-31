@@ -5,10 +5,13 @@
 #include "SettingWidgetBinder.h"
 #include "GameFixSettingsWidget.h"
 #include "SettingsWindow.h"
+#include "QtHost.h"
 
 #include "pcsx2/Zdxsv/Settings.h"
 #include "pcsx2/Zdxsv/SyncSettings.h"
+#include "pcsx2/Zdxsv/Upnp.h"
 
+#include <QtCore/QPointer>
 #include <QtCore/QTimer>
 #include <QtWidgets/QComboBox>
 #include <QtWidgets/QLineEdit>
@@ -16,6 +19,7 @@
 
 #include <cstdlib>
 #include <cstring>
+#include <thread>
 #include <vector>
 
 // The environment wins over a setting (pcsx2/Zdxsv/Settings.h): a widget whose setting is overridden is disabled
@@ -99,6 +103,9 @@ ZdxsvSettingsWidget::ZdxsvSettingsWidget(SettingsWindow* settings_dialog, QWidge
 	connect(m_ui.zdxsvPresetLow, &QPushButton::clicked, this, [this]() { applyPreset(1.0f, 3); });
 	connect(m_ui.zdxsvPresetMid, &QPushButton::clicked, this, [this]() { applyPreset(2.0f, 2); });
 	connect(m_ui.zdxsvPresetHigh, &QPushButton::clicked, this, [this]() { applyPreset(3.0f, 2); });
+	connect(m_ui.zdxsvUPnPNow, &QPushButton::clicked, this, &ZdxsvSettingsWidget::mapUpnpNow);
+	dialog()->registerWidgetHelp(m_ui.zdxsvUPnPNow, tr("UPnP Now"), tr("None"),
+		tr("Asks the router (UPnP) now to forward the battle UDP port to this PC, and shows the result. The mapping is removed when PCSX2 exits."));
 	dialog()->registerWidgetHelp(m_ui.zdxsvPresetLow, tr("Recommended Settings for Low-Spec PC"), tr("None"),
 		tr("Sets Internal Resolution to Native (PS2) and Minimum Input Delay to 3."));
 	dialog()->registerWidgetHelp(m_ui.zdxsvPresetMid, tr("Recommended Settings for Mid-Spec PC"), tr("None"),
@@ -120,6 +127,29 @@ void ZdxsvSettingsWidget::applyPreset(float upscale_multiplier, int min_delay)
 		upscale->setCurrentIndex(index);
 	else
 		dialog()->setFloatSettingValue("EmuCore/GS", "upscale_multiplier", upscale_multiplier);
+}
+
+void ZdxsvSettingsWidget::mapUpnpNow()
+{
+	const int port = m_ui.zdxsvGgpoPort->value();
+	if (port <= 0 || port > 0xFFFF)
+	{
+		m_ui.zdxsvUPnPResult->setText(tr("Set a battle UDP port first (0 picks one at the next game start)."));
+		return;
+	}
+	m_ui.zdxsvUPnPNow->setEnabled(false);
+	m_ui.zdxsvUPnPResult->setText(tr("Please wait..."));
+	std::thread([widget = QPointer<ZdxsvSettingsWidget>(this), port]() {
+		std::string error;
+		const bool mapped = Zdxsv::UpnpMapUdp(static_cast<uint16_t>(port), error);
+		const QString result = mapped ? tr("UDP port %1 opened (until PCSX2 exits).").arg(port) : QString::fromStdString(error);
+		QtHost::RunOnUIThread([widget, result]() {
+			if (!widget)
+				return;
+			widget->m_ui.zdxsvUPnPNow->setEnabled(true);
+			widget->m_ui.zdxsvUPnPResult->setText(result);
+		});
+	}).detach();
 }
 
 void ZdxsvSettingsWidget::markSyncForced(QWidget* window)
