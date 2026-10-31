@@ -498,7 +498,8 @@ namespace Zdxsv
 		{
 			int elapsed = 0, duration = 0, n = 0;
 			uint8_t rtt[4][4];
-			if (FullscreenUI::HasActiveWindow() || !Zdxsv::PingTestView(elapsed, duration, n, rtt))
+			int teams[4];
+			if (FullscreenUI::HasActiveWindow() || !Zdxsv::PingTestView(elapsed, duration, n, rtt, teams))
 				return;
 			const int start = 1550, end = duration - 600;
 			if (elapsed <= start || elapsed >= end || n < 2 || n > 4)
@@ -516,10 +517,16 @@ namespace Zdxsv
 			// corners: 0 top left, 1 top right, 2 bottom left, 3 bottom right
 			const ImVec2 corner[4] = {at(-36, -89), at(36, -89), at(-36, 89), at(36, 89)};
 			static constexpr int dirs[4][4] = {{0, 6, 0, 7}, {2, 0, 1, 0}, {4, 5, 0, 6}, {3, 4, 2, 0}};
+			// team 1 on top, team 2 below, each row by position; without both teams known, positions in halves
+			int perTeam[3] = {};
+			bool byTeam = true;
+			for (int p = 0; p < n; p++)
+				byTeam = byTeam && (teams[p] == 1 || teams[p] == 2) && ++perTeam[teams[p]] <= 2;
 			const int top = (n + 1) / 2;
+			int placed[3] = {};
 			int pos[4];
 			for (int p = 0; p < n; p++)
-				pos[p] = p < top ? p : 2 + p - top;
+				pos[p] = byTeam ? (teams[p] - 1) * 2 + placed[teams[p]]++ : (p < top ? p : 2 + p - top);
 			for (int i = 0; i < n; i++)
 			{
 				int worst = 0;

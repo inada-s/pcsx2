@@ -245,8 +245,11 @@ namespace Zdxsv
 		s_lobby_session = session;
 		s_lobby_peers = std::move(byPosition);
 		s_lobby_relays = std::move(relays);
+		std::vector<int> teams;
+		for (const LobbyPlayer& p : s_lobby_players)
+			teams.push_back(p.team);
 		if (me >= 0 && session && !s_delay_set && pingMs > 0)
-			Zdxsv::StartPingTest(session, me, s_lobby_peers, static_cast<u16>(GgpoLobbyPort()), pingMs, s_lobby_relays);
+			Zdxsv::StartPingTest(session, me, s_lobby_peers, static_cast<u16>(GgpoLobbyPort()), pingMs, s_lobby_relays, teams);
 	}
 
 	std::string TakeLobbyReport()

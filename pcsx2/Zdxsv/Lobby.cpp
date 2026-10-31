@@ -170,6 +170,7 @@ namespace Zdxsv
 		struct User
 		{
 			std::string id, name, pilot, sync;
+			int64_t team = 0;
 			int64_t ggpo = 0;
 		};
 		struct Candidate
@@ -209,6 +210,7 @@ namespace Zdxsv
 							case 1: return PbString(w, s, len, u.id);
 							case 2: return PbString(w, s, len, u.name);
 							case 3: return PbString(w, s, len, u.pilot);
+							case 9: return PbInt(w, x, u.team);
 							case 40: return PbInt(w, x, u.ggpo);
 							case 41: return PbString(w, s, len, u.sync);
 							default: return true;
@@ -266,6 +268,8 @@ namespace Zdxsv
 				info.pilots[u.id] = u.pilot;
 			if (u.sync.size() == 16 && u.sync.find_first_not_of("0123456789abcdef") == std::string::npos)
 				info.syncs[u.id] = u.sync;
+			if (u.team == 1 || u.team == 2)
+				info.teams[u.id] = static_cast<int>(u.team);
 			if (u.id != info.userId && u.ggpo > 0 && u.ggpo <= 0xFFFF)
 				info.ggpo[u.id] = static_cast<uint16_t>(u.ggpo);
 			BattleInfo::Peer peer{u.id, {}};
@@ -943,6 +947,7 @@ namespace Zdxsv
 			int durationMs = 0;
 			int n = 0;
 			uint8_t rtt[4][4] = {};
+			int teams[4] = {};
 		};
 		PingView g_pingView;
 
@@ -1377,7 +1382,7 @@ namespace Zdxsv
 	} // namespace
 
 	void StartPingTest(uint32_t session, int me, const std::vector<std::vector<PeerAddr>>& byPosition, uint16_t port, int durationMs,
-		const std::vector<BattleInfo::Relay>& relays)
+		const std::vector<BattleInfo::Relay>& relays, const std::vector<int>& teams)
 	{
 		if (g_ping)
 			g_ping->stop = true;
@@ -1405,6 +1410,8 @@ namespace Zdxsv
 			g_pingView.durationMs = durationMs;
 			g_pingView.n = n;
 			std::memset(g_pingView.rtt, 0, sizeof(g_pingView.rtt));
+			for (int p = 0; p < 4; p++)
+				g_pingView.teams[p] = p < static_cast<int>(teams.size()) ? teams[p] : 0;
 		}
 		PingTest* t = g_ping.get();
 		t->thread = std::thread([t, s4, s6, session, byPosition, me, durationMs, relays] {
@@ -1436,7 +1443,7 @@ namespace Zdxsv
 		return result;
 	}
 
-	bool PingTestView(int& elapsedMs, int& durationMs, int& players, uint8_t rtt[4][4])
+	bool PingTestView(int& elapsedMs, int& durationMs, int& players, uint8_t rtt[4][4], int teams[4])
 	{
 		std::lock_guard lock(g_pingView.mtx);
 		if (!g_pingView.active)
@@ -1445,6 +1452,7 @@ namespace Zdxsv
 		durationMs = g_pingView.durationMs;
 		players = g_pingView.n;
 		std::memcpy(rtt, g_pingView.rtt, sizeof(g_pingView.rtt));
+		std::memcpy(teams, g_pingView.teams, sizeof(g_pingView.teams));
 		return true;
 	}
 

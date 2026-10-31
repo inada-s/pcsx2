@@ -115,9 +115,10 @@ namespace Zdxsv
 						const auto name = info.names.find(u);
 						const auto pilot = info.pilots.find(u);
 						const auto sync = info.syncs.find(u);
+						const auto team = info.teams.find(u);
 						players.push_back({u, name == info.names.end() ? std::string() : name->second,
 							pilot == info.pilots.end() ? std::string() : pilot->second,
-							sync == info.syncs.end() ? std::string() : sync->second});
+							sync == info.syncs.end() ? std::string() : sync->second, team == info.teams.end() ? 0 : team->second});
 					}
 					std::string ids = "battle_code=" + info.battleCode + "\nuser_id=" + info.userId + "\n";
 					if (info.liveUplink && !LobbyUdpAddr().empty())
