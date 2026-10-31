@@ -33,7 +33,6 @@ zdxsv サーバー (`lbs.zdxsv.net`) でオンライン対戦するためのビ�
 | DHCP 無効化 (Intercept DHCP) | 有効 |
 | DNS1 / DNS2 | 内部 (Internal) |
 | ホスト (Hosts) | 空 (ゲームのサーバーは `lbs.zdxsv.net` から見つけます) |
-| zdxsv: オンライン対戦にロールバック方式のネットコード (GGPO) を使う (Rollback netcode (GGPO) for online battles) | 有効 (次のゲーム起動から有効) |
 
 変更しないでください。別の PCSX2 の `PCSX2.ini` をコピーすると、これらの設定は
 上書きされます。その場合は表の値を自分で入力するか、`inis\PCSX2.ini` を削除して

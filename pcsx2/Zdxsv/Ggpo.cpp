@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0+
 
 // The GGPO session: options, frame loop, GGPO callbacks, start and stop, VM hooks, network status OSD.
-// ZDXSV_GGPO="key=value,..." (docs/zdxsv/options.md) replaces the ZdxsvGgpo setting's DEFAULT_OPTIONS.
+// ZDXSV_GGPO="key=value,..." (docs/zdxsv/options.md) replaces DEFAULT_OPTIONS (GGPO on by default).
 // Without net=1 the session is a synctest; log lines start with "ZdxsvGgpo".
 
 #include "Zdxsv/GgpoShared.h"
@@ -879,8 +879,8 @@ namespace Zdxsv
 	bool g_ggpo_enabled = false; // GgpoOnVmInitialize
 	bool g_mtvu_off = false; // GgpoOnVmInitialize, cleared at VM shutdown
 	s32 g_frame_period_trim_us = 0;
-	// The ZDXSV_GGPO options of this VM: the variable, else DEFAULT_OPTIONS for the Z game with the
-	// ZdxsvGgpo setting on, else empty = off. Set by GgpoOnVmInitialize before the CPU runs.
+	// The ZDXSV_GGPO options of this VM: the variable, else DEFAULT_OPTIONS for the Z game, else empty = off.
+	// Set by GgpoOnVmInitialize before the CPU runs.
 	std::string s_options;
 	bool g_z_game = false;
 	bool g_ggpo_active = false;
@@ -1250,14 +1250,12 @@ namespace Zdxsv
 		s_play_env = play ? play : s_play_picked.empty() ? nullptr : s_play_picked.c_str();
 		s_play_listed = !play && !s_play_picked.empty();
 		const char* e = std::getenv("ZDXSV_GGPO");
-		// Read here only, so not a config field: a change takes effect at the next VM start.
-		const bool setting = Host::GetBoolSettingValue("DEV9/Eth", "ZdxsvGgpo", true);
 		// ZDXSV_GAME_CRC=hex (test): the CRC taken as the Z game's, to run the wrong-game path on the Z game
 		const char* want_env = Zdxsv::TestEnv("ZDXSV_GAME_CRC");
 		const u32 want = want_env ? static_cast<u32>(std::strtoul(want_env, nullptr, 16)) : GAME_CRC;
 		const bool serial_match = std::strcmp(serial, GAME_SERIAL) == 0;
 		g_z_game = serial_match && crc == want;
-		const bool lobby_default = g_z_game && setting && !s_play_env;
+		const bool lobby_default = g_z_game && !s_play_env;
 		if (!g_z_game) // any other game or build: no GGPO, replay, hooks or platform info
 		{
 			s_options.clear();
@@ -1267,7 +1265,7 @@ namespace Zdxsv
 			return;
 		}
 		SyncSettingsEnforce(); // LoadSettings ran before the game was known
-		if (e && std::strcmp(e, "0") == 0) // off whatever the setting (rigs without GGPO)
+		if (e && std::strcmp(e, "0") == 0) // off (rigs without GGPO)
 			s_options.clear();
 		else
 			s_options = e ? e : lobby_default ? DEFAULT_OPTIONS : "";
@@ -1291,7 +1289,7 @@ namespace Zdxsv
 		g_zd_hook = s_net_env;
 		g_ps_hook = true;
 		if (!s_options.empty() || std::strcmp(serial, GAME_SERIAL) == 0)
-			Console.WriteLn("ZdxsvGgpo: options '%s' (serial %s, setting %d)", s_options.c_str(), serial, setting ? 1 : 0);
+			Console.WriteLn("ZdxsvGgpo: options '%s' (serial %s)", s_options.c_str(), serial);
 		// Delta saves and loads, replay keys: VU1 memory is copied while the MTVU thread may still run on it.
 		// The settings were loaded before this; VMManager::LoadCoreSettings keeps it off on later reloads.
 		g_mtvu_off = g_ggpo_enabled || g_delta_state_test_enabled;

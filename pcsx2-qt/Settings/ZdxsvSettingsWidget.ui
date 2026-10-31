@@ -21,13 +21,6 @@
      </property>
      <layout class="QVBoxLayout" name="battleLayout">
       <item>
-       <widget class="QCheckBox" name="zdxsvGgpo">
-        <property name="text">
-         <string>Rollback netcode (GGPO) for online battles. Takes effect at the next game start.</string>
-        </property>
-       </widget>
-      </item>
-      <item>
        <layout class="QHBoxLayout" name="zdxsvGgpoMinDelayLayout">
         <item>
          <widget class="QLabel" name="zdxsvGgpoMinDelayLabel">
@@ -207,38 +200,28 @@ for High-Spec PC</string>
         </item>
        </widget>
       </item>
-      <item row="4" column="0">
-       <widget class="QLabel" name="zdxsvReplayStateUrlLabel">
-        <property name="text">
-         <string>Start state (URL or file):</string>
-        </property>
-       </widget>
-      </item>
-      <item row="4" column="1">
-       <widget class="QLineEdit" name="zdxsvReplayStateUrl"/>
-      </item>
-      <item row="5" column="0" colspan="2">
+      <item row="4" column="0" colspan="2">
        <widget class="QCheckBox" name="zdxsvReplayUpload">
         <property name="text">
          <string>Upload the replay of each lobby battle to the zdxsv server.</string>
         </property>
        </widget>
       </item>
-      <item row="6" column="0" colspan="2">
+      <item row="5" column="0" colspan="2">
        <widget class="QCheckBox" name="zdxsvSaveReplay">
         <property name="text">
          <string>Save the replay of each lobby battle on this PC.</string>
         </property>
        </widget>
       </item>
-      <item row="7" column="0">
+      <item row="6" column="0">
        <widget class="QLabel" name="zdxsvReplayPathLabel">
         <property name="text">
          <string>Replay folder:</string>
         </property>
        </widget>
       </item>
-      <item row="7" column="1">
+      <item row="6" column="1">
        <layout class="QHBoxLayout" name="zdxsvReplayPathLayout">
         <item>
          <widget class="QLineEdit" name="zdxsvReplayPath"/>
@@ -267,16 +250,6 @@ for High-Spec PC</string>
        </layout>
       </item>
      </layout>
-    </widget>
-   </item>
-   <item>
-    <widget class="QLabel" name="envNote">
-     <property name="text">
-      <string>An environment variable overrides the setting it names: such a setting is greyed out here, and its tooltip names the variable.</string>
-     </property>
-     <property name="wordWrap">
-      <bool>true</bool>
-     </property>
     </widget>
    </item>
    <item>

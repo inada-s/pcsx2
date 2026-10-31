@@ -30,7 +30,6 @@ A new setup already has these settings, under Settings → Network & HDD:
 | Intercept DHCP | on |
 | DNS1 / DNS2 | Internal |
 | Hosts | empty (the game's servers are found through `lbs.zdxsv.net`) |
-| zdxsv: Rollback netcode (GGPO) for online battles | on (takes effect at the next game start) |
 
 Do not change them. If you copy a `PCSX2.ini` from another PCSX2 installation, it
 replaces these settings. In that case, enter the values from the table yourself, or

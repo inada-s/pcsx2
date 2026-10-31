@@ -39,8 +39,8 @@
 #   LIVE_STALL=S (LIVE): S s after the spectator starts, the lobby process is suspended (the stream stalls at its
 #   newest frame), 3 s later the spectator's windows get a close (WM_CLOSE), then the lobby resumes. Check, instead
 #   of the LIVE ones: the spectator exits within 5 s (a CPU thread stuck waiting for live data exits after ~30 s).
-#   GGPO_DEFAULT=K: client K gets no ZDXSV_GGPO (launch.ps1 ZDXSV_GGPO=default), so the ZdxsvGgpo setting
-#   gives its options (port: the ZdxsvGgpoPort setting); check: its log names the default options.
+#   GGPO_DEFAULT=K: client K gets no ZDXSV_GGPO (launch.ps1 ZDXSV_GGPO=default), so GGPO is on by default
+#   with the default options (port: the ZdxsvGgpoPort setting); check: its log names the default options.
 #   BAD_SESSION=K (GDELAY=auto): client K gets badsession=1: every ping test fails,
 #   every client cuts the battle connection; no mash; waits for each cut to end + 2 lobby tcp conns per client;
 #   checks: cut + cut ended per client, no GGPO session, no result with frames.
@@ -354,7 +354,7 @@ if [ -n "${EMU:-}" ] && [ -n "${GGPO:-}" ]; then
     f="$RUN/p$i/PCSX2/logs/emulog.txt"
     check "p$i ggpo session, $((nc - 1)) lobby peers x$B" "grep -a -q 'ZdxsvGgpo: net player' '$f' && [ \$(grep -a -c 'ZdxsvGgpo: lobby peer position' '$f') -eq $(((nc - 1) * B)) ]"
   done
-  [ -n "${GGPO_DEFAULT:-}" ] && check "p$GGPO_DEFAULT GGPO from the setting" "grep -a -q \"ZdxsvGgpo: options 'net=1,lobby=1' (serial SLPS-25419, setting 1)\" '$RUN/p$GGPO_DEFAULT/PCSX2/logs/emulog.txt'"
+  [ -n "${GGPO_DEFAULT:-}" ] && check "p$GGPO_DEFAULT GGPO by default" "grep -a -q \"ZdxsvGgpo: options 'net=1,lobby=1' (serial SLPS-25419)\" '$RUN/p$GGPO_DEFAULT/PCSX2/logs/emulog.txt'"
   [ -n "${GGPO_DEFAULT:-}" ] && check "p$GGPO_DEFAULT GGPO port from the setting" "p=\$(grep -a -o '^ZdxsvGgpoPort = [0-9]*' '$RUN/p$GGPO_DEFAULT/PCSX2/inis/PCSX2.ini' | grep -o '[0-9]*\$') && [ \"\$p\" -gt 0 ] && grep -a -q \"ZdxsvGgpo: net player .* port \$p \" '$RUN/p$GGPO_DEFAULT/PCSX2/logs/emulog.txt'"
   # every GGPO client: $B GGPO battle ends; per battle the same end msg frame (the stop frame follows each
   # peer's own confirmation); 0 mismatches
