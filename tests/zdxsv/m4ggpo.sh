@@ -7,6 +7,7 @@
 #   GGPO_CLIENTS ("1 2 3 4": clients with lobby=1 and a ggpo_ line; fewer = control, expect every client
 #   cutting the battle connection: a peer has no GGPO address); other env goes to m4.sh.
 # Checks (besides m4.sh's): GGPO clients: `lobby peer position` x(N-1) and `net player` each;
+#   each client with a GGPO session: `peer report` with timesync=, input_blocks=, fps_history= and loss_ x(N-1);
 #   GDELAY=auto: `ping test` and `lobby delay E`, E = max(GMIN or 2, ceil(2*GGPO_LAT/32));
 #   P2P=v6: every peer at an IPv6 address; P2P=dual + GDELAY=auto: every peer's IPv6 candidate answered
 #   the ping test; P2P!=v4: every client found its IPv6 (`udp: ... IPv6 [`);
@@ -105,4 +106,9 @@ ok "no bridge" "! cat $RUN/p[1-4]/PCSX2/logs/emulog.txt | grep -a -q 'zdxsv: bri
 ok "stun x$n" "[ \$(cat $RUN/p[1-4]/PCSX2/logs/emulog.txt | grep -a -c 'zdxsv: udp: port') -eq $n ]"
 [ -n "$RELAY" ] && [ -z "$BAD" ] && ok "relay forwarded" "grep -a 'relay test session' '$OUT/relay.log' | grep -a -q 'forwarded [1-9]'"
 [ "$n" -lt 4 ] && ok "no ggpo session" "! cat $RUN/p[1-4]/PCSX2/logs/emulog.txt | grep -a -q 'ZdxsvGgpo: net player'"
+for i in $GC; do
+  f="$RUN/p$i/PCSX2/logs/emulog.txt"
+  grep -a -q 'ZdxsvGgpo: net player' "$f" || continue
+  ok "p$i peer report: timesync, input blocks, fps history, loss x$((n - 1))" "grep -a 'ZdxsvGgpo: peer report:' '$f' | grep -a 'timesync=[0-9]* input_blocks=[0-9]* fps_history=[0-9]' | [ \$(grep -a -o 'loss_[0-9]=[0-9]*/[0-9]*' | wc -l) -eq $((n - 1)) ]"
+done
 exit $rc

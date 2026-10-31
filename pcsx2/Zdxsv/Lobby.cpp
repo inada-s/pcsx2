@@ -298,7 +298,7 @@ namespace Zdxsv
 	std::vector<uint8_t> EncodeMatchingReport(const std::string& lines)
 	{
 		std::map<std::string, std::string> kv;
-		std::map<int, std::map<std::string, std::string>> peers; // rtt_ / addr_ / path_ / ping_<position>
+		std::map<int, std::map<std::string, std::string>> peers; // rtt_ / addr_ / path_ / ping_ / loss_<position>
 		std::istringstream in(lines);
 		std::string line;
 		while (std::getline(in, line))
@@ -309,7 +309,7 @@ namespace Zdxsv
 			const std::string k = line.substr(0, eq), v = line.substr(eq + 1);
 			const size_t us = k.find('_');
 			const std::string prefix = us == std::string::npos ? "" : k.substr(0, us);
-			if ((prefix == "rtt" || prefix == "addr" || prefix == "path" || prefix == "ping") && k.find_first_not_of("0123456789", us + 1) == std::string::npos &&
+			if ((prefix == "rtt" || prefix == "addr" || prefix == "path" || prefix == "ping" || prefix == "loss") && k.find_first_not_of("0123456789", us + 1) == std::string::npos &&
 				us + 1 < k.size())
 				peers[std::atoi(k.c_str() + us + 1)][prefix] = v;
 			else
@@ -324,7 +324,8 @@ namespace Zdxsv
 			{"frames", 6, false}, {"delay", 21, false}, {"user_id", 40, true}, {"result", 41, true}, {"reason", 42, true},
 			{"sync", 43, true}, {"sync_differ", 44, true}, {"answered", 45, false}, {"relays", 46, false},
 			{"ping_error", 47, true}, {"ping_wait_ms", 48, false}, {"min_delay", 49, false}, {"fixed_delay", 50, false},
-			{"cut_sends", 51, false}, {"rollback_frames", 52, false}, {"mismatches", 53, false}, {"disconnected", 54, false}};
+			{"cut_sends", 51, false}, {"rollback_frames", 52, false}, {"mismatches", 53, false}, {"disconnected", 54, false},
+			{"timesync", 58, false}, {"input_blocks", 59, false}};
 		std::vector<uint8_t> o;
 		for (const auto& f : FIELDS)
 		{
@@ -344,6 +345,10 @@ namespace Zdxsv
 						Pb::PutInt(peer, 40, std::atoll(it->second.c_str()));
 					if (auto it = m.find("addr"); it != m.end())
 						Pb::PutString(peer, 41, it->second);
+					int loss[2];
+					if (auto it = m.find("loss"); it != m.end() && std::sscanf(it->second.c_str(), "%d/%d", &loss[0], &loss[1]) == 2)
+						for (int i = 0; i < 2; i++)
+							Pb::PutInt(peer, 42 + i, loss[i]); // recv_loss, send_loss
 					Pb::PutBytes(o, 31, peer.data(), peer.size());
 				}
 			const auto it = kv.find(f.key);
@@ -366,6 +371,14 @@ namespace Zdxsv
 			Pb::PutFloat(o, 56, std::strtof(it->second.c_str(), nullptr));
 		if (auto it = kv.find("rollback_budget_used"); it != kv.end())
 			Pb::PutFloat(o, 57, std::strtof(it->second.c_str(), nullptr));
+		if (auto it = kv.find("fps_history"); it != kv.end() && !it->second.empty())
+		{
+			std::vector<int64_t> fps;
+			std::istringstream fs(it->second);
+			for (std::string f; std::getline(fs, f, ',');)
+				fps.push_back(std::atoll(f.c_str()));
+			Pb::PutPackedInts(o, 60, fps);
+		}
 		return o;
 	}
 
