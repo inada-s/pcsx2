@@ -223,6 +223,7 @@ namespace Zdxsv
 	void ReplayBegin();
 	void ReplayLog(int f, const NetInput* in);
 	void ReplayWrite(const char* what);
+	std::string ReplayRoundsReport(); // "win:ms,..;.." per round, ms = the MS id + 1 by position
 	void NetReset();
 	bool LobbyNewBattle();
 	constexpr u32 NET_FNO_SEND = 0x10;

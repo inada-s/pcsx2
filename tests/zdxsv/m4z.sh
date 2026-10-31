@@ -127,6 +127,13 @@ cleanup() {
 trap 'cleanup; rig_release' EXIT
 ok=0
 check() { if eval "$2"; then echo "PASS $1"; else echo "FAIL $1"; ok=1; fi; }
+# $1 battle code, $2 GGPO clients: all $2 match reports carry the same round_data, $2 used_ms per round
+round_data_ok() {
+  local r
+  r=$(grep -a "p2p matching report: battle_code=\"$1\"" "$OUT/lobby.log" | while read -r x; do echo "$x" | grep -a -o 'round_data="[^"]*"' | tr '\n' ' '; echo; done)
+  [ "$(echo "$r" | grep -c .)" -eq "$2" ] && [ "$(echo "$r" | sort -u | wc -l)" -eq 1 ] &&
+    echo "$r" | head -1 | grep -q -E "^(round_data=\"win_team:(-1|1|2)( used_ms:[0-9]+){$2}\" )+\$"
+}
 lobby_suspend() {  # $1 = Suspend / Resume
   powershell -NoProfile -Command "Add-Type 'using System; using System.Runtime.InteropServices; public static class Nt { [DllImport(\"ntdll.dll\")] public static extern int NtSuspendProcess(IntPtr h); [DllImport(\"ntdll.dll\")] public static extern int NtResumeProcess(IntPtr h); }'; Get-Process zdxsv* -EA 0 | % { [void][Nt]::Nt$1Process(\$_.Handle) }"
 }
@@ -368,6 +375,7 @@ if [ -n "${EMU:-}" ] && [ -n "${GGPO:-}" ]; then
       # each client's file is its own (position, frame 0 state): the first upload is kept
       same=0; for i in ${GGPO_CLIENTS:-$CLIENTS}; do cmp -s "$pb" "$RUN/p$i/PCSX2/replays/$code.pb" && same=$((same + 1)); done
       check "$code: stored .pb = exactly one client's saved .pb" "[ $same -eq 1 ]"
+      check "$code: $ng match reports, same round_data, $ng used_ms per round" "round_data_ok $code $ng"
       check "$code: every db record's replay_url = stored url" "[ \"\$('$PY' -I -c 'import sqlite3,sys; print(*sorted(set(r[0] for r in sqlite3.connect(sys.argv[1]).execute(\"select replay_url from battle_record where battle_code=?\", (sys.argv[2],)))), sep=\";\")' '$OUT/zdxsv.db' $code | tr -d '\r')\" = 'http://127.0.0.1:9881/lbs/replays/$code.pb' ]"
     done
     check "uploads x$((ng * B)): $B ok + $(((ng - 1) * B)) already there, no failure" "[ \$(cat '$RUN'/p[1-4]/PCSX2/logs/emulog.txt | grep -a -c 'replay upload.*: ok') -eq $B ] && [ \$(cat '$RUN'/p[1-4]/PCSX2/logs/emulog.txt | grep -a -c 'replay upload.*: already there') -eq $(((ng - 1) * B)) ] && ! cat '$RUN'/p[1-4]/PCSX2/logs/emulog.txt | grep -a -q 'replay upload.*failed'"

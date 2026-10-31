@@ -278,6 +278,24 @@ namespace Zdxsv
 		LiveFeed(static_cast<size_t>(s_replay_confirmed + 1));
 	}
 
+	std::string ReplayRoundsReport()
+	{
+		if (!s_replay_rec)
+			return {};
+		std::string s;
+		const size_t frames = std::min(s_replay_records.size(), s_replay_ms.size());
+		for (size_t f = 1; f < frames; f++)
+		{
+			if (const int win = RoundResult(s_replay_records[f - 1], s_replay_records[f]))
+			{
+				s += fmt::format("{}{}:", s.empty() ? "" : ";", win);
+				for (int p = 0; p < s_players; p++)
+					s += fmt::format("{}{}", p ? "," : "", ((s_replay_ms[f] >> (p * 8)) & 0xff) + 1);
+			}
+		}
+		return s;
+	}
+
 	// <dir>/<battle_code>.pb (without a battle code: rbk-<start_at>-p<position>.pb): a BattleLogFile protobuf,
 	// schema in Zdxsv/replay.proto.
 	void ReplayWrite(const char* what)
