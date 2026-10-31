@@ -19,6 +19,13 @@ namespace Zdxsv
 	// -1 = the recorder's). ZDXSV_REPLAY / ZDXSV_REPLAY_POV win. Only the next VM start takes it.
 	void SetNextReplay(std::string src, int pov);
 
+	// UI thread, with SetNextReplay (setting ZdxsvReplayReturn): when that replay ends, the game boots again from
+	// state (a save state path; "" = a plain boot). PlayStop: ReplayReturnArmed() = the VM shuts down for it.
+	// UI thread, VM stopped: TakeReplayReturn = true once after that end, and clears the return.
+	void SetReplayReturn(std::string state);
+	bool ReplayReturnArmed();
+	bool TakeReplayReturn(std::string& state);
+
 	// Translated name of a battle MS id (player work +0x1f2a); nullptr past the known names.
 	const char* MsName(u32 id);
 

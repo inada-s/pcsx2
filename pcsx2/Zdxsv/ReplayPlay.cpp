@@ -4,6 +4,7 @@
 // Replay playback: frame loop, seek keys, point of view, takeover, the control bar and its hotkeys.
 
 #include "Zdxsv/GgpoShared.h"
+#include "Zdxsv/ReplayList.h"
 
 namespace Zdxsv
 {
@@ -558,7 +559,7 @@ namespace Zdxsv
 		s_bar_frame = -1;
 		s_net_over = true; // the battle sock goes back to the IOP
 		PlayReport(what);
-		if (const char* e = std::getenv("ZDXSV_REPLAY_EXIT"); e && e[0] == '1')
+		if (const char* e = std::getenv("ZDXSV_REPLAY_EXIT"); ReplayReturnArmed() || (e && e[0] == '1'))
 			Host::RunOnCPUThread([] { Host::RequestVMShutdown(false, false, false); });
 		else if (!s_play_at_end)
 			Host::RunOnCPUThread([] { VMManager::SetPaused(true); });

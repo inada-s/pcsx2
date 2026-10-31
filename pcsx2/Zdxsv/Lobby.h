@@ -228,6 +228,10 @@ namespace Zdxsv
 	class LobbyFilter
 	{
 	public:
+		LobbyFilter();
+		~LobbyFilter();
+		LobbyFilter(const LobbyFilter&) = delete;
+		LobbyFilter& operator=(const LobbyFilter&) = delete;
 		void Feed(const uint8_t* data, size_t len, bool answerLineChecks = false);
 		size_t Ready() const { return ready.size(); }
 		size_t Take(uint8_t* dst, size_t max);
@@ -240,6 +244,9 @@ namespace Zdxsv
 		std::vector<uint8_t> answers; // frames for the server
 		bool pleaseUpdate = false; // passed the lobby's notice 0x6003 refusing an outdated pcsx2
 	};
+
+	// A lobby connection is open while its filter lives.
+	bool LobbyConnectionOpen();
 
 	// Battle-start answers 0x6911..0x6917 (whole lobby frames) the game got since the last battle start notice
 	// 0x6910: a replay keeps them (replay.proto lobby_answers) to play the start again from a common state.

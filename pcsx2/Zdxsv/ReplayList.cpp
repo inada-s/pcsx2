@@ -22,6 +22,14 @@ namespace Zdxsv
 		std::string s_next_src;
 		int s_next_pov = -1;
 
+		struct ReplayReturn
+		{
+			bool set = false;
+			bool ended = false;
+			std::string state;
+		};
+		ReplayReturn s_return; // with s_next_mutex
+
 		// Indexed by the battle MS id (player work +0x1f2a); the game's name table at 0x695d30 in the same order.
 		constexpr const char* MS_NAMES[] = {
 			TRANSLATE_NOOP("ZdxsvMs", "Gundam"),
@@ -92,6 +100,27 @@ namespace Zdxsv
 		src = std::exchange(s_next_src, {});
 		pov = std::exchange(s_next_pov, -1);
 		return !src.empty();
+	}
+
+	void SetReplayReturn(std::string state)
+	{
+		std::lock_guard lock(s_next_mutex);
+		s_return = {true, false, std::move(state)};
+	}
+
+	bool ReplayReturnArmed()
+	{
+		std::lock_guard lock(s_next_mutex);
+		s_return.ended = s_return.set;
+		return s_return.set;
+	}
+
+	bool TakeReplayReturn(std::string& state)
+	{
+		std::lock_guard lock(s_next_mutex);
+		const bool ended = s_return.set && s_return.ended;
+		state = std::exchange(s_return, {}).state;
+		return ended;
 	}
 
 	std::string ReplayDir()
