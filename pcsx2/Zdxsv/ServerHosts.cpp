@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 zdxsv contributors
 // SPDX-License-Identifier: GPL-3.0+
 
+#include "Zdxsv/CpuHooks.h"
 #include "Zdxsv/Dev9Hooks.h"
 #include "Zdxsv/ServerHosts.h"
 
@@ -55,7 +56,8 @@ namespace Zdxsv
 			return url;
 		Console.WriteLn("DEV9: DNS: %s looked up as %s", url, kServerHost);
 		s_used_server_host = true;
-		HttpsLatencyStart();
+		if (g_z_game)
+			HttpsLatencyStart();
 		return kServerHost;
 	}
 

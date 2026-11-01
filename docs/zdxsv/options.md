@@ -26,6 +26,10 @@ hooks patch fixed addresses of that build. With any other disc GGPO, replays,
 the recompiler hooks and the platform info are off, and `ZDXSV_GGPO` or
 `ZDXSV_REPLAY` only log `ZdxsvGgpo: off: not the Z game`.
 
+| Option | Default | Use | Meaning |
+|---|---|---|---|
+| `ZDXSV_EXTENSIONS=0` | on | feature | Turns off every zdxsv online battle extension: the Z game runs as any other game (above): no GGPO, replays, recompiler hooks, platform info (so no connectivity test, UPnP or HTTPS latency test), low-latency vsync or enforced emulation settings. No item on the settings page. Logs `ZdxsvGgpo: off: ZDXSV_EXTENSIONS=0`. It does not change the DNS name of the zdxsv server or TLS to it. |
+
 ## Settings in PCSX2.ini
 
 All but `ZdxsvReplayUploadUrl`, `ZdxsvUdpTestUrl`, `ZdxsvReplayStateUrl` (ini only), `ZdxsvLobbyApiUrl` and `ZdxsvReplayFavorites` (set in the replay
@@ -73,8 +77,8 @@ page greys it out and its tooltip names the variable.
 ## ZDXSV_GGPO
 
 `ZDXSV_GGPO="key=value,..."` starts a GGPO session in a running game. It
-replaces the default options (GGPO is on by default); `ZDXSV_GGPO=0` turns GGPO
-off. Any other value turns it on. Without `net=1` the session is a synctest. Log lines start with
+replaces the default options (GGPO is on by default); `ZDXSV_GGPO=0` (test)
+turns GGPO off and leaves the other extensions on. Any other value turns it on. Without `net=1` the session is a synctest. Log lines start with
 `ZdxsvGgpo`. See [rollback.md](rollback.md) and [lobby.md](lobby.md).
 
 ### Synctest keys

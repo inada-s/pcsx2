@@ -1254,13 +1254,17 @@ namespace Zdxsv
 		const char* want_env = Zdxsv::TestEnv("ZDXSV_GAME_CRC");
 		const u32 want = want_env ? static_cast<u32>(std::strtoul(want_env, nullptr, 16)) : GAME_CRC;
 		const bool serial_match = std::strcmp(serial, GAME_SERIAL) == 0;
-		g_z_game = serial_match && crc == want;
+		const char* ext = std::getenv("ZDXSV_EXTENSIONS");
+		const bool ext_off = ext && std::strcmp(ext, "0") == 0;
+		g_z_game = serial_match && crc == want && !ext_off;
 		const bool lobby_default = g_z_game && !s_play_env;
-		if (!g_z_game) // any other game or build: no GGPO, replay, hooks or platform info
+		if (!g_z_game) // any other game or build, or ZDXSV_EXTENSIONS=0: no GGPO, replay, hooks or platform info
 		{
 			s_options.clear();
 			g_ggpo_enabled = s_net_env = g_net_hook = g_zd_hook = g_ps_hook = false;
-			if (serial_match || (e && std::strcmp(e, "0") != 0) || s_play_env || s_net_trace)
+			if (ext_off)
+				Console.WriteLn("ZdxsvGgpo: off: ZDXSV_EXTENSIONS=0, all zdxsv extensions off");
+			else if (serial_match || (e && std::strcmp(e, "0") != 0) || s_play_env || s_net_trace)
 				Console.Warning("ZdxsvGgpo: off: not the Z game (serial %s CRC %08X, need %s %08X)", serial, crc, GAME_SERIAL, want);
 			return;
 		}
