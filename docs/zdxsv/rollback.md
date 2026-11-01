@@ -1,7 +1,8 @@
 # Rollback netcode (GGPO)
 
 How a battle runs over GGPO inside the emulator. In development. Lobby
-battles run over GGPO by default (`ZDXSV_GGPO=0` turns it off); a battle with a peer
+battles run over GGPO by default (`ZDXSV_EXTENSIONS=0` turns it off with all
+other extensions); a battle with a peer
 without GGPO is cut, as a connection failure. Option names and defaults are
 in [options.md](options.md); battles matched by the lobby are in
 [lobby.md](lobby.md).

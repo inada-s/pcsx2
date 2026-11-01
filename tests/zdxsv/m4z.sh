@@ -66,6 +66,8 @@
 #   HTTPS=1 (GGPO): each client measured the HTTPS latency once (online: the cloud regions) and a later lobby
 #   connection's platform info carried asia-northeast1=<ms> (lobby.log). HTTPS_OFF=K: client K runs with
 #   ZDXSV_HTTPS_LATENCY=0 (control): no region keys in its platform info.
+#   EXT_OFF=1: every client with ZDXSV_EXTENSIONS=0; checks per client: extensions off, no platform info, no GGPO
+#   options (replace the platform info checks); the battle runs through the battle server.
 #   RELAY=1: lobby relay on :8203; each GGPO client registered it and every path
 #   is RELAY_PATH (default direct: a LAN peer is never 16 ms slower than the relay).
 #   GGPO_LAT=D (CLIENTS="1 3", GGPO, GDELAY=auto; pcsx2 ZDXSV_GGPO advertise=): a udprelay.py (D ms one way) on
@@ -95,6 +97,8 @@ ENTRY=entry; [ "$nc" -eq 2 ] && ENTRY=entry2p
 nz=$(echo $ZP | wc -w)  # UDP joins: zproxy clients only (pcsx2 has no UDP bridge)
 # client i's env: console (no platform info), or emulator (+ GGPO lobby battle on port GGPO+i-1)
 cenv() {
+  # EXT_OFF=1: every client runs with ZDXSV_EXTENSIONS=0 (all zdxsv extensions off: seen as a PS2, battle server)
+  [ -n "${EXT_OFF:-}" ] && { echo ZDXSV_EXTENSIONS=0; return; }
   [ -z "${EMU:-}" ] && { echo ZDXSV_PLATFORM_INFO=0; return; }
   # PWTRACE=1: player-work hashes + net trace per client (OUT/trace-p<i>.txt; rplay.sh compares a replay to them)
   [ -n "${PWTRACE:-}" ] && echo "ZDXSV_PW_HASH=1 ZDXSV_NET_TRACE=$OUT/trace-p$1.txt"
@@ -240,8 +244,14 @@ for i in $ZP; do
 done
 check "join udp peer x$nz" "[ \$(grep -c 'join udp peer' '$OUT/battle.log') -eq $nz ]"
 check "join tcp x$((nc - nz))" "[ \$(grep -c 'join success' '$OUT/battle.log') -eq $((nc - nz)) ]"
-[ -n "${EMU:-}" ] && check "platform info sent x$nc" "[ \$(cat '$RUN'/p[1-4]/PCSX2/logs/emulog.txt | grep -a -c 'sent platform info') -ge $nc ]"
-[ -z "${EMU:-}" ] && check "platform info off x4, no bridge" "[ \$(cat '$RUN'/p[1-4]/PCSX2/logs/emulog.txt | grep -a -c 'platform info off') -ge 4 ] && ! cat '$RUN'/p[1-4]/PCSX2/logs/emulog.txt | grep -a -q 'bridge'"
+if [ -n "${EXT_OFF:-}" ]; then
+  for i in ${CLIENTS:-1 2 3 4}; do
+    el="$RUN/p$i/PCSX2/logs/emulog.txt"
+    check "p$i extensions off, no platform info, no GGPO" "grep -a -q 'ZDXSV_EXTENSIONS=0, all zdxsv extensions off' '$el' && grep -a -q 'not the Z game: no platform info' '$el' && ! grep -a -q 'sent platform info\|ZdxsvGgpo: options' '$el'"
+  done
+fi
+[ -n "${EMU:-}" ] && [ -z "${EXT_OFF:-}" ] && check "platform info sent x$nc" "[ \$(cat '$RUN'/p[1-4]/PCSX2/logs/emulog.txt | grep -a -c 'sent platform info') -ge $nc ]"
+[ -z "${EMU:-}" ] && [ -z "${EXT_OFF:-}" ] && check "platform info off x4, no bridge" "[ \$(cat '$RUN'/p[1-4]/PCSX2/logs/emulog.txt | grep -a -c 'platform info off') -ge 4 ] && ! cat '$RUN'/p[1-4]/PCSX2/logs/emulog.txt | grep -a -q 'bridge'"
 if [ -n "${EMU:-}" ] && [ "${ZDXSV_TLS_TEST_PIN:-}" = 1 ]; then
   for i in ${CLIENTS:-1 2 3 4}; do
     el="$RUN/p$i/PCSX2/logs/emulog.txt"; tp="8220 8221"; [ -z "${GGPO:-}" ] && tp="$tp 8222"
