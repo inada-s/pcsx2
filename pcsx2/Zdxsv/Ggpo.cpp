@@ -54,6 +54,7 @@ namespace Zdxsv
 		Common::Timer::Value s_osd_hold_until = 0; // nonzero: the session ended on a disconnect, its last lines stay up until then
 		bool s_running = false; // net: GGPO_EVENTCODE_RUNNING seen
 		bool s_disconnected = false;
+		int s_disconnected_until = -1; // net: last frame run after a peer left before the end msg
 		int s_frames_ahead = 0; // net: last GGPO_EVENTCODE_TIMESYNC
 		int s_waits = 0; // net: frames that waited for a peer
 		int s_sync_frames = 0; // net: frames slept for GGPO time sync
@@ -819,7 +820,14 @@ namespace Zdxsv
 			if (confirmed < s_rb.end_frame)
 				return;
 			s_net_end = 0;
-			s_net_last_real = confirmed;
+			// A peer that left first had confirmed this end msg: it ended the battle, it did not drop out. Its
+			// inputs after the end msg frame may be missing, and our own inputs then count as confirmed.
+			s_net_last_real = s_disconnected ? s_rb.end_frame : confirmed;
+			if (s_disconnected)
+			{
+				s_disconnected = false;
+				std::fill(std::begin(s_peer_state), std::end(s_peer_state), 0);
+			}
 			Console.WriteLn("ZdxsvGgpo: net end msg of frame %d confirmed at frame %d, leaving the peers", s_rb.end_frame, s_net_frame);
 			ggpo_disconnect_player(s_session, s_handles[s_net_me]);
 		}
@@ -977,6 +985,7 @@ namespace Zdxsv
 	{
 		s_started = s_net_armed = s_net_over = s_lobby_cut = false;
 		s_frame_ended = s_running = s_disconnected = s_rerun = false;
+		s_disconnected_until = -1;
 		s_net_me = -1;
 		s_cut_sends = 0;
 		s_net_sent.clear();
@@ -1189,8 +1198,15 @@ namespace Zdxsv
 		}
 		if (s_disconnected && s_net_end < 0)
 		{
-			Stop("disconnected");
-			return;
+			// A peer leaves once it confirmed the end msg, which took our input of that frame: an end msg still to
+			// come is no later than our last input's frame.
+			if (s_disconnected_until < 0)
+				s_disconnected_until = s_net_frame + s_delay;
+			if (!s_net || s_net_frame > s_disconnected_until)
+			{
+				Stop("disconnected");
+				return;
+			}
 		}
 		// net: ahead of the peer, give it time to catch up: GGPO's suggested frames, one frame (at 60 fps) every
 		// 10 frames, so the catch-up is not one visible hitch.

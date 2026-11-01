@@ -130,7 +130,11 @@ The game runs with its own input delay 0; GGPO adds the input delay.
   (`ggpo_disconnect_player` on its own player, as flycast): the tail frames
   no longer wait for a peer whose tail is shorter or that already closed, and
   a disconnect after the confirmed end is a `net battle end`, not
-  `disconnected`. The tail frames run on zero inputs for the peers, so the
+  `disconnected`. A peer can confirm the end, and leave, up to the input
+  delay before this peer has run the end message frame. So a disconnect
+  before the end ends the session only once this peer has run its last input's
+  frame without a confirmed end message. Otherwise it is a `net battle end`,
+  with the replay ending at the end message frame. The tail frames run on zero inputs for the peers, so the
   replay and the pw hashes stop at the frame confirmed at the end. GGPO's
   `disconnect_without_rollback` stays off: a peer that stops sending
   mid-battle still rolls back to its last received input.
