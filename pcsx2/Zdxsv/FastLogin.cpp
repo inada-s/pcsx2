@@ -43,7 +43,7 @@ namespace Zdxsv
 		constexpr size_t kLoginKeyLen = 10;
 		constexpr size_t kLbsIdLen = 12;
 
-		constexpr const char* kDefaultUrl = "http://lbs.zdxsv.net/api/login";
+		constexpr const char* kDefaultUrl = "https://lbs.zdxsv.net:8443/lbs/login";
 
 		struct LoginResult
 		{
