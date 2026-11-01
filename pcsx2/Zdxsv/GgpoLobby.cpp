@@ -49,20 +49,22 @@ namespace Zdxsv
 		const int n = static_cast<int>(s_lobby_peers.size());
 		// sync_<user> of the battle info: every player's must be ours; none at all = a lobby without them, no check
 		const std::string sync = SyncFingerprint();
-		std::string sync_bad;
+		std::string sync_bad, sync_missing;
 		int syncs = 0;
 		for (const LobbyPlayer& p : s_lobby_players)
 			syncs += !p.sync.empty();
 		for (size_t p = 0; syncs > 0 && p < s_lobby_players.size(); p++)
-			if (s_lobby_players[p].sync != sync)
-				sync_bad += (sync_bad.empty() ? "" : " ") + std::to_string(p) + ":" +
-				            (s_lobby_players[p].sync.empty() ? "none" : s_lobby_players[p].sync);
+			if (s_lobby_players[p].sync.empty())
+				sync_missing += (sync_missing.empty() ? "" : " ") + std::to_string(p);
+			else if (s_lobby_players[p].sync != sync)
+				sync_bad += (sync_bad.empty() ? "" : " ") + std::to_string(p) + ":" + s_lobby_players[p].sync;
 		// a peer without a listed address is reached only at a path the ping test found
 		bool unlisted = false;
 		for (int p = 0; p < n; p++)
 			unlisted |= p != s_lobby_me && s_lobby_peers[p].empty();
 		const char* why = !s_lobby_info ? "no battle info" :
 		                  !sync_bad.empty() ? "settings or build differ (sync fingerprint)" :
+		                  !sync_missing.empty() ? "battle info incomplete (a player has no sync fingerprint)" :
 		                  s_lobby_unreachable ? "a peer did not answer the ping test" :
 		                  !s_lobby_session ? "no ggpo_session" :
 		                  (n < 2 || n > GGPO_MAX_PLAYERS) ? "player count" :
@@ -87,6 +89,11 @@ namespace Zdxsv
 					Console.WriteLn("ZdxsvGgpo: sync fingerprint %s, differing positions %s", sync.empty() ? "none" : sync.c_str(), sync_bad.c_str());
 					s_report += "sync=" + sync + "\nsync_differ=" + sync_bad + "\n";
 					LobbyCutOsd(TRANSLATE_STR("Zdxsv", "No battle: an opponent's emulator build or settings differ from yours."));
+				}
+				else if (!sync_missing.empty())
+				{
+					Console.WriteLn("ZdxsvGgpo: no sync fingerprint in the battle info at positions %s", sync_missing.c_str());
+					LobbyCutOsd(TRANSLATE_STR("Zdxsv", "No battle: the battle information from the lobby is incomplete."));
 				}
 				else if (unlisted && s_delay_set)
 					LobbyCutOsd(TRANSLATE_STR("Zdxsv", "No battle: an opponent could not be reached (no network address)."));
