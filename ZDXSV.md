@@ -74,7 +74,7 @@ If your memory card is empty, the game makes the files it needs by itself:
    新規登録 to make an ID. The game saves the ID to the memory card.
 5. ログイン, then enter a handle name. You then see 戦場選択 (the lobby).
 
-Later sessions only need 通信対戦 → ログイン.
+Later sessions only need 通信対戦 → your network setting: the emulator logs in by itself and the game goes straight to the ID selection (DNAS and the top screen are skipped).
 
 ## Updates
 
