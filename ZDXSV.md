@@ -56,6 +56,8 @@ loading a save state are not available ("Not available during an online battle."
 Settings → zdxsv has three buttons, for a low-, mid- and high-spec PC. Each sets
 the internal resolution (Native, 2x or 3x) and the minimum input delay (3, 2 or 2).
 If the game slows down in battles, use the low-spec button.
+If it still slows down, check "Fast rollback": after a rollback the previous
+picture shows once more, so the picture is corrected one frame later.
 
 ## First time in the game
 

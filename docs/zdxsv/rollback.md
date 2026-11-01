@@ -81,6 +81,10 @@ RNG A (u16 0x6d7940, ~40 draws a battle frame), so after such a rollback
 RNG A differs from a run without one. RNG A is already peer-local (sound
 picks draw from it) and the players and RNG B stay in sync (rbk N=2 and N=4).
 
+With `ZdxsvFastRollback` no rerun frame runs VU1 or draws, and only the last
+runs the render callbacks: the first present after a rollback repeats the
+picture shown before it, and the corrected picture follows one frame later.
+
 ### Synctest
 
 `ZDXSV_GGPO` without `net=1`. Every `check` frames GGPO loads the state

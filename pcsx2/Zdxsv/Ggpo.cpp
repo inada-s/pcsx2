@@ -98,6 +98,9 @@ namespace Zdxsv
 			const char* e = std::getenv("ZDXSV_PRESENT_FIRST");
 			return !(e && e[0] == '0');
 		}();
+		// ZdxsvFastRollback: no rerun frame draws or runs VU1, only the last runs the render callbacks. The
+		// first present after a rollback repeats the picture shown before it.
+		bool s_fast_rollback = false;
 		bool s_throttle_deferred = false;
 		int s_top_frame = 0; // the frame of the last save outside a rollback
 		int s_reruns_left = 0; // rerun frames left in this rollback
@@ -137,6 +140,7 @@ namespace Zdxsv
 			s_hash = Hash::Pw;
 			s_players = 4;
 			s_osd = Host::GetBoolSettingValue("DEV9/Eth", "ZdxsvNetOsd", true); // osd= overrides it
+			s_fast_rollback = BoolSetting("ZdxsvFastRollback", false, "ZDXSV_FAST_ROLLBACK");
 			s_port = s_options.find("lobby=1") != std::string::npos ? s_lobby_port : 7001;
 			for (const std::string_view item : StringUtil::SplitString(s_options, ','))
 			{
@@ -532,15 +536,17 @@ namespace Zdxsv
 			Common::Timer timer;
 			EeProfileOnRerun();
 			const u64 cycle0 = cpuRegs.cycle;
-			if (!s_rerun_draw)
+			const bool skip_draws = !s_rerun_draw || s_fast_rollback;
+			if (skip_draws)
 				MTGS::RunOnGSThread([]() { g_gs_skip_draws = true; });
 			--s_reruns_left;
-			g_rerun_vu1_skip = !s_rerun_vu1 && s_reruns_left >= s_rerun_tail - 1;
-			g_rerun_draw_skip = !s_rerun_ee_draw && s_reruns_left >= s_rerun_tail;
+			const int tail = s_fast_rollback ? 1 : s_rerun_tail;
+			g_rerun_vu1_skip = !s_rerun_vu1 && s_reruns_left >= tail - 1;
+			g_rerun_draw_skip = !s_rerun_ee_draw && s_reruns_left >= tail;
 			const bool ok = RunFrame();
 			g_rerun_vu1_skip = g_rerun_draw_skip = false;
 			s_rerun_mcycles.Add((cpuRegs.cycle - cycle0) / 1e6);
-			if (!s_rerun_draw)
+			if (skip_draws)
 				MTGS::RunOnGSThread([]() { g_gs_skip_draws = false; });
 			s_rerun_ms.Add(timer.GetTimeMilliseconds());
 			g_ggpo_in_rollback = false;

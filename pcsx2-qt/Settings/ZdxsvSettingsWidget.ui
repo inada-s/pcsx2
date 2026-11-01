@@ -117,6 +117,13 @@
        </widget>
       </item>
       <item>
+       <widget class="QCheckBox" name="zdxsvFastRollback">
+        <property name="text">
+         <string>Fast rollback: lighter rollbacks; a corrected picture shows one frame later. Takes effect at the next game start.</string>
+        </property>
+       </widget>
+      </item>
+      <item>
        <layout class="QHBoxLayout" name="zdxsvPresetLayout">
         <item>
          <widget class="QPushButton" name="zdxsvPresetLow">
