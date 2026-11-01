@@ -111,7 +111,9 @@ the agent's context.
 - An upstream bug fix: its own PR, saying it fixes upstream code. Never open an
   upstream issue or PR.
 - No zdxsv feature active = upstream behavior. A changed default is listed in
-  `docs/zdxsv/features.md` and has a setting to turn it off.
+  `docs/zdxsv/features.md` and has a setting to turn it off. Exception: the
+  zdxsv online battle extensions (on by default) are turned off only by their
+  environment variable, with no setting.
 - Patches at fixed guest addresses check the game (serial or CRC).
 
 ### Code
