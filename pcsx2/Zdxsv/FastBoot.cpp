@@ -4,14 +4,23 @@
 #include "Zdxsv/CpuHooks.h"
 #include "Zdxsv/Settings.h"
 
+#include "Config.h"
+#include "Host.h"
 #include "Memory.h"
+#include "SaveState.h"
 #include "SIO/Pad/Pad.h"
 #include "VMManager.h"
 
 #include "common/Console.h"
+#include "common/Error.h"
+#include "common/FileSystem.h"
+#include "common/Path.h"
+
+#include "fmt/format.h"
 
 #include <array>
 #include <deque>
+#include <string>
 
 namespace Zdxsv
 {
@@ -50,6 +59,8 @@ namespace Zdxsv
 		{
 			bool started = false;
 			bool done = false;
+			bool use_state = false;
+			bool state_handled = false;
 			u32 frame = 0;
 			u32 next_press = 0;
 			u32 release_at = 0;
@@ -71,6 +82,34 @@ namespace Zdxsv
 		void Set(Button b, bool down)
 		{
 			Pad::SetControllerState(0, b, down ? 1.0f : 0.0f);
+		}
+
+		// Taken before the NET file load, so it holds no player data and serves any memory card.
+		std::string BootStatePath()
+		{
+			return Path::Combine(EmuFolders::Savestates,
+				fmt::format("{} zdxsv-fastboot {:08X}.p2s", VMManager::GetDiscSerial(), g_SaveVersion));
+		}
+
+		void LoadBootState(std::string path)
+		{
+			Host::RunOnCPUThread([path = std::move(path)]() {
+				Error error;
+				if (VMManager::LoadState(path.c_str(), &error))
+					Console.WriteLn("Zdxsv: fast boot: loaded %s", path.c_str());
+				else
+					Console.Error("Zdxsv: fast boot: loading %s failed: %s", path.c_str(), error.GetDescription().c_str());
+			});
+		}
+
+		void SaveBootState(std::string path)
+		{
+			Console.WriteLn("Zdxsv: fast boot: saving %s at frame %u", path.c_str(), s_boot.frame);
+			Host::RunOnCPUThread([path = std::move(path)]() {
+				VMManager::SaveState(path.c_str(), true, false, [](const std::string& error) {
+					Console.Error("Zdxsv: fast boot: saving the state failed: %s", error.c_str());
+				});
+			});
 		}
 
 		void Finish(const char* why)
@@ -135,6 +174,16 @@ namespace Zdxsv
 			s_boot.limiter = VMManager::GetLimiterMode();
 			VMManager::SetLimiterMode(LimiterModeType::Turbo);
 			Console.WriteLn("Zdxsv: fast boot: on");
+			s_boot.use_state = BoolSetting("ZdxsvFastBootState", true, "ZDXSV_FAST_BOOT_STATE");
+			if (s_boot.use_state && !Pointer(kSceneBlock))
+			{
+				std::string path = BootStatePath();
+				if (FileSystem::FileExists(path.c_str()))
+				{
+					s_boot.state_handled = true;
+					LoadBootState(std::move(path));
+				}
+			}
 		}
 		s_boot.frame++;
 		if (s_boot.frame > kGiveUpFrames)
@@ -152,6 +201,13 @@ namespace Zdxsv
 			s_boot.net_state = net;
 			s_boot.net_entry = s_boot.frame;
 			s_boot.sequence_after = 0;
+		}
+		if (s_boot.use_state && !s_boot.state_handled && scene == kMenuNetwork && net == 2 && eeMem->Main[kNetState + 1] == 0)
+		{
+			s_boot.state_handled = true;
+			std::string path = BootStatePath();
+			if (!FileSystem::FileExists(path.c_str()))
+				SaveBootState(std::move(path));
 		}
 
 		if (s_boot.held >= 0)
