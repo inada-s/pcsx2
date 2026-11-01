@@ -27832,16 +27832,6 @@ PCSX2 will be able to run once you&apos;ve placed your BIOS image inside the fol
       <translation>zdxsv リプレイ</translation>
     </message>
     <message>
-      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="119"/>
-      <source>http://host:port of the lobby's public API (remote and live lists)</source>
-      <translation>ロビーの公開 API の http://ホスト:ポート (リモートとライブの一覧)</translation>
-    </message>
-    <message>
-      <location filename="../Tools/ZdxsvReplayDialog.cpp" line="121"/>
-      <source>Lobby API:</source>
-      <translation>ロビー API:</translation>
-    </message>
-    <message>
       <location filename="../Tools/ZdxsvReplayDialog.cpp" line="125"/>
       <source>Local</source>
       <translation>ローカル</translation>
