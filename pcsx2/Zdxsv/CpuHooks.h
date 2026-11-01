@@ -30,6 +30,11 @@ namespace Zdxsv
 	// In VMManager::LoadCoreSettings, the Z game: settings that change emulation results to PCSX2's defaults, the
 	// speedhacks too in a battle; an OSD message names the overridden ones (SyncSettings.cpp)
 	void SyncSettingsEnforce();
+	// In VSyncStart, the Z game: when the game starts DNAS on the way to the lobby, log in through the login API with
+	// the NET file's login key and jump to the lobby connect, skipping DNAS and the login browser (FastLogin.cpp).
+	// No key or no answer: the game goes on as without it. FastLoginReset in GgpoOnVmShutdown drops a pending login.
+	void FastLoginOnVsync();
+	void FastLoginReset();
 
 	// In VMManager::Initialize, once the disc serial and CRC are known and before the CPU runs: the GGPO options
 	// of this VM (ZDXSV_GGPO, else the default) and the flags above that follow them. Any other
