@@ -38,6 +38,8 @@ namespace Zdxsv
 	// Boot to the lobby user_id selection in turbo, pressing through the menus on the fixed zdxsv route (FastBoot.cpp).
 	void FastBootOnVsync();
 	void FastBootReset();
+	// In VMManager::Initialize, before the CPU runs: the state file to boot from, or "".
+	const char* FastBootInitialState();
 
 	// In VMManager::Initialize, once the disc serial and CRC are known and before the CPU runs: the GGPO options
 	// of this VM (ZDXSV_GGPO, else the default) and the flags above that follow them. Any other

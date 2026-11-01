@@ -12,7 +12,6 @@
 #include "VMManager.h"
 
 #include "common/Console.h"
-#include "common/Error.h"
 #include "common/FileSystem.h"
 #include "common/Path.h"
 
@@ -61,6 +60,7 @@ namespace Zdxsv
 			bool done = false;
 			bool use_state = false;
 			bool state_handled = false;
+			std::string initial_state;
 			u32 frame = 0;
 			u32 next_press = 0;
 			u32 release_at = 0;
@@ -89,17 +89,6 @@ namespace Zdxsv
 		{
 			return Path::Combine(EmuFolders::Savestates,
 				fmt::format("{} zdxsv-fastboot {:08X}.p2s", VMManager::GetDiscSerial(), g_SaveVersion));
-		}
-
-		void LoadBootState(std::string path)
-		{
-			Host::RunOnCPUThread([path = std::move(path)]() {
-				Error error;
-				if (VMManager::LoadState(path.c_str(), &error))
-					Console.WriteLn("Zdxsv: fast boot: loaded %s", path.c_str());
-				else
-					Console.Error("Zdxsv: fast boot: loading %s failed: %s", path.c_str(), error.GetDescription().c_str());
-			});
 		}
 
 		void SaveBootState(std::string path)
@@ -175,15 +164,6 @@ namespace Zdxsv
 			VMManager::SetLimiterMode(LimiterModeType::Turbo);
 			Console.WriteLn("Zdxsv: fast boot: on");
 			s_boot.use_state = BoolSetting("ZdxsvFastBootState", true, "ZDXSV_FAST_BOOT_STATE");
-			if (s_boot.use_state && !Pointer(kSceneBlock))
-			{
-				std::string path = BootStatePath();
-				if (FileSystem::FileExists(path.c_str()))
-				{
-					s_boot.state_handled = true;
-					LoadBootState(std::move(path));
-				}
-			}
 		}
 		s_boot.frame++;
 		if (s_boot.frame > kGiveUpFrames)
@@ -233,5 +213,17 @@ namespace Zdxsv
 	void FastBootReset()
 	{
 		s_boot = FastBoot{};
+	}
+
+	const char* FastBootInitialState()
+	{
+		if (!BoolSetting("ZdxsvFastBoot", false, "ZDXSV_FAST_BOOT") || !BoolSetting("ZdxsvFastBootState", true, "ZDXSV_FAST_BOOT_STATE"))
+			return "";
+		s_boot.initial_state = BootStatePath();
+		if (!FileSystem::FileExists(s_boot.initial_state.c_str()))
+			s_boot.initial_state.clear();
+		else
+			Console.WriteLn("Zdxsv: fast boot: loading %s", s_boot.initial_state.c_str());
+		return s_boot.initial_state.c_str();
 	}
 } // namespace Zdxsv
