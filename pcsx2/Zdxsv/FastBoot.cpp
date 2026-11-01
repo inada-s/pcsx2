@@ -100,8 +100,11 @@ namespace Zdxsv
 			else if (scene == 2)
 			{
 				const u32 menu = Pointer(kMainMenu);
-				const bool on_network = menu && eeMem->Main[menu + kMainMenuCursor] == kMenuNetwork;
-				s_boot.queue.push_back(on_network ? Circle : Down);
+				if (menu)
+				{
+					eeMem->Main[menu + kMainMenuCursor] = kMenuNetwork;
+					s_boot.queue.push_back(Circle);
+				}
 			}
 			else if (scene == kMenuNetwork && (net == 1 || net == 2 || net == 4))
 				s_boot.queue.push_back(Circle);
