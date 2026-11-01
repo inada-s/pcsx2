@@ -18,6 +18,9 @@ namespace Zdxsv
 	// VMManager pause, frame advance, speed change and state load: true (refused) during a net battle, the
 	// reason in `error`, else an OSD notice. A paused or fast peer stalls every other peer of the battle.
 	bool GgpoBattleRefuses(Error* error = nullptr);
+	// FullscreenUI::OpenPauseMenu (hotkey "Open Pause Menu", default Escape): true (refused, OSD notice) during
+	// a net battle or while the game is connected to the zdxsv lobby, where the menu opens by accident.
+	bool OnlinePauseMenuRefuses();
 
 	// Replay play (ZDXSV_REPLAY): seek by `frames` from the current frame (hotkeys "Zdxsv Replay: Seek
 	// Back / Forward 10 s"), done at the next frame start; at the end (paused) it plays on. No-op otherwise.

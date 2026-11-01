@@ -10,6 +10,7 @@
 #include "Zdxsv/ReplayList.h"
 #include "MTGS.h"
 #include "Input/InputManager.h"
+#include "ImGui/FullscreenUI.h"
 
 namespace Zdxsv
 {
@@ -1057,6 +1058,7 @@ namespace Zdxsv
 					if (!VMManager::LoadStateFromSlot(1, false, &error))
 						Console.WriteLn("ZdxsvGgpo: vm test load state: %s", error.GetDescription().c_str());
 					VMManager::SetPaused(true);
+					FullscreenUI::OpenPauseMenu();
 				});
 			else
 				Host::RunOnCPUThread([] { Host::RequestVMShutdown(false, false, false); });

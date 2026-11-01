@@ -36,6 +36,7 @@
 #include "SIO/Memcard/MemoryCardFile.h"
 #include "SIO/Pad/Pad.h"
 #include "SIO/Sio.h"
+#include "Zdxsv/UiHooks.h"
 
 #include "IconsFontAwesome.h"
 #include "IconsPromptFont.h"
@@ -502,6 +503,9 @@ void FullscreenUI::OpenPauseMenu()
 		SaveStateSelectorUI::Close();
 		return;
 	}
+
+	if (Zdxsv::OnlinePauseMenuRefuses())
+		return;
 
 	MTGS::RunOnGSThread([]() {
 		if (!ImGuiManager::InitializeFullscreenUI() || s_current_main_window != MainWindowType::None)
