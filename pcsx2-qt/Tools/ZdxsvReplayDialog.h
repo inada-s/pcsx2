@@ -43,7 +43,6 @@ private:
 	void addFavorite();
 	void removeFavorite();
 	void browseFile();
-	void onApiUrlEdited();
 	void updatePlayButton();
 
 	// GET url on a worker thread; done(status, body) on the UI thread while the dialog lives. -1 = no response.
@@ -53,7 +52,6 @@ private:
 	void playItem(QTreeWidgetItem* item);
 	void play(const QString& src);
 
-	QLineEdit* m_api_url = nullptr;
 	QTabWidget* m_tabs = nullptr;
 	QComboBox* m_pov = nullptr;
 	QPushButton* m_play = nullptr;

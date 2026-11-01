@@ -29,7 +29,6 @@
 #include <QtWidgets/QCheckBox>
 #include <QtWidgets/QComboBox>
 #include <QtWidgets/QFileDialog>
-#include <QtWidgets/QFormLayout>
 #include <QtWidgets/QHBoxLayout>
 #include <QtWidgets/QHeaderView>
 #include <QtWidgets/QLabel>
@@ -182,13 +181,6 @@ ZdxsvReplayDialog::ZdxsvReplayDialog(QWidget* parent)
 	resize(900, 560);
 
 	QVBoxLayout* layout = new QVBoxLayout(this);
-
-	QFormLayout* api = new QFormLayout();
-	m_api_url = new QLineEdit(QString::fromStdString(Zdxsv::LobbyApiUrl()), this);
-	m_api_url->setPlaceholderText(tr("http://host:port of the lobby's public API (remote and live lists)"));
-	connect(m_api_url, &QLineEdit::editingFinished, this, &ZdxsvReplayDialog::onApiUrlEdited);
-	api->addRow(tr("Lobby API:"), m_api_url);
-	layout->addLayout(api);
 
 	m_tabs = new QTabWidget(this);
 	m_tabs->addTab(createLocalTab(), tr("Local"));
@@ -584,20 +576,6 @@ void ZdxsvReplayDialog::browseFile()
 		tr("zdxsv Replays (*.pb);;All Files (*.*)"));
 	if (!path.isEmpty())
 		play(QDir::toNativeSeparators(path));
-}
-
-void ZdxsvReplayDialog::onApiUrlEdited()
-{
-	const std::string url = m_api_url->text().trimmed().toStdString();
-	if (url == Zdxsv::LobbyApiUrl())
-		return;
-	Host::SetBaseStringSettingValue("DEV9/Eth", "ZdxsvLobbyApiUrl", url.c_str());
-	Host::CommitBaseSettingChanges();
-	m_remote->clear();
-	m_live->clear();
-	refreshFavorites();
-	if (m_tabs->currentIndex() == TAB_LIVE)
-		refreshLive();
 }
 
 void ZdxsvReplayDialog::updatePlayButton()

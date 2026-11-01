@@ -72,7 +72,8 @@ Tools → zdxsv Replays, as flycast's replay lists:
   API for the battle's `replay_url`.
 - **Live**: the lobby's `/lbs/live` (running battles first, refreshed every 10 s
   while the tab is shown). Plays `udp://<API host>:8201/<code>`.
-- **Lobby API** (Remote, Live): setting `ZdxsvLobbyApiUrl` (`options.md`).
+- Remote, Live and Favorites ask the lobby API of setting `ZdxsvLobbyApiUrl`
+  (ini only, `options.md`).
 - **Point of view**: the recorder's or a position (`ZDXSV_REPLAY_POV`).
 - **Play** (or a double click) boots the game from the game list (it must
   hold the Z game) with the pick; it applies to that boot only: the next

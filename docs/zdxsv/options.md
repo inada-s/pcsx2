@@ -32,7 +32,7 @@ the recompiler hooks and the platform info are off, and `ZDXSV_GGPO` or
 
 ## Settings in PCSX2.ini
 
-All but `ZdxsvReplayUploadUrl`, `ZdxsvUdpTestUrl`, `ZdxsvReplayStateUrl` (ini only), `ZdxsvLobbyApiUrl` and `ZdxsvReplayFavorites` (set in the replay
+All but `ZdxsvReplayUploadUrl`, `ZdxsvUdpTestUrl`, `ZdxsvReplayStateUrl`, `ZdxsvLobbyApiUrl` (ini only) and `ZdxsvReplayFavorites` (set in the replay
 window) are on the page Settings → zdxsv (global or per game). An environment variable named in a row overrides the setting; the
 page greys it out and its tooltip names the variable.
 
@@ -49,7 +49,7 @@ page greys it out and its tooltip names the variable.
 | `[DEV9/Eth] ZdxsvReplayKeyDisplay` | `false` | feature | Replays start with the key display on. `ZDXSV_REPLAY_KEY_DISPLAY` overrides it. |
 | `[DEV9/Eth] ZdxsvReplayBar` | `0` | feature | Replay control bar: `0` shown while paused and for 3 s after the mouse moves over the bottom quarter, `1` always, `2` never. `ZDXSV_REPLAY_BAR` overrides it. |
 | `[DEV9/Eth] ZdxsvReplayStateUrl` | the hosted `rbk-p1.p2s` | feature | The post-entry state a replay or live battle starts from: URL (downloaded once into the cache folder) or file; empty = the booted state. `ZDXSV_REPLAY_STATE` overrides it. |
-| `[DEV9/Eth] ZdxsvLobbyApiUrl` | `https://lbs.zdxsv.net:8443` | feature | The lobby's public API (`http://host:port`, zdxsv `ZDXSV_LOBBY_API_ADDR`) the replay window's Remote (`/lbs/replay`) and Live (`/lbs/live`) tabs ask; edited in the window; empty = none. A live battle is watched at `udp://<its host>:8201/<code>` (`ZDXSV_STUN_PORT` overrides the port). |
+| `[DEV9/Eth] ZdxsvLobbyApiUrl` | `https://lbs.zdxsv.net:8443` | feature | The lobby's public API (`http://host:port`, zdxsv `ZDXSV_LOBBY_API_ADDR`) the replay window's Remote (`/lbs/replay`) and Live (`/lbs/live`) tabs and the Favorites tab ask; empty = none. A live battle is watched at `udp://<its host>:8201/<code>` (`ZDXSV_STUN_PORT` overrides the port). |
 | `[DEV9/Eth] ZdxsvReplayFavorites` | empty | feature | The replay window's Favorites: one value per battle (battle code, start time, players and rounds, tab-separated), at most 1000; added from the Remote tab, removed in the Favorites tab. |
 | `[DEV9/Eth] ZdxsvReplayReturn` | `true` | feature | A replay started from the replay window returns to the game (and the window) when it ends (`replay.md`). |
 | `[DEV9/Eth] ZdxsvReplayUpload` | `true` | feature | Post each lobby battle's `.pb` to `ZdxsvReplayUploadUrl` (flycast `UploadReplay`, on by default). Only when the game found the server by DNS (no host entry for the game hosts): a local server's battles post nowhere. `upload=` overrides it. |
