@@ -106,7 +106,7 @@ namespace Zdxsv
 					s_boot.queue.push_back(Circle);
 				}
 			}
-			else if (scene == kMenuNetwork && (net == 1 || net == 2 || net == 4))
+			else if (scene == kMenuNetwork && (net == 1 || net == 2 || net == 4 || (net == 3 && eeMem->Main[kNetState + 1] == 2)))
 				s_boot.queue.push_back(Circle);
 			else if (scene == kMenuNetwork && s_boot.frame >= s_boot.sequence_after && s_boot.frame - s_boot.net_entry > (net == 6 ? kNetconfSettleFrames : kMenuSettleFrames))
 			{
