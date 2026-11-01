@@ -32,8 +32,8 @@ grep -q "stack up" "$OUT/stack.out" || { cat "$OUT/stack.out"; echo "FAIL stack"
 rm -f "$RUN/p1/PCSX2/logs/emulog.txt"
 cp -p "$RUN/p1/PCSX2/memcards/Mcd001.ps2" "$OUT/live-p1.ps2"
 t0=$(date +%s.%N)
-# ZDXSV_TLS=0: the local stack has no TLS ports
-l=$(env ZDXSV_TLS=0 powershell -NoProfile -Command "& '$here/launch.ps1' -N 1 -Speed ${SPEED:-1} -Memcard $RUN/Mcd001-$CARD.ps2 $([ -n "${SHOW:-}" ] || echo -Headless)" 2>&1)
+# ZDXSV_TLS=0: the local stack has no TLS ports; its login server (fast login API) is on :80
+l=$(env ZDXSV_TLS=0 ZDXSV_LOGIN_API_URL=${ZDXSV_LOGIN_API_URL:-http://127.0.0.1:80/api/login} powershell -NoProfile -Command "& '$here/launch.ps1' -N 1 -Speed ${SPEED:-1} -Memcard $RUN/Mcd001-$CARD.ps2 $([ -n "${SHOW:-}" ] || echo -Headless)" 2>&1)
 echo "$l" | tail -1
 echo "$l" | grep -q "pid .* slot" || { echo "FAIL launch p1"; exit 1; }
 "$PY" "$here/boottime.py" --t0 "$t0" --out "$OUT" --limit "${LIMIT:-5}" --maxs "${MAXS:-200}" ${ROUTE:+--route "$ROUTE"}
