@@ -49,6 +49,12 @@ zdxsv checkout, save states): `tests/zdxsv/README.md`.
 | Low-latency vsync (present before the limiter sleep) | setting `ZdxsvLowLatencyVsync` | `latency.ps1 -LowLatency 1`: press-to-present time on the main menu | `latency.ps1 -LowLatency 0`, or `ZDXSV_GAME_CRC=0` (not the Z game): the time is longer |
 | Input latency measurement | `ZDXSV_INPUT_LATENCY` | it is the tool of the test above; `m4lat.sh` uses it in a battle (`M4=m4ggpo.sh`: over GGPO, frame pacing split by rollback) | none |
 
+## Boot to lobby
+
+| Feature | How to turn on | Test | Control |
+|---|---|---|---|
+| Boot-to-lobby time measurement (no shortcut yet: today's path needs about 15 presses and 2 minutes) | it is a test tool | `boottime.sh`: from the launch with no input, the lobby's user_id selection screen within `LIMIT` s (default 5); fails today | `ROUTE=top,C boottime.sh`: today's menu path reaches the screen but fails the limit |
+
 ## Rollback netcode (GGPO)
 
 | Feature | How to turn on | Test | Control |
