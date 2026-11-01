@@ -31,7 +31,9 @@ namespace Zdxsv
 		constexpr u32 kMainMenu = kGp - 0x5e1c; // pointer; +0x25c = cursor
 		constexpr u32 kMainMenuCursor = 0x25c;
 		constexpr u8 kMenuNetwork = 7;
-		constexpr u32 kNetState = 0xcd1360;
+		constexpr u32 kNetState = 0xcd1360; // network menu state; +1 = its sub state
+		constexpr u8 kNetTerms = 5;
+		constexpr u8 kNetSettingList = 6;
 		constexpr u32 kLobbyObject = kGp - 0x5a1c; // pointer; +0xa1f = 4 at the user_id selection
 		constexpr u32 kLobbyMarker = 0xa1f;
 
@@ -136,13 +138,11 @@ namespace Zdxsv
 			}
 			else if (scene == kMenuNetwork && (net == 1 || net == 2 || net == 4 || (net == 3 && eeMem->Main[kNetState + 1] == 2)))
 				s_boot.queue.push_back(Circle);
-			else if (scene == kMenuNetwork && s_boot.frame >= s_boot.sequence_after && s_boot.frame - s_boot.net_entry > (net == 6 ? kNetconfSettleFrames : kMenuSettleFrames))
+			else if (scene == kMenuNetwork && s_boot.frame >= s_boot.sequence_after && s_boot.frame - s_boot.net_entry > (net == kNetSettingList ? kNetconfSettleFrames : kMenuSettleFrames))
 			{
 				if (net == 3)
 					Sequence({Up, Up, Circle}); // broadband
-				else if (net == 5)
-					Sequence({Up, Circle}); // accept the terms
-				else if (net == 6)
+				else if (net == kNetSettingList)
 					Sequence({Down, Down, Circle}); // network setting 1
 			}
 		}
@@ -181,6 +181,11 @@ namespace Zdxsv
 			s_boot.net_state = net;
 			s_boot.net_entry = s_boot.frame;
 			s_boot.sequence_after = 0;
+			if (net == kNetTerms)
+			{
+				eeMem->Main[kNetState] = kNetSettingList;
+				eeMem->Main[kNetState + 1] = 0;
+			}
 		}
 		if (s_boot.use_state && !s_boot.state_handled && scene == kMenuNetwork && net == 2 && eeMem->Main[kNetState + 1] == 0)
 		{
