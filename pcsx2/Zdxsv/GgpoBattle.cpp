@@ -638,4 +638,15 @@ namespace Zdxsv
 			Host::AddIconOSDMessage("ZdxsvBattleRefuses", ICON_FA_TRIANGLE_EXCLAMATION, std::string(msg), Host::OSD_WARNING_DURATION);
 		return true;
 	}
+
+	bool OnlinePauseMenuRefuses()
+	{
+		const bool battle = g_ggpo_active && s_net && !s_play_env;
+		if (!battle && !LobbyConnectionOpen())
+			return false;
+		Console.WriteLn("Zdxsv: pause menu refused (%s)", battle ? "battle" : "lobby");
+		Host::AddIconOSDMessage("ZdxsvPauseMenuRefuses", ICON_FA_TRIANGLE_EXCLAMATION,
+			TRANSLATE_STR("Zdxsv", "The pause menu is not available while online."), Host::OSD_WARNING_DURATION);
+		return true;
+	}
 } // namespace Zdxsv

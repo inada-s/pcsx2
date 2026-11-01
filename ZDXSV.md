@@ -50,6 +50,8 @@ settings differ), and the game returns to the lobby.
 
 During an online battle, pause, fast forward, slow motion, frame advance and
 loading a save state are not available ("Not available during an online battle.").
+In the lobby and in online battles, Escape (Open Pause Menu) does not open the pause
+menu ("The pause menu is not available while online."); the game keeps running.
 
 ## Recommended settings
 
