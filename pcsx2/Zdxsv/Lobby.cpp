@@ -1388,6 +1388,7 @@ namespace Zdxsv
 			g_ping->stop = true;
 		FinishPingTest();
 		StopUdpTest();
+		StopCutRefusal();
 		g_pingError.clear();
 		const int n = static_cast<int>(byPosition.size());
 		if (me < 0 || me >= n || n > 4)
@@ -1441,6 +1442,107 @@ namespace Zdxsv
 		std::vector<PingResult> result = std::move(g_ping->result);
 		g_ping.reset();
 		return result;
+	}
+
+	namespace
+	{
+		struct CutRefusal
+		{
+			std::thread thread;
+			std::atomic<bool> stop{false};
+			~CutRefusal()
+			{
+				stop = true;
+				if (thread.joinable())
+					thread.join();
+			}
+		};
+		std::unique_ptr<CutRefusal> g_refusal;
+
+		// GGPO's packed UdpMsg: a 12-byte header (const_magic, magic, sequence_number, remote_endpoint,
+		// type, relay_magic, relay_to_endpoint, org_type), then sync_request {random_request, ...} or
+		// sync_reply {random_reply, verification_failure}
+		constexpr uint16_t GGPO_CONST_MAGIC = 34046;
+		constexpr uint8_t GGPO_SYNC_REQUEST = 1, GGPO_SYNC_REPLY = 2;
+		constexpr int GGPO_HDR = 12;
+	} // namespace
+
+	void StopCutRefusal()
+	{
+		g_refusal.reset();
+	}
+
+	void StartCutRefusal(int me, uint16_t port, int durationMs)
+	{
+		g_refusal.reset();
+		if (g_ping)
+			g_ping->stop = true;
+		FinishPingTest();
+		if (me < 0 || me >= 4)
+			return;
+		const sock_t s4 = BindUdp(AF_INET, port), s6 = BindUdp(AF_INET6, port);
+		if (s4 == INVALID_SOCKET && s6 == INVALID_SOCKET)
+		{
+			Log("cut refusal: bind :" + std::to_string(port) + " failed");
+			return;
+		}
+		g_refusal = std::make_unique<CutRefusal>();
+		CutRefusal* r = g_refusal.get();
+		r->thread = std::thread([r, s4, s6, me, durationMs] {
+			const auto end = Clock::now() + std::chrono::milliseconds(durationMs);
+			const uint16_t magic = static_cast<uint16_t>(1 + std::rand() % 0xfffe);
+			uint16_t seq = 0;
+			int replies = 0;
+			std::vector<PeerAddr> refused;
+			while (!r->stop && Clock::now() < end)
+			{
+				fd_set rd;
+				FD_ZERO(&rd);
+				sock_t top = 0;
+				for (sock_t s : {s4, s6})
+					if (s != INVALID_SOCKET)
+					{
+						FD_SET(s, &rd);
+						top = std::max(top, s);
+					}
+				timeval tv{0, 50000};
+				if (select(static_cast<int>(top) + 1, &rd, nullptr, nullptr, &tv) <= 0)
+					continue;
+				for (sock_t s : {s4, s6})
+				{
+					if (s == INVALID_SOCKET || !FD_ISSET(s, &rd))
+						continue;
+					uint8_t buf[512];
+					sockaddr_storage from{};
+					socklen_t fromLen = sizeof(from);
+					const int n = recvfrom(s, reinterpret_cast<char*>(buf), sizeof(buf), 0, reinterpret_cast<sockaddr*>(&from), &fromLen);
+					uint16_t cm;
+					if (n < GGPO_HDR + 6 || (std::memcpy(&cm, buf, 2), cm) != GGPO_CONST_MAGIC || buf[7] != GGPO_SYNC_REQUEST)
+						continue;
+					uint8_t reply[GGPO_HDR + 5] = {};
+					std::memcpy(reply, &GGPO_CONST_MAGIC, 2);
+					std::memcpy(reply + 2, &magic, 2);
+					std::memcpy(reply + 4, &seq, 2);
+					seq++;
+					reply[6] = static_cast<uint8_t>(me);
+					reply[7] = GGPO_SYNC_REPLY;
+					std::memcpy(reply + GGPO_HDR, buf + GGPO_HDR, 4);
+					reply[GGPO_HDR + 4] = 1;
+					sendto(s, reinterpret_cast<const char*>(reply), sizeof(reply), 0, reinterpret_cast<const sockaddr*>(&from), fromLen);
+					replies++;
+					const PeerAddr peer = FromSockaddr(from);
+					if (std::find_if(refused.begin(), refused.end(), [&](const PeerAddr& a) { return a.String() == peer.String(); }) == refused.end())
+					{
+						refused.push_back(peer);
+						Log("cut refusal: refused the GGPO session of " + peer.String());
+					}
+				}
+			}
+			Log("cut refusal: ended, " + std::to_string(replies) + " replies to " + std::to_string(refused.size()) + " peers");
+			for (sock_t s : {s4, s6})
+				if (s != INVALID_SOCKET)
+					closesocket(s);
+		});
 	}
 
 	bool PingTestView(int& elapsedMs, int& durationMs, int& players, uint8_t rtt[4][4], int teams[4])

@@ -166,6 +166,12 @@ connection failure; there is no fallback to the battle server. Sends on the
 battle socket are dropped and its poll fails, so the game sets its connection
 error at once and goes back to the lobby.
 
+The cutting player also stops its ping test and, for 20 s, answers every GGPO
+sync request on its GGPO port with a verification failure. A peer that did
+start GGPO then closes as a session mismatch within about 1 s instead of
+waiting for its 10 s start timeout. Only direct paths: a peer that reaches the
+cutting player through a relay waits for its timeout.
+
 ## Relay servers
 
 As flycast with gdxsv's `relay`. The ping test also pings each relay server of

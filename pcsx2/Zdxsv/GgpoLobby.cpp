@@ -18,6 +18,8 @@ namespace Zdxsv
 		std::vector<std::vector<Zdxsv::PeerAddr>> s_lobby_peers; // candidates per position
 		std::vector<Zdxsv::BattleInfo::Relay> s_lobby_relays; // relay servers of the last battle info
 		u32 s_lobby_gen = 0, s_armed_gen = 0; // battle infos received; the one the last GGPO battle armed with
+		// a peer that armed GGPO starts it up to its ping test's end after us, then waits its start timeout
+		constexpr int CUT_REFUSAL_MS = 20000;
 
 		void LobbyCutOsd(std::string message)
 		{
@@ -82,6 +84,8 @@ namespace Zdxsv
 				s_cut_sends = 0;
 				report("cut");
 				s_report += std::string("reason=") + why + "\n";
+				if (s_lobby_session && s_lobby_me >= 0)
+					Zdxsv::StartCutRefusal(s_lobby_me, static_cast<u16>(GgpoLobbyPort()), CUT_REFUSAL_MS);
 				if (!sync_bad.empty())
 				{
 					Console.WriteLn("ZdxsvGgpo: sync fingerprint %s, differing positions %s", sync.empty() ? "none" : sync.c_str(), sync_bad.c_str());
@@ -148,6 +152,7 @@ namespace Zdxsv
 				s_cut_sends = 0;
 				report("cut");
 				s_report += "answered=" + std::to_string(up) + "\n" + rtts;
+				Zdxsv::StartCutRefusal(me, static_cast<u16>(GgpoLobbyPort()), CUT_REFUSAL_MS);
 				LobbyCutOsd(!pingError.empty() ?
 								TRANSLATE_STR("Zdxsv", "No battle: the network port is in use by another program.") :
 								TRANSLATE_STR("Zdxsv", "No battle: an opponent did not answer. Check your router and firewall (UDP)."));
