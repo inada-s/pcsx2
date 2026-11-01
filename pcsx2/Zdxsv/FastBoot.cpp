@@ -43,6 +43,8 @@ namespace Zdxsv
 		constexpr u32 kGiveUpFrames = 60 * 240;
 		// Presses right after a menu opens can be dropped (the cursor misses an Up).
 		constexpr u32 kMenuSettleFrames = 60;
+		// The netconf list keeps dropping presses for longer after it opens.
+		constexpr u32 kNetconfSettleFrames = 90;
 
 		struct FastBoot
 		{
@@ -103,7 +105,7 @@ namespace Zdxsv
 			}
 			else if (scene == kMenuNetwork && (net == 1 || net == 2 || net == 4))
 				s_boot.queue.push_back(Circle);
-			else if (scene == kMenuNetwork && s_boot.frame >= s_boot.sequence_after && s_boot.frame - s_boot.net_entry > kMenuSettleFrames)
+			else if (scene == kMenuNetwork && s_boot.frame >= s_boot.sequence_after && s_boot.frame - s_boot.net_entry > (net == 6 ? kNetconfSettleFrames : kMenuSettleFrames))
 			{
 				if (net == 3)
 					Sequence({Up, Up, Circle}); // broadband
