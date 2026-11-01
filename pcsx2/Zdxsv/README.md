@@ -65,6 +65,7 @@ options: `docs/zdxsv/`.
 | `HttpsLatency.cpp` | HTTPS latency test to the cloud regions, sent in the platform info |
 | `SpectateSync.cpp`, `SpectateSync.h` | Four-screen replay: one PCSX2 per position, kept on the same frame through shared memory |
 | `ServerHosts.cpp`, `ServerHosts.h` | The game's server hosts, looked up as the zdxsv server's hostname by the internal DNS server; whether it was (public server) |
+| `FastBoot.cpp` | Boot in turbo to the lobby user_id selection, pressing through the menus on the fixed network route |
 | `FastLogin.cpp` | Login through the login API at DNAS start, the browser's result written to guest RAM, jump to the lobby connect |
 | `Upnp.cpp`, `Upnp.h` | UPnP mapping of the GGPO port on the router (`3rdparty/miniupnpc`), removed at exit |
 | `TlsTunnel.cpp` | TLS to the zdxsv server: the game's TCP connections go through a local tunnel, the server is checked by its public-key pins |

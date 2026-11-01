@@ -361,6 +361,7 @@ set(pcsx2DEV9Sources
 	Zdxsv/LobbyConnection.cpp
 	Zdxsv/Upnp.cpp
 	Zdxsv/ServerHosts.cpp
+	Zdxsv/FastBoot.cpp
 	Zdxsv/FastLogin.cpp
 	Zdxsv/HttpsLatency.cpp
 	Zdxsv/TlsTunnel.cpp

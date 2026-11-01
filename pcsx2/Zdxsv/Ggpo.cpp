@@ -1484,6 +1484,7 @@ namespace Zdxsv
 		SyncSettingsReset();
 		FastLoginReset();
 		StopCutRefusal();
+		FastBootReset();
 		if (!g_ggpo_enabled)
 			return;
 		size_t keys = 0;

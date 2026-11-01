@@ -506,6 +506,8 @@ static __fi void VSyncStart(u64 sCycle)
 		Zdxsv::DeltaStateOnVsync();
 	if (Zdxsv::g_z_game)
 		Zdxsv::FastLoginOnVsync();
+	if (Zdxsv::g_z_game)
+		Zdxsv::FastBootOnVsync();
 	if (Zdxsv::g_ggpo_enabled || Zdxsv::g_net_hook)
 		Zdxsv::GgpoOnVsync();
 	Zdxsv::EeOpTestOnVsync();
