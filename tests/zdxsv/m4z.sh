@@ -318,7 +318,8 @@ if [ -n "$CUT" ]; then
   done
   [ "$CUT" = ping ] && check "p$BAD_SESSION used the bad session" "grep -a -q 'badsession=1: ping test session' '$RUN/p$BAD_SESSION/PCSX2/logs/emulog.txt'"
   check "every client back in the lobby (tcp conns x$((2 * nc)))" "[ \$(grep -c 'A new tcp connection open' '$OUT/lobby.log') -ge $((2 * nc)) ]"
-  check "no battle fought (no result with frames)" "! grep -q 'total_frame:[1-9]' '$OUT/results.txt'"
+  # a 4-player cut reports total_frame 16200 (a 1v1 cut 0): frames do not tell a cut from a battle
+  check "no battle fought (no win, loss, kill or death)" "! grep -q '_count:[1-9]' '$OUT/results.txt'"
   if [ -n "${REPORT:-}" ]; then
     grep -a 'p2p matching report:' "$OUT/lobby.log" | cut -c1-300
     check "no match report without a battle code" "! grep -a -q 'p2p matching report: battle_code=\"\"' '$OUT/lobby.log'"
