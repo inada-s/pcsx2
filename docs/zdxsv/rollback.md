@@ -87,9 +87,12 @@ main loop sends the list of the frame before (`slot[flag ^ 1]`) ahead of the
 logic. The patch moves the send after the logic and makes it, and the VIF1
 DMA end handler, take `slot[flag]`: VU1 draws a list in the frame that built
 it, and the picture is shown at the next present, one frame earlier. Then
-only the last rerun frame runs the render callbacks and VU1. The framebuffer
-swap (DISPFB between FBP 0x000 and 0x08c every vsync) is unchanged. Not
-checked yet: lobby and menus, N=4 battles, replays.
+no rerun frame runs the render callbacks or VU1: GS memory is not rolled back,
+so the first present after a rollback shows the frame drawn before it (the
+predicted one), never an older picture. The framebuffer
+swap (DISPFB between FBP 0x000 and 0x08c every vsync) is unchanged. The players
+and RNG B stay in sync in N=4 battles and between peers with and without it.
+Not checked yet: replays.
 
 ### Synctest
 
