@@ -77,13 +77,14 @@ namespace Zdxsv
 		// the picture is shown one vblank later: the first present after a rollback shows what VU1 drew in
 		// the last rerun frame, from the list of the one before. So only the last two rerun frames run the
 		// render callbacks (g_rerun_draw_skip) and only the last starts VU1 microprograms (g_rerun_vu1_skip).
-		// With g_single_draw_list VU1 draws the list in the frame that built it: only the last rerun frame runs
-		// both. ZDXSV_RERUN_TAIL=n: the last n rerun frames run the callbacks and the last n - 1 VU1, or n with
-		// g_single_draw_list (default 2; 1 with it). One less breaks the picture after each rollback
-		// (tests/zdxsv/rerunpic.sh).
+		// With g_single_draw_list no rerun frame draws: GS memory is not rolled back, so the first present
+		// after a rollback shows the frame drawn before the rollback (the predicted one), not an older one.
+		// ZDXSV_RERUN_TAIL=n: the last n rerun frames run the callbacks and the last n - 1 VU1, or n with
+		// g_single_draw_list (default 2; 0 with it). Without g_single_draw_list one less breaks the picture
+		// after each rollback (tests/zdxsv/rerunpic.sh).
 		const int s_rerun_tail = [] {
 			const char* e = std::getenv("ZDXSV_RERUN_TAIL");
-			return e ? std::atoi(e) : 0;
+			return e ? std::max(0, std::atoi(e)) : -1;
 		}();
 		// ZDXSV_RERUN_VU1=1: VU1 in every rerun frame.
 		const bool s_rerun_vu1 = [] {
@@ -538,7 +539,7 @@ namespace Zdxsv
 			if (!s_rerun_draw)
 				MTGS::RunOnGSThread([]() { g_gs_skip_draws = true; });
 			--s_reruns_left;
-			const int tail = s_rerun_tail ? s_rerun_tail : (g_single_draw_list ? 1 : 2);
+			const int tail = s_rerun_tail >= 0 ? s_rerun_tail : (g_single_draw_list ? 0 : 2);
 			g_rerun_vu1_skip = !s_rerun_vu1 && s_reruns_left >= tail - (g_single_draw_list ? 0 : 1);
 			g_rerun_draw_skip = !s_rerun_ee_draw && s_reruns_left >= tail;
 			const bool ok = RunFrame();
