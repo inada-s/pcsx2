@@ -37,4 +37,5 @@ t0=$(date +%s.%N)
 l=$(env ZDXSV_TLS=0 ZDXSV_LOGIN_API_URL=${ZDXSV_LOGIN_API_URL:-http://$api/lbs/login} powershell -NoProfile -Command "& '$here/launch.ps1' -N 1 -Speed ${SPEED:-1} -Memcard $RUN/Mcd001-$CARD.ps2 $([ -n "${SHOW:-}" ] || echo -Headless)" 2>&1)
 echo "$l" | tail -1
 echo "$l" | grep -q "pid .* slot" || { echo "FAIL launch p1"; exit 1; }
-"$PY" "$here/boottime.py" --t0 "$t0" --out "$OUT" --limit "${LIMIT:-5}" --maxs "${MAXS:-200}" ${ROUTE:+--route "$ROUTE"}
+pid=$(echo "$l" | grep -o "pid [0-9]*" | tail -1 | cut -d" " -f2)
+"$PY" "$here/boottime.py" --t0 "$t0" --pid "$pid" --emulog "$RUN/p1/PCSX2/logs/emulog.txt" --out "$OUT" --limit "${LIMIT:-5}" --maxs "${MAXS:-200}" ${ROUTE:+--route "$ROUTE"}
