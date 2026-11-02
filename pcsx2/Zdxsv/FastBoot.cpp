@@ -110,7 +110,7 @@ namespace Zdxsv
 			s_boot.held = -1;
 			s_boot.queue.clear();
 			s_boot.done = true;
-			if (VMManager::GetLimiterMode() == LimiterModeType::Turbo)
+			if (VMManager::GetLimiterMode() == LimiterModeType::Unlimited)
 				VMManager::SetLimiterMode(s_boot.limiter);
 			Console.WriteLn("Zdxsv: fast boot: %s at frame %u", why, s_boot.frame);
 		}
@@ -161,7 +161,7 @@ namespace Zdxsv
 				return;
 			}
 			s_boot.limiter = VMManager::GetLimiterMode();
-			VMManager::SetLimiterMode(LimiterModeType::Turbo);
+			VMManager::SetLimiterMode(LimiterModeType::Unlimited);
 			Console.WriteLn("Zdxsv: fast boot: on");
 			s_boot.use_state = BoolSetting("ZdxsvFastBootState", true, "ZDXSV_FAST_BOOT_STATE");
 		}
