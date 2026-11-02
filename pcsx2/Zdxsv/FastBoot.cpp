@@ -31,7 +31,14 @@ namespace Zdxsv
 		constexpr u32 kMainMenu = kGp - 0x5e1c; // pointer; +0x25c = cursor
 		constexpr u32 kMainMenuCursor = 0x25c;
 		constexpr u8 kMenuNetwork = 7;
-		constexpr u32 kNetState = 0xcd1360; // network menu state; +1 = its sub state
+		constexpr u32 kNetState = 0xcd1360; // network menu state; +1 = its sub state, +2 = the sub state's step
+		constexpr u8 kNetFileLoad = 2;
+		// NET file load sub states: 0x14 and up are the card error dialogs (an unformatted card waits at 0x17), 100 = loaded.
+		constexpr u8 kNetFileErrorFirst = 0x14;
+		constexpr u8 kNetFileLoaded = 100;
+		// Sub state 7 searches the card; its step 0x14 = no NET file found (Circle searches again).
+		constexpr u8 kNetFileSearch = 7;
+		constexpr u8 kNetFileNotFound = 0x14;
 		constexpr u8 kNetTerms = 5;
 		constexpr u8 kNetSettingList = 6;
 		constexpr u32 kLobbyObject = kGp - 0x5a1c; // pointer; +0xa1f = 4 at the user_id selection
@@ -176,6 +183,14 @@ namespace Zdxsv
 		const u32 scene_block = Pointer(kSceneBlock);
 		const u8 scene = scene_block ? eeMem->Main[scene_block] : 0;
 		const int net = eeMem->Main[kNetState];
+		const u8 net_sub = eeMem->Main[kNetState + 1];
+		if (scene == kMenuNetwork && net == kNetFileLoad)
+		{
+			if (net_sub >= kNetFileErrorFirst && net_sub < kNetFileLoaded)
+				return Finish("stopped, memory card error");
+			if (net_sub == kNetFileSearch && eeMem->Main[kNetState + 2] == kNetFileNotFound)
+				return Finish("stopped, no NET file on the memory card");
+		}
 		if (net != s_boot.net_state)
 		{
 			s_boot.net_state = net;
@@ -187,7 +202,7 @@ namespace Zdxsv
 				eeMem->Main[kNetState + 1] = 0;
 			}
 		}
-		if (s_boot.use_state && !s_boot.state_handled && scene == kMenuNetwork && net == 2 && eeMem->Main[kNetState + 1] == 0)
+		if (s_boot.use_state && !s_boot.state_handled && scene == kMenuNetwork && net == kNetFileLoad && net_sub == 0)
 		{
 			s_boot.state_handled = true;
 			std::string path = BootStatePath();
