@@ -128,10 +128,15 @@ namespace Zdxsv
 		struct PixelWatchState
 		{
 			std::array<std::atomic<u64>, RING> push_v{};
+			// the pushed frame is the first shown one after a rollback
+			std::array<std::atomic<bool>, RING> push_rb{};
+			bool rb_pending = false;
 			std::atomic<bool> on{false};
 			std::vector<u32> last;
 			std::mutex mutex;
 			std::vector<u64> changes;
+			// count=0: shown frames [other, after a rollback] and those of them with no pixel change
+			u64 shown[2] = {}, unchanged[2] = {};
 		};
 		PixelWatchState s_pix;
 		std::vector<double> s_end_ms; // frame end -> frame end, CPU thread
@@ -210,7 +215,7 @@ namespace Zdxsv
 					s_cfg.addr = ((v >> 28) == 7) ? Ps2MemSize::MainRam + (v & (Ps2MemSize::Scratch - 1)) : (v & (Ps2MemSize::MainRam - 1));
 				}
 				else if (key == "count")
-					s_cfg.count = std::max(1ul, std::strtoul(val.c_str(), nullptr, 0));
+					s_cfg.count = std::strtoul(val.c_str(), nullptr, 0);
 				else if (key == "start")
 					s_cfg.start = std::max(16ull, std::strtoull(val.c_str(), nullptr, 0));
 				else if (key == "hold")
@@ -358,7 +363,7 @@ namespace Zdxsv
 
 		// GS thread, after a shown frame's present. Pixels are in the game's frame (GetInternalResolution),
 		// scaled to the upscaled display texture.
-		void PixelWatch(u64 v)
+		void PixelWatch(u64 v, bool rb)
 		{
 			GSTexture* const cur = g_gs_device ? g_gs_device->GetCurrent() : nullptr;
 			const GSVector2i real = g_gs_renderer ? g_gs_renderer->GetInternalResolution() : GSVector2i(0, 0);
@@ -381,7 +386,17 @@ namespace Zdxsv
 			std::vector<u32> px(n);
 			std::memcpy(px.data(), dl->GetMapPointer(), n * sizeof(u32));
 			dl->Unmap();
-			if (!s_pix.last.empty() && px != s_pix.last)
+			if (!s_pix.last.empty() && s_cfg.count == 0)
+			{
+				s_pix.shown[rb]++;
+				s_pix.unchanged[rb] += px == s_pix.last;
+				if ((s_pix.shown[0] + s_pix.shown[1]) % 600 == 0)
+					Console.WriteLn("ZdxsvLatency: pixel watch at vsync %llu: shown after a rollback %llu (unchanged %llu), other %llu (unchanged %llu)",
+						static_cast<unsigned long long>(v), static_cast<unsigned long long>(s_pix.shown[1]),
+						static_cast<unsigned long long>(s_pix.unchanged[1]), static_cast<unsigned long long>(s_pix.shown[0]),
+						static_cast<unsigned long long>(s_pix.unchanged[0]));
+			}
+			else if (!s_pix.last.empty() && px != s_pix.last)
 			{
 				std::lock_guard lock(s_pix.mutex);
 				s_pix.changes.push_back(v);
@@ -565,6 +580,9 @@ namespace Zdxsv
 		{
 			s_push_t[(s_frames_pushed + 1) % RING].store(Common::Timer::GetCurrentValue(), std::memory_order_relaxed);
 			s_pix.push_v[(s_frames_pushed + 1) % RING].store(s_vsync, std::memory_order_relaxed);
+			s_pix.push_rb[(s_frames_pushed + 1) % RING].store(s_pix.rb_pending && !g_ggpo_in_rollback, std::memory_order_relaxed);
+			if (!g_ggpo_in_rollback)
+				s_pix.rb_pending = false;
 			s_t_push0 = Now();
 		}
 		else if (!g_ggpo_in_rollback) // a rerun frame's push is part of the rollback
@@ -586,6 +604,8 @@ namespace Zdxsv
 		const double now = Now();
 		const double prev_poll = s_t_prev_poll;
 		s_t_prev_poll = now;
+		if (s_cfg.count == 0)
+			return;
 		if (!s_cfg.go.empty())
 		{
 			std::error_code ec;
@@ -674,6 +694,7 @@ namespace Zdxsv
 			s_rerun_since_poll += d; // the next poll clears it
 			s_t_any_end = now;
 			s_rerun_frames += s_pace_on.load(std::memory_order_relaxed);
+			s_pix.rb_pending = true;
 			return;
 		}
 		s_t_any_end = now;
@@ -732,7 +753,7 @@ namespace Zdxsv
 			s_pace_prev = t;
 		}
 		if (s_pix.on.load(std::memory_order_acquire) && !g_gs_rerun_frame)
-			PixelWatch(s_pix.push_v[n % RING].load(std::memory_order_relaxed));
+			PixelWatch(s_pix.push_v[n % RING].load(std::memory_order_relaxed), s_pix.push_rb[n % RING].load(std::memory_order_relaxed));
 	}
 
 	void InputLatencyOnPresentStart()

@@ -215,7 +215,7 @@ are not shown, so they are no samples: their time (state load + reruns) is the
 | `back=name` | `up` | test | Button of the odd presses, so a cursor returns. `none` = always `btn`. |
 | `addr=0x..` | search mode | test | EE address of the byte the press changes. Without it, search mode finds that byte. |
 | `held=1` | off | test | Search for bytes that differ only while the button is held (a pad buffer), not bytes that stay changed (a cursor). |
-| `count=N` | 20 | test | Number of presses. |
+| `count=N` | 20 | test | Number of presses. 0 with `pixel=`: no presses, watch only: every 600 shown frames logs how many shown frames came right after a rollback and how many of each kind had no pixel change (a repeated picture). |
 | `start=N` | 600 | test | Vsync of the first press. |
 | `go=path` | off | test | Instead of `start`: the first press is 60 vsyncs after this file appears. |
 | `hold=N` | 4 | test | Frames each press is held. |
