@@ -3,6 +3,7 @@
 
 #include "Zdxsv/Lobby.h"
 #include "Zdxsv/Proto.h"
+#include "Zdxsv/TestOptions.h"
 
 #include <array>
 #include <algorithm>
@@ -260,13 +261,15 @@ namespace Zdxsv
 			info.users.push_back(u.id);
 		}
 		info.userId = users[peerId].id;
+		static const char* drop_sync = TestEnv("ZDXSV_DROP_SYNC");
 		for (const User& u : users)
 		{
 			if (!u.name.empty())
 				info.names[u.id] = u.name;
 			if (!u.pilot.empty())
 				info.pilots[u.id] = u.pilot;
-			if (u.sync.size() == 16 && u.sync.find_first_not_of("0123456789abcdef") == std::string::npos)
+			if (u.sync.size() == 16 && u.sync.find_first_not_of("0123456789abcdef") == std::string::npos &&
+				!(drop_sync && std::atoi(drop_sync) == &u - users.data()))
 				info.syncs[u.id] = u.sync;
 			if (u.team == 1 || u.team == 2)
 				info.teams[u.id] = static_cast<int>(u.team);
