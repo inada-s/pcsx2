@@ -212,6 +212,11 @@ namespace Zdxsv
 	// servers (optional): every relay of the test, in order. error (optional): why the last
 	// StartPingTest ran no test (bind failure), "" otherwise.
 	std::vector<PingResult> FinishPingTest(std::vector<RelayServerAddr>* servers = nullptr, std::string* error = nullptr);
+	// A cut lobby battle: ends the ping test, then for durationMs answers every GGPO sync request on
+	// port with a verification failure, so a peer that started GGPO closes at once instead of at its
+	// start timeout. Direct paths only: a peer reaching us through a relay is not answered.
+	void StartCutRefusal(int me, uint16_t port, int durationMs);
+	void StopCutRefusal();
 	// The running ping test, for the connection diagram (any thread): ms since its start, its length, the
 	// player count, the rtt matrix ([i][j]: i's rtt to j in ms, 255 max, 0 = unknown) and the teams by position
 	// (StartPingTest teams). False when none runs.

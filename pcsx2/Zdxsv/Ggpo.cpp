@@ -1483,6 +1483,7 @@ namespace Zdxsv
 			g_mtvu_off = false; // the next VM decides again (a reset VM keeps it off)
 		SyncSettingsReset();
 		FastLoginReset();
+		StopCutRefusal();
 		if (!g_ggpo_enabled)
 			return;
 		size_t keys = 0;

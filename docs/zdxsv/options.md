@@ -141,6 +141,7 @@ turns GGPO off and leaves the other extensions on. Any other value turns it on. 
 | `ZDXSV_NET_PUMP=0` | on | control | No GGPO pump thread: the sockets are polled only by the frame loop, so pings and relayed packets wait up to a frame. |
 | `ZDXSV_SYNC_FORCE=0` | forced | control | Sync-relevant settings are not forced (`Zdxsv/SyncSettings.cpp`); the log names those that would have been (`ZdxsvSync: ZDXSV_SYNC_FORCE=0, not forced:`). The fingerprint is sent anyway. |
 | `ZDXSV_SYNC_SALT=s` | none | test | s is mixed into the sync fingerprint, as another build would be: a lobby battle with this client is cut. |
+| `ZDXSV_DROP_SYNC=p` | none | test | The sync fingerprint of position p is left out of the received battle info, as a lobby that missed it: this client cuts the battle, its peers do not. |
 | `ZDXSV_VM_TEST=frame:shutdown`, `frame:reset`, `frame:mute` or `frame:ui` | off | test | Shut down or reset the VM once a session or replay reaches that GGPO frame; `mute`: drop every GGPO packet sent and received from then on (the battle TCP stays up); `ui`: ask for Turbo, a frame advance, a slot 1 state load, a pause and the pause menu, as the hotkeys do. |
 
 ## Replay playback
