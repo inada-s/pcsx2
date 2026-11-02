@@ -7,6 +7,8 @@
 #include "Zdxsv/ReplayList.h"
 #include "IconsFontAwesome.h"
 
+#include "rapidjson/document.h"
+
 #include <zlib.h>
 
 namespace Zdxsv
@@ -157,33 +159,16 @@ namespace Zdxsv
 			return got;
 		}
 
-		// The first "replay_url" string of a JSON text (Go's encoder: \" \\ \/ and \u00XX escapes), empty if none.
+		// The first battle's replay_url of a /lbs/replay answer, empty if none.
 		std::string JsonReplayUrl(std::string_view json)
 		{
-			const size_t key = json.find("\"replay_url\"");
-			if (key == std::string_view::npos)
+			rapidjson::Document doc;
+			if (doc.Parse(json.data(), json.size()).HasParseError() || !doc.IsArray() || doc.Empty() || !doc[0].IsObject())
 				return {};
-			size_t i = json.find_first_not_of(" \t\r\n", key + 12);
-			if (i == std::string_view::npos || json[i] != ':' || (i = json.find_first_not_of(" \t\r\n", i + 1)) == std::string_view::npos ||
-				json[i] != '"')
+			const auto it = doc[0].FindMember("replay_url");
+			if (it == doc[0].MemberEnd() || !it->value.IsString())
 				return {};
-			std::string url;
-			for (i++; i < json.size() && json[i] != '"'; i++)
-			{
-				if (json[i] != '\\')
-					url += json[i];
-				else if (i + 1 < json.size() && json[i + 1] == 'u' && i + 5 < json.size())
-				{
-					const std::optional<u32> c = StringUtil::FromChars<u32>(json.substr(i + 2, 4), 16);
-					if (!c || *c >= 0x80) // a URL is ASCII
-						return {};
-					url += static_cast<char>(*c);
-					i += 5;
-				}
-				else if (i + 1 < json.size())
-					url += json[++i];
-			}
-			return i < json.size() ? url : std::string();
+			return std::string(it->value.GetString(), it->value.GetStringLength());
 		}
 
 		// ZDXSV_REPLAY=http(s)://...: a replay file, or the lobby's /lbs/replay?battle_code=C answer

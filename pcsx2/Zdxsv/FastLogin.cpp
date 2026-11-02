@@ -9,6 +9,8 @@
 #include "common/Console.h"
 #include "common/HTTPDownloader.h"
 
+#include "rapidjson/document.h"
+
 #include <atomic>
 #include <cstring>
 #include <memory>
@@ -78,21 +80,12 @@ namespace Zdxsv
 			return Host::GetStringSettingValue("DEV9/Eth", "ZdxsvLoginApiUrl", kDefaultUrl);
 		}
 
-		// A flat JSON object of strings, as the login API writes it; anything else (escapes included) = no value.
-		std::optional<std::string> JsonString(const std::string& body, const char* key)
+		std::optional<std::string> JsonString(const rapidjson::Document& doc, const char* key)
 		{
-			const std::string k = std::string("\"") + key + "\":\"";
-			const size_t at = body.find(k);
-			if (at == std::string::npos)
+			const auto it = doc.FindMember(key);
+			if (it == doc.MemberEnd() || !it->value.IsString())
 				return std::nullopt;
-			const size_t begin = at + k.size();
-			const size_t end = body.find('"', begin);
-			if (end == std::string::npos)
-				return std::nullopt;
-			std::string v = body.substr(begin, end - begin);
-			if (v.find('\\') != std::string::npos)
-				return std::nullopt;
-			return v;
+			return std::string(it->value.GetString(), it->value.GetStringLength());
 		}
 
 		bool Printable(const std::string& s, size_t max_len)
@@ -107,18 +100,21 @@ namespace Zdxsv
 
 		std::optional<LoginResult> Parse(const std::string& body)
 		{
+			rapidjson::Document doc;
+			if (doc.Parse(body.data(), body.size()).HasParseError() || !doc.IsObject())
+				return std::nullopt;
 			LoginResult r;
 			std::optional<std::string> v;
-			if (!(v = JsonString(body, "login_key")) || !Printable(*v, 16))
+			if (!(v = JsonString(doc, "login_key")) || !Printable(*v, 16))
 				return std::nullopt;
 			r.login_key = *v;
-			if (!(v = JsonString(body, "session_id")) || !Printable(*v, 10))
+			if (!(v = JsonString(doc, "session_id")) || !Printable(*v, 10))
 				return std::nullopt;
 			r.session_id = *v;
-			if (!(v = JsonString(body, "lobby_addr")) || !Printable(*v, 21))
+			if (!(v = JsonString(doc, "lobby_addr")) || !Printable(*v, 21))
 				return std::nullopt;
 			r.lobby_addr = *v;
-			if (!(v = JsonString(body, "lbs_info")) || !Printable(*v, 64) || v->find(',') != kLbsIdLen)
+			if (!(v = JsonString(doc, "lbs_info")) || !Printable(*v, 64) || v->find(',') != kLbsIdLen)
 				return std::nullopt;
 			r.lbs_info = *v;
 			return r;
