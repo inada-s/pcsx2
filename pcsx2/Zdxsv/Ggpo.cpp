@@ -1076,7 +1076,12 @@ namespace Zdxsv
 		static const int snap_n = snap_c ? std::atoi(snap_c + 1) : 0;
 		static const u32 snap_from = snap_c && std::strchr(snap_c + 1, ',') ? std::atoi(std::strchr(snap_c + 1, ',') + 1) : 0;
 		if (snap_n > 0 && !g_ggpo_in_rollback && g_FrameCount >= snap_from && g_FrameCount % snap_n == 0)
-			GSQueueSnapshot(fmt::format("{}\\v{}.png", std::string(snap, std::strchr(snap, ',')), g_FrameCount));
+		{
+			// Through the GS ring: a direct queue while the last request is still pending is dropped (one slot).
+			MTGS::RunOnGSThread([path = fmt::format("{}\\v{}.png", std::string(snap, std::strchr(snap, ',')), g_FrameCount)]() {
+				GSQueueSnapshot(path);
+			});
+		}
 		if (!g_ggpo_enabled)
 			return;
 		if (!g_ggpo_active)
