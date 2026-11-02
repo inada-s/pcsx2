@@ -18,6 +18,7 @@ Everything is on only for the one game build it was made for; any other disc run
 - Network defaults that point at the zdxsv server.
 - Platform info: the lobby can tell an emulator from a real PS2.
 - Lobby save states (opt-in, for debugging).
+- Fast login through the zdxsv login API (DNAS skipped), and fast boot (opt-in): from game start to the lobby ID selection with no input.
 - Settings page Settings → zdxsv (global or per game).
 - Sync-safe settings forced while the game runs, and a sync fingerprint that cuts a battle between differing builds.
 
