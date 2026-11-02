@@ -81,6 +81,16 @@ RNG A (u16 0x6d7940, ~40 draws a battle frame), so after such a rollback
 RNG A differs from a run without one. RNG A is already peer-local (sound
 picks draw from it) and the players and RNG B stay in sync (rbk N=2 and N=4).
 
+`ZDXSV_SINGLE_DRAW_LIST=1` removes the frame between the list and VU1. The
+game keeps two draw-list slots chosen by a per-frame flag (u32 0x7ae1c0); its
+main loop sends the list of the frame before (`slot[flag ^ 1]`) ahead of the
+logic. The patch moves the send after the logic and makes it, and the VIF1
+DMA end handler, take `slot[flag]`: VU1 draws a list in the frame that built
+it, and the picture is shown at the next present, one frame earlier. Then
+only the last rerun frame runs the render callbacks and VU1. The framebuffer
+swap (DISPFB between FBP 0x000 and 0x08c every vsync) is unchanged. Not
+checked yet: lobby and menus, N=4 battles, replays.
+
 ### Synctest
 
 `ZDXSV_GGPO` without `net=1`. Every `check` frames GGPO loads the state
