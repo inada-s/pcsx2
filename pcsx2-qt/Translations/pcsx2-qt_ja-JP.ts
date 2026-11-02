@@ -28148,6 +28148,26 @@ PCSX2 will be able to run once you&apos;ve placed your BIOS image inside the fol
     <name>ZdxsvSettingsWidget</name>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.ui" line="20"/>
+      <source>Game Start</source>
+      <translation>ゲーム起動</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.ui" line="27"/>
+      <source>Fast boot: go from game start to the lobby ID selection with no input. Takes effect at the next game start.</source>
+      <translation>高速起動: ゲーム起動からロビーの ID 選択まで操作なしで進めます。次のゲーム起動から有効です。</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="71"/>
+      <source>Fast Boot</source>
+      <translation>高速起動</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="72"/>
+      <source>From game start to the lobby ID selection with no input: runs at unlimited speed and presses through the title, main menu and network menus (broadband, network setting 1), then returns to normal speed. Stops at once when the route cannot go on, for example with an unformatted memory card or no NET file on it. Uncheck it to play offline.</source>
+      <translation>ゲーム起動からロビーの ID 選択まで操作なしで進めます: 最高速でタイトル、メインメニュー、通信メニュー (ブロードバンド接続、ネットワーク設定 1) を進め、通常速度に戻します。先へ進めないとき (例: メモリーカードが未フォーマット、NET ファイルがない) はすぐに止まります。オフラインで遊ぶときはチェックを外します。</translation>
+    </message>
+    <message>
+      <location filename="../Settings/ZdxsvSettingsWidget.ui" line="20"/>
       <source>Online Battles</source>
       <translation>オンライン対戦</translation>
     </message>

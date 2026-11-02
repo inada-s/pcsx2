@@ -15,6 +15,22 @@
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
+    <widget class="QGroupBox" name="startGroupBox">
+     <property name="title">
+      <string>Game Start</string>
+     </property>
+     <layout class="QVBoxLayout" name="startLayout">
+      <item>
+       <widget class="QCheckBox" name="zdxsvFastBoot">
+        <property name="text">
+         <string>Fast boot: go from game start to the lobby ID selection with no input. Takes effect at the next game start.</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
     <widget class="QGroupBox" name="battleGroupBox">
      <property name="title">
       <string>Online Battles</string>
