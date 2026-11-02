@@ -467,6 +467,7 @@
     <ClCompile Include="Zdxsv\ReplayList.cpp" />
     <ClCompile Include="Zdxsv\ReplayPlay.cpp" />
     <ClCompile Include="Zdxsv\ReplayRecord.cpp" />
+    <ClCompile Include="Zdxsv\SingleDrawList.cpp" />
     <ClCompile Include="Zdxsv\SpectateSync.cpp" />
     <ClCompile Include="Zdxsv\SyncSettings.cpp" />
     <ClCompile Include="Zdxsv\IntHooks.cpp" />

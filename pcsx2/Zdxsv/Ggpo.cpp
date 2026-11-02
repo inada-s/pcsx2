@@ -77,11 +77,13 @@ namespace Zdxsv
 		// the picture is shown one vblank later: the first present after a rollback shows what VU1 drew in
 		// the last rerun frame, from the list of the one before. So only the last two rerun frames run the
 		// render callbacks (g_rerun_draw_skip) and only the last starts VU1 microprograms (g_rerun_vu1_skip).
-		// ZDXSV_RERUN_TAIL=n: the last n rerun frames run the callbacks and the last n - 1 VU1 (default 2;
-		// 1 breaks the picture after each rollback, tests/zdxsv/rerunpic.sh).
+		// With g_single_draw_list VU1 draws the list in the frame that built it: only the last rerun frame runs
+		// both. ZDXSV_RERUN_TAIL=n: the last n rerun frames run the callbacks and the last n - 1 VU1, or n with
+		// g_single_draw_list (default 2; 1 with it). One less breaks the picture after each rollback
+		// (tests/zdxsv/rerunpic.sh).
 		const int s_rerun_tail = [] {
 			const char* e = std::getenv("ZDXSV_RERUN_TAIL");
-			return e ? std::atoi(e) : 2;
+			return e ? std::atoi(e) : 0;
 		}();
 		// ZDXSV_RERUN_VU1=1: VU1 in every rerun frame.
 		const bool s_rerun_vu1 = [] {
@@ -536,8 +538,9 @@ namespace Zdxsv
 			if (!s_rerun_draw)
 				MTGS::RunOnGSThread([]() { g_gs_skip_draws = true; });
 			--s_reruns_left;
-			g_rerun_vu1_skip = !s_rerun_vu1 && s_reruns_left >= s_rerun_tail - 1;
-			g_rerun_draw_skip = !s_rerun_ee_draw && s_reruns_left >= s_rerun_tail;
+			const int tail = s_rerun_tail ? s_rerun_tail : (g_single_draw_list ? 1 : 2);
+			g_rerun_vu1_skip = !s_rerun_vu1 && s_reruns_left >= tail - (g_single_draw_list ? 0 : 1);
+			g_rerun_draw_skip = !s_rerun_ee_draw && s_reruns_left >= tail;
 			const bool ok = RunFrame();
 			g_rerun_vu1_skip = g_rerun_draw_skip = false;
 			s_rerun_mcycles.Add((cpuRegs.cycle - cycle0) / 1e6);
@@ -1275,6 +1278,7 @@ namespace Zdxsv
 		const char* ext = std::getenv("ZDXSV_EXTENSIONS");
 		const bool ext_off = ext && std::strcmp(ext, "0") == 0;
 		g_z_game = serial_match && crc == want && !ext_off;
+		SingleDrawListOnVmInitialize();
 		const bool lobby_default = g_z_game && !s_play_env;
 		if (!g_z_game) // any other game or build, or ZDXSV_EXTENSIONS=0: no GGPO, replay, hooks or platform info
 		{
@@ -1485,6 +1489,7 @@ namespace Zdxsv
 		FastLoginReset();
 		StopCutRefusal();
 		FastBootReset();
+		SingleDrawListReset();
 		if (!g_ggpo_enabled)
 			return;
 		size_t keys = 0;

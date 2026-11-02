@@ -38,6 +38,13 @@ namespace Zdxsv
 	// Boot to the lobby user_id selection at unlimited speed, pressing through the menus on the fixed zdxsv route (FastBoot.cpp).
 	void FastBootOnVsync();
 	void FastBootReset();
+	// ZDXSV_SINGLE_DRAW_LIST=1, Z game: the game draws a frame's list in that frame, not the next (SingleDrawList.cpp).
+	extern bool g_single_draw_list;
+	void SingleDrawListOnVmInitialize();
+	// In VSyncStart with g_single_draw_list: patches the game code once it is loaded.
+	void SingleDrawListOnVsync();
+	// In GgpoOnVmShutdown.
+	void SingleDrawListReset();
 	// In VMManager::Initialize, before the CPU runs: the state file to boot from, or "".
 	const char* FastBootInitialState();
 
