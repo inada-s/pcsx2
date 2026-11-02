@@ -12,6 +12,8 @@
 #include "Memory.h"
 #include "SIO/Pad/Pad.h"
 #include "SIO/Pad/PadDualshock2.h"
+#include "GS/Renderers/Common/GSDevice.h"
+#include "GS/Renderers/Common/GSRenderer.h"
 
 #include "common/Console.h"
 #include "common/Timer.h"
@@ -87,6 +89,7 @@ namespace Zdxsv
 			bool held = false;
 			std::string go;
 			std::string out;
+			std::vector<std::pair<int, int>> pixels;
 		};
 
 		Config s_cfg;
@@ -119,6 +122,18 @@ namespace Zdxsv
 		std::mutex s_pace_mutex;
 		std::vector<double> s_pace_ms;
 		Common::Timer::Value s_pace_prev = 0;
+
+		// pixel=: s_vsync of each pushed frame by frame number, and the vsyncs of the shown frames whose
+		// watched pixels differ from the shown frame before (GS thread).
+		struct PixelWatchState
+		{
+			std::array<std::atomic<u64>, RING> push_v{};
+			std::atomic<bool> on{false};
+			std::vector<u32> last;
+			std::mutex mutex;
+			std::vector<u64> changes;
+		};
+		PixelWatchState s_pix;
 		std::vector<double> s_end_ms; // frame end -> frame end, CPU thread
 		double s_end_prev = 0;
 		// Same intervals split: [emulation of this frame, push and limiter sleep of the one before, GGPO
@@ -210,10 +225,24 @@ namespace Zdxsv
 					s_cfg.go = val;
 				else if (key == "out")
 					s_cfg.out = val;
+				else if (key == "pixel")
+				{
+					for (size_t p = 0; p < val.size();)
+					{
+						size_t e = val.find(';', p);
+						if (e == std::string::npos)
+							e = val.size();
+						int x, y;
+						if (std::sscanf(val.substr(p, e - p).c_str(), "%d:%d", &x, &y) == 2 && x >= 0 && y >= 0 && s_cfg.pixels.size() < 16)
+							s_cfg.pixels.emplace_back(x, y);
+						p = e + 1;
+					}
+				}
 				else
 					Console.Warning("ZdxsvLatency: unknown key '%s'", item.c_str());
 			}
 			s_cfg.gap = std::max(s_cfg.gap, s_cfg.hold + 20);
+			s_pix.on.store(!s_cfg.pixels.empty(), std::memory_order_release);
 			s_rng.seed(s_cfg.seed);
 			s_presses.reserve(s_cfg.count);
 			Console.WriteLn("ZdxsvLatency: btn=%s back=%s %s count=%u start=%llu hold=%u gap=%u seed=%u",
@@ -325,6 +354,70 @@ namespace Zdxsv
 			Console.WriteLn("ZdxsvLatency: %s n=%zu ms min %.2f mean %.2f max %.2f sd %.2f >1.5x %zu", name, v.size(),
 				*std::min_element(v.begin(), v.end()), m, *std::max_element(v.begin(), v.end()),
 				std::sqrt(var / v.size()), late);
+		}
+
+		// GS thread, after a shown frame's present. Pixels are in the game's frame (GetInternalResolution),
+		// scaled to the upscaled display texture.
+		void PixelWatch(u64 v)
+		{
+			GSTexture* const cur = g_gs_device ? g_gs_device->GetCurrent() : nullptr;
+			const GSVector2i real = g_gs_renderer ? g_gs_renderer->GetInternalResolution() : GSVector2i(0, 0);
+			if (!cur || cur->GetFormat() != GSTexture::Format::Color || real.x <= 0 || real.y <= 0)
+				return;
+			const GSVector2i size = cur->GetSize();
+			const u32 n = static_cast<u32>(s_cfg.pixels.size());
+			std::unique_ptr<GSDownloadTexture> dl(g_gs_device->CreateDownloadTexture(n, 1, GSTexture::Format::Color));
+			if (!dl)
+				return;
+			for (u32 i = 0; i < n; i++)
+			{
+				const int x = std::min(s_cfg.pixels[i].first * size.x / real.x, size.x - 1);
+				const int y = std::min(s_cfg.pixels[i].second * size.y / real.y, size.y - 1);
+				dl->CopyFromTexture(GSVector4i(i, 0, i + 1, 1), cur, GSVector4i(x, y, x + 1, y + 1), 0, false);
+			}
+			dl->Flush();
+			if (!dl->Map(GSVector4i(0, 0, n, 1)))
+				return;
+			std::vector<u32> px(n);
+			std::memcpy(px.data(), dl->GetMapPointer(), n * sizeof(u32));
+			dl->Unmap();
+			if (!s_pix.last.empty() && px != s_pix.last)
+			{
+				std::lock_guard lock(s_pix.mutex);
+				s_pix.changes.push_back(v);
+			}
+			s_pix.last = std::move(px);
+		}
+
+		// Per press: the first shown frame from its poll vsync on whose watched pixels changed.
+		void PixelReport()
+		{
+			std::vector<u64> ch;
+			{
+				std::lock_guard lock(s_pix.mutex);
+				ch = s_pix.changes;
+			}
+			std::vector<u64> off;
+			for (size_t i = 0; i < s_presses.size(); i++)
+			{
+				const Press& p = s_presses[i];
+				const u64 end = i + 1 < s_presses.size() ? s_presses[i + 1].v_poll : p.v_poll + s_cfg.gap;
+				const auto it = std::lower_bound(ch.begin(), ch.end(), p.v_poll);
+				if (it != ch.end() && *it < end)
+				{
+					off.push_back(*it - p.v_poll);
+					Console.WriteLn("ZdxsvLatency: press %zu %s picture +%llu vsyncs", i, p.btn->name,
+						static_cast<unsigned long long>(off.back()));
+				}
+				else
+					Console.WriteLn("ZdxsvLatency: press %zu %s picture none", i, p.btn->name);
+			}
+			std::sort(off.begin(), off.end());
+			Console.WriteLn("ZdxsvLatency: picture changes %zu (vsyncs %llu..%llu), presses %zu (vsyncs %llu..%llu) with a change %zu, median %s",
+				ch.size(), static_cast<unsigned long long>(ch.empty() ? 0 : ch.front()), static_cast<unsigned long long>(ch.empty() ? 0 : ch.back()),
+				s_presses.size(), static_cast<unsigned long long>(s_presses.empty() ? 0 : s_presses.front().v_poll),
+				static_cast<unsigned long long>(s_presses.empty() ? 0 : s_presses.back().v_poll), off.size(),
+				off.empty() ? "none" : ("+" + std::to_string(off[off.size() / 2])).c_str());
 		}
 
 		void Report()
@@ -471,6 +564,7 @@ namespace Zdxsv
 		if (!after)
 		{
 			s_push_t[(s_frames_pushed + 1) % RING].store(Common::Timer::GetCurrentValue(), std::memory_order_relaxed);
+			s_pix.push_v[(s_frames_pushed + 1) % RING].store(s_vsync, std::memory_order_relaxed);
 			s_t_push0 = Now();
 		}
 		else if (!g_ggpo_in_rollback) // a rerun frame's push is part of the rollback
@@ -514,6 +608,8 @@ namespace Zdxsv
 			{
 				s_done = true;
 				s_pace_on.store(false, std::memory_order_release);
+				if (!s_cfg.pixels.empty())
+					PixelReport();
 				if (s_cfg.has_addr)
 					Report();
 				else
@@ -635,6 +731,8 @@ namespace Zdxsv
 			}
 			s_pace_prev = t;
 		}
+		if (s_pix.on.load(std::memory_order_acquire) && !g_gs_rerun_frame)
+			PixelWatch(s_pix.push_v[n % RING].load(std::memory_order_relaxed));
 	}
 
 	void InputLatencyOnPresentStart()
