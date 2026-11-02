@@ -77,5 +77,9 @@ USERS=AAAAAA BBBBBB CCCCCC DDDDDD
   synctest with check=2 in the arcade battle, snapshots every shown frame and judges them with
   `tools/zdxsv/rerunpic.py` (exit 0 PASS). For changes to what rerun frames skip;
   `"ZDXSV_RERUN_TAIL=1"` is its FAIL control. ~4 min, ~0.5 GB of snapshots.
+- Input to picture: `OUT=<dir> bash tests/zdxsv/inputpic.sh ["<env>"]` presses down/up 8 times
+  on the title main menu and watches one pixel of the highlighted item (`ZDXSV_INPUT_LATENCY`
+  `pixel=`); prints each press' picture offset in vsyncs, exit 1 when a press has no change.
+  Compare envs by the offsets. ~45 s.
 - `lobbytest.sh` is not a rig: a unit test of `pcsx2/Zdxsv/Lobby.cpp` built with
   MinGW `g++`. It needs no PCSX2 build, game, lock or server.

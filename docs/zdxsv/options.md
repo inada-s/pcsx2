@@ -222,6 +222,7 @@ are not shown, so they are no samples: their time (state load + reruns) is the
 | `gap=N` | 60 | test | Frames from one press to the next. At least `hold` + 20. |
 | `seed=N` | 1 | test | Seed of the press time inside the frame before its poll. |
 | `out=path` | off | diagnostic | Also write one CSV line per press to this file. |
+| `pixel=x:y[;x:y]` | off | test | Watch these pixels (game frame coordinates, up to 16) of each shown frame (a one-row readback, nothing written) and log, per press, the vsync of the first change. |
 
 ## Traces and dumps
 
