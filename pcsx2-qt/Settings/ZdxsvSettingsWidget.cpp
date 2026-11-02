@@ -39,6 +39,7 @@ ZdxsvSettingsWidget::ZdxsvSettingsWidget(SettingsWindow* settings_dialog, QWidge
 
 	setupTab(m_ui, tr("zdxsv"));
 
+	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvFastBoot, "DEV9/Eth", "ZdxsvFastBoot", true);
 	SettingWidgetBinder::BindWidgetToIntSetting(sif, m_ui.zdxsvGgpoMinDelay, "DEV9/Eth", "ZdxsvGgpoMinDelay", 2);
 	SettingWidgetBinder::BindWidgetToIntSetting(sif, m_ui.zdxsvGgpoPort, "DEV9/Eth", "ZdxsvGgpoPort", 0);
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvNetOsd, "DEV9/Eth", "ZdxsvNetOsd", true);
@@ -53,6 +54,7 @@ ZdxsvSettingsWidget::ZdxsvSettingsWidget(SettingsWindow* settings_dialog, QWidge
 	SettingWidgetBinder::BindWidgetToFolderSetting(sif, m_ui.zdxsvReplayPath, m_ui.zdxsvReplayPathBrowse, m_ui.zdxsvReplayPathOpen,
 		m_ui.zdxsvReplayPathReset, "DEV9/Eth", "ZdxsvReplayPath", Path::Combine(EmuFolders::DataRoot, "replays"));
 
+	MarkEnvOverride(m_ui.zdxsvFastBoot, "ZDXSV_FAST_BOOT");
 	// The mindelay=, port=, osd=, upload= and replay= keys of ZDXSV_GGPO override those settings.
 	MarkEnvOverride(m_ui.zdxsvGgpoMinDelay, "ZDXSV_GGPO", "mindelay=");
 	MarkEnvOverride(m_ui.zdxsvGgpoPort, "ZDXSV_GGPO", "port=");
@@ -65,6 +67,8 @@ ZdxsvSettingsWidget::ZdxsvSettingsWidget(SettingsWindow* settings_dialog, QWidge
 	MarkEnvOverride(m_ui.zdxsvSaveReplay, "ZDXSV_GGPO", "replay=");
 	MarkEnvOverride(m_ui.zdxsvReplayPath, "ZDXSV_GGPO", "replay=");
 
+	dialog()->registerWidgetHelp(m_ui.zdxsvFastBoot, tr("Fast Boot"), tr("Checked"),
+		tr("From game start to the lobby ID selection with no input: runs at unlimited speed and presses through the title, main menu and network menus (broadband, network setting 1), then returns to normal speed. Stops at once when the route cannot go on, for example with an unformatted memory card or no NET file on it. Uncheck it to play offline."));
 	dialog()->registerWidgetHelp(m_ui.zdxsvGgpoMinDelay, tr("Minimum Input Delay"), tr("2"),
 		tr("Lowest GGPO input delay (frames, 2 to 6) a battle picks from the ping test. Also the delay of a replay takeover."));
 	dialog()->registerWidgetHelp(m_ui.zdxsvGgpoPort, tr("Battle UDP Port"), tr("0"),

@@ -60,6 +60,8 @@ USERS=AAAAAA BBBBBB CCCCCC DDDDDD
   (the instances share fixed ports).
 - `launch.ps1` gives a client without `ZDXSV_GGPO` the value `0` (GGPO off,
   which is otherwise on by default); `ZDXSV_GGPO=default` leaves it on.
+  Same for `ZDXSV_FAST_BOOT` (fast boot, on by default):
+  `0` unless set, `ZDXSV_FAST_BOOT=default` leaves it on.
 - `launch.ps1` runs `probelint.py` first and refuses a PCSX2 build older than
   its sources.
 - Run from the repository root, e.g. `OUT=D:/zdxsv-run/out bash tests/zdxsv/rbk.sh 2 1`.

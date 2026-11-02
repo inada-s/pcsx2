@@ -199,6 +199,7 @@
     <ClCompile Include="Zdxsv\LobbyConnection.cpp" />
     <ClCompile Include="Zdxsv\Upnp.cpp" />
     <ClCompile Include="Zdxsv\ServerHosts.cpp" />
+    <ClCompile Include="Zdxsv\FastBoot.cpp" />
     <ClCompile Include="Zdxsv\FastLogin.cpp" />
     <ClCompile Include="Zdxsv\HttpsLatency.cpp" />
     <ClCompile Include="Zdxsv\TlsTunnel.cpp" />
