@@ -74,7 +74,8 @@ If your memory card is empty, the game makes the files it needs by itself:
    新規登録 to make an ID. The game saves the ID to the memory card.
 5. ログイン, then enter a handle name. You then see 戦場選択 (the lobby).
 
-Later sessions only need 通信対戦 → your network setting: the emulator logs in by itself and the game goes straight to the ID selection (DNAS and the top screen are skipped).
+Later sessions need no input: from game start, fast boot runs the game at full speed through the title, 通信対戦, ブロードバンド接続 and network setting 1, the emulator logs in by itself, and the game stops at the ID selection (DNAS and the top screen are skipped). If that path does not fit (for example on a new memory card, before the steps above), fast boot gives up after 4 minutes of game time (well under a minute on most PCs) and returns the controls to you at normal speed.
+To turn fast boot off (for example to play offline), set `ZdxsvFastBoot = false` under `[DEV9/Eth]` in `inis/PCSX2.ini`.
 
 ## Updates
 

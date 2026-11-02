@@ -35,7 +35,7 @@ namespace Zdxsv
 	// No key or no answer: the game goes on as without it. FastLoginReset in GgpoOnVmShutdown drops a pending login.
 	void FastLoginOnVsync();
 	void FastLoginReset();
-	// Boot to the lobby user_id selection in turbo, pressing through the menus on the fixed zdxsv route (FastBoot.cpp).
+	// Boot to the lobby user_id selection at unlimited speed, pressing through the menus on the fixed zdxsv route (FastBoot.cpp).
 	void FastBootOnVsync();
 	void FastBootReset();
 	// In VMManager::Initialize, before the CPU runs: the state file to boot from, or "".

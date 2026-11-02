@@ -13,6 +13,9 @@ if ($envFail) { $envFail; exit 2 }
 # pcsx2 runs lobby battles over GGPO by default: a client without ZDXSV_GGPO gets
 # ZDXSV_GGPO=0 (battle server); ZDXSV_GGPO=default leaves GGPO on.
 if (-not $env:ZDXSV_GGPO) { $env:ZDXSV_GGPO = '0' } elseif ($env:ZDXSV_GGPO -eq 'default') { Remove-Item env:ZDXSV_GGPO }
+# Fast boot (on by default) presses through the menus the routes drive: off unless
+# ZDXSV_FAST_BOOT is set; ZDXSV_FAST_BOOT=default leaves the setting's default.
+if (-not $env:ZDXSV_FAST_BOOT) { $env:ZDXSV_FAST_BOOT = '0' } elseif ($env:ZDXSV_FAST_BOOT -eq 'default') { Remove-Item env:ZDXSV_FAST_BOOT }
 # pcsx2 refuses a game path with / (local.env may use /)
 $root = $env:RUN -replace '/', '\'
 $exe = if ($env:PCSX2_EXE) { $env:PCSX2_EXE -replace '/', '\' } else { Join-Path $PSScriptRoot '..\..\bin\pcsx2-qtx64.exe' }
