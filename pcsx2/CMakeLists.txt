@@ -1228,6 +1228,7 @@ target_link_libraries(PCSX2_FLAGS INTERFACE
 	GGPO::GGPO
 	MiniUPnPc::MiniUPnPc
 	pcsx2-mbedtls
+	rapidjson
 	Zstd::Zstd
 	demanglegnu
 	ccc
