@@ -4,7 +4,8 @@
 #   OUT=<dir> bash tests/zdxsv/boottime.sh
 # Env: LIMIT (s, default 5), MAXS (s to wait, default 200), ROUTE (drive.py keys sent from the start;
 # ROUTE=top,C = today's menu path + ログイン at TOP), CARD (p1 card name, default the first of CARDS),
-# SPEED (launch.ps1 -Speed, default 1), SHOW=1 (windowed).
+# SPEED (launch.ps1 -Speed, default 1), SHOW=1 (windowed), LOBBY=fake (boot_lobby.py instead of the stack:
+# only the lobby API login and the lobby up to the user_id list).
 # Exit 0 = the screen is up within LIMIT s. Logs: OUT/boottime.txt (net step changes), stack logs.
 here=$(cd "$(dirname "$0")" && pwd -W)
 . "$here/riglock.sh"  # one rig at a time
@@ -20,16 +21,24 @@ killall() { powershell -NoProfile -Command "Get-Process pcsx2*,zdxsv*,dnas* -EA 
 killall
 cleanup() {
   kill "${pids[@]}" 2>/dev/null
+  [ -f "$OUT/boot_lobby.pid" ] && taskkill //F //PID "$(cat "$OUT/boot_lobby.pid")" > /dev/null 2>&1
   killall
   cp "$RUN/p1/PCSX2/logs/emulog.txt" "$OUT/emulog-p1.txt" 2>/dev/null
   [ -f "$OUT/live-p1.ps2" ] && cp -p "$OUT/live-p1.ps2" "$RUN/p1/PCSX2/memcards/Mcd001.ps2"
 }
 trap 'cleanup; rig_release' EXIT
-ZDXSV=$ZDXSV bash "$here/zbincheck.sh" "${ZBIN:-$ZDXSV/bin/zdxsv.exe}" || exit 1
 api=127.0.0.1:9881
-ZDXSV_LOBBY_API_ADDR=$api LOBBY_ARGS=-v=2 RUN="$OUT" bash "$here/stack.sh" "$IP" > "$OUT/stack.out" 2>&1 & pids+=($!)
-sleep 6
-grep -q "stack up" "$OUT/stack.out" || { cat "$OUT/stack.out"; echo "FAIL stack"; exit 1; }
+if [ "${LOBBY:-}" = fake ]; then
+  rm -f "$OUT/boot_lobby.pid"
+  "$PY" -u "$here/boot_lobby.py" --public "$IP:8200" --api $api --pidfile "$OUT/boot_lobby.pid" > "$OUT/boot_lobby.log" 2>&1 & pids+=($!)
+  sleep 2
+  grep -q "boot lobby up" "$OUT/boot_lobby.log" || { cat "$OUT/boot_lobby.log"; echo "FAIL boot lobby"; exit 1; }
+else
+  ZDXSV=$ZDXSV bash "$here/zbincheck.sh" "${ZBIN:-$ZDXSV/bin/zdxsv.exe}" || exit 1
+  ZDXSV_LOBBY_API_ADDR=$api LOBBY_ARGS=-v=2 RUN="$OUT" bash "$here/stack.sh" "$IP" > "$OUT/stack.out" 2>&1 & pids+=($!)
+  sleep 6
+  grep -q "stack up" "$OUT/stack.out" || { cat "$OUT/stack.out"; echo "FAIL stack"; exit 1; }
+fi
 rm -f "$RUN/p1/PCSX2/logs/emulog.txt"
 cp -p "$RUN/p1/PCSX2/memcards/Mcd001.ps2" "$OUT/live-p1.ps2"
 t0=$(date +%s.%N)
