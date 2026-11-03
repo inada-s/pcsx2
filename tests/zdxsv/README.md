@@ -77,6 +77,10 @@ USERS=AAAAAA BBBBBB CCCCCC DDDDDD
   synctest with check=2 in the arcade battle, snapshots every shown frame and judges them with
   `tools/zdxsv/rerunpic.py` (exit 0 PASS). For changes to what rerun frames skip;
   `"ZDXSV_SINGLE_DRAW_LIST=0 ZDXSV_RERUN_TAIL=1"` is its FAIL control. ~4 min, ~0.5 GB of snapshots.
+- Pictures after rollbacks by pixel color: `OUT=<dir> bash tests/zdxsv/rerunpix.sh ["<env>"]`: the same
+  synctest with a 16-pixel watch instead of snapshots; PASS (exit 0) when every vsync shows a frame and
+  no frame after a rollback repeats the one before. `"ZDXSV_SINGLE_DRAW_LIST=0 ZDXSV_RERUN_TAIL=1"` is its
+  FAIL control.
 - Input to picture: `OUT=<dir> bash tests/zdxsv/inputpic.sh ["<env>"]` presses down/up 8 times
   on the title main menu and watches one pixel of the highlighted item (`ZDXSV_INPUT_LATENCY`
   `pixel=`); prints each press' picture offset in vsyncs, exit 1 when a press has no change.
@@ -139,7 +143,7 @@ Scripts are in `tests/zdxsv/` except `run.py` (repository root) and
 | Rollback budget in the lobby delay | `GDELAY=auto GGPO_LAT=50 m4ggpo.sh`: `lobby delay 4` per peer, logged `rollback budget 0.00 (learned 1.00)`; `rbk.sh 2 1`: each peer logs `rollback budget: fits` at the end | `PCSX2_ENV=ZDXSV_ROLLBACK_BUDGET=1`: `lobby delay 3`, the `lobby delay 4` checks FAIL |
 | Delta save states | `deltatest.ps1` exit 0 (`result PASS`): the 2nd rerun of each window hashes like the 1st (same code cache) | `break=ee`: `result FAIL`, exit 1 |
 | Faster rerun frames | `rerunpic.sh "ZDXSV_SINGLE_DRAW_LIST=0"`: the pictures after rollbacks pass `rerunpic.py`; speed A/B with `benchab.sh` | `rerunpic.sh "ZDXSV_SINGLE_DRAW_LIST=0 ZDXSV_RERUN_TAIL=1"`: FAIL |
-| Single draw list | `rerunpic.sh`: PASS; `rbk.sh 2 1`, `rbk.sh 4 1`: PASS; `ENV0=ZDXSV_SINGLE_DRAW_LIST=0 rbk.sh 2 1`, `rbk.sh 4 2`: PASS | `rerunpic.sh "ZDXSV_SINGLE_DRAW_LIST=0 ZDXSV_RERUN_TAIL=1"` (the same tail without the patch): FAIL |
+| Single draw list | `rerunpic.sh`, `rerunpix.sh`: PASS; `rbk.sh 2 1`, `rbk.sh 4 1`: PASS; `ENV0=ZDXSV_SINGLE_DRAW_LIST=0 rbk.sh 2 1`, `rbk.sh 4 2`: PASS | `rerunpic.sh "ZDXSV_SINGLE_DRAW_LIST=0 ZDXSV_RERUN_TAIL=1"` (the same tail without the patch): FAIL |
 | Battle start and MS select load barriers | none | none |
 | GGPO synctest in a running game | `deltatest.ps1 -Var ZDXSV_GGPO -Spec start=9000,frames=3000,mask=fcff -Route arcade -End 12300`: 0 of 3000 frames mismatch in an arcade battle (`hash=pw`) | `control=input`: mismatches |
 | Rerun keep | `ZDXSV_RERUN_KEEP=8afda0-8c95e0` (the same ranges in any game phase) with the synctest `deltatest.ps1 -Var ZDXSV_GGPO -Spec start=9000,frames=3000,mask=fcff -Route arcade -End 12300`: 0 mismatches; `rbk.sh 2 1`: PASS | `ZDXSV_RERUN_KEEP=afd000-afe000,6e4c00-6e5000,b13000-b6b000` (memory the game logic reads): mismatches |

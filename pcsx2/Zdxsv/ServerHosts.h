@@ -11,4 +11,6 @@ namespace Zdxsv
 	bool DnsUsedServerHost();
 	// ip (network order) was a DNS answer for a game host: a zdxsv server.
 	bool IsServerAddress(u32 ip);
+	// ip (network order) is a zdxsv server: names resolved without DEV9.
+	void ServerAddressAdd(u32 ip);
 } // namespace Zdxsv

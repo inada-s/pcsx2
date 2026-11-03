@@ -220,6 +220,7 @@ namespace Zdxsv
 	void HashSave(int frame, int* checksum);
 	void RerunKeepBeforeLoad(bool callbacks_skipped);
 	void RerunKeepAfterLoad();
+	void RerunKeepAfterRerunFrame(bool last);
 	extern bool s_replay_rec; // a battle is being recorded
 	std::string ReplayIds();
 	std::string IdValue(const std::string& ids, std::string_view key);

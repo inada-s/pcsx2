@@ -58,6 +58,10 @@ ROUTES = {
     # model/lobby.go CanBattleStart) -> lobby -> パートナー自動選抜 -> side {s}: p1/p2 連邦・エゥーゴ, p3/p4 ジオン・ティターンズ
     # p4's Down was dropped once (landed in オペレーションリスト; fix X,w3000,Down,C,...): check shots.
     "entry": "C,w5000,Up:400,w800,Down:900,Right:900,w500,C,w8000,Down,w500,C,w4000,{s}C,w4000",
+    # entry in halves for m4z.sh: map ends with the Lobby 06 press (0x6305 00 06); a late press is
+    # waited for before lobby2p instead of raced
+    "map": "C,w5000,Up:400,w800,Down:900,Right:900,w500,C",
+    "mappress": "C",
     # 1v1: map cursor to シアトル (Lobby 02: starts at 1 AEUG + 1 Titans). The cursor keeps its spot between
     # visits and hit areas sit off the drawn labels: clamp top-left, then fixed steps (grid scan: Lobby 02
     # at row 1 cols 5-6; route shot-checked, "Lobby 02" shown). Lobby menu + side dialog as in Lobby 06.
