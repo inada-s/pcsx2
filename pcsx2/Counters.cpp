@@ -510,6 +510,8 @@ static __fi void VSyncStart(u64 sCycle)
 		Zdxsv::FastBootOnVsync();
 	if (Zdxsv::g_single_draw_list)
 		Zdxsv::SingleDrawListOnVsync();
+	if (Zdxsv::g_no_dev9)
+		Zdxsv::NoDev9OnVsync();
 	if (Zdxsv::g_ggpo_enabled || Zdxsv::g_net_hook)
 		Zdxsv::GgpoOnVsync();
 	Zdxsv::EeOpTestOnVsync();

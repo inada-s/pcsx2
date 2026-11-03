@@ -533,6 +533,8 @@ namespace Zdxsv
 	bool OnNetCall()
 	{
 		OnNetRpc();
+		if (g_no_dev9 && NoDev9OnNetCall())
+			return true;
 		if (!s_net_env)
 			return false;
 		const u32 fno = cpuRegs.GPR.n.a0.UL[0];

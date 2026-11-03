@@ -149,6 +149,7 @@ set(pcsx2Sources
 	Zdxsv/ReplayList.cpp
 	Zdxsv/ReplayPlay.cpp
 	Zdxsv/ReplayRecord.cpp
+	Zdxsv/NoDev9.cpp
 	Zdxsv/SingleDrawList.cpp
 	Zdxsv/SpectateSync.cpp
 	Zdxsv/SyncSettings.cpp
