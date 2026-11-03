@@ -5,13 +5,12 @@ battle that the lobby matched runs over GGPO. Option names and defaults are in
 [options.md](options.md). The GGPO session itself is in
 [rollback.md](rollback.md).
 
-## Network defaults
+## Network settings
 
-A new configuration points at zdxsv: adapter on, Sockets API, `Auto` device,
-DHCP intercepted, internal DNS, no host entries. Online play takes the no-DEV9
-path ([features](features.md)): the game's server hosts resolve to the build
-option `ZDXSV_SERVER_HOST` ([options](options.md)), so a server move needs no
-new release.
+Online play takes the no-DEV9 path ([features](features.md)) and needs no DEV9
+network settings: the network adapter can stay off (upstream default). The
+game's server hosts resolve to the build option `ZDXSV_SERVER_HOST`
+([options](options.md)), so a server move needs no new release.
 
 ## Battle server connection
 
