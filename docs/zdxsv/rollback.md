@@ -104,6 +104,11 @@ does not read them (synctest: player work and RNG agree with them kept).
 Memory the game logic reads must not be kept: the object memory at
 0xafd800-0xafdfff and 0xb13000-0xb6afff holds game objects and effects, and
 an address is reused by another object type, so keeping it desyncs.
+Beam saber trail objects (handler 0x167810) also keep their trail history:
+fields +0x0-0x9f and +0x150-0x1cf, only for an object at the same address
+with the same handler before and after the load (objects found through the
+game object list, head at gp - 0x5b80). Without them a saber trail jumps
+after a rollback. Synctest: player work agrees with them kept.
 `ZDXSV_RERUN_KEEP` turns it off or sets other ranges, kept in any game phase
 (tests); `ZDXSV_RERUN_EE_DRAW=1` turns it off.
 
