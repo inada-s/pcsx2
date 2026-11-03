@@ -545,6 +545,8 @@ namespace Zdxsv
 			g_rerun_vu1_skip = !s_rerun_vu1 && s_reruns_left >= tail - (g_single_draw_list ? 0 : 1);
 			g_rerun_draw_skip = !s_rerun_ee_draw && s_reruns_left >= tail;
 			const bool ok = RunFrame();
+			if (g_rerun_draw_skip)
+				RerunKeepAfterRerunFrame(s_reruns_left == 0);
 			g_rerun_vu1_skip = g_rerun_draw_skip = false;
 			s_rerun_mcycles.Add((cpuRegs.cycle - cycle0) / 1e6);
 			if (!s_rerun_draw)

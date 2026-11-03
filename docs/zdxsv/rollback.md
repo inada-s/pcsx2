@@ -99,8 +99,15 @@ The per-player bone matrix slots (4 x 0x65d0 bytes from 0x8afda0, written
 only by the callbacks) hold the pose of the frame before; rolled back and
 not advanced by the skipped callbacks, they show a mech's arms and weapon in
 an old pose after a rollback. So during play (tick state 6) a rollback does
-not roll them back: they keep the predicted frame's poses. The game logic
-does not read them (synctest: player work and RNG agree with them kept).
+not roll them back: they keep the predicted frame's poses. Player work does
+not depend on them (synctest: player work and RNG agree with them kept).
+Except one part: each player's draw first copies part of its work into its
+slot (handler 0x1e4340: obj+0x20 to slot+0x220, the angles at obj+0x50-0x58
+as radians to slot+0x200-0x208, n 0x40-byte blocks from obj+0x7c0 to
+slot+0x300 + i * 0x240). The next frame reads that part, so it follows the
+rerun game state: it is copied again natively after the load and after each
+rerun frame. Kept instead, some pictures after a rollback differ from a full
+rerun.
 Memory the game logic reads must not be kept: the object memory at
 0xafd800-0xafdfff and 0xb13000-0xb6afff holds game objects and effects, and
 an address is reused by another object type, so keeping it desyncs.
