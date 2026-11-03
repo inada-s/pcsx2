@@ -3,7 +3,7 @@
 
 // The Z game online with or without a DEV9 device. The game's net RPC wrapper is answered on the EE:
 // network setup from fixed replies, every name resolved to the zdxsv server, TCP on host sockets.
-// Experimental, needs proper testing: lobby and a 1v1 TCP battle tested, GGPO not.
+// Experimental, needs proper testing: lobby, a 1v1 TCP battle and a 1v1 GGPO battle tested.
 
 #include "Zdxsv/CpuHooks.h"
 #include "Zdxsv/Dev9Hooks.h"
