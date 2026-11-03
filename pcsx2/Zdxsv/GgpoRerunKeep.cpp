@@ -5,6 +5,8 @@
 
 #include "Zdxsv/GgpoShared.h"
 
+#include <cmath>
+
 namespace Zdxsv
 {
 	namespace
@@ -23,6 +25,16 @@ namespace Zdxsv
 		constexpr u32 TRAIL_HANDLER = 0x167810;
 		constexpr std::pair<u32, u32> TRAIL_FIELDS[] = {{0x0, 0xa0}, {0x150, 0x1d0}};
 		constexpr u32 TRAIL_FIELDS_SIZE = 0xa0 + 0x80;
+
+		// Player objects copy part of their work into their bone slot at the start of each draw. That
+		// part follows the rerun game state, so it is written again after the load and each rerun frame.
+		constexpr u32 PLAYER_HANDLERS[] = {0x1e4340, 0x1e43e0, 0x1e4450};
+		constexpr u32 PLAYER_SLOT_INDEX = 0x21d0, PLAYER_POSE = 0x20, PLAYER_ANGLES = 0x50, PLAYER_BLOCKS = 0x7c0;
+		constexpr u32 PLAYER_SIZE = 0x2200, PLAYER_BLOCK_SIZE = 0x40;
+		constexpr u32 SLOT_SIZE = 0x65d0, SLOT_POSE = 0x220, SLOT_ANGLES = 0x200, SLOT_BLOCKS = 0x240;
+		constexpr u32 SLOT_BLOCK_STRIDE = 0x240, SLOT_BLOCK_OFFSET = 0xc0, SLOT_MODEL = 0x65bc, MODEL_BLOCK_COUNT = 7;
+		constexpr u32 SLOT_MAX_BLOCKS = (SLOT_MODEL - SLOT_BLOCKS - SLOT_BLOCK_OFFSET) / SLOT_BLOCK_STRIDE;
+		constexpr u32 ANGLE_UNIT = 0x38c90fda; // 2 pi / 65536
 
 		struct RerunKeepConfig
 		{
@@ -61,6 +73,7 @@ namespace Zdxsv
 			std::vector<u8> saved;
 			std::vector<std::pair<u32, std::array<u8, TRAIL_FIELDS_SIZE>>> trails;
 			bool armed = false;
+			bool rebuild_slots = false;
 			bool logged = false;
 		};
 		RerunKeep s_keep;
@@ -78,9 +91,9 @@ namespace Zdxsv
 		}
 
 		template <typename F>
-		void ForEachTrailObject(F&& fn)
+		void ForEachObject(F&& fn)
 		{
-			// gp is read at the load: the game keeps one gp, needs proper testing outside battle play.
+			// gp is read now: the game keeps one gp, needs proper testing outside battle play.
 			const u32 head = (cpuRegs.GPR.n.gp.UL[0] - OBJ_LIST_GP_OFFSET) & (Ps2MemSize::MainRam - 4);
 			u32 obj = ReadU32(head);
 			for (u32 i = 0; obj && i < OBJ_MAX; i++)
@@ -88,10 +101,63 @@ namespace Zdxsv
 				obj &= Ps2MemSize::MainRam - 1;
 				if (obj % 4 || obj > Ps2MemSize::MainRam - OBJ_MIN_SIZE)
 					break;
-				if (ReadU32(obj + OBJ_HANDLER) == TRAIL_HANDLER)
-					fn(obj);
+				fn(obj, ReadU32(obj + OBJ_HANDLER));
 				obj = ReadU32(obj + OBJ_NEXT);
 			}
+		}
+
+		template <typename F>
+		void ForEachTrailObject(F&& fn)
+		{
+			ForEachObject([&fn](u32 obj, u32 handler) {
+				if (handler == TRAIL_HANDLER)
+					fn(obj);
+			});
+		}
+
+		// The game's s16 angle to radians, with the EE FPU's round-toward-zero product.
+		float AngleToRadians(u32 v)
+		{
+			float unit;
+			std::memcpy(&unit, &ANGLE_UNIT, sizeof(unit));
+			const double exact = static_cast<double>(static_cast<s16>(v)) * unit;
+			float r = static_cast<float>(exact);
+			if (std::fabs(static_cast<double>(r)) > std::fabs(exact))
+				r = std::nextafter(r, 0.0f);
+			return r;
+		}
+
+		void RebuildPlayerSlot(u32 obj)
+		{
+			const s8 index = static_cast<s8>(eeMem->Main[obj + PLAYER_SLOT_INDEX]);
+			if (index < 0 || index >= 4 || obj + PLAYER_SIZE > Ps2MemSize::MainRam)
+				return;
+			const u32 slot = BONE_SLOTS + index * SLOT_SIZE;
+			std::memcpy(&eeMem->Main[slot + SLOT_POSE], &eeMem->Main[obj + PLAYER_POSE], 16);
+			for (u32 i = 0; i < 3; i++)
+			{
+				const float a = AngleToRadians(ReadU32(obj + PLAYER_ANGLES + i * 4));
+				std::memcpy(&eeMem->Main[slot + SLOT_ANGLES + i * 4], &a, sizeof(a));
+			}
+			const u32 model = ReadU32(slot + SLOT_MODEL) & (Ps2MemSize::MainRam - 1);
+			if (model + MODEL_BLOCK_COUNT >= Ps2MemSize::MainRam)
+				return;
+			const u32 n = std::min<u32>({eeMem->Main[model + MODEL_BLOCK_COUNT], SLOT_MAX_BLOCKS,
+				(PLAYER_SIZE - PLAYER_BLOCKS) / PLAYER_BLOCK_SIZE});
+			for (u32 i = 0; i < n; i++)
+				std::memcpy(&eeMem->Main[slot + SLOT_BLOCKS + i * SLOT_BLOCK_STRIDE + SLOT_BLOCK_OFFSET],
+					&eeMem->Main[obj + PLAYER_BLOCKS + i * PLAYER_BLOCK_SIZE], PLAYER_BLOCK_SIZE);
+		}
+
+		// The next frame reads what the skipped draw would have copied.
+		void RebuildPlayerSlots()
+		{
+			if (!s_keep.rebuild_slots)
+				return;
+			ForEachObject([](u32 obj, u32 handler) {
+				if (std::find(std::begin(PLAYER_HANDLERS), std::end(PLAYER_HANDLERS), handler) != std::end(PLAYER_HANDLERS))
+					RebuildPlayerSlot(obj);
+			});
 		}
 
 		void SaveTrails()
@@ -130,6 +196,7 @@ namespace Zdxsv
 
 	void RerunKeepBeforeLoad(bool callbacks_skipped)
 	{
+		s_keep.rebuild_slots = false;
 		s_keep.armed = callbacks_skipped && !s_keep_config.ranges.empty() && RerunKeepPhase();
 		if (!s_keep.armed)
 			return;
@@ -151,10 +218,20 @@ namespace Zdxsv
 			off += hi - lo;
 		}
 		RestoreTrails();
+		s_keep.rebuild_slots = std::any_of(s_keep_config.ranges.begin(), s_keep_config.ranges.end(),
+			[](const auto& r) { return r.first < BONE_SLOTS_END && BONE_SLOTS < r.second; });
 		if (!s_keep.logged)
 		{
 			s_keep.logged = true;
 			Console.WriteLn("ZdxsvGgpo: rerun keep %zu ranges", s_keep_config.ranges.size());
 		}
+		RebuildPlayerSlots();
+	}
+
+	void RerunKeepAfterRerunFrame(bool last)
+	{
+		RebuildPlayerSlots();
+		if (last)
+			s_keep.rebuild_slots = false;
 	}
 } // namespace Zdxsv

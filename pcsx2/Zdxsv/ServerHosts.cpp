@@ -74,6 +74,11 @@ namespace Zdxsv
 			return;
 		u32 ip;
 		std::memcpy(&ip, address, sizeof(ip));
+		ServerAddressAdd(ip);
+	}
+
+	void ServerAddressAdd(u32 ip)
+	{
 		std::lock_guard lock(s_servers.mutex);
 		if (std::find(s_servers.ips.begin(), s_servers.ips.end(), ip) == s_servers.ips.end())
 			s_servers.ips.push_back(ip);

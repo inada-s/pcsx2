@@ -8,6 +8,7 @@
 #include "Zdxsv/CpuHooks.h"
 #include "Zdxsv/Dev9Hooks.h"
 #include "Zdxsv/Lobby.h"
+#include "Zdxsv/ServerHosts.h"
 #include "Zdxsv/Settings.h"
 #include "Zdxsv/TestOptions.h"
 
@@ -216,6 +217,7 @@ namespace Zdxsv
 			std::memcpy(&sa.sin_addr, b + 0x1c, 4);
 			std::memcpy(&sa.sin_port, b + 0x20, 2);
 			std::memcpy(&s_state.peer[id], b + 0x1c, 4);
+			TlsOnConnect(&sa);
 			connect(s, reinterpret_cast<sockaddr*>(&sa), sizeof(sa));
 			return id;
 		}
@@ -378,6 +380,8 @@ namespace Zdxsv
 		{
 			const u32 ip = ServerIp();
 			res = ip ? 1 : 0;
+			if (ip)
+				ServerAddressAdd(ip);
 			std::memcpy(b + 0x20, &ip, 4);
 		}
 		else
