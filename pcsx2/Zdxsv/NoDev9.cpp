@@ -91,14 +91,13 @@ namespace Zdxsv
 		{
 			bool on = false;
 			u32 ip = 0; // every name resolves to it, network order
-			std::shared_ptr<std::atomic<u32>> server_ip; // without a fixed ip: the host DNS answer for kServerHost
+			std::shared_ptr<std::atomic<u32>> server_ip; // without a fixed ip: the host DNS answer for SERVER_HOST
 			u32 link_calls = 0;
 			u8 last_net = 0;
 			sock_t socks[kSlots] = {INVALID_SOCKET, INVALID_SOCKET, INVALID_SOCKET, INVALID_SOCKET};
 			sock_t none = INVALID_SOCKET;
 		} s_state;
 
-		constexpr const char* kServerHost = "lbs.zdxsv.net";
 		constexpr int kResolveWaitMs = 5000;
 
 		void ResolveServer(std::shared_ptr<std::atomic<u32>> out)
@@ -112,7 +111,7 @@ namespace Zdxsv
 			hints.ai_family = AF_INET;
 			hints.ai_socktype = SOCK_STREAM;
 			addrinfo* res = nullptr;
-			if (getaddrinfo(kServerHost, nullptr, &hints, &res) == 0 && res)
+			if (getaddrinfo(SERVER_HOST, nullptr, &hints, &res) == 0 && res)
 				out->store(reinterpret_cast<const sockaddr_in*>(res->ai_addr)->sin_addr.s_addr);
 			if (res)
 				freeaddrinfo(res);
@@ -129,7 +128,7 @@ namespace Zdxsv
 				std::this_thread::sleep_for(std::chrono::milliseconds(10));
 			s_state.ip = s_state.server_ip->load();
 			if (!s_state.ip)
-				Console.Error("Zdxsv: no DEV9: no address for %s", kServerHost);
+				Console.Error("Zdxsv: no DEV9: no address for %s", SERVER_HOST);
 			return s_state.ip;
 		}
 
@@ -246,16 +245,22 @@ namespace Zdxsv
 		NoDev9Reset();
 		if (!g_z_game || !BoolSetting("ZdxsvNoDev9", true, "ZDXSV_NODEV9"))
 			return;
-		s_state.on = g_no_dev9 = true;
 		const char* e = TestEnv("ZDXSV_NODEV9");
 		unsigned q[4] = {};
 		if (!e || std::sscanf(e, "%u.%u.%u.%u", &q[0], &q[1], &q[2], &q[3]) != 4)
 		{
+			if (!SERVER_HOST[0])
+			{
+				Console.WriteLn("Zdxsv: no DEV9: off, no server host (ZDXSV_NODEV9=<ipv4> sets one)");
+				return;
+			}
+			s_state.on = g_no_dev9 = true;
 			s_state.server_ip = std::make_shared<std::atomic<u32>>(0);
 			std::thread(ResolveServer, s_state.server_ip).detach();
-			Console.WriteLn("Zdxsv: no DEV9: the net RPCs are answered on the EE, names resolve to %s", kServerHost);
+			Console.WriteLn("Zdxsv: no DEV9: the net RPCs are answered on the EE, names resolve to %s", SERVER_HOST);
 			return;
 		}
+		s_state.on = g_no_dev9 = true;
 		s_state.ip = (q[0] & 0xff) | (q[1] & 0xff) << 8 | (q[2] & 0xff) << 16 | (q[3] & 0xff) << 24;
 		Console.WriteLn("Zdxsv: no DEV9: the net RPCs are answered on the EE, names resolve to %s", e);
 	}
