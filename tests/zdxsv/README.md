@@ -90,7 +90,7 @@ USERS=AAAAAA BBBBBB CCCCCC DDDDDD
 - Input to picture: `OUT=<dir> bash tests/zdxsv/inputpic.sh ["<env>"]` presses down/up 8 times
   on the title main menu and watches one pixel of the highlighted item (`ZDXSV_INPUT_LATENCY`
   `pixel=`); prints each press' picture offset in vsyncs, exit 1 when a press has no change.
-  Compare envs by the offsets. ~45 s.
+  Compare envs by the offsets. ~45 s. `tol=` (translucent battle HUD) has no rig test of its own.
 - `lobbytest.sh` is not a rig: a unit test of `pcsx2/Zdxsv/Lobby.cpp` built with
   MinGW `g++`. It needs no PCSX2 build, game, lock or server.
 

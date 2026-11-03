@@ -241,6 +241,7 @@ are not shown, so they are no samples: their time (state load + reruns) is the
 | `seed=N` | 1 | test | Seed of the press time inside the frame before its poll. |
 | `out=path` | off | diagnostic | Also write one CSV line per press to this file. |
 | `pixel=x:y[;x:y]` | off | test | Watch these pixels (game frame coordinates, up to 16) of each shown frame (a one-row readback, nothing written) and log, per press, the vsync of the first change. |
+| `tol=N` | 0 | test | With `pixel=`: a pixel changes only when a color channel differs from the shown frame before by more than N. For translucent HUD parts whose color moves by 1-2 every frame. |
 
 ## Traces and dumps
 
