@@ -233,7 +233,12 @@ for i in $CLIENTS; do
   k=$((k + 1))
   speed_check $i || exit 1  # routes hold keys in wall ms; a faster run than SPEED is no SPEED result
   if [ "$ENTRY" = entry2p ]; then entry2p_retry $i || { echo "FAIL client $i entry (no Lobby 02)"; exit 1; }
-  else $DRIVE $ENTRY $i 2>&1 | grep -v memgate | tail -1; fi
+  else
+    a0=$(grep -ac "C->S \[Q\] ID:0x6305" "$OUT/lobby.log")
+    $DRIVE map $i 2>&1 | grep -v memgate | tail -1
+    for t in $(seq "${ENTRY_WAIT:-20}"); do [ "$(grep -ac "C->S \[Q\] ID:0x6305" "$OUT/lobby.log")" -gt "$a0" ] && break; sleep 1; done
+    $DRIVE lobby2p $i 2>&1 | grep -v memgate | tail -1
+  fi
   for t in $(seq 10); do [ "$(grep -c 'C->S \[Q\] ID:0x640E' "$OUT/lobby.log")" -ge "$k" ] && break; sleep 2; done
   [ "$(grep -c 'C->S \[Q\] ID:0x640E' "$OUT/lobby.log")" -ge "$k" ] || { echo "FAIL client $i entry (no 0x640E)"; exit 1; }
 done
