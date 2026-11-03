@@ -18,7 +18,7 @@ skips does not run on that path.
 | DEV9 DNS server | `ServerHosts` | game hosts looked up as `ZDXSV_SERVER_HOST`, whether the public server was found (replay upload) |
 | DEV9 receive and save state | `DeltaState` | received packets in delta states, lobby save states |
 | Counters (vsync), VMManager | `Ggpo`, `Replay*`, `NoDev9`, `FastBoot` | GGPO frame loop, replay playback, VM start / reset / shutdown cleanup |
-| MTGS, GS, SPU2 | `DeltaFreeze`, `SingleDrawList`, `InputLatency`, `Overlays` | rerun frame skips, single draw list, input latency, OSD |
+| MTGS, GS, SPU2 | `DeltaFreeze`, `SingleDrawList`, `InputLatency`, `Overlays`, `FastBoot` | rerun frame skips, fast boot shows every 8th frame, single draw list, input latency, OSD |
 | Pad | `Ggpo`, `ReplayPlay` | inputs to and from GGPO and replays |
 | Hotkeys, ImGui | `Overlays`, `ReplayPlay` | replay hotkeys and bar, refused pause and speed changes |
 
@@ -42,7 +42,7 @@ this table says it is missing.
 - **Network defaults for zdxsv**: adapter on, Sockets, internal DNS, game hosts as `ZDXSV_SERVER_HOST`.
 - **Online without DEV9**: experimental, with the platform info, a TCP battle, a GGPO battle and TLS; `ZdxsvNoDev9`, `ZDXSV_NODEV9`.
 - **Fast login**: DNAS and the login browser skipped; `ZdxsvFastLogin`, `ZdxsvLoginApiUrl`.
-- **Fast boot**: boot to the lobby user_id selection with no input; `ZdxsvFastBoot`, `ZdxsvFastBootState`.
+- **Fast boot**: boot to the lobby user_id selection with no input; `ZdxsvFastBoot`, `ZdxsvFastBootState`, `ZdxsvFastBootLobby` (on through ID 1 into the lobby).
 - **Platform info `0x9950` to the lobby**: `ZDXSV_PLATFORM_INFO`.
 - **Battle over TCP to the battle server, as a PS2**: always.
 - **Playing as a console**: seen as a real PS2; `ZDXSV_PLATFORM_INFO=0`.
