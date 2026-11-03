@@ -17,12 +17,18 @@ namespace Zdxsv
 		// the next object at +0xac.
 		constexpr u32 OBJ_LIST_GP_OFFSET = 0x5b80, OBJ_HANDLER = 0xa8, OBJ_NEXT = 0xac;
 		constexpr u32 OBJ_MAX = 4096, OBJ_MIN_SIZE = 0x400;
-		// Beam saber trail objects: their trail history is advanced only by the render callbacks.
+		// Object types whose fields here are advanced only by the render callbacks.
 		// An address is reused by other object types, so a field is kept only for an object with the
 		// same address and handler before and after the load.
-		constexpr u32 TRAIL_HANDLER = 0x167810;
-		constexpr std::pair<u32, u32> TRAIL_FIELDS[] = {{0x0, 0xa0}, {0x150, 0x1d0}};
-		constexpr u32 TRAIL_FIELDS_SIZE = 0xa0 + 0x80;
+		struct KeptObjectType
+		{
+			u32 handler;
+			std::array<std::pair<u32, u32>, 2> fields;
+		};
+		constexpr KeptObjectType KEPT_TYPES[] = {
+			{0x167810, {{{0x0, 0xa0}, {0x150, 0x1d0}}}}, // beam saber trail history
+			{0x167f50, {{{0x0, 0xa0}, {0xb0, 0x1f0}}}}, // an effect type, needs proper testing
+		};
 
 		struct RerunKeepConfig
 		{
@@ -56,10 +62,17 @@ namespace Zdxsv
 			return c;
 		}();
 
+		struct KeptObject
+		{
+			u32 addr;
+			u32 handler;
+			std::vector<u8> data;
+		};
+
 		struct RerunKeep
 		{
 			std::vector<u8> saved;
-			std::vector<std::pair<u32, std::array<u8, TRAIL_FIELDS_SIZE>>> trails;
+			std::vector<KeptObject> objects;
 			bool armed = false;
 			bool logged = false;
 		};
@@ -78,7 +91,7 @@ namespace Zdxsv
 		}
 
 		template <typename F>
-		void ForEachTrailObject(F&& fn)
+		void ForEachKeptObject(F&& fn)
 		{
 			// gp is read at the load: the game keeps one gp, needs proper testing outside battle play.
 			const u32 head = (cpuRegs.GPR.n.gp.UL[0] - OBJ_LIST_GP_OFFSET) & (Ps2MemSize::MainRam - 4);
@@ -88,40 +101,41 @@ namespace Zdxsv
 				obj &= Ps2MemSize::MainRam - 1;
 				if (obj % 4 || obj > Ps2MemSize::MainRam - OBJ_MIN_SIZE)
 					break;
-				if (ReadU32(obj + OBJ_HANDLER) == TRAIL_HANDLER)
-					fn(obj);
+				const u32 handler = ReadU32(obj + OBJ_HANDLER);
+				for (const KeptObjectType& type : KEPT_TYPES)
+				{
+					if (handler == type.handler)
+						fn(obj, type);
+				}
 				obj = ReadU32(obj + OBJ_NEXT);
 			}
 		}
 
-		void SaveTrails()
+		void SaveObjects()
 		{
-			s_keep.trails.clear();
-			ForEachTrailObject([](u32 obj) {
-				auto& t = s_keep.trails.emplace_back();
-				t.first = obj;
-				size_t k = 0;
-				for (const auto& [lo, hi] : TRAIL_FIELDS)
-				{
-					std::memcpy(&t.second[k], &eeMem->Main[obj + lo], hi - lo);
-					k += hi - lo;
-				}
+			s_keep.objects.clear();
+			ForEachKeptObject([](u32 obj, const KeptObjectType& type) {
+				auto& o = s_keep.objects.emplace_back();
+				o.addr = obj;
+				o.handler = type.handler;
+				for (const auto& [lo, hi] : type.fields)
+					o.data.insert(o.data.end(), &eeMem->Main[obj + lo], &eeMem->Main[obj + hi]);
 			});
 		}
 
-		void RestoreTrails()
+		void RestoreObjects()
 		{
-			if (s_keep.trails.empty())
+			if (s_keep.objects.empty())
 				return;
-			ForEachTrailObject([](u32 obj) {
-				const auto it = std::find_if(s_keep.trails.begin(), s_keep.trails.end(),
-					[obj](const auto& t) { return t.first == obj; });
-				if (it == s_keep.trails.end())
+			ForEachKeptObject([](u32 obj, const KeptObjectType& type) {
+				const auto it = std::find_if(s_keep.objects.begin(), s_keep.objects.end(),
+					[obj, &type](const KeptObject& o) { return o.addr == obj && o.handler == type.handler; });
+				if (it == s_keep.objects.end())
 					return;
 				size_t k = 0;
-				for (const auto& [lo, hi] : TRAIL_FIELDS)
+				for (const auto& [lo, hi] : type.fields)
 				{
-					std::memcpy(&eeMem->Main[obj + lo], &it->second[k], hi - lo);
+					std::memcpy(&eeMem->Main[obj + lo], &it->data[k], hi - lo);
 					k += hi - lo;
 				}
 			});
@@ -136,7 +150,7 @@ namespace Zdxsv
 		s_keep.saved.clear();
 		for (const auto& [lo, hi] : s_keep_config.ranges)
 			s_keep.saved.insert(s_keep.saved.end(), &eeMem->Main[lo], &eeMem->Main[hi]);
-		SaveTrails();
+		SaveObjects();
 	}
 
 	void RerunKeepAfterLoad()
@@ -150,7 +164,7 @@ namespace Zdxsv
 			std::memcpy(&eeMem->Main[lo], &s_keep.saved[off], hi - lo);
 			off += hi - lo;
 		}
-		RestoreTrails();
+		RestoreObjects();
 		if (!s_keep.logged)
 		{
 			s_keep.logged = true;
