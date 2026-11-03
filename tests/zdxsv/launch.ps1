@@ -6,7 +6,7 @@
 # -LobbyState: ZDXSV_LOBBY_STATE=1 (off by default): needed to save AND load lobby states.
 # -Speed X: normal emulation speed X (ini [Framerate] NominalScalar, 1 = 60 fps, max 10; written every launch).
 #   Routes wait on frames (pine.py wait), so they hold at any speed.
-param([int[]]$N = @(1), [string]$Memcard = "", [string]$StateFile = "", [switch]$NoGui, [switch]$Headless, [switch]$LobbyState, [double]$Speed = 1)
+param([int[]]$N = @(1), [string]$Memcard = "", [string]$StateFile = "", [switch]$NoGui, [switch]$Headless, [switch]$LobbyState, [double]$Speed = 1, [int]$Renderer = -1)
 if ($LobbyState) { $env:ZDXSV_LOBBY_STATE = '1' }
 . "$PSScriptRoot\env.ps1"  # RUN, PCSX2_EXE, ISO, ZDXSV_PY
 if ($envFail) { $envFail; exit 2 }
@@ -42,10 +42,10 @@ foreach ($i in $N) {
   }
   $ini = "$d\PCSX2\inis\PCSX2.ini"
   (Get-Content $ini -Encoding UTF8) -replace '^PINESlot =.*', "PINESlot = $(28010 + $i)" | Set-Content $ini -Encoding UTF8
-  # -Headless: GS Null renderer (11) + -nogui; else Auto (-1). Persisted in the instance ini.
+  # -Headless: GS Null renderer (11) + -nogui; else -Renderer (default Auto, -1). Persisted in the instance ini.
   $c = Get-Content $ini -Encoding UTF8
   if (!($c -match '^\[EmuCore/GS\]')) { $c += @('', '[EmuCore/GS]', 'Renderer = -1') }
-  $r = if ($Headless) { 11 } else { -1 }
+  $r = if ($Headless) { 11 } else { $Renderer }
   $c = @($c -replace '^Renderer = .*', "Renderer = $r" | Where-Object { $_ -notmatch '^NominalScalar *=' })
   if (!($c -match '^\[Framerate\]')) { $c += @('', '[Framerate]') }
   $c = foreach ($l in $c) { $l; if ($l -match '^\[Framerate\]') { "NominalScalar = $Speed" } }

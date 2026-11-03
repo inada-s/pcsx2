@@ -77,6 +77,10 @@ USERS=AAAAAA BBBBBB CCCCCC DDDDDD
   synctest with check=2 in the arcade battle, snapshots every shown frame and judges them with
   `tools/zdxsv/rerunpic.py` (exit 0 PASS). For changes to what rerun frames skip;
   `"ZDXSV_SINGLE_DRAW_LIST=0 ZDXSV_RERUN_TAIL=1"` is its FAIL control. ~4 min, ~0.5 GB of snapshots.
+- Pictures after rollbacks by pixel color: `OUT=<dir> bash tests/zdxsv/rerunpix.sh ["<env>"]`: the same
+  synctest with a 16-pixel watch instead of snapshots; PASS (exit 0) when every vsync shows a frame and
+  no frame after a rollback repeats the one before. `"ZDXSV_SINGLE_DRAW_LIST=0 ZDXSV_RERUN_TAIL=1"` is its
+  FAIL control.
 - Input to picture: `OUT=<dir> bash tests/zdxsv/inputpic.sh ["<env>"]` presses down/up 8 times
   on the title main menu and watches one pixel of the highlighted item (`ZDXSV_INPUT_LATENCY`
   `pixel=`); prints each press' picture offset in vsyncs, exit 1 when a press has no change.
