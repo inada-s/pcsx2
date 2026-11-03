@@ -3,6 +3,7 @@
 
 #include "Config.h"
 #include "Zdxsv/Dev9Hooks.h"
+#include "Zdxsv/Settings.h"
 
 #include "common/MemorySettingsInterface.h"
 #include "common/SettingsWrapper.h"
@@ -71,10 +72,11 @@ TEST(DEV9Config, ZdxsvStaleHostEntries)
 
 TEST(DEV9Config, ZdxsvDnsLookupName)
 {
-	EXPECT_STREQ(Zdxsv::DnsLookupName("www01.kddi-mmbb.jp"), "lbs.zdxsv.net");
-	EXPECT_STREQ(Zdxsv::DnsLookupName("gate1.jp.dnas.playstation.org"), "lbs.zdxsv.net");
-	EXPECT_STREQ(Zdxsv::DnsLookupName("ca1202.mmcp6"), "lbs.zdxsv.net");
-	EXPECT_STREQ(Zdxsv::DnsLookupName("Ca1203.Mmcp6"), "lbs.zdxsv.net");
+	const auto server = [](const char* name) { return Zdxsv::SERVER_HOST[0] ? Zdxsv::SERVER_HOST : name; };
+	EXPECT_STREQ(Zdxsv::DnsLookupName("www01.kddi-mmbb.jp"), server("www01.kddi-mmbb.jp"));
+	EXPECT_STREQ(Zdxsv::DnsLookupName("gate1.jp.dnas.playstation.org"), server("gate1.jp.dnas.playstation.org"));
+	EXPECT_STREQ(Zdxsv::DnsLookupName("ca1202.mmcp6"), server("ca1202.mmcp6"));
+	EXPECT_STREQ(Zdxsv::DnsLookupName("Ca1203.Mmcp6"), server("Ca1203.Mmcp6"));
 	EXPECT_STREQ(Zdxsv::DnsLookupName("example.com"), "example.com");
 	EXPECT_STREQ(Zdxsv::DnsLookupName("ca1202.mmcp6.example.com"), "ca1202.mmcp6.example.com");
 }

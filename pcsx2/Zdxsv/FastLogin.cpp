@@ -45,8 +45,6 @@ namespace Zdxsv
 		constexpr size_t kLoginKeyLen = 10;
 		constexpr size_t kLbsIdLen = 12;
 
-		constexpr const char* kDefaultUrl = "https://lbs.zdxsv.net:8443/lbs/login";
-
 		struct LoginResult
 		{
 			std::string login_key, session_id, lobby_addr, lbs_info;
@@ -77,7 +75,7 @@ namespace Zdxsv
 		{
 			if (const char* env = std::getenv("ZDXSV_LOGIN_API_URL"))
 				return env;
-			return Host::GetStringSettingValue("DEV9/Eth", "ZdxsvLoginApiUrl", kDefaultUrl);
+			return Host::GetStringSettingValue("DEV9/Eth", "ZdxsvLoginApiUrl", ServerApiUrl("/lbs/login").c_str());
 		}
 
 		std::optional<std::string> JsonString(const rapidjson::Document& doc, const char* key)
@@ -182,7 +180,7 @@ namespace Zdxsv
 			if (eeMem->Main[kNetState] != 0x21 || eeMem->Main[kLobbyPhase] != 2)
 				return;
 			s_fast.step = FastLogin::Step::Done;
-			if (!Enabled())
+			if (!Enabled() || Url().empty())
 				return;
 			const char* key = reinterpret_cast<const char*>(&eeMem->Main[kNetFileLoginKey]);
 			const std::string login_key(key, strnlen(key, kLoginKeyLen + 1));

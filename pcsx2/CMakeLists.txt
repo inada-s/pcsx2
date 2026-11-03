@@ -13,6 +13,16 @@ target_compile_features(PCSX2_FLAGS INTERFACE cxx_std_17)
 target_compile_definitions(PCSX2_FLAGS INTERFACE "${PCSX2_DEFS}")
 target_compile_options(PCSX2_FLAGS INTERFACE "${PCSX2_WARNINGS}")
 
+# zdxsv: production server defaults, given only by the official release build (docs/zdxsv/options.md)
+set(ZDXSV_SERVER_HOST "" CACHE STRING "zdxsv game server host; empty = none")
+set(ZDXSV_UDPTEST_URL "" CACHE STRING "zdxsv udptest function URL; empty = none")
+if(ZDXSV_SERVER_HOST)
+	target_compile_definitions(PCSX2_FLAGS INTERFACE "ZDXSV_SERVER_HOST=\"${ZDXSV_SERVER_HOST}\"")
+endif()
+if(ZDXSV_UDPTEST_URL)
+	target_compile_definitions(PCSX2_FLAGS INTERFACE "ZDXSV_UDPTEST_URL=\"${ZDXSV_UDPTEST_URL}\"")
+endif()
+
 # Check that people use the good file
 if(NOT TOP_CMAKE_WAS_SOURCED)
 	message(FATAL_ERROR "

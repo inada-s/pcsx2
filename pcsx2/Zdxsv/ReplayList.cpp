@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0+
 
 #include "Zdxsv/ReplayList.h"
+#include "Zdxsv/Settings.h"
 #include "Zdxsv/Proto.h"
 #include "Config.h"
 #include "Host.h"
@@ -181,7 +182,7 @@ namespace Zdxsv
 
 	std::string LobbyApiUrl()
 	{
-		std::string url = Host::GetStringSettingValue("DEV9/Eth", "ZdxsvLobbyApiUrl", "https://lbs.zdxsv.net:8443");
+		std::string url = Host::GetStringSettingValue("DEV9/Eth", "ZdxsvLobbyApiUrl", ServerApiUrl("").c_str());
 		while (!url.empty() && (url.back() == '/' || url.back() == ' '))
 			url.pop_back();
 		return url;

@@ -118,7 +118,7 @@ namespace Zdxsv
 				return s_upload_url;
 			if (!DnsUsedServerHost() || !Host::GetBoolSettingValue("DEV9/Eth", "ZdxsvReplayUpload", true))
 				return {};
-			return Host::GetStringSettingValue("DEV9/Eth", "ZdxsvReplayUploadUrl", REPLAY_UPLOAD_URL);
+			return Host::GetStringSettingValue("DEV9/Eth", "ZdxsvReplayUploadUrl", ServerApiUrl("/lbs/replay_upload").c_str());
 		}
 
 		// Every player posts <battle_code>.pb (multipart field "file")

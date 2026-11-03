@@ -20,7 +20,8 @@ jobs:
       artifactPrefixName: "PCSX2-windows-Qt-x64-cmake-clang"
       configuration: CMake
       buildSystem: cmake
-      cmakeFlags: -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl
+      # The production servers: only this build has them as defaults (a build from source has none).
+      cmakeFlags: -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl -DZDXSV_SERVER_HOST=lbs.zdxsv.net -DZDXSV_UDPTEST_URL=https://asia-northeast1-zdxsv-157317.cloudfunctions.net/udptest
       fetchTags: true
 
   release:
@@ -32,6 +33,12 @@ jobs:
         with:
           name: zdxsv-release-windows-x64
           path: zdxsv-release
+
+      - name: Check the production server defaults
+        run: |
+          unzip -q zdxsv-release/pcsx2-zdxsv-windows-x64.zip -d check
+          grep -aqF "lbs.zdxsv.net" check/pcsx2-qt*.exe
+          grep -aqF "cloudfunctions.net/udptest" check/pcsx2-qt*.exe
 
       - name: Create release
         env:

@@ -4,6 +4,7 @@
 #include "Zdxsv/CpuHooks.h"
 #include "Zdxsv/Dev9Hooks.h"
 #include "Zdxsv/ServerHosts.h"
+#include "Zdxsv/Settings.h"
 
 #include "common/Console.h"
 #include "common/StringUtil.h"
@@ -19,10 +20,6 @@ namespace Zdxsv
 {
 	namespace
 	{
-		// The zdxsv game server. Its address comes from DNS, so a server move needs no new release.
-		// zdxsv.net itself is the website since 2026-10; the game server is lbs.zdxsv.net.
-		constexpr const char* kServerHost = "lbs.zdxsv.net";
-
 		// The servers the game connects to: login, DNAS, lobby.
 		constexpr const char* kGameHosts[] = {
 			"www01.kddi-mmbb.jp",
@@ -52,13 +49,13 @@ namespace Zdxsv
 
 	const char* DnsLookupName(const char* url)
 	{
-		if (!IsGameHost(url))
+		if (!SERVER_HOST[0] || !IsGameHost(url))
 			return url;
-		Console.WriteLn("DEV9: DNS: %s looked up as %s", url, kServerHost);
+		Console.WriteLn("DEV9: DNS: %s looked up as %s", url, SERVER_HOST);
 		s_used_server_host = true;
 		if (g_z_game)
 			HttpsLatencyStart();
-		return kServerHost;
+		return SERVER_HOST;
 	}
 
 	bool DnsUsedServerHost()
