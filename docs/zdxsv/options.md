@@ -22,14 +22,15 @@ tests.
 ## Build options
 
 CMake cache variables. Only the official release build (`zdxsv_release.yml`,
-tags `zdxsv-X.Y.Z`) sets them, to the production servers; a build from source
+tags `zdxsv-X.Y.Z`) sets them from the repository variables of the same name
+([tools](tools.md)); a build from source
 has none, so it connects to no server until the player sets one (`ZdxsvLoginApiUrl`,
 `ZdxsvLobbyApiUrl`, `ZdxsvReplayUploadUrl`, `ZdxsvUdpTestUrl`, host entries).
 
 | Option | Default | Meaning |
 |---|---|---|
-| `ZDXSV_SERVER_HOST` | empty | The game server host: the internal DNS looks up the game's server names as it, and `https://<host>:8443` is the default of the API URLs below (`server` in their Default column). Empty: names resolve as they are, the API URLs are empty. Release: `lbs.zdxsv.net`. |
-| `ZDXSV_UDPTEST_URL` | empty | Default of `ZdxsvUdpTestUrl`. Release: the zdxsv udptest function. |
+| `ZDXSV_SERVER_HOST` | empty | The game server host: the internal DNS looks up the game's server names as it, and `https://<host>:8443` is the default of the API URLs below (`server` in their Default column). Empty: names resolve as they are, the API URLs are empty. Release: the repository variable. |
+| `ZDXSV_UDPTEST_URL` | empty | Default of `ZdxsvUdpTestUrl`. Release: the repository variable. |
 
 ## Game check
 

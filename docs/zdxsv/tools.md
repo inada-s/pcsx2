@@ -7,6 +7,12 @@
 - Pushing a tag `zdxsv-X.Y.Z` runs `.github/workflows/zdxsv_release.yml`. It
   builds Windows x64 and publishes two files with the same content:
   `pcsx2-zdxsv-windows-x64.7z` for the updater and `.zip` for a first install.
+- The release reads the production servers from repository variables
+  (Settings > Secrets and variables > Actions > Variables). Each must be set;
+  an empty one fails the release before the build, and the release job checks
+  that the exe contains both values.
+  - `ZDXSV_SERVER_HOST`: the game server host, e.g. `lbs.zdxsv.net`.
+  - `ZDXSV_UDPTEST_URL`: the zdxsv udptest function URL.
 - A tag with a suffix, such as `zdxsv-0.0.1-rc1`, becomes a prerelease. The
   updater skips prereleases.
 - The release zip holds `portable.txt`, `ZDXSV.md` and `ZDXSV.ja.md`.
