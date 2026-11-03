@@ -42,7 +42,7 @@ this table says it is missing.
 - **Network defaults for zdxsv**: adapter on, Sockets, internal DNS, game hosts as `ZDXSV_SERVER_HOST`.
 - **Online without DEV9**: experimental, with the platform info, a TCP battle, a GGPO battle and TLS; `ZdxsvNoDev9`, `ZDXSV_NODEV9`.
 - **Fast login**: DNAS and the login browser skipped; `ZdxsvFastLogin`, `ZdxsvLoginApiUrl`.
-- **Fast boot**: boot to the lobby user_id selection with no input; `ZdxsvFastBoot`, `ZdxsvFastBootState`.
+- **Fast boot**: boot to the lobby user_id selection with no input; `ZdxsvFastBoot`, `ZdxsvFastBootState`, `ZdxsvFastBootLobby` (on through ID 1 into the lobby).
 - **Platform info `0x9950` to the lobby**: `ZDXSV_PLATFORM_INFO`.
 - **Battle over TCP to the battle server, as a PS2**: always.
 - **Playing as a console**: seen as a real PS2; `ZDXSV_PLATFORM_INFO=0`.

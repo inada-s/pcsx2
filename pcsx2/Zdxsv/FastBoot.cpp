@@ -41,8 +41,15 @@ namespace Zdxsv
 		constexpr u8 kNetFileNotFound = 0x14;
 		constexpr u8 kNetTerms = 5;
 		constexpr u8 kNetSettingList = 6;
-		constexpr u32 kLobbyObject = kGp - 0x5a1c; // pointer; +0xa1f = 4 at the user_id selection
+		constexpr u32 kLobbyObject = kGp - 0x5a1c; // pointer; +0xa1f = network step, +0xa20 = its sub step
 		constexpr u32 kLobbyMarker = 0xa1f;
+		constexpr u32 kLobbySub = 0xa20;
+		// Network steps: 4 user_id selection (sub 5 = ID picked, confirm bar), 7 ID confirmed (DecideUserID sent),
+		// then 8, 9, 0, 1, 2, 5 and 1 with sub 0 = in the lobby.
+		constexpr u8 kStepUserId = 4;
+		constexpr u8 kStepUserIdDecided = 7;
+		constexpr u8 kStepLobby = 1;
+		constexpr u32 kUserIdGiveUpFrames = 60 * 60;
 
 		enum Button : u32
 		{
@@ -69,6 +76,11 @@ namespace Zdxsv
 			bool done = false;
 			bool use_state = false;
 			bool state_handled = false;
+			bool to_lobby = false;
+			bool in_user_id = false;
+			bool user_id_decided = false;
+			u32 user_id_frame = 0;
+			int user_id_pressed_sub = -1;
 			std::string initial_state;
 			u32 frame = 0;
 			u32 next_press = 0;
@@ -153,6 +165,36 @@ namespace Zdxsv
 					Sequence({Down, Down, Circle}); // network setting 1
 			}
 		}
+
+		void UserIdOnVsync()
+		{
+			if (s_boot.held >= 0)
+			{
+				if (s_boot.frame < s_boot.release_at)
+					return;
+				Set(static_cast<Button>(s_boot.held), false);
+				s_boot.held = -1;
+			}
+			const u32 lobby = Pointer(kLobbyObject);
+			const u8 step = lobby ? eeMem->Main[lobby + kLobbyMarker] : 0;
+			const u8 sub = lobby ? eeMem->Main[lobby + kLobbySub] : 0;
+			if (step == kStepUserIdDecided)
+				s_boot.user_id_decided = true;
+			if (s_boot.user_id_decided && step == kStepLobby && sub == 0)
+				return Finish("lobby");
+			if (s_boot.frame - s_boot.user_id_frame > kUserIdGiveUpFrames)
+				return Finish("gave up in the user_id selection");
+			if (step != kStepUserId || s_boot.frame < s_boot.next_press)
+				return;
+			// A press that changed nothing (dropped while the screen was busy) is repeated after a pause.
+			if (sub == s_boot.user_id_pressed_sub && s_boot.frame < s_boot.next_press + kMenuSettleFrames)
+				return;
+			Set(Circle, true);
+			s_boot.held = Circle;
+			s_boot.user_id_pressed_sub = sub;
+			s_boot.release_at = s_boot.frame + kHoldFrames;
+			s_boot.next_press = s_boot.release_at + kGapFrames;
+		}
 	} // namespace
 
 	void FastBootOnVsync()
@@ -171,14 +213,27 @@ namespace Zdxsv
 			VMManager::SetLimiterMode(LimiterModeType::Unlimited);
 			Console.WriteLn("Zdxsv: fast boot: on");
 			s_boot.use_state = BoolSetting("ZdxsvFastBootState", true, "ZDXSV_FAST_BOOT_STATE");
+			s_boot.to_lobby = BoolSetting("ZdxsvFastBootLobby", false, "ZDXSV_FAST_BOOT_LOBBY");
 		}
 		s_boot.frame++;
+		if (s_boot.in_user_id)
+			return UserIdOnVsync();
 		if (s_boot.frame > kGiveUpFrames)
 			return Finish("gave up");
 
 		const u32 lobby = Pointer(kLobbyObject);
-		if (lobby && eeMem->Main[lobby + kLobbyMarker] == 4)
-			return Finish("user_id selection");
+		if (lobby && eeMem->Main[lobby + kLobbyMarker] == kStepUserId)
+		{
+			Finish("user_id selection");
+			if (s_boot.to_lobby)
+			{
+				s_boot.done = false;
+				s_boot.in_user_id = true;
+				s_boot.user_id_frame = s_boot.frame;
+				s_boot.next_press = s_boot.frame + kMenuSettleFrames;
+			}
+			return;
+		}
 
 		const u32 scene_block = Pointer(kSceneBlock);
 		const u8 scene = scene_block ? eeMem->Main[scene_block] : 0;
