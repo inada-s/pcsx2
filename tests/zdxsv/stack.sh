@@ -13,6 +13,7 @@ export ZDXSV_LOGIN_ADDR=:80 ZDXSV_LOGIN_PUBLIC_ADDR=$IP
 export ZDXSV_LOBBY_ADDR=:8200 ZDXSV_LOBBY_RPC_ADDR=127.0.0.1:8201 ZDXSV_LOBBY_PUBLIC_ADDR=$IP:8200
 export ZDXSV_BATTLE_ADDR=:8210 ZDXSV_BATTLE_RPC_ADDR=127.0.0.1:3080 ZDXSV_BATTLE_PUBLIC_ADDR=$IP:8210
 export ZDXSV_STATUS_ADDR=127.0.0.1:8080 ZDXSV_DB_NAME=zdxsv.db
+export ZDXSV_LOBBY_API_ADDR=${ZDXSV_LOBBY_API_ADDR:-127.0.0.1:9881}
 Z=${ZBIN:-$ZDXSV/bin/zdxsv.exe}  # ZBIN: another build (e.g. a control)
 ZDXSV=$ZDXSV bash "$(dirname "$0")/zbincheck.sh" "$Z" || exit 1  # built from the checkout (ZREV= for an old one)
 [ -f zdxsv.db ] || "$Z" initdb > initdb.log 2>&1

@@ -96,7 +96,6 @@ namespace Zdxsv
 			u8 last_net = 0;
 			sock_t socks[kSlots] = {INVALID_SOCKET, INVALID_SOCKET, INVALID_SOCKET, INVALID_SOCKET};
 			sock_t none = INVALID_SOCKET;
-			char login_api_url[48] = {};
 		} s_state;
 
 		constexpr const char* kServerHost = "lbs.zdxsv.net";
@@ -258,14 +257,7 @@ namespace Zdxsv
 			return;
 		}
 		s_state.ip = (q[0] & 0xff) | (q[1] & 0xff) << 8 | (q[2] & 0xff) << 16 | (q[3] & 0xff) << 24;
-		std::snprintf(s_state.login_api_url, sizeof(s_state.login_api_url), "http://%u.%u.%u.%u:8203/lbs/login",
-			q[0] & 0xff, q[1] & 0xff, q[2] & 0xff, q[3] & 0xff);
 		Console.WriteLn("Zdxsv: no DEV9: the net RPCs are answered on the EE, names resolve to %s", e);
-	}
-
-	const char* NoDev9LoginApiUrl()
-	{
-		return s_state.login_api_url;
 	}
 
 	void NoDev9Reset()
