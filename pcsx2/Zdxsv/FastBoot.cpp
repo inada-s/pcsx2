@@ -224,14 +224,13 @@ namespace Zdxsv
 		const u32 lobby = Pointer(kLobbyObject);
 		if (lobby && eeMem->Main[lobby + kLobbyMarker] == kStepUserId)
 		{
-			Finish("user_id selection");
-			if (s_boot.to_lobby)
-			{
-				s_boot.done = false;
-				s_boot.in_user_id = true;
-				s_boot.user_id_frame = s_boot.frame;
-				s_boot.next_press = s_boot.frame + kMenuSettleFrames;
-			}
+			if (!s_boot.to_lobby)
+				return Finish("user_id selection");
+			Console.WriteLn("Zdxsv: fast boot: user_id selection at frame %u, on to the lobby", s_boot.frame);
+			s_boot.queue.clear();
+			s_boot.in_user_id = true;
+			s_boot.user_id_frame = s_boot.frame;
+			s_boot.next_press = s_boot.frame + kMenuSettleFrames;
 			return;
 		}
 
