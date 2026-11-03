@@ -261,6 +261,9 @@ A save state does not hold the network adapter, as upstream, except:
 - `ZDXSV_GGPO` or `ZDXSV_REPLAY` set: save states keep the adapter without
   taking over connections, so the PS2's network driver and the adapter agree
   after a load.
+- On the no-DEV9 path, in both cases: save states keep the game's open
+  connection slots and their servers. After a load, an open slot reconnects
+  to its server on first use.
 
 The adapter state holds no host pointer. A load checks its buffer and
 descriptor indices and fails on a damaged state.
