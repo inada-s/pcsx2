@@ -45,14 +45,14 @@ namespace Zdxsv
 	void SingleDrawListOnVsync();
 	// In GgpoOnVmShutdown.
 	void SingleDrawListReset();
-	// ZDXSV_NODEV9=<ipv4>, Z game: online with no DEV9 device, the net RPCs answered on the EE (NoDev9.cpp).
+	// Z game, [DEV9/Eth] ZdxsvNoDev9 (default on): online with or without DEV9, the net RPCs answered on the EE (NoDev9.cpp).
 	extern bool g_no_dev9;
 	void NoDev9OnVmInitialize();
 	// In VSyncStart with g_no_dev9: the network device pick without dev9.
 	void NoDev9OnVsync();
 	// At NET_RPC_PC with g_no_dev9. true: answered.
 	bool NoDev9OnNetCall();
-	// With g_no_dev9: the fast login's API on that server, http://<ipv4>:8203/lbs/login (the zdxsv lobby API port).
+	// With ZDXSV_NODEV9=<ipv4>: the fast login's API on that server, http://<ipv4>:8203/lbs/login (the zdxsv lobby API port); else "".
 	const char* NoDev9LoginApiUrl();
 	// In GgpoOnVmShutdown.
 	void NoDev9Reset();

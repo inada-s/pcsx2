@@ -1,11 +1,12 @@
 // SPDX-FileCopyrightText: 2026 zdxsv contributors
 // SPDX-License-Identifier: GPL-3.0+
 
-// ZDXSV_NODEV9=<ipv4>: the Z game online with no DEV9 device (EthEnable = false). The game's net RPC
-// wrapper is answered on the EE: network setup and DNS from fixed replies, TCP on host sockets.
+// The Z game online with or without a DEV9 device. The game's net RPC wrapper is answered on the EE:
+// network setup from fixed replies, every name resolved to the zdxsv server, TCP on host sockets.
 // Experimental, needs proper testing: lobby only (no battle tested).
 
 #include "Zdxsv/CpuHooks.h"
+#include "Zdxsv/Settings.h"
 #include "Zdxsv/TestOptions.h"
 
 #include "Memory.h"
@@ -14,18 +15,24 @@
 #include "common/Console.h"
 
 #include <algorithm>
+#include <atomic>
 #include <cerrno>
+#include <chrono>
 #include <cstdio>
 #include <cstring>
+#include <memory>
+#include <thread>
 
 #ifdef _WIN32
 #ifndef NOMINMAX
 #define NOMINMAX
 #endif
 #include <winsock2.h>
+#include <ws2tcpip.h>
 using sock_t = SOCKET;
 #else
 #include <fcntl.h>
+#include <netdb.h>
 #include <netinet/in.h>
 #include <sys/ioctl.h>
 #include <sys/select.h>
@@ -84,12 +91,48 @@ namespace Zdxsv
 		{
 			bool on = false;
 			u32 ip = 0; // every name resolves to it, network order
+			std::shared_ptr<std::atomic<u32>> server_ip; // without a fixed ip: the host DNS answer for kServerHost
 			u32 link_calls = 0;
 			u8 last_net = 0;
 			sock_t socks[kSlots] = {INVALID_SOCKET, INVALID_SOCKET, INVALID_SOCKET, INVALID_SOCKET};
 			sock_t none = INVALID_SOCKET;
 			char login_api_url[48] = {};
 		} s_state;
+
+		constexpr const char* kServerHost = "lbs.zdxsv.net";
+		constexpr int kResolveWaitMs = 5000;
+
+		void ResolveServer(std::shared_ptr<std::atomic<u32>> out)
+		{
+#ifdef _WIN32
+			WSADATA wsa;
+			if (WSAStartup(MAKEWORD(2, 2), &wsa) != 0)
+				return;
+#endif
+			addrinfo hints = {};
+			hints.ai_family = AF_INET;
+			hints.ai_socktype = SOCK_STREAM;
+			addrinfo* res = nullptr;
+			if (getaddrinfo(kServerHost, nullptr, &hints, &res) == 0 && res)
+				out->store(reinterpret_cast<const sockaddr_in*>(res->ai_addr)->sin_addr.s_addr);
+			if (res)
+				freeaddrinfo(res);
+#ifdef _WIN32
+			WSACleanup();
+#endif
+		}
+
+		u32 ServerIp()
+		{
+			if (s_state.ip || !s_state.server_ip)
+				return s_state.ip;
+			for (int waited = 0; !s_state.server_ip->load() && waited < kResolveWaitMs; waited += 10)
+				std::this_thread::sleep_for(std::chrono::milliseconds(10));
+			s_state.ip = s_state.server_ip->load();
+			if (!s_state.ip)
+				Console.Error("Zdxsv: no DEV9: no address for %s", kServerHost);
+			return s_state.ip;
+		}
 
 		void CloseSock(sock_t& s)
 		{
@@ -202,11 +245,18 @@ namespace Zdxsv
 	void NoDev9OnVmInitialize()
 	{
 		NoDev9Reset();
-		const char* e = TestEnv("ZDXSV_NODEV9");
-		unsigned q[4] = {};
-		if (!g_z_game || !e || std::sscanf(e, "%u.%u.%u.%u", &q[0], &q[1], &q[2], &q[3]) != 4)
+		if (!g_z_game || !BoolSetting("ZdxsvNoDev9", true, "ZDXSV_NODEV9"))
 			return;
 		s_state.on = g_no_dev9 = true;
+		const char* e = TestEnv("ZDXSV_NODEV9");
+		unsigned q[4] = {};
+		if (!e || std::sscanf(e, "%u.%u.%u.%u", &q[0], &q[1], &q[2], &q[3]) != 4)
+		{
+			s_state.server_ip = std::make_shared<std::atomic<u32>>(0);
+			std::thread(ResolveServer, s_state.server_ip).detach();
+			Console.WriteLn("Zdxsv: no DEV9: the net RPCs are answered on the EE, names resolve to %s", kServerHost);
+			return;
+		}
 		s_state.ip = (q[0] & 0xff) | (q[1] & 0xff) << 8 | (q[2] & 0xff) << 16 | (q[3] & 0xff) << 24;
 		std::snprintf(s_state.login_api_url, sizeof(s_state.login_api_url), "http://%u.%u.%u.%u:8203/lbs/login",
 			q[0] & 0xff, q[1] & 0xff, q[2] & 0xff, q[3] & 0xff);
@@ -270,8 +320,9 @@ namespace Zdxsv
 			;
 		else if (fno == kFnoResolve)
 		{
-			res = 1;
-			std::memcpy(b + 0x20, &s_state.ip, 4);
+			const u32 ip = ServerIp();
+			res = ip ? 1 : 0;
+			std::memcpy(b + 0x20, &ip, 4);
 		}
 		else
 		{

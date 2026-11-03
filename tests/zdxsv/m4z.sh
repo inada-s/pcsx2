@@ -102,7 +102,7 @@ nz=$(echo $ZP | wc -w)  # UDP joins: zproxy clients only (pcsx2 has no UDP bridg
 cenv() {
   # EXT_OFF=1: every client runs with ZDXSV_EXTENSIONS=0 (all zdxsv extensions off: seen as a PS2, battle server)
   [ -n "${EXT_OFF:-}" ] && { echo ZDXSV_EXTENSIONS=0; return; }
-  [ -z "${EMU:-}" ] && { echo ZDXSV_PLATFORM_INFO=0; return; }
+  [ -z "${EMU:-}" ] && { echo ZDXSV_PLATFORM_INFO=0 ZDXSV_NODEV9=0; return; }
   # PWTRACE=1: player-work hashes + net trace per client (OUT/trace-p<i>.txt; rplay.sh compares a replay to them)
   [ -n "${PWTRACE:-}" ] && echo "ZDXSV_PW_HASH=1 ZDXSV_NET_TRACE=$OUT/trace-p$1.txt"
   # PWDUMP=1: player work per saved frame (OUT/pw-p<i>.bin, pwdiff.py)
