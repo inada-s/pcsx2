@@ -102,7 +102,7 @@ nz=$(echo $ZP | wc -w)  # UDP joins: zproxy clients only (pcsx2 has no UDP bridg
 cenv() {
   # EXT_OFF=1: every client runs with ZDXSV_EXTENSIONS=0 (all zdxsv extensions off: seen as a PS2, battle server)
   [ -n "${EXT_OFF:-}" ] && { echo ZDXSV_EXTENSIONS=0; return; }
-  [ -z "${EMU:-}" ] && { echo ZDXSV_PLATFORM_INFO=0 ZDXSV_NODEV9=0; return; }
+  [ -z "${EMU:-}" ] && { echo ZDXSV_PLATFORM_INFO=0 ZDXSV_NODEV9=0 ZDXSV_TLS=0; return; }
   # PWTRACE=1: player-work hashes + net trace per client (OUT/trace-p<i>.txt; rplay.sh compares a replay to them)
   [ -n "${PWTRACE:-}" ] && echo "ZDXSV_PW_HASH=1 ZDXSV_NET_TRACE=$OUT/trace-p$1.txt"
   # PWDUMP=1: player work per saved frame (OUT/pw-p<i>.bin, pwdiff.py)
@@ -267,6 +267,7 @@ if [ -n "${EXT_OFF:-}" ]; then
 fi
 [ -n "${EMU:-}" ] && [ -z "${EXT_OFF:-}" ] && check "platform info sent x$nc" "[ \$(cat '$RUN'/p[1-4]/PCSX2/logs/emulog.txt | grep -a -c 'sent platform info') -ge $nc ]"
 [ -z "${EMU:-}" ] && [ -z "${EXT_OFF:-}" ] && check "platform info off x4, no bridge" "[ \$(cat '$RUN'/p[1-4]/PCSX2/logs/emulog.txt | grep -a -c 'platform info off') -ge 4 ] && ! cat '$RUN'/p[1-4]/PCSX2/logs/emulog.txt | grep -a -q 'bridge'"
+[ -z "${EMU:-}" ] && [ -z "${EXT_OFF:-}" ] && check "TLS off x4 (plain ports, as a PS2)" "[ \$(cat '$RUN'/p[1-4]/PCSX2/logs/emulog.txt | grep -a -c 'Zdxsv: TLS: off') -ge 4 ]"
 if [ -n "${EMU:-}" ] && [ "${ZDXSV_TLS_TEST_PIN:-}" = 1 ]; then
   for i in ${CLIENTS:-1 2 3 4}; do
     el="$RUN/p$i/PCSX2/logs/emulog.txt"; tp="8220 8221"; [ -z "${GGPO:-}" ] && tp="$tp 8222"
