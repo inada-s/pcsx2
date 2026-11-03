@@ -64,6 +64,9 @@ USERS=AAAAAA BBBBBB CCCCCC DDDDDD
   `0` unless set, `ZDXSV_FAST_BOOT=default` leaves it on.
 - `launch.ps1` runs `probelint.py` first and refuses a PCSX2 build older than
   its sources.
+- Every script that starts PCSX2 (`launch.ps1`, `replayui.ps1`, `settingsui.ps1`) dot-sources
+  `localnet.ps1`: fast login off and its API URL local, no-DEV9 names resolved to the box `IP`,
+  so no run reaches the production server, also with a release exe.
 - Run from the repository root, e.g. `OUT=D:/zdxsv-run/out bash tests/zdxsv/rbk.sh 2 1`.
   Exit 0 = every check passed; a failed check prints `FAIL` and its reason.
   `rbk.sh` takes N and seed as arguments; an `N=` or `SEED=` in the environment

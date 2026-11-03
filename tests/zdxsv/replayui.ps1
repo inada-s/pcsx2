@@ -14,6 +14,7 @@ param([Parameter(Mandatory)][string]$DataPath, [string]$Exe = '',
       [string]$Tab = 'Local', [string]$Row = '', [string]$Set = '', [string]$Button = '', [string]$Pov = '', [int]$Wait = 90, [string]$Shot = '', [string]$Boot = '')
 $ErrorActionPreference = 'Stop'
 if (-not $Exe) { $Exe = Join-Path $PSScriptRoot '..\..\bin\pcsx2-qtx64.exe' }
+. "$PSScriptRoot\localnet.ps1"  # fast login and no-DEV9 pinned to the box
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes, System.Drawing
 Add-Type @"
 using System; using System.Runtime.InteropServices;
