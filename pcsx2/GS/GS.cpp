@@ -1001,15 +1001,16 @@ void* GSAllocateWrappedMemory(size_t size, size_t repeat)
 {
 	pxAssert(s_shm_fd == -1);
 
-	const char* file_name = "/GS.mem";
-	s_shm_fd = shm_open(file_name, O_RDWR | O_CREAT | O_EXCL, 0600);
+	// Per process: concurrent launches each open the name exclusively before unlinking it.
+	const std::string file_name = fmt::format("/GS.mem.{}", getpid());
+	s_shm_fd = shm_open(file_name.c_str(), O_RDWR | O_CREAT | O_EXCL, 0600);
 	if (s_shm_fd != -1)
 	{
-		shm_unlink(file_name); // file is deleted but descriptor is still open
+		shm_unlink(file_name.c_str()); // file is deleted but descriptor is still open
 	}
 	else
 	{
-		fprintf(stderr, "Failed to open %s due to %s\n", file_name, strerror(errno));
+		fprintf(stderr, "Failed to open %s due to %s\n", file_name.c_str(), strerror(errno));
 		return nullptr;
 	}
 
