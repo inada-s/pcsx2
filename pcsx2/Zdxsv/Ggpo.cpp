@@ -1406,7 +1406,7 @@ namespace Zdxsv
 
 	bool OnObjCall()
 	{
-		if (!g_rerun_draw_skip || RerunKeepDrawsHandler(cpuRegs.GPR.n.v0.UL[0]))
+		if (!g_rerun_draw_skip || RerunKeepDrawsHandler(cpuRegs.GPR.n.v0.UL[0], cpuRegs.GPR.n.s0.UL[0]))
 			return false;
 		cpuRegs.pc = OBJ_CALL_PC + 8;
 		return true;

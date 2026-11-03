@@ -104,10 +104,13 @@ not depend on them (synctest: player work and RNG agree with them kept).
 Except one part: each player's draw first copies part of its work into its
 slot (handler 0x1e4340: obj+0x20 to slot+0x220, the angles at obj+0x50-0x58
 as radians to slot+0x200-0x208, n 0x40-byte blocks from obj+0x7c0 to
-slot+0x300 + i * 0x240). The next frame reads that part, so it follows the
-rerun game state: it is copied again natively after the load and after each
-rerun frame. Kept instead, some pictures after a rollback differ from a full
-rerun.
+slot+0x300 + i * 0x240; the pose's w is set to 1). The next frame reads that
+part, so it follows the rerun game state: the load does not keep it, and it
+is copied natively for each player the object draw walker calls in a rerun
+frame (see below), else for every player after each rerun frame. A player
+the walker culls (0x2ac630) is not drawn and its copy stays from an older
+frame, which the draw after the cull reads. Kept, or copied for culled
+players too, some pictures after a rollback differ from a full rerun.
 Parts attached to a player (handler 0x1f6520, e.g. object 0xb130d0 on the
 player at 0x839330) draw their matrix into a further block of the player's
 slot (0x2a25c0: slot+0x300 + 0x240 * desc[4]), which the player's next draw

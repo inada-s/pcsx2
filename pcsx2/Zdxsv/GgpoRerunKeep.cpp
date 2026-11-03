@@ -102,6 +102,7 @@ namespace Zdxsv
 			bool rebuild_slots = false;
 			bool logged = false;
 			bool parts_logged = false;
+			bool walked = false;
 		};
 		RerunKeep s_keep;
 
@@ -157,23 +158,42 @@ namespace Zdxsv
 			return r;
 		}
 
-		void RebuildPlayerSlot(u32 obj)
+		bool IsPlayerHandler(u32 handler)
+		{
+			return std::find(std::begin(PLAYER_HANDLERS), std::end(PLAYER_HANDLERS), handler) != std::end(PLAYER_HANDLERS);
+		}
+
+		u32 PlayerSlot(u32 obj)
 		{
 			const s8 index = static_cast<s8>(eeMem->Main[obj + PLAYER_SLOT_INDEX]);
 			if (index < 0 || index >= 4 || obj + PLAYER_SIZE > Ps2MemSize::MainRam)
+				return 0;
+			return BONE_SLOTS + index * SLOT_SIZE;
+		}
+
+		u32 CopiedBlocks(u32 slot)
+		{
+			const u32 model = ReadU32(slot + SLOT_MODEL) & (Ps2MemSize::MainRam - 1);
+			if (model + MODEL_BLOCK_COUNT >= Ps2MemSize::MainRam)
+				return 0;
+			return std::min<u32>({eeMem->Main[model + MODEL_BLOCK_COUNT], SLOT_MAX_BLOCKS,
+				(PLAYER_SIZE - PLAYER_BLOCKS) / PLAYER_BLOCK_SIZE});
+		}
+
+		void RebuildPlayerSlot(u32 obj)
+		{
+			const u32 slot = PlayerSlot(obj);
+			if (!slot)
 				return;
-			const u32 slot = BONE_SLOTS + index * SLOT_SIZE;
-			std::memcpy(&eeMem->Main[slot + SLOT_POSE], &eeMem->Main[obj + PLAYER_POSE], 16);
+			std::memcpy(&eeMem->Main[slot + SLOT_POSE], &eeMem->Main[obj + PLAYER_POSE], 12);
+			const float w = 1.0f; // vmove.w from vf0
+			std::memcpy(&eeMem->Main[slot + SLOT_POSE + 12], &w, sizeof(w));
 			for (u32 i = 0; i < 3; i++)
 			{
 				const float a = AngleToRadians(ReadU32(obj + PLAYER_ANGLES + i * 4));
 				std::memcpy(&eeMem->Main[slot + SLOT_ANGLES + i * 4], &a, sizeof(a));
 			}
-			const u32 model = ReadU32(slot + SLOT_MODEL) & (Ps2MemSize::MainRam - 1);
-			if (model + MODEL_BLOCK_COUNT >= Ps2MemSize::MainRam)
-				return;
-			const u32 n = std::min<u32>({eeMem->Main[model + MODEL_BLOCK_COUNT], SLOT_MAX_BLOCKS,
-				(PLAYER_SIZE - PLAYER_BLOCKS) / PLAYER_BLOCK_SIZE});
+			const u32 n = CopiedBlocks(slot);
 			for (u32 i = 0; i < n; i++)
 				std::memcpy(&eeMem->Main[slot + SLOT_BLOCKS + i * SLOT_BLOCK_STRIDE + SLOT_BLOCK_OFFSET],
 					&eeMem->Main[obj + PLAYER_BLOCKS + i * PLAYER_BLOCK_SIZE], PLAYER_BLOCK_SIZE);
@@ -185,9 +205,46 @@ namespace Zdxsv
 			if (!s_keep.rebuild_slots)
 				return;
 			ForEachObject([](u32 obj, u32 handler) {
-				if (std::find(std::begin(PLAYER_HANDLERS), std::end(PLAYER_HANDLERS), handler) != std::end(PLAYER_HANDLERS))
+				if (IsPlayerHandler(handler))
 					RebuildPlayerSlot(obj);
 			});
+		}
+
+		// What the players' draws copied into their slots by the loaded frame. A culled player is not
+		// drawn and its copy stays from an older frame; the next draw after the cull reads it.
+		struct CopiedRange
+		{
+			u32 addr, len;
+		};
+		std::vector<CopiedRange> s_copied_ranges;
+		std::vector<u8> s_copied;
+
+		void SaveCopiedRanges()
+		{
+			s_copied_ranges.clear();
+			s_copied.clear();
+			ForEachObject([](u32 obj, u32 handler) {
+				const u32 slot = IsPlayerHandler(handler) ? PlayerSlot(obj) : 0;
+				if (!slot)
+					return;
+				s_copied_ranges.push_back({slot + SLOT_ANGLES, 12});
+				s_copied_ranges.push_back({slot + SLOT_POSE, 16});
+				const u32 n = CopiedBlocks(slot);
+				for (u32 i = 0; i < n; i++)
+					s_copied_ranges.push_back({slot + SLOT_BLOCKS + i * SLOT_BLOCK_STRIDE + SLOT_BLOCK_OFFSET, PLAYER_BLOCK_SIZE});
+			});
+			for (const CopiedRange& r : s_copied_ranges)
+				s_copied.insert(s_copied.end(), &eeMem->Main[r.addr], &eeMem->Main[r.addr + r.len]);
+		}
+
+		void RestoreCopiedRanges()
+		{
+			size_t k = 0;
+			for (const CopiedRange& r : s_copied_ranges)
+			{
+				std::memcpy(&eeMem->Main[r.addr], &s_copied[k], r.len);
+				k += r.len;
+			}
 		}
 
 		void SaveObjects()
@@ -238,6 +295,10 @@ namespace Zdxsv
 		if (!s_keep.armed || !RerunKeepPhase())
 			return;
 		s_keep.armed = false;
+		s_keep.rebuild_slots = std::any_of(s_keep_config.ranges.begin(), s_keep_config.ranges.end(),
+			[](const auto& r) { return r.first < BONE_SLOTS_END && BONE_SLOTS < r.second; });
+		if (s_keep.rebuild_slots)
+			SaveCopiedRanges();
 		size_t off = 0;
 		for (const auto& [lo, hi] : s_keep_config.ranges)
 		{
@@ -245,19 +306,21 @@ namespace Zdxsv
 			off += hi - lo;
 		}
 		RestoreObjects();
-		s_keep.rebuild_slots = std::any_of(s_keep_config.ranges.begin(), s_keep_config.ranges.end(),
-			[](const auto& r) { return r.first < BONE_SLOTS_END && BONE_SLOTS < r.second; });
+		if (s_keep.rebuild_slots)
+			RestoreCopiedRanges();
 		if (!s_keep.logged)
 		{
 			s_keep.logged = true;
 			Console.WriteLn("ZdxsvGgpo: rerun keep %zu ranges", s_keep_config.ranges.size());
 		}
-		RebuildPlayerSlots();
 	}
 
 	void RerunKeepAfterRerunFrame(bool last)
 	{
-		RebuildPlayerSlots();
+		// The walker copied the drawn players' parts itself.
+		if (!s_keep.walked)
+			RebuildPlayerSlots();
+		s_keep.walked = false;
 		if (last)
 			s_keep.rebuild_slots = false;
 	}
@@ -276,13 +339,17 @@ namespace Zdxsv
 				s_keep.parts_logged = true;
 				Console.WriteLn("ZdxsvGgpo: rerun keep draws attached parts");
 			}
+			s_keep.walked = true;
 			return true;
 		}
 		return false;
 	}
 
-	bool RerunKeepDrawsHandler(u32 handler)
+	bool RerunKeepDrawsHandler(u32 handler, u32 obj)
 	{
+		// The walker calls a handler only for an object not culled.
+		if (IsPlayerHandler(handler))
+			RebuildPlayerSlot(obj & (Ps2MemSize::MainRam - 1));
 		return handler == PART_HANDLER;
 	}
 } // namespace Zdxsv
