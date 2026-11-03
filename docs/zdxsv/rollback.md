@@ -94,6 +94,19 @@ swap (DISPFB between FBP 0x000 and 0x08c every vsync) is unchanged. The players
 and RNG B stay in sync in N=4 battles and between peers with and without it.
 Not checked yet: replays.
 
+Rerun keep: the render callbacks also update state that a later draw reads.
+The per-player bone matrix slots (4 x 0x65d0 bytes from 0x8afda0, written
+only by the callbacks) hold the pose of the frame before; rolled back and
+not advanced by the skipped callbacks, they show a mech's arms and weapon in
+an old pose after a rollback. So during play (tick state 6) a rollback does
+not roll them back: they keep the predicted frame's poses. The game logic
+does not read them (synctest: player work and RNG agree with them kept).
+Memory the game logic reads must not be kept: the object memory at
+0xafd800-0xafdfff and 0xb13000-0xb6afff holds game objects and effects, and
+an address is reused by another object type, so keeping it desyncs.
+`ZDXSV_RERUN_KEEP` turns it off or sets other ranges, kept in any game phase
+(tests); `ZDXSV_RERUN_EE_DRAW=1` turns it off.
+
 ### Synctest
 
 `ZDXSV_GGPO` without `net=1`. Every `check` frames GGPO loads the state

@@ -460,6 +460,7 @@
     <ClCompile Include="Zdxsv\GgpoBudget.cpp" />
     <ClCompile Include="Zdxsv\GgpoGameState.cpp" />
     <ClCompile Include="Zdxsv\GgpoLobby.cpp" />
+    <ClCompile Include="Zdxsv\GgpoRerunKeep.cpp" />
     <ClCompile Include="Zdxsv\GgpoTest.cpp" />
     <ClCompile Include="Zdxsv\GgpoTrace.cpp" />
     <ClCompile Include="Zdxsv\ReplayLive.cpp" />
