@@ -81,7 +81,7 @@ RNG A (u16 0x6d7940, ~40 draws a battle frame), so after such a rollback
 RNG A differs from a run without one. RNG A is already peer-local (sound
 picks draw from it) and the players and RNG B stay in sync (rbk N=2 and N=4).
 
-`ZDXSV_SINGLE_DRAW_LIST=1` removes the frame between the list and VU1. The
+The single draw list (`ZdxsvSingleDrawList`) removes the frame between the list and VU1. The
 game keeps two draw-list slots chosen by a per-frame flag (u32 0x7ae1c0); its
 main loop sends the list of the frame before (`slot[flag ^ 1]`) ahead of the
 logic. The patch moves the send after the logic and makes it, and the VIF1
@@ -93,6 +93,24 @@ predicted one), never an older picture. The framebuffer
 swap (DISPFB between FBP 0x000 and 0x08c every vsync) is unchanged. The players
 and RNG B stay in sync in N=4 battles and between peers with and without it.
 Not checked yet: replays.
+
+Rerun keep: the render callbacks also update state that a later draw reads.
+The per-player bone matrix slots (4 x 0x65d0 bytes from 0x8afda0, written
+only by the callbacks) hold the pose of the frame before; rolled back and
+not advanced by the skipped callbacks, they show a mech's arms and weapon in
+an old pose after a rollback. So during play (tick state 6) a rollback does
+not roll them back: they keep the predicted frame's poses. The game logic
+does not read them (synctest: player work and RNG agree with them kept).
+Memory the game logic reads must not be kept: the object memory at
+0xafd800-0xafdfff and 0xb13000-0xb6afff holds game objects and effects, and
+an address is reused by another object type, so keeping it desyncs.
+Beam saber trail objects (handler 0x167810) also keep their trail history:
+fields +0x0-0x9f and +0x150-0x1cf, only for an object at the same address
+with the same handler before and after the load (objects found through the
+game object list, head at gp - 0x5b80). Without them a saber trail jumps
+after a rollback. Synctest: player work agrees with them kept.
+`ZDXSV_RERUN_KEEP` turns it off or sets other ranges, kept in any game phase
+(tests); `ZDXSV_RERUN_EE_DRAW=1` turns it off.
 
 ### Synctest
 

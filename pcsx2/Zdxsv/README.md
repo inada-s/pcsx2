@@ -48,6 +48,7 @@ options: `docs/zdxsv/`.
 | `GgpoLobby.cpp` | Arming a GGPO battle from the lobby: battle info, frame delay, the cut connection |
 | `GgpoBudget.cpp` | Rollback budget: frame slack histogram, the per-PC learned budget, the input delay formula |
 | `GgpoGameState.cpp` | Game RAM reads for sync checks and replays: player work hash, RNG, tick state, round records |
+| `GgpoRerunKeep.cpp` | Rerun keep: EE RAM a rollback leaves at the predicted frame (bone matrix slots, saber trail objects) |
 | `GgpoTrace.cpp` | Debug: `NET_TRACE` lines of the pad and the battle msgs' key slots |
 | `GgpoTest.cpp` | Local rollback test harness (synctest): state diffs of rerun frames, random pad input |
 | `ReplayRecord.cpp` | Replay recording, upload and live stream of a GGPO battle |
@@ -67,7 +68,7 @@ options: `docs/zdxsv/`.
 | `ServerHosts.cpp`, `ServerHosts.h` | The game's server hosts, looked up as the zdxsv server's hostname by the internal DNS server; whether it was (public server) |
 | `FastBoot.cpp` | Boot at unlimited speed to the lobby user_id selection, pressing through the menus on the fixed network route |
 | `FastLogin.cpp` | Login through the login API at DNAS start, the browser's result written to guest RAM, jump to the lobby connect |
-| `SingleDrawList.cpp` | `ZDXSV_SINGLE_DRAW_LIST`: game code patch that draws a frame's list in that frame |
+| `SingleDrawList.cpp` | `ZdxsvSingleDrawList`: game code patch that draws a frame's list in that frame |
 | `NoDev9.cpp` | `ZDXSV_NODEV9`: online without DEV9, the net RPCs answered on the EE and TCP on a host socket (experimental) |
 | `Upnp.cpp`, `Upnp.h` | UPnP mapping of the GGPO port on the router (`3rdparty/miniupnpc`), removed at exit |
 | `TlsTunnel.cpp` | TLS to the zdxsv server: the game's TCP connections go through a local tunnel, the server is checked by its public-key pins |

@@ -76,7 +76,7 @@ USERS=AAAAAA BBBBBB CCCCCC DDDDDD
 - Pictures after rollbacks: `OUT=<dir> bash tests/zdxsv/rerunpic.sh ["<env>"]` runs a GGPO
   synctest with check=2 in the arcade battle, snapshots every shown frame and judges them with
   `tools/zdxsv/rerunpic.py` (exit 0 PASS). For changes to what rerun frames skip;
-  `"ZDXSV_RERUN_TAIL=1"` is its FAIL control. ~4 min, ~0.5 GB of snapshots.
+  `"ZDXSV_SINGLE_DRAW_LIST=0 ZDXSV_RERUN_TAIL=1"` is its FAIL control. ~4 min, ~0.5 GB of snapshots.
 - Input to picture: `OUT=<dir> bash tests/zdxsv/inputpic.sh ["<env>"]` presses down/up 8 times
   on the title main menu and watches one pixel of the highlighted item (`ZDXSV_INPUT_LATENCY`
   `pixel=`); prints each press' picture offset in vsyncs, exit 1 when a press has no change.
@@ -98,7 +98,7 @@ Scripts are in `tests/zdxsv/` except `run.py` (repository root) and
 |---|---|---|
 | Switch for all online battle extensions | `CLIENTS="1 3" EMU=1 EXT_OFF=1 m4z.sh`: both clients log `all zdxsv extensions off` and `not the Z game: no platform info`, no GGPO options, and join the battle server over TCP; 2 results | without `EXT_OFF`: `sent platform info` |
 | Network defaults for zdxsv | unit: `DEV9Config.*` in `tests/ctest/core/dev9_config_tests.cpp` | none |
-| Online without DEV9 | `m4z.sh` `EMU=1 CLIENTS="1 3"` (`launch.ps1` default, DEV9 on: the game uses the hook): `join tcp x2`, `platform info sent x2`, `BattleResult x2`. Login by hand: `stack.sh`, `ZDXSV_FAST_LOGIN=1` `launch.ps1`, `drive.py` route `top`: the lobby ID selection shows, emulog `Zdxsv: fast login: session`; with `launch.ps1` defaults (fast login off), routes `top` then `login`: the lobby battlefield map shows | `ZDXSV_NODEV9=0` with `EthEnable = false`: the network device pick shows the device as unavailable |
+| Online without DEV9 | `m4z.sh` `EMU=1 CLIENTS="1 3"` (`launch.ps1` default, DEV9 on: the game uses the hook): `join tcp x2`, `platform info sent x2`, `BattleResult x2`; with `GGPO=7101`: `p1/p3 ggpo session`, `ggpo end msg frame agrees`. Login: `nodev9.sh` (DEV9 Eth off, fast login): the lobby ID selection shows, emulog `no DEV9` and `fast login: session` with the lobby on the server, no DNAS POST, no TCP to another host; with `launch.ps1` defaults (fast login off), routes `top` then `login`: the lobby battlefield map shows | `nodev9.sh` with `NODEV9=0 MAXS=90` (DEV9 Eth off): no ID selection, the network device pick shows the device as unavailable |
 | Fast login | `ROUTE=top LIMIT=200 boottime.sh` (server with `/lbs/login`): user_id screen with no ログイン press, emulog `Zdxsv: fast login: session`, no DNAS POST in `dnas.log` | `ZDXSV_FAST_LOGIN=0 ROUTE=top LIMIT=200 MAXS=150 boottime.sh` fails (stops at TOP) |
 | Fast boot | `fastboot.sh`: run 1 (no boot state) logs `Zdxsv: fast boot: saving` and reaches the user_id screen with no input, run 2 logs `Zdxsv: fast boot: loading` and reaches it within 5 s of the VM start (`LIMIT`); each prints its time from the launch and from the VM start; run 3 (unformatted card) logs `Zdxsv: fast boot: stopped, memory card error` within 15 s; passes with the local zdxsv stack and with `LOBBY=fake` (`boot_lobby.py`: lobby API login and the lobby up to the user_id list only) | `ZDXSV_FAST_BOOT=0 MAXS=60 boottime.sh` fails (no user_id screen), also with `LOBBY=fake` |
 | Platform info `0x9950` to the lobby | `m4z.sh` with samples of the lobby `/api/stat`: the lobby counts each client by platform | none |
@@ -119,7 +119,7 @@ Scripts are in `tests/zdxsv/` except `run.py` (repository root) and
 |---|---|---|
 | Low-latency vsync | `latency.ps1 -LowLatency 1`: press-to-present time on the main menu | `latency.ps1 -LowLatency 0`, or `ZDXSV_GAME_CRC=0` (not the Z game): the time is longer |
 | Input latency measurement | it is the tool of the test above; `m4lat.sh` uses it in a battle (`M4=m4ggpo.sh`: over GGPO, frame pacing split by rollback) | none |
-| Input to picture by pixel color | `inputpic.sh` (title main menu, 8 presses): every press has a change, prints the offsets; `inputpic.sh "ZDXSV_SINGLE_DRAW_LIST=1"`: 2 vsyncs earlier | `inputpic.sh "ZDXSV_INPUT_LATENCY=...,pixel=40:10"` (not on the cursor): exit 1 |
+| Input to picture by pixel color | `inputpic.sh` (title main menu, 8 presses): every press has a change, prints the offsets; `inputpic.sh "ZDXSV_SINGLE_DRAW_LIST=0"`: 2 vsyncs later | `inputpic.sh "ZDXSV_INPUT_LATENCY=...,pixel=40:10"` (not on the cursor): exit 1 |
 
 ### Boot to lobby
 
@@ -138,10 +138,11 @@ Scripts are in `tests/zdxsv/` except `run.py` (repository root) and
 | GGPO session check | `MAXS=150 ENV0=ZDXSV_NET_SESSION=other rbk.sh 2 1`: the peer refused logs `a peer is in another session` and closes `session mismatch`; the other `session mismatch` or `start timeout`. `PCSX2_ENV=ZDXSV_NET_SESSION=same rbk.sh 2 1`: PASS | the build before: the first run plays the battle, PASS |
 | Rollback budget in the lobby delay | `GDELAY=auto GGPO_LAT=50 m4ggpo.sh`: `lobby delay 4` per peer, logged `rollback budget 0.00 (learned 1.00)`; `rbk.sh 2 1`: each peer logs `rollback budget: fits` at the end | `PCSX2_ENV=ZDXSV_ROLLBACK_BUDGET=1`: `lobby delay 3`, the `lobby delay 4` checks FAIL |
 | Delta save states | `deltatest.ps1` exit 0 (`result PASS`): the 2nd rerun of each window hashes like the 1st (same code cache) | `break=ee`: `result FAIL`, exit 1 |
-| Faster rerun frames | `rerunpic.sh`: the pictures after rollbacks pass `rerunpic.py`; speed A/B with `benchab.sh` | `rerunpic.sh "ZDXSV_RERUN_TAIL=1"`: FAIL |
-| Single draw list | `rerunpic.sh "ZDXSV_SINGLE_DRAW_LIST=1"`: PASS; `PCSX2_ENV=ZDXSV_SINGLE_DRAW_LIST=1 rbk.sh 2 1`, `rbk.sh 4 1`: PASS; `ENV0=ZDXSV_SINGLE_DRAW_LIST=1 rbk.sh 2 1`, `rbk.sh 4 2`: PASS | `rerunpic.sh "ZDXSV_RERUN_TAIL=1"` (the same tail without the patch): FAIL |
+| Faster rerun frames | `rerunpic.sh "ZDXSV_SINGLE_DRAW_LIST=0"`: the pictures after rollbacks pass `rerunpic.py`; speed A/B with `benchab.sh` | `rerunpic.sh "ZDXSV_SINGLE_DRAW_LIST=0 ZDXSV_RERUN_TAIL=1"`: FAIL |
+| Single draw list | `rerunpic.sh`: PASS; `rbk.sh 2 1`, `rbk.sh 4 1`: PASS; `ENV0=ZDXSV_SINGLE_DRAW_LIST=0 rbk.sh 2 1`, `rbk.sh 4 2`: PASS | `rerunpic.sh "ZDXSV_SINGLE_DRAW_LIST=0 ZDXSV_RERUN_TAIL=1"` (the same tail without the patch): FAIL |
 | Battle start and MS select load barriers | none | none |
 | GGPO synctest in a running game | `deltatest.ps1 -Var ZDXSV_GGPO -Spec start=9000,frames=3000,mask=fcff -Route arcade -End 12300`: 0 of 3000 frames mismatch in an arcade battle (`hash=pw`) | `control=input`: mismatches |
+| Rerun keep | `ZDXSV_RERUN_KEEP=8afda0-8c95e0` (the same ranges in any game phase) with the synctest `deltatest.ps1 -Var ZDXSV_GGPO -Spec start=9000,frames=3000,mask=fcff -Route arcade -End 12300`: 0 mismatches; `rbk.sh 2 1`: PASS | `ZDXSV_RERUN_KEEP=afd000-afe000,6e4c00-6e5000,b13000-b6b000` (memory the game logic reads): mismatches |
 | GGPO on by default for lobby battles | `CLIENTS="1 3" EMU=1 GGPO=7101 GDELAY=auto GGPO_DEFAULT=1 m4z.sh`: client 1 has no `ZDXSV_GGPO`, logs the default options, GGPO battle with 0 mismatches | the same with `ZDXSV_GGPO=0` for client 1: client 3 cuts the battle connection, the checks fail |
 | Battle UDP port setting | `CLIENTS="1 3" EMU=1 GGPO=7101 GDELAY=auto GGPO_DEFAULT=1 m4z.sh` with no `ZdxsvGgpoPort` in client 1's ini: client 1 logs `battle port P picked and saved`, its ini gets `ZdxsvGgpoPort = P` (29700..29800), its GGPO session logs `port P` (check `GGPO port from the setting`) | none |
 | Minimum input delay setting | `ZdxsvGgpoMinDelay = 4` in the `[DEV9/Eth]` section of both clients' ini, `CLIENTS="1 3" EMU=1 GGPO=7101 GDELAY=auto GGPO_DEFAULT=1 GMIN=3 m4z.sh`: client 1 `lobby delay 4 ... min 4`, client 3 (`mindelay=3`) `lobby delay 3 ... min 3`, 0 mismatches | without the setting: `lobby delay 2 ... min 2` |

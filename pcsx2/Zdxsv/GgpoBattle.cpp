@@ -528,13 +528,9 @@ namespace Zdxsv
 		std::fill(std::begin(s_rbk_calls), std::end(s_rbk_calls), 0u);
 	}
 
-	// EE rec hook at NET_RPC_PC (the net RPC wrapper's entry): trace, and in net mode answer the
-	// battle sock's RPCs here. Returns true when answered (v0 = result, pc = ra).
-	bool OnNetCall()
+	// net mode: the battle sock's RPCs. Returns true when answered (v0 = result, pc = ra).
+	static bool GgpoNetCall()
 	{
-		OnNetRpc();
-		if (g_no_dev9 && NoDev9OnNetCall())
-			return true;
 		if (!s_net_env)
 			return false;
 		const u32 fno = cpuRegs.GPR.n.a0.UL[0];
@@ -626,6 +622,16 @@ namespace Zdxsv
 		cpuRegs.GPR.n.v0.SD[0] = result;
 		cpuRegs.pc = cpuRegs.GPR.n.ra.UL[0];
 		return true;
+	}
+
+	// EE rec hook at NET_RPC_PC (the net RPC wrapper's entry): trace, GGPO first; what it leaves goes to
+	// the no-DEV9 host sockets, else to the IOP. Returns true when answered.
+	bool OnNetCall()
+	{
+		OnNetRpc();
+		if (GgpoNetCall())
+			return true;
+		return g_no_dev9 && NoDev9OnNetCall();
 	}
 
 	bool GgpoBattleRefuses(Error* error)
