@@ -77,6 +77,8 @@
 #   127.0.0.1:7300/7301 between p1 and p3's GGPO ports; each announces only its relay socket, so the direct
 #   path is ~2D ms rtt. Checks: lobby delay = max(GMIN or 2, ceil(2D/32)), or GMIN/2 when RELAY_PATH is a relay.
 #   With RELAY=1 RELAY_PATH="relay 0" the GGPO traffic skips udprelay.py (its count = ping test only).
+#   PAR=1: all clients boot at once with fast boot (no fast login), each waits for `fast boot: login browser`
+#   in its emulog (PAR_WAIT s, default 120), then `login` on all at once instead of `top` + `login` per client.
 # db: copied from $RUN/zdxsv.db (the cards' accounts) into $OUT; stack logs land in $OUT.
 # Cards: each client starts from $RUN/Mcd001-<CARDS[i]>.ps2 (CARDS, required: one registered card per client);
 # the live card is put back after (m4.sh's lobby states use it). A post-battle prompt creates system
@@ -100,6 +102,7 @@ ENTRY=entry; [ "$nc" -eq 2 ] && ENTRY=entry2p
 nz=$(echo $ZP | wc -w)  # UDP joins: zproxy clients only (pcsx2 has no UDP bridge)
 # client i's env: console (no platform info), or emulator (+ GGPO lobby battle on port GGPO+i-1)
 cenv() {
+  [ -n "${PAR:-}" ] && echo ZDXSV_FAST_BOOT=1 ZDXSV_FAST_LOGIN=0
   # EXT_OFF=1: every client runs with ZDXSV_EXTENSIONS=0 (all zdxsv extensions off: seen as a PS2, battle server)
   [ -n "${EXT_OFF:-}" ] && { echo ZDXSV_EXTENSIONS=0; return; }
   [ -z "${EMU:-}" ] && { echo ZDXSV_PLATFORM_INFO=0 ZDXSV_NODEV9=0 ZDXSV_TLS=0; return; }
@@ -203,11 +206,28 @@ for i in $CLIENTS; do
   # a refused launch (probelint) ran 7 min of blind routes before the entry check
   echo "$l" | grep -q "pid .* slot" || { echo "FAIL launch p$i"; exit 1; }
   cpid[i]=$(echo "$l" | sed -n 's/.* pid \([0-9]*\) slot.*/\1/p' | tail -1)
+  [ -n "${PAR:-}" ] && continue
   # top starts from a fresh boot (f1500): no other client's route in between
   $DRIVE top $i 2>&1 | grep -v memgate | tail -1
   $DRIVE login $i 2>&1 | grep -v memgate | tail -1
   echo "client $i: login results $(grep -c '== BattleResult ==' "$OUT/lobby.log")"
 done
+if [ -n "${PAR:-}" ]; then
+  t1=$SECONDS
+  for i in $CLIENTS; do
+    until grep -a -q 'fast boot: login browser' "$RUN/p$i/PCSX2/logs/emulog.txt" 2>/dev/null; do
+      [ $((SECONDS - t1)) -lt "${PAR_WAIT:-120}" ] || { echo "FAIL p$i: no login browser in ${PAR_WAIT:-120} s"; exit 1; }
+      sleep 0.5
+    done
+    echo "client $i: login browser after $((SECONDS - t1)) s"
+  done
+  # the page is still loading when fast boot stops: an early press is dropped
+  sleep 3
+  lp=()
+  for i in $CLIENTS; do $DRIVE login $i 2>&1 | grep -v memgate | tail -1 & lp+=($!); done
+  wait "${lp[@]}"
+  echo "clients $CLIENTS: login results $(grep -c '== BattleResult ==' "$OUT/lobby.log")"
+fi
 if [ -n "${PAUSE:-}" ]; then
   # every client in SHOW is paused together, past the lobby's 2 min receive timeout
   for i in ${SHOW:?PAUSE needs SHOW}; do
