@@ -45,6 +45,15 @@ namespace Zdxsv
 	void SingleDrawListOnVsync();
 	// In GgpoOnVmShutdown.
 	void SingleDrawListReset();
+	// ZDXSV_NODEV9=<ipv4>, Z game: online with no DEV9 device, the net RPCs answered on the EE (NoDev9.cpp).
+	extern bool g_no_dev9;
+	void NoDev9OnVmInitialize();
+	// In VSyncStart with g_no_dev9: the network device pick without dev9.
+	void NoDev9OnVsync();
+	// At NET_RPC_PC with g_no_dev9. true: answered.
+	bool NoDev9OnNetCall();
+	// In GgpoOnVmShutdown.
+	void NoDev9Reset();
 	// In VMManager::Initialize, before the CPU runs: the state file to boot from, or "".
 	const char* FastBootInitialState();
 

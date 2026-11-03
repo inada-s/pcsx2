@@ -1280,6 +1280,7 @@ namespace Zdxsv
 		const bool ext_off = ext && std::strcmp(ext, "0") == 0;
 		g_z_game = serial_match && crc == want && !ext_off;
 		SingleDrawListOnVmInitialize();
+		NoDev9OnVmInitialize();
 		const bool lobby_default = g_z_game && !s_play_env;
 		if (!g_z_game) // any other game or build, or ZDXSV_EXTENSIONS=0: no GGPO, replay, hooks or platform info
 		{
@@ -1312,7 +1313,7 @@ namespace Zdxsv
 		}
 		g_ggpo_enabled = !s_options.empty() || s_play_env;
 		s_net_env = s_options.find("net=1") != std::string::npos || s_play_env;
-		g_net_hook = s_net_trace != nullptr || s_net_env;
+		g_net_hook = s_net_trace != nullptr || s_net_env || g_no_dev9;
 		g_zd_hook = s_net_env;
 		g_ps_hook = true;
 		if (!s_options.empty() || std::strcmp(serial, GAME_SERIAL) == 0)
@@ -1491,6 +1492,7 @@ namespace Zdxsv
 		StopCutRefusal();
 		FastBootReset();
 		SingleDrawListReset();
+		NoDev9Reset();
 		if (!g_ggpo_enabled)
 			return;
 		size_t keys = 0;
