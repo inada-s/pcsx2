@@ -1,4 +1,5 @@
-"""PINE client for this pcsx2 (TCP 127.0.0.1:<PINESlot> on Windows).
+"""PINE client for this pcsx2 (TCP 127.0.0.1:<PINESlot> on Windows; elsewhere the Unix socket
+$TMPDIR/pcsx2.sock on macOS, $XDG_RUNTIME_DIR/pcsx2.sock on Linux, else /tmp, `.<slot>` after it unless 28011).
 
 Pad input uses the fork's opcode 0x30 (pad u8, bind u8, value u8); the rest is stock PINE.
 
@@ -42,7 +43,14 @@ def shrink(path, scale):
 
 class Pine:
     def __init__(self, slot=28011, host="127.0.0.1", timeout=5.0):
-        self.sock = socket.create_connection((host, slot), timeout=timeout)
+        if os.name == "nt":
+            self.sock = socket.create_connection((host, slot), timeout=timeout)
+            return
+        d = os.environ.get("TMPDIR" if sys.platform == "darwin" else "XDG_RUNTIME_DIR") or "/tmp"
+        path = os.path.join(d, "pcsx2.sock") + ("" if slot == 28011 else ".%d" % slot)
+        self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        self.sock.settimeout(timeout)
+        self.sock.connect(path)
 
     def call(self, op, args=b""):
         msg = struct.pack("<IB", 5 + len(args), op) + args
@@ -81,10 +89,13 @@ class Pine:
         if os.path.exists(path):
             os.remove(path)
         src = self.call(0x31, struct.pack("<H", len(p)) + p)[4:].split(b"\0")[0].decode()
+        size = 0
         for _ in range(int(wait_s * 5)):
             time.sleep(0.2)
-            if os.path.exists(src) and os.path.getsize(src) > 0:
+            s = os.path.getsize(src) if os.path.exists(src) else 0
+            if s > 0 and s == size:  # macOS: a file still being written can be renamed
                 break
+            size = s
         else:
             raise TimeoutError("no snapshot " + src)
         for _ in range(50):  # the GS thread may still hold the file
