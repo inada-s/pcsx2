@@ -222,7 +222,7 @@ namespace Zdxsv
 	void RerunKeepAfterLoad();
 	void RerunKeepAfterRerunFrame(bool last);
 	bool RerunKeepWalksObjects(); // a skipped rerun frame runs the object draw walker (OnDrawRun)
-	bool RerunKeepDrawsHandler(u32 handler); // the walker of a skipped rerun frame calls this handler
+	bool RerunKeepDrawsHandler(u32 handler, u32 obj); // the walker of a skipped rerun frame calls this handler
 	extern bool s_replay_rec; // a battle is being recorded
 	std::string ReplayIds();
 	std::string IdValue(const std::string& ids, std::string_view key);
