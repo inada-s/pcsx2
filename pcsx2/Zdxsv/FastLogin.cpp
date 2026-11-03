@@ -77,6 +77,8 @@ namespace Zdxsv
 		{
 			if (const char* env = std::getenv("ZDXSV_LOGIN_API_URL"))
 				return env;
+			if (g_no_dev9)
+				return NoDev9LoginApiUrl();
 			return Host::GetStringSettingValue("DEV9/Eth", "ZdxsvLoginApiUrl", kDefaultUrl);
 		}
 

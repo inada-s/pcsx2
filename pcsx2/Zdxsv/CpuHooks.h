@@ -52,6 +52,8 @@ namespace Zdxsv
 	void NoDev9OnVsync();
 	// At NET_RPC_PC with g_no_dev9. true: answered.
 	bool NoDev9OnNetCall();
+	// With g_no_dev9: the fast login's API on that server, http://<ipv4>:8203/lbs/login (the zdxsv lobby API port).
+	const char* NoDev9LoginApiUrl();
 	// In GgpoOnVmShutdown.
 	void NoDev9Reset();
 	// In VMManager::Initialize, before the CPU runs: the state file to boot from, or "".
