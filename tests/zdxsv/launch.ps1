@@ -16,6 +16,10 @@ if (-not $env:ZDXSV_GGPO) { $env:ZDXSV_GGPO = '0' } elseif ($env:ZDXSV_GGPO -eq 
 # Fast boot (on by default) presses through the menus the routes drive: off unless
 # ZDXSV_FAST_BOOT is set; ZDXSV_FAST_BOOT=default leaves the setting's default.
 if (-not $env:ZDXSV_FAST_BOOT) { $env:ZDXSV_FAST_BOOT = '0' } elseif ($env:ZDXSV_FAST_BOOT -eq 'default') { Remove-Item env:ZDXSV_FAST_BOOT }
+# Fast login (on by default) posts the card's login key to the production login API:
+# off unless ZDXSV_FAST_LOGIN is set, and the API URL is local unless ZDXSV_LOGIN_API_URL is set.
+if (-not $env:ZDXSV_FAST_LOGIN) { $env:ZDXSV_FAST_LOGIN = '0' }
+if (-not $env:ZDXSV_LOGIN_API_URL) { $env:ZDXSV_LOGIN_API_URL = 'http://127.0.0.1:9881/lbs/login' }
 # pcsx2 refuses a game path with / (local.env may use /)
 $root = $env:RUN -replace '/', '\'
 $exe = if ($env:PCSX2_EXE) { $env:PCSX2_EXE -replace '/', '\' } else { Join-Path $PSScriptRoot '..\..\bin\pcsx2-qtx64.exe' }
