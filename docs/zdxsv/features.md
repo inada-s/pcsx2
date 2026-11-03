@@ -25,12 +25,12 @@ skips does not run on that path.
 ### Network paths
 
 The game's network calls (net RPCs) take one of two paths. Online with
-`ZdxsvNoDev9` on (the default in release builds) the DEV9 rows above do not run.
+`ZdxsvNoDev9` on (the default in release builds) the DEV9 rows above do not run, except the lobby connection filter (`LobbyConnection`), which `NoDev9` calls on its host sockets.
 
 | Path | When | Network | Lobby features |
 |---|---|---|---|
 | DEV9 | `ZdxsvNoDev9` off, or no server host | DEV9 adapter: DNS server and TCP sessions | every lobby feature of the DEV9 rows |
-| No DEV9 | `ZdxsvNoDev9` on with a server host | `NoDev9.cpp` answers the net RPCs on the EE; TCP on host sockets | fast login only; none of the DEV9 TCP and DNS rows |
+| No DEV9 | `ZdxsvNoDev9` on with a server host | `NoDev9.cpp` answers the net RPCs on the EE; TCP on host sockets | fast login; the lobby connection filter: platform info, battle info, match report, outdated notice (read off the code; the platform info tested); TCP battle (1v1) through the battle server. Not: line checks while paused (the filter is fed from the EE), TLS, the DNS server rows, lobby save states |
 | Battle sock over GGPO | an armed GGPO battle, on either path | `GgpoBattle.cpp`: send, recv and poll answered from GGPO inputs | — |
 
 A lobby feature added on one path is added to the other in the same change, or
@@ -40,7 +40,7 @@ this table says it is missing.
 
 - **Switch for all online battle extensions**: `ZDXSV_EXTENSIONS=0`.
 - **Network defaults for zdxsv**: adapter on, Sockets, internal DNS, game hosts as `ZDXSV_SERVER_HOST`.
-- **Online without DEV9**: experimental; `ZdxsvNoDev9`, `ZDXSV_NODEV9`.
+- **Online without DEV9**: experimental, with the platform info and a TCP battle; `ZdxsvNoDev9`, `ZDXSV_NODEV9`.
 - **Fast login**: DNAS and the login browser skipped; `ZdxsvFastLogin`, `ZdxsvLoginApiUrl`.
 - **Fast boot**: boot to the lobby user_id selection with no input; `ZdxsvFastBoot`, `ZdxsvFastBootState`.
 - **Platform info `0x9950` to the lobby**: `ZDXSV_PLATFORM_INFO`.

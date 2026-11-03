@@ -3,9 +3,11 @@
 
 // The Z game online with or without a DEV9 device. The game's net RPC wrapper is answered on the EE:
 // network setup from fixed replies, every name resolved to the zdxsv server, TCP on host sockets.
-// Experimental, needs proper testing: lobby only (no battle tested).
+// Experimental, needs proper testing: lobby and a 1v1 TCP battle tested, GGPO not.
 
 #include "Zdxsv/CpuHooks.h"
+#include "Zdxsv/Dev9Hooks.h"
+#include "Zdxsv/Lobby.h"
 #include "Zdxsv/Settings.h"
 #include "Zdxsv/TestOptions.h"
 
@@ -74,6 +76,7 @@ namespace Zdxsv
 			{0x2c, 1, {}, 0}, {0x38, 3, {}, 0},
 			{0x48, 0, {}, 0}, {0x05, 0, {}, 0}, {0x29, 0, {}, 0}, {0x2b, 0, {}, 0}, {0x2e, 0, {}, 0}, {0x36, 0, {}, 0},
 			{0x01, 0, {}, 0}, {0x3b, 0, {}, 0}, {0x1e, 0, {}, 0}, {0x3d, 0, {}, 0}, {0x3e, 0, {}, 0},
+			{0x03, 0, {}, 0}, {0x04, 4, {}, 0}, // battle socket options: set; get (result = value size, value 0 at +0x22)
 		};
 		constexpr u32 kFnoLinkUp = 0x46; // 1 on the first call, then 0
 		constexpr u32 kFnoConnect = 0x07;
@@ -95,6 +98,10 @@ namespace Zdxsv
 			u32 link_calls = 0;
 			u8 last_net = 0;
 			sock_t socks[kSlots] = {INVALID_SOCKET, INVALID_SOCKET, INVALID_SOCKET, INVALID_SOCKET};
+			u32 peer[kSlots] = {};
+			bool checked[kSlots] = {};
+			// A zdxsv lobby connection: the server's bytes reach the game through it (platform info, battle info notice).
+			std::unique_ptr<LobbyFilter, LobbyFilterDeleter> lobby[kSlots];
 			sock_t none = INVALID_SOCKET;
 		} s_state;
 
@@ -148,12 +155,44 @@ namespace Zdxsv
 #endif
 		}
 
-		sock_t& Sock(const u8* b)
+		int Slot(const u8* b)
 		{
 			s16 id;
 			std::memcpy(&id, b + 0x1c, 2);
+			return id >= 0 && id < kSlots ? id : -1;
+		}
+
+		sock_t& Sock(const u8* b)
+		{
+			const int id = Slot(b);
 			s_state.none = INVALID_SOCKET;
-			return id >= 0 && id < kSlots ? s_state.socks[id] : s_state.none;
+			return id >= 0 ? s_state.socks[id] : s_state.none;
+		}
+
+		void CloseSlot(int id)
+		{
+			CloseSock(s_state.socks[id]);
+			s_state.lobby[id].reset();
+			s_state.checked[id] = false;
+		}
+
+		// Peeked: the first server bytes decide whether it is a zdxsv lobby; a lobby's bytes then all go through its filter.
+		void PumpLobby(int id)
+		{
+			const sock_t s = s_state.socks[id];
+			u8 buf[0x2000];
+			if (!s_state.checked[id])
+			{
+				const int n = recv(s, reinterpret_cast<char*>(buf), sizeof(buf), MSG_PEEK);
+				if (n <= 0)
+					return;
+				s_state.checked[id] = true;
+				s_state.lobby[id].reset(LobbyOnFirstData(static_cast<uptr>(s), s_state.peer[id], buf, n));
+			}
+			if (!s_state.lobby[id])
+				return;
+			for (int n; (n = recv(s, reinterpret_cast<char*>(buf), sizeof(buf), 0)) > 0;)
+				LobbyFeed(*s_state.lobby[id], static_cast<uptr>(s), buf, n);
 		}
 
 		s32 Connect(const u8* b)
@@ -176,6 +215,7 @@ namespace Zdxsv
 			sa.sin_family = AF_INET;
 			std::memcpy(&sa.sin_addr, b + 0x1c, 4);
 			std::memcpy(&sa.sin_port, b + 0x20, 2);
+			std::memcpy(&s_state.peer[id], b + 0x1c, 4);
 			connect(s, reinterpret_cast<sockaddr*>(&sa), sizeof(sa));
 			return id;
 		}
@@ -192,6 +232,11 @@ namespace Zdxsv
 				FD_SET(s, &w);
 				timeval tv = {};
 				st = select(static_cast<int>(s) + 1, nullptr, &w, nullptr, &tv) > 0 ? 4 : 2;
+				const int id = Slot(b);
+				if (st == 4)
+					PumpLobby(id);
+				if (st == 4 && s_state.lobby[id])
+					rx = static_cast<u16>(std::min<size_t>(s_state.lobby[id]->Ready(), 0x2000));
 #ifdef _WIN32
 				u_long n = 0;
 				const int r = ioctlsocket(s, FIONREAD, &n);
@@ -199,7 +244,7 @@ namespace Zdxsv
 				int n = 0;
 				const int r = ioctl(s, FIONREAD, &n);
 #endif
-				if (st == 4 && r == 0)
+				if (st == 4 && r == 0 && !s_state.lobby[id])
 					rx = static_cast<u16>(std::min<u32>(static_cast<u32>(n), 0x2000));
 			}
 			const u16 z = 0, tx = 0x2000;
@@ -227,6 +272,10 @@ namespace Zdxsv
 			const sock_t s = Sock(b);
 			if (s == INVALID_SOCKET)
 				return 0;
+			const int id = Slot(b);
+			PumpLobby(id);
+			if (s_state.lobby[id])
+				return static_cast<s32>(s_state.lobby[id]->Take(b + 0x20, std::min<u32>(len, kRxMax)));
 			const int n = recv(s, reinterpret_cast<char*>(b + 0x20), std::min<int>(len, kRxMax), 0);
 			return std::max(n, 0);
 		}
@@ -312,7 +361,10 @@ namespace Zdxsv
 			std::memcpy(b + 0x1e, &r16, 2);
 		}
 		else if (fno == kFnoClose)
-			CloseSock(Sock(b));
+		{
+			if (const int id = Slot(b); id >= 0)
+				CloseSlot(id);
+		}
 		else if (fno == kFnoAfterClose)
 			;
 		else if (fno == kFnoResolve)
