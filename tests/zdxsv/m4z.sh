@@ -110,6 +110,7 @@ cenv() {
   [ "$1" = "${HTTPS_OFF:-}" ] && echo ZDXSV_HTTPS_LATENCY=0
   # CENV="K=V ...": extra env for every emulator client (e.g. a battle timer ZDXSV_EE_CLAMP for a time-up)
   [ -n "${CENV:-}" ] && echo "$CENV"
+  [ -n "${SENJO_SAVE:-}" ] && echo ZDXSV_LOBBY_STATE=1
   [ "$1" = "${SYNC_SALT:-}" ] && echo ZDXSV_SYNC_SALT=m4z
   [ "$1" = "${DROP_SYNC:-}" ] && echo ZDXSV_DROP_SYNC=0
   [ "$1" = "${BREAK:-}" ] && echo "ZDXSV_VM_TEST=${BREAK_FRAME:-1500}:${BREAK_MODE:-shutdown}"
@@ -228,6 +229,17 @@ grep -a "Register zproxy" "$OUT/lobby.log" | tail -$nz | cut -c1-160
 # entries close together: with one client per ~3 min (entry right after its login)
 # each saw ジャブロー2 "1人". One at a time: `entry 1 2` in parallel dropped p2's Down
 # (-> オペレーションリスト). Each must reach 0x640E (side).
+SS="SLPS-25419 (435D8236).09.p2s"
+# SENJO_SAVE=1: each client's state on 戦場選択 before its entry -> OUT/lobby-p<i>-senjo.p2s;
+# OUT/lobby.log is their lobby-trace.log: the STATES of m4.sh (clients run with ZDXSV_LOBBY_STATE=1)
+senjo_save() {
+  rm -f "$RUN/p$1/PCSX2/sstates/$SS"
+  "$PY" "$here/pine.py" --slot $((28010 + $1)) save 9 2>&1 | tail -1
+  for t in $(seq 30); do [ -s "$RUN/p$1/PCSX2/sstates/$SS" ] && break; sleep 1; done
+  sleep 2
+  cp "$RUN/p$1/PCSX2/sstates/$SS" "$OUT/lobby-p$1-senjo.p2s" && echo "client $1: senjo state $(stat -c %s "$OUT/lobby-p$1-senjo.p2s") B" ||
+    { echo "FAIL client $1 senjo save"; return 1; }
+}
 map_pressed() {  # $1 = 0x6305 count before the map route; waits ENTRY_WAIT s for one more
   for t in $(seq "${ENTRY_WAIT:-20}"); do [ "$(grep -ac "C->S \[Q\] ID:0x6305" "$OUT/lobby.log")" -gt "$1" ] && return 0; sleep 1; done
   return 1
@@ -238,6 +250,7 @@ for i in $CLIENTS; do
   speed_check $i || exit 1  # routes hold keys in wall ms; a faster run than SPEED is no SPEED result
   if [ "$ENTRY" = entry2p ]; then entry2p_retry $i || { echo "FAIL client $i entry (no Lobby 02)"; exit 1; }
   else
+    [ -n "${SENJO_SAVE:-}" ] && { senjo_save $i || exit 1; }
     a0=$(grep -ac "C->S \[Q\] ID:0x6305" "$OUT/lobby.log")
     $DRIVE map $i 2>&1 | grep -v memgate | tail -1
     # the map's last C is sometimes lost (the map stays up, cursor on Lobby 06): press it once more

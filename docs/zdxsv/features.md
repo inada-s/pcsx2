@@ -17,6 +17,7 @@ skips does not run on that path.
 | DEV9 TCP sessions | `LobbyConnection`, `Lobby`, `TlsTunnel` | platform info, battle info, match report, line checks while paused, outdated notice, pause menu refusal, TLS, connection takeover after a lobby state load |
 | DEV9 DNS server | `ServerHosts` | game hosts looked up as `ZDXSV_SERVER_HOST`, whether the public server was found (replay upload) |
 | DEV9 receive and save state | `DeltaState` | received packets in delta states, lobby save states |
+| Save state entries | `NoDev9` | lobby save states on the no-DEV9 path |
 | Counters (vsync), VMManager | `Ggpo`, `Replay*`, `NoDev9`, `FastBoot` | GGPO frame loop, replay playback, VM start / reset / shutdown cleanup |
 | MTGS, GS, SPU2 | `DeltaFreeze`, `SingleDrawList`, `InputLatency`, `Overlays` | rerun frame skips, single draw list, input latency, OSD |
 | Pad | `Ggpo`, `ReplayPlay` | inputs to and from GGPO and replays |
@@ -30,7 +31,7 @@ The game's network calls (net RPCs) take one of two paths. Online with
 | Path | When | Network | Lobby features |
 |---|---|---|---|
 | DEV9 | `ZdxsvNoDev9` off, or no server host | DEV9 adapter: DNS server and TCP sessions | every lobby feature of the DEV9 rows |
-| No DEV9 | `ZdxsvNoDev9` on with a server host | `NoDev9.cpp` answers the net RPCs on the EE; TCP on host sockets | fast login; the lobby connection filter: platform info, battle info, match report, outdated notice (read off the code; the platform info tested); TCP battle (1v1) through the battle server; GGPO battle (1v1), the GGPO hook answering the battle sock first; TLS (DNAS, lobby, battle TCP); line checks while paused (the lobby socket read on the paused idle poll). Not: the DNS server rows, lobby save states |
+| No DEV9 | `ZdxsvNoDev9` on with a server host | `NoDev9.cpp` answers the net RPCs on the EE; TCP on host sockets | fast login; the lobby connection filter: platform info, battle info, match report, outdated notice (read off the code; the platform info tested); TCP battle (1v1) through the battle server; GGPO battle (1v1), the GGPO hook answering the battle sock first; TLS (DNAS, lobby, battle TCP); line checks while paused (the lobby socket read on the paused idle poll); lobby save states (the open lobby connections reconnect after a load). Not: the DNS server rows |
 | Battle sock over GGPO | an armed GGPO battle, on either path | `GgpoBattle.cpp`: send, recv and poll answered from GGPO inputs | — |
 
 A lobby feature added on one path is added to the other in the same change, or

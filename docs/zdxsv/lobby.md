@@ -258,6 +258,8 @@ A save state does not hold the network adapter, as upstream, except:
 
 - `ZDXSV_LOBBY_STATE=1` (debugging): save states keep the adapter, and after
   a load the emulator takes over the TCP connections the PS2 had opened.
+  Without DEV9 the state keeps the server address of each open lobby
+  connection instead; after a load each reconnects on its first use.
 - `ZDXSV_GGPO` or `ZDXSV_REPLAY` set: save states keep the adapter without
   taking over connections, so the PS2's network driver and the adapter agree
   after a load.
