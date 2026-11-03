@@ -6,7 +6,7 @@
 #   the owner's MSYS bash ancestors (-Anc, from riglock.sh).
 # -Take <winpid> -What <text> (riglock.sh): owner alive -> exit 75 (rig busy) unless $env:RIG_OWNER is
 #   the owner (nested rig). Else kill the dead rig's orphans, write the lock, exit 0.
-# -Check (launch.ps1): owner alive, not $env:RIG_OWNER, caller not under an owner ancestor -> exit 75.
+# -Check -Anc <winpid>,.. (launch.sh): owner alive, not $env:RIG_OWNER, no caller ancestor under the owner -> exit 75.
 # -Release <winpid>: remove the lock if <winpid> owns it.
 param([int]$Take = 0, [string]$What = "", [string]$Anc = "", [switch]$Check, [int]$Release = 0)
 . "$PSScriptRoot\env.ps1"
@@ -24,24 +24,19 @@ if ($Release) {
 if ($Take -and $env:RIG_OWNER -and (Get-CimInstance Win32_Process -Filter "ProcessId = $([int]$env:RIG_OWNER) AND Name = 'bash.exe'" -EA 0)) { exit 0 }
 # alive = a bash.exe with that pid (a reused pid is not the owner)
 $alive = $owner -and (Get-CimInstance Win32_Process -Filter "ProcessId = $owner AND Name = 'bash.exe'" -EA 0)
-# -Check from the rig's own script (a script that ran `stack.sh &` then launch.ps1, RIG_OWNER unset, had
-# its own launch was refused): passes when a live bash in the caller's Windows parent chain (forks: parents
-# live) is one of the owner's MSYS ancestors (lock line 2, from riglock.sh). A 2nd tool call shares none.
+# -Check from the rig's own script (a script that ran `stack.sh &` then launch.sh, RIG_OWNER unset):
+# passes when one of the caller's MSYS ancestors (-Anc, from launch.sh) is the owner or one of the
+# owner's ancestors (lock line 2, from riglock.sh). A 2nd tool call shares none.
 if ($Check -and $alive -and "$owner" -ne "$env:RIG_OWNER") {
-  $up = @{}; ((@(Get-Content $lock -TotalCount 2) + "")[1] -replace '^anc ?', '') -split ',' | ? { $_ } | % { $up[[int]$_] = 1 }
-  $procs = @{}; Get-CimInstance Win32_Process -EA 0 | % { $procs[[int]$_.ProcessId] = $_ }
-  $id = [int]$procs[$PID].ParentProcessId; $seen = @{}
-  while ($id -and $procs.ContainsKey($id) -and $procs[$id].Name -eq 'bash.exe' -and -not $seen.ContainsKey($id)) {
-    if ($up.ContainsKey($id)) { exit 0 }
-    $seen[$id] = 1; $id = [int]$procs[$id].ParentProcessId
-  }
+  $up = @{ $owner = 1 }; ((@(Get-Content $lock -TotalCount 2) + "")[1] -replace '^anc ?', '') -split ',' | ? { $_ } | % { $up[[int]$_] = 1 }
+  foreach ($a in ($Anc -split ',' | ? { $_ })) { if ($up.ContainsKey([int]$a)) { exit 0 } }
 }
 if ($alive -and "$owner" -ne "$env:RIG_OWNER") {
   "rig busy: $line"
   "  wait for it, or end it: powershell -NoProfile -Command `"Stop-Process -Id $owner -Force`" (then its children)"
   exit 75
 }
-if ($Check -or $alive) { exit 0 }  # launch.ps1 check, or a nested rig under the live owner
+if ($Check -or $alive) { exit 0 }  # launch.sh check, or a nested rig under the live owner
 # lock free or owner dead: whatever rig processes remain are orphans
 $names = 'pcsx2*', 'zdxsv*', 'dnas*', 'zproxy*'
 $orph = @(Get-Process $names -EA 0)

@@ -34,12 +34,12 @@
 #   with LIVE_AT the spectator had some at its open.
 #   LIVE_NEXT=K (with BATTLES=K+1): the spectator moves on to the next battle K times (ZDXSV_LIVE_NEXT); the
 #   checks above run per watched battle, plus K+1 different battles watched (pwcheck too: --battle <code>).
-#   LIVE_SPEED=X: the spectator runs at normal speed X (launch.ps1 -Speed), off the stream's rate: a pacing
+#   LIVE_SPEED=X: the spectator runs at normal speed X (launch.sh -Speed), off the stream's rate: a pacing
 #   test (the pace lines' gap and waits, with and without ZDXSV_LIVE_PACING=0).
 #   LIVE_STALL=S (LIVE): S s after the spectator starts, the lobby process is suspended (the stream stalls at its
 #   newest frame), 3 s later the spectator's windows get a close (WM_CLOSE), then the lobby resumes. Check, instead
 #   of the LIVE ones: the spectator exits within 5 s (a CPU thread stuck waiting for live data exits after ~30 s).
-#   GGPO_DEFAULT=K: client K gets no ZDXSV_GGPO (launch.ps1 ZDXSV_GGPO=default), so GGPO is on by default
+#   GGPO_DEFAULT=K: client K gets no ZDXSV_GGPO (launch.sh ZDXSV_GGPO=default), so GGPO is on by default
 #   with the default options (port: the ZdxsvGgpoPort setting); check: its log names the default options.
 #   BAD_SESSION=K (GDELAY=auto): client K gets badsession=1: every ping test fails,
 #   every client cuts the battle connection; no mash; waits for each cut to end + 2 lobby tcp conns per client;
@@ -192,13 +192,13 @@ if [ -n "${LIVE:-}" ]; then
     echo "live uplink after $((SECONDS - t1)) s: spectator p$LIVE"
     [ -z "${LIVE_AT:-}" ] || sleep "$LIVE_AT"
     env ZDXSV_REPLAY="udp://127.0.0.1:8201" ZDXSV_LIVE_NEXT=${LIVE_NEXT:-0} ZDXSV_REPLAY_EXIT=1 ZDXSV_PW_HASH=1 ZDXSV_NET_TRACE="$OUT/trace-live.txt" \
-      powershell -NoProfile -Command "& '$here/launch.ps1' -N $LIVE -Headless -StateFile ${LIVE_STATE:-$RBKSTATES/rbk-p1.p2s}${LIVE_SPEED:+ -Speed $LIVE_SPEED}" 2>&1 | tail -1
+      bash "$here/launch.sh" -N $LIVE -Headless -StateFile ${LIVE_STATE:-$RBKSTATES/rbk-p1.p2s}${LIVE_SPEED:+ -Speed $LIVE_SPEED} 2>&1 | tail -1
     [ -z "${LIVE_STALL:-}" ] || live_stall
   ) > "$OUT/live-launch.txt" 2>&1 & pids+=($!)
 fi
 for i in $CLIENTS; do
   cp -p "$RUN/p$i/PCSX2/memcards/Mcd001.ps2" "$OUT/live-p$i.ps2"
-  l=$(env $(cenv $i) powershell -NoProfile -Command "& '$here/launch.ps1' -N $i -Speed ${SPEED:-1} -Memcard $RUN/Mcd001-${CARDS[i-1]}.ps2 $(case " ${SHOW:-} " in *" $i "*) ;; *) echo -Headless;; esac)" 2>&1)
+  l=$(env $(cenv $i) bash "$here/launch.sh" -N $i -Speed ${SPEED:-1} -Memcard $RUN/Mcd001-${CARDS[i-1]}.ps2 $(case " ${SHOW:-} " in *" $i "*) ;; *) echo -Headless;; esac) 2>&1)
   echo "$l" | tail -1
   # a refused launch (probelint) ran 7 min of blind routes before the entry check
   echo "$l" | grep -q "pid .* slot" || { echo "FAIL launch p$i"; exit 1; }
@@ -419,7 +419,7 @@ if [ -n "${EMU:-}" ] && [ -n "${GGPO:-}" ]; then
       rm -f "$f"
       env ZDXSV_REPLAY="http://127.0.0.1:9881/lbs/replay?battle_code=$code" ZDXSV_REPLAY_EXIT=1 ZDXSV_REPLAY_TURBO=1 ZDXSV_PW_HASH=1 \
         ZDXSV_NET_TRACE="$OUT/trace-api.txt" \
-        powershell -NoProfile -Command "& '$here/launch.ps1' -N $REPLAY_API -Headless -StateFile ${LIVE_STATE:-$RBKSTATES/rbk-p1.p2s}" 2>&1 | tail -1 | tee "$OUT/api-launch.txt"
+        bash "$here/launch.sh" -N $REPLAY_API -Headless -StateFile ${LIVE_STATE:-$RBKSTATES/rbk-p1.p2s} 2>&1 | tail -1 | tee "$OUT/api-launch.txt"
       pid=$(grep -o 'pid [0-9]*' "$OUT/api-launch.txt" | cut -d' ' -f2)
       for t in $(seq 120); do
         grep -a -q 'ZdxsvGgpo: replay \(end\|.*: not a\|.*: status\|.*: no \)' "$f" 2>/dev/null && break

@@ -16,7 +16,7 @@ log="$RUN/p$N/PCSX2/logs/emulog.txt"
 trap 'powershell -NoProfile -Command "Get-Process pcsx2* -EA 0 | Stop-Process -Force"; cp "$log" "$OUT/emulog-live.txt" 2>/dev/null; rig_release' EXIT
 rm -f "$log"
 env ZDXSV_REPLAY="udp://127.0.0.1:$PORT" ZDXSV_LIVE_NEXT=1 ZDXSV_REPLAY_EXIT=1 \
-  powershell -NoProfile -Command "& '$here/launch.ps1' -N $N -Headless -StateFile $STATE" 2>&1 | tail -1
+  bash "$here/launch.sh" -N $N -Headless -StateFile $STATE 2>&1 | tail -1
 for _ in $(seq 1 "$MAXS"); do
   sleep 1
   grep -aq "ZdxsvGgpo: replay .*not a replay file" "$log" 2>/dev/null && break

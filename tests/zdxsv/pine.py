@@ -111,7 +111,7 @@ class Pine:
 
     def wait(self, ms):
         """Wait ms of game time: ms*60/1000 vsyncs (g_FrameCount), so routes keep their timing at any
-        emulation speed (launch.ps1 -Speed). PINE_WALL=1: wall-clock sleep (old)."""
+        emulation speed (launch.sh -Speed). PINE_WALL=1: wall-clock sleep (old)."""
         if WALL:
             time.sleep(ms / 1000)
             return

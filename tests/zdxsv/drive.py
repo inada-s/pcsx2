@@ -5,7 +5,7 @@
           register (TOP -> 新規登録), newlogin, entry (戦場選択 -> side entry in Lobby 06),
           mash (in battle), after (result screen -> 作戦後部屋)
 4-player battle: top 1 2 3 4; login 1 2 3 4; entry 1 2 3 4; mash 1 2 3 4 (x2); after 1 2 3 4.
-Headless (launch.ps1 -Headless): same routes blind, mash x3, then after; result ~65 s later.
+Headless (launch.sh -Headless): same routes blind, mash x3, then after; result ~65 s later.
 Each route ends with a snap to $RUN/pN/<route>.png (half size). "no snap" only on a Null-renderer instance
 (Renderer = 11 in its ini); a failed snap of a rendering instance stops the run (winshot.ps1 captures windows).
 Timings measured with 4 instances at 60 fps on one 4-core host.
@@ -99,7 +99,7 @@ def route_text(route, n):
 
 
 def headless(n):
-    """Renderer = 11 (Null, launch.ps1 -Headless) in the instance's ini: no GS snapshot to expect."""
+    """Renderer = 11 (Null, launch.sh -Headless) in the instance's ini: no GS snapshot to expect."""
     ini = os.path.join(RUN, "p%d" % n, "PCSX2", "inis", "PCSX2.ini")
     try:
         with open(ini, encoding="utf-8", errors="replace") as f:

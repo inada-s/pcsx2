@@ -61,7 +61,7 @@ if [ "${API:-}" = 1 ]; then
 fi
 env ZDXSV_REPLAY="$play" ${POV:+ZDXSV_REPLAY_POV=$POV} ZDXSV_REPLAY_EXIT=1 $([ "$WINDOW" = 1 ] || echo ZDXSV_REPLAY_TURBO=1) ${CLAMP:+ZDXSV_EE_CLAMP=$CLAMP} \
   $([ "${FOUR:-0}" = 1 ] && echo ZDXSV_REPLAY_FOUR=1)   ZDXSV_PW_HASH=1 ZDXSV_NET_TRACE="$OUT/trace-play.txt" $([ "$SKIP_MS" = ini ] || echo ZDXSV_REPLAY_SKIP_MS=${SKIP_MS:-0}) $PCSX2_ENV \
-  powershell -NoProfile -Command "& '$here/launch.ps1' -N $N $([ "$WINDOW" = 1 ] || echo -Headless) -StateFile $STATE" 2>&1 | tail -1
+  bash "$here/launch.sh" -N $N $([ "$WINDOW" = 1 ] || echo -Headless) -StateFile $STATE 2>&1 | tail -1
 l=$RUN/p$N/PCSX2/logs/emulog.txt
 # start check: the replay header line within 30 s, else stop
 for t in $(seq 30); do grep -a -q "ZdxsvGgpo: replay .*: \(recorded at position\|not a\|bad\|no lobby answers\)\|replay: state load failed" "$l" 2>/dev/null && break; sleep 1; done

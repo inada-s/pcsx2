@@ -12,7 +12,7 @@ rm -rf "$OUT"; mkdir -p "$OUT"
 G="80:56;240:56;400:56;560:56;80:168;240:168;400:168;560:168;80:280;240:280;400:280;560:280;80:392;240:392;400:392;560:392"
 export ZDXSV_INPUT_LATENCY="count=0,pixel=$G"
 [ -n "${1:-}" ] && export $1
-powershell -NoProfile -File "$(dirname "$0")/deltatest.ps1" -Var ZDXSV_GGPO \
+bash "$(dirname "$0")/deltatest.sh" -Var ZDXSV_GGPO \
   -Spec "start=9000,frames=$FRAMES,check=2,mask=fcff" -Route arcade -End $((9100 + FRAMES)) -Tag t -Out "$OUT" |
   grep "synctest start\|MISMATCH"
 line=$(grep -a "ZdxsvLatency: pixel watch at vsync" "$OUT/t-emulog.txt" | tail -1)

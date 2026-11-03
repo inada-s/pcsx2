@@ -4,7 +4,7 @@
 #   OUT=<dir> bash tests/zdxsv/boottime.sh
 # Env: LIMIT (s, default 5), MAXS (s to wait, default 200), ROUTE (drive.py keys sent from the start;
 # ROUTE=top,C = today's menu path + ログイン at TOP), CARD (p1 card name, default the first of CARDS),
-# SPEED (launch.ps1 -Speed, default 1), SHOW=1 (windowed), LOBBY=fake (boot_lobby.py instead of the stack:
+# SPEED (launch.sh -Speed, default 1), SHOW=1 (windowed), LOBBY=fake (boot_lobby.py instead of the stack:
 # only the lobby API login and the lobby up to the user_id list).
 # Exit 0 = the screen is up within LIMIT s. Logs: OUT/boottime.txt (net step changes), stack logs.
 here=$(cd "$(dirname "$0")" && pwd -W)
@@ -43,7 +43,7 @@ rm -f "$RUN/p1/PCSX2/logs/emulog.txt"
 cp -p "$RUN/p1/PCSX2/memcards/Mcd001.ps2" "$OUT/live-p1.ps2"
 t0=$(date +%s.%N)
 # ZDXSV_TLS=0: the local stack has no TLS ports. Fast login API: the lobby API, /lbs/login
-l=$(env ZDXSV_TLS=0 ZDXSV_LOGIN_API_URL=${ZDXSV_LOGIN_API_URL:-http://$api/lbs/login} powershell -NoProfile -Command "& '$here/launch.ps1' -N 1 -Speed ${SPEED:-1} -Memcard $RUN/Mcd001-$CARD.ps2 $([ -n "${SHOW:-}" ] || echo -Headless)" 2>&1)
+l=$(env ZDXSV_TLS=0 ZDXSV_LOGIN_API_URL=${ZDXSV_LOGIN_API_URL:-http://$api/lbs/login} bash "$here/launch.sh" -N 1 -Speed ${SPEED:-1} -Memcard $RUN/Mcd001-$CARD.ps2 $([ -n "${SHOW:-}" ] || echo -Headless) 2>&1)
 echo "$l" | tail -1
 echo "$l" | grep -q "pid .* slot" || { echo "FAIL launch p1"; exit 1; }
 pid=$(echo "$l" | grep -o "pid [0-9]*" | tail -1 | cut -d" " -f2)
