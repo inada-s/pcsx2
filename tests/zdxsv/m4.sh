@@ -20,6 +20,7 @@
 here=$(cd "$(dirname "$0")" && pwd -W)  # a Windows path, also inside the powershell command string
 . "$here/riglock.sh"  # one rig at a time
 . "$here/speedcheck.sh"  # measured speed vs SPEED
+. "$here/freshboot.sh"
 zdxsv_need ZDXSV
 zdxsv_need TRACE
 zdxsv_need CARDS
@@ -60,36 +61,10 @@ sleep 2
 "$PY" -u "$here/fake_lobby.py" --trace "$TRACE/lobby-trace.log" --api $API --db "$TRACE/zdxsv.db" --battle "$IP:8210" ${FAKE_ARGS:-} > "$OUT/fake.log" 2>&1 & pids+=($!)
 sleep 2
 rm -f "$RUN"/p[1-4]/PCSX2/logs/emulog.txt
-# fresh boots, one at a time: fast boot to the user_id selection, fast login (this login API), ID 1
+# fresh boots, all at once (freshboot.sh), then the side entries one at a time
 CARDS=($CARDS)
-for i in 1 2 3 4; do
-  eval "penv=\${PCSX2_ENV_P$i:-}"
-  tb=$SECONDS
-  l=$(env ZDXSV_TLS=0 ZDXSV_FAST_BOOT=1 ZDXSV_FAST_LOGIN=1 ZDXSV_LOGIN_API_URL=http://127.0.0.1:$API/lbs/login $PCSX2_ENV $penv powershell -NoProfile -Command "& '$here/launch.ps1' -N $i -Speed ${SPEED:-1} -Memcard $RUN/Mcd001-${CARDS[i-1]}.ps2 $(case " ${SHOW:-} " in *" $i "*) ;; *) echo -Headless;; esac)" 2>&1)
-  echo "$l" | tail -1
-  echo "$l" | grep -q "pid .* slot" || { echo "FAIL launch p$i"; exit 1; }
-  log="$RUN/p$i/PCSX2/logs/emulog.txt"
-  for t in $(seq "${BOOT_WAIT:-60}"); do grep -aq "Zdxsv: fast boot: \(user_id selection\|gave up\|stopped\)" "$log" 2>/dev/null && break; sleep 1; done
-  grep -aq "Zdxsv: fast boot: user_id selection" "$log" ||
-    { echo "FAIL client $i boot: $(grep -a 'Zdxsv: fast boot:' "$log" | tail -1)"; exit 1; }
-  $DRIVE idlogin $i 2>&1 | grep -v memgate | tail -1
-  echo "client $i: in $((SECONDS - tb)) s, $(grep -c 'login api' "$OUT/fake.log") logins, $(grep -c 'conn from' "$OUT/fake.log") lobby conns"
-done
-map_pressed() {  # $1 = 0x6305 count before the map route; waits ENTRY_WAIT s for one more
-  for t in $(seq "${ENTRY_WAIT:-20}"); do [ "$(grep -ac "C->S cat 01 cmd 0x6305" "$OUT/fake.log")" -gt "$1" ] && return 0; sleep 1; done
-  return 1
-}
-for i in 1 2 3 4; do
-  a0=$(grep -ac "C->S cat 01 cmd 0x6305" "$OUT/fake.log")
-  $DRIVE map $i 2>&1 | grep -v memgate | tail -1
-  map_pressed $a0 || { echo "p$i: no Lobby 06 press, C again"; $DRIVE mappress $i 2>&1 | grep -v memgate | tail -1; map_pressed $a0; } ||
-    { echo "FAIL client $i entry (no 0x6305)"; exit 1; }
-  $DRIVE lobby2p $i 2>&1 | grep -v memgate | tail -1
-  for t in $(seq 15); do [ "$(grep -c "entry .* side" "$OUT/fake.log")" -ge "$i" ] && break; sleep 2; done
-  n=$(grep -c "entry .* side" "$OUT/fake.log")
-  echo "client $i: $n entered"
-  [ "$n" -ge "$i" ] || { echo "FAIL client $i entry"; exit 1; }
-done
+fresh_boot_all 1 2 3 4 || exit 1
+for i in 1 2 3 4; do fresh_entry $i || exit 1; done
 # the settle time measures each client's speed (speedcheck.sh)
 t1=$SECONDS
 for i in 1 2 3 4; do speed_check $i || exit 1; done
