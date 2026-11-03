@@ -17,6 +17,7 @@ param([string]$Exe = (Join-Path $PSScriptRoot '..\..\bin\pcsx2-qtx64.exe'), [str
       [string]$Match = '', [string]$Shot = '', [string]$DataPath = '', [string]$Iso = '', [int]$Boot = 30,
       [string]$Click = '', [int]$Wait = 3, [switch]$Quit)
 $ErrorActionPreference = 'Stop'
+. "$PSScriptRoot\localnet.ps1"  # fast login and no-DEV9 pinned to the box
 if (-not $Match) { $Match = $Page }
 $dir = Split-Path -Parent (Resolve-Path $Exe)
 if (-not $DataPath -and -not ((Test-Path "$dir\portable.ini") -or (Test-Path "$dir\portable.txt"))) {
