@@ -62,10 +62,10 @@ options: `docs/zdxsv/`.
 | `Proto.h` | Minimal protobuf wire codec: the lobby's Ping / Pong, replay files |
 | `replay.proto` | Replay file schema (gdxsv's BattleLogFile + PCSX2 fields); documentation, not compiled |
 | `SyncSettings.cpp`, `SyncSettings.h` | Sync-relevant settings forced while the Z game runs (speedhacks during battles only), their fingerprint for the lobby (UI: `ZdxsvSettingsWidget::markSyncForced`) |
-| `LobbyConnection.cpp` | A DEV9 TCP connection to the lobby: platform info message, GGPO lobby setup, lobby filter |
+| `LobbyConnection.cpp` | A TCP connection to the lobby (no-DEV9 host socket): platform info message, GGPO lobby setup, lobby filter |
 | `HttpsLatency.cpp` | HTTPS latency test to the cloud regions, sent in the platform info |
 | `SpectateSync.cpp`, `SpectateSync.h` | Four-screen replay: one PCSX2 per position, kept on the same frame through shared memory |
-| `ServerHosts.cpp`, `ServerHosts.h` | The game's server hosts, looked up as the zdxsv server's hostname by the internal DNS server; whether it was (public server) |
+| `ServerHosts.cpp`, `ServerHosts.h` | Addresses the game's server hosts resolved to; whether that was the built-in server (public server) |
 | `FastBoot.cpp` | Boot at unlimited speed to the lobby user_id selection, pressing through the menus on the fixed network route; optionally on through ID 1 into the lobby |
 | `FastLogin.cpp` | Login through the login API at DNAS start, the browser's result written to guest RAM, jump to the lobby connect |
 | `SingleDrawList.cpp` | `ZdxsvSingleDrawList`: game code patch that draws a frame's list in that frame |
@@ -80,7 +80,7 @@ options: `docs/zdxsv/`.
 | `CpuHooks.h` | Hook header: recompilers, counters, MTGS, VMManager |
 | `InputHooks.h` | Hook header: pad code |
 | `SaveStateHooks.h` | Hook header: save state code |
-| `Dev9Hooks.h` | Hook header: DEV9 network code |
+| `LobbySocket.h` | The game's TCP connections on host sockets: lobby filter, TLS, HTTPS latency |
 | `MediaHooks.h` | Hook header: GS present, SPU2 output |
 | `UiHooks.h` | Hook header: hotkeys, replay control bar |
 | `Settings.h` | `BoolSetting()`: a `[DEV9/Eth] Zdxsv*` setting, overridden by its environment variable; default replay state URL |

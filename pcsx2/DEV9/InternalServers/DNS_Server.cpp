@@ -26,7 +26,6 @@
 
 #include "DEV9/DEV9.h"
 #include "DEV9/AdapterUtils.h"
-#include "Zdxsv/Dev9Hooks.h"
 
 using namespace PacketReader;
 using namespace PacketReader::IP;
@@ -52,7 +51,6 @@ namespace InternalServers
 	int DNS_Server::DNS_State::AddAnswer(const std::string& answer, IP_Address address)
 	{
 		answers[answer] = address;
-		Zdxsv::DnsOnAnswer(answer.c_str(), address.bytes); // zdxsv
 		return --counter;
 	}
 	int DNS_Server::DNS_State::AddNoAnswer(const std::string& answer)
@@ -268,11 +266,10 @@ namespace InternalServers
 #ifdef _WIN32
 	void DNS_Server::GetHost(const std::string& url, DNS_State* state)
 	{
-		const char* name = Zdxsv::DnsLookupName(url.c_str()); // zdxsv
 		//Need to convert to UTF16
-		const int size = MultiByteToWideChar(CP_UTF8, 0, name, -1, nullptr, 0);
+		const int size = MultiByteToWideChar(CP_UTF8, 0, url.c_str(), -1, nullptr, 0);
 		std::vector<wchar_t> converted_string(size);
-		MultiByteToWideChar(CP_UTF8, 0, name, -1, converted_string.data(), converted_string.size());
+		MultiByteToWideChar(CP_UTF8, 0, url.c_str(), -1, converted_string.data(), converted_string.size());
 
 		ADDRINFOEX hints{0};
 		hints.ai_family = AF_INET;
@@ -353,7 +350,7 @@ namespace InternalServers
 		hints.ai_family = AF_INET;
 		addrinfo* result = nullptr;
 
-		int error = getaddrinfo(Zdxsv::DnsLookupName(url.c_str()), nullptr, &hints, &result); // zdxsv
+		int error = getaddrinfo(url.c_str(), nullptr, &hints, &result);
 		int remaining = -1;
 		switch (error)
 		{

@@ -10,7 +10,7 @@
 
 #pragma once
 
-#include "Zdxsv/Dev9Hooks.h"
+#include "Zdxsv/LobbySocket.h"
 #include "Zdxsv/SaveStateHooks.h"
 
 #include <atomic>
@@ -260,9 +260,6 @@ namespace Zdxsv
 	// 0x6910: a replay keeps them (replay.proto lobby_answers) to play the start again from a common state.
 	void LobbyNoteFrame(const uint8_t* frame, size_t size);
 	std::vector<std::vector<uint8_t>> LobbyStartAnswers();
-
-	// Lobby save states (LobbyStateEnabled, LobbyOnStateLoaded, AdoptConnections, IsBattleServer):
-	// Zdxsv/SaveStateHooks.h, Zdxsv/Dev9Hooks.h.
 
 	// STUN codec (the lobby's Ping / Pong messages), exposed for tests.
 	enum ProtoMessageType : uint32_t

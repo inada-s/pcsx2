@@ -1,18 +1,10 @@
 // SPDX-FileCopyrightText: 2026 zdxsv contributors
 // SPDX-License-Identifier: GPL-3.0+
 
-#include "Zdxsv/CpuHooks.h"
-#include "Zdxsv/Dev9Hooks.h"
 #include "Zdxsv/ServerHosts.h"
-#include "Zdxsv/Settings.h"
-
-#include "common/Console.h"
-#include "common/StringUtil.h"
 
 #include <algorithm>
 #include <atomic>
-#include <cstring>
-#include <iterator>
 #include <mutex>
 #include <vector>
 
@@ -20,17 +12,6 @@ namespace Zdxsv
 {
 	namespace
 	{
-		// The servers the game connects to: login, DNAS, lobby.
-		constexpr const char* kGameHosts[] = {
-			"www01.kddi-mmbb.jp",
-			"gate1.jp.dnas.playstation.org",
-			"ca1202.mmcp6",
-			"ca1203.mmcp6",
-		};
-
-		// Address the game hosts were mapped to by default host entries.
-		constexpr u8 kStaleAddress[4] = {153, 121, 44, 150};
-
 		std::atomic<bool> s_used_server_host{false};
 
 		struct ServerAddresses
@@ -39,42 +20,16 @@ namespace Zdxsv
 			std::vector<u32> ips;
 		};
 		ServerAddresses s_servers;
-
-		bool IsGameHost(const char* url)
-		{
-			return std::any_of(std::begin(kGameHosts), std::end(kGameHosts),
-				[url](const char* host) { return StringUtil::Strcasecmp(url, host) == 0; });
-		}
 	} // namespace
 
-	const char* DnsLookupName(const char* url)
+	void ServerHostUsed()
 	{
-		if (!SERVER_HOST[0] || !IsGameHost(url))
-			return url;
-		Console.WriteLn("DEV9: DNS: %s looked up as %s", url, SERVER_HOST);
 		s_used_server_host = true;
-		if (g_z_game)
-			HttpsLatencyStart();
-		return SERVER_HOST;
 	}
 
 	bool DnsUsedServerHost()
 	{
 		return s_used_server_host;
-	}
-
-	bool DnsIsStaleHostEntry(const char* url, const u8* address)
-	{
-		return IsGameHost(url) && std::memcmp(address, kStaleAddress, sizeof(kStaleAddress)) == 0;
-	}
-
-	void DnsOnAnswer(const char* name, const u8* address)
-	{
-		if (!IsGameHost(name))
-			return;
-		u32 ip;
-		std::memcpy(&ip, address, sizeof(ip));
-		ServerAddressAdd(ip);
 	}
 
 	void ServerAddressAdd(u32 ip)

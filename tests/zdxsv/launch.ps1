@@ -1,13 +1,12 @@
 # Start pcsx2 instance(s) N with data dir $RUN\pN\PCSX2 (PINE slot 28010+N).
 # New dirs are cloned from p1 (inis, bios, memcards); p1 is set up per GOALS.md.
 # -Memcard <file> copies that card to memcards\Mcd001.ps2 first.
-# -StateFile <p2s> boots from that save state. A lobby state resumes
-# online: DEV9 adopts the PS2's open lobby connection, a stand-in (fake_lobby.py) answers.
-# -LobbyState: ZDXSV_LOBBY_STATE=1 (off by default): needed to save AND load lobby states.
+# -StateFile <p2s> boots from that save state.
 # -Speed X: normal emulation speed X (ini [Framerate] NominalScalar, 1 = 60 fps, max 10; written every launch).
 #   Routes wait on frames (pine.py wait), so they hold at any speed.
-param([int[]]$N = @(1), [string]$Memcard = "", [string]$StateFile = "", [switch]$NoGui, [switch]$Headless, [switch]$LobbyState, [double]$Speed = 1, [int]$Renderer = -1)
-if ($LobbyState) { $env:ZDXSV_LOBBY_STATE = '1' }
+# -Eth: DEV9 Ethernet adapter on (ini [DEV9/Eth] EthEnable, written every launch; else off). Only clients
+#   that play as a PS2 (no-DEV9 path off) need it.
+param([int[]]$N = @(1), [string]$Memcard = "", [string]$StateFile = "", [switch]$NoGui, [switch]$Headless, [switch]$Eth, [double]$Speed = 1, [int]$Renderer = -1)
 . "$PSScriptRoot\env.ps1"  # RUN, PCSX2_EXE, ISO, ZDXSV_PY
 if ($envFail) { $envFail; exit 2 }
 # pcsx2 runs lobby battles over GGPO by default: a client without ZDXSV_GGPO gets
@@ -43,6 +42,8 @@ foreach ($i in $N) {
   $c = @($c -replace '^Renderer = .*', "Renderer = $r" | Where-Object { $_ -notmatch '^NominalScalar *=' })
   if (!($c -match '^\[Framerate\]')) { $c += @('', '[Framerate]') }
   $c = foreach ($l in $c) { $l; if ($l -match '^\[Framerate\]') { "NominalScalar = $Speed" } }
+  if (!($c -match '^\[DEV9/Eth\]')) { $c += @('', '[DEV9/Eth]') }
+  $c = foreach ($l in @($c | Where-Object { $_ -notmatch '^EthEnable *=' })) { $l; if ($l -match '^\[DEV9/Eth\]') { "EthEnable = $(([string][bool]$Eth).ToLower())" } }
   $c | Set-Content $ini -Encoding UTF8
   if ($Memcard) { Copy-Item -Force $Memcard "$d\PCSX2\memcards\Mcd001.ps2" }
   $a = @('-datapath', $d, '-batch')

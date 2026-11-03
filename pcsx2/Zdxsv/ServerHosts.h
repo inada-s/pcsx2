@@ -7,10 +7,11 @@
 
 namespace Zdxsv
 {
-	// A game host was looked up as the zdxsv server (no host entry for it): the game plays on the public server.
+	// The game's hosts resolve to the built-in zdxsv server (no ZDXSV_NODEV9 address): the game plays on
+	// the public server.
+	void ServerHostUsed();
 	bool DnsUsedServerHost();
-	// ip (network order) was a DNS answer for a game host: a zdxsv server.
+	// ip (network order) is a zdxsv server: the game's hosts resolved to it.
 	bool IsServerAddress(u32 ip);
-	// ip (network order) is a zdxsv server: names resolved without DEV9.
 	void ServerAddressAdd(u32 ip);
 } // namespace Zdxsv

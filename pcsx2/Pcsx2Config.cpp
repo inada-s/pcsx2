@@ -16,7 +16,6 @@
 #include "SIO/Memcard/MemoryCardFile.h"
 #include "SIO/Pad/Pad.h"
 #include "USB/USB.h"
-#include "Zdxsv/Dev9Hooks.h"
 
 #include "fmt/format.h"
 #ifdef _WIN32
@@ -1391,8 +1390,6 @@ void Pcsx2Config::DEV9Options::LoadSave(SettingsWrapper& wrap)
 
 		if (wrap.IsLoading())
 		{
-			if (Zdxsv::DnsIsStaleHostEntry(entry.Url.c_str(), entry.Address)) // zdxsv
-				continue;
 			EthHosts.push_back(entry);
 
 			if (EthLogDNS && entry.Enabled)

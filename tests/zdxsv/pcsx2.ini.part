@@ -37,7 +37,7 @@ Slot1_Filename = Mcd001.ps2
 
 
 [DEV9/Eth]
-EthEnable = true
+EthEnable = false
 EthApi = Sockets
 EthDevice = Auto
 EthLogDHCP = true

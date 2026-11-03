@@ -224,7 +224,6 @@ def rbk_env(idx: int, random_input: bool) -> dict:
     env = {
         "ZDXSV_GGPO": f"net=1,players={N},delay={DELAY}" + (f",relay={RELAY_PORT}" if LAT else ""),
         "ZDXSV_RBK": f"{idx}/{N}",
-        "ZDXSV_LOBBY_STATE": "1",
     }
     if random_input:
         env["ZDXSV_RAND_INPUT"] = str(SEED + idx)

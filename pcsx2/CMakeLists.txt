@@ -423,7 +423,7 @@ set(pcsx2DEV9Headers
 	DEV9/Sessions/TCP_Session/TCP_Session.h
 	Zdxsv/Lobby.h
 	Zdxsv/Proto.h
-	Zdxsv/Dev9Hooks.h
+	Zdxsv/LobbySocket.h
 	DEV9/Sessions/UDP_Session/UDP_Common.h
 	DEV9/Sessions/UDP_Session/UDP_FixedPort.h
 	DEV9/Sessions/UDP_Session/UDP_BaseSession.h
