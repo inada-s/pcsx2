@@ -20,6 +20,9 @@ Each script's usage and knobs are in its header comment.
   part of this repository.
 - Instance settings of the rig clients: merge `pcsx2.ini.part` into each
   `$RUN/pN/PCSX2/inis/PCSX2.ini` (`@IP@` = `IP`).
+- The DEV9 adapter is off in every rig: `launch.ps1` writes `EthEnable` at each
+  launch. Only clients that play as a PS2 (`m4z.sh` without `EMU`, or
+  `EXT_OFF`) get it on (`launch.ps1 -Eth`).
 
 ## Settings
 
@@ -105,7 +108,7 @@ Scripts are in `tests/zdxsv/` except `run.py` (repository root) and
 | Feature | Test | Control |
 |---|---|---|
 | Switch for all online battle extensions | `CLIENTS="1 3" EMU=1 EXT_OFF=1 m4z.sh`: both clients log `all zdxsv extensions off` and `not the Z game: no platform info`, no GGPO options, and join the battle server over TCP; 2 results | without `EXT_OFF`: `sent platform info` |
-| Online without DEV9 | `m4z.sh` `EMU=1 CLIENTS="1 3"` (`launch.ps1` default, DEV9 on: the game uses the hook): `join tcp x2`, `platform info sent x2`, `BattleResult x2`; with `GGPO=7101`: `p1/p3 ggpo session`, `ggpo end msg frame agrees`. Login: `nodev9.sh` (DEV9 Eth off, fast login): the lobby ID selection shows, emulog `no DEV9` and `fast login: session` with the lobby on the server, no DNAS POST, no TCP to another host; with `launch.ps1` defaults (fast login off), routes `top` then `login`: the lobby battlefield map shows | `nodev9.sh` with `NODEV9=0 MAXS=90` (DEV9 Eth off): no ID selection, the network device pick shows the device as unavailable |
+| Online without DEV9 | `m4z.sh` `EMU=1 CLIENTS="1 3"` (DEV9 adapter off): `join tcp x2`, `platform info sent x2`, `BattleResult x2`; with `GGPO=7101`: `p1/p3 ggpo session`, `ggpo end msg frame agrees`. Login: `nodev9.sh` (fast login): the lobby ID selection shows, emulog `no DEV9` and `fast login: session` with the lobby on the server, no DNAS POST, no TCP to another host; with `launch.ps1` defaults (fast login off), routes `top` then `login`: the lobby battlefield map shows | `nodev9.sh` with `NODEV9=0 MAXS=90`: no ID selection, the network device pick shows the device as unavailable |
 | Fast login | `ROUTE=top LIMIT=200 boottime.sh` (server with `/lbs/login`): user_id screen with no ログイン press, emulog `Zdxsv: fast login: session`, no DNAS POST in `dnas.log` | `ZDXSV_FAST_LOGIN=0 ROUTE=top LIMIT=200 MAXS=150 boottime.sh` fails (stops at TOP) |
 | Fast boot | `fastboot.sh`: run 1 (no boot state) logs `Zdxsv: fast boot: saving` and reaches the user_id screen with no input, run 2 logs `Zdxsv: fast boot: loading` and reaches it within 5 s of the VM start (`LIMIT`); each prints its time from the launch and from the VM start; run 3 (unformatted card) logs `Zdxsv: fast boot: stopped, memory card error` within 15 s; passes with the local zdxsv stack and with `LOBBY=fake` (`boot_lobby.py`: lobby API login and the lobby up to the user_id list only) | `ZDXSV_FAST_BOOT=0 MAXS=60 boottime.sh` fails (no user_id screen), also with `LOBBY=fake` |
 | Platform info `0x9950` to the lobby | `m4z.sh` with samples of the lobby `/api/stat`: the lobby counts each client by platform | none |

@@ -98,6 +98,8 @@ USERS=($USERS)  # the zdxsv.db user ids of the p1..p4 cards, in order
 CLIENTS=${CLIENTS:-1 2 3 4}; nc=$(echo $CLIENTS | wc -w)
 ENTRY=entry; [ "$nc" -eq 2 ] && ENTRY=entry2p
 nz=$(echo $ZP | wc -w)  # UDP joins: zproxy clients only (pcsx2 has no UDP bridge)
+# a client that plays as a PS2 (console, EXT_OFF: no-DEV9 path off) gets the DEV9 adapter (launch.ps1 -Eth)
+ceth() { if [ -n "${EXT_OFF:-}" ] || [ -z "${EMU:-}" ]; then echo -Eth; fi; }
 # client i's env: console (no platform info), or emulator (+ GGPO lobby battle on port GGPO+i-1)
 cenv() {
   # EXT_OFF=1: every client runs with ZDXSV_EXTENSIONS=0 (all zdxsv extensions off: seen as a PS2, battle server)
@@ -198,7 +200,7 @@ if [ -n "${LIVE:-}" ]; then
 fi
 for i in $CLIENTS; do
   cp -p "$RUN/p$i/PCSX2/memcards/Mcd001.ps2" "$OUT/live-p$i.ps2"
-  l=$(env $(cenv $i) powershell -NoProfile -Command "& '$here/launch.ps1' -N $i -Speed ${SPEED:-1} -Memcard $RUN/Mcd001-${CARDS[i-1]}.ps2 $(case " ${SHOW:-} " in *" $i "*) ;; *) echo -Headless;; esac)" 2>&1)
+  l=$(env $(cenv $i) powershell -NoProfile -Command "& '$here/launch.ps1' -N $i $(ceth) -Speed ${SPEED:-1} -Memcard $RUN/Mcd001-${CARDS[i-1]}.ps2 $(case " ${SHOW:-} " in *" $i "*) ;; *) echo -Headless;; esac)" 2>&1)
   echo "$l" | tail -1
   # a refused launch (probelint) ran 7 min of blind routes before the entry check
   echo "$l" | grep -q "pid .* slot" || { echo "FAIL launch p$i"; exit 1; }
