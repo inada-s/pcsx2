@@ -29,7 +29,7 @@ namespace Zdxsv
 		};
 		constexpr KeptObjectType KEPT_TYPES[] = {
 			{0x167810, {{{0x0, 0xa0}, {0x150, 0x1d0}}}}, // beam saber trail history
-			{0x167f50, {{{0x0, 0xa0}, {0xb0, 0x1f0}}}}, // an effect type, needs proper testing
+			{0x167f50, {{{0xb0, 0x1f0}, {0x0, 0x0}}}}, // an effect type
 		};
 
 		// Player objects copy part of their work into their bone slot at the start of each draw. That
