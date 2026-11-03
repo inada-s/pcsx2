@@ -13,7 +13,8 @@ With --trace (a `zdxsv -v=2 lobby` log of a real battle, lobby_trace.py):
   reconnects and logs in again): it gets the recorded key pair question first. FirstData
   picks the recorded user with the same answer.
 - Battle start (the lobby's job, replaced): side entry 0x640E answered; once --players have
-  entered, sessions are registered with the battle server (battlereg.exe, as startBattle),
+  entered, sessions are registered with the battle server (battlereg.exe, as startBattle;
+  each user's login session: its 0x9951 in the trace, else its 0x6101 key),
   then BattleStart 0x6910 to all. Positions: side 1 in entry order, then side 2. The
   adopted connection at position k plays the k-th recorded user (0x6913 answers of the
   trace). 0x6915 gets a fresh battle code; 0x6916 the battle server, after the custom 0x9951
@@ -118,6 +119,14 @@ class Trace:
                     for u in self.users.values():
                         if u.get("id") == kv.get("user_id"):
                             u["session"] = kv["session_id"]
+        # no 0x9951 (the lobby sends it only to some clients): the key pair answer's session, user from 0x6132
+        for fs in self.lobby:
+            key = next((pstr(f["body"], 0)[0] for f in fs if f["cmd"] == 0x6101 and f["c2s"]), b"")
+            uid = next((pstr(f["body"], 0)[0].decode() for f in fs if f["cmd"] == 0x6132 and f["cat"] == A and not f["c2s"]), "")
+            for u in self.users.values():
+                if u.get("id") == uid and "session" not in u and key:
+                    s = "%010d" % (int(key) - 100001)
+                    u["session"] = s[1:5] + s[6:]
 
     @staticmethod
     def answer(fs, i, cmd, body):
