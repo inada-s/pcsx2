@@ -16,13 +16,13 @@ if (-not $env:ZDXSV_GGPO) { $env:ZDXSV_GGPO = '0' } elseif ($env:ZDXSV_GGPO -eq 
 # Fast boot (on by default) presses through the menus the routes drive: off unless
 # ZDXSV_FAST_BOOT is set; ZDXSV_FAST_BOOT=default leaves the setting's default.
 if (-not $env:ZDXSV_FAST_BOOT) { $env:ZDXSV_FAST_BOOT = '0' } elseif ($env:ZDXSV_FAST_BOOT -eq 'default') { Remove-Item env:ZDXSV_FAST_BOOT }
-# Online without DEV9 (on by default) resolves every name to the zdxsv server: the rigs pin it to the
-# local stack, ZDXSV_NODEV9=$IP; without IP, or ZDXSV_NODEV9=0, the DEV9 path with the ini's hosts.
-if (-not $env:ZDXSV_NODEV9) { $env:ZDXSV_NODEV9 = if ($env:IP) { $env:IP } else { '0' } }
 # pcsx2 refuses a game path with / (local.env may use /)
 $root = $env:RUN -replace '/', '\'
 $exe = if ($env:PCSX2_EXE) { $env:PCSX2_EXE -replace '/', '\' } else { Join-Path $PSScriptRoot '..\..\bin\pcsx2-qtx64.exe' }
 $iso = $env:ISO -replace '/', '\'
+# Online without DEV9 (on by default) resolves every name to the zdxsv server: the rigs pin it to the
+# local stack, ZDXSV_NODEV9=$IP; without IP, or ZDXSV_NODEV9=0, the DEV9 path with the ini's hosts.
+if (-not $env:ZDXSV_NODEV9) { $env:ZDXSV_NODEV9 = if ($env:IP) { $env:IP } else { '0' } }
 if (-not $iso) { 'FAIL: set ISO (the game image; environment or tests/zdxsv/local.env)'; exit 2 }
 # probe writers of the exe's tree: no rig run on a bad or stale probe
 $lint = & $py "$PSScriptRoot\probelint.py" --exe $exe (Split-Path (Split-Path $exe))
