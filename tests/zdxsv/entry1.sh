@@ -31,11 +31,11 @@ entry1_retry() {
       $PY "$here/entrysig.py" "$OUT/emulog-p$i-try$k.txt" "$RUN"/entry-ok-p*.txt | sed "s/^/client $i try $k new: /" | head -5
       if [ "$k" -gt 1 ] && $PY "$here/entrysig.py" --same "$OUT/emulog-p$i-try$((k - 1)).txt" "$OUT/emulog-p$i-try$k.txt" "$RUN"/entry-ok-p*.txt > /dev/null; then
         echo "client $i: FAIL same new emulog lines in tries $((k - 1)) and $k: a client fault, not the entry flake"
-        powershell -NoProfile -Command "Stop-Process -Id $pid -Force -EA 0; Wait-Process -Id $pid -Timeout 20 -EA 0"
+        { zkill $pid; zwaitgone $pid 20; }
         return 1
       fi
     fi
-    [ -n "$pid" ] && powershell -NoProfile -Command "Stop-Process -Id $pid -Force -EA 0; Wait-Process -Id $pid -Timeout 20 -EA 0"
+    [ -n "$pid" ] && { zkill $pid; zwaitgone $pid 20; }
   done
   return 1
 }

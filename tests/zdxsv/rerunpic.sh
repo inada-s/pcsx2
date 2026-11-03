@@ -9,7 +9,7 @@
 OUT=${OUT:?OUT=dir for the snapshots and the log}
 FRAMES=${FRAMES:-400}
 rm -rf "$OUT"; mkdir -p "$OUT"
-export ZDXSV_SNAP="$(cygpath -w "$OUT"),1,9000"
+export ZDXSV_SNAP="$(zpath "$OUT"),1,9000"
 [ -n "${1:-}" ] && export $1
 bash "$(dirname "$0")/deltatest.sh" -Var ZDXSV_GGPO \
   -Spec "start=9000,frames=$FRAMES,check=2,mask=fcff" -Route arcade -End $((9100 + FRAMES)) -Tag t -Out "$OUT" |

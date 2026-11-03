@@ -81,7 +81,7 @@
 # Cards: each client starts from $RUN/Mcd001-<CARDS[i]>.ps2 (CARDS, required: one registered card per client);
 # the live card is put back after (m4.sh's lobby states use it). A post-battle prompt creates system
 # data on the card, after which `top` lands in an offline battle.
-here=$(cd "$(dirname "$0")" && pwd -W)
+. "$(dirname "$0")/os.sh"; here=$(cd "$(dirname "$0")" && zpwd)
 . "$here/riglock.sh"  # one rig at a time
 . "$here/speedcheck.sh"  # measured speed vs SPEED
 . "$here/entry2p.sh"  # 1v1 entry: Lobby 02 press checked + retried
@@ -90,7 +90,7 @@ OUT=${OUT:?OUT=dir for logs}
 DRIVE="env MEMGATE_RESERVE_MB=${DRIVE_RESERVE_MB:-150} $PY $here/drive.py"
 zdxsv_need IP
 if [ -n "${EMU:-}" ]; then ZP=${ZP:-}; else ZP=${ZP:-1 3}; fi
-ZPROXY=${ZPROXY:-$ZDXSV/bin/zproxy.exe}
+ZPROXY=${ZPROXY:-$ZDXSV/bin/zproxy$ZEXE}
 zdxsv_need CARDS USERS
 CARDS=($CARDS)
 USERS=($USERS)  # the zdxsv.db user ids of the p1..p4 cards, in order
@@ -122,7 +122,7 @@ cp "$RUN/zdxsv.db" "$OUT/zdxsv.db" || exit 1
 pids=()
 # zdxsv*: a ZBIN like zdxsv-ggpo.exe outlives `kill` of its bash pid and holds the ports
 # (the next run's clients would log in to the old lobby)
-killall() { powershell -NoProfile -Command "Get-Process pcsx2*,zdxsv*,dnas*,zproxy* -EA 0 | Stop-Process -Force; Get-CimInstance Win32_Process | ? { \$_.CommandLine -match 'drive\.py' } | % { Stop-Process -Id \$_.ProcessId -Force -EA 0 }" 2>/dev/null; }
+killall() { { zkill_name pcsx2 zdxsv dnas zproxy; zkill_cmd 'drive[.]py'; } 2>/dev/null; }
 killall
 cleanup() {
   kill "${pids[@]}" 2>/dev/null
@@ -142,33 +142,35 @@ round_data_ok() {
   [ "$(echo "$r" | grep -c .)" -eq "$2" ] && [ "$(echo "$r" | sort -u | wc -l)" -eq 1 ] &&
     echo "$r" | head -1 | grep -q -E "^(round_data=\"win_team:(-1|1|2)( used_ms:[0-9]+){$2}\" )+\$"
 }
-lobby_suspend() {  # $1 = Suspend / Resume
-  powershell -NoProfile -Command "Add-Type 'using System; using System.Runtime.InteropServices; public static class Nt { [DllImport(\"ntdll.dll\")] public static extern int NtSuspendProcess(IntPtr h); [DllImport(\"ntdll.dll\")] public static extern int NtResumeProcess(IntPtr h); }'; Get-Process zdxsv* -EA 0 | % { [void][Nt]::Nt$1Process(\$_.Handle) }"
+lobby_suspend() {  # $1 = zstop / zcont
+  local p; for p in $(zpids_name zdxsv); do $1 "$p"; done
 }
 live_stall() {
   local pid t
   pid=$(grep -o 'pid [0-9]*' "$OUT/live-launch.txt" | head -1 | cut -d' ' -f2)
   sleep "$LIVE_STALL"
-  lobby_suspend Suspend
+  lobby_suspend zstop
   sleep 3
   t=$SECONDS
   # taskkill closes only the first top-level window in z-order: in a spectator that can be a hidden
   # Qt _q_titlebar window, which drops it; a WM_CLOSE to every window reaches the display surface
-  powershell -NoProfile -Command "Add-Type 'using System; using System.Runtime.InteropServices; public static class Wc { public delegate bool EnumProc(IntPtr h, IntPtr l); [DllImport(\"user32.dll\")] public static extern bool EnumWindows(EnumProc f, IntPtr l); [DllImport(\"user32.dll\")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint p); [DllImport(\"user32.dll\")] public static extern bool PostMessage(IntPtr h, uint m, IntPtr w, IntPtr l); public static void Close(uint pid) { EnumWindows((h, l) => { uint p; GetWindowThreadProcessId(h, out p); if (p == pid) PostMessage(h, 0x10, IntPtr.Zero, IntPtr.Zero); return true; }, IntPtr.Zero); } }'; [Wc]::Close($pid)"
-  while [ $((SECONDS - t)) -lt 60 ] && tasklist //FI "PID eq $pid" 2>/dev/null | grep -q " $pid "; do sleep 0.5; done
+  if [ -n "$ZWIN" ]; then
+    powershell -NoProfile -Command "Add-Type 'using System; using System.Runtime.InteropServices; public static class Wc { public delegate bool EnumProc(IntPtr h, IntPtr l); [DllImport(\"user32.dll\")] public static extern bool EnumWindows(EnumProc f, IntPtr l); [DllImport(\"user32.dll\")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint p); [DllImport(\"user32.dll\")] public static extern bool PostMessage(IntPtr h, uint m, IntPtr w, IntPtr l); public static void Close(uint pid) { EnumWindows((h, l) => { uint p; GetWindowThreadProcessId(h, out p); if (p == pid) PostMessage(h, 0x10, IntPtr.Zero, IntPtr.Zero); return true; }, IntPtr.Zero); } }'; [Wc]::Close($pid)"
+  else kill -TERM "$pid"; fi
+  zwaitgone "$pid" 60
   echo "stall: exit after $((SECONDS - t)) s"
-  lobby_suspend Resume
+  lobby_suspend zcont
 }
 
 # stack.sh runs in the background: its binary check fails here, before any client
-ZDXSV=$ZDXSV bash "$here/zbincheck.sh" "${ZBIN:-$ZDXSV/bin/zdxsv.exe}" || exit 1
+ZDXSV=$ZDXSV bash "$here/zbincheck.sh" "${ZBIN:-$ZDXSV/bin/zdxsv$ZEXE}" || exit 1
 # -v=2: every lobby frame (entry check below, lobby_trace.py)
 [ -n "${RELAY:-}" ] && export ZDXSV_LOBBY_RELAY_ADDR=:8203
 RELAY_PATH=${RELAY_PATH:-direct}
 if [ -n "${UPLOAD:-}" ]; then
   [ -n "${GGPO:-}" ] || { echo "FAIL UPLOAD needs GGPO"; exit 1; }
   export ZDXSV_LOBBY_API_ADDR=127.0.0.1:9881 ZDXSV_LOBBY_REPLAY_DIR="$OUT/upload"
-  ZDXSV_DB_NAME="$OUT/zdxsv.db" "${ZBIN:-$ZDXSV/bin/zdxsv.exe}" migratedb > "$OUT/migratedb.log" 2>&1  # replay_url column
+  ZDXSV_DB_NAME="$OUT/zdxsv.db" "${ZBIN:-$ZDXSV/bin/zdxsv$ZEXE}" migratedb > "$OUT/migratedb.log" 2>&1  # replay_url column
 fi
 LOBBY_ARGS=-v=2 RUN="$OUT" bash "$here/stack.sh" "$IP" > "$OUT/stack.out" 2>&1 & pids+=($!)
 if [ -n "${GGPO_LAT:-}" ]; then
@@ -198,7 +200,7 @@ if [ -n "${LIVE:-}" ]; then
 fi
 for i in $CLIENTS; do
   cp -p "$RUN/p$i/PCSX2/memcards/Mcd001.ps2" "$OUT/live-p$i.ps2"
-  l=$(env $(cenv $i) bash "$here/launch.sh" -N $i -Speed ${SPEED:-1} -Memcard $RUN/Mcd001-${CARDS[i-1]}.ps2 $(case " ${SHOW:-} " in *" $i "*) ;; *) echo -Headless;; esac) 2>&1)
+  l=$(env $(cenv $i) bash "$here/launch.sh" -N $i -Speed ${SPEED:-1} -Memcard $RUN/Mcd001-${CARDS[i-1]}.ps2 $(case " ${SHOW:-} " in (*" $i "*) ;; (*) echo -Headless;; esac) 2>&1)
   echo "$l" | tail -1
   # a refused launch (probelint) ran 7 min of blind routes before the entry check
   echo "$l" | grep -q "pid .* slot" || { echo "FAIL launch p$i"; exit 1; }
@@ -209,7 +211,8 @@ for i in $CLIENTS; do
   echo "client $i: login results $(grep -c '== BattleResult ==' "$OUT/lobby.log")"
 done
 if [ -n "${PAUSE:-}" ]; then
-  # every client in SHOW is paused together, past the lobby's 2 min receive timeout
+  # every client in SHOW is paused together, past the lobby's 2 min receive timeout (pause hotkey: window control)
+  [ -n "$ZWIN" ] || { echo "FAIL $0: PAUSE needs pcsx2ctl.ps1 (Windows)"; exit 2; }
   for i in ${SHOW:?PAUSE needs SHOW}; do
     powershell -NoProfile -File "$here/pcsx2ctl.ps1" -ProcId "${cpid[i]}" -Seq Space 2>&1 | tail -1
   done
@@ -426,11 +429,11 @@ if [ -n "${EMU:-}" ] && [ -n "${GGPO:-}" ]; then
         sleep 5
       done
       # the trace is complete once the instance has exited (ZDXSV_REPLAY_EXIT)
-      for t in $(seq 60); do tasklist //FI "PID eq ${pid:-0}" | grep -q " ${pid:-0} " || break; sleep 1; done
+      zwaitgone "${pid:-0}" 60
       grep -a 'ZdxsvGgpo: replay' "$f" | tr -d '\r' | cut -c1-200 | head -3
       grep -a 'ZdxsvGgpo: replay end' "$f" | tr -d '\r' | cut -c1-200
       check "$code: API replay_url = stored url" "grep -a -q 'replay_url http://127.0.0.1:9881/lbs/replays/$code.pb' '$f'"
-      check "$code: API replay played to its end, instance exited" "grep -a -o 'ZdxsvGgpo: replay end at frame [0-9]* of [0-9]*' '$f' | awk '{exit !(\$6 + 1 == \$8)}' && ! tasklist //FI 'PID eq ${pid:-0}' | grep -q ' ${pid:-0} '"
+      check "$code: API replay played to its end, instance exited" "grep -a -o 'ZdxsvGgpo: replay end at frame [0-9]* of [0-9]*' '$f' | awk '{exit !(\$6 + 1 == \$8)}' && ! zalive ${pid:-0}"
       if [ -n "${PWTRACE:-}" ]; then
         "$PY" -I "$TOOLS/pwcheck.py" --own --battle $code "$OUT/trace-api.txt" $(for i in $CLIENTS; do echo "$OUT/trace-p$i.txt"; done) > "$OUT/pwcheck-api.txt"
         grep '^common\|^judged\|^player\|^rng' "$OUT/pwcheck-api.txt" | cut -c1-160

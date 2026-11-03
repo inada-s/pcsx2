@@ -15,7 +15,7 @@ done
 [ "$route" = arcade ] && route=f1500,Return,w3000,C,w6000,C,w5000,C,w5000,C,w5000,C,w5000,Return,w2000,C,w2000,Up,w500,Left,w800,Down,w400,Down,w400,Down,w400,Down,w400,Left,w400,Left,w400,C,w5000,C,w5000,C,w5000,C,w5000,C,w6000,C,w6000,C,w6000,C,w6000,C,w6000,C,w6000
 . "$here/env.sh"  # RUN, PY
 mkdir -p "$out"
-taskkill //F //IM pcsx2-qtx64.exe > /dev/null 2>&1
+zkill_name pcsx2
 env "$var=$spec" bash "$here/launch.sh" -N 1 > /dev/null || exit $?
 sleep 8
 [ -n "$route" ] && "$PY" "$here/pine.py" seq "$route" 2> /dev/null
@@ -27,7 +27,7 @@ done
 sleep 2
 log=$out/$tag-emulog.txt
 cp -f "$RUN/p1/PCSX2/logs/emulog.txt" "$log"
-taskkill //F //IM pcsx2-qtx64.exe > /dev/null 2>&1
+zkill_name pcsx2
 grep -a 'ZdxsvDelta\|ZdxsvGgpo' "$log"
 # ZDXSV_DELTA_TEST: exit 1 on `result FAIL` (pass 2+ differed), 3 when no result line was logged
 if [ "$var" = ZDXSV_DELTA_TEST ]; then

@@ -19,14 +19,14 @@
 # API=1: plays ZDXSV_REPLAY=http://127.0.0.1:API_PORT/lbs/replay?battle_code=<FILE's name> from apiserve.py (API_PORT,
 # default 9891), whose replay_url serves FILE; checks the replay_url line too. GZIP=1: replay_url serves FILE gzip encoded (Content-Encoding: gzip), as GCS serves the lobby's objects.
 # BAD=1: FILE is not a playable replay: exit 0 if the player is told it did not start (`replay: not started`).
-here=$(cd "$(dirname "$0")" && pwd -W)
+. "$(dirname "$0")/os.sh"; here=$(cd "$(dirname "$0")" && zpwd)
 . "$here/riglock.sh"  # one rig at a time
 OUT=${OUT:?OUT=dir for logs}
 FILE=${FILE:?FILE=replay .pb}
 N=${N:-1}
 STATE=${STATE:-${RBKSTATES:?set STATE or RBKSTATES}/rbk-p1.p2s}
 mkdir -p "$OUT"
-trap 'powershell -NoProfile -Command "Get-Process pcsx2* -EA 0 | Stop-Process -Force"; cp "$RUN/p$N/PCSX2/logs/emulog.txt" "$OUT/emulog-play.txt" 2>/dev/null; cp "$RUN/p$N"/PCSX2/logs/emulog-pov*.txt "$OUT/" 2>/dev/null; [ -n "$api" ] && kill $api; rig_release' EXIT
+trap 'zkill_name pcsx2; cp "$RUN/p$N/PCSX2/logs/emulog.txt" "$OUT/emulog-play.txt" 2>/dev/null; cp "$RUN/p$N"/PCSX2/logs/emulog-pov*.txt "$OUT/" 2>/dev/null; [ -n "$api" ] && kill $api; rig_release' EXIT
 # the recording's clamp (a play without it differs from the live battle at the first clamped frame)
 rec=$(dirname "$FILE")
 cl=$( { for f in "$@"; do ls "$(dirname "$f")"/emulog-p*.txt; done; ls "$rec"/emulog-p*.txt "$rec"/../emulog-p*.txt; } 2>/dev/null \
@@ -47,10 +47,11 @@ if [ -n "$KEYS" ]; then
     grep -q "^${b%% *} " "$ini" || sed -i "/^\[Hotkeys\]/a $b" "$ini"
   done
   grep -c "^ZdxsvReplaySeek\|^TogglePause \|^ZdxsvReplayNextPov \|^ZdxsvReplayToggleKeys " "$ini" | grep -q 5 || { echo "FAIL hotkeys not bound in $ini"; exit 1; }
+  [ -n "$ZWIN" ] || { echo "FAIL $0: KEYS needs pcsx2ctl.ps1 (Windows)"; exit 2; }
   # every step's keys against the ini before launch (else an unbound key is refused only at its send)
   IFS=';' read -ra ks <<< "$KEYS"
   for k in "${ks[@]}"; do
-    powershell -NoProfile -File "$here/pcsx2ctl.ps1" -Check -Ini "$(cygpath -w "$ini")" -Seq "${k#*:}" > "$OUT/keycheck.txt" 2>&1 \
+    powershell -NoProfile -File "$here/pcsx2ctl.ps1" -Check -Ini "$(zpath "$ini")" -Seq "${k#*:}" > "$OUT/keycheck.txt" 2>&1 \
       || { cat "$OUT/keycheck.txt"; echo "FAIL KEYS step '$k' before launch"; exit 1; }
   done
 fi
@@ -76,7 +77,7 @@ t1=$SECONDS
 IFS=';' read -ra keys <<< "$KEYS"
 while [ $((SECONDS - t0)) -lt "${MAXS:-300}" ]; do
   sleep 1
-  [ "$(tasklist | grep -ci pcsx2)" -eq 0 ] && break
+  [ "$(zcount_name pcsx2)" -eq 0 ] && break
   # `state load failed` can come 0.6 s after the start check's `position` line, the player ran to MAXS 300 s
   bad=$(grep -a -m1 "ZdxsvGgpo: replay\( [^:]*\)\?: \(state load failed\|not a replay\|bad header\|not another position\|cannot write\)\|ZdxsvGgpo: replay seek: key [0-9]* load failed" "$l")
   [ -n "$bad" ] && { echo "$bad" | cut -c1-200; echo "FAIL replay error at $((SECONDS - t0)) s"; exit 1; }
@@ -89,7 +90,7 @@ while [ $((SECONDS - t0)) -lt "${MAXS:-300}" ]; do
   fi
 done
 [ ${#keys[@]} -eq 0 ] || { echo "FAIL keys not sent: ${keys[*]}"; ok_keys=1; }
-echo "$((SECONDS - t0)) s: $(tasklist | grep -ci pcsx2) pcsx2 left"
+echo "$((SECONDS - t0)) s: $(zcount_name pcsx2) pcsx2 left"
 ok=${ok_keys:-0}
 grep -a "ZdxsvGgpo: \(replay end\|replay:\|replay seek\|net sends\|zd steps\)" "$l" | cut -c1-200
 grep -a -q "ZdxsvGgpo: replay end" "$l" || { echo "FAIL no replay end"; ok=1; }

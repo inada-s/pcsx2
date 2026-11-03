@@ -38,7 +38,7 @@ done
 echo "$((SECONDS - t0)) s"; grep "^FAIL\|^PASS\|client" "$OUT/m4.out" | head -12
 summary "$log"
 kill $m4 2>/dev/null
-taskkill //F //IM pcsx2-qtx64.exe > /dev/null 2>&1
-taskkill //F //IM zdxsv.exe > /dev/null 2>&1
-powershell -NoProfile -Command "Get-CimInstance Win32_Process | Where-Object { \$_.CommandLine -match 'fake_lobby|drive\.py|m4\.sh' -and \$_.CommandLine -notmatch 'powershell|m4lat' } | ForEach-Object { Stop-Process -Id \$_.ProcessId -Force -ErrorAction SilentlyContinue }"
+zkill_name pcsx2
+zkill_name zdxsv
+zkill_cmd "fake_lobby|drive[.]py|m4[.]sh" "powershell|m4lat"
 cp "$log" "$OUT/p1-emulog.txt"

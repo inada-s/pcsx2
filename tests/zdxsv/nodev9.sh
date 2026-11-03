@@ -5,7 +5,7 @@
 # Env: ETH=true (Eth left on), MAXS (s to wait, default 200), NODEV9 (ZDXSV_NODEV9, default $IP).
 # Exit 0 = the user_id screen is up and p1 logged no-DEV9 on, a fast login session with the lobby on $IP,
 # DNAS got no POST, and pcsx2 had no TCP connection to a host other than $IP or 127.0.0.1.
-here=$(cd "$(dirname "$0")" && pwd -W)
+. "$(dirname "$0")/os.sh"; here=$(cd "$(dirname "$0")" && zpwd)
 . "$here/env.sh"
 zdxsv_need IP
 OUT=${OUT:?OUT=dir for logs}
@@ -17,7 +17,7 @@ sed -i "/^\[DEV9\/Eth\]/,/^\[/ s/^EthEnable = .*/EthEnable = ${ETH:-false}/" "$i
 grep -q "^EthEnable = ${ETH:-false}" "$ini" || { echo "FAIL no EthEnable in $ini"; exit 1; }
 (
   while :; do
-    powershell -NoProfile -Command "\$p = (Get-Process pcsx2* -EA 0).Id; if (\$p) { Get-NetTCPConnection -OwningProcess \$p -EA 0 | ? { \$_.RemoteAddress -notin '0.0.0.0', '::', '127.0.0.1', '$IP' } | % { \$_.RemoteAddress + ':' + \$_.RemotePort } }" >> "$OUT/remote.txt"
+    zremote $(zpids_name pcsx2) | grep -v -E "^(0[.]0[.]0[.]0|::|127[.]0[.]0[.]1|$IP):" >> "$OUT/remote.txt"
     echo x >> "$OUT/samples.txt"; sleep 5
   done
 ) & sp=$!

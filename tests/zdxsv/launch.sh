@@ -1,5 +1,5 @@
 #!/bin/bash
-# Start pcsx2 instance(s) N with data dir $RUN/pN/PCSX2 (PINE slot 28010+N); prints "pN pid <winpid> slot S".
+# Start pcsx2 instance(s) N with data dir $RUN/pN/PCSX2 (PINE slot 28010+N); prints "pN pid <OS pid> slot S".
 # New dirs are cloned from p1 (inis, bios, memcards); p1 is set up per README.md.
 #   -N "1 2"         instances (default 1)
 #   -Memcard <file>  copies that card to memcards/Mcd001.ps2 first
@@ -35,19 +35,17 @@ case ${ZDXSV_GGPO:-} in '') export ZDXSV_GGPO=0;; default) unset ZDXSV_GGPO;; es
 case ${ZDXSV_FAST_BOOT:-} in '') export ZDXSV_FAST_BOOT=0;; default) unset ZDXSV_FAST_BOOT;; esac
 . "$here/localnet.sh"
 zdxsv_need ISO
-root=$(cygpath -u "$RUN")
-exe=$(cygpath -u "${PCSX2_EXE:-$here/../../bin/pcsx2-qtx64.exe}")
+root=$(zupath "$RUN")
+if [ -n "$ZWIN" ]; then exe=$(zupath "${PCSX2_EXE:-$here/../../bin/pcsx2-qtx64.exe}"); else zdxsv_need PCSX2_EXE; exe=$PCSX2_EXE; fi
+case $exe in *.app) exe=$exe/Contents/MacOS/$(basename "$exe" .app);; esac
+tree=$(dirname "$exe"); while [ "$tree" != / ] && [ ! -d "$tree/pcsx2/Zdxsv" ]; do tree=$(dirname "$tree"); done
+[ "$tree" != / ] || tree=$here/../..
 # pcsx2 refuses a game path with /
-iso=$(cygpath -w "$ISO")
+iso=$(zpath "$ISO")
 # probe writers of the exe's tree: no rig run on a bad or stale probe
-lint=$("$PY" "$here/probelint.py" --exe "$(cygpath -w "$exe")" "$(cygpath -w "$(dirname "$(dirname "$exe")")")") || { echo "$lint"; exit 1; }
+lint=$("$PY" "$here/probelint.py" --exe "$(zpath "$exe")" "$(zpath "$tree")") || { echo "$lint"; exit 1; }
 # another rig's lock: no pcsx2 into a running rig
-anc= p=$$
-while p=$(cat /proc/$p/ppid 2>/dev/null) && [ "$p" -gt 1 ]; do anc="$anc,$(cat /proc/$p/winpid)"; done
-out=$(powershell -NoProfile -ExecutionPolicy Bypass -File "$here/riglock.ps1" -Check -Anc "$(cat /proc/$$/winpid)$anc")
-rc=$?
-[ -n "$out" ] && echo "${out//$'\r'/}"
-[ "$rc" = 0 ] || exit 75
+zriglock -Check -Anc "$(zpid $$),$(zanc $$)" || exit 75
 for i in $N; do
   d=$root/p$i
   if [ ! -d "$d/PCSX2/inis" ]; then
@@ -69,13 +67,13 @@ for i in $N; do
       if (!fr) { print ""; print "[Framerate]"; print "NominalScalar = " speed }
     }' "$ini" > "$ini.new" && mv -f "$ini.new" "$ini"
   [ -n "$memcard" ] && cp -f "$memcard" "$d/PCSX2/memcards/Mcd001.ps2"
-  a=(-datapath "$(cygpath -w "$d")" -batch)
+  a=(-datapath "$(zpath "$d")" -batch)
   [ -n "$nogui$headless" ] && a+=(-nogui)
-  [ -n "$state" ] && a+=(-statefile "$(cygpath -w "$state")")
+  [ -n "$state" ] && a+=(-statefile "$(zpath "$state")")
   # no stdio: a caller's $(launch.sh) returns while pcsx2 runs
   "$exe" "${a[@]}" -- "$iso" < /dev/null > /dev/null 2>&1 &
-  wp=$(cat /proc/$!/winpid)
-  if [ -n "$headless" ]; then  # hide the display window once it exists (keeps 60 fps)
+  wp=$(zpid $!)
+  if [ -n "$headless" ] && [ -n "$ZWIN" ]; then  # hide the display window once it exists (keeps 60 fps)
     powershell -NoProfile -Command "Add-Type -Namespace W -Name U -MemberDefinition '[DllImport(\"user32.dll\")] public static extern bool ShowWindow(System.IntPtr h, int c);'
       for (\$t = 0; \$t -lt 60 -and (Get-Process -Id $wp).MainWindowHandle -eq 0; \$t++) { Start-Sleep -Milliseconds 500 }
       [void][W.U]::ShowWindow((Get-Process -Id $wp).MainWindowHandle, 0)" > /dev/null 2>&1

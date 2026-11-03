@@ -7,7 +7,7 @@
 # SPEED (launch.sh -Speed, default 1), SHOW=1 (windowed), LOBBY=fake (boot_lobby.py instead of the stack:
 # only the lobby API login and the lobby up to the user_id list).
 # Exit 0 = the screen is up within LIMIT s. Logs: OUT/boottime.txt (net step changes), stack logs.
-here=$(cd "$(dirname "$0")" && pwd -W)
+. "$(dirname "$0")/os.sh"; here=$(cd "$(dirname "$0")" && zpwd)
 . "$here/riglock.sh"  # one rig at a time
 zdxsv_need ZDXSV
 zdxsv_need IP
@@ -17,11 +17,11 @@ CARD=${CARD:-${CARDS%% *}}
 mkdir -p "$OUT"
 cp "$RUN/zdxsv.db" "$OUT/zdxsv.db" || exit 1
 pids=()
-killall() { powershell -NoProfile -Command "Get-Process pcsx2*,zdxsv*,dnas* -EA 0 | Stop-Process -Force"; }
+killall() { zkill_name pcsx2 zdxsv dnas; }
 killall
 cleanup() {
   kill "${pids[@]}" 2>/dev/null
-  [ -f "$OUT/boot_lobby.pid" ] && taskkill //F //PID "$(cat "$OUT/boot_lobby.pid")" > /dev/null 2>&1
+  [ -f "$OUT/boot_lobby.pid" ] && zkill "$(cat "$OUT/boot_lobby.pid")"
   killall
   cp "$RUN/p1/PCSX2/logs/emulog.txt" "$OUT/emulog-p1.txt" 2>/dev/null
   [ -f "$OUT/live-p1.ps2" ] && cp -p "$OUT/live-p1.ps2" "$RUN/p1/PCSX2/memcards/Mcd001.ps2"
@@ -34,7 +34,7 @@ if [ "${LOBBY:-}" = fake ]; then
   sleep 2
   grep -q "boot lobby up" "$OUT/boot_lobby.log" || { cat "$OUT/boot_lobby.log"; echo "FAIL boot lobby"; exit 1; }
 else
-  ZDXSV=$ZDXSV bash "$here/zbincheck.sh" "${ZBIN:-$ZDXSV/bin/zdxsv.exe}" || exit 1
+  ZDXSV=$ZDXSV bash "$here/zbincheck.sh" "${ZBIN:-$ZDXSV/bin/zdxsv$ZEXE}" || exit 1
   ZDXSV_LOBBY_API_ADDR=$api LOBBY_ARGS=-v=2 RUN="$OUT" bash "$here/stack.sh" "$IP" > "$OUT/stack.out" 2>&1 & pids+=($!)
   sleep 6
   grep -q "stack up" "$OUT/stack.out" || { cat "$OUT/stack.out"; echo "FAIL stack"; exit 1; }

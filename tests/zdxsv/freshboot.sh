@@ -9,7 +9,7 @@ fresh_boot() {
   local i=$1 penv l log t tb=$SECONDS end="lobby"
   [ "${FB_LOBBY:-1}" = 0 ] && end="user_id selection"
   eval "penv=\${PCSX2_ENV_P$i:-}"
-  l=$(env ZDXSV_TLS=0 ZDXSV_FAST_BOOT=1 ZDXSV_FAST_BOOT_LOBBY=${FB_LOBBY:-1} ZDXSV_FAST_LOGIN=1 ZDXSV_LOGIN_API_URL=http://127.0.0.1:$API/lbs/login $PCSX2_ENV $penv bash "$here/launch.sh" -N $i -Speed ${SPEED:-1} -Memcard $RUN/Mcd001-${CARDS[i-1]}.ps2 ${LAUNCH_ARGS:-} $(case " ${SHOW:-} " in *" $i "*) ;; *) echo -Headless;; esac) 2>&1)
+  l=$(env ZDXSV_TLS=0 ZDXSV_FAST_BOOT=1 ZDXSV_FAST_BOOT_LOBBY=${FB_LOBBY:-1} ZDXSV_FAST_LOGIN=1 ZDXSV_LOGIN_API_URL=http://127.0.0.1:$API/lbs/login $PCSX2_ENV $penv bash "$here/launch.sh" -N $i -Speed ${SPEED:-1} -Memcard $RUN/Mcd001-${CARDS[i-1]}.ps2 ${LAUNCH_ARGS:-} $(case " ${SHOW:-} " in (*" $i "*) ;; (*) echo -Headless;; esac) 2>&1)
   echo "$l" | tail -1
   echo "$l" | grep -q "pid .* slot" || { echo "FAIL launch p$i"; return 1; }
   log="$RUN/p$i/PCSX2/logs/emulog.txt"

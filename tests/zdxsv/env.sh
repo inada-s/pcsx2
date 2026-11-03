@@ -11,10 +11,11 @@ if [ -f "$_zenv/local.env" ]; then
     [ -n "${!_k+x}" ] || export "$_k=${_l#*=}"  # the environment wins over local.env
   done < "$_zenv/local.env"
 fi
+. "$_zenv/os.sh"
 # python with PIL (windowed snapshots); not $PY, which a CI runner may set to a python without it
-PY=${ZDXSV_PY:-python}
+PY=${ZDXSV_PY:-$(command -v python > /dev/null && echo python || echo python3)}
 GOEXE=${GOEXE:-go}
-TOOLS=$(cd "$_zenv/../../tools/zdxsv" && pwd -W)  # pwcheck.py, udprelay.py
+TOOLS=$(cd "$_zenv/../../tools/zdxsv" && zpwd)  # pwcheck.py, udprelay.py
 # zdxsv_need VAR...: FAIL (exit 2) unless each is set
 zdxsv_need() {
   local v
