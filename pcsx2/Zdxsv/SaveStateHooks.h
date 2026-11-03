@@ -8,6 +8,8 @@
 
 #include "common/Pcsx2Defs.h"
 
+class StateWrapper;
+
 // True while SaveState_DeltaLoad (Zdxsv/DeltaFreeze.h) runs: it loads at the point the state was saved
 // (vsync, mid rcntUpdate), so freeze functions skip their load-time fix-ups to restore the state exactly.
 extern bool g_SaveStateDeltaLoad;
@@ -29,4 +31,8 @@ namespace Zdxsv
 	// otherwise a DEV9.bin in a state is ignored, as upstream. Replay states need it: the IOP's SMAP
 	// driver (restored) and DEV9 must agree on the next TX buffer.
 	inline bool SaveStateDev9Enabled() { return LobbyStateEnabled() || g_ggpo_enabled; }
+
+	// No-DEV9 slots (NoDev9.cpp) in full states, on the no-DEV9 path whenever the DEV9 state is kept.
+	bool SaveStateNoDev9Enabled();
+	bool NoDev9DoState(StateWrapper& sw);
 } // namespace Zdxsv
