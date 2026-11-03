@@ -51,7 +51,7 @@ zpids_cmd() {
   if [ -n "$ZWIN" ]; then
     powershell -NoProfile -Command "Get-CimInstance Win32_Process | ? { \$_.CommandLine -match '$1' -and ('${2:-}' -eq '' -or \$_.CommandLine -notmatch '${2:-}') -and \$_.CommandLine -notmatch 'Get-CimInstance' } | % { \$_.ProcessId }" 2>/dev/null | tr -d '\r'
   else
-    ps -axo pid=,command= | awk -v re="$1" -v no="${2:-}" -v me=$$ '$1 != me && $0 ~ re && (no == "" || $0 !~ no) && $0 !~ /awk -v re=/ { print $1 }'
+    { pgrep -f -- "$1"; [ -n "${2:-}" ] && pgrep -f -- "$2" | sed p; echo $$; echo $$; } | sort | uniq -u
   fi
 }
 zkill_cmd() { zkill $(zpids_cmd "$@"); }
@@ -95,7 +95,7 @@ zriglock() {
     [ "$owner" = "$release" ] && rm -f "$lock"
     return 0
   fi
-  zrig_bash() { [ "${1:-0}" != 0 ] && ps -o comm= -p "$1" 2>/dev/null | grep -q 'bash'; }
+  zrig_bash() { [ "${1:-0}" != 0 ] && pgrep -x bash | grep -qx "$1"; }
   [ "$take" != 0 ] && [ -n "${RIG_OWNER:-}" ] && zrig_bash "$RIG_OWNER" && return 0
   local alive=; zrig_bash "$owner" && alive=1
   if [ -n "$check" ] && [ -n "$alive" ] && [ "$owner" != "${RIG_OWNER:-}" ]; then

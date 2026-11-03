@@ -7,8 +7,9 @@ Each script's usage and knobs are in its header comment.
 
 ## Setup
 
-- Windows, Git Bash (`bash`), PowerShell 5.1, Python 3 with Pillow (windowed
-  snapshots only).
+- Windows (Git Bash, PowerShell 5.1), macOS or Linux (bash 3.2+); Python 3 with Pillow (windowed
+  snapshots only). OS differences live in `os.sh`. Window control (`*.ps1`: `PAUSE`, `KEYS`,
+  window snapshots) is Windows only.
 - A PCSX2 build of this repository (`bin/pcsx2-qtx64.exe`, or `PCSX2_EXE`):
   `build-local.sh` or MSBuild. Every build reads the test options.
 - The game image (`ISO`). It is not part of this repository.
@@ -31,7 +32,7 @@ fails with exit 2 and names it.
 |---|---|---|
 | `RUN` | all | work root: instance data dirs `$RUN/pN/PCSX2` |
 | `ISO` | `launch.sh` | the game image |
-| `PCSX2_EXE` | `launch.sh` | PCSX2 to test (default `bin/pcsx2-qtx64.exe` of this tree) |
+| `PCSX2_EXE` | `launch.sh` | PCSX2 to test (Windows default `bin/pcsx2-qtx64.exe` of this tree; elsewhere required, a `.app` works) |
 | `ZDXSV` | lobby tests | zdxsv checkout (`bin/zdxsv.exe`, `bin/zproxy.exe`) |
 | `IP` | lobby tests | this machine's LAN IPv4 address, given to the game as the server |
 | `TRACE` | `m4.sh`, `m4ggpo.sh`, `rbkprep.sh` | an `EMU=1 m4z.sh` OUT dir: `lobby-trace.log` + `zdxsv.db`, made with the same `CARDS` |
