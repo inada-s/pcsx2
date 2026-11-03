@@ -90,6 +90,7 @@ namespace Zdxsv
 			std::string go;
 			std::string out;
 			std::vector<std::pair<int, int>> pixels;
+			u32 tol = 0;
 		};
 
 		Config s_cfg;
@@ -231,6 +232,8 @@ namespace Zdxsv
 					s_cfg.go = val;
 				else if (key == "out")
 					s_cfg.out = val;
+				else if (key == "tol")
+					s_cfg.tol = std::strtoul(val.c_str(), nullptr, 0);
 				else if (key == "pixel")
 				{
 					for (size_t p = 0; p < val.size();)
@@ -362,6 +365,20 @@ namespace Zdxsv
 				std::sqrt(var / v.size()), late);
 		}
 
+		bool PixelsDiffer(const std::vector<u32>& a, const std::vector<u32>& b)
+		{
+			for (size_t i = 0; i < a.size(); i++)
+			{
+				for (int s = 0; s < 32; s += 8)
+				{
+					const int d = static_cast<int>((a[i] >> s) & 0xff) - static_cast<int>((b[i] >> s) & 0xff);
+					if (static_cast<u32>(std::abs(d)) > s_cfg.tol)
+						return true;
+				}
+			}
+			return false;
+		}
+
 		// GS thread, after a shown frame's present. Pixels are in the game's frame (GetInternalResolution),
 		// scaled to the upscaled display texture.
 		void PixelWatch(u64 v, bool rb)
@@ -392,14 +409,14 @@ namespace Zdxsv
 			else if (s_cfg.count == 0)
 			{
 				s_pix.shown[rb]++;
-				s_pix.unchanged[rb] += px == s_pix.last;
+				s_pix.unchanged[rb] += !PixelsDiffer(px, s_pix.last);
 				if ((s_pix.shown[0] + s_pix.shown[1]) % 600 == 0)
 					Console.WriteLn("ZdxsvLatency: pixel watch at vsync %llu (%llu since the first shown frame): shown after a rollback %llu (unchanged %llu), other %llu (unchanged %llu)",
 						static_cast<unsigned long long>(v), static_cast<unsigned long long>(v - s_pix.first_v), static_cast<unsigned long long>(s_pix.shown[1]),
 						static_cast<unsigned long long>(s_pix.unchanged[1]), static_cast<unsigned long long>(s_pix.shown[0]),
 						static_cast<unsigned long long>(s_pix.unchanged[0]));
 			}
-			else if (!s_pix.last.empty() && px != s_pix.last)
+			else if (PixelsDiffer(px, s_pix.last))
 			{
 				std::lock_guard lock(s_pix.mutex);
 				s_pix.changes.push_back(v);
