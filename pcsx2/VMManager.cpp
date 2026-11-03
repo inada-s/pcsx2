@@ -2805,6 +2805,9 @@ void VMManager::IdlePollUpdate()
 
 	InputManager::PollSources();
 
+	if (Zdxsv::g_no_dev9 && GetState() == VMState::Paused)
+		Zdxsv::NoDev9OnPausedIdle();
+
 	// a paused replay keeps redrawing (10 Hz poll) so its control bar sees the mouse and the Play click
 	int frame, frames, pov, target;
 	u32 povs;

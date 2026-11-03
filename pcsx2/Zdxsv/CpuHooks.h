@@ -52,6 +52,9 @@ namespace Zdxsv
 	void NoDev9OnVsync();
 	// At NET_RPC_PC with g_no_dev9. true: answered.
 	bool NoDev9OnNetCall();
+	// In VMManager::IdlePollUpdate (CPU thread, 10 Hz) while paused with g_no_dev9: the lobby connection is read, so its
+	// line checks are answered (no game reads while paused).
+	void NoDev9OnPausedIdle();
 	// In GgpoOnVmShutdown.
 	void NoDev9Reset();
 	// In VMManager::Initialize, before the CPU runs: the state file to boot from, or "".

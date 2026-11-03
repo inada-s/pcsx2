@@ -341,6 +341,13 @@ namespace Zdxsv
 		s_state.last_net = net;
 	}
 
+	void NoDev9OnPausedIdle()
+	{
+		for (int id = 0; id < kSlots; id++)
+			if (s_state.lobby[id] && s_state.socks[id] != INVALID_SOCKET)
+				PumpLobby(id);
+	}
+
 	bool NoDev9OnNetCall()
 	{
 		const u32 fno = cpuRegs.GPR.n.a0.UL[0];
