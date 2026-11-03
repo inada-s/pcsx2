@@ -133,6 +133,13 @@
        </widget>
       </item>
       <item>
+       <widget class="QCheckBox" name="zdxsvSingleDrawList">
+        <property name="text">
+         <string>Single draw list: draw each frame in that frame (one frame less input lag).</string>
+        </property>
+       </widget>
+      </item>
+      <item>
        <layout class="QHBoxLayout" name="zdxsvPresetLayout">
         <item>
          <widget class="QPushButton" name="zdxsvPresetLow">
