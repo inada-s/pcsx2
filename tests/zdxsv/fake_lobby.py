@@ -28,13 +28,18 @@ Frame (zdxsv pkg/lobby/message, big endian): dir u8, category u8, command u16,
 body size u16, seq u16, status u32, body.
 """
 import argparse
+import http.server
+import json
 import os
+import random
 import socket
+import sqlite3
 import struct
 import subprocess
 import sys
 import threading
 import time
+import urllib.parse
 
 import lobby_trace
 
@@ -68,7 +73,9 @@ ANSWERS = {
 }
 lock = threading.Lock()
 seq_next = [1000]
+logins = []  # sessions handed out by the login API, in order
 log_lock = threading.Lock()
+LBS_INFO = "0ad601082008,ZDX BETA SERVER"
 UDPRELAY = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "tools", "zdxsv", "udprelay.py"))
 
 
@@ -178,7 +185,7 @@ class Battle:
         for pos, c in enumerate(order, 1):
             u = self.trace.users[pos]
             c.pos, c.user = pos, u["id"]
-            c.session = u["session"]  # login-time session: the PS2 sends it in its battle handshake (state)
+            c.session = c.session or u.get("session", "")  # the PS2 sends its login session in its battle handshake
             sessions.append("%s:%s:%s:%d" % (c.session, u["id"], "p%d" % pos, u["entry"]))
         self.order = order
         self.relays = self.start_relays(order) if self.args.ggpo_delay else {}
@@ -256,7 +263,9 @@ class Conn:
     def __init__(self, sock, addr, args, trace, battle, fresh):
         self.sock, self.args, self.trace, self.battle = sock, args, trace, battle
         self.name = "%s:%d" % addr
-        self.pos, self.user, self.session, self.udp = 0, "", "", ""
+        self.pos, self.user, self.udp = 0, "", ""
+        # the PS2 joins the battle with its login session; the clients log in one at a time, so the newest
+        self.session = logins[-1] if fresh and logins else ""
         self.tpl, self.ti = None, 0
         if trace:
             self.tpl = (trace.fresh if fresh else trace.lobby)[0]
@@ -291,14 +300,22 @@ class Conn:
             if cmd in ANSWERS:
                 return self.send(A, cmd, seq, ANSWERS[cmd](body))
             return
+        b = self.battle
         if cmd == 0x6103 and cat == A:  # FirstData: switch to the recorded login of the same user
-            for fs in self.trace.fresh:
+            # before the battle start a fresh boot is headed for the entry: a recorded login that entered first
+            tpls = self.trace.lobby + self.trace.fresh if b and not b.started else self.trace.fresh
+            for fs in tpls:
                 j = next((j for j, f in enumerate(fs) if f["c2s"] and f["cmd"] == cmd and f["body"] == body), None)
                 if j is not None:
                     self.tpl, self.ti = fs, j
                     break
-        b = self.battle
         if b and cat == Q and cmd == 0x640E:
+            with lock:
+                if self not in b.conns:
+                    bound = [c.udp for c in b.conns]
+                    self.udp = next((a for a in b.stun if a not in bound), "")
+                    b.conns.append(self)
+                    log("%s joins at entry, udp %s, session %s" % (self.name, self.udp or "none", self.session or "none"))
             self.send(A, cmd, seq, b"")
             return b.enter(self, body[0] if body else 1)
         if b and cat == Q and self.pos and cmd in (0x6911, 0x6912, 0x6913, 0x6917, 0x6914, 0x6915, 0x6916):
@@ -308,7 +325,7 @@ class Conn:
                    0x6913: lambda: u[p]["a6913"], 0x6917: lambda: u[p]["a6917"], 0x6914: lambda: self.trace.rule,
                    0x6915: lambda: struct.pack(">H", len(b.code)) + b.code.encode()}
             if cmd == 0x6916:
-                if self.udp:  # like the lobby: battle info only to bridging emulators
+                if self.udp or self.args.ggpo:  # like the lobby: battle info only to bridging or GGPO emulators
                     self.notice(0x9951, b.info(self), C)
                 ip, port = b.args.battle.split(":")
                 return self.send(A, cmd, seq, struct.pack(">H4BHH", 4, *map(int, ip.split(".")), 2, int(port)))
@@ -394,6 +411,32 @@ def stun(port, battle):
                 log("stun %s" % a.decode())
 
 
+def login_api(port, db, lobby_addr):
+    """POST /lbs/login (form login_key) as zdxsv's: the account's session from zdxsv.db (a recorded login's), else a new one."""
+    class H(http.server.BaseHTTPRequestHandler):
+        def do_POST(self):
+            form = urllib.parse.parse_qs(self.rfile.read(int(self.headers.get("Content-Length", 0))).decode())
+            key = form.get("login_key", [""])[0]
+            sid = ""
+            if db and key:
+                with sqlite3.connect(db) as c:
+                    r = c.execute("select session_id from account where login_key = ?", (key,)).fetchone()
+                    sid = r[0] if r else ""
+            sid = sid or "%08d" % random.randrange(10 ** 7, 10 ** 8)
+            body = json.dumps(dict(login_key=key, session_id=sid, lobby_addr=lobby_addr, lbs_info=LBS_INFO)).encode()
+            logins.append(sid)
+            log("login api %s -> session %s" % (key, sid))
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *a):
+            pass
+    http.server.ThreadingHTTPServer(("0.0.0.0", port), H).serve_forever()
+
+
 def main():
     here = os.path.dirname(os.path.abspath(__file__))
     ap = argparse.ArgumentParser()
@@ -417,6 +460,8 @@ def main():
     ap.add_argument("--v6", help="IPv6 address for --p2p v6/dual (default: this box's global one)")
     ap.add_argument("--relay", help="relay server ip:port[,ip:port...] (`zdxsv relay` runs): battle info relay_0, relay_1, ..., as zdxsv with ZDXSV_LOBBY_RELAY_ADDR")
     ap.add_argument("--relay-session", default="1234:abcd", help="--relay: ggpo_session:hex token, as given to `zdxsv relay`")
+    ap.add_argument("--api", type=int, default=0, help="login API port (POST /lbs/login, pcsx2 fast login); 0: off")
+    ap.add_argument("--db", help="--api: zdxsv.db whose account sessions the logins get (the trace's recording)")
     ap.add_argument("--battlereg",default=os.environ.get("BATTLEREG", os.path.join(here, "battlereg", "battlereg.exe")))
     a = ap.parse_args()
     a.ggpo_block = [{int(k) for k in p.split("-")} for p in a.ggpo_block.split(",")] if a.ggpo_block else []
@@ -440,6 +485,10 @@ def main():
         log("trace %s: %d conns, %d battle, %d login; users %s" % (a.trace, len(trace.conns), len(trace.lobby), len(trace.fresh),
                                                                  [(p, u["id"]) for p, u in sorted(trace.users.items())]))
         threading.Thread(target=stun, args=(a.port + 1, battle), daemon=True).start()
+    if a.api:
+        lobby_addr = "%s:%d" % (a.battle.split(":")[0], a.port)
+        threading.Thread(target=login_api, args=(a.api, a.db, lobby_addr), daemon=True).start()
+        log("login api on :%d, lobby %s" % (a.api, lobby_addr))
     s = socket.socket()
     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
     s.bind(("0.0.0.0", a.port))
