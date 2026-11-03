@@ -1,10 +1,10 @@
 #!/bin/bash
 # M4 P2P battle regression: battle server + fake_lobby.py --trace (no lobby server), 4 pcsx2
-# clients from a fresh boot (fast boot + fast login to fake_lobby.py's login API), side entry, battle,
+# clients from a fresh boot (fast boot + fast login to fake_lobby.py's login API, seconds each), side entry, battle,
 # post-battle login -> BattleResult. Exit 0 = all checks passed.
 #   OUT=<dir> bash tests/zdxsv/m4.sh
 # Env: TRACE (an `EMU=1 m4z.sh` OUT: lobby-trace.log + zdxsv.db), CARDS (as m4z.sh, the same cards), API (login API port,
-#   default 9881), IP, ZBIN, FAKE_ARGS (fake_lobby.py), PCSX2_ENV (extra env
+#   default 9881), BOOT_WAIT (s from launch to the fast boot end, default 60), IP, ZBIN, FAKE_ARGS (fake_lobby.py), PCSX2_ENV (extra env
 # for the clients), MAXS (s from battle start to give up on BattleResult x4, default 2100; a headless battle can run 1370 s).
 # Every client joins the battle server by TCP (pcsx2 has no UDP bridge;
 #   an older pcsx2 build joins over UDP and fails the join checks).
@@ -60,16 +60,20 @@ sleep 2
 "$PY" -u "$here/fake_lobby.py" --trace "$TRACE/lobby-trace.log" --api $API --db "$TRACE/zdxsv.db" --battle "$IP:8210" ${FAKE_ARGS:-} > "$OUT/fake.log" 2>&1 & pids+=($!)
 sleep 2
 rm -f "$RUN"/p[1-4]/PCSX2/logs/emulog.txt
-# fresh boots, one at a time: fast boot + fast login (this login API) to the fake lobby
+# fresh boots, one at a time: fast boot to the user_id selection, fast login (this login API), ID 1
 CARDS=($CARDS)
 for i in 1 2 3 4; do
   eval "penv=\${PCSX2_ENV_P$i:-}"
-  l=$(env ZDXSV_TLS=0 ZDXSV_FAST_LOGIN=1 ZDXSV_LOGIN_API_URL=http://127.0.0.1:$API/lbs/login $PCSX2_ENV $penv powershell -NoProfile -Command "& '$here/launch.ps1' -N $i -Speed ${SPEED:-1} -Memcard $RUN/Mcd001-${CARDS[i-1]}.ps2 $(case " ${SHOW:-} " in *" $i "*) ;; *) echo -Headless;; esac)" 2>&1)
+  tb=$SECONDS
+  l=$(env ZDXSV_TLS=0 ZDXSV_FAST_BOOT=1 ZDXSV_FAST_LOGIN=1 ZDXSV_LOGIN_API_URL=http://127.0.0.1:$API/lbs/login $PCSX2_ENV $penv powershell -NoProfile -Command "& '$here/launch.ps1' -N $i -Speed ${SPEED:-1} -Memcard $RUN/Mcd001-${CARDS[i-1]}.ps2 $(case " ${SHOW:-} " in *" $i "*) ;; *) echo -Headless;; esac)" 2>&1)
   echo "$l" | tail -1
   echo "$l" | grep -q "pid .* slot" || { echo "FAIL launch p$i"; exit 1; }
-  $DRIVE top $i 2>&1 | grep -v memgate | tail -1
-  $DRIVE login $i 2>&1 | grep -v memgate | tail -1
-  echo "client $i: $(grep -c 'login api' "$OUT/fake.log") logins, $(grep -c 'conn from' "$OUT/fake.log") lobby conns"
+  log="$RUN/p$i/PCSX2/logs/emulog.txt"
+  for t in $(seq "${BOOT_WAIT:-60}"); do grep -aq "Zdxsv: fast boot: \(user_id selection\|gave up\|stopped\)" "$log" 2>/dev/null && break; sleep 1; done
+  grep -aq "Zdxsv: fast boot: user_id selection" "$log" ||
+    { echo "FAIL client $i boot: $(grep -a 'Zdxsv: fast boot:' "$log" | tail -1)"; exit 1; }
+  $DRIVE idlogin $i 2>&1 | grep -v memgate | tail -1
+  echo "client $i: in $((SECONDS - tb)) s, $(grep -c 'login api' "$OUT/fake.log") logins, $(grep -c 'conn from' "$OUT/fake.log") lobby conns"
 done
 map_pressed() {  # $1 = 0x6305 count before the map route; waits ENTRY_WAIT s for one more
   for t in $(seq "${ENTRY_WAIT:-20}"); do [ "$(grep -ac "C->S cat 01 cmd 0x6305" "$OUT/fake.log")" -gt "$1" ] && return 0; sleep 1; done
