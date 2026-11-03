@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0+
 
 #include "Zdxsv/CpuHooks.h"
+#include "Zdxsv/MediaHooks.h"
 #include "Zdxsv/Settings.h"
 
 #include "Config.h"
@@ -32,6 +33,7 @@ namespace Zdxsv
 		constexpr u32 kMainMenuCursor = 0x25c;
 		constexpr u8 kMenuNetwork = 7;
 		constexpr u32 kNetState = 0xcd1360; // network menu state; +1 = its sub state, +2 = the sub state's step
+		constexpr u32 kShownFrameInterval = 8;
 		constexpr u8 kNetFileLoad = 2;
 		// NET file load sub states: 0x14 and up are the card error dialogs (an unformatted card waits at 0x17), 100 = loaded.
 		constexpr u8 kNetFileErrorFirst = 0x14;
@@ -129,6 +131,7 @@ namespace Zdxsv
 			s_boot.held = -1;
 			s_boot.queue.clear();
 			s_boot.done = true;
+			g_fast_boot_hidden_frame = false;
 			if (VMManager::GetLimiterMode() == LimiterModeType::Unlimited)
 				VMManager::SetLimiterMode(s_boot.limiter);
 			Console.WriteLn("Zdxsv: fast boot: %s at frame %u", why, s_boot.frame);
@@ -197,6 +200,8 @@ namespace Zdxsv
 		}
 	} // namespace
 
+	bool g_fast_boot_hidden_frame = false;
+
 	void FastBootOnVsync()
 	{
 		if (s_boot.done)
@@ -216,6 +221,7 @@ namespace Zdxsv
 			s_boot.to_lobby = BoolSetting("ZdxsvFastBootLobby", false, "ZDXSV_FAST_BOOT_LOBBY");
 		}
 		s_boot.frame++;
+		g_fast_boot_hidden_frame = s_boot.frame % kShownFrameInterval != 0;
 		if (s_boot.in_user_id)
 			return UserIdOnVsync();
 		if (s_boot.frame > kGiveUpFrames)

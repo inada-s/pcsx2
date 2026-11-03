@@ -18,6 +18,8 @@ namespace Zdxsv
 	// g_ggpo_in_rollback into the packet). GSRenderer::VSync skips its present, as for a duplicate frame:
 	// a rollback of N frames shows the corrected frame once, not N + 1 frames.
 	extern bool g_gs_rerun_frame;
+	// EE thread: fast boot shows only every few frames, as a window present waits for the display refresh.
+	extern bool g_fast_boot_hidden_frame;
 	// GS thread: in a rollback rerun frame (set and cleared by MTGS::RunOnGSThread): GSRendererHW::Draw
 	// returns at once. Texture uploads and register writes still run.
 	extern bool g_gs_skip_draws;

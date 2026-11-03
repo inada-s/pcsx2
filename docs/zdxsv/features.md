@@ -18,7 +18,7 @@ skips does not run on that path.
 | DEV9 DNS server | `ServerHosts` | game hosts looked up as `ZDXSV_SERVER_HOST`, whether the public server was found (replay upload) |
 | DEV9 receive and save state | `DeltaState` | received packets in delta states, lobby save states |
 | Counters (vsync), VMManager | `Ggpo`, `Replay*`, `NoDev9`, `FastBoot` | GGPO frame loop, replay playback, VM start / reset / shutdown cleanup |
-| MTGS, GS, SPU2 | `DeltaFreeze`, `SingleDrawList`, `InputLatency`, `Overlays` | rerun frame skips, single draw list, input latency, OSD |
+| MTGS, GS, SPU2 | `DeltaFreeze`, `SingleDrawList`, `InputLatency`, `Overlays`, `FastBoot` | rerun frame skips, fast boot shows every 8th frame, single draw list, input latency, OSD |
 | Pad | `Ggpo`, `ReplayPlay` | inputs to and from GGPO and replays |
 | Hotkeys, ImGui | `Overlays`, `ReplayPlay` | replay hotkeys and bar, refused pause and speed changes |
 
