@@ -43,6 +43,8 @@ namespace Zdxsv
 		constexpr u8 kNetFileNotFound = 0x14;
 		constexpr u8 kNetTerms = 5;
 		constexpr u8 kNetSettingList = 6;
+		// Reached without fast login (with it, the user_id selection comes first).
+		constexpr u8 kNetLoginBrowser = 0x27;
 		constexpr u32 kLobbyObject = kGp - 0x5a1c; // pointer; +0xa1f = network step, +0xa20 = its sub step
 		constexpr u32 kLobbyMarker = 0xa1f;
 		constexpr u32 kLobbySub = 0xa20;
@@ -262,6 +264,8 @@ namespace Zdxsv
 				eeMem->Main[kNetState + 1] = 0;
 			}
 		}
+		if (scene == kMenuNetwork && net == kNetLoginBrowser && s_boot.frame - s_boot.net_entry > kMenuSettleFrames)
+			return Finish("login browser");
 		if (s_boot.use_state && !s_boot.state_handled && scene == kMenuNetwork && net == kNetFileLoad && net_sub == 0)
 		{
 			s_boot.state_handled = true;
