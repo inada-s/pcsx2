@@ -212,13 +212,12 @@ for i in $CLIENTS; do
 done
 if [ -n "${PAUSE:-}" ]; then
   # every client in SHOW is paused together, past the lobby's 2 min receive timeout (pause hotkey: window control)
-  [ -n "$ZWIN" ] || { echo "FAIL $0: PAUSE needs pcsx2ctl.ps1 (Windows)"; exit 2; }
   for i in ${SHOW:?PAUSE needs SHOW}; do
-    powershell -NoProfile -File "$here/pcsx2ctl.ps1" -ProcId "${cpid[i]}" -Seq Space 2>&1 | tail -1
+    zctl "${cpid[i]}" Space 2>&1 | tail -1
   done
   sleep "$PAUSE"
   for i in $SHOW; do
-    powershell -NoProfile -File "$here/pcsx2ctl.ps1" -ProcId "${cpid[i]}" -Seq Space 2>&1 | tail -1
+    zctl "${cpid[i]}" Space 2>&1 | tail -1
   done
   sleep 12
   check "paused ${PAUSE} s: no lobby Recv Timeout" "! grep -a -q 'Recv Timeout' '$OUT/lobby.log'"

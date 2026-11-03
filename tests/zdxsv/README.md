@@ -8,8 +8,9 @@ Each script's usage and knobs are in its header comment.
 ## Setup
 
 - Windows (Git Bash, PowerShell 5.1), macOS or Linux (bash 3.2+); Python 3 with Pillow (windowed
-  snapshots only). OS differences live in `os.sh`. Window control (`*.ps1`: `PAUSE`, `KEYS`,
-  window snapshots) is Windows only.
+  snapshots only). OS differences live in `os.sh`. Key and mouse input (`PAUSE`, `KEYS`): `os.sh` `zctl` -> `pcsx2ctl.ps1` on Windows,
+  `pcsx2ctl.js` (osascript, CGEvent) on macOS; the macOS shell running the rig needs Accessibility
+  (rc 4 without it). Other window control (`replayui`, `settingsui`, `winshot`) is Windows only.
 - A PCSX2 build of this repository (`bin/pcsx2-qtx64.exe`, or `PCSX2_EXE`):
   `build-local.sh` or MSBuild. Every build reads the test options.
 - The game image (`ISO`). It is not part of this repository.
@@ -206,7 +207,7 @@ Scripts are in `tests/zdxsv/` except `run.py` (repository root) and
 | Common state | no script: serve a state over HTTP, `rplay.sh` with `PCSX2_ENV=ZDXSV_REPLAY_STATE=http://127.0.0.1:<port>/<state>` once, cut the cached `zdxsv-common-*.p2s` it logged to 5000 bytes, run again: `cached copy load failed`, the download, `loaded`, PASS | the build without it: `load failed` on every try, FAIL |
 | Seek | `rplay.sh` with `ZDXSV_REPLAY_SEEK=at:to,...`: the predicted key is loaded and player work equals live after the seeks. Hotkeys: `WINDOW=1 KEYS=...` | `ZDXSV_REPLAY_KEY_NOHLE=1` with the same seeks fails |
 | Point of view | `POV=1 rplay.sh` on the position-0 file: `net armed ..., position 1` + pwcheck; `PCSX2_ENV=ZDXSV_REPLAY_POV_AT=2500:1,3500:0`: new position's battle start, seek, state hashes equal | without `POV` the game arms as the recorder (position 0) |
-| Control bar | `rplay.sh` with `WINDOW=1 KEYS="...bar:NAME..."` (real mouse through `pcsx2ctl.ps1`): the logged seek frame is the one computed from the click position | none |
+| Control bar | `rplay.sh` with `WINDOW=1 KEYS="...bar:NAME..."` (real mouse through `pcsx2ctl.ps1` / `pcsx2ctl.js`): the logged seek frame is the one computed from the click position | none |
 | Key display | `keycheck.py`: every logged key history equals the inputs in the file up to that frame | a copy with 1 input bit flipped fails for the histories that reach that frame |
 | Live spectating | `m4z.sh` `LIVE=2 PWTRACE=1`: the spectator closes at the uplink's saved frame count, checks more than 0 state hashes and 0 differ, player work + rng = the players' | a receiver that ignores the lobby's close push (it has no frame_bytes) stalls 30 frames before the end |
 | Live round results | `LIVE=2 LIVE_AT=150 PWTRACE=1 CLIENTS="1 3" GGPO_CLIENTS="1 3" EMU=1 GGPO=7101 GDELAY=auto m4z.sh` (lobby from zdxsv with `round_ack`): the spectator, started 150 s after the uplink, has round results at its open, gets every one the uplink sent, and none differs from its own playback | a lobby that does not relay `round_data`: the spectator logs no `round result ... from the stream` |

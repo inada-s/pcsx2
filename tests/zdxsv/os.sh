@@ -55,6 +55,24 @@ zpids_cmd() {
   fi
 }
 zkill_cmd() { zkill $(zpids_cmd "$@"); }
+# zctl PID SEQ: pcsx2ctl -Seq SEQ to that pcsx2 (PID 0: the first one); zctl_check INI SEQ: binding check only
+zctl() {
+  local p=$1 d
+  if [ -n "$ZWIN" ]; then
+    powershell -NoProfile -File "$(dirname "${BASH_SOURCE[0]}")/pcsx2ctl.ps1" $([ "$p" = 0 ] || echo -ProcId "$p") -Seq "$2"
+  else
+    [ "$p" = 0 ] && p=$(zpids_name pcsx2 | head -1)
+    d=$(pgrep -lf -- "-datapath" | awk -v p="$p" '$1 == p' | sed -n 's/.* -datapath \(.*\) -batch.*/\1/p')
+    osascript -l JavaScript "$(dirname "${BASH_SOURCE[0]}")/pcsx2ctl.js" -pid "$p" ${d:+-data "$d"} -seq "$2"
+  fi
+}
+zctl_check() {
+  if [ -n "$ZWIN" ]; then
+    powershell -NoProfile -File "$(dirname "${BASH_SOURCE[0]}")/pcsx2ctl.ps1" -Check -Ini "$(zpath "$1")" -Seq "$2"
+  else
+    osascript -l JavaScript "$(dirname "${BASH_SOURCE[0]}")/pcsx2ctl.js" -check -ini "$1" -seq "$2"
+  fi
+}
 # zstop PID|resume PID: pause / continue a process
 zstop() { if [ -n "$ZWIN" ]; then powershell -NoProfile -Command "Add-Type 'using System; using System.Runtime.InteropServices; public static class Nt { [DllImport(\"ntdll.dll\")] public static extern int NtSuspendProcess(IntPtr h); }'; [void][Nt]::NtSuspendProcess((Get-Process -Id $1).Handle)"; else kill -STOP "$1"; fi; }
 zcont() { if [ -n "$ZWIN" ]; then powershell -NoProfile -Command "Add-Type 'using System; using System.Runtime.InteropServices; public static class Nr { [DllImport(\"ntdll.dll\")] public static extern int NtResumeProcess(IntPtr h); }'; [void][Nr]::NtResumeProcess((Get-Process -Id $1).Handle)"; else kill -CONT "$1"; fi; }

@@ -6,7 +6,7 @@
 # a lobby battle has none; unset = read from the `rbk env` lines of emulog-p*.txt next to the live traces, the
 # replay or its parent dir, a CLAMP differing from them FAILs before launch, CLAMP=none plays without one), PLAYERS (players compared, default 2), OWN (default 1: pwcheck --own),
 # STATE (any state of the game to boot from; default rbk-p1), MAXS (default 300).
-# WINDOW=1: windowed, 1x (no turbo). KEYS="secs:seq;..." (needs WINDOW=1): pcsx2ctl.ps1 -Seq at secs after the
+# WINDOW=1: windowed, 1x (no turbo). KEYS="secs:seq;..." (needs WINDOW=1): pcsx2ctl -Seq (os.sh zctl) at secs after the
 # replay started; binds the seek hotkeys (PageUp back / PageDown forward 10 s), TogglePause (Space), point of
 # view (Home) and key display (End), round jump (Shift+PageUp / Shift+PageDown) in the instance ini. With PCSX2_ENV=ZDXSV_REPLAY_EXIT=0 the replay pauses at its end; Space then ends it (H lines written).
 # POV=p: plays position p's point of view (ZDXSV_REPLAY_POV; default the recorder's): the lobby answers name it.
@@ -15,7 +15,7 @@
 # FOUR=1: four-screen, the point of view in pN, one spawned guest per other position (PLAYERS); each
 # guest's trace (trace-play-povP.txt) is pwchecked too, and the host's `spread` lines with all members live must stay
 # <= SPREAD (default 4) frames. With PCSX2_ENV=ZDXSV_REPLAY_SYNC=0 (control: no waiting) the spread check FAILs.
-# Control bar: KEYS="15:bar:show,w600,bar:timeline:0.7,shot:$OUT/a.png" (pcsx2ctl.ps1 mouse tokens).
+# Control bar: KEYS="15:bar:show,w600,bar:timeline:0.7,shot:$OUT/a.png" (pcsx2ctl mouse tokens).
 # API=1: plays ZDXSV_REPLAY=http://127.0.0.1:API_PORT/lbs/replay?battle_code=<FILE's name> from apiserve.py (API_PORT,
 # default 9891), whose replay_url serves FILE; checks the replay_url line too. GZIP=1: replay_url serves FILE gzip encoded (Content-Encoding: gzip), as GCS serves the lobby's objects.
 # BAD=1: FILE is not a playable replay: exit 0 if the player is told it did not start (`replay: not started`).
@@ -44,14 +44,13 @@ ini=$RUN/p$N/PCSX2/inis/PCSX2.ini
 if [ -n "$KEYS" ]; then
   [ "$WINDOW" = 1 ] || { echo "FAIL KEYS needs WINDOW=1"; exit 1; }
   for b in "ZdxsvReplaySeekBack = Keyboard/PageUp" "ZdxsvReplaySeekForward = Keyboard/PageDown" "TogglePause = Keyboard/Space" "ZdxsvReplayNextPov = Keyboard/Home" "ZdxsvReplayToggleKeys = Keyboard/End" "ZdxsvReplayPrevRound = Keyboard/Shift & Keyboard/PageUp" "ZdxsvReplayNextRound = Keyboard/Shift & Keyboard/PageDown"; do
-    grep -q "^${b%% *} " "$ini" || sed -i "/^\[Hotkeys\]/a $b" "$ini"
+    grep -q "^${b%% *} " "$ini" || { awk -v b="$b" '{ print } /^\[Hotkeys\]/ { print b }' "$ini" > "$ini.tmp" && mv -f "$ini.tmp" "$ini"; }
   done
   grep -c "^ZdxsvReplaySeek\|^TogglePause \|^ZdxsvReplayNextPov \|^ZdxsvReplayToggleKeys " "$ini" | grep -q 5 || { echo "FAIL hotkeys not bound in $ini"; exit 1; }
-  [ -n "$ZWIN" ] || { echo "FAIL $0: KEYS needs pcsx2ctl.ps1 (Windows)"; exit 2; }
   # every step's keys against the ini before launch (else an unbound key is refused only at its send)
   IFS=';' read -ra ks <<< "$KEYS"
   for k in "${ks[@]}"; do
-    powershell -NoProfile -File "$here/pcsx2ctl.ps1" -Check -Ini "$(zpath "$ini")" -Seq "${k#*:}" > "$OUT/keycheck.txt" 2>&1 \
+    zctl_check "$ini" "${k#*:}" > "$OUT/keycheck.txt" 2>&1 \
       || { cat "$OUT/keycheck.txt"; echo "FAIL KEYS step '$k' before launch"; exit 1; }
   done
 fi
@@ -83,9 +82,9 @@ while [ $((SECONDS - t0)) -lt "${MAXS:-300}" ]; do
   [ -n "$bad" ] && { echo "$bad" | cut -c1-200; echo "FAIL replay error at $((SECONDS - t0)) s"; exit 1; }
   if [ ${#keys[@]} -gt 0 ] && [ $((SECONDS - t1)) -ge "${keys[0]%%:*}" ]; then
     echo "$((SECONDS - t1)) s: keys ${keys[0]#*:}"
-    powershell -NoProfile -File "$here/pcsx2ctl.ps1" -Seq "${keys[0]#*:}" > "$OUT/keys.txt" 2>&1
+    zctl 0 "${keys[0]#*:}" > "$OUT/keys.txt" 2>&1
     rc=$?; tail -3 "$OUT/keys.txt"
-    [ $rc = 0 ] || { echo "FAIL pcsx2ctl rc $rc (unbound key: nothing sent)"; exit 1; }
+    [ $rc = 0 ] || { echo "FAIL pcsx2ctl rc $rc (2 unbound key, 4 no Accessibility: nothing sent)"; exit 1; }
     keys=("${keys[@]:1}")
   fi
 done
