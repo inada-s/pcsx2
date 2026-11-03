@@ -659,6 +659,24 @@ public:
 	bool IsRequired() const override { return false; }
 };
 
+// zdxsv: optional, so states without it still load.
+class SavestateEntry_NoDev9 final : public BaseSavestateEntry
+{
+public:
+	~SavestateEntry_NoDev9() override = default;
+
+	const char* GetFilename() const override { return "ZdxsvNoDev9.bin"; }
+	bool FreezeIn(zip_file_t* zf) const override
+	{
+		return !Zdxsv::SaveStateNoDev9Enabled() || SysState_ComponentFreezeInNew(zf, "ZdxsvNoDev9", &Zdxsv::NoDev9DoState);
+	}
+	bool FreezeOut(SaveStateBase& writer) const override
+	{
+		return !Zdxsv::SaveStateNoDev9Enabled() || SysState_ComponentFreezeOutNew(writer, "ZdxsvNoDev9", 1024, &Zdxsv::NoDev9DoState);
+	}
+	bool IsRequired() const override { return false; }
+};
+
 class SavestateEntry_PAD final : public BaseSavestateEntry
 {
 public:
@@ -733,6 +751,7 @@ static const std::unique_ptr<BaseSavestateEntry> SavestateEntries[] = {
 	std::unique_ptr<BaseSavestateEntry>(new SavestateEntry_SPU2),
 	std::unique_ptr<BaseSavestateEntry>(new SavestateEntry_USB),
 	std::unique_ptr<BaseSavestateEntry>(new SavestateEntry_DEV9),
+	std::unique_ptr<BaseSavestateEntry>(new SavestateEntry_NoDev9),
 	std::unique_ptr<BaseSavestateEntry>(new SavestateEntry_PAD),
 	std::unique_ptr<BaseSavestateEntry>(new SavestateEntry_GS),
 	std::unique_ptr<BaseSavestateEntry>(new SaveStateEntry_Achievements),
