@@ -5,7 +5,7 @@
 // HEAD and then 3 HEADs on the same connection; the fastest is the region's latency. The lobby gets them as
 // "<region>=<ms>" platform info lines.
 
-#include "Zdxsv/Dev9Hooks.h"
+#include "Zdxsv/LobbySocket.h"
 #include "Zdxsv/TestOptions.h"
 
 #include "common/Console.h"

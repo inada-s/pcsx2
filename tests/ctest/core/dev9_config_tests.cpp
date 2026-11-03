@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: GPL-3.0+
 
 #include "Config.h"
-#include "Zdxsv/Dev9Hooks.h"
 #include "Zdxsv/Settings.h"
 
 #include "common/MemorySettingsInterface.h"
@@ -39,44 +38,4 @@ TEST(DEV9Config, ZdxsvDefaultsSaveLoad)
 	EXPECT_EQ(si.GetStringValue("DEV9/Eth", "EthApi"), "Sockets");
 	EXPECT_EQ(si.GetStringValue("DEV9/Eth", "ModeDNS1"), "Internal");
 	EXPECT_EQ(si.GetIntValue("DEV9/Eth/Hosts", "Count", -1), 0);
-}
-
-// Entries mapping a game host to the old default address are dropped on load; other entries stay.
-TEST(DEV9Config, ZdxsvStaleHostEntries)
-{
-	const char* entries[][2] = {
-		{"www01.kddi-mmbb.jp", "153.121.44.150"},
-		{"gate1.jp.dnas.playstation.org", "153.121.44.150"},
-		{"ca1202.mmcp6", "192.168.1.8"},
-		{"CA1203.MMCP6", "153.121.44.150"},
-		{"example.com", "153.121.44.150"},
-	};
-	MemorySettingsInterface si;
-	si.SetIntValue("DEV9/Eth/Hosts", "Count", static_cast<int>(std::size(entries)));
-	for (size_t i = 0; i < std::size(entries); i++)
-	{
-		const std::string section = "DEV9/Eth/Hosts/Host" + std::to_string(i);
-		si.SetStringValue(section.c_str(), "Url", entries[i][0]);
-		si.SetStringValue(section.c_str(), "Address", entries[i][1]);
-		si.SetBoolValue(section.c_str(), "Enabled", true);
-	}
-
-	DEV9Options loaded;
-	SettingsLoadWrapper slw(si);
-	loaded.LoadSave(slw);
-	ASSERT_EQ(loaded.EthHosts.size(), 2u);
-	EXPECT_EQ(loaded.EthHosts[0].Url, "ca1202.mmcp6");
-	EXPECT_EQ(loaded.EthHosts[0].Address[0], 192);
-	EXPECT_EQ(loaded.EthHosts[1].Url, "example.com");
-}
-
-TEST(DEV9Config, ZdxsvDnsLookupName)
-{
-	const auto server = [](const char* name) { return Zdxsv::SERVER_HOST[0] ? Zdxsv::SERVER_HOST : name; };
-	EXPECT_STREQ(Zdxsv::DnsLookupName("www01.kddi-mmbb.jp"), server("www01.kddi-mmbb.jp"));
-	EXPECT_STREQ(Zdxsv::DnsLookupName("gate1.jp.dnas.playstation.org"), server("gate1.jp.dnas.playstation.org"));
-	EXPECT_STREQ(Zdxsv::DnsLookupName("ca1202.mmcp6"), server("ca1202.mmcp6"));
-	EXPECT_STREQ(Zdxsv::DnsLookupName("Ca1203.Mmcp6"), server("Ca1203.Mmcp6"));
-	EXPECT_STREQ(Zdxsv::DnsLookupName("example.com"), "example.com");
-	EXPECT_STREQ(Zdxsv::DnsLookupName("ca1202.mmcp6.example.com"), "ca1202.mmcp6.example.com");
 }

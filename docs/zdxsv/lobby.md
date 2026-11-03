@@ -8,11 +8,10 @@ battle that the lobby matched runs over GGPO. Option names and defaults are in
 ## Network defaults
 
 A new configuration points at zdxsv: adapter on, Sockets API, `Auto` device,
-DHCP intercepted, internal DNS, no host entries. The internal DNS server looks
-up the game's server hosts as the build option `ZDXSV_SERVER_HOST` ([options](options.md); `Zdxsv/ServerHosts.cpp`), so a
-server move needs no new release. A host entry for one of these names wins;
-entries that map one to the stale address `153.121.44.150` are dropped
-when the config loads.
+DHCP intercepted, internal DNS, no host entries. Online play takes the no-DEV9
+path ([features](features.md)): the game's server hosts resolve to the build
+option `ZDXSV_SERVER_HOST` ([options](options.md)), so a server move needs no
+new release.
 
 ## Battle server connection
 
@@ -256,12 +255,9 @@ who left.
 
 A save state does not hold the network adapter, as upstream, except:
 
-- `ZDXSV_LOBBY_STATE=1` (debugging): save states keep the adapter, and after
-  a load the emulator takes over the TCP connections the PS2 had opened.
-- `ZDXSV_GGPO` or `ZDXSV_REPLAY` set: save states keep the adapter without
-  taking over connections, so the PS2's network driver and the adapter agree
-  after a load.
-- On the no-DEV9 path, in both cases: save states keep the game's open
+- `ZDXSV_GGPO` or `ZDXSV_REPLAY` set: save states keep the adapter, so the
+  PS2's network driver and the adapter agree after a load.
+- On the no-DEV9 path, in that case: save states keep the game's open
   connection slots and their servers. After a load, an open slot reconnects
   to its server on first use.
 
