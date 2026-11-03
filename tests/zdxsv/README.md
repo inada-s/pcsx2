@@ -15,9 +15,9 @@ Each script's usage and knobs are in its header comment.
 - The lobby tests (`m4*.sh`, `stack.sh`, `rbkprep.sh`) need a zdxsv checkout
   with its binaries built in `$ZDXSV/bin` (`zdxsv.exe`, `zproxy.exe`) and Go to
   build `battlereg/`.
-- The lobby trace (`TRACE`, an `EMU=1 m4z.sh` OUT), the lobby save states
-  (`STATES`) and the rbk start states (`RBKSTATES`, made by `rbkprep.sh`) are
-  made on the machine; they are not part of this repository.
+- The lobby trace (`TRACE`, an `EMU=1 m4z.sh` OUT) and the rbk start states
+  (`RBKSTATES`, made by `rbkprep.sh`) are made on the machine; they are not
+  part of this repository.
 - Instance settings of the rig clients: merge `pcsx2.ini.part` into each
   `$RUN/pN/PCSX2/inis/PCSX2.ini` (`@IP@` = `IP`).
 
@@ -34,8 +34,7 @@ fails with exit 2 and names it.
 | `PCSX2_EXE` | `launch.ps1` | PCSX2 to test (default `bin/pcsx2-qtx64.exe` of this tree) |
 | `ZDXSV` | lobby tests | zdxsv checkout (`bin/zdxsv.exe`, `bin/zproxy.exe`) |
 | `IP` | lobby tests | this machine's LAN IPv4 address, given to the game as the server |
-| `TRACE` | `m4.sh`, `m4ggpo.sh` | an `EMU=1 m4z.sh` OUT dir: `lobby-trace.log` + `zdxsv.db`, made with the same `CARDS` |
-| `STATES` | `rbkprep.sh` | dir of the lobby save states of p1..p4 |
+| `TRACE` | `m4.sh`, `m4ggpo.sh`, `rbkprep.sh` | an `EMU=1 m4z.sh` OUT dir: `lobby-trace.log` + `zdxsv.db`, made with the same `CARDS` |
 | `RBKSTATES` | `rbk.sh` | dir of `rbk-p1..p4.p2s` from `rbkprep.sh` |
 | `CARDS` | `m4z.sh` | memory card names of p1..p4, space separated |
 | `USERS` | `m4z.sh` | zdxsv.db user ids of those cards, same order |
@@ -51,7 +50,6 @@ ISO=D:/games/gvsz.iso
 ZDXSV=D:/src/zdxsv
 IP=192.168.0.10
 TRACE=D:/zdxsv-run/trace
-STATES=D:/zdxsv-run/states
 RBKSTATES=D:/zdxsv-run/prep
 CARDS=card-p1 card-p2 card-p3 card-p4
 USERS=AAAAAA BBBBBB CCCCCC DDDDDD
@@ -117,7 +115,7 @@ Scripts are in `tests/zdxsv/` except `run.py` (repository root) and
 | A console behind a separate zproxy process | the same `m4z.sh` run, `ZP="1 3"` (default): zproxy runs with `-upnp=false`, registers with the lobby, the PS2 connects to it and it joins the battle server over UDP (P2P on); no UPnP line in its log | none |
 | First login from a blank memory card | `launch.ps1 -Memcard <blank>`, then `drive.py fresh`, `register`, `newlogin` | none |
 | TLS to the zdxsv server | `m4z.sh` with `EMU=1 CLIENTS="1 3" ZPROXY=`, `ZDXSV_TLS_TEST_PIN=1`, a `ZBIN` (and `DZ`) with TLS ports, `ZDXSV_TLS_CERT_FILE` / `ZDXSV_TLS_KEY_FILE` = the zdxsv test `server.crt` / `server.key`: every client logs a TLS connection through ports 8220, 8221 and 8222 and no TLS failure; the battle ends with results | the same run with `server-backup.crt` / `server-backup.key` (signed by the unpinned backup CA): every connection is refused, the OSD says so |
-| Lobby save states | no test of its own; `rbkprep.sh` starts its clients from lobby save states | none |
+| Lobby save states | no test of its own; `rbkprep.sh` saves the rbk start states while its clients wait in the lobby | none |
 | Lobby connection kept while paused | `CLIENTS=1 EMU=1 SHOW=1 PAUSE=150 PAUSE_ONLY=1 m4z.sh`: no `Recv Timeout` in the lobby log, >= 13 line checks answered while paused | `CENV=ZDXSV_PAUSE_LINE_CHECK=0`: `Recv Timeout` about 2 min into the pause |
 | Pause menu | no committed test. By hand: `CLIENTS=1 EMU=1 SHOW=1 m4z.sh`, Escape in the lobby: the log has `pause menu refused (lobby)`, no `(VMManager) Pausing...` | offline (no lobby connection), Escape opens the pause menu |
 | Settings page | none (checked by hand) | none |
