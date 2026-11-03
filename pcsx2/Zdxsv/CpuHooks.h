@@ -45,7 +45,7 @@ namespace Zdxsv
 	void SingleDrawListOnVsync();
 	// In GgpoOnVmShutdown.
 	void SingleDrawListReset();
-	// ZDXSV_NODEV9=<ipv4>, Z game: online with no DEV9 device, the net RPCs answered on the EE (NoDev9.cpp).
+	// Z game, [DEV9/Eth] ZdxsvNoDev9 (default on): online with or without DEV9, the net RPCs answered on the EE (NoDev9.cpp).
 	extern bool g_no_dev9;
 	void NoDev9OnVmInitialize();
 	// In VSyncStart with g_no_dev9: the network device pick without dev9.

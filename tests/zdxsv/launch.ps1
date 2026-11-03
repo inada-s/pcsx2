@@ -24,6 +24,9 @@ if (-not $env:ZDXSV_LOGIN_API_URL) { $env:ZDXSV_LOGIN_API_URL = 'http://127.0.0.
 $root = $env:RUN -replace '/', '\'
 $exe = if ($env:PCSX2_EXE) { $env:PCSX2_EXE -replace '/', '\' } else { Join-Path $PSScriptRoot '..\..\bin\pcsx2-qtx64.exe' }
 $iso = $env:ISO -replace '/', '\'
+# Online without DEV9 (on by default) resolves every name to the build's server host: the rigs pin it to the box.
+# ZDXSV_NODEV9=0: the DEV9 path with the ini's hosts.
+if (-not $env:ZDXSV_NODEV9) { $env:ZDXSV_NODEV9 = if ($env:IP) { $env:IP } else { '0' } }
 if (-not $iso) { 'FAIL: set ISO (the game image; environment or tests/zdxsv/local.env)'; exit 2 }
 # probe writers of the exe's tree: no rig run on a bad or stale probe
 $lint = & $py "$PSScriptRoot\probelint.py" --exe $exe (Split-Path (Split-Path $exe))
