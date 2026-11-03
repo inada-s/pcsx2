@@ -35,9 +35,9 @@ sleep 2
 sleep 2
 rm -f "$RUN"/p[1-4]/PCSX2/logs/emulog.txt
 CARDS=($CARDS)
+rm -f "$RUN"/p[1-4]/PCSX2/sstates/"$SS"
+fresh_boot_all 1 2 3 4 || exit 1
 for i in 1 2 3 4; do
-  rm -f "$RUN/p$i/PCSX2/sstates/$SS"
-  fresh_boot $i || exit 1
   fresh_entry $i || exit 1
   sleep 3
   $PY $here/pine.py --slot $((28010 + i)) save 9 2>&1 | tail -1

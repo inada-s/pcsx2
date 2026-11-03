@@ -61,9 +61,9 @@ sleep 2
 "$PY" -u "$here/fake_lobby.py" --trace "$TRACE/lobby-trace.log" --api $API --db "$TRACE/zdxsv.db" --battle "$IP:8210" ${FAKE_ARGS:-} > "$OUT/fake.log" 2>&1 & pids+=($!)
 sleep 2
 rm -f "$RUN"/p[1-4]/PCSX2/logs/emulog.txt
-# fresh boots, one at a time (freshboot.sh), then the side entries
+# fresh boots, all at once (freshboot.sh), then the side entries one at a time
 CARDS=($CARDS)
-for i in 1 2 3 4; do fresh_boot $i || exit 1; done
+fresh_boot_all 1 2 3 4 || exit 1
 for i in 1 2 3 4; do fresh_entry $i || exit 1; done
 # the settle time measures each client's speed (speedcheck.sh)
 t1=$SECONDS

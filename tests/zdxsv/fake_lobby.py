@@ -74,6 +74,7 @@ ANSWERS = {
 lock = threading.Lock()
 seq_next = [1000]
 logins = []  # sessions handed out by the login API, in order
+key_sessions = {}  # login_key -> session handed out by the login API
 log_lock = threading.Lock()
 LBS_INFO = "0ad601082008,ZDX BETA SERVER"
 UDPRELAY = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "tools", "zdxsv", "udprelay.py"))
@@ -94,6 +95,19 @@ def frame(cat, cmd, seq, body):
 def pstr(b, o):
     n = struct.unpack_from(">H", b, o)[0]
     return b[o + 2:o + 2 + n], o + 2 + n
+
+
+def login_key(body, seq):
+    """ResponseKeyPair (0x6101) body: key1, then the login key encrypted with the message seq ("" if it does not check)."""
+    _, o = pstr(body, 0)
+    enc, _ = pstr(body, o)
+    if len(enc) <= 2:
+        return ""
+    chk, p, out = struct.unpack_from(">H", enc)[0], seq & 0xFF, bytearray()
+    fix, masks = (21, 23, 10, 17, 23, 19, 6, 13), (0x33, 0x30, 0x3C, 0x34, 0x2D, 0x30, 0x3C, 0x34)
+    for i, x in enumerate(enc[2:]):
+        out.append(x ^ ((fix[i & 7] - (i & 0xF8) - p + ((p - 9 + i) & masks[i & 7]) * 2) & 0xFF))
+    return out.rstrip(b"\0").decode("shift_jis", "replace") if sum(out) & 0xFFFF == chk else ""
 
 
 class Trace:
@@ -264,7 +278,7 @@ class Conn:
         self.sock, self.args, self.trace, self.battle = sock, args, trace, battle
         self.name = "%s:%d" % addr
         self.pos, self.user, self.udp = 0, "", ""
-        # the PS2 joins the battle with its login session; the clients log in one at a time, so the newest
+        # the PS2 joins the battle with its login session: its login key's (0x6101), else the newest login's
         self.session = logins[-1] if fresh and logins else ""
         self.tpl, self.ti = None, 0
         if trace:
@@ -290,6 +304,11 @@ class Conn:
         log("%s C->S cat %02x cmd 0x%04x seq %d body %s" % (self.name, cat, cmd, seq, body.hex()))
         if cmd == 0x6138 and cat == A:
             log("BATTLE RESULT %s %s %s" % (self.name, battle_result(body), body.hex()))
+        if cmd == 0x6101 and cat == A:
+            k = login_key(body, seq)
+            if k in key_sessions:
+                self.session = key_sessions[k]
+            log("%s login key %s, session %s" % (self.name, k or "?", self.session or "none"))
         if cmd == 0x6001:  # our line check answered
             return
         if not self.trace:
@@ -425,6 +444,7 @@ def login_api(port, db, lobby_addr):
             sid = sid or "%08d" % random.randrange(10 ** 7, 10 ** 8)
             body = json.dumps(dict(login_key=key, session_id=sid, lobby_addr=lobby_addr, lbs_info=LBS_INFO)).encode()
             logins.append(sid)
+            key_sessions[key] = sid
             log("login api %s -> session %s" % (key, sid))
             self.send_response(200)
             self.send_header("Content-Type", "application/json")

@@ -1,5 +1,6 @@
 # sourced by m4.sh, rbkprep.sh: client N from a fresh boot into the 2v2 side entry, against fake_lobby.py --api.
 #   fresh_boot N: launch, fast boot to the user_id selection, fast login (login API on $API), ID 1 -> 戦場選択.
+#   fresh_boot_all N..: fresh_boot for all of them at once (4 clients ~30 s, one at a time ~2 min).
 #   fresh_entry N: map -> Lobby 06 (press checked, retried once), side entry; waits for N entries in fake.log.
 # Env: API, CARDS (array), RUN, OUT, DRIVE, PCSX2_ENV, PCSX2_ENV_Pn, SPEED, SHOW, LAUNCH_ARGS (more launch.ps1 args),
 #   BOOT_WAIT (s from launch to the fast boot end, default 60), ENTRY_WAIT (s for the Lobby 06 press, default 20).
@@ -15,6 +16,12 @@ fresh_boot() {
     { echo "FAIL client $i boot: $(grep -a 'Zdxsv: fast boot:' "$log" | tail -1)"; return 1; }
   $DRIVE idlogin $i 2>&1 | grep -v memgate | tail -1
   echo "client $i: in $((SECONDS - tb)) s, $(grep -c 'login api' "$OUT/fake.log") logins, $(grep -c 'conn from' "$OUT/fake.log") lobby conns"
+}
+fresh_boot_all() {  # fresh_boot for each client in $@ at once; each one's lines printed together, in order
+  local i rc=0 pid=()
+  for i in "$@"; do fresh_boot $i > "$OUT/boot-p$i.txt" 2>&1 & pid[i]=$!; done
+  for i in "$@"; do wait ${pid[i]} || rc=1; cat "$OUT/boot-p$i.txt"; done
+  return $rc
 }
 fresh_map_pressed() {  # $1 = 0x6305 count before the map route
   local t
