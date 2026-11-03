@@ -10,10 +10,12 @@
 #include "Zdxsv/Lobby.h"
 #include "Zdxsv/ServerHosts.h"
 #include "Zdxsv/Settings.h"
+#include "Zdxsv/SaveStateHooks.h"
 #include "Zdxsv/TestOptions.h"
 
 #include "Memory.h"
 #include "R5900.h"
+#include "StateWrapper.h"
 
 #include "common/Console.h"
 
@@ -100,6 +102,9 @@ namespace Zdxsv
 			u8 last_net = 0;
 			sock_t socks[kSlots] = {INVALID_SOCKET, INVALID_SOCKET, INVALID_SOCKET, INVALID_SOCKET};
 			u32 peer[kSlots] = {};
+			u16 peer_port[kSlots] = {}; // network order
+			// After a lobby state load: the game still holds these slots open; the first call on one reconnects it.
+			bool adopt[kSlots] = {};
 			bool checked[kSlots] = {};
 			// A zdxsv lobby connection: the server's bytes reach the game through it (platform info, battle info notice).
 			std::unique_ptr<LobbyFilter, LobbyFilterDeleter> lobby[kSlots];
@@ -163,11 +168,50 @@ namespace Zdxsv
 			return id >= 0 && id < kSlots ? id : -1;
 		}
 
+		bool Open(int id)
+		{
+			sock_t& s = s_state.socks[id];
+			s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+			if (s == INVALID_SOCKET)
+				return false;
+#ifdef _WIN32
+			u_long nb = 1;
+			ioctlsocket(s, FIONBIO, &nb);
+#else
+			fcntl(s, F_SETFL, fcntl(s, F_GETFL, 0) | O_NONBLOCK);
+#endif
+			sockaddr_in sa = {};
+			sa.sin_family = AF_INET;
+			std::memcpy(&sa.sin_addr, &s_state.peer[id], 4);
+			sa.sin_port = s_state.peer_port[id];
+			TlsOnConnect(&sa);
+			connect(s, reinterpret_cast<sockaddr*>(&sa), sizeof(sa));
+			return true;
+		}
+
+		// The server side starts mid-session: no key pair question, so the lobby filter is set up front.
+		void Adopt(int id)
+		{
+			s_state.adopt[id] = false;
+			const u32 ip = s_state.peer[id];
+			const u16 port = ntohs(s_state.peer_port[id]);
+			if (IsBattleServer(ip, port) || !Open(id))
+				return;
+			s_state.checked[id] = true;
+			s_state.lobby[id].reset(LobbyOnAdopted(ip));
+			const u8* q = reinterpret_cast<const u8*>(&ip);
+			Console.WriteLn("Zdxsv: no DEV9: slot %d reconnected to %u.%u.%u.%u:%u after a state load", id, q[0], q[1], q[2], q[3], port);
+		}
+
 		sock_t& Sock(const u8* b)
 		{
 			const int id = Slot(b);
 			s_state.none = INVALID_SOCKET;
-			return id >= 0 ? s_state.socks[id] : s_state.none;
+			if (id < 0)
+				return s_state.none;
+			if (s_state.adopt[id])
+				Adopt(id);
+			return s_state.socks[id];
 		}
 
 		void CloseSlot(int id)
@@ -175,6 +219,9 @@ namespace Zdxsv
 			CloseSock(s_state.socks[id]);
 			s_state.lobby[id].reset();
 			s_state.checked[id] = false;
+			s_state.adopt[id] = false;
+			s_state.peer[id] = 0;
+			s_state.peer_port[id] = 0;
 		}
 
 		// Peeked: the first server bytes decide whether it is a zdxsv lobby; a lobby's bytes then all go through its filter.
@@ -198,28 +245,14 @@ namespace Zdxsv
 
 		s32 Connect(const u8* b)
 		{
-			const sock_t* free = std::find(std::begin(s_state.socks), std::end(s_state.socks), INVALID_SOCKET);
-			if (free == std::end(s_state.socks))
+			s32 id = 0;
+			while (id < kSlots && (s_state.socks[id] != INVALID_SOCKET || s_state.adopt[id]))
+				id++;
+			if (id == kSlots)
 				return -1;
-			const s32 id = static_cast<s32>(free - std::begin(s_state.socks));
-			sock_t& s = s_state.socks[id];
-			s = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-			if (s == INVALID_SOCKET)
-				return -1;
-#ifdef _WIN32
-			u_long nb = 1;
-			ioctlsocket(s, FIONBIO, &nb);
-#else
-			fcntl(s, F_SETFL, fcntl(s, F_GETFL, 0) | O_NONBLOCK);
-#endif
-			sockaddr_in sa = {};
-			sa.sin_family = AF_INET;
-			std::memcpy(&sa.sin_addr, b + 0x1c, 4);
-			std::memcpy(&sa.sin_port, b + 0x20, 2);
 			std::memcpy(&s_state.peer[id], b + 0x1c, 4);
-			TlsOnConnect(&sa);
-			connect(s, reinterpret_cast<sockaddr*>(&sa), sizeof(sa));
-			return id;
+			std::memcpy(&s_state.peer_port[id], b + 0x20, 2);
+			return Open(id) ? id : -1;
 		}
 
 		// Reply as the IOP stack does: state 4 = connected (2 = not yet), send space, readable bytes.
@@ -322,6 +355,38 @@ namespace Zdxsv
 			CloseSock(s);
 		s_state = {};
 		g_no_dev9 = false;
+	}
+
+	bool SaveStateNoDev9Enabled() { return g_no_dev9 && LobbyStateEnabled(); }
+
+	// The game's slots (open ones keep their server endpoint), not this process's sockets: after a load,
+	// open slots reconnect on first use.
+	bool NoDev9DoState(StateWrapper& sw)
+	{
+		u32 link_calls = s_state.link_calls;
+		u32 peer[kSlots];
+		u16 peer_port[kSlots];
+		for (int i = 0; i < kSlots; i++)
+		{
+			const bool open = s_state.socks[i] != INVALID_SOCKET || s_state.adopt[i];
+			peer[i] = open ? s_state.peer[i] : 0;
+			peer_port[i] = open ? s_state.peer_port[i] : 0;
+		}
+		sw.Do(&link_calls);
+		sw.DoArray(peer, kSlots);
+		sw.DoArray(peer_port, kSlots);
+		if (sw.HasError() || !sw.IsReading())
+			return !sw.HasError();
+		LobbyOnStateLoaded();
+		s_state.link_calls = link_calls;
+		for (int i = 0; i < kSlots; i++)
+		{
+			CloseSlot(i);
+			s_state.peer[i] = peer[i];
+			s_state.peer_port[i] = peer_port[i];
+			s_state.adopt[i] = peer[i] != 0 && AdoptConnections();
+		}
+		return true;
 	}
 
 	void NoDev9OnVsync()
