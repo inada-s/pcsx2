@@ -18,7 +18,9 @@ namespace Zdxsv
 		if (g_ps_hook && (pc == LOAD_STEP_PC || pc == MS_STEP_PC))
 			return pc == LOAD_STEP_PC ? OnLoadStep() : OnMsStep();
 		if (g_ps_hook && (pc == DRAW_RUN_PC || pc == DRAW_RUN2_PC))
-			return OnDrawRun();
+			return pc == DRAW_RUN_PC ? OnDrawRun() : OnDrawRun2();
+		if (g_ps_hook && pc == OBJ_CALL_PC)
+			return OnObjCall();
 		return false;
 	}
 } // namespace Zdxsv

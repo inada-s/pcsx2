@@ -103,8 +103,13 @@ namespace Zdxsv
 	// Render callback runners of the battle frame step 0x2124f0 (it runs both after the frame logic).
 	// true = skipped in this rerun frame (pc = ra), see g_rerun_draw_skip.
 	constexpr u32 DRAW_RUN_PC = 0x20ff30, DRAW_RUN2_PC = 0x20ff90;
+	// OnDrawRun may run the object draw walker (OBJ_WALK_PC) alone instead; OnObjCall then skips its
+	// handler calls (jalr at OBJ_CALL_PC, handler in v0) but the ones RerunKeepDrawsHandler names.
 	extern bool g_rerun_draw_skip;
 	bool OnDrawRun();
+	bool OnDrawRun2();
+	constexpr u32 OBJ_WALK_PC = 0x2ac4e0, OBJ_CALL_PC = 0x2ac524;
+	bool OnObjCall();
 	int ProbeFrame(); // GGPO frame being run (EE probe lines)
 
 	extern bool g_ee_probe; // ZDXSV_EE_PROBE or ZDXSV_EE_WATCH is set
@@ -121,7 +126,7 @@ namespace Zdxsv
 	constexpr bool IsIntHookPc(u32 pc)
 	{
 		return pc == NET_RPC_PC || pc == NET_RECV_RET_PC || pc == STEP_COPY_PC || pc == LOAD_STEP_PC ||
-			   pc == MS_STEP_PC || pc == DRAW_RUN_PC || pc == DRAW_RUN2_PC;
+			   pc == MS_STEP_PC || pc == DRAW_RUN_PC || pc == DRAW_RUN2_PC || pc == OBJ_CALL_PC;
 	}
 
 	// ZDXSV_DELTA_TEST: synctest in a running game, see Zdxsv/DeltaState.cpp.

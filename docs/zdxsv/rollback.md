@@ -108,6 +108,14 @@ slot+0x300 + i * 0x240). The next frame reads that part, so it follows the
 rerun game state: it is copied again natively after the load and after each
 rerun frame. Kept instead, some pictures after a rollback differ from a full
 rerun.
+Parts attached to a player (handler 0x1f6520, e.g. object 0xb130d0 on the
+player at 0x839330) draw their matrix into a further block of the player's
+slot (0x2a25c0: slot+0x300 + 0x240 * desc[4]), which the player's next draw
+reads. That matrix is built in the part's draw and is in no game state, so
+rerun frames that skip the callbacks still run the object draw walker
+(0x2ac4e0, from the first callback runner) with only these handlers;
+`ZDXSV_RERUN_PARTS=0` skips them. Without them runs of pictures after
+rollbacks differ from a full rerun (up to ~4000 pixels).
 Memory the game logic reads must not be kept: the object memory at
 0xafd800-0xafdfff and 0xb13000-0xb6afff holds game objects and effects, and
 an address is reused by another object type, so keeping it desyncs.

@@ -48,7 +48,7 @@ options: `docs/zdxsv/`.
 | `GgpoLobby.cpp` | Arming a GGPO battle from the lobby: battle info, frame delay, the cut connection |
 | `GgpoBudget.cpp` | Rollback budget: frame slack histogram, the per-PC learned budget, the input delay formula |
 | `GgpoGameState.cpp` | Game RAM reads for sync checks and replays: player work hash, RNG, tick state, round records |
-| `GgpoRerunKeep.cpp` | Rerun keep: EE RAM a rollback leaves at the predicted frame (bone matrix slots, saber trail objects) |
+| `GgpoRerunKeep.cpp` | Rerun keep: EE RAM a rollback leaves at the predicted frame (bone matrix slots, saber trail objects), attached-part draws in skipped rerun frames |
 | `GgpoTrace.cpp` | Debug: `NET_TRACE` lines of the pad and the battle msgs' key slots |
 | `GgpoTest.cpp` | Local rollback test harness (synctest): state diffs of rerun frames, random pad input |
 | `ReplayRecord.cpp` | Replay recording, upload and live stream of a GGPO battle |

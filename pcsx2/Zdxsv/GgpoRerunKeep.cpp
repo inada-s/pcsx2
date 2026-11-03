@@ -42,6 +42,19 @@ namespace Zdxsv
 		constexpr u32 SLOT_MAX_BLOCKS = (SLOT_MODEL - SLOT_BLOCKS - SLOT_BLOCK_OFFSET) / SLOT_BLOCK_STRIDE;
 		constexpr u32 ANGLE_UNIT = 0x38c90fda; // 2 pi / 65536
 
+		// Parts attached to a player draw their matrix into a bone block of the player's slot past the blocks
+		// RebuildPlayerSlot copies; the player's next draw reads it. Their draws also run in skipped rerun
+		// frames, through the object draw walker alone.
+		constexpr u32 PART_HANDLER = 0x1f6520;
+		// Render callbacks of DRAW_RUN_PC: count at gp - 0x5e20, pointers from 0x6e8550.
+		constexpr u32 DRAW_LIST_COUNT_GP_OFFSET = 0x5e20, DRAW_LIST = 0x6e8550, DRAW_LIST_MAX = 64;
+
+		// ZDXSV_RERUN_PARTS=0: no draws in skipped rerun frames.
+		const bool s_keep_parts = [] {
+			const char* e = TestEnv("ZDXSV_RERUN_PARTS");
+			return !(e && e[0] == '0');
+		}();
+
 		struct RerunKeepConfig
 		{
 			std::vector<std::pair<u32, u32>> ranges;
@@ -88,6 +101,7 @@ namespace Zdxsv
 			bool armed = false;
 			bool rebuild_slots = false;
 			bool logged = false;
+			bool parts_logged = false;
 		};
 		RerunKeep s_keep;
 
@@ -246,5 +260,29 @@ namespace Zdxsv
 		RebuildPlayerSlots();
 		if (last)
 			s_keep.rebuild_slots = false;
+	}
+
+	bool RerunKeepWalksObjects()
+	{
+		if (!s_keep_parts || !s_keep.rebuild_slots)
+			return false;
+		const u32 count = ReadU32((cpuRegs.GPR.n.gp.UL[0] - DRAW_LIST_COUNT_GP_OFFSET) & (Ps2MemSize::MainRam - 4));
+		for (u32 i = 0; i < std::min(count, DRAW_LIST_MAX); i++)
+		{
+			if (ReadU32(DRAW_LIST + i * 4) != OBJ_WALK_PC)
+				continue;
+			if (!s_keep.parts_logged)
+			{
+				s_keep.parts_logged = true;
+				Console.WriteLn("ZdxsvGgpo: rerun keep draws attached parts");
+			}
+			return true;
+		}
+		return false;
+	}
+
+	bool RerunKeepDrawsHandler(u32 handler)
+	{
+		return handler == PART_HANDLER;
 	}
 } // namespace Zdxsv
