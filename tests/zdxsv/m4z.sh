@@ -228,6 +228,10 @@ grep -a "Register zproxy" "$OUT/lobby.log" | tail -$nz | cut -c1-160
 # entries close together: with one client per ~3 min (entry right after its login)
 # each saw ジャブロー2 "1人". One at a time: `entry 1 2` in parallel dropped p2's Down
 # (-> オペレーションリスト). Each must reach 0x640E (side).
+map_pressed() {  # $1 = 0x6305 count before the map route; waits ENTRY_WAIT s for one more
+  for t in $(seq "${ENTRY_WAIT:-20}"); do [ "$(grep -ac "C->S \[Q\] ID:0x6305" "$OUT/lobby.log")" -gt "$1" ] && return 0; sleep 1; done
+  return 1
+}
 k=0
 for i in $CLIENTS; do
   k=$((k + 1))
@@ -236,7 +240,9 @@ for i in $CLIENTS; do
   else
     a0=$(grep -ac "C->S \[Q\] ID:0x6305" "$OUT/lobby.log")
     $DRIVE map $i 2>&1 | grep -v memgate | tail -1
-    for t in $(seq "${ENTRY_WAIT:-20}"); do [ "$(grep -ac "C->S \[Q\] ID:0x6305" "$OUT/lobby.log")" -gt "$a0" ] && break; sleep 1; done
+    # the map's last C is sometimes lost (the map stays up, cursor on Lobby 06): press it once more
+    map_pressed $a0 || { echo "p$i: no Lobby 06 press, C again"; $DRIVE mappress $i 2>&1 | grep -v memgate | tail -1; map_pressed $a0; } ||
+      { echo "FAIL client $i entry (no 0x6305)"; exit 1; }
     $DRIVE lobby2p $i 2>&1 | grep -v memgate | tail -1
   fi
   for t in $(seq 10); do [ "$(grep -c 'C->S \[Q\] ID:0x640E' "$OUT/lobby.log")" -ge "$k" ] && break; sleep 2; done
