@@ -2,8 +2,8 @@
 
 Scripts that run one or more PCSX2 instances with the game (and, for the lobby
 tests, a local zdxsv server) and check the result from logs. Which test covers
-which feature: `docs/zdxsv/features.md`. Each script's usage and knobs are in
-its header comment.
+which feature, its pass criterion and control: [Tests per feature](#tests-per-feature).
+Each script's usage and knobs are in its header comment.
 
 ## Setup
 
@@ -83,3 +83,150 @@ USERS=AAAAAA BBBBBB CCCCCC DDDDDD
   Compare envs by the offsets. ~45 s.
 - `lobbytest.sh` is not a rig: a unit test of `pcsx2/Zdxsv/Lobby.cpp` built with
   MinGW `g++`. It needs no PCSX2 build, game, lock or server.
+
+## Tests per feature
+
+Feature names as in `docs/zdxsv/features.md`. **Control** is the variant that
+must fail: it shows the test can detect the problem. "none": no automated test.
+Results are not recorded here: a result names the commit it ran on.
+Scripts are in `tests/zdxsv/` except `run.py` (repository root) and
+`pwcheck.py`, `udprelay.py` (`tools/zdxsv/`).
+
+### Online play
+
+| Feature | Test | Control |
+|---|---|---|
+| Switch for all online battle extensions | `CLIENTS="1 3" EMU=1 EXT_OFF=1 m4z.sh`: both clients log `all zdxsv extensions off` and `not the Z game: no platform info`, no GGPO options, and join the battle server over TCP; 2 results | without `EXT_OFF`: `sent platform info` |
+| Network defaults for zdxsv | unit: `DEV9Config.*` in `tests/ctest/core/dev9_config_tests.cpp` | none |
+| Online without DEV9 | no committed test. By hand: `stack.sh`, `ZDXSV_FAST_LOGIN=1` `launch.ps1`, `drive.py` route `top`: the lobby ID selection shows, emulog `Zdxsv: fast login: session`; with `launch.ps1` defaults (fast login off), routes `top` then `login`: the lobby battlefield map shows | `ZDXSV_NODEV9=0` with `EthEnable = false`: the network device pick shows the device as unavailable |
+| Fast login | `ROUTE=top LIMIT=200 boottime.sh` (server with `/lbs/login`): user_id screen with no ログイン press, emulog `Zdxsv: fast login: session`, no DNAS POST in `dnas.log` | `ZDXSV_FAST_LOGIN=0 ROUTE=top LIMIT=200 MAXS=150 boottime.sh` fails (stops at TOP) |
+| Fast boot | `fastboot.sh`: run 1 (no boot state) logs `Zdxsv: fast boot: saving` and reaches the user_id screen with no input, run 2 logs `Zdxsv: fast boot: loading` and reaches it within 5 s of the VM start (`LIMIT`); each prints its time from the launch and from the VM start; run 3 (unformatted card) logs `Zdxsv: fast boot: stopped, memory card error` within 15 s; passes with the local zdxsv stack and with `LOBBY=fake` (`boot_lobby.py`: lobby API login and the lobby up to the user_id list only) | `ZDXSV_FAST_BOOT=0 MAXS=60 boottime.sh` fails (no user_id screen), also with `LOBBY=fake` |
+| Platform info `0x9950` to the lobby | `m4z.sh` with samples of the lobby `/api/stat`: the lobby counts each client by platform | none |
+| Battle over TCP to the battle server, as a PS2 | `m4.sh`: 4 emulators, fake lobby, one battle. Variant `MASHP=1 SHOW=1`: time-up with side 1 ahead, all 4 report a loss | none |
+| Playing as a console | `m4z.sh` (default: 4 consoles, real lobby, fresh boot and login from the memory cards): every client logs `platform info off` and no `bridge`; the clients not behind zproxy (p2, p4) join the battle server over TCP; 4 results with the same battle code and frame count | none |
+| A console behind a separate zproxy process | the same `m4z.sh` run, `ZP="1 3"` (default): zproxy runs with `-upnp=false`, registers with the lobby, the PS2 connects to it and it joins the battle server over UDP (P2P on); no UPnP line in its log | none |
+| First login from a blank memory card | `launch.ps1 -Memcard <blank>`, then `drive.py fresh`, `register`, `newlogin` | none |
+| TLS to the zdxsv server | `m4z.sh` with `EMU=1 CLIENTS="1 3" ZPROXY=`, `ZDXSV_TLS_TEST_PIN=1`, a `ZBIN` (and `DZ`) with TLS ports, `ZDXSV_TLS_CERT_FILE` / `ZDXSV_TLS_KEY_FILE` = the zdxsv test `server.crt` / `server.key`: every client logs a TLS connection through ports 8220, 8221 and 8222 and no TLS failure; the battle ends with results | the same run with `server-backup.crt` / `server-backup.key` (signed by the unpinned backup CA): every connection is refused, the OSD says so |
+| Lobby save states | no test of its own; `m4.sh` starts its clients from lobby save states | none |
+| Lobby connection kept while paused | `CLIENTS=1 EMU=1 SHOW=1 PAUSE=150 PAUSE_ONLY=1 m4z.sh`: no `Recv Timeout` in the lobby log, >= 13 line checks answered while paused | `CENV=ZDXSV_PAUSE_LINE_CHECK=0`: `Recv Timeout` about 2 min into the pause |
+| Pause menu | no committed test. By hand: `CLIENTS=1 EMU=1 SHOW=1 m4z.sh`, Escape in the lobby: the log has `pause menu refused (lobby)`, no `(VMManager) Pausing...` | offline (no lobby connection), Escape opens the pause menu |
+| Settings page | none (checked by hand) | none |
+| Recommended-settings buttons | `settingsui.ps1 -DataPath <new dir> -Click zdxsvPresetHigh -Match 'zdxsvGgpoMinDelay$'`: the ini gets `upscale_multiplier = 3`, `ZdxsvGgpoMinDelay = 2`; `-Click zdxsvPresetLow`: `ZdxsvGgpoMinDelay = 3` | none |
+
+### Input latency
+
+| Feature | Test | Control |
+|---|---|---|
+| Low-latency vsync | `latency.ps1 -LowLatency 1`: press-to-present time on the main menu | `latency.ps1 -LowLatency 0`, or `ZDXSV_GAME_CRC=0` (not the Z game): the time is longer |
+| Input latency measurement | it is the tool of the test above; `m4lat.sh` uses it in a battle (`M4=m4ggpo.sh`: over GGPO, frame pacing split by rollback) | none |
+| Input to picture by pixel color | `inputpic.sh` (title main menu, 8 presses): every press has a change, prints the offsets; `inputpic.sh "ZDXSV_SINGLE_DRAW_LIST=1"`: 2 vsyncs earlier | `inputpic.sh "ZDXSV_INPUT_LATENCY=...,pixel=40:10"` (not on the cursor): exit 1 |
+
+### Boot to lobby
+
+| Feature | Test | Control |
+|---|---|---|
+| Boot-to-lobby time measurement | `boottime.sh`: with no input, the lobby's user_id selection screen within `LIMIT` s (default 5) of the VM start (emulog `Opening CDVD`; the launch script's start-up is not counted); passes with fast boot and its boot state (`fastboot.sh` run 2) | `ZDXSV_FAST_BOOT=0 MAXS=60 boottime.sh` fails (no user_id screen); `ZDXSV_FAST_BOOT=0 ROUTE=top,C boottime.sh` reaches it but fails the limit |
+
+### Rollback netcode (GGPO)
+
+| Feature | Test | Control |
+|---|---|---|
+| GGPO library | unit: `GGPO.*` in `tests/ctest/core/ggpo_tests.cpp` | `GGPO.SyncTestCatchesStateOutsideSave` |
+| GGPO pump thread | `TRACE=0 rbk.sh 2 1` x2: `pump thread started` per peer, logged OSD pings 0-5 ms | `PCSX2_ENV=ZDXSV_NET_PUMP=0`: no such line, pings 2-23 ms |
+| GGPO time sync spread over frames | `STALL=400 LAT=100 rbk.sh 2 1`: peer 1 suspended 400 ms 8 times; peer 0 logs `sync N (max X ms)` with N >= 2, X < 25 | a build that sleeps all suggested frames at once: X about 33 (2 frames) |
+| Relay forwarding while GGPO is held | `BLOCK=1-4 GGPO_LAT=10 GDELAY=auto m4ggpo.sh`: the relaying peer (client 2 or 3) logs `relayed while the frame loop held GGPO` above 0 | `PCSX2_ENV=ZDXSV_NET_PUMP=0`: 0 on every client |
+| GGPO session check | `MAXS=150 ENV0=ZDXSV_NET_SESSION=other rbk.sh 2 1`: the peer refused logs `a peer is in another session` and closes `session mismatch`; the other `session mismatch` or `start timeout`. `PCSX2_ENV=ZDXSV_NET_SESSION=same rbk.sh 2 1`: PASS | the build before: the first run plays the battle, PASS |
+| Rollback budget in the lobby delay | `GDELAY=auto GGPO_LAT=50 m4ggpo.sh`: `lobby delay 4` per peer, logged `rollback budget 0.00 (learned 1.00)`; `rbk.sh 2 1`: each peer logs `rollback budget: fits` at the end | `PCSX2_ENV=ZDXSV_ROLLBACK_BUDGET=1`: `lobby delay 3`, the `lobby delay 4` checks FAIL |
+| Delta save states | `deltatest.ps1` exit 0 (`result PASS`): the 2nd rerun of each window hashes like the 1st (same code cache) | `break=ee`: `result FAIL`, exit 1 |
+| Faster rerun frames | `rerunpic.sh`: the pictures after rollbacks pass `rerunpic.py`; speed A/B with `benchab.sh` | `rerunpic.sh "ZDXSV_RERUN_TAIL=1"`: FAIL |
+| Single draw list | `rerunpic.sh "ZDXSV_SINGLE_DRAW_LIST=1"`: PASS; `PCSX2_ENV=ZDXSV_SINGLE_DRAW_LIST=1 rbk.sh 2 1`, `rbk.sh 4 1`: PASS; `ENV0=ZDXSV_SINGLE_DRAW_LIST=1 rbk.sh 2 1`, `rbk.sh 4 2`: PASS | `rerunpic.sh "ZDXSV_RERUN_TAIL=1"` (the same tail without the patch): FAIL |
+| Battle start and MS select load barriers | none | none |
+| GGPO synctest in a running game | `deltatest.ps1 -Var ZDXSV_GGPO -Spec start=9000,frames=3000,mask=fcff -Route arcade -End 12300`: 0 of 3000 frames mismatch in an arcade battle (`hash=pw`) | `control=input`: mismatches |
+| GGPO on by default for lobby battles | `CLIENTS="1 3" EMU=1 GGPO=7101 GDELAY=auto GGPO_DEFAULT=1 m4z.sh`: client 1 has no `ZDXSV_GGPO`, logs the default options, GGPO battle with 0 mismatches | the same with `ZDXSV_GGPO=0` for client 1: client 3 cuts the battle connection, the checks fail |
+| Battle UDP port setting | `CLIENTS="1 3" EMU=1 GGPO=7101 GDELAY=auto GGPO_DEFAULT=1 m4z.sh` with no `ZdxsvGgpoPort` in client 1's ini: client 1 logs `battle port P picked and saved`, its ini gets `ZdxsvGgpoPort = P` (29700..29800), its GGPO session logs `port P` (check `GGPO port from the setting`) | none |
+| Minimum input delay setting | `ZdxsvGgpoMinDelay = 4` in the `[DEV9/Eth]` section of both clients' ini, `CLIENTS="1 3" EMU=1 GGPO=7101 GDELAY=auto GGPO_DEFAULT=1 GMIN=3 m4z.sh`: client 1 `lobby delay 4 ... min 4`, client 3 (`mindelay=3`) `lobby delay 3 ... min 3`, 0 mismatches | without the setting: `lobby delay 2 ... min 2` |
+| GGPO battle without servers | `rbk.sh 2 1` and `rbk.sh 4 1`: random input, per frame, the x, y, z of every player and game RNG B agree on all peers (`pwcheck.py`). The start states come from `rbkprep.sh`. Network variant: `LAT=30 JITTER=15 LOSS=0.05`. Also `run.py rbk_test_random` | `PS= rbk.sh 4 1`: without the play-start barrier the peers desync |
+| Every pad input reaches a GGPO battle | `rbk.sh 2` + PINE presses on p1 (`pine.py` opcode 0x30, binds 9, 18-25): NET_TRACE `Z` lines of position 0, the synced (A, B) equals the game's own record (Start = A 0x8000 / B 0x8000, left stick = d-pad B bits, right stick = the same bits in A) | none |
+| Session ends on a confirmed battle end | `LAT=100 rbk.sh 2 1`: every peer logs `net end msg of frame F confirmed at frame C` with C >= F, `net battle end frames` = C + `ZDXSV_NET_TAIL`, 0 mismatches; `net end msg of frame F rolled back` when a rollback reran the sending frame. `COUNT=2`: one end message, after the second battle | none: no rig makes the game send the message only in a prediction |
+| Clean end, tails differ | `LAT=100 LOSS=0.05 rbk.sh 4 1` with `ENV0=ZDXSV_NET_TAIL=1` and `replay=DIR`: PASS, every peer logs `confirmed at frame C, leaving the peers` and `rbk exit (net battle end)`; `replay_check.py` on the 4 files PASS | the same run on a build before this: positions 1-3 stall 10 s after position 0 stops and end `disconnected` (FAIL no session end) |
+| Clean end, peer left first | 1v1 `EMU=1 CLIENTS="1 3" GGPO=7101 GDELAY=auto m4z.sh`: PASS `ggpo end msg frame agrees per battle (1), 0 mismatches` (both clients log `net end msg of frame F confirmed`, same F) | the same run on a build before this: the later client logs `peer disconnected` and ends `disconnected` at frame F (FAIL) |
+| VM shutdown or reset ends the session | `rbk.sh 2 1` with `replay=DIR` and `ENV0=ZDXSV_VM_TEST=1500:shutdown` (then `:reset`): position 0 logs `vm shutdown: session 1` and saves its replay, no `.replay-*.p2s` is left, the peer logs `peer disconnected`. Replay: `rplay.sh` with `PCSX2_ENV=ZDXSV_VM_TEST=1400:shutdown`: no `zdxsv-replay*` file left in the cache | the build without the `VMManager.cpp` calls: shutdown leaves `.replay-*.p2s` and no replay; after a reset the old session goes on (hundreds of delta loads into the reset VM) to the battle end |
+| A lobby battle that breaks after the start goes back to the lobby | 1v1 `EMU=1 CLIENTS="1 3" GGPO=7101 GDELAY=auto BREAK=3 BREAK_MODE=mute m4z.sh`: client 3 drops every GGPO packet from GGPO frame 1500, its battle TCP stays up; client 1 logs `peer disconnected` and is back in the lobby (also `BREAK_MODE=shutdown`) | no test (the game ends the battle on its own once the battle socket goes back to it) |
+| Pause and speed refused in a net battle | `TURBO= rbk.sh 2 1` with `ENV0=ZDXSV_VM_TEST=1500:ui`: position 0 logs `refused during the battle` 4 times, `vm test load state: Not available during an online battle.` and `pause menu refused (battle)`, PASS | the build without the `VMManager.cpp` calls: `(VMManager) Pausing...`, the peer reports position 0 disconnected 10 s later, `no session end` FAIL |
+| MTVU speedhack off while GGPO or a replay runs | `rbk.sh 2 1` with `MTVU=1` (`vuThread = true` in the ini): every peer logs `MTVU speedhack off for this VM`, no `MTVU speedhack is enabled` warning (one per state save or load with MTVU on), 0 mismatches | the build without it: MTVU stays on, `MTVU speedhack is enabled` warnings |
+| GGPO battle with the battle server and a fake lobby | `m4relay.sh` with `DELAY`, `JITTER`, `LOSS`: the 4 battle results agree and every relay forwarded packets | none |
+| GGPO battle from the battle info of the lobby | fake lobby: `m4ggpo.sh`, 4 results agree and each client has 3 lobby peers. Real lobby: `EMU=1 GGPO=7101 m4z.sh`, and 1v1 with `CLIENTS="1 3"` | `CLIENTS="1 3" GGPO_CLIENTS=1 m4z.sh`: client 3 without GGPO, client 1 cuts the battle connection |
+| Input delay from the ping test | 1v1 `m4z.sh` with `GDELAY=auto`: log `lobby delay D`. `GMIN=3`: delay 3 | none |
+| Ping test failure cuts the battle connection, OSD with the reason | 1v1 `m4z.sh` with `BAD_SESSION=3`: both clients cut and return to the lobby. `GDELAY=auto BAD_SESSION=3 m4ggpo.sh`: every client cuts and logs the `ZdxsvBattleCut` OSD "an opponent did not answer" | a build without the cut OSD: no `ZdxsvBattleCut` line |
+| Connection diagram during the ping test | 1v1 `m4z.sh` with `GDELAY=auto SHOW=1`, `winshot.ps1` of p1 1.5-6.9 s after its `battle info` line: two dots with bars between them, cyan at a local rtt (<= 30 ms) | a build without it: no diagram in the same shots |
+| Sync-safe settings forced while the Z game runs | `syncset.sh`: per setting, rbk N=2 with it changed on peer 0 only (`INI0`, `SPEED0`): 0 mismatches; `settingsui.ps1 -DataPath <dir> -Iso <Z game> -Page Advanced` (also Cheats, Game Fixes): forced items `enabled=False`, battle-only ones (Emulation page) enabled in the lobby | the same with `ZDXSV_SYNC_FORCE=0`: EE FPU or FPU-div rounding desyncs, fast CDVD and the NTSC frame rate lose the session end, extra memory cannot load the rbk states; the other settings pass in this 30 s battle. Greyed-out settings: `ZDXSV_SYNC_FORCE=0`, all enabled; greyed-out during a battle not checked |
+| Sync fingerprint | 1v1 `EMU=1 CLIENTS="1 3" GGPO=7101 SYNC_SALT=3 m4z.sh`: both clients cut (`settings or build differ`) | the same without `SYNC_SALT`: a GGPO battle |
+| Match report: timesync, inputs, fps, loss | `GDELAY=auto GGPO_LAT=10 MAXS=700 m4ggpo.sh`: each client with a GGPO session logs `peer report` with `timesync=`, `input_blocks=`, `fps_history=` and `loss_<peer>=` per peer. Encoding: `lobbytest.sh` checks `total_timesync`, `input_block_count`, `fps_history`, `recv_loss`/`send_loss` in the report bytes; zdxsv `TestP2PMatchingReport` decodes them | the build without it: the `m4ggpo.sh` peer report check FAILs; the `zdxsv-master` encoder: the lobbytest report check FAILs |
+| Match report sent to the lobby | `REPORT=1` on the 1v1 or the cut case: the lobby logs 2 reports with the battle code and the expected result | none |
+| Match report: who left, ping | `LAT=100 rbk.sh 2 1`: each client logs `peer report` with `ping_<peer>` min/median/max near 2 x LAT. A client killed mid-battle: the other logs `disconnected_positions=<its position>` (rbk FAILs). Encoding: `lobbytest.sh` checks `ping_min_ms`/`ping_median_ms`/`ping_max_ms` and `disconnected_peer_ids` in the report bytes; zdxsv `TestP2PMatchingReport` decodes them | the build without it: no `peer report` line; the `zdxsv-master` encoder: the lobbytest report check FAILs |
+| Relay servers | `RELAY=1 GGPO_LAT=100 GDELAY=auto m4ggpo.sh`: every path `relay 0`, delay 2. `RELAY=4` (relay_0..3, nothing at 0 and 1): every path `relay 2`. With `RELAY_ALT=1` (relay answers from another address than advertised): the same, plus `answers from 127.0.0.1:8203`. Real lobby: the same options on 1v1 `m4z.sh` | the same without `RELAY`: every path `direct`, delay 7. `RELAY_ALT=1` on a build that requires the advertised source: every path `direct` |
+| Peer without an address in the battle info | `NOADDR=4 GDELAY=auto m4ggpo.sh`: every client `net player`, 3 lobby peers; clients 1-3 reach client 4 at the source of its pings | the same on a build that drops pings from unlisted sources: cut |
+| Path through a relaying peer | `BLOCK=1-4 GGPO_LAT=10 GDELAY=auto m4ggpo.sh` (fake lobby: no path between clients 1 and 4): clients 1 and 4 reach each other through a third peer (`path ... peer`, peer `(relay)`), their lobby delay from that path, every other path direct (and m4.sh's checks) | the checks without `BLOCK` on the same logs: clients 1 and 4 FAIL `paths direct x3` |
+| Unreachable peer cuts the battle connection | `UNREACH=1 GGPO_LAT=10 GDELAY=auto m4ggpo.sh` (fake lobby: no path from client 1 to anyone, not even through a peer): client 1 gets no answer, every other client gets rtt -1 from client 1 only, no drops; every client cuts with the `ZdxsvBattleCut` "an opponent did not answer" OSD, no GGPO session, the game gives up the battle connection | the checks without `UNREACH` on the same logs: every client FAILs `ggpo session` |
+| Cut player refuses GGPO | 1v1 `EMU=1 CLIENTS="1 3" GGPO=7101 DROP_SYNC=3 m4z.sh` (4 players: without `CLIENTS`): client 3 cuts and logs `cut refusal: refused the GGPO session`, every other client logs `a peer is in another session` within 3 s of `net armed`, all back in the lobby | a build without the refusal: client 1 logs `net peers not synchronized in 10 s`, the checks fail |
+| Dual-stack peers | unit: `GGPO.UdpDualStack`: the GGPO socket sends and receives over IPv6 (skipped on a host without IPv6). The choice between the candidates has no test | none |
+| P2P connectivity test | 1v1 `m4z.sh` with `NAT=open`: one `udp test: nat=open` line per client. `lobbytest.sh`: with a udptest `Hello` `nat=open`, without it `nat=cone`, a failed request `nat=open`; fake outside STUN servers with different mappings give `nat=symmetric` | the `lobbytest.sh` checks with the udptest step off: the `Hello` and `nat=cone` checks FAIL; `ZDXSV_NAT_STUN=none`: the same fake lobby gives `nat=cone` |
+| UPnP mapping of the GGPO port | 1v1 `m4z.sh`, `CENV="ZDXSV_STUN_PORT=8299 ZDXSV_GGPO=net=1,lobby=1 ZDXSV_UPNP_ANY_IGD=1"` (closes the test): `zdxsv UPnP: UDP port N mapped`, a second `udp test` line, `upnpc -l` lists `PCSX2 zdxsv` | without `ZDXSV_UPNP_ANY_IGD` on a router reporting WAN `0.0.0.0`: `Internet Gateway not found: error 2`, no mapping |
+| "UPnP Now" button on Settings → zdxsv | ini `[DEV9/Eth] ZdxsvGgpoPort = N`, `ZDXSV_UPNP_ANY_IGD=1 settingsui.ps1 -DataPath <dir> -Click zdxsvUPnPNow -Wait 15 -Match zdxsvUPnP -Quit`: `zdxsvUPnPResult 'UDP port N opened'`, `upnpc -l` lists `PCSX2 zdxsv` while it runs, `quit rc=0`, then none | without `-Quit` (killed): the mapping stays (`upnpc -d N UDP`); without `ZDXSV_UPNP_ANY_IGD` on a WAN `0.0.0.0` router: `Internet Gateway not found: error 2`; port 0: `Set a battle UDP port first` |
+| HTTPS latency test | 1v1 `m4z.sh` with `HTTPS=1`: one test per client, its platform info in `lobby.log` has `asia-northeast1` | `HTTPS_OFF=3`: that client's platform info has no region |
+| `machine_id` in the platform info | 1v1 `m4z.sh` with `EMU=1`: each client logs `sent platform info (N bytes, machine_id <16 hex digits>)`, the same id on both clients of one PC and across runs | a build without it: the line has no `machine_id` |
+| OSD message when the lobby refuses this PCSX2 as outdated | no committed test. By hand: 1v1 `m4z.sh` with `EMU=1` on a build with a `zdxsv-X.Y.Z` tag and the lobby's `m_server_setting` `min_pcsx2_version` above it: the lobby logs `outdated client refused`, the client `zdxsv lobby refused this PCSX2 as outdated` | `min_pcsx2_version` below the build's version: login goes on, no such client line |
+| Lobby network waits and ping test RTT | `lobbytest.sh`: unit test of `Zdxsv/Lobby.cpp` with a fake STUN and a fake peer that answers from another port, and one whose every 4th pong is 400 ms late (rtt < 50 ms) | the pong-source case FAILs on a build that counts only pongs from the pinged address; the late-pong case FAILs on a build with the mean RTT |
+| Battle info and match report as protobuf | `lobbytest.sh`: decodes the battle info bytes zdxsv's `TestBattleInfoNoticeP2P` builds and checks the limits; `ZDXSV_REPORT_OUT=<file>` writes the encoded test report, which zdxsv's `TestP2PMatchingReport` decodes (`pkg/lobby/testdata/`) | the old text battle info fails to parse |
+| Match report round data | 1v1 `EMU=1 CLIENTS="1 3" GGPO=7101 UPLOAD=1 m4z.sh` with a `ZBIN` that knows `round_data`: both match reports carry the same `round_data`, one `used_ms` per player per round | the same with a client without round data: FAIL |
+| Network status OSD | `EMU=1 GGPO=7101 OSD=1 m4z.sh`: the logged OSD text of each client has its delay and every opponent's user id, name, pilot name and ping; names and pilot names equal the lobby db (`osdname.py`) | none |
+| Network OSD on disconnect | `rbk.sh 2 1` with `ENV0=ZDXSV_VM_TEST=1500:shutdown` (also with `GGPO=net=1,players=2,delay=2,osd=0`): the peer logs `peer disconnected`, then `osd held 10 s: ... 1P \| Disconnected`; `PCSX2_ENV_P4=ZDXSV_VM_TEST=1500:shutdown GDELAY=1 m4ggpo.sh`: clients 1-3 log `osd held` with `4P ... \| Disconnected` and `osd hold over` 10 s later | the build without it: `peer disconnected` only |
+| UDP sockets ignore ICMP port unreachable on Windows | unit: `GGPO.UdpReadsPastPortUnreachable`: after a send to a closed port, the next poll still reads the datagram behind the error | the same test with the `SIO_UDP_CONNRESET` call removed from `udp.cpp`: 0 datagrams read |
+
+### Replays
+
+| Feature | Test | Control |
+|---|---|---|
+| Save a GGPO battle as a replay | `rbk.sh 2 1` with `replay=DIR`, then `replay_check.py` on the file of every peer: same inputs on the common frames. Real lobby: 1v1 `m4z.sh`, then `replay_check.py` | a copy with 1 input byte changed fails at that frame |
+| Upload a lobby battle's replay | `UPLOAD=1 CLIENTS="1 3" EMU=1 GGPO=7101 GDELAY=auto m4z.sh` (`upload=` to the local lobby's `/lbs/replay_upload`): the stored `.pb` = one client's, one upload ok + the rest 409, every record's `replay_url` = the stored url. The default URL and the DNS gate: none (they need the public server) | the same run without `UPLOAD=1` (host entries, no `upload=`): no `replay upload` line |
+| Play a replay | `rplay.sh` against the trace of the live battle: player work equal on every frame | a copy with changed buttons fails from the changed frame |
+| Replay that does not start | `BAD=1 FILE=<random bytes> rplay.sh`: logs `replay: not started` (the OSD text) | the build without it: only `not a replay file`, FAIL |
+| Play a replay by URL or battle code | `UPLOAD=1 REPLAY_API=4 PWTRACE=1 CLIENTS="1 3" EMU=1 GGPO=7101 GDELAY=auto m4z.sh`: the API's `replay_url` = the stored url, player work + rng = the players'. Without a lobby: `API=1 FILE=<the battle's .pb> rplay.sh <its traces>`; gzip encoded as the bucket serves it: `GZIP=1` too | `API=1 FILE=<another battle's .pb> rplay.sh` with the same traces fails; `GZIP=1` before the gzip decoding: `not a replay file` |
+| Common state | no script: serve a state over HTTP, `rplay.sh` with `PCSX2_ENV=ZDXSV_REPLAY_STATE=http://127.0.0.1:<port>/<state>` once, cut the cached `zdxsv-common-*.p2s` it logged to 5000 bytes, run again: `cached copy load failed`, the download, `loaded`, PASS | the build without it: `load failed` on every try, FAIL |
+| Seek | `rplay.sh` with `ZDXSV_REPLAY_SEEK=at:to,...`: the predicted key is loaded and player work equals live after the seeks. Hotkeys: `WINDOW=1 KEYS=...` | `ZDXSV_REPLAY_KEY_NOHLE=1` with the same seeks fails |
+| Point of view | `POV=1 rplay.sh` on the position-0 file: `net armed ..., position 1` + pwcheck; `PCSX2_ENV=ZDXSV_REPLAY_POV_AT=2500:1,3500:0`: new position's battle start, seek, state hashes equal | without `POV` the game arms as the recorder (position 0) |
+| Control bar | `rplay.sh` with `WINDOW=1 KEYS="...bar:NAME..."` (real mouse through `pcsx2ctl.ps1`): the logged seek frame is the one computed from the click position | none |
+| Key display | `keycheck.py`: every logged key history equals the inputs in the file up to that frame | a copy with 1 input bit flipped fails for the histories that reach that frame |
+| Live spectating | `m4z.sh` `LIVE=2 PWTRACE=1`: the spectator closes at the uplink's saved frame count, checks more than 0 state hashes and 0 differ, player work + rng = the players' | a receiver that ignores the lobby's close push (it has no frame_bytes) stalls 30 frames before the end |
+| Live round results | `LIVE=2 LIVE_AT=150 PWTRACE=1 CLIENTS="1 3" GGPO_CLIENTS="1 3" EMU=1 GGPO=7101 GDELAY=auto m4z.sh` (lobby from zdxsv with `round_ack`): the spectator, started 150 s after the uplink, has round results at its open, gets every one the uplink sent, and none differs from its own playback | a lobby that does not relay `round_data`: the spectator logs no `round result ... from the stream` |
+| Live speed trim | `LIVE=2 LIVE_SPEED=1.02 CLIENTS="1 3" EMU=1 GGPO=7101 GDELAY=auto m4z.sh`, the spectator's `live: pace` log lines after the battle load (read, no scripted check): gap 28-32, at most 1 more wait | the same with `ZDXSV_LIVE_PACING=0`: the gap runs down to the newest frame |
+| Live wait without blocking | `LIVE=2 LIVE_STALL=20 CLIENTS="1 3" GGPO_CLIENTS="1 3" EMU=1 GGPO=7101 GDELAY=auto m4z.sh`: the lobby is suspended, the spectator exits within 5 s of its window's close | a build that waits on the CPU thread: exit only after the 30 s stream loss |
+| Replay window | `replayui.ps1 -DataPath <instance> -Tab Local/Remote/Live/Favorites -Row <code>` (UI Automation; Remote/Live against a local zdxsv with `ZDXSV_LOBBY_API_ADDR`, Live during `m4z.sh`): the instance emulog logs `replay <source>` and the common start of the picked point of view; the lobby logs `live subscribe`. Remote `-Set 'Edit:User ID=<id>;Combo:Players=4 players;Check:Rated only;Check:Oldest first'`: the lobby gets `user_id=<id>&players=4&aggregate=1&reverse=1`; Remote `-Set 'Combo:Mobile suit=<MS>'`: only battles where a player's `used_ms_list` holds the MS id + 1 (another MS: `No replays found.`); `-Button 'Add to Favorites'`, then `-Tab Favorites -Row <code>`: the ini holds `ZdxsvReplayFavorites`, the emulog `replay <API>/lbs/replay?battle_code=<code>`; a played Remote or Favorites row: emulog `replay played <API>/lbs/replay_played?battle_code=<code>: status 200`, the next Remote search shows the lobby's `play_count` one higher under Views | the same `.pb` through `ZDXSV_REPLAY` logs the same lines and state hashes, and no `replay played` |
+| Return to the game after a replay | `replayui.ps1 -Boot <Z game iso> -Tab Local -Row <code>` with `ZDXSV_REPLAY_EXIT=1`: the emulog logs `replay return: <data>/replays/return.p2s`, the game runs on from that state and the window is open again (UIA) | setting off: the VM stays stopped, no `replay return` |
+| Live auto-next | `BATTLES=2 LIVE=2 LIVE_NEXT=1 PWTRACE=1 CLIENTS="1 3" EMU=1 GGPO=7101 GDELAY=auto m4z.sh`: the spectator waits at the end of battle 1, moves on to battle 2; both streams close at the uplink's saved frame count, battle 2 player work + rng = the players' | `LIVE_NEXT=0`: the spectator exits after battle 1 (not run) |
+| Live auto-next skip | `livenext.sh`: a spectator of a port with no lobby logs the skip and its cause, pauses and keeps waiting | a build without the skip logs `not a replay file` and does not pause |
+| Skip mobile suit selection | `rplay.sh` with `SKIP_MS=1`: the logged briefing frame equals the one in the live trace | `SKIP_MS=0`: the screenshot at 25 s shows the selection screen |
+| Round jump | `rplay.sh` with `SKIP_MS=1 PCSX2_ENV=ZDXSV_REPLAY_ROUND_AT=1000:2,17000:1,6000:3`: every logged load end is 1 frame after a live trace `L` line leaving state 8 (same vsync), the rounds start at the predicted loads, player work equals live. Keys and bar: `WINDOW=1 KEYS="10:Shift+PageDown;40:bar:show,w600,bar:nextround"` | none |
+| Round mobile suits | `rplay.sh` with `WINDOW=1 KEYS="20:bar:show,w600,bar:results,w1200"` on a file whose `round_data` has `used_ms`: emulog `replay bar: round MS R1 ...` names those mobile suits, the shown team first | none |
+| Takeover | `rplay.sh` on a 2-player lobby battle `.pb` with `SKIP_MS=1 PCSX2_ENV="ZDXSV_REPLAY_TAKEOVER=6000:replay ZDXSV_REPLAY_TAKEOVER_RETRY=9000"`: the own position packed by the takeover (pad + kind-3 msgs, delay 2) plays to the end, retry goes back to 6000, player work + rng = the players' | `ZDXSV_REPLAY_TAKEOVER=6000:rand`: FAIL. Input matching panel with a real pad: not run |
+| Four-screen replay | `FOUR=1 rplay.sh`: guest trace pwcheck + host `spread` lines <= 4 frames | `PCSX2_ENV=ZDXSV_REPLAY_SYNC=0`: the spread FAILs |
+
+### ARM64 builds
+
+| Feature | Test | Control |
+|---|---|---|
+| EE and IOP recompilers with the x86 timing | the same replay with `ZDXSV_CYCLE_LOG` on an ARM64 and an x86_64 build: same cycle lines | none |
+| VU1 trace recompiler | a replay with `PCSX2_VU1_JIT=check`: `0 differ`; `ZDXSV_VU1_OPTEST` vs the x86 build: `0 differ` | none |
+| FPU and VU math as x86 | `ZDXSV_VU1_OPTEST` and `ZDXSV_EE_OPTEST` on an ARM64 and an x86_64 build, then `vu1_optest_cmp.py` / `ee_optest_cmp.py`: no op differs | none |
+| EE FPU interpreter as the recompiler | none | none |
+
+### Releases and tools
+
+| Feature | Test | Control |
+|---|---|---|
+| Self-update from the GitHub releases of this fork | `updatecheck.py --exe <build at a zdxsv-X.Y.Z tag> --inis <data dir>/PCSX2/inis`: a local release list offers `zdxsv-999.0.0`, the startup check fetches it once and logs `Update needed.` | `--offer zdxsv-0.0.0`: `No update needed.` An untagged build fetches nothing |
+| Release workflow | none | none |
+| Windows CI build | the workflow itself; it also runs the unit tests | none |
+| PINE opcodes `0x30` to `0x32` | no test of its own; the rig scripts drive the emulator through them (`pine.py`) | none |
+| EE probe, watch and rerun profile | `probelint.py`: refuses a bad or stale probe list | none |
+| `run.py` | `rbk_test` ends with the sync check of `pwcheck.py` | none |
