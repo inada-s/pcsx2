@@ -138,8 +138,11 @@ the agent's context.
   hashes, replays or logs. Unit tests optional.
 - Rig scripts live in `tests/zdxsv/`, added in the feature's PR. No copies
   elsewhere. No game, BIOS, memory card, save state or machine paths in them.
-- `docs/zdxsv/features.md`: per feature, how to enable, test command, pass
-  criterion, control. Updated in the feature's PR; "no test" is stated.
+- `docs/zdxsv/features.md`: per feature one line, its switch, its seam in the
+  Structure table. `tests/zdxsv/README.md`: per feature, test command, pass
+  criterion, control. Both updated in the feature's PR; "no test" is stated.
+- A new seam, or a feature that runs on only one network path: update the
+  Structure tables of `docs/zdxsv/features.md`.
 - A test is one command, exit 0 on pass. An agreement test has a control that
   must fail.
 - A result names its commit.
@@ -151,7 +154,7 @@ the agent's context.
   document goes in the `README.md` table.
 - Options: one row each in `docs/zdxsv/options.md`; other documents do not
   repeat defaults.
-- Tests are named only in `docs/zdxsv/features.md`.
+- Tests are named only in `tests/zdxsv/README.md`.
 - `ZDXSV.md` and its Japanese copy `ZDXSV.ja.md`: for players, ship in the release;
   update both on visible changes.
 - Documents describe current behavior: no history, session ids or run numbers.

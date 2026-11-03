@@ -9,8 +9,8 @@ online on [zdxsv](https://github.com/inada-s/zdxsv).
 
 ## What this fork adds
 
-One line per feature; details in the documents below, how to turn each on and its tests in
-[docs/zdxsv/features.md](docs/zdxsv/features.md).
+One line per feature; details in the documents below, how to turn each on in
+[docs/zdxsv/features.md](docs/zdxsv/features.md), tests in [tests/zdxsv/README.md](tests/zdxsv/README.md).
 Everything is on only for the one game build it was made for; any other disc runs as in stock PCSX2.
 
 ### Online play
@@ -63,7 +63,7 @@ Everything is on only for the one game build it was made for; any other disc run
 |---|---|
 | [ZDXSV.md](ZDXSV.md) | Player setup. Shipped in the release zip. |
 | [ZDXSV.ja.md](ZDXSV.ja.md) | Player setup in Japanese, same content. Shipped in the release zip. |
-| [docs/zdxsv/features.md](docs/zdxsv/features.md) | Every feature with how to turn it on and its tests. |
+| [docs/zdxsv/features.md](docs/zdxsv/features.md) | Structure: where zdxsv code meets the emulator, the network paths. Every feature, one line each. |
 | [docs/zdxsv/options.md](docs/zdxsv/options.md) | Every option and setting: name, default, use; the game check. |
 | [docs/zdxsv/lobby.md](docs/zdxsv/lobby.md) | Network defaults, lobby messages, ping test, relay servers, how a lobby battle starts. |
 | [docs/zdxsv/rollback.md](docs/zdxsv/rollback.md) | GGPO library, delta save states, the GGPO session, sync-safe settings and fingerprint, sync checks. |
@@ -71,5 +71,5 @@ Everything is on only for the one game build it was made for; any other disc run
 | [docs/zdxsv/tools.md](docs/zdxsv/tools.md) | Releases, CI, local build and run scripts, PINE commands. |
 | [docs/zdxsv/arm64.md](docs/zdxsv/arm64.md) | ARM64 builds: CPU cores, math as x86, comparing with an x86_64 build. |
 | [pcsx2/Zdxsv/README.md](pcsx2/Zdxsv/README.md) | Glossary and source file map. |
-| [tests/zdxsv/README.md](tests/zdxsv/README.md) | Rig test scripts: setup and machine settings. |
+| [tests/zdxsv/README.md](tests/zdxsv/README.md) | Rig test scripts: setup, settings, the test of each feature. |
 | [AGENTS.md](AGENTS.md) | Rules for work in this fork. |

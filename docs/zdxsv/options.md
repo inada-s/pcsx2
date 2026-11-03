@@ -22,14 +22,15 @@ tests.
 ## Build options
 
 CMake cache variables. Only the official release build (`zdxsv_release.yml`,
-tags `zdxsv-X.Y.Z`) sets them, to the production servers; a build from source
+tags `zdxsv-X.Y.Z`) sets them from the repository variables of the same name
+([tools](tools.md)); a build from source
 has none, so it connects to no server until the player sets one (`ZdxsvLoginApiUrl`,
 `ZdxsvLobbyApiUrl`, `ZdxsvReplayUploadUrl`, `ZdxsvUdpTestUrl`, host entries).
 
 | Option | Default | Meaning |
 |---|---|---|
-| `ZDXSV_SERVER_HOST` | empty | The game server host: the internal DNS looks up the game's server names as it, and `https://<host>:8443` is the default of the API URLs below (`server` in their Default column). Empty: names resolve as they are, the API URLs are empty. Release: `lbs.zdxsv.net`. |
-| `ZDXSV_UDPTEST_URL` | empty | Default of `ZdxsvUdpTestUrl`. Release: the zdxsv udptest function. |
+| `ZDXSV_SERVER_HOST` | empty | The game server host: the internal DNS looks up the game's server names as it, and `https://<host>:8443` is the default of the API URLs below (`server` in their Default column). Empty: names resolve as they are, the API URLs are empty. Release: the repository variable. |
+| `ZDXSV_UDPTEST_URL` | empty | Default of `ZdxsvUdpTestUrl`. Release: the repository variable. |
 
 ## Game check
 
@@ -66,7 +67,7 @@ page greys it out and its tooltip names the variable.
 | `[DEV9/Eth] ZdxsvFastBootState` | `true` | feature | With `ZdxsvFastBoot`: the first boot saves a state at the NET file load (`sstates/<serial> zdxsv-fastboot <state version>.p2s`, no player data, any memory card); later boots load it and skip the title and main menu. Delete the file to retake it. Env `ZDXSV_FAST_BOOT_STATE=1/0` overrides. |
 | `[DEV9/Eth] ZdxsvFastLogin` | `true` | feature | Z game, on the way to the lobby: when DNAS starts, log in through `ZdxsvLoginApiUrl` with the NET file's login key and jump to the lobby connect (no DNAS, no login browser). No key, no `ZdxsvLoginApiUrl` or no answer: the normal login. `ZDXSV_FAST_LOGIN` overrides. Ini only. |
 | `[DEV9/Eth] ZdxsvLoginApiUrl` | server `/lbs/login` | feature | The zdxsv login API (`POST`; the zdxsv lobby API `/lbs/login`) (form `login_key`; JSON `login_key`, `session_id`, `lobby_addr`, `lbs_info`) used by `ZdxsvFastLogin`. The same with or without DEV9 (`ZdxsvNoDev9`). `ZDXSV_LOGIN_API_URL` overrides it (the rigs: the local stack). Ini only. |
-| `[DEV9/Eth] ZdxsvNoDev9` | `true` | feature | Z game, experimental: online with or without DEV9 (`EthEnable`). The game's net RPCs are answered on the EE: network setup from fixed replies, every name resolves to `ZDXSV_SERVER_HOST` (host DNS, 5 s wait), TCP on host sockets (4 slots). No server host (a build from source): off unless `ZDXSV_NODEV9=<IPv4>`. Lobby tested, battle not. `ZDXSV_NODEV9` overrides (`0` off, `<IPv4>` every name resolves to it). Ini only. |
+| `[DEV9/Eth] ZdxsvNoDev9` | `true` | feature | Z game, experimental: online with or without DEV9 (`EthEnable`). The game's net RPCs are answered on the EE: network setup from fixed replies, every name resolves to `ZDXSV_SERVER_HOST` (host DNS, 5 s wait), TCP on host sockets (4 slots). No server host (a build from source): off unless `ZDXSV_NODEV9=<IPv4>`. Lobby and a 1v1 TCP battle tested; GGPO not. `ZDXSV_NODEV9` overrides (`0` off, `<IPv4>` every name resolves to it). Ini only. |
 | `[DEV9/Eth] ZdxsvLobbyApiUrl` | server | feature | The lobby's public API (`http://host:port`, zdxsv `ZDXSV_LOBBY_API_ADDR`) the replay window's Remote (`/lbs/replay`) and Live (`/lbs/live`) tabs and the Favorites tab ask; empty = none. A live battle is watched at `udp://<its host>:8201/<code>` (`ZDXSV_STUN_PORT` overrides the port). |
 | `[DEV9/Eth] ZdxsvReplayFavorites` | empty | feature | The replay window's Favorites: one value per battle (battle code, start time, players and rounds, tab-separated), at most 1000; added from the Remote tab, removed in the Favorites tab. |
 | `[DEV9/Eth] ZdxsvReplayReturn` | `true` | feature | A replay started from the replay window returns to the game (and the window) when it ends (`replay.md`). |
@@ -151,6 +152,7 @@ turns GGPO off and leaves the other extensions on. Any other value turns it on. 
 | `ZDXSV_NODEV9=<ipv4>` | unset | test | Overrides `ZdxsvNoDev9`: `0` off; `<ipv4>`: on, every name resolves to `<ipv4>`. The fast login still uses `ZdxsvLoginApiUrl` (`ZDXSV_LOGIN_API_URL`). The rigs (`launch.ps1`) set it to the box IP and `ZDXSV_LOGIN_API_URL` to the local lobby API (`http://127.0.0.1:9881/lbs/login`, started by `stack.sh`). |
 | `ZDXSV_PRESENT_FIRST=0` | on | control | With `ZdxsvLowLatencyVsync` in a GGPO session: the limiter sleep and the input poll come before the rollback. Default: present, rollback, then sleep and poll, so a rollback shorter than the sleep does not delay the next present; a corrected frame shows one frame later. |
 | `ZDXSV_RERUN_EE_DRAW=1` | off | control | The game's render callbacks run in every rerun frame. Default: not in rerun frames but the last two (see rollback.md). |
+| `ZDXSV_RERUN_KEEP=0` or `=lo-hi,...` | bone slots, saber trails | control | EE RAM a rollback does not roll back during play: `0` none; else these ranges (hex, end exclusive) and the saber trails. Off with `ZDXSV_RERUN_EE_DRAW=1`. See rollback.md. |
 | `ZDXSV_RERUN_DRAW=0` | on | control | The GS drops the draw calls of rollback rerun frames. Default: drawn (not presented; the next frame draws over them). |
 | `ZDXSV_ROLLBACK_BUDGET=1` | off | test | The lobby delay subtracts the learned `ZdxsvRollbackBudget` instead of 0. |
 | `ZDXSV_NET_TAIL=n` | 300 | tuning | Frames run after the battle end message is confirmed, before the session stops. |
