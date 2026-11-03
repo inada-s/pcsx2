@@ -116,6 +116,9 @@ fields +0x0-0x9f and +0x150-0x1cf, only for an object at the same address
 with the same handler before and after the load (objects found through the
 game object list, head at gp - 0x5b80). Without them a saber trail jumps
 after a rollback. Synctest: player work agrees with them kept.
+Objects with handler 0x167f50 keep +0xb0-0x1ef the same way: without them
+the effect is off in the first picture after each rollback. Synctest: player
+work agrees with them kept.
 `ZDXSV_RERUN_KEEP` turns it off or sets other ranges, kept in any game phase
 (tests); `ZDXSV_RERUN_EE_DRAW=1` turns it off.
 
