@@ -67,7 +67,7 @@ options: `docs/zdxsv/`.
 | `ServerHosts.cpp`, `ServerHosts.h` | The game's server hosts, looked up as the zdxsv server's hostname by the internal DNS server; whether it was (public server) |
 | `FastBoot.cpp` | Boot at unlimited speed to the lobby user_id selection, pressing through the menus on the fixed network route |
 | `FastLogin.cpp` | Login through the login API at DNAS start, the browser's result written to guest RAM, jump to the lobby connect |
-| `SingleDrawList.cpp` | `ZDXSV_SINGLE_DRAW_LIST`: game code patch that draws a frame's list in that frame |
+| `SingleDrawList.cpp` | `ZdxsvSingleDrawList`: game code patch that draws a frame's list in that frame |
 | `NoDev9.cpp` | `ZDXSV_NODEV9`: online without DEV9, the net RPCs answered on the EE and TCP on a host socket (experimental) |
 | `Upnp.cpp`, `Upnp.h` | UPnP mapping of the GGPO port on the router (`3rdparty/miniupnpc`), removed at exit |
 | `TlsTunnel.cpp` | TLS to the zdxsv server: the game's TCP connections go through a local tunnel, the server is checked by its public-key pins |

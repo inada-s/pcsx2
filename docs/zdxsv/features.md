@@ -77,7 +77,7 @@ Keys (`net=1`, `lobby=1`, `port=`, `delay=`, ...) are parts of `ZDXSV_GGPO`.
 - **Rollback budget in the lobby delay**: lobby battle without `delay=`.
 - **Delta save states**: used by GGPO; `ZDXSV_DELTA_TEST`.
 - **Faster rerun frames**: `ZDXSV_RERUN_*`.
-- **Single draw list**: `ZDXSV_SINGLE_DRAW_LIST=1`.
+- **Single draw list**: on (setting `ZdxsvSingleDrawList`); `ZDXSV_SINGLE_DRAW_LIST=0` turns it off.
 - **Battle start and MS select load barriers**: GGPO session.
 - **GGPO synctest in a running game**: `ZDXSV_GGPO` without `net=1`.
 - **GGPO on by default for lobby battles**: `ZDXSV_EXTENSIONS=0` turns it off.

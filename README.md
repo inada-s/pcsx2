@@ -25,6 +25,7 @@ Everything is on only for the one game build it was made for; any other disc run
 ### Input latency
 
 - Low-latency vsync: the finished frame is presented before the frame limiter sleeps.
+- Single draw list (Z game): a frame's draw list drawn in that frame, one frame less input to picture.
 
 ### Rollback netcode (GGPO)
 
