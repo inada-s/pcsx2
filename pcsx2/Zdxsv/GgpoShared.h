@@ -218,6 +218,8 @@ namespace Zdxsv
 	void DiffRaw(int frame, const std::vector<u8>& first, const std::vector<u8>& raw);
 	void Diff(int frame, const Sample& first, const std::vector<u64>& pages, const std::vector<u8>& state);
 	void HashSave(int frame, int* checksum);
+	void RerunKeepBeforeLoad(bool callbacks_skipped);
+	void RerunKeepAfterLoad();
 	extern bool s_replay_rec; // a battle is being recorded
 	std::string ReplayIds();
 	std::string IdValue(const std::string& ids, std::string_view key);

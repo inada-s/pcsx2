@@ -152,6 +152,7 @@ set(pcsx2Sources
 	Zdxsv/GgpoBudget.cpp
 	Zdxsv/GgpoGameState.cpp
 	Zdxsv/GgpoLobby.cpp
+	Zdxsv/GgpoRerunKeep.cpp
 	Zdxsv/GgpoTest.cpp
 	Zdxsv/GgpoTrace.cpp
 	Zdxsv/ReplayLive.cpp

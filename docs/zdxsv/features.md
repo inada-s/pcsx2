@@ -80,6 +80,7 @@ Keys (`net=1`, `lobby=1`, `port=`, `delay=`, ...) are parts of `ZDXSV_GGPO`.
 - **Single draw list**: on (setting `ZdxsvSingleDrawList`); `ZDXSV_SINGLE_DRAW_LIST=0` turns it off.
 - **Battle start and MS select load barriers**: GGPO session.
 - **GGPO synctest in a running game**: `ZDXSV_GGPO` without `net=1`.
+- **Rerun keep**: the bone matrix slots and beam saber trails are not rolled back during battle play; `ZDXSV_RERUN_KEEP`.
 - **GGPO on by default for lobby battles**: `ZDXSV_EXTENSIONS=0` turns it off.
 - **Battle UDP port setting**: `ZdxsvGgpoPort`, `port=`.
 - **Minimum input delay setting**: `ZdxsvGgpoMinDelay`, `mindelay=`.

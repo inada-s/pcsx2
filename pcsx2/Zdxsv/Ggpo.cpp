@@ -503,7 +503,9 @@ namespace Zdxsv
 			if (len != sizeof(int))
 				return false;
 			Common::Timer timer;
+			RerunKeepBeforeLoad(!s_rerun_ee_draw);
 			const bool ok = Zdxsv::DeltaStateLoad(*reinterpret_cast<int*>(buffer));
+			RerunKeepAfterLoad();
 			s_reruns_left = s_top_frame - *reinterpret_cast<int*>(buffer);
 			if (s_net)
 				NetLoaded(*reinterpret_cast<int*>(buffer));
