@@ -25,7 +25,6 @@ fi
 count=20
 [[ $spec =~ count=([0-9]+) ]] && count=${BASH_REMATCH[1]}
 ZDXSV_INPUT_LATENCY="btn=down,back=up,start=2900,gap=60,seed=$seed,out=$out,$spec" bash "$here/launch.sh" -N 1 > /dev/null || exit $?
-sleep 8
 "$PY" "$here/pine.py" seq "f2600,Return" 2> /dev/null
 "$PY" "$here/pine.py" seq "f$((2900 + 60 * count + 60))" 2> /dev/null
 grep -a 'ZdxsvLatency' "$RUN/p1/PCSX2/logs/emulog.txt"

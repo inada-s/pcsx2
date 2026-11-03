@@ -17,7 +17,6 @@ done
 mkdir -p "$out"
 zkill_name pcsx2
 env "$var=$spec" bash "$here/launch.sh" -N 1 > /dev/null || exit $?
-sleep 8
 [ -n "$route" ] && "$PY" "$here/pine.py" seq "$route" 2> /dev/null
 for f in $snaps; do
   "$PY" "$here/pine.py" seq "f$f" 2> /dev/null
