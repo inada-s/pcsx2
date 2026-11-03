@@ -51,7 +51,7 @@ BIOS = Path(os.environ["BIOS"]) if os.getenv("BIOS") else None
 BIOS_FILE = os.getenv("BIOS_FILE", "SCPH-50000_JPN_Con_0190_20030822_v10_[D9407AE8].rom0")
 # Copied into an instance's memcards/ when it has no Mcd001.ps2 yet. Unset = PCSX2 makes an empty card.
 MEMCARD = os.getenv("MEMCARD", "")
-# Server address for the game's zdxsv hosts. Empty = keep the fork's default (zdxsv.net).
+# Server address for the game's zdxsv hosts. Empty = the build's ZDXSV_SERVER_HOST (release: production; source build: none).
 GDXSV = os.getenv("GDXSV", "")
 STATE = os.getenv("STATE", "")
 # Maximum frame latency ([EmuCore/GS] VsyncQueueSize): frames the emulation may run ahead of the
