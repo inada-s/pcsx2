@@ -48,11 +48,20 @@ namespace Zdxsv
 		if (g_ps_hook && (pc == DRAW_RUN_PC || pc == DRAW_RUN2_PC))
 		{
 			iFlushCall(FLUSH_EVERYTHING | FLUSH_PC);
-			xFastCall((void*)OnDrawRun);
+			xFastCall(pc == DRAW_RUN_PC ? (void*)OnDrawRun : (void*)OnDrawRun2);
 			xTEST(al, al);
 			xForwardJZ32 run_draw;
 			xJMP(dispatcher);
 			run_draw.SetTarget();
+		}
+		if (g_ps_hook && pc == OBJ_CALL_PC)
+		{
+			iFlushCall(FLUSH_EVERYTHING | FLUSH_PC);
+			xFastCall((void*)OnObjCall);
+			xTEST(al, al);
+			xForwardJZ32 run_obj;
+			xJMP(dispatcher);
+			run_obj.SetTarget();
 		}
 	}
 } // namespace Zdxsv

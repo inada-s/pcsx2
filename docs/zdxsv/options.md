@@ -153,6 +153,7 @@ turns GGPO off and leaves the other extensions on. Any other value turns it on. 
 | `ZDXSV_PRESENT_FIRST=0` | on | control | With `ZdxsvLowLatencyVsync` in a GGPO session: the limiter sleep and the input poll come before the rollback. Default: present, rollback, then sleep and poll, so a rollback shorter than the sleep does not delay the next present; a corrected frame shows one frame later. |
 | `ZDXSV_RERUN_EE_DRAW=1` | off | control | The game's render callbacks run in every rerun frame. Default: not in rerun frames but the last two (see rollback.md). |
 | `ZDXSV_RERUN_KEEP=0` or `=lo-hi,...` | bone slots, saber trails | control | EE RAM a rollback does not roll back during play: `0` none; else these ranges (hex, end exclusive) and the saber trails. Off with `ZDXSV_RERUN_EE_DRAW=1`. See rollback.md. |
+| `ZDXSV_RERUN_PARTS=0` | on | control | With the bone slots kept: rerun frames that skip the render callbacks do not run the draws of parts attached to a player either (see rollback.md). |
 | `ZDXSV_RERUN_DRAW=0` | on | control | The GS drops the draw calls of rollback rerun frames. Default: drawn (not presented; the next frame draws over them). |
 | `ZDXSV_ROLLBACK_BUDGET=1` | off | test | The lobby delay subtracts the learned `ZdxsvRollbackBudget` instead of 0. |
 | `ZDXSV_NET_TAIL=n` | 300 | tuning | Frames run after the battle end message is confirmed, before the session stops. |

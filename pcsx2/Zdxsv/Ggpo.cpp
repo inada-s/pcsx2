@@ -1391,7 +1391,24 @@ namespace Zdxsv
 	{
 		if (!g_rerun_draw_skip)
 			return false;
+		// ra stays: the walker returns to the runner's caller.
+		cpuRegs.pc = RerunKeepWalksObjects() ? OBJ_WALK_PC : cpuRegs.GPR.n.ra.UL[0];
+		return true;
+	}
+
+	bool OnDrawRun2()
+	{
+		if (!g_rerun_draw_skip)
+			return false;
 		cpuRegs.pc = cpuRegs.GPR.n.ra.UL[0];
+		return true;
+	}
+
+	bool OnObjCall()
+	{
+		if (!g_rerun_draw_skip || RerunKeepDrawsHandler(cpuRegs.GPR.n.v0.UL[0]))
+			return false;
+		cpuRegs.pc = OBJ_CALL_PC + 8;
 		return true;
 	}
 
