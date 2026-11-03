@@ -95,9 +95,9 @@ zdxsv_need CARDS USERS
 CARDS=($CARDS)
 USERS=($USERS)  # the zdxsv.db user ids of the p1..p4 cards, in order
 # CLIENTS="1 3": a 1v1 in Lobby 02 (route entry2p; p1 AEUG, p3 Titans), else the 2v2 in Lobby 06
-CLIENTS=${CLIENTS:-1 2 3 4}; nc=$(echo $CLIENTS | wc -w)
+CLIENTS=${CLIENTS:-1 2 3 4}; nc=$(($(echo $CLIENTS | wc -w)))
 ENTRY=entry; [ "$nc" -eq 2 ] && ENTRY=entry2p
-nz=$(echo $ZP | wc -w)  # UDP joins: zproxy clients only (pcsx2 has no UDP bridge)
+nz=$(($(echo $ZP | wc -w)))  # UDP joins: zproxy clients only (pcsx2 has no UDP bridge)
 # client i's env: console (no platform info), or emulator (+ GGPO lobby battle on port GGPO+i-1)
 cenv() {
   # EXT_OFF=1: every client runs with ZDXSV_EXTENSIONS=0 (all zdxsv extensions off: seen as a PS2, battle server)
@@ -290,7 +290,7 @@ report_code() { grep -o -m1 'battle_code:[0-9]*' "$OUT/results.txt" | cut -d: -f
 results() {
   awk '/== BattleResult ==/{n++; b=1; next} /==================/{b=0} b&&/\] ID:/{id[n]=$NF} b&&/"battle_code": "[0-9]/{gsub(/[",]/,""); c[n]=$NF} b&&/"(total_frame|kill_count|death_count|win_count|lose_count)"/{gsub(/[",]/,""); v[n]=v[n]" "$(NF-1)$NF} END{for(i=1;i<=n;i++) if (c[i] != "") print "result", id[i], "battle_code:" c[i] v[i]}' "$OUT/lobby.log" > "$OUT/results.txt"
 }
-gc=${GGPO_CLIENTS:-$CLIENTS}; ngc=$(echo $gc | wc -w)
+gc=${GGPO_CLIENTS:-$CLIENTS}; ngc=$(($(echo $gc | wc -w)))
 # a cut: BAD_SESSION, SYNC_SALT, or a client without GGPO (not in GGPO_CLIENTS)
 CUT=; [ -n "${BAD_SESSION:-}" ] && CUT=ping; [ -n "${GGPO:-}" ] && [ "$ngc" -lt "$nc" ] && CUT=noport; [ -n "${SYNC_SALT:-}" ] && CUT=sync; [ -n "${DROP_SYNC:-}" ] && CUT=drop
 # vsyncs from the cut to its end (the game closed the battle sock), "?" if a line is missing
@@ -399,14 +399,14 @@ if [ -n "${EMU:-}" ] && [ -n "${GGPO:-}" ]; then
   echo "$ends" | sed 's/^/ggpo end /'
   check "ggpo end msg frame agrees per battle ($B), 0 mismatches" "echo '$ends' | awk '{n++; if (\$7 != 0) bad=1; if ((\$3 in f) && f[\$3] != \$5) bad=1; f[\$3]=\$5} END{u=0; for(x in f)u++; exit !(n==$(echo ${GGPO_CLIENTS:-$CLIENTS} | wc -w) * $B && u==$B && !bad)}'"
   if [ -n "${REPORT:-}" ]; then
-    ng=$(echo ${GGPO_CLIENTS:-$CLIENTS} | wc -w)
+    ng=$(($(echo ${GGPO_CLIENTS:-$CLIENTS} | wc -w)))
     grep -a 'p2p matching report:' "$OUT/lobby.log" | cut -c1-300
     check "no match report without a battle code" "! grep -a -q 'p2p matching report: battle_code=\"\"' '$OUT/lobby.log'"
     check "match report x$ng: battle code $(report_code), result ggpo, net battle end, 0 mismatches" "[ \$(grep -a 'p2p matching report: battle_code=\"$(report_code)\"' '$OUT/lobby.log' | grep 'result=\"ggpo\"' | grep 'close_reason=\"net battle end\"' | grep -c 'mismatches=\"0\"') -eq $ng ]"
   fi
   if [ -n "${UPLOAD:-}" ]; then
     sleep 10  # uploads run detached after the battle end
-    ng=$(echo ${GGPO_CLIENTS:-$CLIENTS} | wc -w)
+    ng=$(($(echo ${GGPO_CLIENTS:-$CLIENTS} | wc -w)))
     grep -a -h 'replay upload' "$RUN"/p[1-4]/PCSX2/logs/emulog.txt | cut -c1-200
     for code in $(grep -o 'battle_code:[0-9]*' "$OUT/results.txt" | cut -d: -f2 | sort -u); do
       pb="$OUT/upload/replays/$code.pb"

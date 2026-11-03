@@ -88,7 +88,7 @@ t34=
 bres() { grep -a -o "BATTLE RESULT [0-9.:]* battles=[0-9]* win=[0-9]* lose=[0-9]* kill=[0-9]* death=[0-9]* frames=[0-9]* side=[0-9]*" "$OUT/fake.log"; }
 while [ $((SECONDS - t0)) -lt "${MAXS:-2100}" ]; do
   [ -n "${POST:-}" ] && $DRIVE $POST 1 2 3 4 2>&1 | grep -v memgate | tail -1 || sleep 30
-  r=$(bres | wc -l)
+  r=$(($(bres | wc -l)))
   if [ -n "${NORESULT:-}" ]; then
     c=$(grep -a -o 'conn from' "$OUT/fake.log" | wc -l)
     echo "$((SECONDS - t0)) s: results $r, lobby conns $c/8"
