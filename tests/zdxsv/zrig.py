@@ -156,8 +156,12 @@ def pids_name(*names):
 
 
 def kill_name(*names):
+    """Kill and wait up to 10 s for the pids to be gone: taskkill /F returns before the files they hold are free."""
     ps_ = pids_name(*names)
     kill(*ps_)
+    end = time.time() + 10
+    while ps_ and time.time() < end and set(ps_) & set(pids_name(*names)):
+        time.sleep(0.2)
     return ps_
 
 

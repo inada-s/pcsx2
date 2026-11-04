@@ -12,7 +12,7 @@ import argparse, os, re, sys, threading, time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from pine import Pine
-from drive import ROUTES
+from drive import ROUTES, route_text
 from zrig import process_start
 
 SERIAL = "SLPS-25419"
@@ -89,7 +89,7 @@ def main():
         print("FAIL game %r is not %s" % (serial, SERIAL))
         return 2
     if a.route:
-        keys = ",".join(ROUTES.get(k, k) for k in a.route.split(","))
+        keys = ",".join(route_text(k, 1) if k in ROUTES else k for k in a.route.split(","))
         threading.Thread(target=p.seq, args=(keys,), daemon=True).start()
         emit("route " + a.route)
     last = None
