@@ -59,52 +59,6 @@ namespace Zdxsv
 			return text;
 		}
 
-		// zdxsv network status (Zdxsv::GgpoOsdLines) during a GGPO battle: left edge, below the game's top HUD.
-		void DrawGgpoOverlay(float scale, float margin, float spacing)
-		{
-			if (!Zdxsv::g_ggpo_enabled || FullscreenUI::HasActiveWindow())
-				return;
-			const std::vector<Zdxsv::GgpoOsdLine> lines = Zdxsv::GgpoOsdLines();
-			if (lines.empty())
-				return;
-
-			ImFont* const font = ImGuiManager::GetStandardFont();
-			const float font_size = ImGuiManager::GetFontSizeStandard();
-			const float line_height = ImGuiFullscreen::GetLineHeight({font, font_size});
-			const float pad = std::ceil(4.0f * scale);
-			// fixed width, whatever the lines hold: a longer line (a long name, a huge Wait) is cut and ends in "..."
-			const auto text_w = [&](const char* s) { return font->CalcTextSizeA(font_size, std::numeric_limits<float>::max(), -1.0f, s).x; };
-			const float width = std::max(text_w(" Ping 000ms (R)  P -00"), text_w("Roll 00  Wait 00000"));
-			const float dots_w = text_w("...");
-
-			ImDrawList* dl = ImGui::GetBackgroundDrawList();
-			const float x = margin;
-			float y = std::floor(ImGuiManager::GetWindowHeight() * 0.22f);
-			dl->AddRectFilled(ImVec2(x, y), ImVec2(x + width + pad * 2.0f, y + line_height * lines.size() + pad * 2.0f), IM_COL32(0, 0, 0, 128));
-			y += pad;
-			for (const Zdxsv::GgpoOsdLine& l : lines)
-			{
-				std::string text = l.text;
-				if (text_w(text.c_str()) > width)
-				{
-					// drop whole UTF-8 characters from the end until the rest and "..." fit
-					while (!text.empty() && text_w(text.c_str()) + dots_w > width)
-					{
-						// continuation bytes (10xxxxxx), then the lead or ASCII byte
-						u8 c;
-						do
-						{
-							c = static_cast<u8>(text.back());
-							text.pop_back();
-						} while (!text.empty() && (c & 0xC0) == 0x80);
-					}
-					text += "...";
-				}
-				dl->AddText(font, font_size, ImVec2(x + pad, y), l.color, text.c_str());
-				y += line_height;
-			}
-		}
-
 		// zdxsv replay key display (ZDXSV_REPLAY_KEY_DISPLAY=1 / hotkey): the shown position's last input changes, newest on top,
 		// each with the frames it was held (capped at 99). Bits: the B word (ZdPadAB).
 		static constexpr struct { u16 bit; const char* icon; } buttons[] = {
@@ -546,7 +500,7 @@ namespace Zdxsv
 	void DrawOverlays(float scale, float margin, float spacing)
 	{
 		DrawPingDiagram();
-		DrawGgpoOverlay(scale, margin, spacing);
+		GgpoOsdDraw();
 		DrawReplayKeys(scale, margin);
 		DrawReplayBar(scale, margin);
 		DrawTakeover(scale);
