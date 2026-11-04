@@ -259,7 +259,8 @@ class Pine:
         @name=V[/MS] (wait until game RAM probe name == V, see PROBE and until; V decimal or 0x).
         Key~name=V[/MS]: press Key, again every MS, until name == V. Key~name![/MS]: the same until name leaves
         the value it had before the first press. Key^name>=V[/MS], Key^name<=V[/MS]: hold Key until FPROBE name
-        reaches V (default 5000 ms).
+        reaches V (default 5000 ms). Up|Down^name=V[/MS]: hold Up while name < V (until >= V), else Down
+        (until <= V).
         ms = game time (vsyncs at 60/s, see wait)."""
         for tok in [t.strip() for t in text.split(",") if t.strip()]:
             self.trace(tok)
@@ -267,6 +268,16 @@ class Pine:
                 name, _, rest = tok[1:].partition("=")
                 v, _, ms = rest.partition("/")
                 self.until(name, int(v, 0), int(ms or UNTIL_MS))
+                continue
+            if "^" in tok and "|" in tok:
+                keys, _, cond = tok.partition("^")
+                up, _, down = keys.partition("|")
+                name, _, rest = cond.partition("=")
+                v, _, ms = rest.partition("/")
+                if self.fprobe(name) < float(v):
+                    self.hold_until(up, name, ">", float(v), int(ms or 5000), port)
+                else:
+                    self.hold_until(down, name, "<", float(v), int(ms or 5000), port)
                 continue
             if "^" in tok:
                 key, _, cond = tok.partition("^")

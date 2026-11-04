@@ -26,10 +26,10 @@ from pine import Pine, shrink
 
 RUN = os.environ.get("RUN", ".")  # rig data root
 
-# map cursor to シアトル (Lobby 02) from anywhere on the map: clamp top-left, fixed steps (see map2p)
 # map cursor from where the map opens to ジャブロー2 (Lobby 06), held until the cursor reaches it
 MAP06 = "Down^cury>=256,Right^curx>=393"
-WALK2P = ",".join(["Up:3000,Left:6000,w500"] + ["Right:350,w600"] * 15 + ["Down:400,w600"] + ["Left:350,w600"] * 5)
+# map cursor to シアトル (Lobby 02) from anywhere on the map, each axis held toward the spot the press was taken at
+WALK2P = "Right|Left^curx=379,Down|Up^cury=60"
 # lobby menu -> パートナー自動選抜 -> side {s} -> entered. lstate steps once per accepted press (the side Right too),
 # not when the lobby finishes loading, so Down repeats until the menu takes it.
 LOBBY = "Down~lstate!/500,C~lstate!/2000,{s}C~lstate!/2000,w4000"
@@ -72,11 +72,11 @@ ROUTES = {
     "map": "C,w5000," + MAP06 + ",w500,C",
     "mappress": "C",
     # 1v1: map cursor to シアトル (Lobby 02: starts at 1 AEUG + 1 Titans). The cursor keeps its spot between
-    # visits and hit areas sit off the drawn labels: clamp top-left, then fixed steps (grid scan: Lobby 02
+    # visits and hit areas sit off the drawn labels: walk on the cursor RAM both ways (grid scan: Lobby 02
     # at row 1 cols 5-6; route shot-checked, "Lobby 02" shown). Lobby menu + side dialog as in Lobby 06.
     # freshboot.entry2p_retry (m4z.py): map2p ends with the Lobby 02 press (0x6305 00 02); the
     # press missed in 3 of 15 entries (no 0x6305, client left on the map) -> remap2p = walk
-    # again from the clamp, no leading C; lobby2p = the lobby menu + side dialog
+    # again, no leading C; lobby2p = the lobby menu + side dialog
     "map2p": "C,w5000," + WALK2P + ",w500,C",
     "remap2p": WALK2P + ",w500,C",
     "lobby2p": LOBBY,
