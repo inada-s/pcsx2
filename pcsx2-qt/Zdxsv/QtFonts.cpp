@@ -9,6 +9,8 @@
 #include "common/FileSystem.h"
 #include "common/Path.h"
 
+#include <QtCore/QCoreApplication>
+
 namespace Zdxsv
 {
 	void QtFontsDownloadJapanese(QWidget* dialog_parent)
@@ -17,6 +19,7 @@ namespace Zdxsv
 		const std::string path = Path::Combine("fonts", name);
 		if (FileSystem::FileExists(EmuFolders::GetOverridableResourcePath(path).c_str()))
 			return;
-		QtHost::DownloadMissingFont(dialog_parent, name, Path::Combine(EmuFolders::UserResources, path));
+		QtHost::DownloadFile(dialog_parent, qApp->translate("MainWindow", "Downloading Files"),
+			QtHost::GetRuntimeDownloadedResourceURL(name), Path::Combine(EmuFolders::UserResources, path));
 	}
 } // namespace Zdxsv
