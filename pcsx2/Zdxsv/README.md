@@ -67,7 +67,7 @@ options: `docs/zdxsv/`.
 | `SpectateSync.cpp`, `SpectateSync.h` | Four-screen replay: one PCSX2 per position, kept on the same frame through shared memory |
 | `ServerHosts.cpp`, `ServerHosts.h` | Addresses the game's server hosts resolved to; whether that was the built-in server (public server) |
 | `FastBoot.cpp` | Boot at unlimited speed to the lobby user_id selection, pressing through the menus on the fixed network route; optionally on through ID 1 into the lobby |
-| `FastLogin.cpp` | Login through the login API at DNAS start, the browser's result written to guest RAM, jump to the lobby connect |
+| `FastLogin.cpp`, `FastLogin.h` | Login through the login API at DNAS start, the browser's result written to guest RAM, jump to the lobby connect |
 | `SingleDrawList.cpp` | `ZdxsvSingleDrawList`: game code patch that draws a frame's list in that frame |
 | `NoDev9.cpp` | `ZDXSV_NODEV9`: online without DEV9, the net RPCs answered on the EE and TCP on a host socket (experimental) |
 | `Upnp.cpp`, `Upnp.h` | UPnP mapping of the GGPO port on the router (`3rdparty/miniupnpc`), removed at exit |
