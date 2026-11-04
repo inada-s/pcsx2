@@ -27,6 +27,8 @@ from pine import Pine, shrink
 RUN = os.environ.get("RUN", ".")  # rig data root
 
 # map cursor to シアトル (Lobby 02) from anywhere on the map: clamp top-left, fixed steps (see map2p)
+# map cursor from where the map opens to ジャブロー2 (Lobby 06), held until the cursor reaches it
+MAP06 = "Down^cury>=256,Right^curx>=393"
 WALK2P = ",".join(["Up:3000,Left:6000,w500"] + ["Right:350,w600"] * 15 + ["Down:400,w600"] + ["Left:350,w600"] * 5)
 # lobby menu -> パートナー自動選抜 -> side {s} -> entered. lstate steps once per accepted press (the side Right too),
 # not when the lobby finishes loading, so Down repeats until the menu takes it.
@@ -67,7 +69,7 @@ ROUTES = {
     # model/lobby.go CanBattleStart) -> lobby -> パートナー自動選抜 -> side {s}: p1/p2 連邦・エゥーゴ, p3/p4 ジオン・ティターンズ
     # m4z.py: map ends with the Lobby 06 press (0x6305 00 06); a late press is
     # waited for before lobby2p instead of raced
-    "map": "C,w5000,Up:400,w800,Down:900,Right:900,w500,C",
+    "map": "C,w5000," + MAP06 + ",w500,C",
     "mappress": "C",
     # 1v1: map cursor to シアトル (Lobby 02: starts at 1 AEUG + 1 Titans). The cursor keeps its spot between
     # visits and hit areas sit off the drawn labels: clamp top-left, then fixed steps (grid scan: Lobby 02
@@ -119,14 +121,15 @@ def run(route, n, log):
     p = Pine(28010 + n)
     p.seq(route_text(route, n))
     path = os.path.join(RUN, "p%d" % n, "%s.png" % route)  # GS snapshot ignores forward-slash paths
-    try:
-        shrink(p.snap(path, 3), 0.5)
-    except TimeoutError:
-        if not headless(n):
+    if headless(n):
+        path = "no snap"
+    else:
+        try:
+            shrink(p.snap(path, 3), 0.5)
+        except TimeoutError:
             log.append("FAIL p%d %s: no GS snapshot from a rendering instance (Renderer != 11): snaps are broken, "
                        "not headless; capture the window with winshot.ps1 / pcsx2ctl.ps1 -Shot" % (n, route))
             return
-        path = "no snap"
     log.append("p%d %s frame %d -> %s" % (n, route, p.frame(), path))
 
 
