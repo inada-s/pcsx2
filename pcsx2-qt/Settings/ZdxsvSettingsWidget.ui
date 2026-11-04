@@ -284,7 +284,7 @@ for High-Spec PC</string>
       <item>
        <widget class="QCheckBox" name="zdxsvCrashReports">
         <property name="text">
-         <string>Send crash reports to the zdxsv developers. They contain part of the memory of PCSX2 at the moment of a crash, and Sentry, the service that receives them, gets your IP address. Turning this on takes effect at the next start.</string>
+         <string>Send crash reports to the zdxsv developers.</string>
         </property>
        </widget>
       </item>

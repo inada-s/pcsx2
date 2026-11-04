@@ -28151,8 +28151,12 @@ PCSX2 will be able to run once you&apos;ve placed your BIOS image inside the fol
       <translation>クラッシュレポート</translation>
     </message>
     <message>
-      <source>Send crash reports to the zdxsv developers. They contain part of the memory of PCSX2 at the moment of a crash, and Sentry, the service that receives them, gets your IP address. Turning this on takes effect at the next start.</source>
-      <translation>クラッシュレポートを zdxsv の開発者に送信します。レポートにはクラッシュ時の PCSX2 のメモリの一部が含まれ、レポートを受け取るサービスの Sentry には IP アドレスも渡ります。オンにした場合は次回の起動から有効です。</translation>
+      <source>When PCSX2 crashes, a report is sent to the zdxsv developers. It contains part of the memory of PCSX2 at the moment of the crash, your version of PCSX2, your operating system and a random ID of this installation. Turning this on takes effect at the next start.</source>
+      <translation>PCSX2 がクラッシュすると、レポートを zdxsv の開発者に送信します。レポートには、クラッシュ時の PCSX2 のメモリの一部、PCSX2 のバージョン、OS の情報、このインストールのランダムな ID が含まれます。オンにした場合は次回の起動から有効です。</translation>
+    </message>
+    <message>
+      <source>Send crash reports to the zdxsv developers.</source>
+      <translation>クラッシュレポートを zdxsv の開発者に送信します。</translation>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.ui" line="20"/>

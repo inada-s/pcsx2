@@ -61,6 +61,8 @@ ZdxsvSettingsWidget::ZdxsvSettingsWidget(SettingsWindow* settings_dialog, QWidge
 		SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvCrashReports, "DEV9/Eth", "ZdxsvCrashReports", true);
 		connect(m_ui.zdxsvCrashReports, &QCheckBox::checkStateChanged, this,
 			[](Qt::CheckState state) { Zdxsv::CrashReportsSetEnabled(state == Qt::Checked); });
+		dialog()->registerWidgetHelp(m_ui.zdxsvCrashReports, tr("Crash Reports"), tr("Checked"),
+			tr("When PCSX2 crashes, a report is sent to the zdxsv developers. It contains part of the memory of PCSX2 at the moment of the crash, your version of PCSX2, your operating system and a random ID of this installation. Turning this on takes effect at the next start."));
 	}
 	else
 	{
