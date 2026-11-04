@@ -15,6 +15,9 @@ PCSX2_ENV_P1="..": extra env for one client only. GO=file: touched GODELAY s (30
   (ZDXSV_INPUT_LATENCY go= trigger, latency in battle: m4lat).
 ZRELAY=ip:port[,ip:port...] ZRELAY_SESSION=id:hex token: a `zdxsv relay` (GGPO relay server) at each, logs
   relay.log, relay2.log, ...
+GAUGE, COUNT, TIME: the battle rule (戦力ゲージ, 連続対戦数, 作戦時間 s; menu values) patched into the trace's
+  (fake_lobby.py --rule-gauge/-count/-time). Default GAUGE=1 COUNT=1 (one round, the first shoot-down ends it);
+  0: the trace's value. MASHP="1" (a time-up) needs GAUGE=0.
 POST=<route>: driven on all 4 after mash (default none: every post-battle screen has a countdown).
 Checks: battlereg 4 users; `join success` (TCP) x4, no `join udp peer`, no `BattleInfo not found`;
   `BATTLE RESULT` x4 with the same total_frame and kills = deaths.
@@ -70,7 +73,8 @@ def main():
     if zrig.env("ZRELAY"):
         sess, _, tok = zrig.env("ZRELAY_SESSION").partition(":")
         relays = [(a, sess, tok) for a in zrig.env("ZRELAY").split(",") if a]
-    fb.servers(zrig.env("FAKE_ARGS").split(), relays)
+    rule = [f"--rule-{k.lower()}={zrig.env(k, d)}" for k, d in (("GAUGE", "1"), ("COUNT", "1"), ("TIME", "0"))]
+    fb.servers(rule + zrig.env("FAKE_ARGS").split(), relays)
     ok = [0]
 
     def check(name, cond):
