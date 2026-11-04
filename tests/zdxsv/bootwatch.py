@@ -6,6 +6,7 @@ is up and prints the time from T0 (epoch seconds of the launch) to it.
 --pid + --emulog: also the time from the VM start (emulog "Opening CDVD"), and
 --limit applies to it; the launch script's own start-up is not counted.
 --route: drive.py keys sent from the start (route names expand, e.g. top,C).
+--route-end: after the user_id screen, keep watching until the route's keys are all sent (FAIL if not by --maxs).
 Exit 0 = screen up within --limit s, 1 = later or never, 2 = wrong game.
 """
 import argparse, os, re, sys, threading, time
@@ -54,6 +55,7 @@ def main():
     ap.add_argument("--limit", type=float, default=5.0)
     ap.add_argument("--maxs", type=float, default=200.0)
     ap.add_argument("--route", default="")
+    ap.add_argument("--route-end", action="store_true")
     ap.add_argument("--pid", type=int, default=0)
     ap.add_argument("--emulog", default="")
     a = ap.parse_args()
@@ -90,7 +92,8 @@ def main():
         return 2
     if a.route:
         keys = ",".join(route_text(k, 1) if k in ROUTES else k for k in a.route.split(","))
-        threading.Thread(target=p.seq, args=(keys,), daemon=True).start()
+        route = threading.Thread(target=p.seq, args=(keys,), daemon=True)
+        route.start()
         emit("route " + a.route)
     last = None
     while time.time() < deadline:
@@ -112,6 +115,17 @@ def main():
             vm = " = %.2f s from the VM start (process start +%.2f s)" % (tv, vm0 - created) if vm0 else ""
             print("%s user_id screen at %.2f s from the launch%s (frame %d = %.2f s emulated), limit %.1f s"
                   % (res, t, vm, f, f / FPS, a.limit))
+            if a.route and a.route_end:
+                while route.is_alive() and time.time() < deadline:
+                    s = p.r8(obj + NET_STEP)
+                    if s != step:
+                        emit("net obj %08x step %s" % (obj, s))
+                        step = s
+                    time.sleep(0.02)
+                if route.is_alive():
+                    print("FAIL route not done in %.0f s" % a.maxs)
+                    return 1
+                emit("route done")
             return 0 if res == "PASS" else 1
         time.sleep(0.02)
     print("FAIL no user_id screen in %.0f s" % a.maxs)

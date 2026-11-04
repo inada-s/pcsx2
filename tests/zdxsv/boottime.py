@@ -5,6 +5,7 @@ Env: LIMIT (s, default 5), MAXS (s to wait, default 200), ROUTE (drive.py keys s
 ROUTE=top,C = today's menu path + ログイン at TOP), CARD (p1 card name, default the first of CARDS),
 SPEED (launch -Speed, default 1), SHOW=1 (windowed), LOBBY=fake (boot_lobby.py instead of the stack:
 only the lobby API login and the lobby up to the user_id list), SAVE_CARD (path: p1's card after the run is copied there).
+ROUTE_END=1: after the user_id screen, wait until the route keys are all sent (MAXS bounds it).
 Exit 0 = the screen is up within LIMIT s. Logs: OUT/boottime.txt (net step changes), stack logs.
 """
 import os
@@ -96,7 +97,7 @@ def run(out):
         a = [zrig.PY, os.path.join(zrig.HERE, "bootwatch.py"), "--t0", str(t0), "--pid", str(pids[1]),
              "--emulog", emulog, "--out", out, "--limit", zrig.env("LIMIT", "5"), "--maxs", zrig.env("MAXS", "200")]
         if zrig.env("ROUTE"):
-            a += ["--route", os.environ["ROUTE"]]
+            a += ["--route", os.environ["ROUTE"]] + (["--route-end"] if zrig.env("ROUTE_END") else [])
         return subprocess.call(a)
     finally:
         cleanup()
