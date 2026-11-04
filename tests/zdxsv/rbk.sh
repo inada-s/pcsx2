@@ -101,7 +101,7 @@ for i in $(seq 0 $((N - 1))); do
   p=${P[$i]}
   l=$RUN/p$p/PCSX2/logs/emulog.txt
   want="pos=$i/$N rand=${SEED:+$((SEED + i))} turbo=${turbo:+1} clamp=${clamp} ggpo=$GGPO"
-  want=$(echo "$want" | sed 's/=\( \|$\)/=-\1/g')
+  want=$(echo "$want" | sed -E 's/=( |$)/=-\1/g')
   got=
   for t in $(seq 30); do
     got=$(grep -a -o "rbk env .*" "$l" 2>/dev/null | head -1 | tr -d '\r' | cut -c9-)
