@@ -15,7 +15,7 @@ Each script's usage and knobs are in its header comment.
   `build-local.sh` or MSBuild. Every build reads the test options.
 - The game image (`ISO`). It is not part of this repository.
 - The lobby tests (`m4*.py`, `stack.py`, `rbkprep.py`) need a zdxsv checkout
-  with its binaries built in `$ZDXSV/bin` (`zdxsv.exe`, `zproxy.exe`) and Go to
+  with its binaries built in `$ZDXSV_DIR/bin` (`zdxsv.exe`, `zproxy.exe`) and Go to
   build `battlereg/`.
 - The lobby trace (`TRACE`, an `EMU=1 m4z.py` OUT) and the rbk start states
   (`RBKSTATES`, made by `rbkprep.py`) are made on the machine; they are not
@@ -37,7 +37,7 @@ fails with exit 2 and names it.
 | `RUN` | all | work root: instance data dirs `$RUN/pN/PCSX2` |
 | `ISO` | `launch.py` | the game image |
 | `PCSX2_EXE` | `launch.py` | PCSX2 to test (Windows default `bin/pcsx2-qtx64.exe` of this tree; elsewhere required, a `.app` works) |
-| `ZDXSV` | lobby tests | zdxsv checkout (`bin/zdxsv.exe`, `bin/zproxy.exe`) |
+| `ZDXSV_DIR` | lobby tests | zdxsv checkout (`bin/zdxsv.exe`, `bin/zproxy.exe`) |
 | `IP` | lobby tests | this machine's LAN IPv4 address, given to the game as the server |
 | `TRACE` | `m4.py`, `m4ggpo.py`, `rbkprep.py` | an `EMU=1 m4z.py` OUT dir: `lobby-trace.log` + `zdxsv.db`, made with the same `CARDS` |
 | `RBKSTATES` | `rbk.py` | dir of `rbk-p1..p4.p2s` from `rbkprep.py` |
@@ -52,7 +52,7 @@ Example `local.env`:
 ```
 RUN=D:/zdxsv-run
 ISO=D:/games/gvsz.iso
-ZDXSV=D:/src/zdxsv
+ZDXSV_DIR=D:/src/zdxsv
 IP=192.168.0.10
 TRACE=D:/zdxsv-run/trace
 RBKSTATES=D:/zdxsv-run/prep

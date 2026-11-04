@@ -72,7 +72,7 @@ def run(out):
                 print(txt + "FAIL boot lobby", flush=True)
                 return 1
         else:
-            if zbincheck.check(zrig.env("ZBIN") or os.path.join(os.environ["ZDXSV"], "bin", "zdxsv" + zrig.EXE)):
+            if zbincheck.check(zrig.env("ZBIN") or os.path.join(os.environ["ZDXSV_DIR"], "bin", "zdxsv" + zrig.EXE)):
                 return 1
             so = os.path.join(out, "stack.out")
             e = dict(os.environ, ZDXSV_LOBBY_API_ADDR=API, LOBBY_ARGS="-v=2", RUN=out)
@@ -104,7 +104,7 @@ def run(out):
 
 def main():
     zrig.take()
-    zrig.need("ZDXSV", "IP", "OUT", "CARDS")
+    zrig.need("ZDXSV_DIR", "IP", "OUT", "CARDS")
     return run(os.environ["OUT"])
 
 

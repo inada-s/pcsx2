@@ -60,7 +60,7 @@ def battlereg():
 
 def main():
     zrig.take()
-    zrig.need("RUN", "OUT", "ZDXSV", "TRACE", "CARDS", "IP")
+    zrig.need("RUN", "OUT", "ZDXSV_DIR", "TRACE", "CARDS", "IP")
     os.makedirs(os.environ["OUT"], exist_ok=True)
     os.environ.setdefault("BATTLEREG", os.path.join(os.path.abspath(os.environ["RUN"]), "battlereg" + zrig.EXE))
     if not battlereg():

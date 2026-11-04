@@ -1,7 +1,7 @@
 """Local zdxsv stack without docker: battle, lobby, login, dnas.
 Usage: python tests/zdxsv/stack.py [IP]   (IP = address pcsx2 peers dial; default first non-loopback)
 Logs + db: $RUN. Runs in the foreground; Ctrl-C / kill stops all.
-Env: ZDXSV (checkout), ZBIN (another build, e.g. a control), LOBBY_ARGS (-v=2: every message),
+Env: ZDXSV_DIR (checkout), ZBIN (another build, e.g. a control), LOBBY_ARGS (-v=2: every message),
 DZ (exe for `dnas`, default ZBIN), DNAS (a standalone DNAS server instead), ZDXSV_LOBBY_API_ADDR.
 """
 import os
@@ -15,7 +15,7 @@ import zrig
 
 def main(argv):
     zrig.take()  # one rig at a time; nested under m4z.py
-    zrig.need("ZDXSV")
+    zrig.need("ZDXSV_DIR")
     ip = argv[0] if argv else zrig.lanip()
     run = os.path.abspath(os.environ["RUN"])
     os.makedirs(run, exist_ok=True)
@@ -29,7 +29,7 @@ def main(argv):
         "ZDXSV_STATUS_ADDR": "127.0.0.1:8080", "ZDXSV_DB_NAME": "zdxsv.db",
         "ZDXSV_LOBBY_API_ADDR": e.get("ZDXSV_LOBBY_API_ADDR") or "127.0.0.1:9881",
     })
-    z = e.get("ZBIN") or os.path.join(e["ZDXSV"], "bin", "zdxsv" + zrig.EXE)
+    z = e.get("ZBIN") or os.path.join(e["ZDXSV_DIR"], "bin", "zdxsv" + zrig.EXE)
     if zbincheck.check(z):
         return 1
     if not os.path.isfile("zdxsv.db"):

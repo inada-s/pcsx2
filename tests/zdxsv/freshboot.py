@@ -216,14 +216,14 @@ def trace_log():
 def servers(fake_args=(), relays=()):
     """Battle server (+ a `zdxsv relay` per RELAYS (addr, session, token)) and fake_lobby.py --trace TRACE on
     API; all stopped at exit with every pcsx2 / fake_lobby / drive / udprelay, emulogs copied to OUT."""
-    zrig.need("ZDXSV", "TRACE", "CARDS", "IP", "OUT")
+    zrig.need("ZDXSV_DIR", "TRACE", "CARDS", "IP", "OUT")
     run, o = os.path.abspath(os.environ["RUN"]), os.environ["OUT"]
     os.makedirs(o, exist_ok=True)
     os.environ.setdefault("API", "9881")
     os.environ.setdefault("BATTLEREG", os.path.join(run, "battlereg" + zrig.EXE))
     os.environ.update({"ZDXSV_BATTLE_ADDR": ":8210", "ZDXSV_BATTLE_RPC_ADDR": "127.0.0.1:3080",
                        "ZDXSV_BATTLE_PUBLIC_ADDR": f"{os.environ['IP']}:8210"})
-    z = zrig.env("ZBIN") or os.path.join(os.environ["ZDXSV"], "bin", "zdxsv" + zrig.EXE)
+    z = zrig.env("ZBIN") or os.path.join(os.environ["ZDXSV_DIR"], "bin", "zdxsv" + zrig.EXE)
     procs = []
 
     def start(args, log, cwd=None, env=None):
