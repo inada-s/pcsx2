@@ -654,10 +654,10 @@ def main():
     nb = int(E("BATTLES", "1"))
     for b in range(1, nb + 1):
         if b > 1:
-            # the results come at the post-battle login, in 作戦後部屋 (待機 / EXIT): EXIT -> 戦場選択 (map up
-            # < 12 s later), then Lobby 02 from the map
+            # the results come at the post-battle login, in 作戦後部屋 (待機 / EXIT): EXIT -> 戦場選択 (step 2,1,2,5,1
+            # as after the login, then dlg 29, 32, 0 ~8 s later with the map nearly up), then Lobby 02 from the map
             for i in clients:
-                drive("seq", i, "Down,w500,C,w12000", f"exit{b}")
+                drive("seq", i, "Down~lstate!/500,C~lstate!/500,@step=5/10000,@step=1/3000,@dlg=0/20000", f"exit{b}")
                 if not entry2p_retry(i, "remap2p"):
                     say(f"FAIL client {i} entry {b} (no Lobby 02)")
                     return 1
