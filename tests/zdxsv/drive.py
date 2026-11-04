@@ -86,6 +86,10 @@ ROUTES = {
     # Dialogs time out (~30 s) to their default (いいえ / はい), so late presses still end in the room.
     "after": "Right,w300,C,w40000,C,w60000,Down,w300,C,w40000",
 }
+# No DEV9 (launch.sh default, localnet.sh): every connection menu button goes to the terms, then connects
+# with no setup screens and no setting list.
+if (os.environ.get("ZDXSV_NODEV9") or os.environ.get("IP") or "0") != "0":
+    ROUTES["top"] = "f1500,Return,w3000,Down*7,C,w7000,C,w4000,C,w4000,C,w4000,C,w6000,C,w9000,Up*2,C,w9000,Up,C,w30000"
 
 
 def route_text(route, n):
