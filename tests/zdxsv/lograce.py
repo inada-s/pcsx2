@@ -1,5 +1,5 @@
 """fake_lobby.log() under concurrent connection threads (a 4th client's 0x6138
-answer line was glued to another and its BATTLE RESULT line lost -> m4.sh saw results 3/4).
+answer line was glued to another and its BATTLE RESULT line lost -> m4.py saw results 3/4).
   python -u lograce.py > OUT 2>&1; python lograce.py --check OUT   -> lost/glued counts, rc 1 if any
 Each of T threads logs N lines of fake_lobby's 0x6138 shape, then a BATTLE RESULT line per line."""
 import os

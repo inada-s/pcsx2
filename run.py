@@ -137,7 +137,7 @@ def prepare_instance(idx: int):
     put("Folders", "Bios", BIOS)
     put("Filenames", "BIOS", BIOS_FILE)
     put("Logging", "EnableFileLogging", True)
-    # PINE slot per instance, as zdxsv/launch.sh (28010 + instance number).
+    # PINE slot per instance, as zdxsv/launch.py (28010 + instance number).
     put("EmuCore", "EnablePINE", True)
     put("EmuCore", "PINESlot", 28011 + idx)
     put("EmuCore/GS", "VsyncQueueSize", FRAME_LATENCY)
@@ -211,7 +211,7 @@ def place_window(proc: subprocess.Popen, idx: int):
 # --- per-mode arguments and environment ---
 
 def rbk_state(idx: int) -> Path:
-    # N=2 plays p1 + p3 (as rbk.sh), N=4 plays p1..p4. A position without its own state uses
+    # N=2 plays p1 + p3 (as rbk.py), N=4 plays p1..p4. A position without its own state uses
     # rbk-p1.p2s: ZDXSV_RBK=i/N, not the state, picks the battle position (one state serves all).
     p = {2: [1, 3], 4: [1, 2, 3, 4]}[N][idx]
     own = RBKSTATES / f"rbk-p{p}.p2s"

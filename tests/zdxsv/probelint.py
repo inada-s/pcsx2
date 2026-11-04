@@ -1,4 +1,4 @@
-"""Static check of the pcsx2 zdxsv probe writers. Run by launch.sh before
+"""Static check of the pcsx2 zdxsv probe writers. Run by launch.py before
 every rig; exit 1 = do not run.
 
   python probelint.py [--exe pcsx2.exe] [pcsx2 tree, default this repository] [file ...]

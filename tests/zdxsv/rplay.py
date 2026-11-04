@@ -18,8 +18,6 @@ Control bar: KEYS="15:bar:show,w600,bar:timeline:0.7,shot:$OUT/a.png" (pcsx2ctl 
 API=1: plays ZDXSV_REPLAY=http://127.0.0.1:API_PORT/lbs/replay?battle_code=<FILE's name> from apiserve.py (API_PORT,
 default 9891), whose replay_url serves FILE; checks the replay_url line too. GZIP=1: replay_url serves FILE gzip encoded (Content-Encoding: gzip), as GCS serves the lobby's objects.
 BAD=1: FILE is not a playable replay: exit 0 if the player is told it did not start (`replay: not started`).
-. "$(dirname "$0")/os.sh"; here=$(cd "$(dirname "$0")" && zpwd)
-. "$here/riglock.sh"  # one rig at a time
 """
 import atexit
 import glob

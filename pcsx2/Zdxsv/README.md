@@ -36,7 +36,7 @@ options: `docs/zdxsv/`.
 | `.pb` replay | Replay file (`replay.proto`): the lobby's battle-start answers + every input of a battle |
 | common start | The hosted post-entry save state every replay starts from; the game then plays the battle start from the file |
 | replay key | Full state (`.p2s`) + HLE state saved every `ZDXSV_REPLAY_KEY` frames while a replay plays; a seek loads the newest key at or before the target |
-| rbk | Local rollback test: N clients started from a saved state after entry (`ZDXSV_RBK`, `tests/zdxsv/rbk.sh`) |
+| rbk | Local rollback test: N clients started from a saved state after entry (`ZDXSV_RBK`, `tests/zdxsv/rbk.py`) |
 
 ## Files
 
