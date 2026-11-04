@@ -33,9 +33,12 @@ ROUTES = {
     # attract -> main menu -> 通信対戦 -> warning -> NET file はい / slot 1 / はい -> autosave note
     # -> connection menu (default 前回と同じ接続 = dial-up on these cards: Up*2 = ブロードバンド接続)
     # -> ネットワーク接続 -> terms (Up = 進む) -> netconf list (Down*2 = せってい1) -> connect -> TOP
-    # Start from a fresh boot (f1500): the attract phase later on shifts the first Start press.
-    # Steps verified one by one on p3/p4 (trace), the whole string not yet run in one go.
-    "top": "f1500,Return,w3000,Down*7,C,w7000,C,w4000,C,w4000,C,w4000,C,w6000,C,w9000,Up*2,C,w6000,C,w9000,Up,C,w6000,Down*2,C,w30000",
+    # Keyed on game RAM (pine.py PROBE): Start until the main menu, Down until item 7, C through the net
+    # states 1, 2, 4. Up*2 (3) and Up (5) once per state: a 2nd Up,C on the terms backs out. The connection
+    # menu and the terms drop input in their first second (dial-up, or back to 4): 1.5 s settle. The netconf
+    # list takes input ~6 s after it opens. Ends at the connect (net 0x21).
+    "top": "Return~scene=2/500,Down~menu=7/400,C~scene=7,C~net=2,C~net=3/500,w1500,Up*2,C,@net=4,C~net=5,w1500,"
+           "Up,C,@net=6,w6000,Down*2,C,@net=7/10000,@net=0x21/30000",
     # Blank (0xFF) card -> TOP, replaces "top" for a new player: NET file not found -> 新規作成 はい
     # -> slot 1 -> format はい -> 2 notes (formatted, NET saved; the 2nd times out if left) -> connection menu (default ブロードバンド) -> ネットワーク接続 -> terms
     # -> empty netconf list -> ネットワーク設定の編集 はい (Sony netcnf GUI) -> 新規作成 -> slot 1 -> guide
@@ -46,8 +49,8 @@ ROUTES = {
              "Down,C,w2000,Right,w3000,C,w2000,Right,w3000,C,w2000,Right,w3000,Right,w3000,C,w5000,C,w4000,"
              "C,w4000,C,w3000,X,w4000,Left,C,w45000,"
              "Return,w3000,Down*7,C,w7000,C,w4000,C,w5000,C,w5000,C,w5000,C,w6000,C,w6000,C,w9000,Up,C,w6000,Down*2,C,w30000",
-    # TOP (cursor on ログイン) -> ID select -> ID 1 -> 戦場選択
-    "login": "C,w12000,C,w8000,C,w6000",
+    # TOP (cursor on ログイン) -> ID select (C again every 6 s until step 4) -> ID 1 -> 戦場選択
+    "login": "C~step=4/6000,C,w8000,C,w6000",
     # ID select (where fast boot stops) -> ID 1 -> 戦場選択
     "idlogin": "C,w8000,C,w6000",
     # TOP -> 新規登録 -> save ID+password to NET file -> ユーザ作成完了 -> 戻る -> TOP (new key on the card)
@@ -128,7 +131,7 @@ def sweep(n, name, tokens, crop=None):
     for tok in tokens.split(","):
         p.seq(tok)
         since.append(tok)
-        if tok[0] not in "wf":
+        if tok[0] not in "wf@" and "~" not in tok:
             continue
         im = Image.open(p.snap(tmp, 3)).convert("RGB")
         w, h = im.size
@@ -159,7 +162,7 @@ def trace(route, n, start=0, end=9999):
         if i < start or i >= end:
             continue
         p.seq(tok)
-        if tok[0] in "wf":
+        if tok[0] in "wf@" or "~" in tok:
             path = os.path.join(RUN, "p%d" % n, "trace_%02d.png" % i)
             shrink(p.snap(path), 0.25)
             print(i, tok, p.frame(), path, flush=True)
