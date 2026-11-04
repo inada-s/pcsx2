@@ -46,6 +46,11 @@ namespace Zdxsv
 			{0x224cc8, 0x00000000, 0x1440fffc},
 			{0x224ccc, 0x1440fffa, 0x00000000},
 			{0x224cd0, 0x00000000, 0x00000000},
+			// 0x2af5e0, vsync handler: its GIF packet sets FRAME_2 and ZBUF_2 for the list sent next, which is
+			// now slot[flag]: packet 0xb6b5a0 - field * 0xa0 instead of 0xb6b500 + field * 0xa0.
+			// The network menus and the login page draw in context 2: stock packets clear one buffer and draw to the other.
+			{0x2af610, 0x2442b500, 0x2442b5a0},
+			{0x2af618, 0x00438021, 0x00438023},
 		};
 
 		// Free RAM in this game: a copy of the list wait 0x1249a0 that checks slot[flag]. The game zeroes
@@ -63,16 +68,19 @@ namespace Zdxsv
 			bool patched = false; // the game code matched once: from then on, words that read their original value are patched
 		} s_state;
 
-		bool Original()
+		// A word may already be patched: a save state keeps the patch of the build that saved it, maybe only part of it.
+		bool GameCodeLoaded()
 		{
 			for (const Word& w : kCode)
 			{
-				if (memRead32(w.addr) != w.original)
+				const u32 word = memRead32(w.addr);
+				if (word != w.original && word != w.patched)
 					return false;
 			}
 			for (u32 i = 0; i < std::size(kCaveCode); i++)
 			{
-				if (memRead32(kCave + i * 4) != 0)
+				const u32 word = memRead32(kCave + i * 4);
+				if (word != 0 && word != kCaveCode[i])
 					return false;
 			}
 			return true;
@@ -105,7 +113,7 @@ namespace Zdxsv
 	{
 		if (!s_state.patched)
 		{
-			if (!Original())
+			if (!GameCodeLoaded())
 				return;
 			s_state.patched = true;
 			Console.WriteLn("Zdxsv: single draw list patched");
