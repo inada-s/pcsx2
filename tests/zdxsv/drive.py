@@ -27,6 +27,8 @@ from pine import Pine, shrink
 RUN = os.environ.get("RUN", ".")  # rig data root
 
 # map cursor to シアトル (Lobby 02) from anywhere on the map: clamp top-left, fixed steps (see entry2p)
+# map cursor from where the map opens to ジャブロー2 (Lobby 06), held until the cursor reaches it
+MAP06 = "Down^cury>=256,Right^curx>=393"
 WALK2P = ",".join(["Up:3000,Left:6000,w500"] + ["Right:350,w600"] * 15 + ["Down:400,w600"] + ["Left:350,w600"] * 5)
 # lobby menu -> パートナー自動選抜 -> side {s} -> entered. lstate steps once per accepted press (the side Right too),
 # not when the lobby finishes loading, so Down repeats until the menu takes it.
@@ -65,10 +67,10 @@ ROUTES = {
     "newlogin": "C,w14000,Right,C,w10000,C,w4000,Right*{h},C,C,C,Return,w1500,Return,w3000,C,w4000,Up,C,w9000",
     # 戦場選択 -> map cursor to ジャブロー2 (Lobby 06: starts at 2 AEUG + 2 Titans entries, zdxsv
     # model/lobby.go CanBattleStart) -> lobby -> パートナー自動選抜 -> side {s}: p1/p2 連邦・エゥーゴ, p3/p4 ジオン・ティターンズ
-    "entry": "C,w5000,Up:400,w800,Down:900,Right:900,w500,C," + LOBBY,
+    "entry": "C,w5000," + MAP06 + ",w500,C," + LOBBY,
     # entry in halves for m4z.py: map ends with the Lobby 06 press (0x6305 00 06); a late press is
     # waited for before lobby2p instead of raced
-    "map": "C,w5000,Up:400,w800,Down:900,Right:900,w500,C",
+    "map": "C,w5000," + MAP06 + ",w500,C",
     "mappress": "C",
     # 1v1: map cursor to シアトル (Lobby 02: starts at 1 AEUG + 1 Titans). The cursor keeps its spot between
     # visits and hit areas sit off the drawn labels: clamp top-left, then fixed steps (grid scan: Lobby 02

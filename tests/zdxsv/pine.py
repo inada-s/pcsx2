@@ -36,6 +36,8 @@ PROBE = {
     "step": (0x6D7D54, 0xA1F), "phase": (None, 0x6D7D84), "menu": (0x6D7954, 0x25C),
     "lstate": (None, 0xCE28B0),
 }
+# f32 game RAM for Key^name>=V: 戦場選択 map cursor in screen px (y grows down), (270, 190) when the map opens
+FPROBE = {"curx": 0xC56504, "cury": 0xC56508}
 UNTIL_MS = 60000  # @name=V default limit, game time
 
 
@@ -223,6 +225,27 @@ class Pine:
                     raise
         raise TimeoutError("%s~%s%s%d: still %s after %d ms" % (key, name, "!=" if ne else "=", value, self.probe(name), UNTIL_MS))
 
+    def fprobe(self, name):
+        return struct.unpack("<f", struct.pack("<I", self.r32(FPROBE[name])))[0]
+
+    def hold_until(self, key, name, op, value, ms=5000, port=0):
+        """Hold key until FPROBE name >= value (op ">") or <= value (op "<"), at most ms of game time."""
+        def done():
+            v = self.fprobe(name)
+            return v >= value if op == ">" else v <= value
+        end = self.frame() + ms * FPS // 1000
+        if done():
+            return
+        b = BIND[ALIAS.get(key, key)]
+        self.pad(b, 255, port)
+        try:
+            while not done():
+                if self.frame() >= end:
+                    raise TimeoutError("%s^%s%s=%g: still %g after %d ms" % (key, name, op, value, self.fprobe(name), ms))
+                time.sleep(0.002)
+        finally:
+            self.pad(b, 0, port)
+
     def press(self, name, hold_ms=120, port=0):
         bs = [BIND[ALIAS.get(n, n)] for n in name.split("+")]  # A+B = chord
         for b in bs:
@@ -235,7 +258,8 @@ class Pine:
         """Comma list: Key, Key+Key (chord), Key*N, Key:holdMS, wMS (wait), fN (wait until frame count >= N).
         @name=V[/MS] (wait until game RAM probe name == V, see PROBE and until; V decimal or 0x).
         Key~name=V[/MS]: press Key, again every MS, until name == V. Key~name![/MS]: the same until name leaves
-        the value it had before the first press.
+        the value it had before the first press. Key^name>=V[/MS], Key^name<=V[/MS]: hold Key until FPROBE name
+        reaches V (default 5000 ms).
         ms = game time (vsyncs at 60/s, see wait)."""
         for tok in [t.strip() for t in text.split(",") if t.strip()]:
             self.trace(tok)
@@ -243,6 +267,13 @@ class Pine:
                 name, _, rest = tok[1:].partition("=")
                 v, _, ms = rest.partition("/")
                 self.until(name, int(v, 0), int(ms or UNTIL_MS))
+                continue
+            if "^" in tok:
+                key, _, cond = tok.partition("^")
+                op = ">" if ">=" in cond else "<"
+                name, _, rest = cond.partition(op + "=")
+                v, _, ms = rest.partition("/")
+                self.hold_until(key, name, op, float(v), int(ms or 5000), port)
                 continue
             if "~" in tok and "!" in tok:
                 key, _, cond = tok.partition("~")
