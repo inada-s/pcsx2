@@ -471,7 +471,7 @@ def main():
            and not c(zl, "対戦サーバとの接続に失敗"))
     ok(f"join udp peer x{nz}", c(battle, "join udp peer") == nz)
     ok(f"join tcp x{nc - nz}", c(battle, "join success") == nc - nz)
-    every = [el(i) for i in "1234"]
+    every = [el(i) for i in clients]
     if ext_off:
         for i in clients:
             f = el(i)
@@ -481,8 +481,8 @@ def main():
     if emu and not ext_off:
         ok(f"platform info sent x{nc}", sum(c(f, "sent platform info") for f in every) >= nc)
     if not emu and not ext_off:
-        ok("DEV9 path x4 (adapter DHCP), no platform info, TLS, bridge or no-DEV9",
-           sum(1 for f in every if c(f, "DEV9: DHCP")) >= 4
+        ok(f"DEV9 path x{nc} (adapter DHCP), no platform info, TLS, bridge or no-DEV9",
+           sum(1 for f in every if c(f, "DEV9: DHCP")) >= nc
            and not any(c(f, "sent platform info|Zdxsv: TLS: on|bridge|Zdxsv: no DEV9: ") for f in every))
     if emu and E("ZDXSV_TLS_TEST_PIN") == "1":
         for i in clients:
