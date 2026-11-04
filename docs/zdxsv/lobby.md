@@ -252,9 +252,9 @@ loss (`L: ↓ received ↑ sent`), send queue (`Q:`) and a frame pacing bar
 (`You Slow` / `Peer Slow` past 5 frames).
 
 The panel uses the standard OSD font and its fallback chain. Japanese names use
-Noto Sans JP, fetched on first start like upstream's language fonts (`Missing
-Font File` prompt, saved to `resources/fonts` in the user folder); declined, a
-system Japanese font (Yu Gothic, Meiryo) is used instead.
+Noto Sans JP, downloaded without asking at the first start that lacks it, from
+upstream's font URL, to `resources/fonts` in the user folder; if the download
+fails, a system Japanese font (Yu Gothic, Meiryo) is used instead.
 
 With the OSD off (`ZdxsvNetOsd`, `osd=0`) it shows only while an opponent is
 interrupted or disconnected, as flycast. A battle that ends on a disconnect
