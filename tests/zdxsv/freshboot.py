@@ -181,7 +181,7 @@ def entry2p_retry(i, route="map2p"):
     login; remap2p when the map is already up, e.g. after a battle).
     Entry flake (3 of 15 entries): no 0x6305 EnterLobby after the map press, the client stays on the map
     polling 0x6303/04/08 and the 0x640E check fails ~4 min into the rig. Here: route, wait ENTRY2P_WAIT (12 s)
-    for this client's 0x6305 `00 02`, else remap2p (walk again from the clamp), ENTRY_TRIES (3) presses;
+    for this client's 0x6305 `00 02`, else remap2p (walk again), ENTRY_TRIES (3) presses;
     a 0x6305 into another lobby fails (no exit route).
     ENTRY2P_FAULT=N: client N's first press is left out (the flake's state: on the map, no 0x6305)."""
     lobby = out("lobby.log")
