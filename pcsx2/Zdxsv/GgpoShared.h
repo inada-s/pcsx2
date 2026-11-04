@@ -233,7 +233,6 @@ namespace Zdxsv
 	void NetReset();
 	bool LobbyNewBattle();
 	constexpr u32 NET_FNO_SEND = 0x10;
-	constexpr u32 NET_FNO_CLOSE = 0xd;
 	constexpr u32 NET_BATTLE_SOCK = 0;
 	extern u32 s_game_gp; // game gp, latched in OnNetRpc
 	extern std::FILE* s_net_trace;
