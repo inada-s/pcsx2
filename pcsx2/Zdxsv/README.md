@@ -77,7 +77,8 @@ options: `docs/zdxsv/`.
 | `IntHooks.cpp` | EE interpreter and ARM64 EE recompiler: the hook calls of `RecHooks.cpp` but the probes |
 | `RecProbe.cpp` | Debug: EE recompiler probes and store watches (`ZDXSV_EE_PROBE`, `ZDXSV_EE_WATCH`) |
 | `Overlays.cpp` | On-screen replay keys and replay control bar |
-| `GgpoOsd.cpp` | GGPO network status panel (flycast `NETWORK STATS`) and its bundled fonts |
+| `GgpoOsd.cpp` | GGPO network status panel (flycast `NETWORK STATS`) |
+| `pcsx2-qt/Zdxsv/QtFonts.cpp` | Noto Sans JP download at UI start, for the panel's Japanese names (`QtHooks.h`, seam in `pcsx2-qt/Translations.cpp`) |
 | `CpuHooks.h` | Hook header: recompilers, counters, MTGS, VMManager |
 | `InputHooks.h` | Hook header: pad code |
 | `SaveStateHooks.h` | Hook header: save state code |

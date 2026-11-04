@@ -251,10 +251,10 @@ With the mouse over the panel, the ping and `Lag` rows give way to the packet
 loss (`L: ↓ received ↑ sent`), send queue (`Q:`) and a frame pacing bar
 (`You Slow` / `Peer Slow` past 5 frames).
 
-Fonts are bundled, not taken from the system: Roboto Medium and Bold
-(`bin/resources/fonts`, Apache 2.0) with GDXGothic Medium (OFL) for Japanese
-names. A missing font file falls back to the standard OSD font (`OSD font ...
-missing` in the log).
+The panel uses the standard OSD font and its fallback chain. Japanese names use
+Noto Sans JP, fetched on first start like upstream's language fonts (`Missing
+Font File` prompt, saved to `resources/fonts` in the user folder); declined, a
+system Japanese font (Yu Gothic, Meiryo) is used instead.
 
 With the OSD off (`ZdxsvNetOsd`, `osd=0`) it shows only while an opponent is
 interrupted or disconnected, as flycast. A battle that ends on a disconnect

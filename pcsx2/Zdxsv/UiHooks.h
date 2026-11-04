@@ -49,5 +49,4 @@ namespace Zdxsv
 
 	// GGPO network status, replay keys and replay control bar (ImGuiManager::RenderOverlays). GS thread.
 	void DrawOverlays(float scale, float margin, float spacing);
-	void GgpoOsdAddFonts();
 } // namespace Zdxsv

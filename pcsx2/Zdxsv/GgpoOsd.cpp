@@ -9,9 +9,6 @@
 #include "ImGui/FullscreenUI.h"
 #include "ImGui/ImGuiManager.h"
 
-#include "common/Console.h"
-#include "common/FileSystem.h"
-
 #include "imgui.h"
 
 #include <algorithm>
@@ -19,9 +16,7 @@
 #include <cfloat>
 #include <cmath>
 #include <deque>
-#include <optional>
 #include <string>
-#include <vector>
 
 namespace Zdxsv
 {
@@ -77,9 +72,6 @@ namespace Zdxsv
 
 		struct GgpoOsdState
 		{
-			std::vector<u8> regular_data, bold_data, cjk_data;
-			ImFont* regular = nullptr;
-			ImFont* bold = nullptr;
 			std::array<GgpoOsdHealthTracker, 4> trackers;
 			std::array<std::string, 4> tracked_ids;
 			std::array<GgpoOsdLossFlash, 4> flashes;
@@ -265,7 +257,6 @@ namespace Zdxsv
 		{
 			ImDrawList* dl;
 			ImFont* regular;
-			ImFont* bold;
 			float base; // unscaled font size of the name and heading rows
 			float fs; // the panel's font size (= line height)
 			float sx, sy;
@@ -326,9 +317,9 @@ namespace Zdxsv
 			}
 
 			// A name row, centered, shrunk to the width; its pitch stays one text row.
-			void Name(const std::string& s, bool is_bold)
+			void Name(const std::string& s)
 			{
-				ImFont* f = is_bold ? bold : regular;
+				ImFont* f = regular;
 				const float row_h = base * 1.1f;
 				float size = row_h;
 				const float tw = TextW(f, size, s.c_str());
@@ -413,38 +404,6 @@ namespace Zdxsv
 		};
 	} // namespace
 
-	void GgpoOsdAddFonts()
-	{
-		GgpoOsdState& s = s_osd;
-		s.regular = s.bold = nullptr;
-		const auto load = [](std::vector<u8>& data, const char* name) {
-			if (data.empty())
-			{
-				std::optional<std::vector<u8>> d =
-					FileSystem::ReadBinaryFile(EmuFolders::GetOverridableResourcePath(std::string("fonts" FS_OSPATH_SEPARATOR_STR) + name).c_str());
-				if (d.has_value())
-					data = std::move(d.value());
-				else
-					Console.ErrorFmt("Zdxsv: OSD font {} missing", name);
-			}
-			return !data.empty();
-		};
-		if (!load(s.regular_data, "Roboto-Medium.ttf") || !load(s.bold_data, "Roboto-Bold.ttf") || !load(s.cjk_data, "GDXGothic-Medium.otf"))
-			return;
-		const auto add = [&s](std::vector<u8>& latin) -> ImFont* {
-			ImFontConfig cfg;
-			cfg.FontDataOwnedByAtlas = false;
-			ImFont* font = ImGui::GetIO().Fonts->AddFontFromMemoryTTF(latin.data(), static_cast<int>(latin.size()), 17.f, &cfg, nullptr);
-			if (!font)
-				return nullptr;
-			cfg.MergeMode = true;
-			ImGui::GetIO().Fonts->AddFontFromMemoryTTF(s.cjk_data.data(), static_cast<int>(s.cjk_data.size()), 17.f, &cfg, nullptr);
-			return font;
-		};
-		s.regular = add(s.regular_data);
-		s.bold = add(s.bold_data);
-	}
-
 	// The network panel during a GGPO battle: left edge, between the game's top and bottom HUD.
 	// Hovering the mouse over it swaps the ping and lag rows for loss, send queue and frame pacing.
 	void GgpoOsdDraw()
@@ -496,15 +455,14 @@ namespace Zdxsv
 		const float width = 160.f * scale * ps;
 		const float pad = pad0 * ps;
 
-		ImFont* const regular = s.regular ? s.regular : ImGuiManager::GetStandardFont();
-		ImFont* const bold = s.bold ? s.bold : regular;
-		GgpoOsdPen pen{ImGui::GetBackgroundDrawList(), regular, bold, base, base * ps, 8.f * scale * ps, natural_sy * ps, left + pad, width - pad * 2.f,
+		ImFont* const regular = ImGuiManager::GetStandardFont();
+		GgpoOsdPen pen{ImGui::GetBackgroundDrawList(), regular, base, base * ps, 8.f * scale * ps, natural_sy * ps, left + pad, width - pad * 2.f,
 			top + title_h + title_gap + pad};
 
 		pen.dl->ChannelsSplit(2);
 		pen.dl->ChannelsSetCurrent(1);
 		static constexpr const char* title = "NETWORK STATS";
-		pen.Text(bold, pen.fs, left + (width - pen.TextW(bold, pen.fs, title)) * 0.5f, top + std::max(0.f, (title_h - pen.fs) * 0.5f) + 1.f,
+		pen.Text(regular, pen.fs, left + (width - pen.TextW(regular, pen.fs, title)) * 0.5f, top + std::max(0.f, (title_h - pen.fs) * 0.5f) + 1.f,
 			ImVec4(0.925f, 0.941f, 1.f, 0.26f), title);
 
 		pen.Text(pen.x, TEXT, "Delay");
@@ -523,8 +481,8 @@ namespace Zdxsv
 		for (const GgpoOsdPeer& p : panel.peers)
 		{
 			pen.Heading(p, details);
-			pen.Name(p.name, true);
-			pen.Name(p.pilot, false);
+			pen.Name(p.name);
+			pen.Name(p.pilot);
 			if (details)
 			{
 				pen.Diagnostics(p, s.flashes[std::clamp(p.position, 0, 3)], now);
