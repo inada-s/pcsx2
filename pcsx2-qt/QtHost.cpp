@@ -2507,7 +2507,7 @@ int main(int argc, char* argv[])
 	// Start logging early.
 	LogWindow::updateSettings();
 
-	Zdxsv::CrashReportsStart(!s_batch_mode && !s_nogui_mode);
+	Zdxsv::CrashReportsStart();
 
 	// Start up the CPU thread.
 	QtHost::HookSignals();

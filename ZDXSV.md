@@ -67,12 +67,11 @@ To turn fast boot off (for example to play offline), uncheck Fast boot in Settin
 
 ## Crash reports
 
-On the first start PCSX2 asks whether it may send crash reports to the zdxsv developers. A report
+When PCSX2 crashes, it sends a crash report to the zdxsv developers. A report
 contains part of the memory of PCSX2 at the moment of the crash (it can contain data of your game
 session), your version of PCSX2, your operating system and a random ID of this installation. Sentry, the
 service that receives reports, also gets your IP address and can store your approximate location.
-Nothing is sent if you answer No.
-Change it later in Settings → zdxsv.
+To send nothing, turn this off in Settings → zdxsv.
 
 ## Updates
 

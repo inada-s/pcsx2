@@ -8,8 +8,8 @@
 namespace Zdxsv
 {
 	// Call before the CPU thread starts: on Linux a crash handler installed after PageFaultHandler::Install()
-	// would take the page faults fastmem relies on. can_ask: a window may be shown to ask for consent.
-	void CrashReportsStart(bool can_ask);
+	// would take the page faults fastmem relies on.
+	void CrashReportsStart();
 	void CrashReportsStop();
 
 	// False in a build without the SDK or a DSN: nothing can be sent, the settings page hides the option.

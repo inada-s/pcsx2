@@ -12,9 +12,6 @@
 #include "common/Path.h"
 #include "common/StringUtil.h"
 
-#include <QtCore/QCoreApplication>
-#include <QtWidgets/QMessageBox>
-
 #include <string>
 
 #ifdef ZDXSV_HAS_SENTRY
@@ -49,20 +46,6 @@ namespace Zdxsv
 		{
 			const char* const env_dsn = CrashReportsEnvDsn();
 			return env_dsn ? env_dsn : ZDXSV_SENTRY_DSN;
-		}
-
-		bool CrashReportsAskPlayer()
-		{
-			const QMessageBox::StandardButton answer = QMessageBox::question(nullptr,
-				QCoreApplication::translate("ZdxsvCrashReports", "Send crash reports?"),
-				QCoreApplication::translate("ZdxsvCrashReports",
-					"When PCSX2 crashes, it can send a crash report to the zdxsv developers so the crash can be fixed.\n\n"
-					"A report contains part of the memory of PCSX2 at the moment of the crash, your version of PCSX2, "
-					"your operating system and a random ID of this installation. It can contain data of your game "
-					"session. Sentry, the service that receives reports, also gets your IP address and can store your "
-					"approximate location.\n\n"
-					"You can change this later in Settings > zdxsv."));
-			return answer == QMessageBox::Yes;
 		}
 
 #ifdef ZDXSV_HAS_SENTRY
@@ -109,7 +92,7 @@ namespace Zdxsv
 #endif
 	}
 
-	void CrashReportsStart(bool can_ask)
+	void CrashReportsStart()
 	{
 #ifdef ZDXSV_HAS_SENTRY
 		if (!CrashReportsAvailable())
@@ -118,27 +101,13 @@ namespace Zdxsv
 		const char* const test = TestEnv("ZDXSV_CRASH_REPORT_TEST");
 		const bool test_crash = test && test[0] == '1';
 
-		if (!test_crash)
-		{
-			if (!Host::ContainsBaseSettingValue(CRASH_REPORTS_SECTION, CRASH_REPORTS_KEY))
-			{
-				if (!can_ask)
-					return;
-
-				Host::SetBaseBoolSettingValue(CRASH_REPORTS_SECTION, CRASH_REPORTS_KEY, CrashReportsAskPlayer());
-				Host::CommitBaseSettingChanges();
-			}
-
-			if (!Host::GetBaseBoolSettingValue(CRASH_REPORTS_SECTION, CRASH_REPORTS_KEY, false))
-				return;
-		}
+		if (!test_crash && !Host::GetBaseBoolSettingValue(CRASH_REPORTS_SECTION, CRASH_REPORTS_KEY, true))
+			return;
 
 		CrashReportsInit();
 
 		if (s_crash_reports.running && test_crash)
 			*static_cast<volatile int*>(nullptr) = 0;
-#else
-		(void)can_ask;
 #endif
 	}
 

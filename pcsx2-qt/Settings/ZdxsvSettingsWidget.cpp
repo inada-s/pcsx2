@@ -58,7 +58,7 @@ ZdxsvSettingsWidget::ZdxsvSettingsWidget(SettingsWindow* settings_dialog, QWidge
 
 	if (Zdxsv::CrashReportsAvailable() && !dialog()->isPerGameSettings())
 	{
-		SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvCrashReports, "DEV9/Eth", "ZdxsvCrashReports", false);
+		SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvCrashReports, "DEV9/Eth", "ZdxsvCrashReports", true);
 		connect(m_ui.zdxsvCrashReports, &QCheckBox::checkStateChanged, this,
 			[](Qt::CheckState state) { Zdxsv::CrashReportsSetEnabled(state == Qt::Checked); });
 	}

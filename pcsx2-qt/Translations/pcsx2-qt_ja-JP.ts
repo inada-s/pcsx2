@@ -28145,33 +28145,14 @@ PCSX2 will be able to run once you&apos;ve placed your BIOS image inside the fol
     </message>
   </context>
   <context>
-    <name>ZdxsvCrashReports</name>
-    <message>
-      <source>Send crash reports?</source>
-      <translation>クラッシュレポートを送信しますか？</translation>
-    </message>
-    <message>
-      <source>When PCSX2 crashes, it can send a crash report to the zdxsv developers so the crash can be fixed.
-
-A report contains part of the memory of PCSX2 at the moment of the crash, your version of PCSX2, your operating system and a random ID of this installation. It can contain data of your game session. Sentry, the service that receives reports, also gets your IP address and can store your approximate location.
-
-You can change this later in Settings &gt; zdxsv.</source>
-      <translation>PCSX2 がクラッシュしたとき、修正に役立てるためクラッシュレポートを zdxsv の開発者に送信できます。
-
-レポートには、クラッシュ時の PCSX2 のメモリの一部、PCSX2 のバージョン、OS の情報、このインストールのランダムな ID が含まれます。ゲームセッションのデータが含まれることがあります。レポートを受け取るサービスの Sentry には IP アドレスも渡り、おおよその位置情報が保存されることがあります。
-
-この設定は後から 設定 &gt; zdxsv で変更できます。</translation>
-    </message>
-  </context>
-  <context>
     <name>ZdxsvSettingsWidget</name>
     <message>
       <source>Crash Reports</source>
       <translation>クラッシュレポート</translation>
     </message>
     <message>
-      <source>Send crash reports to the zdxsv developers. They contain part of the memory of PCSX2 at the moment of a crash. Turning this on takes effect at the next start.</source>
-      <translation>クラッシュレポートを zdxsv の開発者に送信します。レポートにはクラッシュ時の PCSX2 のメモリの一部が含まれます。オンにした場合は次回の起動から有効です。</translation>
+      <source>Send crash reports to the zdxsv developers. They contain part of the memory of PCSX2 at the moment of a crash, and Sentry, the service that receives them, gets your IP address. Turning this on takes effect at the next start.</source>
+      <translation>クラッシュレポートを zdxsv の開発者に送信します。レポートにはクラッシュ時の PCSX2 のメモリの一部が含まれ、レポートを受け取るサービスの Sentry には IP アドレスも渡ります。オンにした場合は次回の起動から有効です。</translation>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.ui" line="20"/>

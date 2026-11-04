@@ -155,7 +155,7 @@ Keys (`net=1`, `lobby=1`, `port=`, `delay=`, ...) are parts of `ZDXSV_GGPO`.
 ## Releases and tools ([tools.md](tools.md))
 
 - **Self-update from the GitHub releases of this fork**: release builds; `ZDXSV_UPDATE_URL`.
-- **Crash reports** ([crash-reports.md](crash-reports.md)): `ZdxsvCrashReports`, asked once; the build's `ZDXSV_SENTRY_DSN`.
+- **Crash reports** ([crash-reports.md](crash-reports.md)): `ZdxsvCrashReports`, on by default in a build with `ZDXSV_SENTRY_DSN`.
 - **Release workflow**: a `zdxsv-X.Y.Z` tag.
 - **Windows CI build**: every push and PR.
 - **PINE opcodes `0x30` to `0x32`**: pad input, screenshot, frame count.

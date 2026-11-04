@@ -3,14 +3,12 @@
 A build with the Sentry Native SDK and a DSN sends crash reports to the Sentry
 project `gdxsv-project/pcsx2-zdxsv`. Only the official release build has a DSN
 ([options.md](options.md), Build options). A build without one behaves like upstream PCSX2:
-no question, no setting, no upload.
+no setting, no upload.
 
-## Consent
+## Switch
 
-The first start asks the player once and stores the answer in `ZdxsvCrashReports`.
-With no answer, or with the answer No, the SDK does not start, so upstream's crash handler stays
-in place and nothing leaves the machine. Batch and no-GUI starts never ask: without a stored answer they
-do not send, with a stored Yes they do.
+`ZdxsvCrashReports` (Settings → zdxsv) is on by default and is not asked about. Off: the SDK does not
+start, so upstream's crash handler stays in place and nothing leaves the machine.
 
 Turning the setting off stops uploads at once. Turning it on takes effect at the next start,
 because the SDK must start before the page fault handler is installed.
