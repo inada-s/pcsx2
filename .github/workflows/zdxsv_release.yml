@@ -67,3 +67,49 @@ jobs:
           PRE=""
           if ! [[ "$TAG" =~ ^zdxsv-[0-9]+\.[0-9]+\.[0-9]+$ ]]; then PRE="--prerelease"; fi
           gh release create "$TAG" zdxsv-release/* --repo "$GITHUB_REPOSITORY" --title "$TAG" --generate-notes $PRE
+
+  sentry:
+    name: "Sentry debug files"
+    needs: build
+    runs-on: ubuntu-latest
+    env:
+      SENTRY_TOKEN: ${{ secrets.SENTRY_TOKEN }}
+      SENTRY_PROJECT: ${{ vars.SENTRY_PROJECT }}
+    steps:
+      - name: Check the Sentry settings
+        id: cfg
+        run: |
+          if [ -n "$SENTRY_TOKEN" ] && [ -n "$SENTRY_PROJECT" ]; then
+            echo "upload=1" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::SENTRY_TOKEN or SENTRY_PROJECT is not set: no debug files uploaded"
+          fi
+
+      - uses: actions/download-artifact@v8
+        if: steps.cfg.outputs.upload
+        with:
+          pattern: "*-symbols"
+          path: debug-files
+          merge-multiple: true
+
+      - uses: actions/download-artifact@v8
+        if: steps.cfg.outputs.upload
+        with:
+          name: zdxsv-release-windows-x64
+          path: zdxsv-release
+
+      - name: Setup Sentry CLI
+        if: steps.cfg.outputs.upload
+        uses: mathieu-bour/setup-sentry-cli@v2
+        with:
+          url: https://sentry.io
+          token: ${{ env.SENTRY_TOKEN }}
+          organization: gdxsv-project
+          project: ${{ env.SENTRY_PROJECT }}
+          version: 2.21.2
+
+      - name: Upload debug files
+        if: steps.cfg.outputs.upload
+        run: |
+          unzip -q zdxsv-release/pcsx2-zdxsv-windows-x64.zip -d debug-files/bin
+          sentry-cli debug-files upload --type pe --type pdb --wait debug-files

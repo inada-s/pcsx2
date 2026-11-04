@@ -13,6 +13,12 @@
   that the exe contains both values.
   - `ZDXSV_SERVER_HOST`: the game server host, e.g. `lbs.zdxsv.net`.
   - `ZDXSV_UDPTEST_URL`: the zdxsv udptest function URL.
+- The release uploads the exes, DLLs and PDBs to Sentry (organization
+  `gdxsv-project`) as debug files, to symbolicate Windows minidumps. It runs
+  only when both are set, else it skips with a notice:
+  - secret `SENTRY_TOKEN`: a Sentry auth token with `project:releases`
+    (or `project:write`).
+  - variable `SENTRY_PROJECT`: the Sentry project slug.
 - A tag with a suffix, such as `zdxsv-0.0.1-rc1`, becomes a prerelease. The
   updater skips prereleases.
 - The release zip holds `portable.txt`, `ZDXSV.md` and `ZDXSV.ja.md`.
