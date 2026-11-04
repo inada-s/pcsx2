@@ -62,10 +62,10 @@ ROUTES = {
     "idlogin": "C~lstate!/2000,C~lstate!/3000,w6000",
     # TOP -> 新規登録 -> save ID+password to NET file -> ユーザ作成完了 -> 戻る -> TOP (new key on the card)
     # A C lost under load (3 logins at once) left the key unsaved: check the shot, run it alone.
-    "register": "Right,w800,C,w10000,C,w6000,C,w4000,C,w8000",
+    "register": "Right,w800,C,@wseq=23/20000,C,@wseq=25/20000,C,@wseq=26/20000,C,@wseq=28/20000",
     # TOP with a fresh key -> skip Capcom reg -> HN: kana column {h} x3 on the soft keyboard
     # -> Start x2 (1st confirms the kana, 2nd = 決定, cursor on 登録) -> 登録 -> はい -> 戦場選択
-    "newlogin": "C,w14000,Right,C,w10000,C,w4000,Right*{h},C,C,C,Return,w1500,Return,w3000,C,w4000,Up,C,w9000",
+    "newlogin": "@wseq=31/20000,Right,C,w10000,C,w4000,Right*{h},C,C,C,Return,w1500,Return,w3000,C,w4000,Up,C,w9000",
     # 戦場選択 -> map cursor to ジャブロー2 (Lobby 06: starts at 2 AEUG + 2 Titans entries, zdxsv
     # model/lobby.go CanBattleStart) -> lobby -> パートナー自動選抜 -> side {s}: p1/p2 連邦・エゥーゴ, p3/p4 ジオン・ティターンズ
     # m4z.py: map ends with the Lobby 06 press (0x6305 00 06); a late press is

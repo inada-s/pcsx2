@@ -31,11 +31,12 @@ STALL_S = 120  # wait(): frame count not moving this long = emulator hung or pau
 # 2 NET file, 3 connection menu, 4 ネットワーク接続, 5 terms, 6 netconf list, 0x21 connect); step = lobby
 # connection step (4 = ID選択); menu = main menu cursor; lstate = accepted key presses mod 32 (counts in
 # menus and the lobby browser alike); dlg = memory card dialog while a blank card gets its NET file (17 slot,
-# then 1, 2, 5, 4 in screen order, 222 closing, 255 none).
+# then 1, 2, 5, 4 in screen order, 222 closing, 255 none); wseq = lobby browser screen updates (counts up on
+# each page load and form step; register after fresh: 21 on TOP, 23 register page ready, then 25, 26, 28).
 PROBE = {
     "scene": (0x6D7A8C, 0), "net": (None, 0xCD1360), "nsub": (None, 0xCD1361),
     "step": (0x6D7D54, 0xA1F), "phase": (None, 0x6D7D84), "menu": (0x6D7954, 0x25C),
-    "lstate": (None, 0xCE28B0), "dlg": (None, 0x715512),
+    "lstate": (None, 0xCE28B0), "dlg": (None, 0x715512), "wseq": (None, 0x6D7A01),
 }
 # f32 game RAM for Key^name>=V: 戦場選択 map cursor in screen px (y grows down), (270, 190) when the map opens
 FPROBE = {"curx": 0xC56504, "cury": 0xC56508}
