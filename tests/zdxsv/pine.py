@@ -29,12 +29,13 @@ STALL_S = 120  # wait(): frame count not moving this long = emulator hung or pau
 # Game RAM values for @name=V (SLPS-25419): (pointer or None, address
 # or offset). scene = top scene G[0] (1 title, 2 main menu, 7 通信対戦); net = network menu state (1 warning,
 # 2 NET file, 3 connection menu, 4 ネットワーク接続, 5 terms, 6 netconf list, 0x21 connect); step = lobby
-# connection step (4 = ID選択); menu = main menu cursor; lstate = server menu screen (via the network menu:
-# 8 TOP, 9 ID選択, 10 after the ID pick, 11 戦場選択; via fast boot: 30, 31, 0, 1).
+# connection step (4 = ID選択); menu = main menu cursor; lstate = accepted key presses mod 32 (counts in
+# menus and the lobby browser alike); dlg = memory card dialog while a blank card gets its NET file (17 slot,
+# then 1, 2, 5, 4 in screen order, 222 closing, 255 none).
 PROBE = {
     "scene": (0x6D7A8C, 0), "net": (None, 0xCD1360), "nsub": (None, 0xCD1361),
     "step": (0x6D7D54, 0xA1F), "phase": (None, 0x6D7D84), "menu": (0x6D7954, 0x25C),
-    "lstate": (None, 0xCE28B0),
+    "lstate": (None, 0xCE28B0), "dlg": (None, 0x715512),
 }
 # f32 game RAM for Key^name>=V: 戦場選択 map cursor in screen px (y grows down), (270, 190) when the map opens
 FPROBE = {"curx": 0xC56504, "cury": 0xC56508}
