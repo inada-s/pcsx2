@@ -4,7 +4,7 @@ lobby's user_id selection screen (ID選択, game RAM over PINE: bootwatch.py). N
 Env: LIMIT (s, default 5), MAXS (s to wait, default 200), ROUTE (drive.py keys sent from the start;
 ROUTE=top,C = today's menu path + ログイン at TOP), CARD (p1 card name, default the first of CARDS),
 SPEED (launch -Speed, default 1), SHOW=1 (windowed), LOBBY=fake (boot_lobby.py instead of the stack:
-only the lobby API login and the lobby up to the user_id list).
+only the lobby API login and the lobby up to the user_id list), SAVE_CARD (path: p1's card after the run is copied there).
 Exit 0 = the screen is up within LIMIT s. Logs: OUT/boottime.txt (net step changes), stack logs.
 """
 import os
@@ -48,6 +48,9 @@ def run(out):
             shutil.copyfile(os.path.join(p1, "logs", "emulog.txt"), os.path.join(out, "emulog-p1.txt"))
         except OSError:
             pass
+        mc = os.path.join(p1, "memcards", "Mcd001.ps2")
+        if zrig.env("SAVE_CARD") and os.path.isfile(mc):
+            shutil.copyfile(mc, os.environ["SAVE_CARD"])
         live = os.path.join(out, "live-p1.ps2")
         if os.path.isfile(live):
             shutil.copy2(live, os.path.join(p1, "memcards", "Mcd001.ps2"))
