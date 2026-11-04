@@ -128,7 +128,7 @@ def launch(ns=(1,), memcard=None, state=None, speed="1", renderer="-1", nogui=Fa
             a.append("-nogui")
         if state:
             a += ["-statefile", os.path.abspath(state)]
-        a += ["--", os.environ["ISO"]]  # pcsx2 refuses a game path with / on Windows: native path as given
+        a += ["--", os.path.normpath(os.environ["ISO"])]  # pcsx2 refuses a game path with / on Windows
         p = subprocess.Popen(a, env=e, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                              stderr=subprocess.DEVNULL, start_new_session=not zrig.WIN)
         if headless and zrig.WIN:
