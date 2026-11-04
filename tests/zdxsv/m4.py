@@ -84,10 +84,21 @@ def main():
         if not fb.fresh_entry(i):
             return 1
     t1 = time.time()
-    for i in (1, 2, 3, 4):
-        if not fb.speed_check(i):
-            return 1
-    time.sleep(max(0.0, 15 - (time.time() - t1)))
+    sp = {}
+    ts = [threading.Thread(target=lambda i=i: sp.__setitem__(i, fb.speed_check(i))) for i in (1, 2, 3, 4)]
+    for t in ts:
+        t.start()
+    for t in ts:
+        t.join()
+    if not all(sp.values()):
+        return 1
+    while time.time() - t1 < 15:
+        try:
+            if grep_all("fake.log", "registered 4 users") and fb.count(fb.out("battle.log"), "join success") >= 4:
+                break
+        except OSError:
+            pass
+        time.sleep(1)
     for l in zrig.log_lines(fb.out("fake.log"), "battlereg|adopted"):
         if not re.search(r"C->S|C<-S|S->C", l):
             print(l[:160], flush=True)
@@ -98,25 +109,29 @@ def main():
     if zrig.env("GO"):
         threading.Timer(float(zrig.env("GODELAY", "30")), lambda: open(os.environ["GO"], "a").close()).start()
     fb.drive(zrig.env("MASH", "mash"), *zrig.env("MASHP", "1 2 3 4").split())
-    t0, t34 = time.time(), None
+    t0, t34, last = time.time(), None, None
     maxs, r34s = float(zrig.env("MAXS", "2100")), float(zrig.env("R34S", "90"))
     while time.time() - t0 < maxs:
         if zrig.env("POST"):
             fb.drive(os.environ["POST"], 1, 2, 3, 4)
         else:
-            time.sleep(30)
+            time.sleep(5)
         r = len(bres())
         el = round(time.time() - t0)
         if zrig.env("NORESULT"):
             c = grep_all("fake.log", "conn from")
-            print(f"{el} s: results {r}, lobby conns {c}/8", flush=True)
+            if (r, c) != last or el % 30 < 5:
+                print(f"{el} s: results {r}, lobby conns {c}/8", flush=True)
+            last = (r, c)
             if c >= 8:
                 break
             continue
-        print(f"{el} s: results {r}/4", flush=True)
+        if r != last or el % 30 < 5:
+            print(f"{el} s: results {r}/4", flush=True)
+        last = r
         if r >= 4:
             break
-        # a 4th result missing at 3/4 rarely comes (67 m4 outputs: 61 got 4/4 within one poll, 1 the 4th 30 s
+        # a 4th result missing at 3/4 rarely comes (67 m4 outputs: 61 got 4/4 within 30 s, 1 the 4th 30 s
         # after 3/4, 5 never in 212-1541 s)
         if r == 3:
             t34 = t34 or time.time()
