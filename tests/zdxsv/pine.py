@@ -28,10 +28,12 @@ STALL_S = 120  # wait(): frame count not moving this long = emulator hung or pau
 # Game RAM values for @name=V (SLPS-25419): (pointer or None, address
 # or offset). scene = top scene G[0] (1 title, 2 main menu, 7 通信対戦); net = network menu state (1 warning,
 # 2 NET file, 3 connection menu, 4 ネットワーク接続, 5 terms, 6 netconf list, 0x21 connect); step = lobby
-# connection step (4 = ID選択); menu = main menu cursor.
+# connection step (4 = ID選択); menu = main menu cursor; lstate = server menu screen (via the network menu:
+# 8 TOP, 9 ID選択, 10 after the ID pick, 11 戦場選択; via fast boot: 30, 31, 0, 1).
 PROBE = {
     "scene": (0x6D7A8C, 0), "net": (None, 0xCD1360), "nsub": (None, 0xCD1361),
     "step": (0x6D7D54, 0xA1F), "phase": (None, 0x6D7D84), "menu": (0x6D7954, 0x25C),
+    "lstate": (None, 0xCE28B0),
 }
 UNTIL_MS = 60000  # @name=V default limit, game time
 
@@ -169,17 +171,17 @@ class Pine:
         except RuntimeError:
             return None
 
-    def until(self, name, value, ms=UNTIL_MS):
-        """Wait until probe(name) == value, at most ms of game time (vsyncs, as wait)."""
+    def until(self, name, value, ms=UNTIL_MS, ne=False):
+        """Wait until probe(name) == value (ne: != value), at most ms of game time (vsyncs, as wait)."""
         n = max(1, round(ms * FPS / 1000))
         start = last = self.frame()
         done, still = 0, time.time()
         while True:
             v = self.probe(name)
-            if v == value:
+            if (v != value) if ne else (v == value):
                 return self.frame() - start
             if done >= n:
-                raise TimeoutError("@%s=%d: still %s after %d vsyncs" % (name, value, v, n))
+                raise TimeoutError("@%s%s%d: still %s after %d vsyncs" % (name, "!=" if ne else "=", value, v, n))
             time.sleep(0.005)
             f = self.frame()
             if f > last:
@@ -189,22 +191,22 @@ class Pine:
                 raise TimeoutError("frame count stuck at %d for %d s" % (f, STALL_S))
             last = f
 
-    def press_until(self, key, name, value, every_ms=1000, hold_ms=120, port=0):
-        """Press key, again every every_ms of game time, until probe(name) == value (UNTIL_MS in all)."""
+    def press_until(self, key, name, value, every_ms=1000, hold_ms=120, port=0, ne=False):
+        """Press key, again every every_ms of game time, until probe(name) == value (ne: != value; UNTIL_MS in all)."""
         for _ in range(max(1, UNTIL_MS // every_ms)):
-            if self.probe(name) == value:
+            if (self.probe(name) != value) if ne else (self.probe(name) == value):
                 return
             try:
                 self.press(key, hold_ms, port)
             except RuntimeError:
                 pass
             try:
-                self.until(name, value, every_ms)
+                self.until(name, value, every_ms, ne)
                 return
             except TimeoutError as e:
                 if "stuck" in str(e):
                     raise
-        raise TimeoutError("%s~%s=%d: still %s after %d ms" % (key, name, value, self.probe(name), UNTIL_MS))
+        raise TimeoutError("%s~%s%s%d: still %s after %d ms" % (key, name, "!=" if ne else "=", value, self.probe(name), UNTIL_MS))
 
     def press(self, name, hold_ms=120, port=0):
         bs = [BIND[ALIAS.get(n, n)] for n in name.split("+")]  # A+B = chord
@@ -217,12 +219,19 @@ class Pine:
     def seq(self, text, hold_ms=120, gap_ms=350, port=0):
         """Comma list: Key, Key+Key (chord), Key*N, Key:holdMS, wMS (wait), fN (wait until frame count >= N).
         @name=V[/MS] (wait until game RAM probe name == V, see PROBE and until; V decimal or 0x).
+        Key~name=V[/MS]: press Key, again every MS, until name == V. Key~name![/MS]: the same until name leaves
+        the value it had before the first press.
         ms = game time (vsyncs at 60/s, see wait)."""
         for tok in [t.strip() for t in text.split(",") if t.strip()]:
             if tok[0] == "@":
                 name, _, rest = tok[1:].partition("=")
                 v, _, ms = rest.partition("/")
                 self.until(name, int(v, 0), int(ms or UNTIL_MS))
+                continue
+            if "~" in tok and "!" in tok:
+                key, _, cond = tok.partition("~")
+                name, _, ms = cond.partition("!")
+                self.press_until(key, name, self.probe(name), int(ms.lstrip("/") or 1000), hold_ms, port, ne=True)
                 continue
             if "~" in tok:
                 key, _, cond = tok.partition("~")
