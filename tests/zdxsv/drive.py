@@ -32,8 +32,8 @@ MAP06 = "Down^cury>=256/12000,Right^curx>=393"
 # map cursor to シアトル (Lobby 02) from anywhere on the map, each axis held toward the spot the press was taken at
 WALK2P = "Right|Left^curx=379/12000,Down|Up^cury=60"
 # lobby menu -> パートナー自動選抜 -> side {s} -> entered. lstate steps once per accepted press (the side Right too),
-# not when the lobby finishes loading, so Down repeats until the menu takes it.
-LOBBY = "Down~lstate!/500,C~lstate!/2000,{s}C~lstate!/2000,w4000"
+# not when the lobby finishes loading, so Down repeats until the menu takes it. wseq steps ~2 s after the side press.
+LOBBY = "Down~lstate!/500,C~lstate!/2000,{s}C~lstate!/2000,@wseq!/10000"
 
 ROUTES = {
     # attract -> main menu -> 通信対戦 -> warning -> NET file はい / slot 1 / はい -> autosave note
