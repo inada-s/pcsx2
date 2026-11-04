@@ -139,7 +139,8 @@ def launch(ns=(1,), memcard=None, state=None, speed="1", renderer="-1", nogui=Fa
     return pids
 
 
-def main(argv):
+def parse(argv):
+    """launch.py arguments -> (instances, launch() keywords); None on an unknown argument."""
     kw, ns, i = {}, "1", 0
     flags = {"-LobbyState": "lobby_state", "-NoGui": "nogui", "-Headless": "headless", "-Eth": "eth"}
     vals = {"-Memcard": "memcard", "-StateFile": "state", "-Speed": "speed", "-Renderer": "renderer"}
@@ -153,9 +154,16 @@ def main(argv):
             kw[vals[a]], i = argv[i + 1], i + 1
         else:
             print(f"FAIL launch.py: unknown argument {a}")
-            return 2
+            return None
         i += 1
-    launch(ns.split(), **kw)
+    return ns.split(), kw
+
+
+def main(argv):
+    p = parse(argv)
+    if p is None:
+        return 2
+    launch(p[0], **p[1])
     return 0
 
 
