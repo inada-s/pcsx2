@@ -34,12 +34,12 @@
 #   with LIVE_AT the spectator had some at its open.
 #   LIVE_NEXT=K (with BATTLES=K+1): the spectator moves on to the next battle K times (ZDXSV_LIVE_NEXT); the
 #   checks above run per watched battle, plus K+1 different battles watched (pwcheck too: --battle <code>).
-#   LIVE_SPEED=X: the spectator runs at normal speed X (launch.ps1 -Speed), off the stream's rate: a pacing
+#   LIVE_SPEED=X: the spectator runs at normal speed X (launch.sh -Speed), off the stream's rate: a pacing
 #   test (the pace lines' gap and waits, with and without ZDXSV_LIVE_PACING=0).
 #   LIVE_STALL=S (LIVE): S s after the spectator starts, the lobby process is suspended (the stream stalls at its
 #   newest frame), 3 s later the spectator's windows get a close (WM_CLOSE), then the lobby resumes. Check, instead
 #   of the LIVE ones: the spectator exits within 5 s (a CPU thread stuck waiting for live data exits after ~30 s).
-#   GGPO_DEFAULT=K: client K gets no ZDXSV_GGPO (launch.ps1 ZDXSV_GGPO=default), so GGPO is on by default
+#   GGPO_DEFAULT=K: client K gets no ZDXSV_GGPO (launch.sh ZDXSV_GGPO=default), so GGPO is on by default
 #   with the default options (port: the ZdxsvGgpoPort setting); check: its log names the default options.
 #   BAD_SESSION=K (GDELAY=auto): client K gets badsession=1: every ping test fails,
 #   every client cuts the battle connection; no mash; waits for each cut to end + 2 lobby tcp conns per client;
@@ -83,7 +83,7 @@
 # Cards: each client starts from $RUN/Mcd001-<CARDS[i]>.ps2 (CARDS, required: one registered card per client);
 # the live card is put back after (m4.sh's lobby states use it). A post-battle prompt creates system
 # data on the card, after which `top` lands in an offline battle.
-here=$(cd "$(dirname "$0")" && pwd -W)
+. "$(dirname "$0")/os.sh"; here=$(cd "$(dirname "$0")" && zpwd)
 . "$here/riglock.sh"  # one rig at a time
 . "$here/speedcheck.sh"  # measured speed vs SPEED
 . "$here/entry2p.sh"  # 1v1 entry: Lobby 02 press checked + retried
@@ -93,15 +93,15 @@ OUT=${OUT:?OUT=dir for logs}
 DRIVE="env MEMGATE_RESERVE_MB=${DRIVE_RESERVE_MB:-150} $PY $here/drive.py"
 zdxsv_need IP
 if [ -n "${EMU:-}" ]; then ZP=${ZP:-}; else ZP=${ZP:-1 3}; fi
-ZPROXY=${ZPROXY:-$ZDXSV/bin/zproxy.exe}
+ZPROXY=${ZPROXY:-$ZDXSV/bin/zproxy$ZEXE}
 zdxsv_need CARDS USERS
 CARDS=($CARDS)
 USERS=($USERS)  # the zdxsv.db user ids of the p1..p4 cards, in order
 # CLIENTS="1 3": a 1v1 in Lobby 02 (route entry2p; p1 AEUG, p3 Titans), else the 2v2 in Lobby 06
-CLIENTS=${CLIENTS:-1 2 3 4}; nc=$(echo $CLIENTS | wc -w)
+CLIENTS=${CLIENTS:-1 2 3 4}; nc=$(($(echo $CLIENTS | wc -w)))
 ENTRY=entry; [ "$nc" -eq 2 ] && ENTRY=entry2p
-nz=$(echo $ZP | wc -w)  # UDP joins: zproxy clients only (pcsx2 has no UDP bridge)
-# a client that plays as a PS2 (console, EXT_OFF: no-DEV9 path off) gets the DEV9 adapter (launch.ps1 -Eth)
+nz=$(($(echo $ZP | wc -w)))  # UDP joins: zproxy clients only (pcsx2 has no UDP bridge)
+# a client that plays as a PS2 (console, EXT_OFF: no-DEV9 path off) gets the DEV9 adapter (launch.sh -Eth)
 ceth() { if [ -n "${EXT_OFF:-}" ] || [ -z "${EMU:-}" ]; then echo -Eth; fi; }
 # client i's env: console (no platform info), or emulator (+ GGPO lobby battle on port GGPO+i-1)
 cenv() {
@@ -128,7 +128,7 @@ cp "$RUN/zdxsv.db" "$OUT/zdxsv.db" || exit 1
 pids=()
 # zdxsv*: a ZBIN like zdxsv-ggpo.exe outlives `kill` of its bash pid and holds the ports
 # (the next run's clients would log in to the old lobby)
-killall() { powershell -NoProfile -Command "Get-Process pcsx2*,zdxsv*,dnas*,zproxy* -EA 0 | Stop-Process -Force; Get-CimInstance Win32_Process | ? { \$_.CommandLine -match 'drive\.py' } | % { Stop-Process -Id \$_.ProcessId -Force -EA 0 }" 2>/dev/null; }
+killall() { { zkill_name pcsx2 zdxsv dnas zproxy; zkill_cmd 'drive[.]py'; } 2>/dev/null; }
 killall
 cleanup() {
   kill "${pids[@]}" 2>/dev/null
@@ -148,33 +148,35 @@ round_data_ok() {
   [ "$(echo "$r" | grep -c .)" -eq "$2" ] && [ "$(echo "$r" | sort -u | wc -l)" -eq 1 ] &&
     echo "$r" | head -1 | grep -q -E "^(round_data=\"win_team:(-1|1|2)( used_ms:[0-9]+){$2}\" )+\$"
 }
-lobby_suspend() {  # $1 = Suspend / Resume
-  powershell -NoProfile -Command "Add-Type 'using System; using System.Runtime.InteropServices; public static class Nt { [DllImport(\"ntdll.dll\")] public static extern int NtSuspendProcess(IntPtr h); [DllImport(\"ntdll.dll\")] public static extern int NtResumeProcess(IntPtr h); }'; Get-Process zdxsv* -EA 0 | % { [void][Nt]::Nt$1Process(\$_.Handle) }"
+lobby_suspend() {  # $1 = zstop / zcont
+  local p; for p in $(zpids_name zdxsv); do $1 "$p"; done
 }
 live_stall() {
   local pid t
   pid=$(grep -o 'pid [0-9]*' "$OUT/live-launch.txt" | head -1 | cut -d' ' -f2)
   sleep "$LIVE_STALL"
-  lobby_suspend Suspend
+  lobby_suspend zstop
   sleep 3
   t=$SECONDS
   # taskkill closes only the first top-level window in z-order: in a spectator that can be a hidden
   # Qt _q_titlebar window, which drops it; a WM_CLOSE to every window reaches the display surface
-  powershell -NoProfile -Command "Add-Type 'using System; using System.Runtime.InteropServices; public static class Wc { public delegate bool EnumProc(IntPtr h, IntPtr l); [DllImport(\"user32.dll\")] public static extern bool EnumWindows(EnumProc f, IntPtr l); [DllImport(\"user32.dll\")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint p); [DllImport(\"user32.dll\")] public static extern bool PostMessage(IntPtr h, uint m, IntPtr w, IntPtr l); public static void Close(uint pid) { EnumWindows((h, l) => { uint p; GetWindowThreadProcessId(h, out p); if (p == pid) PostMessage(h, 0x10, IntPtr.Zero, IntPtr.Zero); return true; }, IntPtr.Zero); } }'; [Wc]::Close($pid)"
-  while [ $((SECONDS - t)) -lt 60 ] && tasklist //FI "PID eq $pid" 2>/dev/null | grep -q " $pid "; do sleep 0.5; done
+  if [ -n "$ZWIN" ]; then
+    powershell -NoProfile -Command "Add-Type 'using System; using System.Runtime.InteropServices; public static class Wc { public delegate bool EnumProc(IntPtr h, IntPtr l); [DllImport(\"user32.dll\")] public static extern bool EnumWindows(EnumProc f, IntPtr l); [DllImport(\"user32.dll\")] public static extern uint GetWindowThreadProcessId(IntPtr h, out uint p); [DllImport(\"user32.dll\")] public static extern bool PostMessage(IntPtr h, uint m, IntPtr w, IntPtr l); public static void Close(uint pid) { EnumWindows((h, l) => { uint p; GetWindowThreadProcessId(h, out p); if (p == pid) PostMessage(h, 0x10, IntPtr.Zero, IntPtr.Zero); return true; }, IntPtr.Zero); } }'; [Wc]::Close($pid)"
+  else kill -TERM "$pid"; fi
+  zwaitgone "$pid" 60
   echo "stall: exit after $((SECONDS - t)) s"
-  lobby_suspend Resume
+  lobby_suspend zcont
 }
 
 # stack.sh runs in the background: its binary check fails here, before any client
-ZDXSV=$ZDXSV bash "$here/zbincheck.sh" "${ZBIN:-$ZDXSV/bin/zdxsv.exe}" || exit 1
+ZDXSV=$ZDXSV bash "$here/zbincheck.sh" "${ZBIN:-$ZDXSV/bin/zdxsv$ZEXE}" || exit 1
 # -v=2: every lobby frame (entry check below, lobby_trace.py)
 [ -n "${RELAY:-}" ] && export ZDXSV_LOBBY_RELAY_ADDR=:8203
 RELAY_PATH=${RELAY_PATH:-direct}
 if [ -n "${UPLOAD:-}" ]; then
   [ -n "${GGPO:-}" ] || { echo "FAIL UPLOAD needs GGPO"; exit 1; }
   export ZDXSV_LOBBY_API_ADDR=127.0.0.1:9881 ZDXSV_LOBBY_REPLAY_DIR="$OUT/upload"
-  ZDXSV_DB_NAME="$OUT/zdxsv.db" "${ZBIN:-$ZDXSV/bin/zdxsv.exe}" migratedb > "$OUT/migratedb.log" 2>&1  # replay_url column
+  ZDXSV_DB_NAME="$OUT/zdxsv.db" "${ZBIN:-$ZDXSV/bin/zdxsv$ZEXE}" migratedb > "$OUT/migratedb.log" 2>&1  # replay_url column
 fi
 LOBBY_ARGS=-v=2 RUN="$OUT" bash "$here/stack.sh" "$IP" > "$OUT/stack.out" 2>&1 & pids+=($!)
 if [ -n "${GGPO_LAT:-}" ]; then
@@ -198,13 +200,13 @@ if [ -n "${LIVE:-}" ]; then
     echo "live uplink after $((SECONDS - t1)) s: spectator p$LIVE"
     [ -z "${LIVE_AT:-}" ] || sleep "$LIVE_AT"
     env ZDXSV_REPLAY="udp://127.0.0.1:8201" ZDXSV_LIVE_NEXT=${LIVE_NEXT:-0} ZDXSV_REPLAY_EXIT=1 ZDXSV_PW_HASH=1 ZDXSV_NET_TRACE="$OUT/trace-live.txt" \
-      powershell -NoProfile -Command "& '$here/launch.ps1' -N $LIVE -Headless -StateFile ${LIVE_STATE:-$RBKSTATES/rbk-p1.p2s}${LIVE_SPEED:+ -Speed $LIVE_SPEED}" 2>&1 | tail -1
+      bash "$here/launch.sh" -N $LIVE -Headless -StateFile ${LIVE_STATE:-$RBKSTATES/rbk-p1.p2s}${LIVE_SPEED:+ -Speed $LIVE_SPEED} 2>&1 | tail -1
     [ -z "${LIVE_STALL:-}" ] || live_stall
   ) > "$OUT/live-launch.txt" 2>&1 & pids+=($!)
 fi
 for i in $CLIENTS; do
   cp -p "$RUN/p$i/PCSX2/memcards/Mcd001.ps2" "$OUT/live-p$i.ps2"
-  l=$(env $(cenv $i) powershell -NoProfile -Command "& '$here/launch.ps1' -N $i $(ceth) -Speed ${SPEED:-1} -Memcard $RUN/Mcd001-${CARDS[i-1]}.ps2 $(case " ${SHOW:-} " in *" $i "*) ;; *) echo -Headless;; esac)" 2>&1)
+  l=$(env $(cenv $i) bash "$here/launch.sh" -N $i $(ceth) -Speed ${SPEED:-1} -Memcard $RUN/Mcd001-${CARDS[i-1]}.ps2 $(case " ${SHOW:-} " in (*" $i "*) ;; (*) echo -Headless;; esac) 2>&1)
   echo "$l" | tail -1
   # a refused launch (probelint) ran 7 min of blind routes before the entry check
   echo "$l" | grep -q "pid .* slot" || { echo "FAIL launch p$i"; exit 1; }
@@ -232,13 +234,13 @@ if [ "$PAR" = 1 ]; then
   echo "clients $CLIENTS: login results $(grep -c '== BattleResult ==' "$OUT/lobby.log")"
 fi
 if [ -n "${PAUSE:-}" ]; then
-  # every client in SHOW is paused together, past the lobby's 2 min receive timeout
+  # every client in SHOW is paused together, past the lobby's 2 min receive timeout (pause hotkey: window control)
   for i in ${SHOW:?PAUSE needs SHOW}; do
-    powershell -NoProfile -File "$here/pcsx2ctl.ps1" -ProcId "${cpid[i]}" -Seq Space 2>&1 | tail -1
+    zctl "${cpid[i]}" Space 2>&1 | tail -1
   done
   sleep "$PAUSE"
   for i in $SHOW; do
-    powershell -NoProfile -File "$here/pcsx2ctl.ps1" -ProcId "${cpid[i]}" -Seq Space 2>&1 | tail -1
+    zctl "${cpid[i]}" Space 2>&1 | tail -1
   done
   sleep 12
   check "paused ${PAUSE} s: no lobby Recv Timeout" "! grep -a -q 'Recv Timeout' '$OUT/lobby.log'"
@@ -309,7 +311,7 @@ report_code() { grep -o -m1 'battle_code:[0-9]*' "$OUT/results.txt" | cut -d: -f
 results() {
   awk '/== BattleResult ==/{n++; b=1; next} /==================/{b=0} b&&/\] ID:/{id[n]=$NF} b&&/"battle_code": "[0-9]/{gsub(/[",]/,""); c[n]=$NF} b&&/"(total_frame|kill_count|death_count|win_count|lose_count)"/{gsub(/[",]/,""); v[n]=v[n]" "$(NF-1)$NF} END{for(i=1;i<=n;i++) if (c[i] != "") print "result", id[i], "battle_code:" c[i] v[i]}' "$OUT/lobby.log" > "$OUT/results.txt"
 }
-gc=${GGPO_CLIENTS:-$CLIENTS}; ngc=$(echo $gc | wc -w)
+gc=${GGPO_CLIENTS:-$CLIENTS}; ngc=$(($(echo $gc | wc -w)))
 # a cut: BAD_SESSION, SYNC_SALT, or a client without GGPO (not in GGPO_CLIENTS)
 CUT=; [ -n "${BAD_SESSION:-}" ] && CUT=ping; [ -n "${GGPO:-}" ] && [ "$ngc" -lt "$nc" ] && CUT=noport; [ -n "${SYNC_SALT:-}" ] && CUT=sync; [ -n "${DROP_SYNC:-}" ] && CUT=drop
 # vsyncs from the cut to its end (the game closed the battle sock), "?" if a line is missing
@@ -418,14 +420,14 @@ if [ -n "${EMU:-}" ] && [ -n "${GGPO:-}" ]; then
   echo "$ends" | sed 's/^/ggpo end /'
   check "ggpo end msg frame agrees per battle ($B), 0 mismatches" "echo '$ends' | awk '{n++; if (\$7 != 0) bad=1; if ((\$3 in f) && f[\$3] != \$5) bad=1; f[\$3]=\$5} END{u=0; for(x in f)u++; exit !(n==$(echo ${GGPO_CLIENTS:-$CLIENTS} | wc -w) * $B && u==$B && !bad)}'"
   if [ -n "${REPORT:-}" ]; then
-    ng=$(echo ${GGPO_CLIENTS:-$CLIENTS} | wc -w)
+    ng=$(($(echo ${GGPO_CLIENTS:-$CLIENTS} | wc -w)))
     grep -a 'p2p matching report:' "$OUT/lobby.log" | cut -c1-300
     check "no match report without a battle code" "! grep -a -q 'p2p matching report: battle_code=\"\"' '$OUT/lobby.log'"
     check "match report x$ng: battle code $(report_code), result ggpo, net battle end, 0 mismatches" "[ \$(grep -a 'p2p matching report: battle_code=\"$(report_code)\"' '$OUT/lobby.log' | grep 'result=\"ggpo\"' | grep 'close_reason=\"net battle end\"' | grep -c 'mismatches=\"0\"') -eq $ng ]"
   fi
   if [ -n "${UPLOAD:-}" ]; then
     sleep 10  # uploads run detached after the battle end
-    ng=$(echo ${GGPO_CLIENTS:-$CLIENTS} | wc -w)
+    ng=$(($(echo ${GGPO_CLIENTS:-$CLIENTS} | wc -w)))
     grep -a -h 'replay upload' "$RUN"/p[1-4]/PCSX2/logs/emulog.txt | cut -c1-200
     for code in $(grep -o 'battle_code:[0-9]*' "$OUT/results.txt" | cut -d: -f2 | sort -u); do
       pb="$OUT/upload/replays/$code.pb"
@@ -441,18 +443,18 @@ if [ -n "${EMU:-}" ] && [ -n "${GGPO:-}" ]; then
       rm -f "$f"
       env ZDXSV_REPLAY="http://127.0.0.1:9881/lbs/replay?battle_code=$code" ZDXSV_REPLAY_EXIT=1 ZDXSV_REPLAY_TURBO=1 ZDXSV_PW_HASH=1 \
         ZDXSV_NET_TRACE="$OUT/trace-api.txt" \
-        powershell -NoProfile -Command "& '$here/launch.ps1' -N $REPLAY_API -Headless -StateFile ${LIVE_STATE:-$RBKSTATES/rbk-p1.p2s}" 2>&1 | tail -1 | tee "$OUT/api-launch.txt"
+        bash "$here/launch.sh" -N $REPLAY_API -Headless -StateFile ${LIVE_STATE:-$RBKSTATES/rbk-p1.p2s} 2>&1 | tail -1 | tee "$OUT/api-launch.txt"
       pid=$(grep -o 'pid [0-9]*' "$OUT/api-launch.txt" | cut -d' ' -f2)
       for t in $(seq 120); do
         grep -a -q 'ZdxsvGgpo: replay \(end\|.*: not a\|.*: status\|.*: no \)' "$f" 2>/dev/null && break
         sleep 5
       done
       # the trace is complete once the instance has exited (ZDXSV_REPLAY_EXIT)
-      for t in $(seq 60); do tasklist //FI "PID eq ${pid:-0}" | grep -q " ${pid:-0} " || break; sleep 1; done
+      zwaitgone "${pid:-0}" 60
       grep -a 'ZdxsvGgpo: replay' "$f" | tr -d '\r' | cut -c1-200 | head -3
       grep -a 'ZdxsvGgpo: replay end' "$f" | tr -d '\r' | cut -c1-200
       check "$code: API replay_url = stored url" "grep -a -q 'replay_url http://127.0.0.1:9881/lbs/replays/$code.pb' '$f'"
-      check "$code: API replay played to its end, instance exited" "grep -a -o 'ZdxsvGgpo: replay end at frame [0-9]* of [0-9]*' '$f' | awk '{exit !(\$6 + 1 == \$8)}' && ! tasklist //FI 'PID eq ${pid:-0}' | grep -q ' ${pid:-0} '"
+      check "$code: API replay played to its end, instance exited" "grep -a -o 'ZdxsvGgpo: replay end at frame [0-9]* of [0-9]*' '$f' | awk '{exit !(\$6 + 1 == \$8)}' && ! zalive ${pid:-0}"
       if [ -n "${PWTRACE:-}" ]; then
         "$PY" -I "$TOOLS/pwcheck.py" --own --battle $code "$OUT/trace-api.txt" $(for i in $CLIENTS; do echo "$OUT/trace-p$i.txt"; done) > "$OUT/pwcheck-api.txt"
         grep '^common\|^judged\|^player\|^rng' "$OUT/pwcheck-api.txt" | cut -c1-160

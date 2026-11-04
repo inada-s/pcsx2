@@ -4,7 +4,7 @@
 # the VM pauses and waits for a new battle there (nothing boots to the title screen).
 #   OUT=dir bash tests/zdxsv/livenext.sh   Env: N (instance, default 1), PORT (default 8209, nothing may listen),
 # STATE (any state of the game to boot from; default rbk-p1), MAXS (default 60).
-here=$(cd "$(dirname "$0")" && pwd -W)
+. "$(dirname "$0")/os.sh"; here=$(cd "$(dirname "$0")" && zpwd)
 . "$here/riglock.sh"  # one rig at a time
 OUT=${OUT:?OUT=dir for logs}
 N=${N:-1}
@@ -13,10 +13,10 @@ MAXS=${MAXS:-60}
 STATE=${STATE:-${RBKSTATES:?set STATE or RBKSTATES}/rbk-p1.p2s}
 mkdir -p "$OUT"
 log="$RUN/p$N/PCSX2/logs/emulog.txt"
-trap 'powershell -NoProfile -Command "Get-Process pcsx2* -EA 0 | Stop-Process -Force"; cp "$log" "$OUT/emulog-live.txt" 2>/dev/null; rig_release' EXIT
+trap 'zkill_name pcsx2; cp "$log" "$OUT/emulog-live.txt" 2>/dev/null; rig_release' EXIT
 rm -f "$log"
 env ZDXSV_REPLAY="udp://127.0.0.1:$PORT" ZDXSV_LIVE_NEXT=1 ZDXSV_REPLAY_EXIT=1 \
-  powershell -NoProfile -Command "& '$here/launch.ps1' -N $N -Headless -StateFile $STATE" 2>&1 | tail -1
+  bash "$here/launch.sh" -N $N -Headless -StateFile $STATE 2>&1 | tail -1
 for _ in $(seq 1 "$MAXS"); do
   sleep 1
   grep -aq "ZdxsvGgpo: replay .*not a replay file" "$log" 2>/dev/null && break

@@ -68,7 +68,7 @@ RL=$RA RI=0
 [ "$RELAY" = 4 ] && RL=127.0.0.1:8261,127.0.0.1:8262,$RA,127.0.0.1:8263 RI=2 ZRELAY=$RA,127.0.0.1:8263
 FAKE_ARGS="--ggpo $PORT --ggpo-clients $(echo $GC | tr -d ' ')${GGPO_LAT:+ --ggpo-delay $GGPO_LAT} --p2p $P2P${BAD:+ --bad-session $BAD}${NOADDR:+ --no-addr $NOADDR}${GB:+ --ggpo-block $GB}${RELAY:+ --relay $RL --relay-session $RS}" bash "$D/m4.sh"
 rc=$?
-n=$(echo $GC | wc -w)
+n=$(($(echo $GC | wc -w)))
 ok() { if eval "$2"; then echo "PASS $1"; else echo "FAIL $1"; rc=1; fi; }
 E=$(( (2 * ${GGPO_LAT:-0} + 31) / 32 )); M=${GMIN:-2}; [ -n "$RELAY" ] && E=0; [ "$E" -lt "$M" ] && E=$M
 for i in $GC; do

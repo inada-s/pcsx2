@@ -12,7 +12,7 @@
 # An env N/SEED the arguments do not match is refused (it would be ignored)
 [ -n "${N+x}" ] && [ "$N" != "${1:-}" ] && { echo "rbk.sh: N=$N in the env is ignored: N is the 1st argument (rbk.sh $N [seed])"; exit 2; }
 [ -n "${SEED+x}" ] && [ "$SEED" != "${2:-}" ] && { echo "rbk.sh: SEED=$SEED in the env is ignored: seed is the 2nd argument (rbk.sh <N> $SEED)"; exit 2; }
-here=$(cd "$(dirname "$0")" && pwd -W)
+. "$(dirname "$0")/os.sh"; here=$(cd "$(dirname "$0")" && zpwd)
 . "$here/riglock.sh"  # one rig at a time
 zdxsv_need RBKSTATES
 OUT=${OUT:?OUT=dir for logs}
@@ -26,7 +26,7 @@ rpids=
 if [ -n "${LAT:-}" ]; then
   GGPO="$GGPO,relay=7200"
   # a relay left from the last run holds its port (bind 10048, the run never starts)
-  powershell -NoProfile -Command "Get-CimInstance Win32_Process -Filter \"Name like 'python%'\" | ? { \$_.CommandLine -like '*udprelay.py*' } | % { Stop-Process -Id \$_.ProcessId -Force }"
+  zkill_cmd "python.*udprelay[.]py"
   for i in $(seq 0 $((N - 2))); do
     for j in $(seq $((i + 1)) $((N - 1))); do
       $PY -u "$TOOLS/udprelay.py" --a $((7200 + 8 * i + j)) --b $((7200 + 8 * j + i)) --p1 $((7001 + i)) --p2 $((7001 + j)) \
@@ -38,7 +38,7 @@ if [ -n "${LAT:-}" ]; then
 fi
 cleanup() {
   [ -n "$rpids" ] && kill $rpids 2>/dev/null
-  powershell -NoProfile -Command "Get-Process pcsx2* -EA 0 | Stop-Process -Force"
+  zkill_name pcsx2
   for p in "${P[@]}"; do cp "$RUN/p$p/PCSX2/logs/emulog.txt" "$OUT/emulog-p$p.txt" 2>/dev/null; done
 }
 trap 'cleanup; rig_release' EXIT
@@ -67,7 +67,7 @@ for p in "${P[@]}"; do
   sed -i "s/^\[EmuCore\/Speedhacks\]\r\?$/&\nvuThread = true\r/" "$ini"
 done
 # INI0="Section:Key=Value;..." (syncset.sh): ini entries for peer 0 only; its ini before them is kept
-# in PCSX2.ini.rbk0 and put back by the next run. SPEED0=X: peer 0 runs at speed X (launch.ps1 -Speed: launch.ps1 rewrites NominalScalar).
+# in PCSX2.ini.rbk0 and put back by the next run. SPEED0=X: peer 0 runs at speed X (launch.sh -Speed: launch.sh rewrites NominalScalar).
 for p in "${P[@]}"; do
   ini=$RUN/p$p/PCSX2/inis/PCSX2.ini
   [ -f "$ini.rbk0" ] && mv -f "$ini.rbk0" "$ini"
@@ -92,14 +92,17 @@ for i in $(seq 0 $((N - 1))); do
   rm -f "$RUN/p$p/PCSX2/logs/emulog.txt" "$OUT/trace-p$p.txt"
   env ZDXSV_GGPO="$GGPO" ZDXSV_RBK=$i/$N ZDXSV_RBK_TIME=${TIME:-90} ZDXSV_RBK_COUNT=${COUNT:-1} ZDXSV_RBK_GAUGE=${GAUGE:-1} ${turbo:+ZDXSV_RBK_TURBO=1} ${clamp:+ZDXSV_EE_CLAMP=$clamp} ZDXSV_NET_TAIL=${TAIL:-60} ${SEED:+ZDXSV_RAND_INPUT=$((SEED + i))} \
     $([ "${TRACE-1}" = 0 ] || echo "ZDXSV_PW_HASH=1 ZDXSV_NET_TRACE=$OUT/trace-p$p.txt") ${PWDUMP:+ZDXSV_PW_DUMP=$OUT/pw-p$p.bin} $PCSX2_ENV $([ "$i" -eq 0 ] && echo "$ENV0") \
-    powershell -NoProfile -Command "& '$here/launch.ps1' -N $p $([ -n "${SHOWN:-}" ] && echo -NoGui -Renderer 3 || echo -Headless) -StateFile $RBKSTATES/rbk-p$p.p2s$([ "$i" -eq 0 ] && [ -n "${SPEED0:-}" ] && echo " -Speed $SPEED0")" 2>&1 | tail -1 &
+    bash "$here/launch.sh" -N $p $([ -n "${SHOWN:-}" ] && echo -NoGui -Renderer 3 || echo -Headless) -StateFile $RBKSTATES/rbk-p$p.p2s$([ "$i" -eq 0 ] && [ -n "${SPEED0:-}" ] && echo " -Speed $SPEED0") 2>&1 | tail -1 &
   lpids="$lpids $!"
 done
 # parallel launches: serial ones put p4 ~7.5 s behind p1. Only these: a bare wait also waits for
 # the LAT relays (start check after the battle; a failed launch hung to the relay's 1200 s).
 wait $lpids
-# STALL=ms: suspend the peer at position 1 for ms every 5 s, 8 times from 40 s (stall.ps1), so the others run ahead.
-[ -n "${STALL:-}" ] && { powershell -NoProfile -File "$here/stall.ps1" -Peer "p${P[1]}" -Ms "$STALL" > "$OUT/stall.txt" 2>&1 & }
+# STALL=ms: suspend the peer at position 1 for ms every 5 s, 8 times from 40 s (stall.ps1, zstall), so the others run ahead.
+if [ -n "${STALL:-}" ]; then
+  if [ -n "$ZWIN" ]; then powershell -NoProfile -File "$here/stall.ps1" -Peer "p${P[1]}" -Ms "$STALL" > "$OUT/stall.txt" 2>&1 &
+  else zstall "p${P[1]}" "$STALL" > "$OUT/stall.txt" 2>&1 & fi
+fi
 # Start check: each pcsx2 logs `rbk env` (pcsx2 ZdxsvGgpo, 1st vsync) with the knobs it received; stop at
 # once on a mismatch (glued env vars once ran a whole rig without input/turbo). ENV0/PCSX2_ENV may
 # override knobs on purpose: those peers are only shown.
@@ -124,9 +127,9 @@ done
 echo "start check ok: $N peers got the intended knobs (seed ${SEED:-none})"
 while [ $((SECONDS - t0)) -lt "${MAXS:-900}" ]; do
   sleep 1
-  [ "$(tasklist | grep -ci pcsx2)" -eq 0 ] && break
+  [ "$(zcount_name pcsx2)" -eq 0 ] && break
 done
-echo "$((SECONDS - t0)) s: $(tasklist | grep -ci pcsx2) pcsx2 left"
+echo "$((SECONDS - t0)) s: $(zcount_name pcsx2) pcsx2 left"
 ok=0
 for p in "${P[@]}"; do
   l=$RUN/p$p/PCSX2/logs/emulog.txt

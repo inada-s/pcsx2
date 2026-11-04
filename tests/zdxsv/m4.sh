@@ -17,7 +17,7 @@
 # `BATTLE RESULT` x4 with the same total_frame and kills = deaths.
 # NORESULT=1 (a battle that must fail): wait for 8 lobby conns (4 + each client's reconnect) instead;
 #   checks every `BATTLE RESULT` has battles=0, conn from x8.
-here=$(cd "$(dirname "$0")" && pwd -W)  # a Windows path, also inside the powershell command string
+. "$(dirname "$0")/os.sh"; here=$(cd "$(dirname "$0")" && zpwd)  # a Windows path, also inside the powershell command string
 . "$here/riglock.sh"  # one rig at a time
 . "$here/speedcheck.sh"  # measured speed vs SPEED
 . "$here/freshboot.sh"
@@ -30,9 +30,9 @@ OUT=${OUT:?OUT=dir for logs}
 # ~100 s, past the game's 116 s lobby timeout. drive.py is ~15 MB.
 DRIVE="env MEMGATE_RESERVE_MB=${DRIVE_RESERVE_MB:-150} $PY $here/drive.py"
 zdxsv_need IP
-Z=${ZBIN:-$ZDXSV/bin/zdxsv.exe}
+Z=${ZBIN:-$ZDXSV/bin/zdxsv$ZEXE}
 mkdir -p "$OUT"
-export BATTLEREG=${BATTLEREG:-$RUN/battlereg.exe}
+export BATTLEREG=${BATTLEREG:-$RUN/battlereg$ZEXE}
 [ -f "$BATTLEREG" ] || (cd "$here/battlereg" && \
   GO111MODULE=off "$GOEXE" build -o "$BATTLEREG" main.go) || { echo "FAIL battlereg build"; exit 1; }
 export ZDXSV_BATTLE_ADDR=:8210 ZDXSV_BATTLE_RPC_ADDR=127.0.0.1:3080 ZDXSV_BATTLE_PUBLIC_ADDR=$IP:8210
@@ -40,7 +40,7 @@ pids=()
 cleanup() {
   kill "${pids[@]}" 2>/dev/null
   # pids hold launchers only (pyenv python -> python)
-  powershell -NoProfile -Command "Get-Process pcsx2* -EA 0 | Stop-Process -Force; Get-CimInstance Win32_Process | ? { \$_.CommandLine -match 'fake_lobby.py|drive.py|udprelay.py' } | % { Stop-Process -Id \$_.ProcessId -Force -EA 0 }" 2>/dev/null
+  { zkill_name pcsx2; zkill_cmd "fake_lobby[.]py|drive[.]py|udprelay[.]py"; } 2>/dev/null
   for i in 1 2 3 4; do cp "$RUN/p$i/PCSX2/logs/emulog.txt" "$OUT/emulog-p$i.txt" 2>/dev/null; done
 }
 trap 'cleanup; rig_release' EXIT
@@ -88,7 +88,7 @@ t34=
 bres() { grep -a -o "BATTLE RESULT [0-9.:]* battles=[0-9]* win=[0-9]* lose=[0-9]* kill=[0-9]* death=[0-9]* frames=[0-9]* side=[0-9]*" "$OUT/fake.log"; }
 while [ $((SECONDS - t0)) -lt "${MAXS:-2100}" ]; do
   [ -n "${POST:-}" ] && $DRIVE $POST 1 2 3 4 2>&1 | grep -v memgate | tail -1 || sleep 30
-  r=$(bres | wc -l)
+  r=$(($(bres | wc -l)))
   if [ -n "${NORESULT:-}" ]; then
     c=$(grep -a -o 'conn from' "$OUT/fake.log" | wc -l)
     echo "$((SECONDS - t0)) s: results $r, lobby conns $c/8"

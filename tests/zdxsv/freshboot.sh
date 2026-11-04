@@ -3,13 +3,13 @@
 #     FB_LOBBY=0: fast boot stops at the user_id selection and drive.py idlogin picks ID 1 with fixed waits).
 #   fresh_boot_all N..: fresh_boot for all of them at once (4 clients ~30 s, one at a time ~2 min).
 #   fresh_entry N: map -> Lobby 06 (press checked, retried once), side entry; waits for N entries in fake.log.
-# Env: API, CARDS (array), RUN, OUT, DRIVE, PCSX2_ENV, PCSX2_ENV_Pn, SPEED, SHOW, LAUNCH_ARGS (more launch.ps1 args),
+# Env: API, CARDS (array), RUN, OUT, DRIVE, PCSX2_ENV, PCSX2_ENV_Pn, SPEED, SHOW, LAUNCH_ARGS (more launch.sh args),
 #   BOOT_WAIT (s from launch to the fast boot end, default 60), ENTRY_WAIT (s for the Lobby 06 press, default 20).
 fresh_boot() {
   local i=$1 penv l log t tb=$SECONDS end="lobby"
   [ "${FB_LOBBY:-1}" = 0 ] && end="user_id selection"
   eval "penv=\${PCSX2_ENV_P$i:-}"
-  l=$(env ZDXSV_TLS=0 ZDXSV_FAST_BOOT=1 ZDXSV_FAST_BOOT_LOBBY=${FB_LOBBY:-1} ZDXSV_FAST_LOGIN=1 ZDXSV_LOGIN_API_URL=http://127.0.0.1:$API/lbs/login $PCSX2_ENV $penv powershell -NoProfile -Command "& '$here/launch.ps1' -N $i -Speed ${SPEED:-1} -Memcard $RUN/Mcd001-${CARDS[i-1]}.ps2 ${LAUNCH_ARGS:-} $(case " ${SHOW:-} " in *" $i "*) ;; *) echo -Headless;; esac)" 2>&1)
+  l=$(env ZDXSV_TLS=0 ZDXSV_FAST_BOOT=1 ZDXSV_FAST_BOOT_LOBBY=${FB_LOBBY:-1} ZDXSV_FAST_LOGIN=1 ZDXSV_LOGIN_API_URL=http://127.0.0.1:$API/lbs/login $PCSX2_ENV $penv bash "$here/launch.sh" -N $i -Speed ${SPEED:-1} -Memcard $RUN/Mcd001-${CARDS[i-1]}.ps2 ${LAUNCH_ARGS:-} $(case " ${SHOW:-} " in (*" $i "*) ;; (*) echo -Headless;; esac) 2>&1)
   echo "$l" | tail -1
   echo "$l" | grep -q "pid .* slot" || { echo "FAIL launch p$i"; return 1; }
   log="$RUN/p$i/PCSX2/logs/emulog.txt"

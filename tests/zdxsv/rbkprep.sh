@@ -5,7 +5,7 @@
 # HOLDS s so a probe (PCSX2_ENV_P1="ZDXSV_EE_PROBE=..") sees the battle start, and all is stopped.
 #   OUT=<dir> bash tests/zdxsv/rbkprep.sh
 # Env as m4.sh: TRACE, CARDS, API, IP, ZBIN, PCSX2_ENV, PCSX2_ENV_Pn; HOLDS (default 120).
-here=$(cd "$(dirname "$0")" && pwd -W)
+. "$(dirname "$0")/os.sh"; here=$(cd "$(dirname "$0")" && zpwd)
 . "$here/riglock.sh"  # one rig at a time
 . "$here/freshboot.sh"
 zdxsv_need ZDXSV
@@ -15,15 +15,15 @@ API=${API:-9881}
 OUT=${OUT:?OUT=dir for logs}
 DRIVE="env MEMGATE_RESERVE_MB=${DRIVE_RESERVE_MB:-150} $PY $here/drive.py"
 zdxsv_need IP
-Z=${ZBIN:-$ZDXSV/bin/zdxsv.exe}
+Z=${ZBIN:-$ZDXSV/bin/zdxsv$ZEXE}
 SS="SLPS-25419 (435D8236).09.p2s"
 mkdir -p "$OUT"
-export BATTLEREG=${BATTLEREG:-$RUN/battlereg.exe}
+export BATTLEREG=${BATTLEREG:-$RUN/battlereg$ZEXE}
 export ZDXSV_BATTLE_ADDR=:8210 ZDXSV_BATTLE_RPC_ADDR=127.0.0.1:3080 ZDXSV_BATTLE_PUBLIC_ADDR=$IP:8210
 pids=()
 cleanup() {
   kill "${pids[@]}" 2>/dev/null
-  powershell -NoProfile -Command "Get-Process pcsx2* -EA 0 | Stop-Process -Force; Get-CimInstance Win32_Process | ? { \$_.CommandLine -match 'fake_lobby.py|drive.py' } | % { Stop-Process -Id \$_.ProcessId -Force -EA 0 }" 2>/dev/null
+  { zkill_name pcsx2; zkill_cmd "fake_lobby[.]py|drive[.]py"; } 2>/dev/null
   for i in 1 2 3 4; do cp "$RUN/p$i/PCSX2/logs/emulog.txt" "$OUT/emulog-p$i.txt" 2>/dev/null; done
 }
 trap 'cleanup; rig_release' EXIT

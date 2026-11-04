@@ -137,7 +137,7 @@ def prepare_instance(idx: int):
     put("Folders", "Bios", BIOS)
     put("Filenames", "BIOS", BIOS_FILE)
     put("Logging", "EnableFileLogging", True)
-    # PINE slot per instance, as zdxsv/launch.ps1 (28010 + instance number).
+    # PINE slot per instance, as zdxsv/launch.sh (28010 + instance number).
     put("EmuCore", "EnablePINE", True)
     put("EmuCore", "PINESlot", 28011 + idx)
     put("EmuCore/GS", "VsyncQueueSize", FRAME_LATENCY)

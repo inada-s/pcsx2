@@ -1,11 +1,11 @@
 #!/bin/bash
-# Online without DEV9: p1 boots with ZDXSV_NODEV9=$IP and the fast login on (DEV9 adapter off, launch.ps1),
+# Online without DEV9: p1 boots with ZDXSV_NODEV9=$IP and the fast login on (DEV9 adapter off, launch.sh),
 # against the local stack (boottime.sh), route top to the lobby's user_id selection.
 #   OUT=<dir> bash tests/zdxsv/nodev9.sh
 # Env: MAXS (s to wait, default 200), NODEV9 (ZDXSV_NODEV9, default $IP).
 # Exit 0 = the user_id screen is up and p1 logged no-DEV9 on, a fast login session with the lobby on $IP,
 # DNAS got no POST, and pcsx2 had no TCP connection to a host other than $IP or 127.0.0.1.
-here=$(cd "$(dirname "$0")" && pwd -W)
+. "$(dirname "$0")/os.sh"; here=$(cd "$(dirname "$0")" && zpwd)
 . "$here/env.sh"
 zdxsv_need IP
 OUT=${OUT:?OUT=dir for logs}
@@ -13,7 +13,7 @@ mkdir -p "$OUT"; rm -f "$OUT/remote.txt" "$OUT/samples.txt"; touch "$OUT/remote.
 trap 'kill $sp 2>/dev/null' EXIT
 (
   while :; do
-    powershell -NoProfile -Command "\$p = (Get-Process pcsx2* -EA 0).Id; if (\$p) { Get-NetTCPConnection -OwningProcess \$p -EA 0 | ? { \$_.RemoteAddress -notin '0.0.0.0', '::', '127.0.0.1', '$IP' } | % { \$_.RemoteAddress + ':' + \$_.RemotePort } }" >> "$OUT/remote.txt"
+    zremote $(zpids_name pcsx2) | grep -v -E "^(0[.]0[.]0[.]0|::|127[.]0[.]0[.]1|$IP):" >> "$OUT/remote.txt"
     echo x >> "$OUT/samples.txt"; sleep 5
   done
 ) & sp=$!
