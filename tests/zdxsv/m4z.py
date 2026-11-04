@@ -165,7 +165,7 @@ def pwcheck_ok(path, n):
 
 def main():
     zrig.take()
-    zrig.need("ZDXSV", "IP", "CARDS", "USERS", "RUN")
+    zrig.need("ZDXSV_DIR", "IP", "CARDS", "USERS", "RUN")
     par = E("PAR", "1")
     out = os.path.abspath(os.environ.get("OUT") or sys.exit("OUT=dir for logs"))
     os.environ["OUT"] = out
@@ -173,7 +173,7 @@ def main():
     ip = os.environ["IP"]
     emu, ext_off, ggpo = E("EMU"), E("EXT_OFF"), E("GGPO")
     zp = (E("ZP") if emu else E("ZP", "1 3")).split()
-    zproxy = E("ZPROXY") or os.path.join(os.environ["ZDXSV"], "bin", "zproxy" + zrig.EXE)
+    zproxy = E("ZPROXY") or os.path.join(os.environ["ZDXSV_DIR"], "bin", "zproxy" + zrig.EXE)
     cards, users = os.environ["CARDS"].split(), os.environ["USERS"].split()
     clients = E("CLIENTS", "1 2 3 4").split()
     nc, nz = len(clients), len(zp)
@@ -182,7 +182,7 @@ def main():
     ngc = len(gclients)
     show = E("SHOW").split()
     gdelay = E("GDELAY", "1")
-    zbin = E("ZBIN") or os.path.join(os.environ["ZDXSV"], "bin", "zdxsv" + zrig.EXE)
+    zbin = E("ZBIN") or os.path.join(os.environ["ZDXSV_DIR"], "bin", "zdxsv" + zrig.EXE)
     lobby, battle = os.path.join(out, "lobby.log"), os.path.join(out, "battle.log")
 
     def el(i):

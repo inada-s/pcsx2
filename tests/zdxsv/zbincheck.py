@@ -1,7 +1,7 @@
 """zbincheck.py <exe>: FAIL (exit 1) unless the go binary was built from the zdxsv checkout as it is now
 (vcs.revision == HEAD, not vcs.modified, clean src/). Called by stack.py and m4z.py before any client starts.
 ZREV=<rev prefix>: expect that build instead (a control on an old build); ZREV=any: no check.
-Env: ZDXSV (zdxsv checkout), GOEXE (go binary, default go).
+Env: ZDXSV_DIR (zdxsv checkout), GOEXE (go binary, default go).
 """
 import os
 import re
@@ -12,7 +12,7 @@ import zrig
 
 def check(exe):
     """0 or 1, with the verdict line printed."""
-    zrig.need("ZDXSV")
+    zrig.need("ZDXSV_DIR")
     zrev = zrig.env("ZREV")
     if zrev == "any":
         return 0
@@ -32,7 +32,7 @@ def check(exe):
             return 0
         print(f"FAIL zbincheck: {exe} is {rev}, ZREV={zrev}", flush=True)
         return 1
-    z = os.environ["ZDXSV"]
+    z = os.environ["ZDXSV_DIR"]
     head = zrig.run(["git", "-C", z, "rev-parse", "HEAD"]).stdout.strip()
     dirty = zrig.run(["git", "-C", z, "status", "--porcelain", "--", "src", "go.mod", "go.sum"]).stdout.strip()
     if rev != head or mod or dirty:

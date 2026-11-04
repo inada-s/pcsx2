@@ -14,7 +14,7 @@ have no default, e.g.
     ROM=/path/to/zgundam.iso BIOS=/path/to/ps2-bios python run.py rom
     N=2 python run.py rom
     N=4 SEED=7 python run.py rbk_test_random
-    GDXSV=192.168.1.8 python run.py rom    # point the game's server hosts at a local zdxsv
+    ZDXSV=203.0.113.5 python run.py rom    # point the game's server hosts at another zdxsv (default: this PC)
     FRAME_LATENCY=0 python run.py rom      # maximum frame latency 0 (optimal frame pacing)
     LAT=100 JITTER=20 LOSS=0.05 N=4 python run.py rbk_test_random   # 100 ms one-way +-20 ms, 5 % loss
 
@@ -51,8 +51,9 @@ BIOS = Path(os.environ["BIOS"]) if os.getenv("BIOS") else None
 BIOS_FILE = os.getenv("BIOS_FILE", "SCPH-50000_JPN_Con_0190_20030822_v10_[D9407AE8].rom0")
 # Copied into an instance's memcards/ when it has no Mcd001.ps2 yet. Unset = PCSX2 makes an empty card.
 MEMCARD = os.getenv("MEMCARD", "")
-# Server address for the game's zdxsv hosts. Empty = the build's ZDXSV_SERVER_HOST (release: production; source build: none).
-GDXSV = os.getenv("GDXSV", "")
+# Server address for the game's zdxsv hosts; PCSX2's internal DNS answers 127.0.0.1 with this PC's address.
+# Empty = no host entries written: the build's ZDXSV_SERVER_HOST (release: production; source build: none).
+ZDXSV = os.getenv("ZDXSV", "127.0.0.1")
 STATE = os.getenv("STATE", "")
 # Maximum frame latency ([EmuCore/GS] VsyncQueueSize): frames the emulation may run ahead of the
 # display. 2 = PCSX2 default; 0 = optimal frame pacing (waits for the display every frame, least lag).
@@ -159,13 +160,13 @@ def prepare_instance(idx: int):
             put("InputSources", "SDL", True)
             for button, sdl in SDL_PAD1.items():
                 put("Pad1", button, f"SDL-0/{sdl}")
-    if GDXSV:
+    if ZDXSV:
         put("DEV9/Eth/Hosts", "Count", len(ZDXSV_HOSTS))
         for i, host in enumerate(ZDXSV_HOSTS):
             sec = f"DEV9/Eth/Hosts/Host{i}"
             put(sec, "Url", host)
             put(sec, "Desc", "zdxsv")
-            put(sec, "Address", GDXSV)
+            put(sec, "Address", ZDXSV)
             put(sec, "Enabled", True)
 
     with open(ini_path, "w", encoding="utf-8") as f:
