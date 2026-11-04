@@ -9,7 +9,8 @@ Exit 0 = all checks passed.
   OUT=<dir> python tests/zdxsv/m4z.py
 Env: ZP (clients behind zproxy, default "1 3": one per side), ZPROXY (exe), SHOW ("1 2":
 windowed with GS snapshots), MAXS (s after mash to wait for results).
-EMU=1: the 4 clients are emulators instead (platform info, TCP to the battle server, no zproxy by default);
+EMU=1: the 4 clients are emulators instead (platform info, TCP to the battle server, no zproxy by default;
+  ZDXSV_TLS=0 unless ZDXSV_TLS_TEST_PIN=1);
   GGPO=7101: with ZDXSV_GGPO net=1,lobby=1,port=GGPO+i-1 on GGPO_CLIENTS (default "1 2 3 4"; a lobby with
   the GGPO battle info, ZBIN): the battle runs over GGPO (checks below).
   BATTLES=N (CLIENTS="1 3", 1v1): N battles in the same processes (EXIT from 作戦後部屋, Lobby 02 again);
@@ -207,6 +208,9 @@ def main():
             e["ZDXSV_PW_DUMP"] = os.path.join(out, f"pw-p{i}.bin")
         if i == E("HTTPS_OFF"):
             e["ZDXSV_HTTPS_LATENCY"] = "0"
+        # the stack has TLS ports only for the TLS test (test pin, test certs)
+        if E("ZDXSV_TLS_TEST_PIN") != "1":
+            e["ZDXSV_TLS"] = "0"
         # CENV="K=V ...": extra env for every emulator client (e.g. a battle timer ZDXSV_EE_CLAMP for a time-up)
         e.update(freshboot.assigns(E("CENV")))
         if i == E("SYNC_SALT"):
