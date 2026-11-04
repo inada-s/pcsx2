@@ -64,6 +64,33 @@ namespace Zdxsv
 		// The pick's SMAP.IRX load (jal); SMAP needs dev9, and the pick never checks a load result.
 		constexpr u32 kSmapLoadPc = 0x336bd4;
 		constexpr u32 kSmapLoad = 0x0c0cd8f4;
+		// The connection menu (broadband, dial-up, last connection). Its exit branches for broadband and dial-up
+		// (beq to their setup screens) are retargeted to the last connection exit: no setup screen is needed.
+		constexpr u8 kNetConnectMenu = 3;
+		constexpr u32 kMenuBroadbandPc = 0x368ba4;
+		constexpr u32 kMenuBroadband = 0x10430012;
+		constexpr u32 kMenuDialUpPc = 0x368bb0;
+		constexpr u32 kMenuDialUp = 0x10430003;
+		constexpr u32 kMenuBroadbandToLast = 0x1043001e;
+		constexpr u32 kMenuDialUpToLast = 0x1043001b;
+		// The setting list's last connection step (overlay code, loaded with the list) shows the setting read from
+		// the card and waits for a button before it connects.
+		// The setting is unused here, so the wait (beqz on the pad bit) is removed.
+		constexpr u32 kLastSettingWaitPc = 0x11801fc;
+		constexpr u32 kLastSettingWait = 0x10400008;
+		// A card without a setting (new player): the last connection type is 0 (none) and the setting read fails.
+		// The type load is replaced by broadband (1); without it the game waits on that state forever.
+		constexpr u8 kNetLastType = 0x1a;
+		constexpr u32 kLastTypeLoadPc = 0x36adf4;
+		constexpr u32 kLastTypeLoad = 0x8022ec82;
+		constexpr u32 kLastTypeBroadband = 0x24020001;
+		// The list's state: a failed read goes to the error state; the connect state uses no setting here.
+		constexpr u32 kSettingListState = 0x6d81bc;
+		constexpr u32 kSettingReadFailed = 9;
+		constexpr u32 kSettingConnect = 7;
+		// Connect init's device; the list sets it after a successful read only. Null fails connect init.
+		constexpr u8 kNetConnectInit = 7;
+		constexpr u32 kConnectDevice = 0x6d7e54;
 #ifdef MSG_NOSIGNAL
 		constexpr int kSendFlags = MSG_NOSIGNAL;
 #else
@@ -417,6 +444,21 @@ namespace Zdxsv
 		}
 		if (pick)
 			Patch(kSmapLoadPc, kSmapLoad, 0);
+		if (net == kNetConnectMenu)
+		{
+			Patch(kMenuBroadbandPc, kMenuBroadband, kMenuBroadbandToLast);
+			Patch(kMenuDialUpPc, kMenuDialUp, kMenuDialUpToLast);
+		}
+		if (net == kNetLastType)
+			Patch(kLastTypeLoadPc, kLastTypeLoad, kLastTypeBroadband);
+		if (net == kNetSettingList)
+		{
+			Patch(kLastSettingWaitPc, kLastSettingWait, 0);
+			if (memRead32(kSettingListState) == kSettingReadFailed)
+				memWrite32(kSettingListState, kSettingConnect);
+		}
+		if (net == kNetConnectInit && memRead32(kConnectDevice) == 0)
+			memWrite32(kConnectDevice, kDevEntry);
 		s_state.last_net = net;
 	}
 
