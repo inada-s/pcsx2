@@ -25,6 +25,15 @@ ALIAS = {"Return": "Start", "S": "T", "Backspace": "Select", "Q": "L1", "E": "R1
 FPS = 60  # NTSC vsyncs per game second (pine.py fps at 1x: 60.0)
 WALL = os.environ.get("PINE_WALL") == "1"
 STALL_S = 120  # wait(): frame count not moving this long = emulator hung or paused
+# Game RAM values for @name=V (SLPS-25419): (pointer or None, address
+# or offset). scene = top scene G[0] (1 title, 2 main menu, 7 通信対戦); net = network menu state (1 warning,
+# 2 NET file, 3 connection menu, 4 ネットワーク接続, 5 terms, 6 netconf list, 0x21 connect); step = lobby
+# connection step (4 = ID選択); menu = main menu cursor.
+PROBE = {
+    "scene": (0x6D7A8C, 0), "net": (None, 0xCD1360), "nsub": (None, 0xCD1361),
+    "step": (0x6D7D54, 0xA1F), "phase": (None, 0x6D7D84), "menu": (0x6D7954, 0x25C),
+}
+UNTIL_MS = 60000  # @name=V default limit, game time
 
 
 def shrink(path, scale):
@@ -146,6 +155,57 @@ class Pine:
                 raise TimeoutError("frame count stuck at %d for %d s" % (f, STALL_S))
             last = f
 
+    def probe(self, name):
+        """u8 of a PROBE name, or u8:0xADDR; None while its pointer is not set up or the VM is not up
+        (PINE refuses reads before the game runs)."""
+        try:
+            if name.startswith("u8:"):
+                return self.r8(int(name[3:], 0))
+            ptr, off = PROBE[name]
+            if ptr is None:
+                return self.r8(off)
+            base = self.r32(ptr)
+            return self.r8(base + off) if 0x100000 <= base < 0x2000000 - off else None
+        except RuntimeError:
+            return None
+
+    def until(self, name, value, ms=UNTIL_MS):
+        """Wait until probe(name) == value, at most ms of game time (vsyncs, as wait)."""
+        n = max(1, round(ms * FPS / 1000))
+        start = last = self.frame()
+        done, still = 0, time.time()
+        while True:
+            v = self.probe(name)
+            if v == value:
+                return self.frame() - start
+            if done >= n:
+                raise TimeoutError("@%s=%d: still %s after %d vsyncs" % (name, value, v, n))
+            time.sleep(0.005)
+            f = self.frame()
+            if f > last:
+                done += f - last
+                still = time.time()
+            elif time.time() - still > STALL_S:
+                raise TimeoutError("frame count stuck at %d for %d s" % (f, STALL_S))
+            last = f
+
+    def press_until(self, key, name, value, every_ms=1000, hold_ms=120, port=0):
+        """Press key, again every every_ms of game time, until probe(name) == value (UNTIL_MS in all)."""
+        for _ in range(max(1, UNTIL_MS // every_ms)):
+            if self.probe(name) == value:
+                return
+            try:
+                self.press(key, hold_ms, port)
+            except RuntimeError:
+                pass
+            try:
+                self.until(name, value, every_ms)
+                return
+            except TimeoutError as e:
+                if "stuck" in str(e):
+                    raise
+        raise TimeoutError("%s~%s=%d: still %s after %d ms" % (key, name, value, self.probe(name), UNTIL_MS))
+
     def press(self, name, hold_ms=120, port=0):
         bs = [BIND[ALIAS.get(n, n)] for n in name.split("+")]  # A+B = chord
         for b in bs:
@@ -156,8 +216,20 @@ class Pine:
 
     def seq(self, text, hold_ms=120, gap_ms=350, port=0):
         """Comma list: Key, Key+Key (chord), Key*N, Key:holdMS, wMS (wait), fN (wait until frame count >= N).
+        @name=V[/MS] (wait until game RAM probe name == V, see PROBE and until; V decimal or 0x).
         ms = game time (vsyncs at 60/s, see wait)."""
         for tok in [t.strip() for t in text.split(",") if t.strip()]:
+            if tok[0] == "@":
+                name, _, rest = tok[1:].partition("=")
+                v, _, ms = rest.partition("/")
+                self.until(name, int(v, 0), int(ms or UNTIL_MS))
+                continue
+            if "~" in tok:
+                key, _, cond = tok.partition("~")
+                name, _, rest = cond.partition("=")
+                v, _, ms = rest.partition("/")
+                self.press_until(key, name, int(v, 0), int(ms or 1000), hold_ms, port)
+                continue
             if tok[0] == "w" and tok[1:].isdigit():
                 self.wait(int(tok[1:]))
                 continue
@@ -192,6 +264,14 @@ def main():
         getattr(p, c)(int(a.args[0], 0), int(a.args[1], 0))
     elif c == "frame":
         print(p.frame())
+    elif c == "watch":  # watch [secs]: frame + every PROBE value on each change (route mapping)
+        t0, seen = time.time(), None
+        while time.time() - t0 < (float(a.args[0]) if a.args else 60):
+            v = tuple(p.probe(k) for k in PROBE)
+            if v != seen:
+                print(p.frame(), " ".join("%s=%s" % kv for kv in zip(PROBE, v)), flush=True)
+                seen = v
+            time.sleep(0.01)
     elif c == "fps":
         f0, t0 = p.frame(), time.time()
         time.sleep(float(a.args[0]) if a.args else 5)
