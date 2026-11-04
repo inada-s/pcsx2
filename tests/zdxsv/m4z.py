@@ -177,7 +177,7 @@ def main():
     cards, users = os.environ["CARDS"].split(), os.environ["USERS"].split()
     clients = E("CLIENTS", "1 2 3 4").split()
     nc, nz = len(clients), len(zp)
-    entry = "entry2p" if nc == 2 else "entry"
+    pair = nc == 2
     gclients = (E("GGPO_CLIENTS") or " ".join(clients)).split()
     ngc = len(gclients)
     show = E("SHOW").split()
@@ -425,10 +425,10 @@ def main():
     # each saw ジャブロー2 "1人". One at a time: `entry 1 2` in parallel dropped p2's Down
     # (-> オペレーションリスト). Each must reach 0x640E (side).
     def map_pressed(a0):
-        for _ in range(int(E("ENTRY_WAIT", "20"))):
+        for _ in range(4 * int(E("ENTRY_WAIT", "20"))):
             if c(lobby, r"C->S \[Q\] ID:0x6305") > a0:
                 return True
-            time.sleep(1)
+            time.sleep(0.25)
         return False
 
     def wait640e(n):
@@ -441,7 +441,7 @@ def main():
     for k, i in enumerate(clients, 1):
         if not speed_check(int(i)):  # routes hold keys in wall ms; a faster run than SPEED is no SPEED result
             return 1
-        if entry == "entry2p":
+        if pair:
             if not entry2p_retry(i):
                 say(f"FAIL client {i} entry (no Lobby 02)")
                 return 1
