@@ -289,8 +289,7 @@ if [ -n "${EXT_OFF:-}" ]; then
   done
 fi
 [ -n "${EMU:-}" ] && [ -z "${EXT_OFF:-}" ] && check "platform info sent x$nc" "[ \$(cat '$RUN'/p[1-4]/PCSX2/logs/emulog.txt | grep -a -c 'sent platform info') -ge $nc ]"
-[ -z "${EMU:-}" ] && [ -z "${EXT_OFF:-}" ] && check "platform info off x4, no bridge" "[ \$(cat '$RUN'/p[1-4]/PCSX2/logs/emulog.txt | grep -a -c 'platform info off') -ge 4 ] && ! cat '$RUN'/p[1-4]/PCSX2/logs/emulog.txt | grep -a -q 'bridge'"
-[ -z "${EMU:-}" ] && [ -z "${EXT_OFF:-}" ] && check "TLS off x4 (plain ports, as a PS2)" "[ \$(cat '$RUN'/p[1-4]/PCSX2/logs/emulog.txt | grep -a -c 'Zdxsv: TLS: off') -ge 4 ]"
+[ -z "${EMU:-}" ] && [ -z "${EXT_OFF:-}" ] && check "DEV9 path x4 (adapter DHCP), no platform info, TLS, bridge or no-DEV9" "[ \$(grep -a -l 'DEV9: DHCP' '$RUN'/p[1-4]/PCSX2/logs/emulog.txt | wc -l) -ge 4 ] && ! cat '$RUN'/p[1-4]/PCSX2/logs/emulog.txt | grep -a -q 'sent platform info\|Zdxsv: TLS: on\|bridge\|Zdxsv: no DEV9: '"
 if [ -n "${EMU:-}" ] && [ "${ZDXSV_TLS_TEST_PIN:-}" = 1 ]; then
   for i in ${CLIENTS:-1 2 3 4}; do
     el="$RUN/p$i/PCSX2/logs/emulog.txt"; tp="8220 8221"; [ -z "${GGPO:-}" ] && tp="$tp 8222"
