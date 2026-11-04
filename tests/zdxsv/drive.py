@@ -99,10 +99,10 @@ if (os.environ.get("ZDXSV_NODEV9") or os.environ.get("IP") or "0") != "0":
     ROUTES["top"] = "Return~scene=2/500,Down~menu=7/400,C~scene=7,C~net=2,C~net=3/500,w1500,Up*2,C,@net=5,w1500,"\
                     "Up,C,@net=0x21/30000"
     # Blank card: NET file created and saved as in "fresh", then no netcnf GUI and no reboot. Keyed on net/nsub
-    # (1 NET file not found, 2 新規作成: nsub 21 slot, 23 format + 2 notes, timed: nsub does not change there),
-    # then the connection menu (3), the terms (5) and TOP (phase 23).
-    ROUTES["fresh"] = "Return~scene=2/500,Down~menu=7/400,C~scene=7,C~net=2,@nsub=21,C~nsub=22,@nsub=23,w4000,C,"\
-                      "w4000,Up,C,w6000,C,w5000,C,@net=3/15000,w1500,C,@net=5,w1500,Up,C,@phase=23/40000,w5000"
+    # (1 NET file not found, 2 新規作成: nsub 21 slot), dlg (format, its はい, 2 notes; the 2nd closes on its own and takes no input), then the connection menu
+    # (net 3), the terms (5) and TOP (phase 23).
+    ROUTES["fresh"] = "Return~scene=2/500,Down~menu=7/400,C~scene=7,C~net=2,@nsub=21,C~nsub=22,@dlg=1,C~dlg=2,w500,"\
+                      "Up,C~dlg=5,C~dlg=4,@dlg=222/15000,C~lstate!/2000,@net=3/15000,w1500,C,@net=5,w1500,Up,C,@phase=23/40000,w5000"
 
 
 def route_text(route, n):
