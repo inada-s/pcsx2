@@ -101,9 +101,11 @@ def launch(ns=(1,), memcard=None, state=None, speed="1", renderer="-1", nogui=Fa
     tree = os.path.dirname(exe)
     while os.path.dirname(tree) != tree and not os.path.isdir(os.path.join(tree, "pcsx2", "Zdxsv")):
         tree = os.path.dirname(tree)
+    stale = ["--exe", exe]
     if not os.path.isdir(os.path.join(tree, "pcsx2", "Zdxsv")):
-        tree = os.path.normpath(os.path.join(zrig.HERE, "..", ".."))
-    lint = zrig.run([zrig.PY, os.path.join(zrig.HERE, "probelint.py"), "--exe", exe, tree])
+        # an exe copied out of its tree (A/B): this tree's mtimes say nothing about its build
+        tree, stale = os.path.normpath(os.path.join(zrig.HERE, "..", "..")), []
+    lint = zrig.run([zrig.PY, os.path.join(zrig.HERE, "probelint.py")] + stale + [tree])
     if lint.returncode:
         print((lint.stdout + lint.stderr).rstrip(), flush=True)
         sys.exit(1)
