@@ -64,6 +64,11 @@ namespace Zdxsv
 		// The pick's SMAP.IRX load (jal); SMAP needs dev9, and the pick never checks a load result.
 		constexpr u32 kSmapLoadPc = 0x336bd4;
 		constexpr u32 kSmapLoad = 0x0c0cd8f4;
+#ifdef MSG_NOSIGNAL
+		constexpr int kSendFlags = MSG_NOSIGNAL;
+#else
+		constexpr int kSendFlags = 0;
+#endif
 
 		struct Reply
 		{
@@ -182,6 +187,11 @@ namespace Zdxsv
 			ioctlsocket(s, FIONBIO, &nb);
 #else
 			fcntl(s, F_SETFL, fcntl(s, F_GETFL, 0) | O_NONBLOCK);
+#ifdef __APPLE__
+			// A send after the server closed would raise SIGPIPE and end the process.
+			const int one = 1;
+			setsockopt(s, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof(one));
+#endif
 #endif
 			sockaddr_in sa = {};
 			sa.sin_family = AF_INET;
@@ -297,7 +307,7 @@ namespace Zdxsv
 			const sock_t s = Sock(b);
 			for (int o = 0; s != INVALID_SOCKET && o < len;)
 			{
-				const int n = send(s, reinterpret_cast<const char*>(b + 0x20 + o), len - o, 0);
+				const int n = send(s, reinterpret_cast<const char*>(b + 0x20 + o), len - o, kSendFlags);
 				if (n > 0)
 					o += n;
 				else if (!WouldBlock())
