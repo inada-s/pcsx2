@@ -1,4 +1,4 @@
-"""Online without DEV9: p1 boots with ZDXSV_NODEV9=$IP and the fast login on (DEV9 adapter off, launch.py),
+"""Online without DEV9: p1 boots with ZDXSV_NODEV9=$IP, the fast login on and ZDXSV_HTTPS_LATENCY=0 (DEV9 adapter off, launch.py),
 against the local stack (boottime.py), route top to the lobby's user_id selection.
   OUT=<dir> python tests/zdxsv/nodev9.py
 Env: MAXS (s to wait, default 200), NODEV9 (ZDXSV_NODEV9, default $IP).
@@ -33,7 +33,7 @@ def main():
 
     t = threading.Thread(target=sample, daemon=True)
     t.start()
-    e = dict(os.environ, ZDXSV_NODEV9=nodev9, ZDXSV_FAST_LOGIN="1", ROUTE="top", LIMIT=maxs, MAXS=maxs)
+    e = dict(os.environ, ZDXSV_NODEV9=nodev9, ZDXSV_FAST_LOGIN="1", ZDXSV_HTTPS_LATENCY="0", ROUTE="top", LIMIT=maxs, MAXS=maxs)
     rc = subprocess.call([zrig.PY, os.path.join(HERE, "boottime.py")], env=e)
     done.set()
     t.join()
