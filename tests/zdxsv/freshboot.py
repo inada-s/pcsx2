@@ -120,10 +120,10 @@ def fresh_boot_all(ns):
 
 
 def _map_pressed(a0):
-    for _ in range(int(zrig.env("ENTRY_WAIT", "20"))):
+    for _ in range(4 * int(zrig.env("ENTRY_WAIT", "20"))):
         if count(out("fake.log"), r"C->S cat 01 cmd 0x6305") > a0:
             return True
-        time.sleep(1)
+        time.sleep(0.25)
     return False
 
 
@@ -193,14 +193,14 @@ def entry2p_retry(i, route="map2p"):
             print(f"p{i} map2p press left out (fault)", flush=True)
         else:
             drive(route, i)
-        for _ in range(wait):
+        for _ in range(4 * wait):
             if lobby_enters("00 02") > n0:
                 drive("lobby2p", i)
                 return True
             if count(lobby, r"C->S \[Q\] ID:0x6305") > a0:
                 print(f"client {i}: entered another lobby than 02", flush=True)
                 return False
-            time.sleep(1)
+            time.sleep(0.25)
         print(f"client {i}: no 0x6305 Lobby 02 {wait} s after {route} (try {k}), walk again", flush=True)
         route = "remap2p"
     return False

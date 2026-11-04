@@ -2,9 +2,9 @@
 
   drive.py <route> <N> [<N> ...]   runs the route on each instance in parallel threads
   routes: top (attract/title -> server TOP page), fresh (blank card -> TOP), login (TOP -> 戦場選択 with ID 1),
-          register (TOP -> 新規登録), newlogin, entry (戦場選択 -> side entry in Lobby 06),
+          register (TOP -> 新規登録), newlogin, map + lobby2p (戦場選択 -> side entry in Lobby 06),
           mash (in battle), after (result screen -> 作戦後部屋)
-4-player battle: top 1 2 3 4; login 1 2 3 4; entry 1 2 3 4; mash 1 2 3 4 (x2); after 1 2 3 4.
+4-player battle: top 1 2 3 4; login 1 2 3 4; map + lobby2p per client in turn; mash 1 2 3 4 (x2); after 1 2 3 4.
 Headless (launch.py -Headless): same routes blind, mash x3, then after; result ~65 s later.
 Each route ends with a snap to $RUN/pN/<route>.png (half size). "no snap" only on a Null-renderer instance
 (Renderer = 11 in its ini); a failed snap of a rendering instance stops the run (winshot.ps1 captures windows).
@@ -26,7 +26,7 @@ from pine import Pine, shrink
 
 RUN = os.environ.get("RUN", ".")  # rig data root
 
-# map cursor to シアトル (Lobby 02) from anywhere on the map: clamp top-left, fixed steps (see entry2p)
+# map cursor to シアトル (Lobby 02) from anywhere on the map: clamp top-left, fixed steps (see map2p)
 # map cursor from where the map opens to ジャブロー2 (Lobby 06), held until the cursor reaches it
 MAP06 = "Down^cury>=256,Right^curx>=393"
 WALK2P = ",".join(["Up:3000,Left:6000,w500"] + ["Right:350,w600"] * 15 + ["Down:400,w600"] + ["Left:350,w600"] * 5)
@@ -67,16 +67,14 @@ ROUTES = {
     "newlogin": "C,w14000,Right,C,w10000,C,w4000,Right*{h},C,C,C,Return,w1500,Return,w3000,C,w4000,Up,C,w9000",
     # 戦場選択 -> map cursor to ジャブロー2 (Lobby 06: starts at 2 AEUG + 2 Titans entries, zdxsv
     # model/lobby.go CanBattleStart) -> lobby -> パートナー自動選抜 -> side {s}: p1/p2 連邦・エゥーゴ, p3/p4 ジオン・ティターンズ
-    "entry": "C,w5000," + MAP06 + ",w500,C," + LOBBY,
-    # entry in halves for m4z.py: map ends with the Lobby 06 press (0x6305 00 06); a late press is
+    # m4z.py: map ends with the Lobby 06 press (0x6305 00 06); a late press is
     # waited for before lobby2p instead of raced
     "map": "C,w5000," + MAP06 + ",w500,C",
     "mappress": "C",
     # 1v1: map cursor to シアトル (Lobby 02: starts at 1 AEUG + 1 Titans). The cursor keeps its spot between
     # visits and hit areas sit off the drawn labels: clamp top-left, then fixed steps (grid scan: Lobby 02
     # at row 1 cols 5-6; route shot-checked, "Lobby 02" shown). Lobby menu + side dialog as in Lobby 06.
-    "entry2p": "C,w5000," + WALK2P + ",w500,C," + LOBBY,
-    # entry2p in halves for freshboot.entry2p_retry (m4z.py): map2p ends with the Lobby 02 press (0x6305 00 02); the
+    # freshboot.entry2p_retry (m4z.py): map2p ends with the Lobby 02 press (0x6305 00 02); the
     # press missed in 3 of 15 entries (no 0x6305, client left on the map) -> remap2p = walk
     # again from the clamp, no leading C; lobby2p = the lobby menu + side dialog
     "map2p": "C,w5000," + WALK2P + ",w500,C",
