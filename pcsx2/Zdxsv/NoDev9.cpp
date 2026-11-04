@@ -6,7 +6,7 @@
 // Experimental, needs proper testing: lobby, a 1v1 TCP battle and a 1v1 GGPO battle tested.
 
 #include "Zdxsv/CpuHooks.h"
-#include "Zdxsv/Dev9Hooks.h"
+#include "Zdxsv/LobbySocket.h"
 #include "Zdxsv/Lobby.h"
 #include "Zdxsv/ServerHosts.h"
 #include "Zdxsv/Settings.h"
@@ -339,6 +339,7 @@ namespace Zdxsv
 				return;
 			}
 			s_state.on = g_no_dev9 = true;
+			ServerHostUsed();
 			s_state.server_ip = std::make_shared<std::atomic<u32>>(0);
 			std::thread(ResolveServer, s_state.server_ip).detach();
 			Console.WriteLn("Zdxsv: no DEV9: the net RPCs are answered on the EE, names resolve to %s", SERVER_HOST);
@@ -377,7 +378,6 @@ namespace Zdxsv
 		sw.DoArray(peer_port, kSlots);
 		if (sw.HasError() || !sw.IsReading())
 			return !sw.HasError();
-		LobbyOnStateLoaded();
 		s_state.link_calls = link_calls;
 		for (int i = 0; i < kSlots; i++)
 		{

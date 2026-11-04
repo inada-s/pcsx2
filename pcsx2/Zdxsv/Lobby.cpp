@@ -1826,27 +1826,6 @@ namespace Zdxsv
 		g_udpTest.reset();
 	}
 
-	static std::atomic<bool> g_stateLoaded{false};
-
-	void LobbyOnStateLoaded()
-	{
-		g_stateLoaded = true;
-	}
-
-	bool LobbyStateEnabled()
-	{
-		static const bool enabled = [] {
-			const char* env = std::getenv("ZDXSV_LOBBY_STATE");
-			return env && std::string(env) == "1";
-		}();
-		return enabled;
-	}
-
-	bool AdoptConnections()
-	{
-		return g_stateLoaded && LobbyStateEnabled();
-	}
-
 	bool IsBattleServer(uint32_t ip, uint16_t port)
 	{
 		std::lock_guard lock(g_mtx);

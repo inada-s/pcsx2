@@ -1047,13 +1047,13 @@ struct Pcsx2Config
 			bool operator!=(const HostEntry& right) const;
 		};
 
-		bool EthEnable{true};
-		NetApi EthApi{NetApi::Sockets};
-		std::string EthDevice{"Auto"};
+		bool EthEnable{false};
+		NetApi EthApi{NetApi::Unset};
+		std::string EthDevice;
 		bool EthLogDHCP{false};
 		bool EthLogDNS{false};
 
-		bool InterceptDHCP{true};
+		bool InterceptDHCP{false};
 		u8 PS2IP[4]{};
 		u8 Mask[4]{};
 		u8 Gateway[4]{};
@@ -1061,8 +1061,8 @@ struct Pcsx2Config
 		u8 DNS2[4]{};
 		bool AutoMask{true};
 		bool AutoGateway{true};
-		DnsMode ModeDNS1{DnsMode::Internal};
-		DnsMode ModeDNS2{DnsMode::Internal};
+		DnsMode ModeDNS1{DnsMode::Auto};
+		DnsMode ModeDNS2{DnsMode::Auto};
 
 		std::vector<HostEntry> EthHosts;
 

@@ -10,8 +10,10 @@
 #                    every launch). Routes wait on frames (pine.py wait), so they hold at any speed.
 #   -Headless        GS Null renderer (11) + -nogui, display window hidden; else -Renderer R (default -1, Auto).
 #   -NoGui
+#   -Eth             DEV9 Ethernet adapter on (ini [DEV9/Eth] EthEnable, written every launch; else off). Only
+#                    clients that play as a PS2 (no-DEV9 path off) need it.
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-N=1 memcard= state= nogui= headless= speed=1 renderer=-1
+N=1 memcard= state= nogui= headless= eth=false speed=1 renderer=-1
 while [ $# -gt 0 ]; do
   case $1 in
     -N) N=$2; shift;;
@@ -22,6 +24,7 @@ while [ $# -gt 0 ]; do
     -Renderer) renderer=$2; shift;;
     -NoGui) nogui=1;;
     -Headless) headless=1;;
+    -Eth) eth=true;;
     *) echo "FAIL $0: unknown argument $1"; exit 2;;
   esac
   shift
@@ -56,17 +59,20 @@ for i in $N; do
   fi
   ini=$d/PCSX2/inis/PCSX2.ini
   r=$renderer; [ -n "$headless" ] && r=11
-  awk -v slot=$((28010 + i)) -v r="$r" -v speed="$speed" '
+  awk -v slot=$((28010 + i)) -v r="$r" -v speed="$speed" -v eth="$eth" '
     { sub(/\r$/, "") }
     /^PINESlot =/ { $0 = "PINESlot = " slot }
     /^Renderer = / { $0 = "Renderer = " r }
     /^NominalScalar *=/ { next }
+    /^EthEnable *=/ { next }
     /^\[EmuCore\/GS\]$/ { gs = 1 }
     { print }
     /^\[Framerate\]$/ { fr = 1; print "NominalScalar = " speed }
+    /^\[DEV9\/Eth\]$/ { eth9 = 1; print "EthEnable = " eth }
     END {
       if (!gs) { print ""; print "[EmuCore/GS]"; print "Renderer = " r }
       if (!fr) { print ""; print "[Framerate]"; print "NominalScalar = " speed }
+      if (!eth9) { print ""; print "[DEV9/Eth]"; print "EthEnable = " eth }
     }' "$ini" > "$ini.new" && mv -f "$ini.new" "$ini"
   [ -n "$memcard" ] && cp -f "$memcard" "$d/PCSX2/memcards/Mcd001.ps2"
   a=(-datapath "$(cygpath -w "$d")" -batch)

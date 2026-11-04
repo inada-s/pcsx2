@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 zdxsv contributors
 // SPDX-License-Identifier: GPL-3.0+
 
-#include "Zdxsv/Dev9Hooks.h"
+#include "Zdxsv/LobbySocket.h"
 #include "Zdxsv/CpuHooks.h"
 #include "Zdxsv/Ggpo.h"
 #include "Zdxsv/Lobby.h"

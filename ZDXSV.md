@@ -18,22 +18,10 @@ This build of PCSX2 is set up to play *Mobile Suit Gundam: Gundam vs. Zeta Gunda
    the settings of another PCSX2 installation on the same PC.
 3. Start `pcsx2-qt.exe`. The first-run wizard asks for the BIOS folder and the game folder.
 
-## Network settings (already set)
+## Network settings
 
-A new setup already has these settings, under Settings → Network & HDD:
-
-| Setting | Value |
-|---|---|
-| Ethernet enabled | on |
-| Ethernet device type | Sockets |
-| Ethernet device | Auto |
-| Intercept DHCP | on |
-| DNS1 / DNS2 | Internal |
-| Hosts | empty (the game's servers are found through `lbs.zdxsv.net`) |
-
-Do not change them. If you copy a `PCSX2.ini` from another PCSX2 installation, it
-replaces these settings. In that case, enter the values from the table yourself, or
-delete `inis\PCSX2.ini` to get a new one with these defaults.
+Online play needs no settings under Settings → Network & HDD. The Ethernet
+settings there are not used for online play, on or off.
 
 If Windows Firewall asks whether PCSX2 can use the network, allow it.
 

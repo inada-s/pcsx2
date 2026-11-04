@@ -20,6 +20,9 @@ Each script's usage and knobs are in its header comment.
   part of this repository.
 - Instance settings of the rig clients: merge `pcsx2.ini.part` into each
   `$RUN/pN/PCSX2/inis/PCSX2.ini` (`@IP@` = `IP`).
+- The DEV9 adapter is off in every rig: `launch.sh` writes `EthEnable` at each
+  launch. Only clients that play as a PS2 (`m4z.sh` without `EMU`, or
+  `EXT_OFF`) get it on (`launch.sh -Eth`).
 
 ## Settings
 
@@ -105,17 +108,15 @@ Scripts are in `tests/zdxsv/` except `run.py` (repository root) and
 | Feature | Test | Control |
 |---|---|---|
 | Switch for all online battle extensions | `CLIENTS="1 3" EMU=1 EXT_OFF=1 m4z.sh`: both clients log `all zdxsv extensions off` and `not the Z game: no platform info`, no GGPO options, and join the battle server over TCP; 2 results | without `EXT_OFF`: `sent platform info` |
-| Network defaults for zdxsv | unit: `DEV9Config.*` in `tests/ctest/core/dev9_config_tests.cpp` | none |
-| Online without DEV9 | `m4z.sh` `EMU=1 CLIENTS="1 3"` (`launch.sh` default, DEV9 on: the game uses the hook): `join tcp x2`, `platform info sent x2`, `BattleResult x2`; with `GGPO=7101`: `p1/p3 ggpo session`, `ggpo end msg frame agrees`. Login: `nodev9.sh` (DEV9 Eth off, fast login): the lobby ID selection shows, emulog `no DEV9` and `fast login: session` with the lobby on the server, no DNAS POST, no TCP to another host; with `launch.sh` defaults (fast login off), routes `top` then `login`: the lobby battlefield map shows | `nodev9.sh` with `NODEV9=0 MAXS=90` (DEV9 Eth off): no ID selection, the network device pick shows the device as unavailable |
+| Online without DEV9 | `m4z.sh` `EMU=1 CLIENTS="1 3"` (DEV9 adapter off): `join tcp x2`, `platform info sent x2`, `BattleResult x2`; with `GGPO=7101`: `p1/p3 ggpo session`, `ggpo end msg frame agrees`. Login: `nodev9.sh` (fast login): the lobby ID selection shows, emulog `no DEV9` and `fast login: session` with the lobby on the server, no DNAS POST, no TCP to another host; with `launch.sh` defaults (fast login off), routes `top` then `login`: the lobby battlefield map shows | `nodev9.sh` with `NODEV9=0 MAXS=90`: no ID selection, the network device pick shows the device as unavailable |
 | Fast login | `ROUTE=top LIMIT=200 boottime.sh` (server with `/lbs/login`): user_id screen with no ログイン press, emulog `Zdxsv: fast login: session`, no DNAS POST in `dnas.log` | `ZDXSV_FAST_LOGIN=0 ROUTE=top LIMIT=200 MAXS=150 boottime.sh` fails (stops at TOP) |
 | Fast boot | `fastboot.sh`: run 1 (no boot state) logs `Zdxsv: fast boot: saving` and reaches the user_id screen with no input, run 2 logs `Zdxsv: fast boot: loading` and reaches it within 5 s of the VM start (`LIMIT`); each prints its time from the launch and from the VM start; run 3 (unformatted card) logs `Zdxsv: fast boot: stopped, memory card error` within 15 s; passes with the local zdxsv stack and with `LOBBY=fake` (`boot_lobby.py`: lobby API login and the lobby up to the user_id list only) | `ZDXSV_FAST_BOOT=0 MAXS=60 boottime.sh` fails (no user_id screen), also with `LOBBY=fake` |
 | Platform info `0x9950` to the lobby | `m4z.sh` with samples of the lobby `/api/stat`: the lobby counts each client by platform | none |
 | Battle over TCP to the battle server, as a PS2 | `m4.sh`: 4 emulators from a fresh boot, all at once (fast boot through the user_id selection to 戦場選択 with `ZDXSV_FAST_BOOT_LOBBY`, fast login to the fake lobby's login API), fake lobby replaying `TRACE`, one battle. Variant `MASHP=1 SHOW=1`: time-up with side 1 ahead, all 4 report a loss | none |
-| Playing as a console | `m4z.sh` (default: 4 consoles, real lobby, fresh boot and login from the memory cards): every client logs `platform info off`, `TLS: off` (plain ports, as a PS2) and no `bridge`; the clients not behind zproxy (p2, p4) join the battle server over TCP; 4 results with the same battle code and frame count | none |
+| Playing as a console | `m4z.sh` (default: 4 consoles, real lobby, DEV9 adapter on, all at once with fast boot to the login page, then login from the memory cards; `PAR=0`: one at a time from a fresh boot): every client takes the plain DEV9 path (adapter DHCP; no platform info, TLS, `bridge` or no-DEV9 line); the clients not behind zproxy (p2, p4) join the battle server over TCP; 4 results with the same battle code and frame count | none |
 | A console behind a separate zproxy process | the same `m4z.sh` run, `ZP="1 3"` (default): zproxy runs with `-upnp=false`, registers with the lobby, the PS2 connects to it and it joins the battle server over UDP (P2P on); no UPnP line in its log | none |
 | First login from a blank memory card | `launch.sh -Memcard <blank>`, then `drive.py fresh`, `register`, `newlogin` | none |
 | TLS to the zdxsv server | `m4z.sh` with `EMU=1 CLIENTS="1 3" ZPROXY=`, `ZDXSV_TLS_TEST_PIN=1`, a `ZBIN` (and `DZ`) with TLS ports, `ZDXSV_TLS_CERT_FILE` / `ZDXSV_TLS_KEY_FILE` = the zdxsv test `server.crt` / `server.key`: every client logs a TLS connection through ports 8220, 8221 and 8222 and no TLS failure; the battle ends with results | the same run with `server-backup.crt` / `server-backup.key` (signed by the unpinned backup CA): every connection is refused, the OSD says so |
-| Lobby save states | no test of its own; `rbkprep.sh` saves the rbk start states while its clients wait in the lobby | none |
 | Lobby connection kept while paused | `CLIENTS=1 EMU=1 SHOW=1 PAUSE=150 PAUSE_ONLY=1 m4z.sh`: no `Recv Timeout` in the lobby log, >= 13 line checks answered while paused | `CENV=ZDXSV_PAUSE_LINE_CHECK=0`: `Recv Timeout` about 2 min into the pause |
 | Pause menu | no committed test. By hand: `CLIENTS=1 EMU=1 SHOW=1 m4z.sh`, Escape in the lobby: the log has `pause menu refused (lobby)`, no `(VMManager) Pausing...` | offline (no lobby connection), Escape opens the pause menu |
 | Settings page | none (checked by hand) | none |
