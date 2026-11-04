@@ -57,14 +57,10 @@ If your memory card is empty, the game makes the files it needs by itself:
 
 1. Main menu → 通信対戦. When the game cannot find the NET file, choose 新規作成 → はい,
    memory card slot 1, then はい to format the card.
-2. Connection menu → ブロードバンド接続 → ネットワーク接続. Accept the terms.
-3. There are no network settings yet. Choose ネットワーク設定の編集 → 新規作成 → slot 1.
-   Choose these options: Ethernet, PPPoE 必要ではない, DHCP automatic, DNS automatic.
-   Save the settings (for example as せってい1). Skip the connection test, then choose 終了する.
-   The game then restarts.
-4. 通信対戦 again → choose your network setting → connect. On the top screen, choose
-   新規登録 to make an ID. The game saves the ID to the memory card.
-5. ログイン, then enter a handle name. You then see 戦場選択 (the lobby).
+2. Connection menu: choose any of its buttons and accept the terms. The game connects with no
+   network settings.
+3. On the top screen, choose 新規登録 to make an ID. The game saves the ID to the memory card.
+4. ログイン, then enter a handle name. You then see 戦場選択 (the lobby).
 
 Later sessions need no input: from game start, fast boot runs the game at full speed through the title, 通信対戦, ブロードバンド接続 and network setting 1, the emulator logs in by itself, and the game stops at the ID selection (DNAS and the top screen are skipped). If the memory card is not formatted or has no NET file (for example a new card, before the steps above), fast boot stops at once and returns the controls to you at normal speed. If the path does not fit for another reason, it gives up after 4 minutes of game time (well under a minute on most PCs).
 To turn fast boot off (for example to play offline), uncheck Fast boot in Settings → zdxsv.
