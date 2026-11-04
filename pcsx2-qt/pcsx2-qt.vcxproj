@@ -178,6 +178,7 @@
       <PreprocessorDefinitions Condition="Exists('$(DepsLibDir)sentry.lib')">ZDXSV_HAS_SENTRY;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <ClCompile Include="Tools\ZdxsvReplayDialog.cpp" />
+    <ClCompile Include="Zdxsv\QtFonts.cpp" />
     <ClCompile Include="Settings\DEV9UiCommon.cpp" />
     <ClCompile Include="Settings\HddCreateQt.cpp" />
     <ClCompile Include="Settings\GameSummaryWidget.cpp" />

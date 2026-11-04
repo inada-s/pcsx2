@@ -148,6 +148,7 @@ set(pcsx2Sources
 	Zdxsv/Overlays.cpp
 	Zdxsv/DeltaFreeze.cpp
 	Zdxsv/Ggpo.cpp
+	Zdxsv/GgpoOsd.cpp
 	Zdxsv/GgpoBattle.cpp
 	Zdxsv/GgpoBudget.cpp
 	Zdxsv/GgpoGameState.cpp

@@ -167,6 +167,8 @@ target_sources(pcsx2-qt PRIVATE
 	Settings/ZdxsvSettingsWidget.ui
 	Tools/ZdxsvReplayDialog.cpp
 	Tools/ZdxsvReplayDialog.h
+	Zdxsv/QtFonts.cpp
+	Zdxsv/QtHooks.h
 	Settings/DEV9UiCommon.cpp
 	Settings/DEV9UiCommon.h
 	Settings/HddCreateQt.cpp

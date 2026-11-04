@@ -36,6 +36,9 @@ import zrig
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 
+# OSD `P` at the end of a stall run; a peer that time sync does not slow down stays about 5 ahead.
+MAX_AHEAD_AFTER_STALL = 3
+
 def opt(k, default):
     """Bash ${K-default}: unset -> default, set empty -> empty."""
     return os.environ.get(k, default)
@@ -255,6 +258,13 @@ def main(argv):
         if not (f and int(f[1]) >= 2 and float(f[3]) < 25):
             print("FAIL STALL: no time sync waits, or one longer than a frame", flush=True)
             ok = 1
+        if not turbo and not zrig.env("LAT"):
+            osd = lines(emulog(peers[0]), "osd frame")
+            ahead = [int(x) for x in re.findall(r"\bP (-?\d+)", osd[-1])] if osd else []
+            print(f"p{peers[0]} frames ahead at the end: {ahead}", flush=True)
+            if not ahead or max(ahead) > MAX_AHEAD_AFTER_STALL:
+                print("FAIL STALL: time sync did not bring the peer back", flush=True)
+                ok = 1
     print(f"rbk N={n} seed={seed or 'none'}: {round(time.time() - t0)} s, {'PASS' if ok == 0 else 'FAIL'}", flush=True)
     return ok
 

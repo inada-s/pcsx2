@@ -18,8 +18,9 @@ skips does not run on that path.
 | Counters (vsync), VMManager | `Ggpo`, `Replay*`, `NoDev9`, `FastBoot` | GGPO frame loop, replay playback, VM start / reset / shutdown cleanup |
 | MTGS, GS, SPU2 | `DeltaFreeze`, `SingleDrawList`, `InputLatency`, `Overlays`, `FastBoot` | rerun frame skips, fast boot shows every 8th frame, single draw list, input latency, OSD |
 | Pad | `Ggpo`, `ReplayPlay` | inputs to and from GGPO and replays |
+| Hotkeys, ImGui | `Overlays`, `ReplayPlay`, `GgpoOsd` | replay hotkeys and bar, refused pause and speed changes, network status panel |
+| Qt fonts | `pcsx2-qt/Zdxsv/QtFonts` | Noto Sans JP download before the OSD fonts load |
 | Qt host start and exit (`CrashReportHooks.h`) | `pcsx2-qt/Zdxsv/CrashReports` | crash reports |
-| Hotkeys, ImGui | `Overlays`, `ReplayPlay` | replay hotkeys and bar, refused pause and speed changes |
 
 ### Network paths
 

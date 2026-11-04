@@ -63,7 +63,7 @@ ROUTES = {
     "idlogin": "C~lstate!/2000,C~lstate!/3000,@step=5/10000,@step=1/3000",
     # TOP -> 新規登録 -> save ID+password to NET file -> ユーザ作成完了 -> 戻る -> TOP (new key on the card)
     # A C lost under load (3 logins at once) left the key unsaved: check the shot, run it alone.
-    "register": "Right,w800,C,@wseq=23/20000,C,@wseq=25/20000,C,@wseq=26/20000,C,@wseq=28/20000",
+    "register": "Right~lstate!/500,C~lstate!/500,@wseq=23/20000,C,@wseq=25/20000,C,@wseq=26/20000,C,@wseq=28/20000",
     # TOP with a fresh key -> skip Capcom reg -> HN: kana column {h} x3 on the soft keyboard
     # -> Start x2 (1st confirms the kana, 2nd = 決定, cursor on 登録) -> 登録 -> はい -> 戦場選択
     "newlogin": "@wseq=31/20000,Right,C,@wseq=33/20000,C,@wseq=34/20000,Right*{h},C,C,C,Return,@wseq=35/20000,Return,"

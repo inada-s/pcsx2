@@ -3,6 +3,7 @@
 
 #include "MainWindow.h"
 #include "QtHost.h"
+#include "Zdxsv/QtHooks.h"
 
 #include "common/Assertions.h"
 #include "common/Console.h"
@@ -66,7 +67,6 @@ enum class FontScript : u8;
 namespace QtHost
 {
 	static void UpdateGlyphRangesAndClearCache(QWidget* dialog_parent, const std::string_view language);
-	static bool DownloadMissingFont(QWidget* dialog_parent, const char* font_name, const std::string& path);
 	static FontScript GetFontScript(const std::string_view language);
 
 	static QLocale s_current_locale;
@@ -548,16 +548,36 @@ static void DownloadFontIfMissing(FontSearchContext* ctx, QWidget* dialog_parent
 		TryLoadFonts(ctx);
 }
 
+// Zdxsv: player and pilot names on the OSD are Japanese whatever the UI language; a system font loaded
+// before the download (Yu Gothic, Meiryo) is replaced by Noto Sans JP.
+static void DownloadJapaneseFontIfMissing(FontSearchContext* ctx, QWidget* dialog_parent)
+{
+	const char* name = g_font_load_info[static_cast<size_t>(FontScript::Japanese)][0].file_name;
+	const SmallString font_path = GetFontPath(name);
+	std::string path = Path::Combine(EmuFolders::UserResources, font_path);
+	if (FileSystem::FileExists(path.c_str()) || FileSystem::FileExists(EmuFolders::GetOverridableResourcePath(font_path).c_str()))
+		return;
+	if (!QtHost::DownloadMissingFont(dialog_parent, name, path))
+		return;
+	FontData& font = s_font_data[static_cast<size_t>(FontScript::Japanese)];
+	if (font)
+		FileSystem::UnmapFile(font.data);
+	font = {};
+	TryLoadFonts(ctx);
+}
+
 void QtHost::UpdateGlyphRangesAndClearCache(QWidget* dialog_parent, const std::string_view language)
 {
 	FontScript scriptPrimary   = GetFontScript(language);
 	FontScript scriptSecondary = GetSecondaryScript(scriptPrimary);
 	FontSearchContext ctx = nullptr;
 
+	Zdxsv::QtFontsDownloadJapanese(dialog_parent);
 	TryLoadFonts(&ctx);
 
 	DownloadFontIfMissing(&ctx, dialog_parent, scriptPrimary);
 	DownloadFontIfMissing(&ctx, dialog_parent, FontScript::Emoji);
+	DownloadJapaneseFontIfMissing(&ctx, dialog_parent);
 
 	FontSearchContextDestroy(ctx);
 

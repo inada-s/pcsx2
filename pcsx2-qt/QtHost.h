@@ -282,6 +282,9 @@ namespace QtHost
 	/// Downloads the specified URL to the provided path.
 	bool DownloadFile(QWidget* parent, const QString& title, std::string url, const std::string& path);
 
+	/// Asks, then downloads a missing font file to path.
+	bool DownloadMissingFont(QWidget* dialog_parent, const char* font_name, const std::string& path);
+
 	/// VM state, safe to access on UI thread.
 	bool IsVMValid();
 	bool IsVMPaused();
