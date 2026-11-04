@@ -22,15 +22,10 @@ namespace Zdxsv
 {
 	extern bool g_ggpo_enabled; // GGPO options (ZDXSV_GGPO, else on by default) or a replay
 
-	// Lobby save states, a debugging feature, off unless ZDXSV_LOBBY_STATE=1:
-	// DEV9 state is saved/loaded with save states, and after a load DEV9 adopts
-	// TCP connections the PS2 opened before the save. Off = upstream behaviour.
-	bool LobbyStateEnabled();
-
-	// DEV9 state in full and delta states. Only with ZDXSV_LOBBY_STATE=1, ZDXSV_GGPO or ZDXSV_REPLAY;
-	// otherwise a DEV9.bin in a state is ignored, as upstream. Replay states need it: the IOP's SMAP
-	// driver (restored) and DEV9 must agree on the next TX buffer.
-	inline bool SaveStateDev9Enabled() { return LobbyStateEnabled() || g_ggpo_enabled; }
+	// DEV9 state in full and delta states. Only with ZDXSV_GGPO or ZDXSV_REPLAY; otherwise a DEV9.bin
+	// in a state is ignored, as upstream. Replay states need it: the IOP's SMAP driver (restored) and
+	// DEV9 must agree on the next TX buffer.
+	inline bool SaveStateDev9Enabled() { return g_ggpo_enabled; }
 
 	// No-DEV9 slots (NoDev9.cpp) in full states, on the no-DEV9 path whenever the DEV9 state is kept.
 	bool SaveStateNoDev9Enabled();

@@ -58,4 +58,3 @@ instances through `udprelay.py`. `SYNC_CHECK=0` turns the check off.
 | File | Covers |
 |---|---|
 | `tests/ctest/core/ggpo_tests.cpp` | GGPO synctest |
-| `tests/ctest/core/dev9_config_tests.cpp` | network defaults |

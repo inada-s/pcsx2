@@ -74,10 +74,6 @@ ROUTES = {
     "map2p": "C,w5000," + WALK2P + ",w500,C",
     "remap2p": WALK2P + ",w500,C",
     "lobby2p": "w8000,Down,w500,C,w4000,{s}C,w4000",
-    # entry in two halves around the lobby answer (m4.sh: after a state load the PS2's first lobby
-    # send can lag ~1 min; a timed rest then lands on another menu, e.g. 0x6401)
-    "entry1": "C,w5000,Up:400,w800,Down:900,Right:900,w500,C,w2000",
-    "entry2": "w4000,Down,w500,C,w4000,{s}C,w4000",
     # in battle: move + all face buttons, ~3 min (a round is 150 s)
     "mash": ",".join(["Up:400,Z,C,Left:300,X,T,Z,Right:300,C,Z"] * 40),
     # whole round (~6 min): mash ends ~70 s into the fight (after the round restart, K3 #2)

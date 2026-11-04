@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0+
 
 #include "Zdxsv/CpuHooks.h"
+#include "Zdxsv/FastLogin.h"
 #include "Zdxsv/Settings.h"
 
 #include "Memory.h"
@@ -61,6 +62,7 @@ namespace Zdxsv
 			Step step = Step::Idle;
 			std::mutex mutex;
 			bool answered = false;
+			bool applied = false;
 			std::optional<LoginResult> result;
 			std::shared_ptr<std::atomic<bool>> cancel;
 		};
@@ -208,7 +210,13 @@ namespace Zdxsv
 			return;
 		}
 		Apply(*s_fast.result);
+		s_fast.applied = true;
 		Console.WriteLn("Zdxsv: fast login: session %s, lobby %s", s_fast.result->session_id.c_str(), s_fast.result->lobby_addr.c_str());
+	}
+
+	bool FastLoginApplied()
+	{
+		return s_fast.applied;
 	}
 
 	void FastLoginReset()
@@ -219,6 +227,7 @@ namespace Zdxsv
 		s_fast.cancel.reset();
 		s_fast.answered = false;
 		s_fast.result.reset();
+		s_fast.applied = false;
 		s_fast.step = FastLogin::Step::Idle;
 	}
 } // namespace Zdxsv

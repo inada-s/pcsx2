@@ -77,6 +77,8 @@
 #   127.0.0.1:7300/7301 between p1 and p3's GGPO ports; each announces only its relay socket, so the direct
 #   path is ~2D ms rtt. Checks: lobby delay = max(GMIN or 2, ceil(2D/32)), or GMIN/2 when RELAY_PATH is a relay.
 #   With RELAY=1 RELAY_PATH="relay 0" the GGPO traffic skips udprelay.py (its count = ping test only).
+#   PAR (default 1): all clients boot at once with fast boot (no fast login), each waits for `fast boot: login browser`
+#   in its emulog (PAR_WAIT s, default 120), then `login` on all at once. PAR=0: `top` + `login` per client.
 # db: copied from $RUN/zdxsv.db (the cards' accounts) into $OUT; stack logs land in $OUT.
 # Cards: each client starts from $RUN/Mcd001-<CARDS[i]>.ps2 (CARDS, required: one registered card per client);
 # the live card is put back after (m4.sh's lobby states use it). A post-battle prompt creates system
@@ -86,6 +88,7 @@
 . "$here/speedcheck.sh"  # measured speed vs SPEED
 . "$here/entry2p.sh"  # 1v1 entry: Lobby 02 press checked + retried
 zdxsv_need ZDXSV
+PAR=${PAR-1}
 OUT=${OUT:?OUT=dir for logs}
 DRIVE="env MEMGATE_RESERVE_MB=${DRIVE_RESERVE_MB:-150} $PY $here/drive.py"
 zdxsv_need IP
@@ -98,8 +101,11 @@ USERS=($USERS)  # the zdxsv.db user ids of the p1..p4 cards, in order
 CLIENTS=${CLIENTS:-1 2 3 4}; nc=$(($(echo $CLIENTS | wc -w)))
 ENTRY=entry; [ "$nc" -eq 2 ] && ENTRY=entry2p
 nz=$(($(echo $ZP | wc -w)))  # UDP joins: zproxy clients only (pcsx2 has no UDP bridge)
+# a client that plays as a PS2 (console, EXT_OFF: no-DEV9 path off) gets the DEV9 adapter (launch.sh -Eth)
+ceth() { if [ -n "${EXT_OFF:-}" ] || [ -z "${EMU:-}" ]; then echo -Eth; fi; }
 # client i's env: console (no platform info), or emulator (+ GGPO lobby battle on port GGPO+i-1)
 cenv() {
+  [ "$PAR" = 1 ] && echo ZDXSV_FAST_BOOT=1 ZDXSV_FAST_LOGIN=0
   # EXT_OFF=1: every client runs with ZDXSV_EXTENSIONS=0 (all zdxsv extensions off: seen as a PS2, battle server)
   [ -n "${EXT_OFF:-}" ] && { echo ZDXSV_EXTENSIONS=0; return; }
   [ -z "${EMU:-}" ] && { echo ZDXSV_PLATFORM_INFO=0 ZDXSV_NODEV9=0 ZDXSV_TLS=0; return; }
@@ -200,16 +206,33 @@ if [ -n "${LIVE:-}" ]; then
 fi
 for i in $CLIENTS; do
   cp -p "$RUN/p$i/PCSX2/memcards/Mcd001.ps2" "$OUT/live-p$i.ps2"
-  l=$(env $(cenv $i) bash "$here/launch.sh" -N $i -Speed ${SPEED:-1} -Memcard $RUN/Mcd001-${CARDS[i-1]}.ps2 $(case " ${SHOW:-} " in (*" $i "*) ;; (*) echo -Headless;; esac) 2>&1)
+  l=$(env $(cenv $i) bash "$here/launch.sh" -N $i $(ceth) -Speed ${SPEED:-1} -Memcard $RUN/Mcd001-${CARDS[i-1]}.ps2 $(case " ${SHOW:-} " in (*" $i "*) ;; (*) echo -Headless;; esac) 2>&1)
   echo "$l" | tail -1
   # a refused launch (probelint) ran 7 min of blind routes before the entry check
   echo "$l" | grep -q "pid .* slot" || { echo "FAIL launch p$i"; exit 1; }
   cpid[i]=$(echo "$l" | sed -n 's/.* pid \([0-9]*\) slot.*/\1/p' | tail -1)
+  [ "$PAR" = 1 ] && continue
   # top starts from a fresh boot (f1500): no other client's route in between
   $DRIVE top $i 2>&1 | grep -v memgate | tail -1
   $DRIVE login $i 2>&1 | grep -v memgate | tail -1
   echo "client $i: login results $(grep -c '== BattleResult ==' "$OUT/lobby.log")"
 done
+if [ "$PAR" = 1 ]; then
+  t1=$SECONDS
+  for i in $CLIENTS; do
+    until grep -a -q 'fast boot: login browser' "$RUN/p$i/PCSX2/logs/emulog.txt" 2>/dev/null; do
+      [ $((SECONDS - t1)) -lt "${PAR_WAIT:-120}" ] || { echo "FAIL p$i: no login browser in ${PAR_WAIT:-120} s"; exit 1; }
+      sleep 0.5
+    done
+    echo "client $i: login browser after $((SECONDS - t1)) s"
+  done
+  # the page is still loading when fast boot stops: an early press is dropped
+  sleep 3
+  lp=()
+  for i in $CLIENTS; do $DRIVE login $i 2>&1 | grep -v memgate | tail -1 & lp+=($!); done
+  wait "${lp[@]}"
+  echo "clients $CLIENTS: login results $(grep -c '== BattleResult ==' "$OUT/lobby.log")"
+fi
 if [ -n "${PAUSE:-}" ]; then
   # every client in SHOW is paused together, past the lobby's 2 min receive timeout (pause hotkey: window control)
   for i in ${SHOW:?PAUSE needs SHOW}; do
@@ -268,8 +291,7 @@ if [ -n "${EXT_OFF:-}" ]; then
   done
 fi
 [ -n "${EMU:-}" ] && [ -z "${EXT_OFF:-}" ] && check "platform info sent x$nc" "[ \$(cat '$RUN'/p[1-4]/PCSX2/logs/emulog.txt | grep -a -c 'sent platform info') -ge $nc ]"
-[ -z "${EMU:-}" ] && [ -z "${EXT_OFF:-}" ] && check "platform info off x4, no bridge" "[ \$(cat '$RUN'/p[1-4]/PCSX2/logs/emulog.txt | grep -a -c 'platform info off') -ge 4 ] && ! cat '$RUN'/p[1-4]/PCSX2/logs/emulog.txt | grep -a -q 'bridge'"
-[ -z "${EMU:-}" ] && [ -z "${EXT_OFF:-}" ] && check "TLS off x4 (plain ports, as a PS2)" "[ \$(cat '$RUN'/p[1-4]/PCSX2/logs/emulog.txt | grep -a -c 'Zdxsv: TLS: off') -ge 4 ]"
+[ -z "${EMU:-}" ] && [ -z "${EXT_OFF:-}" ] && check "DEV9 path x4 (adapter DHCP), no platform info, TLS, bridge or no-DEV9" "[ \$(grep -a -l 'DEV9: DHCP' '$RUN'/p[1-4]/PCSX2/logs/emulog.txt | wc -l) -ge 4 ] && ! cat '$RUN'/p[1-4]/PCSX2/logs/emulog.txt | grep -a -q 'sent platform info\|Zdxsv: TLS: on\|bridge\|Zdxsv: no DEV9: '"
 if [ -n "${EMU:-}" ] && [ "${ZDXSV_TLS_TEST_PIN:-}" = 1 ]; then
   for i in ${CLIENTS:-1 2 3 4}; do
     el="$RUN/p$i/PCSX2/logs/emulog.txt"; tp="8220 8221"; [ -z "${GGPO:-}" ] && tp="$tp 8222"
