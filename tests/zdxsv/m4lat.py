@@ -1,6 +1,6 @@
 """Pad input latency + frame pacing in a 4-client battle: m4.py with p1 windowed and
 measured (ZDXSV_INPUT_LATENCY on p1 only, presses start GODELAY s after mash begins),
-p2-p4 headless and mashing. Stops everything once p1 reported.
+p2-p4 headless and mashing. Stops everything once p1 reported. Exit 0 = p1 reported, no FAIL from m4.
   OUT=dir LOWLAT=0|1 SPEC='held=1,count=12' python tests/zdxsv/m4lat.py   -> search (pad buffer byte)
   OUT=dir LOWLAT=0|1 SPEC='addr=0x...,count=40' python tests/zdxsv/m4lat.py
   M4=m4ggpo.py: the battle over GGPO (as the product default), its env (GDELAY, ..) passes through.
@@ -67,11 +67,20 @@ def main():
     print(f"{int(time.time() - t0)} s")
     for l in zrig.log_lines(m4out, "^FAIL|^PASS|client")[:12]:
         print(l)
+    try:
+        reported = bool(zrig.log_lines(log, r"ZdxsvLatency: (search done|present->present)"))
+    except OSError:
+        reported = False
+    failed = bool(zrig.log_lines(m4out, "^FAIL"))
     summary(log)
     m4.terminate()
     zrig.kill_name("pcsx2", "zdxsv")
     zrig.kill_cmd(r"fake_lobby|drive[.]py|m4[a-z]*[.]py", r"powershell|m4lat")
     shutil.copyfile(log, os.path.join(out, "p1-emulog.txt"))
+    if failed or not reported:
+        print("FAIL " + ("m4 failed" if failed else "p1 reported no latency"))
+        return 1
+    print("PASS p1 reported")
     return 0
 
 
