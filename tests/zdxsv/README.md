@@ -69,7 +69,7 @@ USERS=AAAAAA BBBBBB CCCCCC DDDDDD
   Same for `ZDXSV_FAST_BOOT` (fast boot, on by default):
   `0` unless set, `ZDXSV_FAST_BOOT=default` leaves it on.
 - `launch.py` runs `probelint.py` first and refuses a PCSX2 build older than
-  its sources.
+  its sources (an exe outside a PCSX2 tree, e.g. a copied `bin/`: no age check).
 - Every script that starts PCSX2 sources the network pins (`launch.py`: `pcsx2_env`;
   `replayui.ps1`, `settingsui.ps1`: `localnet.ps1`, kept equal): fast login off and its API URL local, no-DEV9 names resolved to the box `IP`,
   so no run reaches the production server, also with a release exe.
@@ -118,7 +118,7 @@ Scripts are in `tests/zdxsv/` except `run.py` (repository root) and
 | Playing as a console | `m4z.py` (default: 4 consoles, real lobby, DEV9 adapter on, all at once with fast boot to the login page, then login from the memory cards; `PAR=0`: one at a time from a fresh boot): every client takes the plain DEV9 path (adapter DHCP; no platform info, TLS, `bridge` or no-DEV9 line); the clients not behind zproxy (p2, p4) join the battle server over TCP; 4 results with the same battle code and frame count | none |
 | A console behind a separate zproxy process | the same `m4z.py` run, `ZP="1 3"` (default): zproxy runs with `-upnp=false`, registers with the lobby, the PS2 connects to it and it joins the battle server over UDP (P2P on); no UPnP line in its log | none |
 | First login from a blank memory card | `launch.py -Memcard <blank>`, then `drive.py fresh`, `register`, `newlogin` | none |
-| First network setup without DEV9 (blank card, NoDev9 on) | `CARD=<blank> ROUTE=fresh,register,newlogin MAXS=280 LIMIT=300 boottime.py`: user_id screen; DNAS POSTs and `GET /CRS-top.jsp` in the stack logs | the build without these patches stays at net state 0x1a (no terms screen) |
+| First network setup without DEV9 (blank card, NoDev9 on) | `CARD=<blank> ROUTE=fresh,register,newlogin MAXS=280 LIMIT=300 boottime.py` (`SAVE_CARD=<path>` keeps the registered card): user_id screen; DNAS POSTs and `GET /CRS-top.jsp` in the stack logs | the build without these patches stays at net state 0x1a (no terms screen) |
 | Menu routes keyed on game RAM (`drive.py top`, `login`; `pine.py` `@probe=V`, `Key~probe=V`) | `ZDXSV_FAST_BOOT=0 ROUTE='top,C~step=4/6000' LIMIT=200 boottime.py`: PASS user_id screen; a probe that never reaches its value raises `TimeoutError` with the value read | none |
 | TLS to the zdxsv server | `m4z.py` with `EMU=1 CLIENTS="1 3" ZPROXY=`, `ZDXSV_TLS_TEST_PIN=1`, a `ZBIN` (and `DZ`) with TLS ports, `ZDXSV_TLS_CERT_FILE` / `ZDXSV_TLS_KEY_FILE` = the zdxsv test `server.crt` / `server.key`: every client logs a TLS connection through ports 8220, 8221 and 8222 and no TLS failure; the battle ends with results | the same run with `server-backup.crt` / `server-backup.key` (signed by the unpinned backup CA): every connection is refused, the OSD says so |
 | Lobby connection kept while paused | `CLIENTS=1 EMU=1 SHOW=1 PAUSE=150 PAUSE_ONLY=1 m4z.py`: no `Recv Timeout` in the lobby log, >= 13 line checks answered while paused | `CENV=ZDXSV_PAUSE_LINE_CHECK=0`: `Recv Timeout` about 2 min into the pause |
