@@ -35,7 +35,7 @@ STALL_S = 120  # wait(): frame count not moving this long = emulator hung or pau
 PROBE = {
     "scene": (0x6D7A8C, 0), "net": (None, 0xCD1360), "nsub": (None, 0xCD1361),
     "step": (0x6D7D54, 0xA1F), "phase": (None, 0x6D7D84), "menu": (0x6D7954, 0x25C),
-    "lstate": (None, 0xCE28B0), "dlg": (None, 0x715512),
+    "lstate": (None, 0xCE28B0), "dlg": (None, 0x715512), "page": (None, 0x559667),
 }
 # f32 game RAM for Key^name>=V: 戦場選択 map cursor in screen px (y grows down), (270, 190) when the map opens
 FPROBE = {"curx": 0xC56504, "cury": 0xC56508}
