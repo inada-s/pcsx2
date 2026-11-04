@@ -42,6 +42,8 @@ Supporting changes in the core:
 - Saved scratch fields are skipped when two states are compared.
 - Counters and the GIF path keep their bookkeeping when a delta state loads.
 - SPU2 DMA IRQ flags are part of the state.
+- A disc read started while another is in flight waits for it: loading a state
+  during a read otherwise leaves the new read with the old read's sector.
 - While GGPO runs, the EE and IOP recompilers end blocks only at branches and
   page boundaries, so a rerun times events as the first run did.
 - The MTVU speedhack is off for a VM with GGPO, a replay or
