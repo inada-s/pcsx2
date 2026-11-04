@@ -392,3 +392,55 @@ def release():
             os.remove(_lock_path())
         except OSError:
             pass
+
+
+def ini_set(path, section, key, value=None):
+    """Drop KEY from [SECTION] of a pcsx2 ini; VALUE set: write `KEY = VALUE` right after the header (added
+    when missing). Line ends kept as found (CRLF on Windows)."""
+    with open(path, encoding="utf-8", errors="surrogateescape", newline="") as f:
+        lines = f.read().splitlines(keepends=True)
+    nl = "\r\n" if lines and lines[0].endswith("\r\n") else "\n"
+    out, cur, done = [], None, False
+    for l in lines:
+        s = l.rstrip("\r\n")
+        if s.startswith("["):
+            cur = s
+        if cur == f"[{section}]" and re.match(rf"{re.escape(key)} *=", s):
+            continue
+        out.append(l)
+        if s == f"[{section}]" and value is not None and not done:
+            out.append(f"{key} = {value}{nl}")
+            done = True
+    if value is not None and not done:
+        if out and not out[-1].endswith("\n"):
+            out.append(nl)
+        out += [nl, f"[{section}]{nl}", f"{key} = {value}{nl}"]
+    with open(path + ".new", "w", encoding="utf-8", errors="surrogateescape", newline="") as f:
+        f.write("".join(out))
+    os.replace(path + ".new", path)
+
+
+def stall(peer, ms, say=print):
+    """Suspend the pcsx2 of data dir PEER (p3) for MS every 5 s, 8 times from 40 s."""
+    p = None
+    for _ in range(120):
+        ps_ = pids_cmd(rf"-datapath [^ ]*[/\\\\]{peer}( |$)")
+        if ps_:
+            p = ps_[0]
+            break
+        time.sleep(0.5)
+    if not p:
+        say(f"stall: no pcsx2 for {peer}")
+        return
+    say(f"stall: {peer} pid {p}, first stall in 40 s")
+    time.sleep(40)
+    for k in range(8):
+        if not alive(p):
+            say(f"stall: {peer} exited after {k} stalls")
+            return
+        t = time.time()
+        stop(p)
+        time.sleep(ms / 1000)
+        cont(p)
+        say(f"stall {k} {round((time.time() - t) * 1000)} ms")
+        time.sleep(5)
