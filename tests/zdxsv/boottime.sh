@@ -47,4 +47,4 @@ l=$(env ZDXSV_TLS=0 ZDXSV_LOGIN_API_URL=${ZDXSV_LOGIN_API_URL:-http://$api/lbs/l
 echo "$l" | tail -1
 echo "$l" | grep -q "pid .* slot" || { echo "FAIL launch p1"; exit 1; }
 pid=$(echo "$l" | grep -o "pid [0-9]*" | tail -1 | cut -d" " -f2)
-"$PY" "$here/boottime.py" --t0 "$t0" --pid "$pid" --emulog "$RUN/p1/PCSX2/logs/emulog.txt" --out "$OUT" --limit "${LIMIT:-5}" --maxs "${MAXS:-200}" ${ROUTE:+--route "$ROUTE"}
+"$PY" "$here/bootwatch.py" --t0 "$t0" --pid "$pid" --emulog "$RUN/p1/PCSX2/logs/emulog.txt" --out "$OUT" --limit "${LIMIT:-5}" --maxs "${MAXS:-200}" ${ROUTE:+--route "$ROUTE"}

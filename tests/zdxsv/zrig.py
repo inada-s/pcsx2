@@ -198,6 +198,34 @@ def ppid(pid):
     return next((q for p, q, _, _ in _procs() if p == pid), 0)
 
 
+def process_start(pid):
+    """Epoch seconds of the process creation, None when unknown."""
+    import ctypes
+    pid = int(pid)
+    if WIN:
+        k = ctypes.windll.kernel32
+        h = k.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
+        if not h:
+            return None
+        t = [ctypes.c_ulonglong() for _ in range(4)]
+        ok = k.GetProcessTimes(h, *[ctypes.byref(x) for x in t])
+        k.CloseHandle(h)
+        return t[0].value / 1e7 - 11644473600 if ok else None
+    if sys.platform == "darwin":
+        buf = ctypes.create_string_buffer(136)  # struct proc_bsdinfo: pbi_start_tvsec/usec at 120/128
+        if ctypes.CDLL("/usr/lib/libproc.dylib").proc_pidinfo(pid, 3, ctypes.c_uint64(0), buf, 136) != 136:
+            return None
+        return int.from_bytes(buf.raw[120:128], "little") + int.from_bytes(buf.raw[128:136], "little") / 1e6
+    try:
+        with open(f"/proc/{pid}/stat") as f:
+            ticks = int(f.read().rsplit(")", 1)[1].split()[19])
+        with open("/proc/stat") as f:
+            btime = next(int(l.split()[1]) for l in f if l.startswith("btime "))
+        return btime + ticks / os.sysconf("SC_CLK_TCK")
+    except (OSError, ValueError, IndexError, StopIteration):
+        return None
+
+
 def ancestors(pid=None):
     """Parent chain of PID (default this process), nearest first, without pid 0/1."""
     if WIN:
