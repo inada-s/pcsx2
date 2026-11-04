@@ -86,7 +86,9 @@ game keeps two draw-list slots chosen by a per-frame flag (u32 0x7ae1c0); its
 main loop sends the list of the frame before (`slot[flag ^ 1]`) ahead of the
 logic. The patch moves the send after the logic and makes it, and the VIF1
 DMA end handler, take `slot[flag]`: VU1 draws a list in the frame that built
-it, and the picture is shown at the next present, one frame earlier. Then
+it, and the picture is shown at the next present, one frame earlier. The vsync
+handler's GIF packet, which sets the draw buffer of context 2 for the next list,
+is swapped to match (the network menus and the login page draw in context 2). Then
 no rerun frame runs the render callbacks or VU1: GS memory is not rolled back,
 so the first present after a rollback shows the frame drawn before it (the
 predicted one), never an older picture. The framebuffer
