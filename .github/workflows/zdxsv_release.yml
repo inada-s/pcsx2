@@ -76,7 +76,7 @@ jobs:
           SENTRY_PROJECT: pcsx2-zdxsv
         run: |
           unzip -q zdxsv-release/pcsx2-zdxsv-windows-x64.zip -d binaries
-          npx --yes @sentry/cli@2 debug-files upload --wait binaries symbols
+          npx --yes @sentry/cli@2 debug-files upload --type pe --type pdb --wait binaries symbols
 
   release:
     name: "Release"
