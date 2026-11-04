@@ -440,10 +440,10 @@ def main():
 
     # routes hold keys in wall ms; a faster run than SPEED is no SPEED result
     sp = {}
-    ts = [threading.Thread(target=lambda i=i: sp.__setitem__(i, speed_check(int(i)))) for i in clients]
-    for t in ts:
+    threads = [threading.Thread(target=lambda i=i: sp.__setitem__(i, speed_check(int(i)))) for i in clients]
+    for t in threads:
         t.start()
-    for t in ts:
+    for t in threads:
         t.join()
     if not all(sp.values()):
         return 1
