@@ -78,6 +78,19 @@ namespace Zdxsv
 		// The setting is unused here, so the wait (beqz on the pad bit) is removed.
 		constexpr u32 kLastSettingWaitPc = 0x11801fc;
 		constexpr u32 kLastSettingWait = 0x10400008;
+		// A card without a setting (new player): the last connection type is 0 (none) and the setting read fails.
+		// The type load is replaced by broadband (1); without it the game waits on that state forever.
+		constexpr u8 kNetLastType = 0x1a;
+		constexpr u32 kLastTypeLoadPc = 0x36adf4;
+		constexpr u32 kLastTypeLoad = 0x8022ec82;
+		constexpr u32 kLastTypeBroadband = 0x24020001;
+		// The list's state: a failed read goes to the error state; the connect state uses no setting here.
+		constexpr u32 kSettingListState = 0x6d81bc;
+		constexpr u32 kSettingReadFailed = 9;
+		constexpr u32 kSettingConnect = 7;
+		// Connect init's device; the list sets it after a successful read only. Null fails connect init.
+		constexpr u8 kNetConnectInit = 7;
+		constexpr u32 kConnectDevice = 0x6d7e54;
 #ifdef MSG_NOSIGNAL
 		constexpr int kSendFlags = MSG_NOSIGNAL;
 #else
@@ -436,8 +449,16 @@ namespace Zdxsv
 			Patch(kMenuBroadbandPc, kMenuBroadband, kMenuBroadbandToLast);
 			Patch(kMenuDialUpPc, kMenuDialUp, kMenuDialUpToLast);
 		}
+		if (net == kNetLastType)
+			Patch(kLastTypeLoadPc, kLastTypeLoad, kLastTypeBroadband);
 		if (net == kNetSettingList)
+		{
 			Patch(kLastSettingWaitPc, kLastSettingWait, 0);
+			if (memRead32(kSettingListState) == kSettingReadFailed)
+				memWrite32(kSettingListState, kSettingConnect);
+		}
+		if (net == kNetConnectInit && memRead32(kConnectDevice) == 0)
+			memWrite32(kConnectDevice, kDevEntry);
 		s_state.last_net = net;
 	}
 

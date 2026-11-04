@@ -90,6 +90,8 @@ ROUTES = {
 # with no setup screens and no setting list.
 if (os.environ.get("ZDXSV_NODEV9") or os.environ.get("IP") or "0") != "0":
     ROUTES["top"] = "f1500,Return,w3000,Down*7,C,w7000,C,w4000,C,w4000,C,w4000,C,w6000,C,w9000,Up*2,C,w9000,Up,C,w30000"
+    # Blank card: NET file created and saved as in "fresh", then no netcnf GUI and no reboot.
+    ROUTES["fresh"] = "f1500,Return,w3000,Down*7,C,w7000,C,w5000,C,w4000,C,w4000,Up,C,w6000,C,w5000,C,w8000,C,w9000,Up,C,w30000"
 
 
 def route_text(route, n):
