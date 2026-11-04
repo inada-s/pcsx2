@@ -28,6 +28,9 @@ RUN = os.environ.get("RUN", ".")  # rig data root
 
 # map cursor to シアトル (Lobby 02) from anywhere on the map: clamp top-left, fixed steps (see entry2p)
 WALK2P = ",".join(["Up:3000,Left:6000,w500"] + ["Right:350,w600"] * 15 + ["Down:400,w600"] + ["Left:350,w600"] * 5)
+# lobby menu -> パートナー自動選抜 -> side {s} -> entered. lstate steps once per accepted press (the side Right too),
+# not when the lobby finishes loading, so Down repeats until the menu takes it.
+LOBBY = "Down~lstate!/500,C~lstate!/2000,{s}C~lstate!/2000,w4000"
 
 ROUTES = {
     # attract -> main menu -> 通信対戦 -> warning -> NET file はい / slot 1 / はい -> autosave note
@@ -62,8 +65,7 @@ ROUTES = {
     "newlogin": "C,w14000,Right,C,w10000,C,w4000,Right*{h},C,C,C,Return,w1500,Return,w3000,C,w4000,Up,C,w9000",
     # 戦場選択 -> map cursor to ジャブロー2 (Lobby 06: starts at 2 AEUG + 2 Titans entries, zdxsv
     # model/lobby.go CanBattleStart) -> lobby -> パートナー自動選抜 -> side {s}: p1/p2 連邦・エゥーゴ, p3/p4 ジオン・ティターンズ
-    # p4's Down was dropped once (landed in オペレーションリスト; fix X,w3000,Down,C,...): check shots.
-    "entry": "C,w5000,Up:400,w800,Down:900,Right:900,w500,C,w8000,Down,w500,C,w4000,{s}C,w4000",
+    "entry": "C,w5000,Up:400,w800,Down:900,Right:900,w500,C," + LOBBY,
     # entry in halves for m4z.py: map ends with the Lobby 06 press (0x6305 00 06); a late press is
     # waited for before lobby2p instead of raced
     "map": "C,w5000,Up:400,w800,Down:900,Right:900,w500,C",
@@ -71,13 +73,13 @@ ROUTES = {
     # 1v1: map cursor to シアトル (Lobby 02: starts at 1 AEUG + 1 Titans). The cursor keeps its spot between
     # visits and hit areas sit off the drawn labels: clamp top-left, then fixed steps (grid scan: Lobby 02
     # at row 1 cols 5-6; route shot-checked, "Lobby 02" shown). Lobby menu + side dialog as in Lobby 06.
-    "entry2p": "C,w5000," + WALK2P + ",w500,C,w8000,Down,w500,C,w4000,{s}C,w4000",
+    "entry2p": "C,w5000," + WALK2P + ",w500,C," + LOBBY,
     # entry2p in halves for freshboot.entry2p_retry (m4z.py): map2p ends with the Lobby 02 press (0x6305 00 02); the
     # press missed in 3 of 15 entries (no 0x6305, client left on the map) -> remap2p = walk
     # again from the clamp, no leading C; lobby2p = the lobby menu + side dialog
     "map2p": "C,w5000," + WALK2P + ",w500,C",
     "remap2p": WALK2P + ",w500,C",
-    "lobby2p": "w8000,Down,w500,C,w4000,{s}C,w4000",
+    "lobby2p": LOBBY,
     # in battle: move + all face buttons, ~3 min (a round is 150 s)
     "mash": ",".join(["Up:400,Z,C,Left:300,X,T,Z,Right:300,C,Z"] * 40),
     # whole round (~6 min): mash ends ~70 s into the fight (after the round restart, K3 #2)
@@ -101,7 +103,7 @@ if (os.environ.get("ZDXSV_NODEV9") or os.environ.get("IP") or "0") != "0":
 
 def route_text(route, n):
     # HN kana: column n-1 of row 1 (p2 い, p3 う, p4 え, p5 お, p6 た)
-    s = "Right,w500," if n > 2 else ""
+    s = "Right~lstate!/500," if n > 2 else ""
     return ROUTES[route].format(h=n - 1, s=s)
 
 
