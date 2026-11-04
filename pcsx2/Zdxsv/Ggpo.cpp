@@ -52,6 +52,7 @@ namespace Zdxsv
 		bool s_osd = true; // osd=
 		std::mutex s_osd_mtx;
 		std::vector<GgpoOsdLine> s_osd_lines;
+		GgpoOsdPanel s_osd_panel;
 		Common::Timer::Value s_osd_hold_until = 0; // nonzero: the session ended on a disconnect, its last lines stay up until then
 		bool s_running = false; // net: GGPO_EVENTCODE_RUNNING seen
 		bool s_disconnected = false;
@@ -399,6 +400,7 @@ namespace Zdxsv
 			{
 				std::lock_guard lock(s_osd_mtx);
 				s_osd_lines.clear();
+				s_osd_panel = {};
 				return;
 			}
 			std::vector<GgpoOsdLine> lines;
@@ -436,8 +438,41 @@ namespace Zdxsv
 					all += (all.empty() ? "" : " |") + l.text;
 				Console.WriteLn("ZdxsvGgpo: osd frame %d: %s", s_session_frames, all.c_str());
 			}
+			GgpoOsdPanel panel;
+			panel.delay = s_delay;
+			panel.rollback_frames = s_rollback_frames;
+			panel.sync_frames = s_sync_frames;
+			GGPONetworkStats own{};
+			if (ggpo_get_network_stats(s_session, s_handles[s_net_me], &own) == GGPO_OK)
+				panel.predicted_frames = own.sync.predicted_frames;
+			for (int p = 0; p < s_players; p++)
+			{
+				if (p == s_net_me)
+					continue;
+				GgpoOsdPeer peer;
+				peer.position = p;
+				if (p < static_cast<int>(s_net_players.size()))
+				{
+					peer.id = s_net_players[p].id;
+					peer.name = s_net_players[p].name;
+					peer.pilot = s_net_players[p].pilot;
+				}
+				peer.connected = s_peer_state[p] != 2;
+				GGPONetworkStats st{};
+				if (peer.connected && ggpo_get_network_stats(s_session, s_handles[p], &st) == GGPO_OK)
+				{
+					peer.relay = st.network.is_relay != 0 || (p < static_cast<int>(s_net_via.size()) && s_net_via[p] != 0);
+					peer.ping = st.network.ping;
+					peer.recv_loss = st.network.recv_packet_loss;
+					peer.send_loss = st.network.send_packet_loss;
+					peer.send_queue = st.network.send_queue_len;
+					peer.frames_behind = st.timesync.local_frames_behind;
+				}
+				panel.peers.push_back(std::move(peer));
+			}
 			std::lock_guard lock(s_osd_mtx);
 			s_osd_lines = std::move(lines);
+			s_osd_panel = std::move(panel);
 		}
 
 		bool __cdecl BeginGame(const char*) { return true; }
@@ -650,6 +685,7 @@ namespace Zdxsv
 				}
 				else
 					s_osd_lines.clear();
+					s_osd_panel = {};
 			}
 			const std::string peers = s_net ? PeerReport() : std::string();
 			if (s_net)
@@ -1023,6 +1059,7 @@ namespace Zdxsv
 			std::lock_guard lock(s_osd_mtx);
 			s_osd_hold_until = 0;
 			s_osd_lines.clear();
+			s_osd_panel = {};
 		}
 		std::fill(std::begin(s_handles), std::end(s_handles), GGPOPlayerHandle{});
 		s_frames_ahead = s_waits = s_sync_frames = s_save_skipped = s_session_frames = s_top_frame = s_reruns_left = 0;
@@ -1490,16 +1527,20 @@ namespace Zdxsv
 			std::fflush(s_pw_dump);
 	}
 
-	std::vector<GgpoOsdLine> GgpoOsdLines()
+	bool GgpoOsd(GgpoOsdPanel& panel)
 	{
 		std::lock_guard lock(s_osd_mtx);
 		if (s_osd_hold_until && Common::Timer::GetCurrentValue() >= s_osd_hold_until)
 		{
 			s_osd_hold_until = 0;
 			s_osd_lines.clear();
+			s_osd_panel = {};
 			Console.WriteLn("ZdxsvGgpo: osd hold over");
 		}
-		return s_osd_lines;
+		if (s_osd_lines.empty())
+			return false;
+		panel = s_osd_panel;
+		return true;
 	}
 	// EE probe (iR5900.cpp): GGPO frame being run, the frame numbers of NET_TRACE H lines and PW dumps.
 	int ProbeFrame() { return s_net_frame; }

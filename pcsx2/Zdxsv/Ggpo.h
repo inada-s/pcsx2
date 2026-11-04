@@ -47,12 +47,26 @@ namespace Zdxsv
 	// Replay play: the key display's input runs of the shown position (buttons, held frames); false when off.
 	bool ReplayKeys(std::vector<std::pair<u16, int>>& runs);
 
-	// Network status OSD lines, built once per frame on the CPU thread for the GS thread's overlay.
-	// Empty when no session runs or with osd=0. color = IM_COL32 value.
+	// Network status, built once per frame on the CPU thread for the GS thread's overlay (GgpoOsd.cpp).
 	struct GgpoOsdLine
 	{
 		std::string text;
 		u32 color;
 	};
-	std::vector<GgpoOsdLine> GgpoOsdLines();
+	struct GgpoOsdPeer
+	{
+		int position = 0;
+		std::string id, name, pilot;
+		bool connected = true;
+		bool relay = false;
+		int ping = 0, recv_loss = 0, send_loss = 0, send_queue = 0, frames_behind = 0;
+	};
+	struct GgpoOsdPanel
+	{
+		int delay = 0, rollback_frames = 0, sync_frames = 0, predicted_frames = 0;
+		std::vector<GgpoOsdPeer> peers;
+	};
+	// false when no session runs or with osd=0 (unless a peer is interrupted or gone)
+	bool GgpoOsd(GgpoOsdPanel& panel);
+	void GgpoOsdDraw();
 } // namespace Zdxsv

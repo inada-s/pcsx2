@@ -240,15 +240,26 @@ info carries `<region>=ms`. Once per run.
 
 ## Network status OSD
 
-During a `net=1` battle the left edge shows, as flycast's `drawNetworkStat`:
-the input delay, rollback and wait frames, and per opponent the position,
-user id, name, pilot name, ping (or `Interrupted`, `Disconnected`) and
-predicted frames.
+During a `net=1` battle the left edge shows flycast's `NETWORK STATS` panel
+(`drawNetworkStat`), between the game's top and bottom HUD, shrunk to fit:
+the input delay, rollback (`Roll`) and time sync (`Wait`) frames, a 6-segment
+predicted frames meter (`P:`), and per opponent the position and user id, name,
+pilot name, ping (`(Relay)` when relayed, `--` once disconnected) and a 5-segment
+`Lag` meter (loss over 2 s, send queue over the ping, ping median, jitter and
+spikes, frame pacing; worsens after 1 s, recovers one step per 2-3 s).
+With the mouse over the panel, the ping and `Lag` rows give way to the packet
+loss (`L: ↓ received ↑ sent`), send queue (`Q:`) and a frame pacing bar
+(`You Slow` / `Peer Slow` past 5 frames).
+
+Fonts are bundled, not taken from the system: Roboto Medium and Bold
+(`bin/resources/fonts`, Apache 2.0) with GDXGothic Medium (OFL) for Japanese
+names. A missing font file falls back to the standard OSD font (`OSD font ...
+missing` in the log).
 
 With the OSD off (`ZdxsvNetOsd`, `osd=0`) it shows only while an opponent is
 interrupted or disconnected, as flycast. A battle that ends on a disconnect
-keeps its last lines up 10 s (`osd held 10 s` in the log), so the player sees
-who left.
+keeps its last panel up 10 s (`osd held 10 s` in the log), so the player sees
+who left. The log line `osd frame` (every 600 frames) keeps its text form.
 
 ## Save states while online
 

@@ -16,6 +16,7 @@
 #include "PerformanceMetrics.h"
 #include "Recording/InputRecording.h"
 #include "VMManager.h"
+#include "Zdxsv/UiHooks.h"
 
 #include "common/FileSystem.h"
 #include "common/Console.h"
@@ -782,6 +783,7 @@ bool ImGuiManager::AddImGuiFonts()
 	if (!s_osd_font || !AddIconFonts() || !AddEmojiFont())
 		return false;
 
+	Zdxsv::GgpoOsdAddFonts();
 	ImGuiFullscreen::SetFont(s_standard_font);
 	return true;
 }
