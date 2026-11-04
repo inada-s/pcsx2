@@ -156,14 +156,18 @@ class Pine:
             last = f
 
     def probe(self, name):
-        """u8 of a PROBE name, or u8:0xADDR; None while its pointer is not set up."""
-        if name.startswith("u8:"):
-            return self.r8(int(name[3:], 0))
-        ptr, off = PROBE[name]
-        if ptr is None:
-            return self.r8(off)
-        base = self.r32(ptr)
-        return self.r8(base + off) if 0x100000 <= base < 0x2000000 - off else None
+        """u8 of a PROBE name, or u8:0xADDR; None while its pointer is not set up or the VM is not up
+        (PINE refuses reads before the game runs)."""
+        try:
+            if name.startswith("u8:"):
+                return self.r8(int(name[3:], 0))
+            ptr, off = PROBE[name]
+            if ptr is None:
+                return self.r8(off)
+            base = self.r32(ptr)
+            return self.r8(base + off) if 0x100000 <= base < 0x2000000 - off else None
+        except RuntimeError:
+            return None
 
     def until(self, name, value, ms=UNTIL_MS):
         """Wait until probe(name) == value, at most ms of game time (vsyncs, as wait)."""
@@ -190,7 +194,10 @@ class Pine:
         for _ in range(max(1, UNTIL_MS // every_ms)):
             if self.probe(name) == value:
                 return
-            self.press(key, hold_ms, port)
+            try:
+                self.press(key, hold_ms, port)
+            except RuntimeError:
+                pass
             try:
                 self.until(name, value, every_ms)
                 return
