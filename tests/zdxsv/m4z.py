@@ -432,15 +432,22 @@ def main():
         return False
 
     def wait640e(n):
-        for _ in range(10):
+        for _ in range(80):
             if c(lobby, r"C->S \[Q\] ID:0x640E") >= n:
                 return True
-            time.sleep(2)
+            time.sleep(0.25)
         return c(lobby, r"C->S \[Q\] ID:0x640E") >= n
 
+    # routes hold keys in wall ms; a faster run than SPEED is no SPEED result
+    sp = {}
+    ts = [threading.Thread(target=lambda i=i: sp.__setitem__(i, speed_check(int(i)))) for i in clients]
+    for t in ts:
+        t.start()
+    for t in ts:
+        t.join()
+    if not all(sp.values()):
+        return 1
     for k, i in enumerate(clients, 1):
-        if not speed_check(int(i)):  # routes hold keys in wall ms; a faster run than SPEED is no SPEED result
-            return 1
         if pair:
             if not entry2p_retry(i):
                 say(f"FAIL client {i} entry (no Lobby 02)")
