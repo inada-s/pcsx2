@@ -155,3 +155,14 @@ zstall() {
     sleep 5
   done
 }
+# zini_set INI SECTION KEY [VALUE]: KEY's lines in [SECTION] removed, then KEY = VALUE put first in it (empty
+# VALUE: removed only; a missing section is appended). Line ends follow the file's (pcsx2 writes CRLF on Windows).
+zini_set() {
+  awk -v sec="[$2]" -v key="$3" -v val="${4-}" '
+    NR == 1 { cr = /\r$/ ? "\r" : "" }
+    { l = $0; sub(/\r$/, "", l) }
+    l ~ /^\[/ { in_s = (l == sec); print; if (in_s && val != "") { print key " = " val cr; done = 1 }; next }
+    in_s { k = l; sub(/ *=.*/, "", k); if (k == key) next }
+    { print }
+    END { if (!done && val != "") printf "%s\n%s\n%s = %s%s\n", cr, sec cr, key, val, cr }' "$1" > "$1.zini" && mv -f "$1.zini" "$1"
+}

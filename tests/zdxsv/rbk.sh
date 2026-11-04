@@ -52,19 +52,13 @@ brief=${BRIEF-1}
 tscale=${TSCALE-4}
 for p in "${P[@]}"; do
   ini=$RUN/p$p/PCSX2/inis/PCSX2.ini
-  sed -i '/^TurboScalar *=/d' "$ini"
-  [ -n "$tscale" ] || continue
-  grep -aq '^\[Framerate\]' "$ini" || printf '\r\n[Framerate]\r\n' >> "$ini"
-  sed -i "s/^\[Framerate\]\r\?$/&\nTurboScalar = $tscale\r/" "$ini"
+  zini_set "$ini" Framerate TurboScalar "$tscale"
 done
 # MTVU=1: MTVU speedhack on in the ini ([EmuCore/Speedhacks] vuThread; the Qt setup wizard turns it on with
 # 3+ cores). pcsx2 must turn it off for the VM ("MTVU speedhack off"); MTVU unset = pcsx2 default (off).
 for p in "${P[@]}"; do
   ini=$RUN/p$p/PCSX2/inis/PCSX2.ini
-  sed -i '/^vuThread *=/d' "$ini"
-  [ "${MTVU-}" = 1 ] || continue
-  grep -aq '^\[EmuCore/Speedhacks\]' "$ini" || printf '\r\n[EmuCore/Speedhacks]\r\n' >> "$ini"
-  sed -i "s/^\[EmuCore\/Speedhacks\]\r\?$/&\nvuThread = true\r/" "$ini"
+  zini_set "$ini" EmuCore/Speedhacks vuThread "$([ "${MTVU-}" = 1 ] && echo true)"
 done
 # INI0="Section:Key=Value;..." (syncset.sh): ini entries for peer 0 only; its ini before them is kept
 # in PCSX2.ini.rbk0 and put back by the next run. SPEED0=X: peer 0 runs at speed X (launch.sh -Speed: launch.sh rewrites NominalScalar).
@@ -79,10 +73,7 @@ if [ -n "${INI0:-}" ]; then
   for kv in "${kvs[@]}"; do
     sec=${kv%%:*}; key=${kv#*:}; key=${key%%=*}; val=${kv#*=}
     [ "$sec" != "$kv" ] && [ "$key" != "$val" ] || { echo "rbk.sh: INI0 entry '$kv' is not Section:Key=Value"; exit 2; }
-    re=$(printf '%s' "$sec" | sed 's/[]\/.[]/\\&/g')
-    sed -i "/^\[$re\]\r\?$/,/^\[/{/^$key *=/d}" "$ini"
-    grep -aq "^\[$re\]" "$ini" || printf '\r\n[%s]\r\n' "$sec" >> "$ini"
-    sed -i "s/^\[$re\]\r\?$/&\n$key = $val\r/" "$ini"
+    zini_set "$ini" "$sec" "$key" "$val"
   done
   echo "p${P[0]} INI0: $(echo "$INI0" | tr ';' ' ')"
 fi

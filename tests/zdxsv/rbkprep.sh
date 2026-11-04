@@ -30,7 +30,7 @@ trap 'cleanup; rig_release' EXIT
 rm -f "$OUT/go"
 (cd "$RUN" && exec "$Z" battle > "$OUT/battle.log" 2>&1) & pids+=($!)
 sleep 2
-"$PY" -u "$here/fake_lobby.py" --trace "$TRACE/lobby-trace.log" --api $API --db "$TRACE/zdxsv.db" --battle "$IP:8210" --hold "$OUT/go" > "$OUT/fake.log" 2>&1 & pids+=($!)
+"$PY" -u "$here/fake_lobby.py" --trace "$TRACE/lobby.log" --api $API --db "$TRACE/zdxsv.db" --battle "$IP:8210" --hold "$OUT/go" > "$OUT/fake.log" 2>&1 & pids+=($!)
 sleep 2
 rm -f "$RUN"/p[1-4]/PCSX2/logs/emulog.txt
 CARDS=($CARDS)
@@ -42,7 +42,7 @@ for i in 1 2 3 4; do
   $PY $here/pine.py --slot $((28010 + i)) save 9 2>&1 | tail -1
   for t in $(seq 30); do [ -s "$RUN/p$i/PCSX2/sstates/$SS" ] && break; sleep 1; done
   sleep 2
-  cp "$RUN/p$i/PCSX2/sstates/$SS" "$OUT/rbk-p$i.p2s" && echo "client $i: saved $(stat -c %s "$OUT/rbk-p$i.p2s") B" || { echo "FAIL client $i save"; exit 1; }
+  cp "$RUN/p$i/PCSX2/sstates/$SS" "$OUT/rbk-p$i.p2s" && echo "client $i: saved $(wc -c < "$OUT/rbk-p$i.p2s" | tr -d " ") B" || { echo "FAIL client $i save"; exit 1; }
 done
 touch "$OUT/go"
 sleep "${HOLDS:-120}"

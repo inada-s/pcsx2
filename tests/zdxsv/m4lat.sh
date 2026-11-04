@@ -21,7 +21,7 @@ OUT=${OUT:?OUT=dir}
 mkdir -p "$OUT"
 ini=$RUN/p1/PCSX2/inis/PCSX2.ini
 v=true; [ "${LOWLAT:-1}" = 0 ] && v=false
-sed -i "/^ZdxsvLowLatencyVsync =/d; s/^\[EmuCore\/GS\]\r\?$/&\nZdxsvLowLatencyVsync = $v/" "$ini"
+zini_set "$ini" EmuCore/GS ZdxsvLowLatencyVsync "$v"
 grep -a "ZdxsvLowLatencyVsync" "$ini"
 GO=$OUT/go; rm -f "$GO"
 SHOW=1 MASHP="2 3 4" GO=$GO GODELAY=${GODELAY:-30} \

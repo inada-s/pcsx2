@@ -3,7 +3,7 @@
 # clients from a fresh boot (fast boot + fast login to fake_lobby.py's login API, seconds each), side entry, battle,
 # post-battle login -> BattleResult. Exit 0 = all checks passed.
 #   OUT=<dir> bash tests/zdxsv/m4.sh
-# Env: TRACE (an `EMU=1 m4z.sh` OUT: lobby-trace.log + zdxsv.db), CARDS (as m4z.sh, the same cards), API (login API port,
+# Env: TRACE (an `EMU=1 m4z.sh` OUT: lobby.log + zdxsv.db), CARDS (as m4z.sh, the same cards), API (login API port,
 #   default 9881), BOOT_WAIT (s from launch to the fast boot end, default 60), IP, ZBIN, FAKE_ARGS (fake_lobby.py), PCSX2_ENV (extra env
 # for the clients), MAXS (s from battle start to give up on BattleResult x4, default 2100; a headless battle can run 1370 s).
 # Every client joins the battle server by TCP (pcsx2 has no UDP bridge;
@@ -58,7 +58,7 @@ if [ -n "${ZRELAY:-}" ]; then
   done
 fi
 sleep 2
-"$PY" -u "$here/fake_lobby.py" --trace "$TRACE/lobby-trace.log" --api $API --db "$TRACE/zdxsv.db" --battle "$IP:8210" ${FAKE_ARGS:-} > "$OUT/fake.log" 2>&1 & pids+=($!)
+"$PY" -u "$here/fake_lobby.py" --trace "$TRACE/lobby.log" --api $API --db "$TRACE/zdxsv.db" --battle "$IP:8210" ${FAKE_ARGS:-} > "$OUT/fake.log" 2>&1 & pids+=($!)
 sleep 2
 rm -f "$RUN"/p[1-4]/PCSX2/logs/emulog.txt
 # fresh boots, all at once (freshboot.sh), then the side entries one at a time
