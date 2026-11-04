@@ -50,8 +50,9 @@ namespace Zdxsv
 		constexpr u32 kLobbyMarker = 0xa1f;
 		constexpr u32 kLobbySub = 0xa20;
 		// Network steps: 4 user_id selection (sub 5 = ID picked, confirm bar), 7 ID confirmed (DecideUserID sent),
-		// then 8, 9, 0, 1, 2, 5 and 1 with sub 0 = in the lobby.
+		// then 8, 9, 0, 1, 2, 5 and 1 with sub 0 = in the lobby. Before the selection, 5 instead of 4: the account has no user_id.
 		constexpr u8 kStepUserId = 4;
+		constexpr u8 kStepNoUserId = 5;
 		constexpr u8 kStepUserIdDecided = 7;
 		constexpr u8 kStepLobby = 1;
 		constexpr u32 kUserIdGiveUpFrames = 60 * 60;
@@ -231,6 +232,8 @@ namespace Zdxsv
 			return Finish("gave up");
 
 		const u32 lobby = Pointer(kLobbyObject);
+		if (lobby && eeMem->Main[lobby + kLobbyMarker] == kStepNoUserId)
+			return Finish("no user_id on the account");
 		if (lobby && eeMem->Main[lobby + kLobbyMarker] == kStepUserId)
 		{
 			if (!s_boot.to_lobby)
