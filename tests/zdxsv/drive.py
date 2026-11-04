@@ -56,10 +56,11 @@ ROUTES = {
              "C,w4000,C,w3000,X,w4000,Left,C,w45000,"
              "Return,w3000,Down*7,C,w7000,C,w4000,C,w5000,C,w5000,C,w5000,C,w6000,C,w6000,C,w9000,Up,C,w6000,Down*2,C,w30000",
     # TOP (cursor on ログイン) -> ID select (C again every 6 s until step 4) -> ID 1 -> 戦場選択, keyed on
-    # a change of lstate (its values differ per path to TOP); 6 s settle (lobby connection steps)
-    "login": "C~step=4/6000,C~lstate!/2000,C~lstate!/3000,w6000",
+    # a change of lstate (its values differ per path to TOP); then the lobby connection
+    # steps (step 7, 8, 9, 1, 2, 5, 1 = 戦場選択 ready)
+    "login": "C~step=4/6000,C~lstate!/2000,C~lstate!/3000,@step=5/10000,@step=1/3000",
     # ID select (where fast boot stops) -> ID 1 -> 戦場選択
-    "idlogin": "C~lstate!/2000,C~lstate!/3000,w6000",
+    "idlogin": "C~lstate!/2000,C~lstate!/3000,@step=5/10000,@step=1/3000",
     # TOP -> 新規登録 -> save ID+password to NET file -> ユーザ作成完了 -> 戻る -> TOP (new key on the card)
     # A C lost under load (3 logins at once) left the key unsaved: check the shot, run it alone.
     "register": "Right,w800,C,@wseq=23/20000,C,@wseq=25/20000,C,@wseq=26/20000,C,@wseq=28/20000",
