@@ -391,6 +391,18 @@ def accept(sock, addr, args, trace, battle):
         log("%s %s" % (c.name, e))
 
 
+def set_rule(rule, gauge, count, time):
+    """The 0x6914 rule body with 戦力ゲージ (both sides), 連続対戦数 and 作戦時間 replaced where nonzero."""
+    r = bytearray(rule)
+    if gauge:
+        struct.pack_into(">HH", r, 72, gauge, gauge)
+    if time:
+        struct.pack_into(">H", r, 80, time)
+    if count:
+        r[87] = count
+    return bytes(r)
+
+
 def battle_result(b):
     """0x6138 answer -> the fields zdxsv stores (pkg/lobby parseBattleResult, model.BattleResult)."""
     try:
@@ -483,6 +495,9 @@ def main():
     ap.add_argument("--api", type=int, default=0, help="login API port (POST /lbs/login, pcsx2 fast login); 0: off")
     ap.add_argument("--db", help="--api: zdxsv.db whose account sessions the logins get (the trace's recording)")
     ap.add_argument("--battlereg",default=os.environ.get("BATTLEREG", os.path.join(here, "battlereg", "battlereg.exe")))
+    ap.add_argument("--rule-gauge", type=int, default=0, help="battle rule 戦力ゲージ (1, 300, 600, ...); 0: the trace's")
+    ap.add_argument("--rule-count", type=int, default=0, help="battle rule 連続対戦数 (1, 3, 5, 10); 0: the trace's")
+    ap.add_argument("--rule-time", type=int, default=0, help="battle rule 作戦時間 s (90, 120, 180, 210, 270); 0: the trace's")
     a = ap.parse_args()
     a.ggpo_block = [{int(k) for k in p.split("-")} for p in a.ggpo_block.split(",")] if a.ggpo_block else []
     if a.ggpo_block and (any(len(p) != 2 for p in a.ggpo_block) or not a.ggpo_delay):
@@ -499,6 +514,10 @@ def main():
         p.close()
         log("p2p %s: IPv6 %s" % (a.p2p, a.v6))
     trace = Trace(a.trace) if a.trace else None
+    if trace:
+        trace.rule = set_rule(trace.rule, a.rule_gauge, a.rule_count, a.rule_time)
+        g, _, t = struct.unpack_from(">HHxxxxH", trace.rule, 72)
+        log("rule gauge %d count %d time %d" % (g, trace.rule[87], t))
     battle = Battle(a, trace) if trace else None
     if battle:
         battle.conns = []
