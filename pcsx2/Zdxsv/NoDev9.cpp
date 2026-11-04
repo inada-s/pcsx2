@@ -54,7 +54,10 @@ namespace Zdxsv
 	{
 		// Wrapper RPC block: +0x18 result, +0x1c reply (setup), +0x1e length, +0x20 data.
 		constexpr u32 kRpc = 0xc22c80;
-		constexpr u32 kNetState = 0xcd1360; // u8, 5 = the network device pick
+		constexpr u32 kNetState = 0xcd1360; // u8, network menu state
+		constexpr u8 kNetPick = 5; // the network device pick
+		// The network setting list. Fast boot replaces state 5 with it in the same vsync, so the pick never runs.
+		constexpr u8 kNetSettingList = 6;
 		// The boot search for module "dev9" fills this entry; without it the pick shows the device as unavailable.
 		constexpr u32 kDevEntry = 0xc634e8;
 		constexpr u32 kDevEntryWords[] = {1, 5, 1, 2, 0x21, 0x6af5b8, 0x6af5c0};
@@ -392,7 +395,8 @@ namespace Zdxsv
 	void NoDev9OnVsync()
 	{
 		const u8 net = memRead8(kNetState);
-		if (net == 5 && s_state.last_net != 5)
+		const bool pick = net == kNetPick || net == kNetSettingList;
+		if (pick && s_state.last_net != net)
 		{
 			if (memRead32(kDevEntry) == 0xffffffff)
 			{
@@ -401,7 +405,7 @@ namespace Zdxsv
 				Console.WriteLn("Zdxsv: no DEV9: network device entry set");
 			}
 		}
-		if (net == 5)
+		if (pick)
 			Patch(kSmapLoadPc, kSmapLoad, 0);
 		s_state.last_net = net;
 	}
