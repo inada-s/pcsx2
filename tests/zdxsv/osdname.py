@@ -1,6 +1,6 @@
 # osdname.py <zdxsv.db> <osd-pN.txt>...: exit 1 unless every `|NP <user id> | <name> | <pilot> | Ping` in the
 # OSD log lines has that user's name in the lobby db and the pilot name of its last battle record (UTF-8).
-# Called by m4z.sh OSD=1.
+# Called by m4z.py OSD=1.
 # Why: a check that matched "some name" passed Shift-JIS-decoded-twice names
 # ("縺ゅ≠縺" for "あああ") and still passed.
 import re

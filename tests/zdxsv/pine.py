@@ -43,7 +43,7 @@ def shrink(path, scale):
 
 class Pine:
     def __init__(self, slot=28011, host="127.0.0.1", timeout=5.0, connect_s=30.0):
-        # launch.sh returns before the server listens: retry a refused or missing socket
+        # launch.py returns before the server listens: retry a refused or missing socket
         end = time.time() + connect_s
         while True:
             try:
@@ -128,7 +128,7 @@ class Pine:
 
     def wait(self, ms):
         """Wait ms of game time: ms*60/1000 vsyncs (g_FrameCount), so routes keep their timing at any
-        emulation speed (launch.sh -Speed). PINE_WALL=1: wall-clock sleep (old)."""
+        emulation speed (launch.py -Speed). PINE_WALL=1: wall-clock sleep (old)."""
         if WALL:
             time.sleep(ms / 1000)
             return

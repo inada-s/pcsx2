@@ -187,7 +187,7 @@ class Battle:
             self.start()
 
     def start_held(self):
-        # --hold FILE: all entered; the battle starts once FILE exists (rbkprep.sh saves states first)
+        # --hold FILE: all entered; the battle starts once FILE exists (rbkprep.py saves states first)
         log("all entered, holding until %s exists" % self.args.hold)
         while not os.path.exists(self.args.hold):
             time.sleep(0.5)
