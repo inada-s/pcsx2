@@ -26,10 +26,11 @@ from pine import Pine, shrink
 
 RUN = os.environ.get("RUN", ".")  # rig data root
 
-# map cursor from where the map opens to ジャブロー2 (Lobby 06), held until the cursor reaches it
-MAP06 = "Down^cury>=256,Right^curx>=393"
+# map cursor from where the map opens to ジャブロー2 (Lobby 06), held until the cursor reaches it; the first hold
+# also waits out the map opening (cursor RAM is (270, 190) from login on, so no fixed wait after C)
+MAP06 = "Down^cury>=256/12000,Right^curx>=393"
 # map cursor to シアトル (Lobby 02) from anywhere on the map, each axis held toward the spot the press was taken at
-WALK2P = "Right|Left^curx=379,Down|Up^cury=60"
+WALK2P = "Right|Left^curx=379/12000,Down|Up^cury=60"
 # lobby menu -> パートナー自動選抜 -> side {s} -> entered. lstate steps once per accepted press (the side Right too),
 # not when the lobby finishes loading, so Down repeats until the menu takes it.
 LOBBY = "Down~lstate!/500,C~lstate!/2000,{s}C~lstate!/2000,w4000"
@@ -69,7 +70,7 @@ ROUTES = {
     # model/lobby.go CanBattleStart) -> lobby -> パートナー自動選抜 -> side {s}: p1/p2 連邦・エゥーゴ, p3/p4 ジオン・ティターンズ
     # m4z.py: map ends with the Lobby 06 press (0x6305 00 06); a late press is
     # waited for before lobby2p instead of raced
-    "map": "C,w5000," + MAP06 + ",w500,C",
+    "map": "C," + MAP06 + ",w500,C",
     "mappress": "C",
     # 1v1: map cursor to シアトル (Lobby 02: starts at 1 AEUG + 1 Titans). The cursor keeps its spot between
     # visits and hit areas sit off the drawn labels: walk on the cursor RAM both ways (grid scan: Lobby 02
@@ -77,7 +78,7 @@ ROUTES = {
     # freshboot.entry2p_retry (m4z.py): map2p ends with the Lobby 02 press (0x6305 00 02); the
     # press missed in 3 of 15 entries (no 0x6305, client left on the map) -> remap2p = walk
     # again, no leading C; lobby2p = the lobby menu + side dialog
-    "map2p": "C,w5000," + WALK2P + ",w500,C",
+    "map2p": "C," + WALK2P + ",w500,C",
     "remap2p": WALK2P + ",w500,C",
     "lobby2p": LOBBY,
     # in battle: move + all face buttons, ~3 min (a round is 150 s)
