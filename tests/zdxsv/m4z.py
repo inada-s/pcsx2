@@ -9,6 +9,9 @@ Exit 0 = all checks passed.
   OUT=<dir> python tests/zdxsv/m4z.py
 Env: ZP (clients behind zproxy, default "1 3": one per side), ZPROXY (exe), SHOW ("1 2":
 windowed with GS snapshots), MAXS (s after mash to wait for results).
+GAUGE, COUNT, TIME: the lobby battle rule (戦力ゲージ, 連続対戦数, 作戦時間 s; menu values) as the stack's
+ZDXSV_LOBBY_BATTLE_*. Default GAUGE=1 COUNT=1 (one round, the first shoot-down ends it); `GAUGE=0 COUNT=0`:
+the lobby's default rule (rematches picked by the mash).
 EMU=1: the 4 clients are emulators instead (platform info, TCP to the battle server, no zproxy by default;
   ZDXSV_TLS=0 unless ZDXSV_TLS_TEST_PIN=1);
   GGPO=7101: with ZDXSV_GGPO net=1,lobby=1,port=GGPO+i-1 on GGPO_CLIENTS (default "1 2 3 4"; a lobby with
@@ -326,6 +329,8 @@ def main():
     # stack.py runs in the background: its binary check fails here, before any client
     if zbincheck.check(zbin):
         return 1
+    for k, d in (("GAUGE", "1"), ("COUNT", "1"), ("TIME", "0")):
+        os.environ["ZDXSV_LOBBY_BATTLE_" + k] = E(k, d)
     if E("RELAY"):
         os.environ["ZDXSV_LOBBY_RELAY_ADDR"] = ":8203"
     relay_path = E("RELAY_PATH", "direct")
