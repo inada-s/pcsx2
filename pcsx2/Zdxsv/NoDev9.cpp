@@ -54,13 +54,21 @@ namespace Zdxsv
 	{
 		// Wrapper RPC block: +0x18 result, +0x1c reply (setup), +0x1e length, +0x20 data.
 		constexpr u32 kRpc = 0xc22c80;
-		constexpr u32 kNetState = 0xcd1360; // u8, 5 = the network device pick
+		constexpr u32 kNetState = 0xcd1360; // u8, network menu state
+		constexpr u8 kNetPick = 5; // the network device pick
+		// The network setting list. Fast boot replaces state 5 with it in the same vsync, so the pick never runs.
+		constexpr u8 kNetSettingList = 6;
 		// The boot search for module "dev9" fills this entry; without it the pick shows the device as unavailable.
 		constexpr u32 kDevEntry = 0xc634e8;
 		constexpr u32 kDevEntryWords[] = {1, 5, 1, 2, 0x21, 0x6af5b8, 0x6af5c0};
 		// The pick's SMAP.IRX load (jal); SMAP needs dev9, and the pick never checks a load result.
 		constexpr u32 kSmapLoadPc = 0x336bd4;
 		constexpr u32 kSmapLoad = 0x0c0cd8f4;
+#ifdef MSG_NOSIGNAL
+		constexpr int kSendFlags = MSG_NOSIGNAL;
+#else
+		constexpr int kSendFlags = 0;
+#endif
 
 		struct Reply
 		{
@@ -179,6 +187,11 @@ namespace Zdxsv
 			ioctlsocket(s, FIONBIO, &nb);
 #else
 			fcntl(s, F_SETFL, fcntl(s, F_GETFL, 0) | O_NONBLOCK);
+#ifdef __APPLE__
+			// A send after the server closed would raise SIGPIPE and end the process.
+			const int one = 1;
+			setsockopt(s, SOL_SOCKET, SO_NOSIGPIPE, &one, sizeof(one));
+#endif
 #endif
 			sockaddr_in sa = {};
 			sa.sin_family = AF_INET;
@@ -294,7 +307,7 @@ namespace Zdxsv
 			const sock_t s = Sock(b);
 			for (int o = 0; s != INVALID_SOCKET && o < len;)
 			{
-				const int n = send(s, reinterpret_cast<const char*>(b + 0x20 + o), len - o, 0);
+				const int n = send(s, reinterpret_cast<const char*>(b + 0x20 + o), len - o, kSendFlags);
 				if (n > 0)
 					o += n;
 				else if (!WouldBlock())
@@ -392,7 +405,8 @@ namespace Zdxsv
 	void NoDev9OnVsync()
 	{
 		const u8 net = memRead8(kNetState);
-		if (net == 5 && s_state.last_net != 5)
+		const bool pick = net == kNetPick || net == kNetSettingList;
+		if (pick && s_state.last_net != net)
 		{
 			if (memRead32(kDevEntry) == 0xffffffff)
 			{
@@ -401,7 +415,7 @@ namespace Zdxsv
 				Console.WriteLn("Zdxsv: no DEV9: network device entry set");
 			}
 		}
-		if (net == 5)
+		if (pick)
 			Patch(kSmapLoadPc, kSmapLoad, 0);
 		s_state.last_net = net;
 	}

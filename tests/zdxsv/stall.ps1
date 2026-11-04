@@ -1,5 +1,5 @@
 # stall.ps1: suspend the pcsx2 started with -datapath <...>\<Peer> for Ms every EverySec, Count times,
-# from StartSec after it appears (rbk.sh STALL: makes the other peers run ahead, so GGPO asks them to wait).
+# from StartSec after it appears (rbk.py STALL: makes the other peers run ahead, so GGPO asks them to wait).
 param([string]$Peer = 'p3', [int]$StartSec = 40, [double]$EverySec = 5, [int]$Ms = 400, [int]$Count = 8)
 Add-Type -Namespace ZdxsvStall -Name Nt -MemberDefinition @'
 [DllImport("ntdll.dll")] public static extern int NtSuspendProcess(System.IntPtr h);

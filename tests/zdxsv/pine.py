@@ -51,15 +51,32 @@ def shrink(path, scale):
 
 
 class Pine:
-    def __init__(self, slot=28011, host="127.0.0.1", timeout=5.0):
+    def __init__(self, slot=28011, host="127.0.0.1", timeout=5.0, connect_s=30.0):
+        # launch.py returns before the server listens: retry a refused or missing socket
+        end = time.time() + connect_s
+        while True:
+            try:
+                self.sock = self._connect(slot, host, timeout)
+                return
+            except (ConnectionRefusedError, FileNotFoundError):
+                if time.time() > end:
+                    raise
+                time.sleep(0.2)
+
+    @staticmethod
+    def _connect(slot, host, timeout):
         if os.name == "nt":
-            self.sock = socket.create_connection((host, slot), timeout=timeout)
-            return
+            return socket.create_connection((host, slot), timeout=timeout)
         d = os.environ.get("TMPDIR" if sys.platform == "darwin" else "XDG_RUNTIME_DIR") or "/tmp"
         path = os.path.join(d, "pcsx2.sock") + ("" if slot == 28011 else ".%d" % slot)
-        self.sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        self.sock.settimeout(timeout)
-        self.sock.connect(path)
+        s = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+        s.settimeout(timeout)
+        try:
+            s.connect(path)
+        except OSError:
+            s.close()
+            raise
+        return s
 
     def call(self, op, args=b""):
         msg = struct.pack("<IB", 5 + len(args), op) + args
@@ -120,7 +137,7 @@ class Pine:
 
     def wait(self, ms):
         """Wait ms of game time: ms*60/1000 vsyncs (g_FrameCount), so routes keep their timing at any
-        emulation speed (launch.ps1 -Speed). PINE_WALL=1: wall-clock sleep (old)."""
+        emulation speed (launch.py -Speed). PINE_WALL=1: wall-clock sleep (old)."""
         if WALL:
             time.sleep(ms / 1000)
             return

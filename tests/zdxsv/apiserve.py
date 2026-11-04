@@ -1,4 +1,4 @@
-# apiserve.py PORT FILE [gzip]: stand-in for the lobby's public /lbs/replay (rplay.sh API=1). Any battle_code gets a JSON list
+# apiserve.py PORT FILE [gzip]: stand-in for the lobby's public /lbs/replay (rplay.py API=1). Any battle_code gets a JSON list
 # whose replay_url (/pb) serves FILE; FILE=none: an answer without replay_url. gzip: /pb serves FILE gzip encoded with
 # Content-Encoding: gzip whatever the request's Accept-Encoding, as GCS does for the lobby's objects (Cache-Control: no-transform).
 import gzip, http.server, json, sys

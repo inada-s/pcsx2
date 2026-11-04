@@ -5,7 +5,7 @@
           register (TOP -> 新規登録), newlogin, entry (戦場選択 -> side entry in Lobby 06),
           mash (in battle), after (result screen -> 作戦後部屋)
 4-player battle: top 1 2 3 4; login 1 2 3 4; entry 1 2 3 4; mash 1 2 3 4 (x2); after 1 2 3 4.
-Headless (launch.ps1 -Headless): same routes blind, mash x3, then after; result ~65 s later.
+Headless (launch.py -Headless): same routes blind, mash x3, then after; result ~65 s later.
 Each route ends with a snap to $RUN/pN/<route>.png (half size). "no snap" only on a Null-renderer instance
 (Renderer = 11 in its ini); a failed snap of a rendering instance stops the run (winshot.ps1 captures windows).
 Timings measured with 4 instances at 60 fps on one 4-core host.
@@ -24,7 +24,7 @@ import time
 
 from pine import Pine, shrink
 
-RUN = os.environ.get("RUN", ".")  # rig data root (env.sh)
+RUN = os.environ.get("RUN", ".")  # rig data root
 
 # map cursor to シアトル (Lobby 02) from anywhere on the map: clamp top-left, fixed steps (see entry2p)
 WALK2P = ",".join(["Up:3000,Left:6000,w500"] + ["Right:350,w600"] * 15 + ["Down:400,w600"] + ["Left:350,w600"] * 5)
@@ -63,7 +63,7 @@ ROUTES = {
     # model/lobby.go CanBattleStart) -> lobby -> パートナー自動選抜 -> side {s}: p1/p2 連邦・エゥーゴ, p3/p4 ジオン・ティターンズ
     # p4's Down was dropped once (landed in オペレーションリスト; fix X,w3000,Down,C,...): check shots.
     "entry": "C,w5000,Up:400,w800,Down:900,Right:900,w500,C,w8000,Down,w500,C,w4000,{s}C,w4000",
-    # entry in halves for m4z.sh: map ends with the Lobby 06 press (0x6305 00 06); a late press is
+    # entry in halves for m4z.py: map ends with the Lobby 06 press (0x6305 00 06); a late press is
     # waited for before lobby2p instead of raced
     "map": "C,w5000,Up:400,w800,Down:900,Right:900,w500,C",
     "mappress": "C",
@@ -71,7 +71,7 @@ ROUTES = {
     # visits and hit areas sit off the drawn labels: clamp top-left, then fixed steps (grid scan: Lobby 02
     # at row 1 cols 5-6; route shot-checked, "Lobby 02" shown). Lobby menu + side dialog as in Lobby 06.
     "entry2p": "C,w5000," + WALK2P + ",w500,C,w8000,Down,w500,C,w4000,{s}C,w4000",
-    # entry2p in halves for entry2p.sh (m4z.sh): map2p ends with the Lobby 02 press (0x6305 00 02); the
+    # entry2p in halves for freshboot.entry2p_retry (m4z.py): map2p ends with the Lobby 02 press (0x6305 00 02); the
     # press missed in 3 of 15 entries (no 0x6305, client left on the map) -> remap2p = walk
     # again from the clamp, no leading C; lobby2p = the lobby menu + side dialog
     "map2p": "C,w5000," + WALK2P + ",w500,C",
@@ -98,7 +98,7 @@ def route_text(route, n):
 
 
 def headless(n):
-    """Renderer = 11 (Null, launch.ps1 -Headless) in the instance's ini: no GS snapshot to expect."""
+    """Renderer = 11 (Null, launch.py -Headless) in the instance's ini: no GS snapshot to expect."""
     ini = os.path.join(RUN, "p%d" % n, "PCSX2", "inis", "PCSX2.ini")
     try:
         with open(ini, encoding="utf-8", errors="replace") as f:

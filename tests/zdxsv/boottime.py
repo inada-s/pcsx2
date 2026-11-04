@@ -1,132 +1,108 @@
-"""Boot-to-lobby time of one running instance (boottime.sh starts it).
-
-Polls game RAM over PINE until the lobby's user_id selection screen (ID選択)
-is up and prints the time from T0 (epoch seconds of the launch) to it.
-  boottime.py --t0 <epoch> --out <dir> [--pid N --emulog path] [--limit 5] [--maxs 200] [--route keys]
---pid + --emulog: also the time from the VM start (emulog "Opening CDVD"), and
---limit applies to it; the launch script's own start-up is not counted.
---route: drive.py keys sent from the start (route names expand, e.g. top,C).
-Exit 0 = screen up within --limit s, 1 = later or never, 2 = wrong game.
+"""Boot-to-lobby time: local stack (stack.py) + p1 from a cold boot; measures from the launch to the
+lobby's user_id selection screen (ID選択, game RAM over PINE: bootwatch.py). No input by default.
+  OUT=<dir> python tests/zdxsv/boottime.py
+Env: LIMIT (s, default 5), MAXS (s to wait, default 200), ROUTE (drive.py keys sent from the start;
+ROUTE=top,C = today's menu path + ログイン at TOP), CARD (p1 card name, default the first of CARDS),
+SPEED (launch -Speed, default 1), SHOW=1 (windowed), LOBBY=fake (boot_lobby.py instead of the stack:
+only the lobby API login and the lobby up to the user_id list).
+Exit 0 = the screen is up within LIMIT s. Logs: OUT/boottime.txt (net step changes), stack logs.
 """
-import argparse, ctypes, os, re, sys, threading, time
+import os
+import shutil
+import subprocess
+import sys
+import time
 
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from pine import Pine
-from drive import ROUTES
+import launch
+import zbincheck
+import zrig
 
-SERIAL = "SLPS-25419"
-# Lobby connection object pointer (a gp-relative global).
-NET_OBJ_PTR = 0x6D7D54
-# Byte in that object: network step, 4 from the user_id list (lobby 0x6131) on.
-NET_STEP = 0xA1F
-STEP_USER_ID_LIST = 4
-FPS = 59.94
+API = "127.0.0.1:9881"
 
 
-def process_start(pid):
-    """Epoch seconds of the process creation (Windows)."""
-    k = ctypes.windll.kernel32
-    h = k.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
-    if not h:
-        return None
-    t = [ctypes.c_ulonglong() for _ in range(4)]
-    ok = k.GetProcessTimes(h, *[ctypes.byref(x) for x in t])
-    k.CloseHandle(h)
-    return t[0].value / 1e7 - 11644473600 if ok else None
+def run(out):
+    run_ = os.environ["RUN"]
+    p1 = os.path.join(run_, "p1", "PCSX2")
+    card = zrig.env("CARD") or os.environ["CARDS"].split()[0]
+    os.makedirs(out, exist_ok=True)
+    shutil.copyfile(os.path.join(run_, "zdxsv.db"), os.path.join(out, "zdxsv.db"))
+    procs = []
 
+    def killall():
+        zrig.kill_name("pcsx2", "zdxsv", "dnas")
 
-def vm_start(created, emulog):
-    """Epoch seconds of the VM start: emulog times count from the process start."""
-    try:
-        with open(emulog, encoding="utf-8", errors="replace") as f:
-            for line in f:
-                m = re.match(r"\[\s*([0-9.]+)\] Opening CDVD", line)
-                if m:
-                    return created + float(m.group(1))
-    except OSError:
-        pass
-    return None
-
-
-def connect(deadline):
-    while True:
+    def cleanup():
+        for p in procs:
+            if p.poll() is None:
+                p.terminate()
+                try:
+                    p.wait(10)
+                except subprocess.TimeoutExpired:
+                    p.kill()
+        pf = os.path.join(out, "boot_lobby.pid")
+        if os.path.isfile(pf):
+            with open(pf) as f:
+                zrig.kill(f.read().strip() or 0)
+        killall()
         try:
-            return Pine(int(os.environ.get("PINE_SLOT", "28011")))
+            shutil.copyfile(os.path.join(p1, "logs", "emulog.txt"), os.path.join(out, "emulog-p1.txt"))
         except OSError:
-            if time.time() > deadline:
-                raise
-            time.sleep(0.1)
+            pass
+        live = os.path.join(out, "live-p1.ps2")
+        if os.path.isfile(live):
+            shutil.copy2(live, os.path.join(p1, "memcards", "Mcd001.ps2"))
+
+    killall()
+    try:
+        if zrig.env("LOBBY") == "fake":
+            pf = os.path.join(out, "boot_lobby.pid")
+            if os.path.exists(pf):
+                os.remove(pf)
+            log = os.path.join(out, "boot_lobby.log")
+            with open(log, "wb") as f:
+                procs.append(subprocess.Popen([zrig.PY, "-u", os.path.join(zrig.HERE, "boot_lobby.py"), "--public",
+                                               f"{os.environ['IP']}:8200", "--api", API, "--pidfile", pf],
+                                              stdout=f, stderr=subprocess.STDOUT))
+            time.sleep(2)
+            txt = open(log, encoding="utf-8", errors="replace").read()
+            if "boot lobby up" not in txt:
+                print(txt + "FAIL boot lobby", flush=True)
+                return 1
+        else:
+            if zbincheck.check(zrig.env("ZBIN") or os.path.join(os.environ["ZDXSV"], "bin", "zdxsv" + zrig.EXE)):
+                return 1
+            so = os.path.join(out, "stack.out")
+            e = dict(os.environ, ZDXSV_LOBBY_API_ADDR=API, LOBBY_ARGS="-v=2", RUN=out)
+            with open(so, "wb") as f:
+                procs.append(subprocess.Popen([zrig.PY, os.path.join(zrig.HERE, "stack.py"), os.environ["IP"]],
+                                              env=e, stdout=f, stderr=subprocess.STDOUT))
+            time.sleep(6)
+            txt = open(so, encoding="utf-8", errors="replace").read()
+            if "stack up" not in txt:
+                print(txt + "FAIL stack", flush=True)
+                return 1
+        emulog = os.path.join(p1, "logs", "emulog.txt")
+        if os.path.exists(emulog):
+            os.remove(emulog)
+        shutil.copy2(os.path.join(p1, "memcards", "Mcd001.ps2"), os.path.join(out, "live-p1.ps2"))
+        t0 = time.time()
+        # ZDXSV_TLS=0: the local stack has no TLS ports. Fast login API: the lobby API, /lbs/login
+        ex = {"ZDXSV_TLS": "0", "ZDXSV_LOGIN_API_URL": zrig.env("ZDXSV_LOGIN_API_URL", f"http://{API}/lbs/login")}
+        pids = launch.launch([1], speed=zrig.env("SPEED", "1"), memcard=os.path.join(run_, f"Mcd001-{card}.ps2"),
+                             headless=not zrig.env("SHOW"), extra_env=ex)
+        a = [zrig.PY, os.path.join(zrig.HERE, "bootwatch.py"), "--t0", str(t0), "--pid", str(pids[1]),
+             "--emulog", emulog, "--out", out, "--limit", zrig.env("LIMIT", "5"), "--maxs", zrig.env("MAXS", "200")]
+        if zrig.env("ROUTE"):
+            a += ["--route", os.environ["ROUTE"]]
+        return subprocess.call(a)
+    finally:
+        cleanup()
 
 
 def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--t0", type=float, required=True)
-    ap.add_argument("--out", required=True)
-    ap.add_argument("--limit", type=float, default=5.0)
-    ap.add_argument("--maxs", type=float, default=200.0)
-    ap.add_argument("--route", default="")
-    ap.add_argument("--pid", type=int, default=0)
-    ap.add_argument("--emulog", default="")
-    a = ap.parse_args()
-    deadline = a.t0 + a.maxs
-    created = process_start(a.pid) if a.pid else None
-    p = connect(deadline)
-    lock = threading.Lock()
-    raw = p.call
-
-    def call(op, args=b""):
-        with lock:
-            return raw(op, args)
-
-    p.call = call
-    log = open(os.path.join(a.out, "boottime.txt"), "w")
-    log.write("launch %s.%03d\n" % (time.strftime("%H:%M:%S", time.localtime(a.t0)), a.t0 % 1 * 1000))
-
-    def emit(text):
-        line = "%8.3f s  frame %6d  %s" % (time.time() - a.t0, p.frame(), text)
-        print(line, flush=True)
-        log.write(line + "\n")
-        log.flush()
-
-    serial = ""
-    while time.time() < deadline and not serial.startswith("SLPS"):
-        try:
-            serial = p.call(0xC)[4:].split(b"\0")[0].decode("ascii", "replace")
-        except (RuntimeError, OSError):
-            pass
-        time.sleep(0.05)
-    emit("game %s" % serial)
-    if serial != SERIAL:
-        print("FAIL game %r is not %s" % (serial, SERIAL))
-        return 2
-    if a.route:
-        keys = ",".join(ROUTES.get(k, k) for k in a.route.split(","))
-        threading.Thread(target=p.seq, args=(keys,), daemon=True).start()
-        emit("route " + a.route)
-    last = None
-    while time.time() < deadline:
-        obj = p.r32(NET_OBJ_PTR)
-        step = p.r8(obj + NET_STEP) if 0x100000 <= obj < 0x2000000 - NET_STEP else None
-        if (obj != 0, step) != last:
-            emit("net obj %08x step %s" % (obj, step))
-            last = (obj != 0, step)
-        if step == STEP_USER_ID_LIST:
-            now = time.time()
-            t = now - a.t0
-            f = p.frame()
-            vm0 = vm_start(created, a.emulog) if created and a.emulog else None
-            if a.pid and vm0 is None:
-                print("FAIL no VM start (pid %d, emulog %s)" % (a.pid, a.emulog))
-                return 1
-            tv = now - vm0 if vm0 else t
-            res = "PASS" if tv <= a.limit else "FAIL"
-            vm = " = %.2f s from the VM start (process start +%.2f s)" % (tv, vm0 - created) if vm0 else ""
-            print("%s user_id screen at %.2f s from the launch%s (frame %d = %.2f s emulated), limit %.1f s"
-                  % (res, t, vm, f, f / FPS, a.limit))
-            return 0 if res == "PASS" else 1
-        time.sleep(0.02)
-    print("FAIL no user_id screen in %.0f s" % a.maxs)
-    return 1
+    zrig.take()
+    zrig.need("ZDXSV", "IP", "OUT", "CARDS")
+    return run(os.environ["OUT"])
 
 
 if __name__ == "__main__":

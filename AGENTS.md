@@ -136,6 +136,7 @@ the agent's context.
 
 - Rig tests: scripts that run emulators with the game and check traces,
   hashes, replays or logs. Unit tests optional.
+- Test scripts in Python (stdlib only, shared code in `tests/zdxsv/zrig.py`). PowerShell (`.ps1`) or JXA only for window control or OS calls Python cannot make.
 - Rig scripts live in `tests/zdxsv/`, added in the feature's PR. No copies
   elsewhere. No game, BIOS, memory card, save state or machine paths in them.
 - `docs/zdxsv/features.md`: per feature one line, its switch, its seam in the
