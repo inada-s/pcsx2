@@ -95,16 +95,18 @@ ROUTES = {
     "after": "Right,w300,C,w40000,C,w60000,Down,w300,C,w40000",
 }
 # No DEV9 (launch.sh default, localnet.sh): every connection menu button goes to the terms (net 3 -> 5), then
-# connects with no setup screens and no setting list (5 -> 6, 7 -> 0x21 on their own). Settles as in "top".
+# connects with no setup screens and no setting list (5 -> 6, 7 -> 0x21 on their own). The connection
+# menu and the terms drop input in their first second: Key~lstate! presses until one is taken.
 if (os.environ.get("ZDXSV_NODEV9") or os.environ.get("IP") or "0") != "0":
-    ROUTES["top"] = "Return~scene=2/500,Down~menu=7/400,C~scene=7,C~net=2,C~net=3/500,w1500,Up*2,C,@net=5,w1500,"\
-                    "Up,C,@net=0x21/30000"
+    ROUTES["top"] = "Return~scene=2/500,Down~menu=7/400,C~scene=7,C~net=2,C~net=3/500,C~lstate!/500,@net=5,"\
+                    "Up~lstate!/500,C~lstate!/500,@net=0x21/30000"
     # Blank card: NET file created and saved as in "fresh", then no netcnf GUI and no reboot. Keyed on net/nsub
     # (1 NET file not found, 2 新規作成: nsub 21 slot), dlg (1 format, 2 its はい, 5 and 4 notes that close on their
-    # own, 222 done), then the connection menu (net 3), the terms (5) and TOP (phase 23). One C per dialog, after
+    # own, 222 done), then the connection menu (net 3), the terms (5), TOP (phase 23) and its page (wseq 21). One C per dialog, after
     # the dlg value: a dialog takes ~300 vsyncs to change, and repeated presses there (C~dlg) leave net at 2.
-    ROUTES["fresh"] = "Return~scene=2/500,Down~menu=7/400,C~scene=7,C~net=2,@nsub=21,C~nsub=22,@dlg=1,w1000,C,@dlg=2/15000,"\
-                      "w500,Up,w300,C,@dlg=4/15000,@dlg=222/15000,w500,C,@net=3/15000,w1500,C,@net=5,w1500,Up,C,@phase=23/40000,w5000"
+    ROUTES["fresh"] = "Return~scene=2/500,Down~menu=7/400,C~scene=7,C~net=2,@nsub=21,C~nsub=22,@dlg=1,C~lstate!/500,"\
+                      "@dlg=2/15000,Up~lstate!/500,C~lstate!/500,@dlg=4/15000,@dlg=222/15000,C~lstate!/500,@net=3/15000,"\
+                      "C~lstate!/500,@net=5,Up~lstate!/500,C~lstate!/500,@phase=23/40000,@wseq=21/20000"
 
 
 def route_text(route, n):
