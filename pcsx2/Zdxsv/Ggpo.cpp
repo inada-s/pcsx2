@@ -59,6 +59,7 @@ namespace Zdxsv
 		int s_frames_ahead = 0; // net: last GGPO_EVENTCODE_TIMESYNC
 		int s_waits = 0; // net: frames that waited for a peer
 		int s_sync_frames = 0; // net: frames slept for GGPO time sync
+		bool s_sync_trimmed = false; // g_frame_period_trim_us holds a time sync wait
 		double s_sync_max_ms = 0;
 		// ZDXSV_SAVE_ALL=1: delta-save every GGPO frame. Default (net, sync=0): skip the save of a frame at or
 		// below GGPO's last confirmed frame (all inputs received: never a rollback target).
@@ -1025,6 +1026,8 @@ namespace Zdxsv
 			s_osd_lines.clear();
 		}
 		std::fill(std::begin(s_handles), std::end(s_handles), GGPOPlayerHandle{});
+		if (std::exchange(s_sync_trimmed, false))
+			g_frame_period_trim_us = 0;
 		s_frames_ahead = s_waits = s_sync_frames = s_save_skipped = s_session_frames = s_top_frame = s_reruns_left = 0;
 		s_sync_max_ms = 0;
 		s_rollback_frames = s_loads = s_mismatches = s_ggpo_warnings = s_diff_logged = 0;
@@ -1220,6 +1223,8 @@ namespace Zdxsv
 		}
 		// net: ahead of the peer, give it time to catch up: GGPO's suggested frames, one frame (at 60 fps) every
 		// 10 frames, so the catch-up is not one visible hitch.
+		if (std::exchange(s_sync_trimmed, false))
+			g_frame_period_trim_us = 0;
 		if (s_frames_ahead > 0 && s_session_frames % 10 == 0)
 		{
 			s_frames_ahead--;
@@ -1236,6 +1241,9 @@ namespace Zdxsv
 			// ggpo_idle can run a rollback: that is game work, not part of the wait.
 			s_sync_max_ms = std::max(s_sync_max_ms, wait.GetTimeMilliseconds() - idle_ms);
 			s_wait_ms.Add(wait.GetTimeMilliseconds());
+			// The limiter keeps an absolute schedule: without this it skips its next sleep and the wait gains nothing.
+			g_frame_period_trim_us = static_cast<s32>(wait.GetTimeMilliseconds() * 1000.0);
+			s_sync_trimmed = true;
 		}
 		if (s_session_frames >= s_frames)
 		{
