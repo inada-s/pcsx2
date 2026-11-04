@@ -1,4 +1,4 @@
-"""Stand-in lobby for the boot to the user_id selection (boottime.sh LOBBY=fake): the lobby API's
+"""Stand-in lobby for the boot to the user_id selection (boottime.py LOBBY=fake): the lobby API's
 POST /lbs/login and the lobby's login exchange up to the user_id list (0x6131), nothing after.
 
   boot_lobby.py --public IP:8200 [--port 8200] [--api 127.0.0.1:9881] [--pidfile path]

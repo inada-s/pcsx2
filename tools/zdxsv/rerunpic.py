@@ -1,4 +1,4 @@
-"""Judge the pictures shown after rollbacks (tests/zdxsv/rerunpic.sh).
+"""Judge the pictures shown after rollbacks (tests/zdxsv/rerunpic.py).
 
 usage: rerunpic.py <dir> <from> <to>
 dir holds v<vsync>.png of every shown frame of a GGPO synctest with check=2: every 2nd shown frame

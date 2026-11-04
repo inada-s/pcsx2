@@ -1,4 +1,4 @@
-// macOS twin of pcsx2ctl.ps1 (same -Seq syntax), run by os.sh `zctl`: osascript -l JavaScript pcsx2ctl.js ARGS
+// macOS twin of pcsx2ctl.ps1 (same -Seq syntax), run by zrig.ctl: osascript -l JavaScript pcsx2ctl.js ARGS
 //   -pid N -data DIR -seq S [-shot out.png] [-hold 120] [-gap 350]   send to that pcsx2 (DIR = its -datapath)
 //   -check -ini PCSX2.ini -seq S                                    binding check only (rc 2 = unbound)
 // Keys and the mouse go through CGEvent: the calling process needs Accessibility (rc 4 without it, nothing sent).

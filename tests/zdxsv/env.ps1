@@ -1,4 +1,4 @@
-# Machine settings for the PowerShell rig scripts: env.sh for PowerShell (dot-source it).
+# Machine settings for the PowerShell rig scripts: local.env as zrig.py reads it (dot-source it).
 # The environment wins over local.env next to this file.
 $envFile = Join-Path $PSScriptRoot 'local.env'
 if (Test-Path $envFile) {

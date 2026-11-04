@@ -7,7 +7,7 @@
 #   bar:NAME[:F] clicks a bar element (pause back forward prevround nextround results timeline pov) at fraction F of its width (default
 #   0.5), from the last `replay bar: layout` line in the instance's emulog. shot:out.png = winshot.ps1 (overlays).
 # -Check -Ini PCSX2.ini : only the binding check of -Seq against that ini, no process, nothing sent (rc 2 = unbound;
-#   rplay.sh runs it on every KEYS step before launch).
+#   rplay.py runs it on every KEYS step before launch).
 param([string]$Seq = "", [string]$Shot = "", [int]$ProcId = 0, [int]$HoldMs = 120, [int]$GapMs = 350,
       [switch]$Check, [string]$Ini = "")
 Add-Type -AssemblyName System.Windows.Forms, System.Drawing

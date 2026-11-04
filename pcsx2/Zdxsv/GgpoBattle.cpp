@@ -208,7 +208,7 @@ namespace Zdxsv
 
 		// Sock-0 RPC fno before GGPO arms. Results as recorded in that trace: send 0, poll as the battle
 		// poll, getopt 4 (0x2008 -> 0, 0x2001 -> 1 at data+2), 0x38 3, close / socket / connect /
-		// setopt 0. Other fnos go to the IOP.
+		// setopt 0, link up 0. Other fnos go to the IOP or the no-DEV9 sockets.
 		bool RbkCall(u32 fno, s16 len, u8* d)
 		{
 			u8* ram = eeMem->Main;
@@ -294,6 +294,7 @@ namespace Zdxsv
 					break;
 				case 3:
 				case 0x16:
+				case 0x46: // link up: 1 makes the game close the lobby it resumed with
 					break;
 				default:
 					return false;
