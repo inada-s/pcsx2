@@ -56,6 +56,7 @@ this table says it is missing.
 ## Input latency ([options.md](options.md))
 
 - **Low-latency vsync**: present before the limiter sleep; `ZdxsvLowLatencyVsync`.
+- **Net battle pacing**: input sent before the limiter sleep, no limiter catch-up after a late frame, high process priority; `ZDXSV_EXTENSIONS=0`. See [rollback.md](rollback.md).
 - **Input latency measurement**: `ZDXSV_INPUT_LATENCY`.
 - **Input to picture by pixel color**: `ZDXSV_INPUT_LATENCY` key `pixel=`.
 

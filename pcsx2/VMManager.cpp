@@ -2304,6 +2304,12 @@ void VMManager::Internal::Throttle()
 	const u64 iEnd = GetCPUTicks(); // The current tick we actually stopped on.
 	const s64 sDeltaTime = iEnd - uExpectedEnd; // The diff between when we stopped and when we expected to.
 
+	if (Zdxsv::g_limiter_no_catch_up && sDeltaTime > 0)
+	{
+		s_limiter_frame_start = iEnd;
+		return;
+	}
+
 	// If frame ran too long...
 	if (sDeltaTime >= ticks_per_frame)
 	{

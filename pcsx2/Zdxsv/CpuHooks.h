@@ -68,6 +68,9 @@ namespace Zdxsv
 	// (Stop: peers see a disconnect, the replay is saved), the replay key files are deleted, the per-battle state
 	// goes back to start values. what = "vm shutdown" / "vm reset".
 	void GgpoOnVmShutdown(const char* what);
+	// In VMManager::Internal::Throttle. Net session: a late frame is not paid back by shorter ones: the cause of the
+	// delay (a rollback, the prediction barrier) is usually still there, and the frame interval would swing.
+	extern bool g_limiter_no_catch_up;
 	// In VSyncStart.
 	void GgpoOnVsync();
 	// In VSyncStart with LowLatencyVsync, after the present. true: a session frame ended, and

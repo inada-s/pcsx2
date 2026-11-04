@@ -10,6 +10,9 @@
 #include "Zdxsv/ReplayList.h"
 #include "MTGS.h"
 #include "Input/InputManager.h"
+#ifdef _WIN32
+#include "common/RedtapeWindows.h"
+#endif
 #include "ImGui/FullscreenUI.h"
 
 namespace Zdxsv
@@ -61,6 +64,25 @@ namespace Zdxsv
 		int s_waits = 0; // net: frames that waited for a peer
 		int s_sync_frames = 0; // net: frames slept for GGPO time sync
 		bool s_sync_trimmed = false; // g_frame_period_trim_us holds a time sync wait
+
+		// A net session runs the process at high priority: other programs delay the limiter's wake and the frame less.
+		void SessionPriority(bool high)
+		{
+#ifdef _WIN32
+			static DWORD s_normal = 0;
+			if (high && !s_normal)
+			{
+				s_normal = GetPriorityClass(GetCurrentProcess());
+				SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
+			}
+			else if (!high && s_normal)
+			{
+				SetPriorityClass(GetCurrentProcess(), s_normal);
+				s_normal = 0;
+			}
+#endif
+		}
+
 		double s_sync_max_ms = 0;
 		// ZDXSV_SAVE_ALL=1: delta-save every GGPO frame. Default (net, sync=0): skip the save of a frame at or
 		// below GGPO's last confirmed frame (all inputs received: never a rollback target).
@@ -786,6 +808,10 @@ namespace Zdxsv
 			const char* dms = Zdxsv::TestEnv("ZDXSV_NET_DISCONNECT_MS");
 			ggpo_set_disconnect_timeout(s_session, dms ? std::atoi(dms) : 10000);
 			ggpo_set_disconnect_notify_start(s_session, 1000);
+			// A frame is confirmed once this peer has its inputs; otherwise, with 3+ players, also once every peer reported them: one more one-way trip of prediction.
+			ggpo_set_disconnect_without_rollback(s_session, true);
+			g_limiter_no_catch_up = true;
+			SessionPriority(true);
 			// relay servers before the players, in the battle info's order on every peer (ggpo_add_relay_server)
 			if (s_lobby)
 				for (const Zdxsv::RelayServerAddr& r : s_net_servers)
@@ -879,7 +905,7 @@ namespace Zdxsv
 			ggpo_disconnect_player(s_session, s_handles[s_net_me]);
 		}
 
-		bool NetNextInputs()
+		bool NetAddLocalInput()
 		{
 			NetInput in = NetPack(s_rand_env ? RandInput() : HostInput());
 			GGPOErrorCode rc = ggpo_add_local_input(s_session, s_handles[s_net_me], &in, sizeof(in));
@@ -901,7 +927,12 @@ namespace Zdxsv
 				Console.Error("ZdxsvGgpo: net add_local_input %d", rc);
 				return false;
 			}
-			return NetSyncAndApply();
+			return true;
+		}
+
+		bool NetNextInputs()
+		{
+			return NetAddLocalInput() && NetSyncAndApply();
 		}
 
 		// Inputs of frame s_net_frame: own host pad to pad 0, every position's (A, B) to s_rings.zd_hist, kind-3
@@ -934,6 +965,7 @@ namespace Zdxsv
 	bool g_ggpo_enabled = false; // GgpoOnVmInitialize
 	bool g_mtvu_off = false; // GgpoOnVmInitialize, cleared at VM shutdown
 	s32 g_frame_period_trim_us = 0;
+	bool g_limiter_no_catch_up = false;
 	// The ZDXSV_GGPO options of this VM: the variable, else DEFAULT_OPTIONS for the Z game, else empty = off.
 	// Set by GgpoOnVmInitialize before the CPU runs.
 	std::string s_options;
@@ -1064,6 +1096,8 @@ namespace Zdxsv
 			s_osd_panel = {};
 		}
 		std::fill(std::begin(s_handles), std::end(s_handles), GGPOPlayerHandle{});
+		g_limiter_no_catch_up = false;
+		SessionPriority(false);
 		if (std::exchange(s_sync_trimmed, false))
 			g_frame_period_trim_us = 0;
 		s_frames_ahead = s_waits = s_sync_frames = s_save_skipped = s_session_frames = s_top_frame = s_reruns_left = 0;
@@ -1160,14 +1194,15 @@ namespace Zdxsv
 	}
 
 	// The limiter sleep and input poll that VSyncStart left for after the rollback.
-	static void DeferredThrottle()
+	static void DeferredThrottle(bool poll = true)
 	{
 		if (!std::exchange(s_throttle_deferred, false))
 			return;
 		Common::Timer timer;
 		if (!VMManager::Internal::IsExecutionInterrupted())
 			VMManager::Internal::Throttle();
-		VMManager::Internal::PollInputOnCPUThread();
+		if (poll)
+			VMManager::Internal::PollInputOnCPUThread();
 		s_sleep_ms.Add(timer.GetTimeMilliseconds());
 	}
 
@@ -1295,6 +1330,18 @@ namespace Zdxsv
 			SamplePeerPings();
 		if (s_net)
 			SampleFps();
+		// net: the input goes out before the limiter sleep, not after it: the peers get it that much earlier.
+		if (s_net && s_throttle_deferred)
+		{
+			VMManager::Internal::PollInputOnCPUThread();
+			if (!s_session) // the input poll ran a VM shutdown or reset
+				return;
+			const bool added = NetAddLocalInput();
+			DeferredThrottle(false);
+			if (!added || !NetSyncAndApply())
+				Stop("failed");
+			return;
+		}
 		DeferredThrottle();
 		if (!s_session) // the input poll ran a VM shutdown or reset
 			return;
