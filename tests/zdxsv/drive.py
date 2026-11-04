@@ -89,10 +89,11 @@ ROUTES = {
     # Dialogs time out (~30 s) to their default (いいえ / はい), so late presses still end in the room.
     "after": "Right,w300,C,w40000,C,w60000,Down,w300,C,w40000",
 }
-# No DEV9 (launch.sh default, localnet.sh): every connection menu button goes to the terms, then connects
-# with no setup screens and no setting list.
+# No DEV9 (launch.sh default, localnet.sh): every connection menu button goes to the terms (net 3 -> 5), then
+# connects with no setup screens and no setting list (5 -> 6, 7 -> 0x21 on their own). Settles as in "top".
 if (os.environ.get("ZDXSV_NODEV9") or os.environ.get("IP") or "0") != "0":
-    ROUTES["top"] = "f1500,Return,w3000,Down*7,C,w7000,C,w4000,C,w4000,C,w4000,C,w6000,C,w9000,Up*2,C,w9000,Up,C,w30000"
+    ROUTES["top"] = "Return~scene=2/500,Down~menu=7/400,C~scene=7,C~net=2,C~net=3/500,w1500,Up*2,C,@net=5,w1500,"\
+                    "Up,C,@net=0x21/30000"
     # Blank card: NET file created and saved as in "fresh", then no netcnf GUI and no reboot.
     ROUTES["fresh"] = "f1500,Return,w3000,Down*7,C,w7000,C,w5000,C,w4000,C,w4000,Up,C,w6000,C,w5000,C,w8000,C,w9000,Up,C,w30000"
 
