@@ -69,7 +69,7 @@ USERS=AAAAAA BBBBBB CCCCCC DDDDDD
   Same for `ZDXSV_FAST_BOOT` (fast boot, on by default):
   `0` unless set, `ZDXSV_FAST_BOOT=default` leaves it on.
 - `launch.py` runs `probelint.py` first and refuses a PCSX2 build older than
-  its sources.
+  its sources (an exe outside a PCSX2 tree, e.g. a copied `bin/`: no age check).
 - Every script that starts PCSX2 sources the network pins (`launch.py`: `pcsx2_env`;
   `replayui.ps1`, `settingsui.ps1`: `localnet.ps1`, kept equal): fast login off and its API URL local, no-DEV9 names resolved to the box `IP`,
   so no run reaches the production server, also with a release exe.
