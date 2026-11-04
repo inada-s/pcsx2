@@ -192,6 +192,12 @@ The game runs with its own input delay 0; GGPO adds the input delay.
   replay and the pw hashes stop at the frame confirmed at the end. GGPO's
   `disconnect_without_rollback` stays off: a peer that stops sending
   mid-battle still rolls back to its last received input.
+- After a `net battle end` or `disconnected` the battle socket answers as a
+  closed connection until the game closes it: sends are dropped, nothing to
+  recv, the poll fails. The battle server closes the connection on the
+  game's end msg (kind 0xf); without a close the game resends it once a
+  second and gives up only after ~100 s. After a disconnect the game shows
+  its own connection error at once instead of after its countdown.
 - A VM shutdown or reset ends the session at once, as a disconnect: the
   replay is saved, the old VM's states are dropped.
 - An input send splits the pending inputs over packets of at most 8192 bits
