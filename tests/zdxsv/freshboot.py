@@ -1,6 +1,6 @@
 """Client steps shared by m4.py, rbkprep.py, m4z.py (imported; prints the same lines the rigs check).
   fresh_boot(i): launch, fast boot + fast login (login API on $API) to 戦場選択 (ID 1 picked by fast boot;
-    FB_LOBBY=0: fast boot stops at the user_id selection and drive.py idlogin picks ID 1 with fixed waits).
+    FB_LOBBY=0: fast boot stops at the user_id selection and drive.py idlogin picks ID 1).
   fresh_boot_all(ns): fresh_boot for all of them at once (4 clients ~30 s, one at a time ~2 min).
   fresh_entry(i): map -> Lobby 06 (press checked, retried once), side entry; waits for i entries in fake.log.
   speed_check(i): pine.py fps over 3 s; nearer a higher speed than SPEED (fps > 60*(SPEED+0.5)) -> False.

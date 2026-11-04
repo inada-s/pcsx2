@@ -662,12 +662,19 @@ def main():
         if E("BREAK"):
             breakwait()
             return RC[0]
+        last = None
         while time.time() - t0 < int(E("MAXS", "2100")):
-            time.sleep(30)
+            time.sleep(5)
             results()
             r = nresults()
-            say(f"{int(time.time() - t0)} s: results {r}/{nc * b}")
+            secs = int(time.time() - t0)
+            if r != last or secs % 30 < 5:
+                say(f"{secs} s: results {r}/{nc * b}")
+            last = r
             if r >= nc * b:
+                # the last BattleResult block can still be half-written to the lobby log
+                time.sleep(2)
+                results()
                 break
     for l in rd(rtxt):
         say(l)
