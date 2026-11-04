@@ -72,7 +72,7 @@ ROUTES = {
     # model/lobby.go CanBattleStart) -> lobby -> パートナー自動選抜 -> side {s}: p1/p2 連邦・エゥーゴ, p3/p4 ジオン・ティターンズ
     # m4z.py: map ends with the Lobby 06 press (0x6305 00 06); a late press is
     # waited for before lobby2p instead of raced
-    "map": "C," + MAP06 + ",w500,C",
+    "map": "C," + MAP06 + ",C~lstate!/500",
     "mappress": "C",
     # 1v1: map cursor to シアトル (Lobby 02: starts at 1 AEUG + 1 Titans). The cursor keeps its spot between
     # visits and hit areas sit off the drawn labels: walk on the cursor RAM both ways (grid scan: Lobby 02
@@ -80,8 +80,8 @@ ROUTES = {
     # freshboot.entry2p_retry (m4z.py): map2p ends with the Lobby 02 press (0x6305 00 02); the
     # press missed in 3 of 15 entries (no 0x6305, client left on the map) -> remap2p = walk
     # again, no leading C; lobby2p = the lobby menu + side dialog
-    "map2p": "C," + WALK2P + ",w500,C",
-    "remap2p": WALK2P + ",w500,C",
+    "map2p": "C," + WALK2P + ",C~lstate!/500",
+    "remap2p": WALK2P + ",C~lstate!/500",
     "lobby2p": LOBBY,
     # in battle: move + all face buttons, ~3 min (a round is 150 s)
     "mash": ",".join(["Up:400,Z,C,Left:300,X,T,Z,Right:300,C,Z"] * 40),
