@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Launch several local PCSX2 (zdxsv) instances side by side, like flycast's run.py. (AI-assisted)
 
+    python run.py gui                  # N instances open PCSX2's own window (game list, settings), no game
     python run.py rom                  # N instances boot the game (online play / lobby testing)
     python run.py state                # N instances boot from STATE (a .p2s save state)
     python run.py rbk_test             # GGPO battle between the instances, no server: ZDXSV_RBK from
@@ -10,7 +11,7 @@
 For checking things by hand: the game runs with its own rules (time, rounds) and nothing is cut short.
 
 Settings are environment variables (see the block below). ROM (the game's .iso) and BIOS (its directory)
-have no default, e.g.
+have no default (gui needs neither; without BIOS, the BIOS setting is left as it is), e.g.
     ROM=/path/to/zgundam.iso BIOS=/path/to/ps2-bios python run.py rom
     N=2 python run.py rom
     N=4 SEED=7 python run.py rbk_test_random
@@ -134,8 +135,9 @@ def prepare_instance(idx: int):
 
     put("UI", "SetupWizardIncomplete", False)
     put("UI", "ConfirmShutdown", False)
-    put("Folders", "Bios", BIOS)
-    put("Filenames", "BIOS", BIOS_FILE)
+    if BIOS is not None:
+        put("Folders", "Bios", BIOS)
+        put("Filenames", "BIOS", BIOS_FILE)
     put("Logging", "EnableFileLogging", True)
     # PINE slot per instance, as zdxsv/launch.py (28010 + instance number).
     put("EmuCore", "EnablePINE", True)
@@ -269,12 +271,12 @@ def report_sync():
           f" ({common} frames, {bad} mismatching player-frames)")
 
 
-MODES = ("rom", "state", "rbk_test", "rbk_test_random")
+MODES = ("gui", "rom", "state", "rbk_test", "rbk_test_random")
 
 
 def mode_args(mode: str, idx: int):
     """(extra pcsx2 args, extra env) for one instance."""
-    if mode == "rom":
+    if mode in ("gui", "rom"):
         return [], {}
     if mode == "state":
         return ["-statefile", STATE], {}
@@ -310,12 +312,13 @@ def check(mode: str):
     problems = []
     if not PCSX2.is_file():
         problems.append(f"PCSX2 not found: {PCSX2} (build it with ./build-local.sh)")
-    if not ROM:
+    if mode != "gui" and not ROM:
         problems.append("set ROM to the game's .iso")
-    elif not Path(ROM).is_file():
+    elif ROM and not Path(ROM).is_file():
         problems.append(f"ROM not found: {ROM}")
     if BIOS is None:
-        problems.append("set BIOS to the directory of the BIOS file")
+        if mode != "gui":
+            problems.append("set BIOS to the directory of the BIOS file")
     elif not (BIOS / BIOS_FILE).is_file():
         problems.append(f"BIOS not found: {BIOS / BIOS_FILE}")
     if mode == "state" and not Path(STATE).is_file():
@@ -384,8 +387,9 @@ def exec_mode(mode: str):
             log = log_path(i)
             log.unlink(missing_ok=True)
             trace_path(i).unlink(missing_ok=True)
-            cmd = [str(PCSX2), "-datapath", str(data_root(i).parent), "-batch", "-nogui",
-                   "-logfile", str(log), *args, "--", ROM]
+            cmd = [str(PCSX2), "-datapath", str(data_root(i).parent), "-logfile", str(log)]
+            if mode != "gui":
+                cmd += ["-batch", "-nogui", *args, "--", ROM]
             print(" ".join(f"{k}={v}" for k, v in extra_env.items()), subprocess.list2cmdline(cmd))
             p = subprocess.Popen(cmd, cwd=PCSX2.parent, env={**os.environ, **extra_env})
             procs.append(p)
