@@ -74,10 +74,11 @@ ROUTES = {
     "entry2p": "C,w5000," + WALK2P + ",w500,C,w8000,Down,w500,C,w4000,{s}C,w4000",
     # entry2p in halves for freshboot.entry2p_retry (m4z.py): map2p ends with the Lobby 02 press (0x6305 00 02); the
     # press missed in 3 of 15 entries (no 0x6305, client left on the map) -> remap2p = walk
-    # again from the clamp, no leading C; lobby2p = the lobby menu + side dialog
+    # again from the clamp, no leading C; lobby2p = the lobby menu + side dialog, each press repeated until lstate
+    # changes (1 frame after an accepted press)
     "map2p": "C,w5000," + WALK2P + ",w500,C",
     "remap2p": WALK2P + ",w500,C",
-    "lobby2p": "w8000,Down,w500,C,w4000,{s}C,w4000",
+    "lobby2p": "Down~lstate!/1000,C~lstate!/1000,{k}C~lstate!/1000,w4000",
     # in battle: move + all face buttons, ~3 min (a round is 150 s)
     "mash": ",".join(["Up:400,Z,C,Left:300,X,T,Z,Right:300,C,Z"] * 40),
     # whole round (~6 min): mash ends ~70 s into the fight (after the round restart, K3 #2)
@@ -101,8 +102,8 @@ if (os.environ.get("ZDXSV_NODEV9") or os.environ.get("IP") or "0") != "0":
 
 def route_text(route, n):
     # HN kana: column n-1 of row 1 (p2 い, p3 う, p4 え, p5 お, p6 た)
-    s = "Right,w500," if n > 2 else ""
-    return ROUTES[route].format(h=n - 1, s=s)
+    s, k = ("Right,w500,", "Right~lstate!/1000,") if n > 2 else ("", "")
+    return ROUTES[route].format(h=n - 1, s=s, k=k)
 
 
 def headless(n):
