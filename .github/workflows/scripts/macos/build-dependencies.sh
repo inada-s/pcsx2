@@ -37,6 +37,7 @@ KDDOCKWIDGETS=2.4.1
 PLUTOVG=1.3.2
 PLUTOSVG=0.0.7
 RAPIDYAML=0.12.1
+SENTRYNATIVE=0.17.6
 
 SHADERC=2026.2
 SHADERC_GLSLANG=275822a6261ee689aadb1da5f09a0ec2f058685c
@@ -83,6 +84,7 @@ b072aed6871998cce9b36e7774033105ca29e33632be5b6347f3206898e0756a  ffmpeg-$FFMPEG
 7bd4e79ce18b1d47517e7e91fbb7cf19d4f01942804a519bc7c0bf32b6325dd5  plutovg-$PLUTOVG.tar.gz
 78561b571ac224030cdc450ca2986b4de915c2ba7616004a6d71a379bffd15f3  plutosvg-$PLUTOSVG.tar.gz
 e9efcdd17f86287748793cf21d106e461fcad8d103a3e5a23632afe93828660d  rapidyaml-$RAPIDYAML-src.tgz
+40b4b70cbada5bfae5b73f8267831dd023ec676d9676fb0d890878f31d2b5055  sentry-native-$SENTRYNATIVE.zip
 
 f924178e75e3293082481b25ed64d5e48a795b479dac3bd3c83d23070855df42  shaderc-$SHADERC.tar.gz
 971848a1cc639ce8dc244e778b17efe0f690e32ac398a75e31d1c67ad06d3e0a  shaderc-glslang-$SHADERC_GLSLANG.tar.gz
@@ -117,6 +119,7 @@ if ! shasum -sa 256 --check SHASUMS 2> /dev/null; then
 		-O "https://github.com/sammycage/plutovg/archive/v$PLUTOVG/plutovg-$PLUTOVG.tar.gz" \
 		-O "https://github.com/sammycage/plutosvg/archive/v$PLUTOSVG/plutosvg-$PLUTOSVG.tar.gz" \
 		-O "https://github.com/biojppm/rapidyaml/releases/download/v$RAPIDYAML/rapidyaml-$RAPIDYAML-src.tgz"
+	curl -L -o "sentry-native-$SENTRYNATIVE.zip" "https://github.com/getsentry/sentry-native/releases/download/$SENTRYNATIVE/sentry-native.zip"
 fi
 
 shasum -a 256 --check --strict SHASUMS
@@ -380,6 +383,16 @@ rm -fr "rapidyaml-$RAPIDYAML-src"
 tar xf "rapidyaml-$RAPIDYAML-src.tgz"
 cd "rapidyaml-$RAPIDYAML-src"
 cmake "${CMAKE_COMMON[@]}" -DBUILD_SHARED_LIBS=ON -B build
+make -C build "-j$NPROCS"
+make -C build install
+cd ..
+
+echo "Building Sentry Native..."
+rm -fr "sentry-native-$SENTRYNATIVE"
+mkdir "sentry-native-$SENTRYNATIVE"
+cd "sentry-native-$SENTRYNATIVE"
+unzip -q "../sentry-native-$SENTRYNATIVE.zip"
+cmake "${CMAKE_COMMON[@]}" -DBUILD_SHARED_LIBS=ON -DSENTRY_BACKEND=crashpad -DSENTRY_BUILD_TESTS=OFF -DSENTRY_BUILD_EXAMPLES=OFF -B build
 make -C build "-j$NPROCS"
 make -C build install
 cd ..

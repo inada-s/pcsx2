@@ -28,6 +28,9 @@
     <DepsDLLs Include="$(DepsBinDir)plutovg.dll" />
     <DepsDLLs Include="$(DepsBinDir)plutosvg.dll" />
     <DepsDLLs Include="$(DepsBinDir)ryml.dll" />
+    <DepsDLLs Condition="Exists('$(DepsBinDir)sentry.dll')" Include="$(DepsBinDir)sentry.dll" />
+    <DepsDLLs Condition="Exists('$(DepsBinDir)crashpad_handler.exe')" Include="$(DepsBinDir)crashpad_handler.exe" />
+    <DepsDLLs Condition="Exists('$(DepsBinDir)crashpad_wer.dll')" Include="$(DepsBinDir)crashpad_wer.dll" />
     <DepsDLLs Condition="Exists('$(DepsBinDir)avcodec-62.dll')" Include="$(DepsBinDir)avcodec-62.dll" />
     <DepsDLLs Condition="Exists('$(DepsBinDir)avformat-62.dll')" Include="$(DepsBinDir)avformat-62.dll" />
     <DepsDLLs Condition="Exists('$(DepsBinDir)avutil-60.dll')" Include="$(DepsBinDir)avutil-60.dll" />

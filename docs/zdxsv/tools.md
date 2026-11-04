@@ -13,6 +13,7 @@
   that the exe contains both values.
   - `ZDXSV_SERVER_HOST`: the game server host, e.g. `lbs.zdxsv.net`.
   - `ZDXSV_UDPTEST_URL`: the zdxsv udptest function URL.
+- Crash reports use the optional variable `ZDXSV_SENTRY_DSN` and secret `SENTRY_AUTH_TOKEN`: see [crash-reports.md](crash-reports.md).
 - A tag with a suffix, such as `zdxsv-0.0.1-rc1`, becomes a prerelease. The
   updater skips prereleases.
 - The release zip holds `portable.txt`, `ZDXSV.md` and `ZDXSV.ja.md`.

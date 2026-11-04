@@ -90,6 +90,7 @@ set KDDOCKWIDGETS=2.4.1
 set PLUTOVG=1.3.2
 set PLUTOSVG=0.0.7
 set RAPIDYAML=0.12.1
+set SENTRYNATIVE=0.17.6
 
 set SHADERC=2026.2
 set SHADERC_GLSLANG=275822a6261ee689aadb1da5f09a0ec2f058685c
@@ -132,6 +133,7 @@ call :downloadfile "plutosvg-%PLUTOSVG%.zip" "https://github.com/sammycage/pluto
 call :downloadfile "agility-sdk-%AGILITYSDK%.nupkg" "https://www.nuget.org/api/v2/package/Microsoft.Direct3D.D3D12/%AGILITYSDK%" eb92d90bb23b2ec23410c41d791e41dbdbec942ab946924d1fdcb31eac6f0735 || goto error
 call :downloadfile "DirectX-Headers-%DXHEADERS%.zip" "https://github.com/microsoft/DirectX-Headers/archive/v%DXHEADERS%.zip" 9eb8b102a90a42e4ea72a825f7d249d55ec90d164f030966c9b7784b93374927 || goto error
 call :downloadfile "rapidyaml-%RAPIDYAML%-src.zip" "https://github.com/biojppm/rapidyaml/releases/download/v%RAPIDYAML%/rapidyaml-%RAPIDYAML%-src.zip" 96276f55b9fa7837ac8f3f72fd52965879cbb5d5d2e6af548c69a177fb078304 || goto error
+call :downloadfile "sentry-native-%SENTRYNATIVE%.zip" "https://github.com/getsentry/sentry-native/releases/download/%SENTRYNATIVE%/sentry-native.zip" 40b4b70cbada5bfae5b73f8267831dd023ec676d9676fb0d890878f31d2b5055 || goto error
 
 call :downloadfile "shaderc-%SHADERC%.zip" "https://github.com/google/shaderc/archive/refs/tags/v%SHADERC%.zip" f9401cc5cb36c276cd1e072b6595dbd728148e8dba389e50f7339e2d388dbc08 || goto error
 call :downloadfile "shaderc-glslang-%SHADERC_GLSLANG%.zip" "https://github.com/KhronosGroup/glslang/archive/%SHADERC_GLSLANG%.zip" 2b63189efad0348d88d410a5e12ec550a612e0b6ceef64624b8f45491269fb9c || goto error
@@ -514,6 +516,15 @@ rmdir /S /Q "DirectX-Headers-%DXHEADERS%"
 %SEVENZIP% x "DirectX-Headers-%DXHEADERS%.zip" || goto error
 cd "DirectX-Headers-%DXHEADERS%" || goto error
 cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="%INSTALLDIR%" -DCMAKE_INSTALL_PREFIX="%INSTALLDIR%" -DDXHEADERS_BUILD_TEST=OFF -DDXHEADERS_BUILD_GOOGLE_TEST=OFF -B build -G Ninja || goto error
+cmake --build build --parallel || goto error
+ninja -C build install || goto error
+cd .. || goto error
+
+echo Building Sentry Native...
+rmdir /S /Q "sentry-native-%SENTRYNATIVE%"
+%SEVENZIP% x "sentry-native-%SENTRYNATIVE%.zip" -o"sentry-native-%SENTRYNATIVE%" || goto error
+cd "sentry-native-%SENTRYNATIVE%" || goto error
+cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="%INSTALLDIR%" -DCMAKE_INSTALL_PREFIX="%INSTALLDIR%" -DBUILD_SHARED_LIBS=ON -DSENTRY_BACKEND=crashpad -DSENTRY_BUILD_TESTS=OFF -DSENTRY_BUILD_EXAMPLES=OFF %FORCEPDB% -B build -G Ninja || goto error
 cmake --build build --parallel || goto error
 ninja -C build install || goto error
 cd .. || goto error

@@ -943,6 +943,7 @@
     <ClInclude Include="Zdxsv\InputHooks.h" />
     <ClInclude Include="Zdxsv\SaveStateHooks.h" />
     <ClInclude Include="Zdxsv\MediaHooks.h" />
+    <ClInclude Include="Zdxsv\CrashReportHooks.h" />
     <ClInclude Include="Zdxsv\UiHooks.h" />
     <ClInclude Include="Zdxsv\Settings.h" />
     <ClInclude Include="Zdxsv\FastLogin.h" />

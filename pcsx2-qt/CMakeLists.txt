@@ -36,6 +36,7 @@ target_sources(pcsx2-qt PRIVATE
 	SetupWizardDialog.ui
 	Themes.cpp
 	Translations.cpp
+	Zdxsv/CrashReports.cpp
 	QtHost.cpp
 	QtHost.h
 	QtKeyCodes.cpp
@@ -307,6 +308,19 @@ target_link_libraries(pcsx2-qt PRIVATE
 	Qt6::Widgets
 	KDAB::kddockwidgets
 )
+
+# zdxsv: crash reports (docs/zdxsv/crash-reports.md). The DSN is given only by the official release build.
+set(ZDXSV_SENTRY_DSN "" CACHE STRING "zdxsv Sentry DSN; empty = no crash reports")
+find_package(sentry CONFIG QUIET)
+if(sentry_FOUND)
+	target_link_libraries(pcsx2-qt PRIVATE sentry::sentry)
+	set_source_files_properties(Zdxsv/CrashReports.cpp PROPERTIES COMPILE_DEFINITIONS
+		"ZDXSV_HAS_SENTRY;ZDXSV_SENTRY_DSN=\"${ZDXSV_SENTRY_DSN}\"")
+	if(APPLE)
+		add_custom_command(TARGET pcsx2-qt POST_BUILD COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+			"$<TARGET_FILE:sentry_crashpad::handler>" "$<TARGET_FILE_DIR:pcsx2-qt>/crashpad_handler")
+	endif()
+endif()
 
 if(NOT WIN32 AND NOT APPLE)
 	target_link_libraries(pcsx2-qt PRIVATE Qt6::GuiPrivate)

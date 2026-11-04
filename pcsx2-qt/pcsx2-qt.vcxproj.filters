@@ -190,6 +190,7 @@
       <Filter>Settings</Filter>
     </ClCompile>
     <ClCompile Include="Translations.cpp" />
+    <ClCompile Include="Zdxsv\CrashReports.cpp" />
     <ClCompile Include="SetupWizardDialog.cpp" />
     <ClCompile Include="Debugger\DebuggerSettingsManager.cpp">
       <Filter>Debugger</Filter>
