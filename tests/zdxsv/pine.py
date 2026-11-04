@@ -259,6 +259,7 @@ class Pine:
     def seq(self, text, hold_ms=120, gap_ms=350, port=0):
         """Comma list: Key, Key+Key (chord), Key*N, Key:holdMS, wMS (wait), fN (wait until frame count >= N).
         @name=V[/MS] (wait until game RAM probe name == V, see PROBE and until; V decimal or 0x).
+        @name![/MS]: wait until name leaves the value it has when the token starts.
         Key~name=V[/MS]: press Key, again every MS, until name == V. Key~name![/MS]: the same until name leaves
         the value it had before the first press. Key^name>=V[/MS], Key^name<=V[/MS]: hold Key until FPROBE name
         reaches V (default 5000 ms). Up|Down^name=V[/MS]: hold Up while name < V (until >= V), else Down
@@ -266,6 +267,10 @@ class Pine:
         ms = game time (vsyncs at 60/s, see wait)."""
         for tok in [t.strip() for t in text.split(",") if t.strip()]:
             self.trace(tok)
+            if tok[0] == "@" and "!" in tok:
+                name, _, ms = tok[1:].partition("!")
+                self.until(name, self.probe(name), int(ms.lstrip("/") or UNTIL_MS), ne=True)
+                continue
             if tok[0] == "@":
                 name, _, rest = tok[1:].partition("=")
                 v, _, ms = rest.partition("/")
