@@ -544,10 +544,33 @@ namespace Zdxsv
 		{
 			// lobby=1: the first key msg of a battle with a new battle info starts the next GGPO battle; the
 			// sends of the ended battle (same battle info) stay with the IOP
-			if (!s_lobby || s_play_env || s_rbk || !key || !LobbyNewBattle())
+			if (s_lobby && !s_play_env && !s_rbk && key && LobbyNewBattle())
+			{
+				NetReset();
+				Console.WriteLn("ZdxsvGgpo: next lobby battle at vsync %u", g_FrameCount);
+			}
+			else if (!s_net_closed || sock != NET_BATTLE_SOCK)
 				return false;
-			NetReset();
-			Console.WriteLn("ZdxsvGgpo: next lobby battle at vsync %u", g_FrameCount);
+			else
+			{
+				// The battle server closes the connection on the game's end msg; the game waits ~100 s for
+				// that before it gives up. A closed sock: sends dropped, nothing to recv, the poll fails.
+				s32 result = 0;
+				if (fno == NET_FNO_SEND)
+					result = std::clamp<s32>(len, 0, 0x3ca);
+				else if (fno == NET_FNO_POLL)
+					result = -1;
+				else if (fno != NET_FNO_RECV)
+				{
+					s_net_closed = false;
+					Console.WriteLn("ZdxsvGgpo: battle sock released at vsync %u: game RPC 0x%x", g_FrameCount, fno);
+					return false;
+				}
+				*reinterpret_cast<s32*>(ram + NET_RES_LEN) = result;
+				cpuRegs.GPR.n.v0.SD[0] = result;
+				cpuRegs.pc = cpuRegs.GPR.n.ra.UL[0];
+				return true;
+			}
 		}
 		if (s_rbk && !s_net_armed && !key) // connect (fno 7) has the address in the sock field
 			return RbkCall(fno, len, d);

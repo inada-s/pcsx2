@@ -707,7 +707,8 @@ namespace Zdxsv
 			}
 			if (s_net)
 			{
-				s_net_over = true; // the battle sock goes back to the IOP
+				s_net_over = true;
+				s_net_closed = std::strcmp(what, "net battle end") == 0 || std::strcmp(what, "disconnected") == 0;
 				ReplayWrite(what);
 				NetReport();
 			}
@@ -962,7 +963,7 @@ namespace Zdxsv
 	std::vector<std::vector<u8>> s_zds_k3[GGPO_MAX_PLAYERS]; // per sender, by index
 	u32 s_zds_k3rel = 0;
 	u32 s_zd_steps = 0, s_zd_changed = 0;
-	bool s_net_armed = false, s_net_over = false;
+	bool s_net_armed = false, s_net_over = false, s_net_closed = false;
 	bool s_lobby_cut = false; // lobby=1 ping test failed: the battle connection is silent (LobbyCutCall)
 	u32 s_cut_sends = 0;
 	int s_net_me = -1; // local battle position
@@ -1029,7 +1030,7 @@ namespace Zdxsv
 	// (Stop closed the session; its stats are reported).
 	void NetReset()
 	{
-		s_started = s_net_armed = s_net_over = s_lobby_cut = false;
+		s_started = s_net_armed = s_net_over = s_net_closed = s_lobby_cut = false;
 		s_frame_ended = s_running = s_disconnected = s_rerun = false;
 		s_disconnected_until = -1;
 		s_net_me = -1;

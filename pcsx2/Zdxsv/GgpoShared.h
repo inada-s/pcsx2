@@ -130,7 +130,7 @@ namespace Zdxsv
 	};
 	extern bool s_ms_on;
 	extern u32 s_zd_steps, s_zd_changed;
-	extern bool s_net_armed, s_net_over;
+	extern bool s_net_armed, s_net_over, s_net_closed;
 	extern bool s_lobby_cut; // lobby=1 ping test failed: the battle connection is silent (LobbyCutCall)
 	extern u32 s_cut_sends;
 	extern int s_net_me; // local battle position
