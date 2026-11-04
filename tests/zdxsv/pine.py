@@ -28,10 +28,12 @@ STALL_S = 120  # wait(): frame count not moving this long = emulator hung or pau
 # Game RAM values for @name=V (SLPS-25419): (pointer or None, address
 # or offset). scene = top scene G[0] (1 title, 2 main menu, 7 通信対戦); net = network menu state (1 warning,
 # 2 NET file, 3 connection menu, 4 ネットワーク接続, 5 terms, 6 netconf list, 0x21 connect); step = lobby
-# connection step (4 = ID選択); menu = main menu cursor.
+# connection step (4 = ID選択); menu = main menu cursor; lstate = network menu screen (31 connecting, 8 TOP, 9 ID選択, 10
+# after the ID pick, 11 戦場選択).
 PROBE = {
     "scene": (0x6D7A8C, 0), "net": (None, 0xCD1360), "nsub": (None, 0xCD1361),
     "step": (0x6D7D54, 0xA1F), "phase": (None, 0x6D7D84), "menu": (0x6D7954, 0x25C),
+    "lstate": (0x6D7024, 0xA0),
 }
 UNTIL_MS = 60000  # @name=V default limit, game time
 
