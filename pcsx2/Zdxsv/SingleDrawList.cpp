@@ -47,7 +47,7 @@ namespace Zdxsv
 			{0x224ccc, 0x1440fffa, 0x00000000},
 			{0x224cd0, 0x00000000, 0x00000000},
 			// 0x2af5e0, vsync handler: its GIF packet sets FRAME_2 and ZBUF_2 for the list sent next, which is
-			// now slot[flag]: packet 0xb6b5a0 - field * 0xa0 instead of 0xb6b500 + field * 0xa0.
+			// now slot[flag]: packet 0xb6b5a0 - index * 0xa0 instead of 0xb6b500 + index * 0xa0.
 			// The network menus and the login page draw in context 2: stock packets clear one buffer and draw to the other.
 			{0x2af610, 0x2442b500, 0x2442b5a0},
 			{0x2af618, 0x00438021, 0x00438023},
