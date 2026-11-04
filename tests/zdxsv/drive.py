@@ -119,14 +119,15 @@ def run(route, n, log):
     p = Pine(28010 + n)
     p.seq(route_text(route, n))
     path = os.path.join(RUN, "p%d" % n, "%s.png" % route)  # GS snapshot ignores forward-slash paths
-    try:
-        shrink(p.snap(path, 3), 0.5)
-    except TimeoutError:
-        if not headless(n):
+    if headless(n):
+        path = "no snap"
+    else:
+        try:
+            shrink(p.snap(path, 3), 0.5)
+        except TimeoutError:
             log.append("FAIL p%d %s: no GS snapshot from a rendering instance (Renderer != 11): snaps are broken, "
                        "not headless; capture the window with winshot.ps1 / pcsx2ctl.ps1 -Shot" % (n, route))
             return
-        path = "no snap"
     log.append("p%d %s frame %d -> %s" % (n, route, p.frame(), path))
 
 
