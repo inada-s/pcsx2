@@ -65,6 +65,15 @@ If your memory card is empty, the game makes the files it needs by itself:
 Later sessions need no input: from game start, fast boot runs the game at full speed through the title, 通信対戦 and ブロードバンド接続, the emulator logs in by itself, and the game stops at the ID selection (DNAS and the top screen are skipped). If the memory card is not formatted or has no NET file (for example a new card, before the steps above), fast boot stops at once and returns the controls to you at normal speed. If the path does not fit for another reason, it gives up after 4 minutes of game time (well under a minute on most PCs).
 To turn fast boot off (for example to play offline), uncheck Fast boot in Settings → zdxsv.
 
+## Crash reports
+
+On the first start PCSX2 asks whether it may send crash reports to the zdxsv developers. A report
+contains part of the memory of PCSX2 at the moment of the crash (it can contain data of your game
+session), your version of PCSX2, your operating system and a random ID of this installation. Sentry, the
+service that receives reports, also gets your IP address and can store your approximate location.
+Nothing is sent if you answer No.
+Change it later in Settings → zdxsv.
+
 ## Updates
 
 When PCSX2 starts and a newer zdxsv release exists on

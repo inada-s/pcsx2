@@ -18,6 +18,7 @@ skips does not run on that path.
 | Counters (vsync), VMManager | `Ggpo`, `Replay*`, `NoDev9`, `FastBoot` | GGPO frame loop, replay playback, VM start / reset / shutdown cleanup |
 | MTGS, GS, SPU2 | `DeltaFreeze`, `SingleDrawList`, `InputLatency`, `Overlays`, `FastBoot` | rerun frame skips, fast boot shows every 8th frame, single draw list, input latency, OSD |
 | Pad | `Ggpo`, `ReplayPlay` | inputs to and from GGPO and replays |
+| Qt host start and exit (`CrashReportHooks.h`) | `pcsx2-qt/Zdxsv/CrashReports` | crash reports |
 | Hotkeys, ImGui | `Overlays`, `ReplayPlay` | replay hotkeys and bar, refused pause and speed changes |
 
 ### Network paths
@@ -154,6 +155,7 @@ Keys (`net=1`, `lobby=1`, `port=`, `delay=`, ...) are parts of `ZDXSV_GGPO`.
 ## Releases and tools ([tools.md](tools.md))
 
 - **Self-update from the GitHub releases of this fork**: release builds; `ZDXSV_UPDATE_URL`.
+- **Crash reports** ([crash-reports.md](crash-reports.md)): `ZdxsvCrashReports`, asked once; the build's `ZDXSV_SENTRY_DSN`.
 - **Release workflow**: a `zdxsv-X.Y.Z` tag.
 - **Windows CI build**: every push and PR.
 - **PINE opcodes `0x30` to `0x32`**: pad input, screenshot, frame count.

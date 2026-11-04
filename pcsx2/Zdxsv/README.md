@@ -83,5 +83,6 @@ options: `docs/zdxsv/`.
 | `LobbySocket.h` | The game's TCP connections on host sockets: lobby filter, TLS, HTTPS latency |
 | `MediaHooks.h` | Hook header: GS present, SPU2 output |
 | `UiHooks.h` | Hook header: hotkeys, replay control bar |
+| `CrashReportHooks.h` | Hook header: Qt host start and exit; implemented in `pcsx2-qt/Zdxsv/CrashReports.cpp` |
 | `Settings.h` | `BoolSetting()`: a `[DEV9/Eth] Zdxsv*` setting, overridden by its environment variable; default replay state URL |
 | `TestOptions.h` | `TestEnv()`: environment options meant for tests and diagnostics; every build reads them |

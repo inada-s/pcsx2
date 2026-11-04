@@ -54,6 +54,8 @@
 
 #include "fmt/format.h"
 
+#include "pcsx2/Zdxsv/CrashReportHooks.h"
+
 #include <cmath>
 #include <csignal>
 
@@ -2505,6 +2507,8 @@ int main(int argc, char* argv[])
 	// Start logging early.
 	LogWindow::updateSettings();
 
+	Zdxsv::CrashReportsStart(!s_batch_mode && !s_nogui_mode);
+
 	// Start up the CPU thread.
 	QtHost::HookSignals();
 	EmuThread::start();
@@ -2567,6 +2571,8 @@ shutdown_and_exit:
 	// Ensure config is written. Prevents destruction order issues.
 	if (s_base_settings_interface->IsDirty())
 		s_base_settings_interface->Save();
+
+	Zdxsv::CrashReportsStop();
 
 	return result;
 }

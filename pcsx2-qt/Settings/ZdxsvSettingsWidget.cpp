@@ -7,6 +7,7 @@
 #include "SettingsWindow.h"
 #include "QtHost.h"
 
+#include "pcsx2/Zdxsv/CrashReportHooks.h"
 #include "pcsx2/Zdxsv/SyncSettings.h"
 #include "pcsx2/Zdxsv/Upnp.h"
 
@@ -54,6 +55,17 @@ ZdxsvSettingsWidget::ZdxsvSettingsWidget(SettingsWindow* settings_dialog, QWidge
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvSaveReplay, "DEV9/Eth", "ZdxsvSaveReplay", true);
 	SettingWidgetBinder::BindWidgetToFolderSetting(sif, m_ui.zdxsvReplayPath, m_ui.zdxsvReplayPathBrowse, m_ui.zdxsvReplayPathOpen,
 		m_ui.zdxsvReplayPathReset, "DEV9/Eth", "ZdxsvReplayPath", Path::Combine(EmuFolders::DataRoot, "replays"));
+
+	if (Zdxsv::CrashReportsAvailable() && !dialog()->isPerGameSettings())
+	{
+		SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvCrashReports, "DEV9/Eth", "ZdxsvCrashReports", false);
+		connect(m_ui.zdxsvCrashReports, &QCheckBox::checkStateChanged, this,
+			[](Qt::CheckState state) { Zdxsv::CrashReportsSetEnabled(state == Qt::Checked); });
+	}
+	else
+	{
+		m_ui.zdxsvCrashReportsGroup->hide();
+	}
 
 	MarkEnvOverride(m_ui.zdxsvFastBoot, "ZDXSV_FAST_BOOT");
 	MarkEnvOverride(m_ui.zdxsvSingleDrawList, "ZDXSV_SINGLE_DRAW_LIST");

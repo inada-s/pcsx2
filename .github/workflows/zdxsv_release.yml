@@ -27,6 +27,14 @@ jobs:
           done
           [ "$ok" = 1 ]
 
+      - name: Crash report variables are set
+        env:
+          ZDXSV_SENTRY_DSN: ${{ vars.ZDXSV_SENTRY_DSN }}
+          SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+        run: |
+          if [ -z "$ZDXSV_SENTRY_DSN" ]; then echo "::warning::Repository variable ZDXSV_SENTRY_DSN is empty: this release sends no crash reports"; fi
+          if [ -z "$SENTRY_AUTH_TOKEN" ]; then echo "::warning::Secret SENTRY_AUTH_TOKEN is empty: crash reports of this release have no symbols"; fi
+
   build:
     name: "Windows"
     needs: vars
@@ -37,8 +45,38 @@ jobs:
       configuration: CMake
       buildSystem: cmake
       # The production servers: only this build has them as defaults (a build from source has none).
-      cmakeFlags: -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl "-DZDXSV_SERVER_HOST=${{ vars.ZDXSV_SERVER_HOST }}" "-DZDXSV_UDPTEST_URL=${{ vars.ZDXSV_UDPTEST_URL }}"
+      cmakeFlags: -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl "-DZDXSV_SERVER_HOST=${{ vars.ZDXSV_SERVER_HOST }}" "-DZDXSV_UDPTEST_URL=${{ vars.ZDXSV_UDPTEST_URL }}" "-DZDXSV_SENTRY_DSN=${{ vars.ZDXSV_SENTRY_DSN }}"
       fetchTags: true
+
+  symbols:
+    name: "Upload crash report symbols"
+    needs: build
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    env:
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+    steps:
+      - uses: actions/download-artifact@v8
+        if: env.SENTRY_AUTH_TOKEN != ''
+        with:
+          name: zdxsv-release-windows-x64
+          path: zdxsv-release
+
+      - uses: actions/download-artifact@v8
+        if: env.SENTRY_AUTH_TOKEN != ''
+        with:
+          pattern: "*-symbols"
+          merge-multiple: true
+          path: symbols
+
+      - name: Upload binaries and PDBs
+        if: env.SENTRY_AUTH_TOKEN != ''
+        env:
+          SENTRY_ORG: gdxsv-project
+          SENTRY_PROJECT: pcsx2-zdxsv
+        run: |
+          unzip -q zdxsv-release/pcsx2-zdxsv-windows-x64.zip -d binaries
+          npx --yes @sentry/cli@2 debug-files upload --wait binaries symbols
 
   release:
     name: "Release"

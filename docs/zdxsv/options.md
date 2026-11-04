@@ -31,6 +31,7 @@ has none, so it connects to no server until the player sets one (`ZdxsvLoginApiU
 |---|---|---|
 | `ZDXSV_SERVER_HOST` | empty | The game server host: the internal DNS looks up the game's server names as it, and `https://<host>:8443` is the default of the API URLs below (`server` in their Default column). Empty: names resolve as they are, the API URLs are empty. Release: the repository variable. |
 | `ZDXSV_UDPTEST_URL` | empty | Default of `ZdxsvUdpTestUrl`. Release: the repository variable. |
+| `ZDXSV_SENTRY_DSN` | empty | Where crash reports go. Empty: no crash reports and no question to the player. Release: the repository variable. |
 
 ## Game check
 
@@ -59,6 +60,7 @@ page greys it out and its tooltip names the variable.
 | `[DEV9/Eth] ZdxsvUPnP` | `true` | feature | When the connectivity test finds the GGPO port not open, map it on the router with UPnP and test again (`lobby.md`). |
 | `[DEV9/Eth] ZdxsvNetOsd` | `true` | feature | Network status OSD in GGPO battles. Read when the game starts. `osd=` overrides it. Off: shown only while an opponent is interrupted or disconnected. |
 | `[DEV9/Eth] ZdxsvSingleDrawList` | `true` | feature | Z game: patches the game code so a frame's draw list is drawn in that frame instead of the next: one frame less from input to picture. Read when the game starts. Local to each peer: the players stay in sync with peers without it. See rollback.md. `ZDXSV_SINGLE_DRAW_LIST` overrides it. |
+| `[DEV9/Eth] ZdxsvCrashReports` | unset | feature | Send crash reports ([crash-reports.md](crash-reports.md)). Unset: asked once at the start. Settings → zdxsv. |
 | `[DEV9/Eth] ZdxsvReplaySkipMs` | `true` | feature | A replay skips the mobile suit selection. `ZDXSV_REPLAY_SKIP_MS` overrides it. |
 | `[DEV9/Eth] ZdxsvReplayKeyDisplay` | `false` | feature | Replays start with the key display on. `ZDXSV_REPLAY_KEY_DISPLAY` overrides it. |
 | `[DEV9/Eth] ZdxsvReplayBar` | `0` | feature | Replay control bar: `0` shown while paused and for 3 s after the mouse moves over the bottom quarter, `1` always, `2` never. `ZDXSV_REPLAY_BAR` overrides it. |
@@ -92,6 +94,8 @@ page greys it out and its tooltip names the variable.
 | `ZDXSV_TLS_TEST_PIN=1` | off | test | Trusts the zdxsv test CA (`pkg/tlsconf/testdata` in the zdxsv repository), which also turns TLS on. See [lobby.md](lobby.md). |
 | `ZDXSV_PAUSE_LINE_CHECK=0` | on | control | While the VM is paused, leave the lobby's line checks (0x6001) to the game: a pause over 2 min drops the connection. |
 | `ZDXSV_UPDATE_URL=url` | GitHub releases of this fork | test | The updater reads its release list from this URL. |
+| `ZDXSV_SENTRY_DSN=dsn` | the build's DSN | test | Crash reports go to this DSN, with the environment `development`. |
+| `ZDXSV_CRASH_REPORT_TEST=1` | off | test | In a build with a DSN: starts crash reports whatever `ZdxsvCrashReports` says, without asking or changing it, and crashes PCSX2 right after. |
 
 ## ZDXSV_GGPO
 
