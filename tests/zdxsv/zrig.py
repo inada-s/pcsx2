@@ -292,13 +292,13 @@ def remote(*pids):
 
 # --- pcsx2 window control (pcsx2ctl.ps1 / pcsx2ctl.js) ---
 
-def ctl(pid, seq):
+def ctl(pid, seq, stdout=None):
     """pcsx2ctl -Seq SEQ to that pcsx2 (pid 0: the first one); returns the rc."""
     if WIN:
         a = ["powershell", "-NoProfile", "-File", os.path.join(HERE, "pcsx2ctl.ps1")]
         if int(pid):
             a += ["-ProcId", str(pid)]
-        return subprocess.call(a + ["-Seq", seq])
+        return subprocess.call(a + ["-Seq", seq], stdout=stdout, stderr=stdout and subprocess.STDOUT)
     if not int(pid):
         ps_ = pids_name("pcsx2")
         pid = ps_[0] if ps_ else 0
@@ -307,13 +307,13 @@ def ctl(pid, seq):
         m = re.search(r" -datapath (.*) -batch", cmd)
         if p == int(pid) and m:
             a += ["-data", m[1]]
-    return subprocess.call(a + ["-seq", seq])
+    return subprocess.call(a + ["-seq", seq], stdout=stdout, stderr=stdout and subprocess.STDOUT)
 
 
-def ctl_check(ini, seq):
+def ctl_check(ini, seq, stdout=None):
     if WIN:
-        return subprocess.call(["powershell", "-NoProfile", "-File", os.path.join(HERE, "pcsx2ctl.ps1"), "-Check", "-Ini", ini, "-Seq", seq])
-    return subprocess.call(["osascript", "-l", "JavaScript", os.path.join(HERE, "pcsx2ctl.js"), "-check", "-ini", ini, "-seq", seq])
+        return subprocess.call(["powershell", "-NoProfile", "-File", os.path.join(HERE, "pcsx2ctl.ps1"), "-Check", "-Ini", ini, "-Seq", seq], stdout=stdout, stderr=stdout and subprocess.STDOUT)
+    return subprocess.call(["osascript", "-l", "JavaScript", os.path.join(HERE, "pcsx2ctl.js"), "-check", "-ini", ini, "-seq", seq], stdout=stdout, stderr=stdout and subprocess.STDOUT)
 
 
 # --- rig lock ---
