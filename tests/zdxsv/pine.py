@@ -24,6 +24,7 @@ BIND = {
 ALIAS = {"Return": "Start", "S": "T", "Backspace": "Select", "Q": "L1", "E": "R1", "1": "L2", "3": "R2"}
 FPS = 60  # NTSC vsyncs per game second (pine.py fps at 1x: 60.0)
 WALL = os.environ.get("PINE_WALL") == "1"
+TRACE = os.environ.get("PINE_TRACE")
 STALL_S = 120  # wait(): frame count not moving this long = emulator hung or paused
 # Game RAM values for @name=V (SLPS-25419): (pointer or None, address
 # or offset). scene = top scene G[0] (1 title, 2 main menu, 7 通信対戦); net = network menu state (1 warning,
@@ -55,6 +56,7 @@ def shrink(path, scale):
 class Pine:
     def __init__(self, slot=28011, host="127.0.0.1", timeout=5.0, connect_s=30.0):
         # launch.py returns before the server listens: retry a refused or missing socket
+        self.slot, self.traced = slot, None
         end = time.time() + connect_s
         while True:
             try:
@@ -149,6 +151,7 @@ class Pine:
         while done < n:
             # <= 10x speed (600 vsync/s): sleep about half the time the rest takes, 2 ms at the end
             time.sleep(min(0.1, max(0.002, (n - done) / 1200)))
+            self.trace()
             f = self.frame()
             if f > last:  # a state load / rollback that moves the counter back adds nothing
                 done += min(f - last, n - done)
@@ -170,6 +173,18 @@ class Pine:
             return self.r8(base + off) if 0x100000 <= base < 0x2000000 - off else None
         except RuntimeError:
             return None
+
+    def trace(self, tok=None):
+        """PINE_TRACE=<file>: append slot, frame, the seq token and every PROBE value when one changes or a
+        token starts."""
+        if not TRACE:
+            return
+        v = tuple(self.probe(k) for k in PROBE)
+        if v == self.traced and tok is None:
+            return
+        self.traced = v
+        with open(TRACE, "a") as f:
+            f.write("%d %d %s %s\n" % (self.slot, self.frame(), tok or "-", " ".join("%s=%s" % kv for kv in zip(PROBE, v))))
 
     def until(self, name, value, ms=UNTIL_MS, ne=False):
         """Wait until probe(name) == value (ne: != value), at most ms of game time (vsyncs, as wait)."""
@@ -223,6 +238,7 @@ class Pine:
         the value it had before the first press.
         ms = game time (vsyncs at 60/s, see wait)."""
         for tok in [t.strip() for t in text.split(",") if t.strip()]:
+            self.trace(tok)
             if tok[0] == "@":
                 name, _, rest = tok[1:].partition("=")
                 v, _, ms = rest.partition("/")
