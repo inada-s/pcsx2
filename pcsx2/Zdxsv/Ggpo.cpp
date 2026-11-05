@@ -119,17 +119,21 @@ namespace Zdxsv
 		std::mt19937 s_rng;
 		Input s_random[PLAYERS] = {};
 
-		int s_rollback_frames = 0, s_loads = 0, s_mismatches = 0, s_ggpo_warnings = 0;
-		Stat s_save_ms, s_hash_ms, s_load_ms;
-		Stat s_rerun_ms, s_wait_ms; // between frames: rollback rerun emulation, net wait for a peer
-		Stat s_sleep_ms; // between frames: limiter sleep and input poll deferred by GgpoDeferThrottle
-		Stat s_rerun_mcycles; // EE cycles (millions) per rerun frame
-		Stat s_emu_ms, s_exit_ms, s_ours_ms; // wall: last GgpoOnExecuteReturned end -> GgpoOnVsync -> GgpoOnExecuteReturned start -> its end
-		Common::Timer::Value s_t_vsync = 0, s_t_returned = 0;
-		// Output of the session: GS frames presented (g_perfmon, GS thread; read here for the report only)
-		// since the start, SPU2 samples played and dropped in rerun frames.
-		int s_gs_frame0 = 0;
-		s64 s_spu_played = 0, s_spu_dropped = 0;
+		struct SessionStats
+		{
+			int rollback_frames = 0, loads = 0, mismatches = 0, ggpo_warnings = 0;
+			Stat save_ms, hash_ms, load_ms;
+			Stat rerun_ms, wait_ms; // between frames: rollback rerun emulation, net wait for a peer
+			Stat sleep_ms; // between frames: limiter sleep and input poll deferred by GgpoDeferThrottle
+			Stat rerun_mcycles; // EE cycles (millions) per rerun frame
+			Stat emu_ms, exit_ms, ours_ms; // wall: last GgpoOnExecuteReturned end -> GgpoOnVsync -> GgpoOnExecuteReturned start -> its end
+			Common::Timer::Value t_vsync = 0, t_returned = 0;
+			// Output of the session: GS frames presented (g_perfmon, GS thread; read here for the report only)
+			// since the start, SPU2 samples played and dropped in rerun frames.
+			int gs_frame0 = 0;
+			s64 spu_played = 0, spu_dropped = 0;
+		};
+		SessionStats s_stats;
 
 		void Parse()
 		{
@@ -224,22 +228,22 @@ namespace Zdxsv
 		void Report(const char* what)
 		{
 			Console.WriteLn("ZdxsvGgpo: %s frames %d rollback frames %d loads %d mismatches %d ggpo warnings %d | save ms mean %.3f max %.3f skipped %d | hash ms mean %.3f | load ms mean %.3f max %.3f",
-				what, s_session_frames, s_rollback_frames, s_loads, s_mismatches, s_ggpo_warnings, s_save_ms.Mean(), s_save_ms.max, s_save_skipped,
-				s_hash_ms.Mean(), s_load_ms.Mean(), s_load_ms.max);
+				what, s_session_frames, s_stats.rollback_frames, s_stats.loads, s_stats.mismatches, s_stats.ggpo_warnings, s_stats.save_ms.Mean(), s_stats.save_ms.max, s_save_skipped,
+				s_stats.hash_ms.Mean(), s_stats.load_ms.Mean(), s_stats.load_ms.max);
 			Console.WriteLn("ZdxsvGgpo: %s wall ms per frame: emulate mean %.2f max %.1f | exit %.2f | between frames (save, ggpo, rollbacks) mean %.2f max %.1f | rerun frame mean %.2f max %.1f",
-				what, s_emu_ms.Mean(), s_emu_ms.max, s_exit_ms.Mean(), s_ours_ms.Mean(), s_ours_ms.max, s_rerun_ms.Mean(), s_rerun_ms.max);
+				what, s_stats.emu_ms.Mean(), s_stats.emu_ms.max, s_stats.exit_ms.Mean(), s_stats.ours_ms.Mean(), s_stats.ours_ms.max, s_stats.rerun_ms.Mean(), s_stats.rerun_ms.max);
 			const double n = std::max(s_session_frames, 1);
-			const double ours = s_ours_ms.sum / n,
-				split = (s_save_ms.sum + s_hash_ms.sum + s_load_ms.sum + s_rerun_ms.sum + s_wait_ms.sum + s_sleep_ms.sum) / n;
+			const double ours = s_stats.ours_ms.sum / n,
+				split = (s_stats.save_ms.sum + s_stats.hash_ms.sum + s_stats.load_ms.sum + s_stats.rerun_ms.sum + s_stats.wait_ms.sum + s_stats.sleep_ms.sum) / n;
 			Console.WriteLn("ZdxsvGgpo: %s between frames ms per frame %.2f: save %.2f hash %.2f load %.2f rerun %.2f wait %.2f sleep %.2f rest (ggpo) %.2f | sync=%d",
-				what, ours, s_save_ms.sum / n, s_hash_ms.sum / n, s_load_ms.sum / n, s_rerun_ms.sum / n, s_wait_ms.sum / n, s_sleep_ms.sum / n,
+				what, ours, s_stats.save_ms.sum / n, s_stats.hash_ms.sum / n, s_stats.load_ms.sum / n, s_stats.rerun_ms.sum / n, s_stats.wait_ms.sum / n, s_stats.sleep_ms.sum / n,
 				ours - split, s_sync);
 			Console.WriteLn("ZdxsvGgpo: %s rerun frame split: vu1 ms %.2f, spu2 ms %.3f, ee Mcycles %.3f", what,
-				Common::Timer::ConvertValueToMilliseconds(g_rerun_vu1_ticks) / std::max(s_rollback_frames, 1),
-				Common::Timer::ConvertValueToMilliseconds(g_rerun_spu2_ticks) / std::max(s_rollback_frames, 1), s_rerun_mcycles.Mean());
+				Common::Timer::ConvertValueToMilliseconds(g_rerun_vu1_ticks) / std::max(s_stats.rollback_frames, 1),
+				Common::Timer::ConvertValueToMilliseconds(g_rerun_spu2_ticks) / std::max(s_stats.rollback_frames, 1), s_stats.rerun_mcycles.Mean());
 			Console.WriteLn("ZdxsvGgpo: %s delta %s | %s", what, Zdxsv::DeltaStateTimes().c_str(), SaveState_DeltaTimes().c_str());
 			Console.WriteLn("ZdxsvGgpo: %s output: presented frames %d | audio samples played %lld dropped (rerun) %lld",
-				what, g_perfmon.GetFrame() - s_gs_frame0, static_cast<long long>(s_spu_played), static_cast<long long>(s_spu_dropped));
+				what, g_perfmon.GetFrame() - s_stats.gs_frame0, static_cast<long long>(s_stats.spu_played), static_cast<long long>(s_stats.spu_dropped));
 		}
 
 		Input HostInput()
@@ -328,43 +332,45 @@ namespace Zdxsv
 			return true;
 		}
 
-		// per position: 0 connected, 1 interrupted, 2 disconnected (GGPO events, for the OSD)
-		int s_peer_state[GGPO_MAX_PLAYERS] = {};
+		struct PeerReport
+		{
+			int state[GGPO_MAX_PLAYERS] = {}; // per position: 0 connected, 1 interrupted, 2 disconnected (GGPO events, for the OSD)
+			std::vector<int> pings[GGPO_MAX_PLAYERS]; // ms, sampled once a second for the report
+			std::pair<int, int> loss[GGPO_MAX_PLAYERS] = {}; // GGPO packets lost: received, sent
+			Common::Timer fps_timer;
+			int fps_mark = 0;
+			std::vector<int> fps_history; // frames run in each second, for the report
+		};
+		PeerReport s_peers;
+
 		void SetPeerState(GGPOPlayerHandle h, int state)
 		{
 			for (int p = 0; p < GGPO_MAX_PLAYERS; p++)
 				if (s_handles[p] == h)
-					s_peer_state[p] = state;
+					s_peers.state[p] = state;
 		}
-
-		std::vector<int> s_peer_pings[GGPO_MAX_PLAYERS]; // ms, sampled once a second for the report
-		std::pair<int, int> s_peer_loss[GGPO_MAX_PLAYERS]; // GGPO packets lost: received, sent
 
 		void SamplePeerPings()
 		{
 			for (int p = 0; p < s_players; p++)
 			{
 				GGPONetworkStats st{};
-				if (p != s_net_me && s_peer_state[p] == 0 && ggpo_get_network_stats(s_session, s_handles[p], &st) == GGPO_OK &&
+				if (p != s_net_me && s_peers.state[p] == 0 && ggpo_get_network_stats(s_session, s_handles[p], &st) == GGPO_OK &&
 					st.network.ping > 0)
-					s_peer_pings[p].push_back(st.network.ping);
+					s_peers.pings[p].push_back(st.network.ping);
 				// GGPO's counters are totals and stop once the peer is gone: the last sample is the battle's
-				if (p != s_net_me && s_peer_state[p] == 0 && ggpo_get_network_stats(s_session, s_handles[p], &st) == GGPO_OK)
-					s_peer_loss[p] = {st.network.recv_packet_loss, st.network.send_packet_loss};
+				if (p != s_net_me && s_peers.state[p] == 0 && ggpo_get_network_stats(s_session, s_handles[p], &st) == GGPO_OK)
+					s_peers.loss[p] = {st.network.recv_packet_loss, st.network.send_packet_loss};
 			}
 		}
 
-		Common::Timer s_fps_timer;
-		int s_fps_mark = 0;
-		std::vector<int> s_fps_history; // frames run in each second, for the report
-
 		void SampleFps()
 		{
-			if (s_fps_timer.GetTimeSeconds() < 1.0 || s_fps_history.size() >= 3600)
+			if (s_peers.fps_timer.GetTimeSeconds() < 1.0 || s_peers.fps_history.size() >= 3600)
 				return;
-			s_fps_timer.Reset();
-			s_fps_history.push_back(s_session_frames - s_fps_mark);
-			s_fps_mark = s_session_frames;
+			s_peers.fps_timer.Reset();
+			s_peers.fps_history.push_back(s_session_frames - s_peers.fps_mark);
+			s_peers.fps_mark = s_session_frames;
 		}
 
 		// report lines: disconnected_positions=0,2 (empty: none), ping_<position>=min/median/max ms (none: -1/-1/-1)
@@ -373,17 +379,17 @@ namespace Zdxsv
 			std::string left, pings;
 			for (int p = 0; p < s_players; p++)
 			{
-				if (s_peer_state[p] == 2)
+				if (s_peers.state[p] == 2)
 					left += (left.empty() ? "" : ",") + std::to_string(p);
 				if (p == s_net_me)
 					continue;
-				std::vector<int> v = s_peer_pings[p];
+				std::vector<int> v = s_peers.pings[p];
 				std::sort(v.begin(), v.end());
 				pings += v.empty() ? fmt::format("ping_{}=-1/-1/-1\n", p) : fmt::format("ping_{}={}/{}/{}\n", p, v.front(), v[v.size() / 2], v.back());
-				pings += fmt::format("loss_{}={}/{}\n", p, s_peer_loss[p].first, s_peer_loss[p].second);
+				pings += fmt::format("loss_{}={}/{}\n", p, s_peers.loss[p].first, s_peers.loss[p].second);
 			}
 			std::string fps;
-			for (int f : s_fps_history)
+			for (int f : s_peers.fps_history)
 				fps += (fps.empty() ? "" : ",") + std::to_string(f);
 			return "disconnected_positions=" + left + "\n" + pings + "timesync=" + std::to_string(s_sync_frames) +
 			       "\ninput_blocks=" + std::to_string(s_waits) + "\nfps_history=" + fps + "\n";
@@ -403,7 +409,7 @@ namespace Zdxsv
 		{
 			if (!s_net || !s_session)
 				return;
-			if (!s_osd && std::all_of(std::begin(s_peer_state), std::end(s_peer_state), [](int s) { return s == 0; }))
+			if (!s_osd && std::all_of(std::begin(s_peers.state), std::end(s_peers.state), [](int s) { return s == 0; }))
 			{
 				std::lock_guard lock(s_osd_mtx);
 				s_osd_lines.clear();
@@ -413,7 +419,7 @@ namespace Zdxsv
 			std::vector<GgpoOsdLine> lines;
 			lines.push_back({fmt::format("Delay {}fr", s_delay), s_delay >= 13 ? OsdColor(255, 38, 31) : s_delay >= 10 ? OsdColor(255, 128, 0) :
 			                                                      s_delay >= 5   ? OsdColor(255, 217, 0) : OSD_TEXT});
-			lines.push_back({fmt::format("Roll {}  Wait {}  Sync {}", s_rollback_frames, s_waits, s_sync_frames), OSD_TEXT});
+			lines.push_back({fmt::format("Roll {}  Wait {}  Sync {}", s_stats.rollback_frames, s_waits, s_sync_frames), OSD_TEXT});
 			for (int p = 0; p < s_players; p++)
 			{
 				if (p == s_net_me)
@@ -425,12 +431,12 @@ namespace Zdxsv
 				if (!who.pilot.empty())
 					lines.push_back({" " + who.pilot, OSD_TEXT});
 				GGPONetworkStats st{};
-				if (s_peer_state[p] == 2)
+				if (s_peers.state[p] == 2)
 					lines.push_back({" Disconnected", OsdPingColor(999)});
 				else if (ggpo_get_network_stats(s_session, s_handles[p], &st) == GGPO_OK)
 				{
 					// Interrupted in place of the ping, so the line fits the OSD's fixed width
-					if (s_peer_state[p] == 1)
+					if (s_peers.state[p] == 1)
 						lines.push_back({fmt::format(" Interrupted  P {}", st.sync.predicted_frames), OsdPingColor(999)});
 					else
 						lines.push_back({fmt::format(" Ping {}ms{}  P {}", st.network.ping,
@@ -447,7 +453,7 @@ namespace Zdxsv
 			}
 			GgpoOsdPanel panel;
 			panel.delay = s_delay;
-			panel.rollback_frames = s_rollback_frames;
+			panel.rollback_frames = s_stats.rollback_frames;
 			panel.sync_frames = s_sync_frames;
 			GGPONetworkStats own{};
 			if (ggpo_get_network_stats(s_session, s_handles[s_net_me], &own) == GGPO_OK)
@@ -464,7 +470,7 @@ namespace Zdxsv
 					peer.name = s_net_players[p].name;
 					peer.pilot = s_net_players[p].pilot;
 				}
-				peer.connected = s_peer_state[p] != 2;
+				peer.connected = s_peers.state[p] != 2;
 				GGPONetworkStats st{};
 				if (peer.connected && ggpo_get_network_stats(s_session, s_handles[p], &st) == GGPO_OK)
 				{
@@ -525,12 +531,12 @@ namespace Zdxsv
 				return false;
 			if (s_net)
 				NetSaved(frame);
-			s_save_ms.Add(timer.GetTimeMilliseconds());
+			s_stats.save_ms.Add(timer.GetTimeMilliseconds());
 			timer.Reset();
 			*checksum = 0;
 			if (s_sync)
 				HashSave(frame, checksum);
-			s_hash_ms.Add(timer.GetTimeMilliseconds());
+			s_stats.hash_ms.Add(timer.GetTimeMilliseconds());
 			if (!s_rerun)
 				s_top_frame = frame;
 			int* saved = new int(frame);
@@ -552,8 +558,8 @@ namespace Zdxsv
 			s_reruns_left = s_top_frame - *reinterpret_cast<int*>(buffer);
 			if (s_net)
 				NetLoaded(*reinterpret_cast<int*>(buffer));
-			s_load_ms.Add(timer.GetTimeMilliseconds());
-			s_loads++;
+			s_stats.load_ms.Add(timer.GetTimeMilliseconds());
+			s_stats.loads++;
 			return ok;
 		}
 
@@ -562,7 +568,7 @@ namespace Zdxsv
 			// Called by the synctest on a checksum mismatch, for the original and the rerun.
 			if (std::strstr(filename, "original"))
 			{
-				if (s_mismatches++ < 20)
+				if (s_stats.mismatches++ < 20)
 					Console.WriteLn("ZdxsvGgpo: MISMATCH %s (session frame %d)", filename, s_session_frames);
 			}
 			return true;
@@ -589,13 +595,13 @@ namespace Zdxsv
 			if (g_rerun_draw_skip)
 				RerunKeepAfterRerunFrame(s_reruns_left == 0);
 			g_rerun_vu1_skip = g_rerun_draw_skip = false;
-			s_rerun_mcycles.Add((cpuRegs.cycle - cycle0) / 1e6);
-			s_rerun_ms.Add(timer.GetTimeMilliseconds());
+			s_stats.rerun_mcycles.Add((cpuRegs.cycle - cycle0) / 1e6);
+			s_stats.rerun_ms.Add(timer.GetTimeMilliseconds());
 			g_ggpo_in_rollback = false;
 			s_rerun = true;
 			ggpo_advance_frame(s_session);
 			s_rerun = false;
-			s_rollback_frames++;
+			s_stats.rollback_frames++;
 			return ok;
 		}
 
@@ -603,7 +609,7 @@ namespace Zdxsv
 		{
 			if (level > GGPO_LOG_WARNING)
 				return;
-			if (s_ggpo_warnings++ < 20)
+			if (s_stats.ggpo_warnings++ < 20)
 				Console.Warning("ZdxsvGgpo: ggpo: %s", msg);
 		}
 
@@ -654,7 +660,7 @@ namespace Zdxsv
 					s_report += "rounds=" + rounds + "\n";
 				if (!s_report.empty())
 					s_report += std::string("close=") + what + "\nframes=" + std::to_string(s_session_frames) +
-					            "\nrollback_frames=" + std::to_string(s_rollback_frames) + "\nmismatches=" + std::to_string(s_mismatches) +
+					            "\nrollback_frames=" + std::to_string(s_stats.rollback_frames) + "\nmismatches=" + std::to_string(s_stats.mismatches) +
 					            "\ndisconnected=" + (s_disconnected ? "1" : "0") + "\n" + peers;
 			}
 			if (s_net)
@@ -828,7 +834,7 @@ namespace Zdxsv
 			if (s_disconnected)
 			{
 				s_disconnected = false;
-				std::fill(std::begin(s_peer_state), std::end(s_peer_state), 0);
+				std::fill(std::begin(s_peers.state), std::end(s_peers.state), 0);
 			}
 			Console.WriteLn("ZdxsvGgpo: net end msg of frame %d confirmed at frame %d, leaving the peers", s_rb.end_frame, s_net_frame);
 			ggpo_disconnect_player(s_session, s_handles[s_net_me]);
@@ -849,7 +855,7 @@ namespace Zdxsv
 					NetEndCheck();
 					rc = ggpo_add_local_input(s_session, s_handles[s_net_me], &in, sizeof(in));
 				}
-				s_wait_ms.Add(wait.GetTimeMilliseconds());
+				s_stats.wait_ms.Add(wait.GetTimeMilliseconds());
 			}
 			if (rc != GGPO_OK)
 			{
@@ -880,7 +886,7 @@ namespace Zdxsv
 				Threading::Sleep(1);
 				NetEndCheck();
 			}
-			s_wait_ms.Add(wait.GetTimeMilliseconds());
+			s_stats.wait_ms.Add(wait.GetTimeMilliseconds());
 			return s_disconnected || !at_limit();
 		}
 
@@ -1030,13 +1036,7 @@ namespace Zdxsv
 		for (auto& k3 : s_zds_k3)
 			k3.clear();
 		s_pw.clear();
-		std::fill(std::begin(s_peer_state), std::end(s_peer_state), 0);
-		for (auto& v : s_peer_pings)
-			v.clear();
-		std::fill(std::begin(s_peer_loss), std::end(s_peer_loss), std::pair<int, int>{});
-		s_fps_history.clear();
-		s_fps_mark = 0;
-		s_fps_timer.Reset();
+		s_peers = {};
 		{
 			std::lock_guard lock(s_osd_mtx);
 			s_osd_hold_until = 0;
@@ -1050,13 +1050,10 @@ namespace Zdxsv
 			g_frame_period_trim_us = 0;
 		s_frames_ahead = s_waits = s_sync_frames = s_save_skipped = s_session_frames = s_top_frame = s_reruns_left = 0;
 		s_sync_max_ms = 0;
-		s_rollback_frames = s_loads = s_mismatches = s_ggpo_warnings = s_diff_logged = 0;
-		s_save_ms = s_hash_ms = s_load_ms = s_rerun_ms = s_wait_ms = s_sleep_ms = s_emu_ms = s_exit_ms = s_ours_ms = {};
+		s_diff_logged = 0;
 		s_throttle_deferred = false;
-		s_rerun_mcycles = {};
 		g_rerun_vu1_ticks = g_rerun_spu2_ticks = 0;
-		s_t_vsync = s_t_returned = 0;
-		s_spu_played = s_spu_dropped = 0;
+		s_stats = {};
 	}
 
 	void GgpoOnVsync()
@@ -1124,14 +1121,14 @@ namespace Zdxsv
 				return;
 			s_started = true;
 			g_ggpo_active = true;
-			s_gs_frame0 = g_perfmon.GetFrame();
+			s_stats.gs_frame0 = g_perfmon.GetFrame();
 		}
 		s_frame_ended = true;
 		if (!g_ggpo_in_rollback)
 		{
-			s_t_vsync = Common::Timer::GetCurrentValue();
-			if (s_t_returned)
-				s_emu_ms.Add(Common::Timer::ConvertValueToMilliseconds(s_t_vsync - s_t_returned));
+			s_stats.t_vsync = Common::Timer::GetCurrentValue();
+			if (s_stats.t_returned)
+				s_stats.emu_ms.Add(Common::Timer::ConvertValueToMilliseconds(s_stats.t_vsync - s_stats.t_returned));
 		}
 		Cpu->ExitExecution();
 	}
@@ -1152,14 +1149,14 @@ namespace Zdxsv
 			VMManager::Internal::Throttle();
 		if (poll)
 			VMManager::Internal::PollInputOnCPUThread();
-		s_sleep_ms.Add(timer.GetTimeMilliseconds());
+		s_stats.sleep_ms.Add(timer.GetTimeMilliseconds());
 	}
 
 	static void Returned();
 
 	bool SpuOnOutput()
 	{
-		(g_ggpo_in_rollback ? s_spu_dropped : s_spu_played)++;
+		(g_ggpo_in_rollback ? s_stats.spu_dropped : s_stats.spu_played)++;
 		return g_ggpo_in_rollback;
 	}
 
@@ -1168,15 +1165,15 @@ namespace Zdxsv
 		if (!g_ggpo_active || !std::exchange(s_frame_ended, false))
 			return;
 		const Common::Timer::Value t0 = Common::Timer::GetCurrentValue();
-		if (s_t_vsync)
-			s_exit_ms.Add(Common::Timer::ConvertValueToMilliseconds(t0 - s_t_vsync));
+		if (s_stats.t_vsync)
+			s_stats.exit_ms.Add(Common::Timer::ConvertValueToMilliseconds(t0 - s_stats.t_vsync));
 		SyncSettingsOnBattle(true); // before the session's first frame
-		const bool framed = s_session && s_t_vsync;
+		const bool framed = s_session && s_stats.t_vsync;
 		Returned();
 		DeferredThrottle(); // a Returned that ended the session
-		s_t_returned = Common::Timer::GetCurrentValue();
-		s_ours_ms.Add(Common::Timer::ConvertValueToMilliseconds(s_t_returned - t0));
-		GgpoBudgetFrame(framed && s_session, s_rerun_ms.sum, s_wait_ms.sum, s_sleep_ms.sum);
+		s_stats.t_returned = Common::Timer::GetCurrentValue();
+		s_stats.ours_ms.Add(Common::Timer::ConvertValueToMilliseconds(s_stats.t_returned - t0));
+		GgpoBudgetFrame(framed && s_session, s_stats.rerun_ms.sum, s_stats.wait_ms.sum, s_stats.sleep_ms.sum);
 	}
 
 	bool GgpoHoldsFrame()
@@ -1190,14 +1187,14 @@ namespace Zdxsv
 			InputManager::PollSources();
 			MTGS::PresentCurrentFrame();
 		}
-		s_t_vsync = 0;
+		s_stats.t_vsync = 0;
 		s_frame_ended = true;
 		return true;
 	}
 
 	static void Returned()
 	{
-		std::lock_guard ggpo_lock(s_ggpo_mtx);
+		std::unique_lock ggpo_lock(s_ggpo_mtx);
 		if (s_play_env)
 		{
 			s_frame_hold = !s_play_common && LiveHold();
@@ -1278,7 +1275,7 @@ namespace Zdxsv
 			}
 			// ggpo_idle can run a rollback: that is game work, not part of the wait.
 			s_sync_max_ms = std::max(s_sync_max_ms, wait.GetTimeMilliseconds() - idle_ms);
-			s_wait_ms.Add(wait.GetTimeMilliseconds());
+			s_stats.wait_ms.Add(wait.GetTimeMilliseconds());
 			// The limiter keeps an absolute schedule: without this it skips its next sleep and the wait gains nothing.
 			g_frame_period_trim_us = static_cast<s32>(wait.GetTimeMilliseconds() * 1000.0);
 			s_sync_trimmed = true;
@@ -1298,7 +1295,9 @@ namespace Zdxsv
 		if (s_net)
 		{
 			const bool ok = NetWaitPredictionLimit();
+			ggpo_lock.unlock();
 			DeferredThrottle(false);
+			ggpo_lock.lock();
 			if (!ok || !NetSyncAndApply())
 				Stop("failed");
 			return;
