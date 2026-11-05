@@ -31,7 +31,7 @@ The game's network calls (net RPCs) take one of two paths. Online with
 | Path | When | Network | Lobby features |
 |---|---|---|---|
 | DEV9 | `ZdxsvNoDev9` off, or no server host | DEV9 adapter, as upstream | none |
-| No DEV9 | `ZdxsvNoDev9` on with a server host | `NoDev9.cpp` answers the net RPCs on the EE; TCP on host sockets | fast login; the lobby connection filter: platform info, battle info, match report, outdated notice (read off the code; the platform info tested); TCP battle (1v1) through the battle server; GGPO battle (1v1), the GGPO hook answering the battle sock first; TLS (DNAS, lobby, battle TCP); line checks while paused (the lobby socket read on the paused idle poll). |
+| No DEV9 | `ZdxsvNoDev9` on with a server host | `NoDev9.cpp` answers the net RPCs on the EE; TCP on host sockets, only to the lobby (port 8200) and the battle server | fast login; the lobby connection filter: platform info, battle info, match report, outdated notice (read off the code; the platform info tested); TCP battle (1v1) through the battle server; GGPO battle (1v1), the GGPO hook answering the battle sock first; TLS (lobby, battle TCP); line checks while paused (the lobby socket read on the paused idle poll). |
 | Battle sock over GGPO | an armed GGPO battle, on either path | `GgpoBattle.cpp`: send, recv and poll answered from GGPO inputs | — |
 
 A lobby feature added on one path is added to the other in the same change, or
