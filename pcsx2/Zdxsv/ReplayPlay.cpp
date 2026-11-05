@@ -570,12 +570,7 @@ namespace Zdxsv
 		s_live_down.reset();
 		LivePaceReset();
 		s_live_wait.reset();
-		s_live_got = {};
-		s_live_close.clear();
-		s_live_catchup = s_live_close_logged = false;
-		s_live_waits = 0;
-		s_live_hold_want = -1;
-		s_live_wait_ms = 0;
+		s_live_play = {};
 		s_play = {};
 		s_check = {};
 		s_play_req = INT_MIN;
