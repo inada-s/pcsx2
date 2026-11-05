@@ -180,6 +180,64 @@ namespace Zdxsv
 		u32 sends, msgs, recvs, rxmsgs, rxbytes, polls, other, nowait, senddiff, toolong, maxq, restamp, late;
 	};
 	extern NetStats s_ns;
+
+	struct SessionStat
+	{
+		double sum = 0, max = 0;
+		int n = 0;
+		void Add(double v)
+		{
+			sum += v;
+			max = std::max(max, v);
+			n++;
+		}
+		double Mean() const { return n ? sum / n : 0; }
+	};
+
+	struct RunState
+	{
+		bool running = false; // net: GGPO_EVENTCODE_RUNNING seen
+		bool disconnected = false;
+		int disconnected_until = -1; // net: last frame run after a peer left before the end msg
+		int frames_ahead = 0; // net: last GGPO_EVENTCODE_TIMESYNC
+		int waits = 0; // net: frames that waited for a peer
+		int sync_frames = 0; // net: frames slept for GGPO time sync
+		double sync_max_ms = 0;
+		int save_skipped = 0;
+		int top_frame = 0; // the frame of the last save outside a rollback
+		int reruns_left = 0; // rerun frames left in this rollback
+		// LowLatencyVsync: present, rollback, then sleep and poll input (GgpoDeferThrottle). A corrected frame
+		// shows one frame later.
+		bool throttle_deferred = false;
+	};
+
+	struct SessionStats
+	{
+		int rollback_frames = 0, loads = 0, mismatches = 0, ggpo_warnings = 0;
+		SessionStat save_ms, hash_ms, load_ms;
+		SessionStat rerun_ms, wait_ms; // between frames: rollback rerun emulation, net wait for a peer
+		SessionStat sleep_ms; // between frames: limiter sleep and input poll deferred by GgpoDeferThrottle
+		SessionStat rerun_mcycles; // EE cycles (millions) per rerun frame
+		SessionStat emu_ms, exit_ms, ours_ms; // wall: last GgpoOnExecuteReturned end -> GgpoOnVsync -> GgpoOnExecuteReturned start -> its end
+		Common::Timer::Value t_vsync = 0, t_returned = 0;
+		// Output of the session: GS frames presented (g_perfmon, GS thread; read here for the report only)
+		// since the start, SPU2 samples played and dropped in rerun frames.
+		int gs_frame0 = 0;
+		s64 spu_played = 0, spu_dropped = 0;
+	};
+	extern RunState s_run;
+	extern SessionStats s_stats;
+	extern GGPOPlayerHandle s_handles[GGPO_MAX_PLAYERS];
+
+	// GgpoNetStatus.cpp
+	void NetStatusSetPeer(GGPOPlayerHandle h, int state); // 0 connected, 1 interrupted, 2 disconnected
+	void NetStatusSamplePings();
+	void NetStatusSampleFps();
+	std::string NetStatusReport();
+	void NetStatusUpdate(bool log);
+	void NetStatusHold(bool disconnected);
+	void NetStatusPeersConnected();
+	void NetStatusReset();
 	enum class Hash
 	{
 		Pw,

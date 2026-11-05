@@ -31,41 +31,6 @@ namespace Zdxsv
 		bool NetNextInputs();
 		bool NetSyncAndApply();
 		void NetLoaded(int frame);
-
-		struct Stat
-		{
-			double sum = 0, max = 0;
-			int n = 0;
-			void Add(double v)
-			{
-				sum += v;
-				max = std::max(max, v);
-				n++;
-			}
-			double Mean() const { return n ? sum / n : 0; }
-		};
-
-		std::mutex s_osd_mtx;
-		std::vector<GgpoOsdLine> s_osd_lines;
-		GgpoOsdPanel s_osd_panel;
-		Common::Timer::Value s_osd_hold_until = 0; // nonzero: the session ended on a disconnect, its last lines stay up until then
-		struct RunState
-		{
-			bool running = false; // net: GGPO_EVENTCODE_RUNNING seen
-			bool disconnected = false;
-			int disconnected_until = -1; // net: last frame run after a peer left before the end msg
-			int frames_ahead = 0; // net: last GGPO_EVENTCODE_TIMESYNC
-			int waits = 0; // net: frames that waited for a peer
-			int sync_frames = 0; // net: frames slept for GGPO time sync
-			double sync_max_ms = 0;
-			int save_skipped = 0;
-			int top_frame = 0; // the frame of the last save outside a rollback
-			int reruns_left = 0; // rerun frames left in this rollback
-			// LowLatencyVsync: present, rollback, then sleep and poll input (GgpoDeferThrottle). A corrected frame
-			// shows one frame later.
-			bool throttle_deferred = false;
-		};
-		RunState s_run;
 		bool s_sync_trimmed = false; // g_frame_period_trim_us holds a time sync wait
 
 		// A net session runs the process at high priority: other programs delay the limiter's wake and the frame less.
@@ -109,27 +74,10 @@ namespace Zdxsv
 			const char* e = TestEnv("ZDXSV_RERUN_EE_DRAW");
 			return e && e[0] == '1';
 		}();
-		GGPOPlayerHandle s_handles[GGPO_MAX_PLAYERS] = {};
 		bool s_vm_closing = false; // in GgpoOnVmShutdown: Stop does not shut the VM down (rbk)
 		int s_vsyncs = 0;
 		std::mt19937 s_rng;
 		Input s_random[PLAYERS] = {};
-
-		struct SessionStats
-		{
-			int rollback_frames = 0, loads = 0, mismatches = 0, ggpo_warnings = 0;
-			Stat save_ms, hash_ms, load_ms;
-			Stat rerun_ms, wait_ms; // between frames: rollback rerun emulation, net wait for a peer
-			Stat sleep_ms; // between frames: limiter sleep and input poll deferred by GgpoDeferThrottle
-			Stat rerun_mcycles; // EE cycles (millions) per rerun frame
-			Stat emu_ms, exit_ms, ours_ms; // wall: last GgpoOnExecuteReturned end -> GgpoOnVsync -> GgpoOnExecuteReturned start -> its end
-			Common::Timer::Value t_vsync = 0, t_returned = 0;
-			// Output of the session: GS frames presented (g_perfmon, GS thread; read here for the report only)
-			// since the start, SPU2 samples played and dropped in rerun frames.
-			int gs_frame0 = 0;
-			s64 spu_played = 0, spu_dropped = 0;
-		};
-		SessionStats s_stats;
 
 		void Parse()
 		{
@@ -315,162 +263,6 @@ namespace Zdxsv
 			return true;
 		}
 
-		struct PeerReport
-		{
-			int state[GGPO_MAX_PLAYERS] = {}; // per position: 0 connected, 1 interrupted, 2 disconnected (GGPO events, for the OSD)
-			std::vector<int> pings[GGPO_MAX_PLAYERS]; // ms, sampled once a second for the report
-			std::pair<int, int> loss[GGPO_MAX_PLAYERS] = {}; // GGPO packets lost: received, sent
-			Common::Timer fps_timer;
-			int fps_mark = 0;
-			std::vector<int> fps_history; // frames run in each second, for the report
-		};
-		PeerReport s_peers;
-
-		void SetPeerState(GGPOPlayerHandle h, int state)
-		{
-			for (int p = 0; p < GGPO_MAX_PLAYERS; p++)
-				if (s_handles[p] == h)
-					s_peers.state[p] = state;
-		}
-
-		void SamplePeerPings()
-		{
-			for (int p = 0; p < s_opt.players; p++)
-			{
-				GGPONetworkStats st{};
-				if (p != s_battle.me && s_peers.state[p] == 0 && ggpo_get_network_stats(s_session, s_handles[p], &st) == GGPO_OK &&
-					st.network.ping > 0)
-					s_peers.pings[p].push_back(st.network.ping);
-				// GGPO's counters are totals and stop once the peer is gone: the last sample is the battle's
-				if (p != s_battle.me && s_peers.state[p] == 0 && ggpo_get_network_stats(s_session, s_handles[p], &st) == GGPO_OK)
-					s_peers.loss[p] = {st.network.recv_packet_loss, st.network.send_packet_loss};
-			}
-		}
-
-		void SampleFps()
-		{
-			if (s_peers.fps_timer.GetTimeSeconds() < 1.0 || s_peers.fps_history.size() >= 3600)
-				return;
-			s_peers.fps_timer.Reset();
-			s_peers.fps_history.push_back(s_session_frames - s_peers.fps_mark);
-			s_peers.fps_mark = s_session_frames;
-		}
-
-		// report lines: disconnected_positions=0,2 (empty: none), ping_<position>=min/median/max ms (none: -1/-1/-1)
-		std::string PeerReport()
-		{
-			std::string left, pings;
-			for (int p = 0; p < s_opt.players; p++)
-			{
-				if (s_peers.state[p] == 2)
-					left += (left.empty() ? "" : ",") + std::to_string(p);
-				if (p == s_battle.me)
-					continue;
-				std::vector<int> v = s_peers.pings[p];
-				std::sort(v.begin(), v.end());
-				pings += v.empty() ? fmt::format("ping_{}=-1/-1/-1\n", p) : fmt::format("ping_{}={}/{}/{}\n", p, v.front(), v[v.size() / 2], v.back());
-				pings += fmt::format("loss_{}={}/{}\n", p, s_peers.loss[p].first, s_peers.loss[p].second);
-			}
-			std::string fps;
-			for (int f : s_peers.fps_history)
-				fps += (fps.empty() ? "" : ",") + std::to_string(f);
-			return "disconnected_positions=" + left + "\n" + pings + "timesync=" + std::to_string(s_run.sync_frames) +
-			       "\ninput_blocks=" + std::to_string(s_run.waits) + "\nfps_history=" + fps + "\n";
-		}
-
-		constexpr u32 OsdColor(u32 r, u32 g, u32 b) { return 0xff000000u | (b << 16) | (g << 8) | r; } // IM_COL32
-		constexpr u32 OSD_TEXT = OsdColor(255, 255, 255);
-		u32 OsdPingColor(int ms)
-		{
-			return ms <= 0 ? OsdColor(64, 64, 64) : ms <= 30 ? OsdColor(87, 213, 213) : ms <= 60 ? OsdColor(0, 255, 149) :
-			       ms <= 90 ? OsdColor(255, 255, 0) : ms <= 120 ? OsdColor(255, 170, 0) : OsdColor(255, 0, 0);
-		}
-
-		// net, once per frame: the OSD lines (GgpoOsdLines). log: also to the log, one line.
-		// With the OSD off, shown only while a peer is interrupted or disconnected.
-		void UpdateOsd(bool log)
-		{
-			if (!s_opt.net || !s_session)
-				return;
-			if (!s_opt.osd && std::all_of(std::begin(s_peers.state), std::end(s_peers.state), [](int s) { return s == 0; }))
-			{
-				std::lock_guard lock(s_osd_mtx);
-				s_osd_lines.clear();
-				s_osd_panel = {};
-				return;
-			}
-			std::vector<GgpoOsdLine> lines;
-			lines.push_back({fmt::format("Delay {}fr", s_opt.delay), s_opt.delay >= 13 ? OsdColor(255, 38, 31) : s_opt.delay >= 10 ? OsdColor(255, 128, 0) :
-			                                                      s_opt.delay >= 5   ? OsdColor(255, 217, 0) : OSD_TEXT});
-			lines.push_back({fmt::format("Roll {}  Wait {}  Sync {}", s_stats.rollback_frames, s_run.waits, s_run.sync_frames), OSD_TEXT});
-			for (int p = 0; p < s_opt.players; p++)
-			{
-				if (p == s_battle.me)
-					continue;
-				const LobbyPlayer who = p < static_cast<int>(s_net_players.size()) ? s_net_players[p] : LobbyPlayer{};
-				lines.push_back({fmt::format("{}P {}", p + 1, who.id), OSD_TEXT});
-				if (!who.name.empty())
-					lines.push_back({" " + who.name, OSD_TEXT});
-				if (!who.pilot.empty())
-					lines.push_back({" " + who.pilot, OSD_TEXT});
-				GGPONetworkStats st{};
-				if (s_peers.state[p] == 2)
-					lines.push_back({" Disconnected", OsdPingColor(999)});
-				else if (ggpo_get_network_stats(s_session, s_handles[p], &st) == GGPO_OK)
-				{
-					// Interrupted in place of the ping, so the line fits the OSD's fixed width
-					if (s_peers.state[p] == 1)
-						lines.push_back({fmt::format(" Interrupted  P {}", st.sync.predicted_frames), OsdPingColor(999)});
-					else
-						lines.push_back({fmt::format(" Ping {}ms{}  P {}", st.network.ping,
-						                     p < static_cast<int>(s_net_via.size()) && s_net_via[p] ? " (R)" : "", st.sync.predicted_frames),
-							OsdPingColor(st.network.ping)});
-				}
-			}
-			if (log)
-			{
-				std::string all;
-				for (const GgpoOsdLine& l : lines)
-					all += (all.empty() ? "" : " |") + l.text;
-				Console.WriteLn("ZdxsvGgpo: osd frame %d: %s", s_session_frames, all.c_str());
-			}
-			GgpoOsdPanel panel;
-			panel.delay = s_opt.delay;
-			panel.rollback_frames = s_stats.rollback_frames;
-			panel.sync_frames = s_run.sync_frames;
-			GGPONetworkStats own{};
-			if (ggpo_get_network_stats(s_session, s_handles[s_battle.me], &own) == GGPO_OK)
-				panel.predicted_frames = own.sync.predicted_frames;
-			for (int p = 0; p < s_opt.players; p++)
-			{
-				if (p == s_battle.me)
-					continue;
-				GgpoOsdPeer peer;
-				peer.position = p;
-				if (p < static_cast<int>(s_net_players.size()))
-				{
-					peer.id = s_net_players[p].id;
-					peer.name = s_net_players[p].name;
-					peer.pilot = s_net_players[p].pilot;
-				}
-				peer.connected = s_peers.state[p] != 2;
-				GGPONetworkStats st{};
-				if (peer.connected && ggpo_get_network_stats(s_session, s_handles[p], &st) == GGPO_OK)
-				{
-					peer.relay = st.network.is_relay != 0 || (p < static_cast<int>(s_net_via.size()) && s_net_via[p] != 0);
-					peer.ping = st.network.ping;
-					peer.recv_loss = st.network.recv_packet_loss;
-					peer.send_loss = st.network.send_packet_loss;
-					peer.send_queue = st.network.send_queue_len;
-					peer.frames_behind = st.timesync.local_frames_behind;
-				}
-				panel.peers.push_back(std::move(peer));
-			}
-			std::lock_guard lock(s_osd_mtx);
-			s_osd_lines = std::move(lines);
-			s_osd_panel = std::move(panel);
-		}
-
 		bool __cdecl BeginGame(const char*) { return true; }
 		bool __cdecl OnEvent(GGPOEvent* ev)
 		{
@@ -487,15 +279,15 @@ namespace Zdxsv
 					if (s_battle.end >= 0)
 						break;
 					s_run.disconnected = true;
-					SetPeerState(ev->u.disconnected.player, 2);
+					NetStatusSetPeer(ev->u.disconnected.player, 2);
 					Console.Warning("ZdxsvGgpo: peer disconnected");
 					break;
 				case GGPO_EVENTCODE_CONNECTION_INTERRUPTED:
-					SetPeerState(ev->u.connection_interrupted.player, 1);
+					NetStatusSetPeer(ev->u.connection_interrupted.player, 1);
 					Console.Warning("ZdxsvGgpo: connection interrupted");
 					break;
 				case GGPO_EVENTCODE_CONNECTION_RESUMED:
-					SetPeerState(ev->u.connection_resumed.player, 0);
+					NetStatusSetPeer(ev->u.connection_resumed.player, 0);
 					break;
 				default:
 					break;
@@ -603,7 +395,7 @@ namespace Zdxsv
 		{
 			std::lock_guard ggpo_lock(s_ggpo_mtx);
 			if (s_run.disconnected)
-				UpdateOsd(false); // the frame's lines predate the disconnect event
+				NetStatusUpdate(false); // the frame's lines predate the disconnect event
 			if (s_session)
 				ggpo_close_session(s_session);
 			s_session = nullptr;
@@ -614,22 +406,8 @@ namespace Zdxsv
 			Zdxsv::DeltaStateClear();
 			Report(what);
 			GgpoBudgetSessionEnd(s_opt.net);
-			{
-				// the stats stay up 10 s after a disconnect, so the player sees who left
-				std::lock_guard lock(s_osd_mtx);
-				if (s_run.disconnected && !s_osd_lines.empty())
-				{
-					s_osd_hold_until = Common::Timer::GetCurrentValue() + Common::Timer::ConvertSecondsToValue(10.0);
-					std::string all;
-					for (const GgpoOsdLine& l : s_osd_lines)
-						all += (all.empty() ? "" : " |") + l.text;
-					Console.WriteLn("ZdxsvGgpo: osd held 10 s: %s", all.c_str());
-				}
-				else
-					s_osd_lines.clear();
-					s_osd_panel = {};
-			}
-			const std::string peers = s_opt.net ? PeerReport() : std::string();
+			NetStatusHold(s_run.disconnected);
+			const std::string peers = s_opt.net ? NetStatusReport() : std::string();
 			if (s_opt.net)
 			{
 				std::string line = peers;
@@ -817,7 +595,7 @@ namespace Zdxsv
 			if (s_run.disconnected)
 			{
 				s_run.disconnected = false;
-				std::fill(std::begin(s_peers.state), std::end(s_peers.state), 0);
+				NetStatusPeersConnected();
 			}
 			Console.WriteLn("ZdxsvGgpo: net end msg of frame %d confirmed at frame %d, leaving the peers", s_rb.end_frame, s_battle.frame);
 			ggpo_disconnect_player(s_session, s_handles[s_battle.me]);
@@ -934,6 +712,9 @@ namespace Zdxsv
 	FrameRings s_rings;
 	BattleNet s_battle;
 	NetStats s_ns = {};
+	RunState s_run;
+	SessionStats s_stats;
+	GGPOPlayerHandle s_handles[GGPO_MAX_PLAYERS] = {};
 	GgpoOptions s_opt;
 	int s_lobby_port = 7001;
 	int s_min_delay = 2; // mindelay=, else setting DEV9/Eth ZdxsvGgpoMinDelay
@@ -980,13 +761,7 @@ namespace Zdxsv
 		s_ns = {};
 		s_rings = {};
 		s_pw.clear();
-		s_peers = {};
-		{
-			std::lock_guard lock(s_osd_mtx);
-			s_osd_hold_until = 0;
-			s_osd_lines.clear();
-			s_osd_panel = {};
-		}
+		NetStatusReset();
 		std::fill(std::begin(s_handles), std::end(s_handles), GGPOPlayerHandle{});
 		g_limiter_no_catch_up = false;
 		SessionPriority(false);
@@ -1233,11 +1008,11 @@ namespace Zdxsv
 		}
 		if (s_session_frames % 600 == 0)
 			Report("progress");
-		UpdateOsd(s_session_frames % 600 == 0);
+		NetStatusUpdate(s_session_frames % 600 == 0);
 		if (s_opt.net && s_session_frames % 60 == 0)
-			SamplePeerPings();
+			NetStatusSamplePings();
 		if (s_opt.net)
-			SampleFps();
+			NetStatusSampleFps();
 		if (s_opt.net)
 		{
 			const bool ok = NetWaitPredictionLimit();
@@ -1487,22 +1262,6 @@ namespace Zdxsv
 		}
 		if (s_pw_dump)
 			std::fflush(s_pw_dump);
-	}
-
-	bool GgpoOsd(GgpoOsdPanel& panel)
-	{
-		std::lock_guard lock(s_osd_mtx);
-		if (s_osd_hold_until && Common::Timer::GetCurrentValue() >= s_osd_hold_until)
-		{
-			s_osd_hold_until = 0;
-			s_osd_lines.clear();
-			s_osd_panel = {};
-			Console.WriteLn("ZdxsvGgpo: osd hold over");
-		}
-		if (s_osd_lines.empty())
-			return false;
-		panel = s_osd_panel;
-		return true;
 	}
 	// EE probe (iR5900.cpp): GGPO frame being run, the frame numbers of NET_TRACE H lines and PW dumps.
 	int ProbeFrame() { return s_battle.frame; }
