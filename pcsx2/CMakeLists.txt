@@ -375,6 +375,7 @@ set(pcsx2DEV9Sources
 	DEV9/Sessions/UDP_Session/UDP_Session.cpp
 	Zdxsv/Lobby.cpp
 	Zdxsv/LobbyConnection.cpp
+	Zdxsv/LobbyLive.cpp
 	Zdxsv/Upnp.cpp
 	Zdxsv/ServerHosts.cpp
 	Zdxsv/FastBoot.cpp
@@ -427,6 +428,7 @@ set(pcsx2DEV9Headers
 	Zdxsv/Lobby.h
 	Zdxsv/Proto.h
 	Zdxsv/LobbySocket.h
+	Zdxsv/LobbyNet.h
 	DEV9/Sessions/UDP_Session/UDP_Common.h
 	DEV9/Sessions/UDP_Session/UDP_FixedPort.h
 	DEV9/Sessions/UDP_Session/UDP_BaseSession.h
