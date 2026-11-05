@@ -83,8 +83,10 @@ EMU=1: the 4 clients are emulators instead (platform info, TCP to the battle ser
   127.0.0.1:7300/7301 between p1 and p3's GGPO ports; each announces only its relay socket, so the direct
   path is ~2D ms rtt. Checks: lobby delay = max(GMIN or 2, ceil(2D/32)), or GMIN/2 when RELAY_PATH is a relay.
   With RELAY=1 RELAY_PATH="relay 0" the GGPO traffic skips udprelay.py (its count = ping test only).
-  PAR (default 1): all clients boot at once with fast boot (no fast login), each waits for `fast boot: login
+  PAR (default 1): all clients boot at once with fast boot, each waits for `fast boot: login
   browser` in its emulog (PAR_WAIT s, default 120), then `login` on all at once. PAR=0: `top` + `login` per client.
+  EMU=1 (no DEV9: no DNAS): PAR=1 only; fast login with a token for the card's account (added to OUT/zdxsv.db),
+  fast boot stops at `fast boot: user_id selection`, then `idlogin`.
 db: copied from RUN/zdxsv.db (the cards' accounts) into OUT; stack logs land in OUT.
 Cards: each client starts from RUN/Mcd001-<CARDS[i]>.ps2 (CARDS, required: one registered card per client);
 the live card is put back after (m4.py's lobby states use it). A post-battle prompt creates system
@@ -102,6 +104,7 @@ import threading
 import time
 
 import freshboot
+import tokenlogin
 import launch
 import zbincheck
 import zrig
@@ -194,6 +197,11 @@ def main():
     run = os.path.abspath(os.environ["RUN"])
     ip = os.environ["IP"]
     emu, ext_off, ggpo = E("EMU"), E("EXT_OFF"), E("GGPO")
+    # no DEV9 connects only to the lobby: these clients log in by fast login with a token for the card's account
+    fl = bool(emu) and not ext_off
+    if fl and par != "1":
+        print("FAIL EMU=1 logs in by fast login: PAR=1 only", flush=True)
+        return 1
     zp = (E("ZP") if emu else E("ZP", "1 3")).split()
     zproxy = E("ZPROXY") or os.path.join(os.environ["ZDXSV_DIR"], "bin", "zproxy" + zrig.EXE)
     cards, users = os.environ["CARDS"].split(), os.environ["USERS"].split()
@@ -216,7 +224,9 @@ def main():
     def cenv(i):
         e = {}
         if par == "1":
-            e.update(ZDXSV_FAST_BOOT="1", ZDXSV_FAST_LOGIN="0")
+            e.update(ZDXSV_FAST_BOOT="1", ZDXSV_FAST_LOGIN="1" if fl else "0")
+            if fl:
+                e["ZDXSV_FAST_BOOT_LOBBY"] = "0"
         if ext_off:
             e["ZDXSV_EXTENSIONS"] = "0"
             return e
@@ -257,6 +267,13 @@ def main():
 
     os.makedirs(out, exist_ok=True)
     shutil.copyfile(os.path.join(run, "zdxsv.db"), os.path.join(out, "zdxsv.db"))
+    tokens = {}
+    for i in clients if fl else ():
+        tokens[i], err = tokenlogin.card_token(os.path.join(out, "zdxsv.db"),
+                                               os.path.join(run, f"Mcd001-{cards[int(i) - 1]}.ps2"))
+        if err:
+            print(f"FAIL token p{i}: {err}", flush=True)
+            return 1
     procs = []
 
     # zdxsv*: a ZBIN like zdxsv-ggpo.exe outlives a kill of its parent and holds the ports
@@ -399,7 +416,7 @@ def main():
             shutil.copy2(mc, os.path.join(out, f"live-p{i}.ps2"))
         cpid[i] = launch.launch(ns=(int(i),), eth=eth(), speed=E("SPEED", "1"), headless=i not in show,
                                 memcard=os.path.join(run, f"Mcd001-{cards[int(i) - 1]}.ps2"),
-                                extra_env=cenv(i))[int(i)]
+                                extra_env=cenv(i), token=tokens.get(i))[int(i)]
         if par == "1":
             continue
         # top starts from a fresh boot (f1500): no other client's route in between
@@ -409,16 +426,17 @@ def main():
     if par == "1":
         t1 = time.time()
         pw = int(E("PAR_WAIT", "120"))
+        stop = "user_id selection at" if fl else "login browser"
         for i in clients:
-            while not c(el(i), "fast boot: login browser"):
+            while not c(el(i), f"fast boot: {stop}"):
                 if time.time() - t1 >= pw:
-                    say(f"FAIL p{i}: no login browser in {pw} s")
+                    say(f"FAIL p{i}: no {stop} in {pw} s")
                     return 1
                 time.sleep(0.5)
-            say(f"client {i}: login browser after {int(time.time() - t1)} s")
+            say(f"client {i}: {stop} after {int(time.time() - t1)} s")
         # the page is still loading when fast boot stops: an early press is dropped
         time.sleep(3)
-        th = [threading.Thread(target=drive, args=("login", i)) for i in clients]
+        th = [threading.Thread(target=drive, args=("idlogin" if fl else "login", i)) for i in clients]
         for t in th:
             t.start()
         for t in th:
