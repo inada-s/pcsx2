@@ -118,20 +118,24 @@ namespace Zdxsv
 		constexpr double PACE_I_GAIN = 0.25, PACE_I_LIMIT = 600, PACE_FLOOR_US = -4000, PACE_CEIL_US = 8000;
 		constexpr double PACE_WINDOW_S = 1, PACE_ALPHA = 0.25, PACE_MIN_HZ = 30, PACE_MAX_HZ = 65, PACE_IDLE_S = 0.1;
 		const bool s_pace_off = [] { const char* e = TestEnv("ZDXSV_LIVE_PACING"); return e && e[0] == '0'; }();
-		double s_pace_i = 0, s_pace_hz = 0;
-		Common::Timer s_pace_win, s_pace_call;
-		int s_pace_win_recv = -1, s_pace_last_recv = 0, s_pace_stall = 0, s_pace_log = 0;
+		struct PaceState
+		{
+			double i = 0, hz = 0;
+			Common::Timer win, call;
+			int win_recv = -1, last_recv = 0, stall = 0, log = 0;
+		};
+		PaceState s_pace;
 
 		void LivePace(int next)
 		{
-			if (++s_pace_log >= PACE_LOG)
+			if (++s_pace.log >= PACE_LOG)
 			{
-				s_pace_log = 0;
+				s_pace.log = 0;
 				Console.WriteLn("ZdxsvGgpo: live: pace frame %d gap %d trim %d us rate %.2f hz, %d waits %.0f ms", next,
-					s_play.frames - next, g_frame_period_trim_us, s_pace_hz, s_live_play.waits, s_live_play.wait_ms);
+					s_play.frames - next, g_frame_period_trim_us, s_pace.hz, s_live_play.waits, s_live_play.wait_ms);
 			}
-			const bool idle = s_pace_call.GetTimeSeconds() > PACE_IDLE_S; // paused, or a long wait at the edge
-			s_pace_call.Reset();
+			const bool idle = s_pace.call.GetTimeSeconds() > PACE_IDLE_S; // paused, or a long wait at the edge
+			s_pace.call.Reset();
 			if (s_pace_off || s_live_play.catchup || s_play.run_load >= 0 || s_play.target >= 0 || s_to_phase != TO_OFF ||
 				!s_live_play.close.empty())
 			{
@@ -139,41 +143,41 @@ namespace Zdxsv
 				return;
 			}
 			const int recv = s_play.frames;
-			if (recv != s_pace_last_recv)
+			if (recv != s_pace.last_recv)
 			{
-				s_pace_last_recv = recv;
-				s_pace_stall = 0;
+				s_pace.last_recv = recv;
+				s_pace.stall = 0;
 			}
-			else if (s_pace_stall < PACE_STALL)
-				s_pace_stall++;
-			if (s_pace_stall >= PACE_STALL || idle || s_pace_win_recv < 0)
+			else if (s_pace.stall < PACE_STALL)
+				s_pace.stall++;
+			if (s_pace.stall >= PACE_STALL || idle || s_pace.win_recv < 0)
 			{
 				// the silence is not the match's rate: restart the window, play at nominal
 				g_frame_period_trim_us = 0;
-				s_pace_win.Reset();
-				s_pace_win_recv = recv;
+				s_pace.win.Reset();
+				s_pace.win_recv = recv;
 				return;
 			}
 			const double nominal_hz = VMManager::GetFrameRate();
-			if (s_pace_hz <= 0)
-				s_pace_hz = nominal_hz;
-			if (const double win = s_pace_win.GetTimeSeconds(); win >= PACE_WINDOW_S)
+			if (s_pace.hz <= 0)
+				s_pace.hz = nominal_hz;
+			if (const double win = s_pace.win.GetTimeSeconds(); win >= PACE_WINDOW_S)
 			{
-				if (const double observed = (recv - s_pace_win_recv) / win; observed > 1)
-					s_pace_hz = std::clamp((1 - PACE_ALPHA) * s_pace_hz + PACE_ALPHA * observed, PACE_MIN_HZ, PACE_MAX_HZ);
-				s_pace_win.Reset();
-				s_pace_win_recv = recv;
+				if (const double observed = (recv - s_pace.win_recv) / win; observed > 1)
+					s_pace.hz = std::clamp((1 - PACE_ALPHA) * s_pace.hz + PACE_ALPHA * observed, PACE_MIN_HZ, PACE_MAX_HZ);
+				s_pace.win.Reset();
+				s_pace.win_recv = recv;
 			}
 			// positive error: further behind the edge than wanted, so a shorter period (negative trim)
 			const int error = recv - next - LIVE_BUFFER;
-			const double feedforward = 1e6 / s_pace_hz - 1e6 / nominal_hz;
+			const double feedforward = 1e6 / s_pace.hz - 1e6 / nominal_hz;
 			const int deadband = std::clamp(LIVE_BUFFER / 4, 1, PACE_DEADBAND_MAX);
 			const double p = std::abs(error) > deadband ? -error * PACE_US_PER_FRAME : 0.0;
-			const double unsaturated = feedforward + p + s_pace_i;
+			const double unsaturated = feedforward + p + s_pace.i;
 			const double step = -error * PACE_I_GAIN;
 			if (!(unsaturated >= PACE_CEIL_US && step > 0) && !(unsaturated <= PACE_FLOOR_US && step < 0))
-				s_pace_i = std::clamp(s_pace_i + step, -PACE_I_LIMIT, PACE_I_LIMIT);
-			g_frame_period_trim_us = static_cast<s32>(std::clamp(feedforward + p + s_pace_i, PACE_FLOOR_US, PACE_CEIL_US));
+				s_pace.i = std::clamp(s_pace.i + step, -PACE_I_LIMIT, PACE_I_LIMIT);
+			g_frame_period_trim_us = static_cast<s32>(std::clamp(feedforward + p + s_pace.i, PACE_FLOOR_US, PACE_CEIL_US));
 		}
 
 		// GgpoOnVmShutdown: the key files go; a new VM (or the reset one) loads the files again and plays from the start.
@@ -357,10 +361,7 @@ namespace Zdxsv
 	void LivePaceReset()
 	{
 		g_frame_period_trim_us = 0;
-		s_pace_i = 0;
-		s_pace_hz = 0;
-		s_pace_win_recv = -1;
-		s_pace_stall = 0;
+		s_pace = {};
 	}
 
 	bool LiveHold()
