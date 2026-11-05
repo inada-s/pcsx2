@@ -148,17 +148,14 @@ turns GGPO off and leaves the other extensions on. Any other value turns it on. 
 | `ZDXSV_RBK_TURBO=1` | off | test | The battle runs turbo too. |
 | `ZDXSV_RAND_INPUT=seed` | off | test | Seeded random pad input. |
 | `ZDXSV_K3_LAG=n` | 8 | tuning | GGPO frames between the game sending a round-handshake message and the input that carries it. `0` is a control: the battle then depends on network timing. |
-| `ZDXSV_SAVE_ALL=1` | off | control | Delta-save every GGPO frame, also frames that can no longer be rolled back. |
 | `ZDXSV_RERUN_REVERB=1` | off | control | SPU2 reverb runs in rerun frames. Default: skipped (their sound is dropped) unless an SPU2 IRQ address lies in the reverb work area. |
 | `ZDXSV_RERUN_VU1=1` | off | control | VU1 microprograms run in every rerun frame. Default: only in the last rerun frame of a rollback, whose drawing the first present after the rollback shows; none with the single draw list. |
 | `ZDXSV_RERUN_TAIL=n` | 2 (0 with the single draw list) | control | The last n rerun frames of a rollback run the game's render callbacks, the last n - 1 VU1 microprograms (n with the single draw list). Without the single draw list, below the default the picture after a rollback breaks (`tests/zdxsv/rerunpic.py` FAIL control). |
 | `ZDXSV_SINGLE_DRAW_LIST=0` / `=1` | the setting | feature | Off / on, over `ZdxsvSingleDrawList`. |
 | `ZDXSV_NODEV9=<ipv4>` | unset | test | Overrides `ZdxsvNoDev9`: `0` off; `<ipv4>`: on, every name resolves to `<ipv4>`. The fast login still uses `ZdxsvLoginApiUrl` (`ZDXSV_LOGIN_API_URL`). The rigs (`launch.py`) set it to the box IP and `ZDXSV_LOGIN_API_URL` to the local lobby API (`http://127.0.0.1:9881/lbs/login`, started by `stack.py`). |
-| `ZDXSV_PRESENT_FIRST=0` | on | control | With `ZdxsvLowLatencyVsync` in a GGPO session: the limiter sleep and the input poll come before the rollback. Default: present, rollback, then sleep and poll (net battle: present, poll and send, rollback, sleep), so a rollback shorter than the sleep does not delay the next present; a corrected frame shows one frame later. |
 | `ZDXSV_RERUN_EE_DRAW=1` | off | control | The game's render callbacks run in every rerun frame. Default: not in rerun frames but the last two (see rollback.md). |
 | `ZDXSV_RERUN_KEEP=0` or `=lo-hi,...` | bone slots, saber trails | control | EE RAM a rollback does not roll back during play: `0` none; else these ranges (hex, end exclusive) and the saber trails. Off with `ZDXSV_RERUN_EE_DRAW=1`. See rollback.md. |
 | `ZDXSV_RERUN_PARTS=0` | on | control | With the bone slots kept: rerun frames that skip the render callbacks do not run the draws of parts attached to a player either (see rollback.md). |
-| `ZDXSV_RERUN_DRAW=0` | on | control | The GS drops the draw calls of rollback rerun frames. Default: drawn (not presented; the next frame draws over them). |
 | `ZDXSV_ROLLBACK_BUDGET=1` | off | test | The lobby delay subtracts the learned `ZdxsvRollbackBudget` instead of 0. |
 | `ZDXSV_NET_TAIL=n` | 300 | tuning | Frames run after the battle end message is confirmed, before the session stops. |
 | `ZDXSV_NET_DISCONNECT_MS=ms` | 10000 | tuning | GGPO disconnect timeout (as flycast). |
