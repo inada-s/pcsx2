@@ -1,10 +1,12 @@
 """fake_lobby.log() under concurrent connection threads (a 4th client's 0x6138
 answer line was glued to another and its BATTLE RESULT line lost -> m4.py saw results 3/4).
-  python -u lograce.py > OUT 2>&1; python lograce.py --check OUT   -> lost/glued counts, rc 1 if any
+  python lograce.py   -> lost/glued counts, rc 1 if any (--write: only log to stdout; --check OUT: only check)
 Each of T threads logs N lines of fake_lobby's 0x6138 shape, then a BATTLE RESULT line per line."""
 import os
 import re
+import subprocess
 import sys
+import tempfile
 import threading
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -32,11 +34,22 @@ def check(path):
     return 0 if good == 2 * T * N and not bad else 1
 
 
-if __name__ == "__main__":
-    if sys.argv[1:2] == ["--check"]:
-        sys.exit(check(sys.argv[2]))
+def write():
     ts = [threading.Thread(target=writer, args=(t,)) for t in range(T)]
     for t in ts:
         t.start()
     for t in ts:
         t.join()
+
+
+if __name__ == "__main__":
+    if sys.argv[1:2] == ["--check"]:
+        sys.exit(check(sys.argv[2]))
+    if sys.argv[1:2] == ["--write"]:
+        write()
+        sys.exit(0)
+    with tempfile.TemporaryDirectory() as d:
+        out = os.path.join(d, "lograce.txt")
+        with open(out, "w") as f:
+            subprocess.run([sys.executable, "-u", os.path.abspath(__file__), "--write"], stdout=f, stderr=subprocess.STDOUT, check=True)
+        sys.exit(check(out))
