@@ -6,14 +6,18 @@
 #include "Zdxsv/Settings.h"
 #include "Zdxsv/TestOptions.h"
 
+#include "Config.h"
 #include "Memory.h"
 
 #include "common/Console.h"
+#include "common/FileSystem.h"
 #include "common/HTTPDownloader.h"
+#include "common/Path.h"
 
 #include "rapidjson/document.h"
 
 #include <atomic>
+#include <cctype>
 #include <cstring>
 #include <memory>
 #include <mutex>
@@ -46,6 +50,8 @@ namespace Zdxsv
 		constexpr u32 kSelectedLbsId = 0xc63560;
 		constexpr size_t kLoginKeyLen = 10;
 		constexpr size_t kLbsIdLen = 12;
+		constexpr const char* kTokenFile = "zdxsv_auth_token.txt";
+		constexpr size_t kMaxTokenLen = 128;
 
 		struct LoginResult
 		{
@@ -121,13 +127,28 @@ namespace Zdxsv
 			return r;
 		}
 
-		void Request(std::string url, std::string key, std::shared_ptr<std::atomic<bool>> cancel)
+		std::optional<std::string> AuthToken()
+		{
+			std::optional<std::string> s = FileSystem::ReadFileToString(Path::Combine(EmuFolders::Settings, kTokenFile).c_str());
+			if (!s)
+				return std::nullopt;
+			while (!s->empty() && std::isspace(static_cast<unsigned char>(s->back())))
+				s->pop_back();
+			if (s->empty() || s->size() > kMaxTokenLen)
+				return std::nullopt;
+			for (unsigned char c : *s)
+				if (!std::isalnum(c) && c != '-' && c != '_')
+					return std::nullopt;
+			return s;
+		}
+
+		void Request(std::string url, std::string form, std::shared_ptr<std::atomic<bool>> cancel)
 		{
 			std::optional<LoginResult> result;
 			if (std::unique_ptr<HTTPDownloader> http = HTTPDownloader::Create(Host::GetHTTPUserAgent()))
 			{
 				http->SetTimeout(5.0f);
-				http->CreatePostRequest(url, "login_key=" + key,
+				http->CreatePostRequest(url, form,
 					[&result](s32 code, const std::string&, HTTPDownloader::Request::Data data) {
 						if (code == HTTPDownloader::HTTP_STATUS_OK)
 							result = Parse(std::string(data.begin(), data.end()));
@@ -176,27 +197,44 @@ namespace Zdxsv
 
 	void FastLoginOnVsync()
 	{
+		const bool at_dnas = eeMem->Main[kNetState] == 0x21 && eeMem->Main[kLobbyPhase] == 2;
 		if (s_fast.step == FastLogin::Step::Done)
+		{
+			// Every DNAS start logs in again: after ネット終了 or a lost lobby the game comes back here.
+			if (!at_dnas)
+				s_fast.step = FastLogin::Step::Idle;
 			return;
+		}
 		if (s_fast.step == FastLogin::Step::Idle)
 		{
-			if (eeMem->Main[kNetState] != 0x21 || eeMem->Main[kLobbyPhase] != 2)
+			if (!at_dnas)
 				return;
 			s_fast.step = FastLogin::Step::Done;
+			s_fast.applied = false;
 			if (!Enabled() || Url().empty())
 				return;
-			const char* key = reinterpret_cast<const char*>(&eeMem->Main[kNetFileLoginKey]);
-			const std::string login_key(key, strnlen(key, kLoginKeyLen + 1));
-			if (login_key.size() != kLoginKeyLen || !Printable(login_key, kLoginKeyLen))
+			std::string form;
+			if (const std::optional<std::string> token = AuthToken())
 			{
-				Console.WriteLn("Zdxsv: fast login: no login key in the NET file");
-				return;
+				form = "token=" + *token;
 			}
+			else
+			{
+				const char* key = reinterpret_cast<const char*>(&eeMem->Main[kNetFileLoginKey]);
+				const std::string login_key(key, strnlen(key, kLoginKeyLen + 1));
+				if (login_key.size() != kLoginKeyLen || !Printable(login_key, kLoginKeyLen))
+				{
+					Console.WriteLn("Zdxsv: fast login: no token and no login key in the NET file");
+					return;
+				}
+				form = "login_key=" + login_key;
+			}
+			Console.WriteLn("Zdxsv: fast login: by %s", form.starts_with("token=") ? "token" : "NET file key");
 			std::lock_guard lock(s_fast.mutex);
 			s_fast.answered = false;
 			s_fast.result.reset();
 			s_fast.cancel = std::make_shared<std::atomic<bool>>(false);
-			std::thread(Request, Url(), login_key, s_fast.cancel).detach();
+			std::thread(Request, Url(), std::move(form), s_fast.cancel).detach();
 			s_fast.step = FastLogin::Step::Pending;
 			return;
 		}
