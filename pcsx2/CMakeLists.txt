@@ -376,6 +376,7 @@ set(pcsx2DEV9Sources
 	Zdxsv/Lobby.cpp
 	Zdxsv/LobbyConnection.cpp
 	Zdxsv/LobbyLive.cpp
+	Zdxsv/LobbyPing.cpp
 	Zdxsv/Upnp.cpp
 	Zdxsv/ServerHosts.cpp
 	Zdxsv/FastBoot.cpp
