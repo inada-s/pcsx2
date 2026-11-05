@@ -7,6 +7,7 @@
 #include <functional>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace Zdxsv
 {
@@ -23,4 +24,17 @@ namespace Zdxsv
 
 	// Blocking: revokes the token on the server and deletes the file (the file goes even if the server is unreachable).
 	std::string AuthSignOut();
+
+	struct AuthAccountList
+	{
+		// Per account, numbered from 1: the names of its users.
+		std::vector<std::vector<std::string>> users;
+		int default_account = 0;
+		int max_accounts = 0;
+		int added = 0;
+	};
+
+	// Blocking: the accounts of the signed-in Discord account; with add, creates one more first.
+	// Returns an empty string or an error.
+	std::string AuthAccounts(bool add, AuthAccountList* list);
 } // namespace Zdxsv

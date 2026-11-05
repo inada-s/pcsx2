@@ -320,6 +320,41 @@ for High-Spec PC</string>
         </item>
        </layout>
       </item>
+      <item>
+       <layout class="QHBoxLayout" name="zdxsvAccountPickLayout">
+        <item>
+         <widget class="QLabel" name="zdxsvAccountPickLabel">
+          <property name="text">
+           <string>Account:</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QComboBox" name="zdxsvAccountPick">
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Expanding" vsizetype="Fixed">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="zdxsvAccountRefresh">
+          <property name="text">
+           <string>Refresh</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="zdxsvAccountAdd">
+          <property name="text">
+           <string>Add Account</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
      </layout>
     </widget>
    </item>

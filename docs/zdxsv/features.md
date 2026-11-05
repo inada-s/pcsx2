@@ -42,7 +42,7 @@ this table says it is missing.
 - **Switch for all online battle extensions**: `ZDXSV_EXTENSIONS=0`.
 - **Online without DEV9**: with the platform info, a TCP battle, a GGPO battle and TLS; every connection menu button connects with no network setting, also from a blank card; ネット終了 closes the lobby connection and returns to the main menu; `ZdxsvNoDev9`, `ZDXSV_NODEV9`.
 - **Fast login**: DNAS and the login browser skipped; no answer or a server error from the login API holds the game at DNAS (VM paused, OSD, retry 2-30 s backoff) until it answers or the player resumes (normal login); `ZdxsvFastLogin`, `ZdxsvLoginApiUrl`.
-- **Sign-in**: Settings → zdxsv → Account, or the fast login at DNAS with no token (VM paused), signs in through the server (Discord) and saves the token the fast login sends; `ZdxsvAuthUrl`.
+- **Sign-in**: Settings → zdxsv → Account, or the fast login at DNAS with no token (VM paused), signs in through the server (Discord) and saves the token the fast login sends; `ZdxsvAuthUrl`. Account picks one of the Discord account's up to 5 accounts (`ZdxsvAccount`).
 - **Fast boot**: boot to the lobby user_id selection with no input; `ZdxsvFastBoot`, `ZdxsvFastBootState`, `ZdxsvFastBootLobby` (on through ID 1 into the lobby).
 - **Platform info `0x9950` to the lobby**: `ZDXSV_PLATFORM_INFO`.
 - **Battle over TCP to the battle server, as a PS2**: always.

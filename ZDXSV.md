@@ -71,6 +71,9 @@ Settings → zdxsv → Account → Sign in with Discord opens the zdxsv sign-in 
 first sign-in makes a new account; PCSX2 keeps a sign-in token for this PC and logs in with it. To
 use the account you play on a PS2, type ｄｃ in the lobby chat on the PS2, enter the code it shows
 in Carry-over code, then sign in (within 10 minutes). Sign Out revokes the token.
+One Discord account holds up to 5 zdxsv accounts (carried-over ones and extra ones, for example to play
+against yourself). Account picks the one used online; Add Account creates another.
+
 With no token, going online opens the sign-in page and pauses the game until you sign in; resume
 the game to skip it and log in as before.
 If the zdxsv login server does not answer, the game pauses and PCSX2 retries until it answers;
