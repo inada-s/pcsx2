@@ -55,6 +55,8 @@ MEMCARD = os.getenv("MEMCARD", "")
 # Server address for the game's zdxsv hosts; PCSX2's internal DNS answers 127.0.0.1 with this PC's address.
 # Empty = no host entries written: the build's ZDXSV_SERVER_HOST (release: production; source build: none).
 ZDXSV = os.getenv("ZDXSV", "127.0.0.1")
+# Trusts the zdxsv test CA, the certificate a local server uses. 0 = only the production pins.
+os.environ.setdefault("ZDXSV_TLS_TEST_PIN", "1")
 STATE = os.getenv("STATE", "")
 # Maximum frame latency ([EmuCore/GS] VsyncQueueSize): frames the emulation may run ahead of the
 # display. 2 = PCSX2 default; 0 = optimal frame pacing (waits for the display every frame, least lag).
