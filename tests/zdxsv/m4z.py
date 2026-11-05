@@ -268,7 +268,7 @@ def main():
         rows = [" ".join(re.findall(r'round_data="[^"]*"', l)) + (" " if 'round_data="' in l else "")
                 for l in g(lobby, f'p2p matching report: battle_code="{code}"')]
         return (sum(1 for r in rows if r) == n and len(set(rows)) == 1 and
-                bool(re.fullmatch(r'(round_data="win_team:(-1|1|2)( used_ms:[0-9]+){%d}" )+' % n, rows[0])))
+                bool(re.fullmatch(r'(round_data="win_team:(-1|1|2)( +used_ms:[0-9]+){%d} *" )+' % n, rows[0])))
 
     def lobby_suspend(f):
         for p in zrig.pids_name("zdxsv"):
