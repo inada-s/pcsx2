@@ -161,6 +161,15 @@ std::string SaveState_DeltaTimes()
 	return out;
 }
 
+void SaveState_DeltaTimesReset()
+{
+	for (int io = 0; io < 2; io++)
+	{
+		s_delta_ms[io].clear();
+		s_delta_calls[io] = 0;
+	}
+}
+
 static bool DeltaFreezeAll(SaveStateBase& s, Error* error)
 {
 	const int io = s.IsSaving() ? 0 : 1;
