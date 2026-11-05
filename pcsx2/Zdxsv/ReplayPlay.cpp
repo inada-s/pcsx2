@@ -587,6 +587,13 @@ namespace Zdxsv
 		s_bar_frames = 0;
 		s_bar_pov = s_bar_target = -1;
 		s_bar_povs = 0;
+		s_to_phase = TO_OFF;
+		s_to_req = TO_REQ_NONE;
+		s_to_target = 0;
+		s_to_frame = -1;
+		s_to_skip = s_to_start_held = false;
+		s_to_queue.clear();
+		s_to_key.reset();
 	}
 
 	void ReplaySeekBy(int frames)
