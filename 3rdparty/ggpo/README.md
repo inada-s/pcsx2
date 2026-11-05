@@ -3,6 +3,8 @@
 Rollback netcode library, imported for zdxsv from inada-s/flycast `gdxsv-master`
 (5c539de1e, `core/deps/ggpo`). Upstream: https://github.com/pond3r/ggpo (MIT, `LICENSE`).
 
+Ported from later flycast commits: the network thread (`network/udp.cpp`, `Udp::StartNetThread`, `NetMutex`); with `disconnect_without_rollback`, a leaver's received inputs kept (`backends/p2p.cpp`) and the inputs of its last packet queued before the disconnect (`network/udp_proto.cpp`).
+
 PCSX2-side changes (the flycast sources are otherwise unchanged):
 - `CMakeLists.txt`, `ggpo.vcxproj`: build files.
 - `include/ggpo_log.h`, `lib/ggpo/log/`: log sink replacing flycast's `log/Log.h`.
@@ -15,8 +17,8 @@ PCSX2-side changes (the flycast sources are otherwise unchanged):
   `backends/backend.h`, `backends/p2p.h`, `sync.h`): last frame with every
   player's input received.
 - `network/udp.cpp` `CreateSocket`: `IPV6_V6ONLY` on the IPv6 socket (the
-  IPv4 socket has the same port); on Windows `SIO_UDP_CONNRESET` off, so an ICMP
-  port unreachable does not end a poll's reads.
+  IPv4 socket has the same port); on Windows `SIO_UDP_CONNRESET` and `SIO_UDP_NETRESET` off, so an ICMP
+  error does not end a poll's reads (as later flycast).
 - `network/udp.cpp` `Udp::OnLoopPoll`: a socket that could not be created
   (no IPv6) is skipped instead of looping forever.
 - `network/udp_proto.cpp` `UdpProtocol::HandlesMsg`: a packet is matched to an

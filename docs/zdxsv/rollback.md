@@ -168,11 +168,11 @@ The game runs with its own input delay 0; GGPO adds the input delay.
 - Once synchronized, a thread pumps the GGPO sockets every 1 ms
   (`ggpo_idle(-1)`: receive, send, relay forwarding; no callbacks), as
   flycast's `ggpoIdleLoop`. A mutex keeps it off GGPO while the frame loop
-  runs its GGPO calls. While the frame loop holds it (a rollback, a wait),
-  the thread still reads the sockets (`ggpo_forward_relayed`): packets this
-  peer relays for others go out at once, the rest wait for the frame loop.
-  So a relaying peer's rollbacks do not delay the peers it relays for
-  (flycast does this on a separate network thread).
+  runs its GGPO calls.
+- A GGPO network thread waits on the sockets (`select`) and reads each packet
+  as it arrives: packets this peer relays for others go out at once, the rest
+  wait for the frame loop. So a relaying peer's rollbacks and limiter sleep do
+  not delay the peers it relays for.
 - Time sync: when GGPO reports this peer ahead, it waits one frame
   (1/60 s, `ggpo_idle` while waiting) every 10 frames until the suggested
   frames are used, as flycast. That frame's limiter period grows by the wait, so

@@ -61,6 +61,7 @@ Peer2PeerBackend::Peer2PeerBackend(GGPOSessionCallbacks *cb,
    for (unsigned i = 0; i < ARRAY_SIZE(_local_connect_status); i++) {
       _local_connect_status[i].last_frame = -1;
    }
+   _udp.StartNetThread();
 
    /*
     * Preload the ROM
@@ -70,6 +71,7 @@ Peer2PeerBackend::Peer2PeerBackend(GGPOSessionCallbacks *cb,
   
 Peer2PeerBackend::~Peer2PeerBackend()
 {
+   _udp.StopNetThread();
    delete [] _endpoints;
 }
 
@@ -84,7 +86,8 @@ Peer2PeerBackend::AddRemotePlayer(char *ip,
     */
    _synchronizing = true;
 
-   std::lock_guard<std::mutex> lock(_udp.RecvMutex());
+   // zdxsv: TryForward reads the endpoint addresses on the network thread.
+   std::lock_guard<std::mutex> lock(_udp.NetMutex());
    _endpoints[queue].Init(&_udp, _poll, queue, ip, port, relay, _local_connect_status);
    for (int k = 0; k < (int)_relay_servers.size(); k++) {
       if (relay && _endpoints[queue].IsPeerAddress(_relay_servers[k].addr)) {

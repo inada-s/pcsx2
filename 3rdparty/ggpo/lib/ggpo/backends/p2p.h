@@ -40,7 +40,6 @@ public:
    GGPOErrorCode GetCurrentFrame(int* frame) override { *frame = _sync.GetFrameCount(); return GGPO_OK; }
    GGPOErrorCode GetLastConfirmedFrame(int* frame) override { *frame = _sync.GetLastConfirmedFrame(); return GGPO_OK; }
 
-   GGPOErrorCode ForwardRelayed(int *forwarded) override { *forwarded = _udp.ForwardRelayed(); return GGPO_OK; }
    GGPOErrorCode SetMute(bool mute) override { _udp.SetMute(mute); return GGPO_OK; }
 
 public:
