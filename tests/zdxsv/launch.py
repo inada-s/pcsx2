@@ -18,7 +18,7 @@ Env defaults for pcsx2 (also when imported: launch()):
   ZDXSV_FAST_LOGIN unset -> 0; ZDXSV_LOGIN_API_URL unset -> http://127.0.0.1:9881/lbs/login;
   ZDXSV_NODEV9 unset -> $IP, else 0 (0: the DEV9 path with the ini's hosts).
   ZDXSV_AUTH_URL unset -> http://127.0.0.1:9881/auth; ZDXSV_AUTH_NO_BROWSER=1 always (sign-in URLs only logged).
-  ZDXSV_AUTH_AT_DNAS unset -> 0 (no sign-in at DNAS without a token: the NET file key, as before).
+  ZDXSV_AUTH_AT_DNAS unset -> 0 (no sign-in at DNAS without a token: the normal login).
 """
 import os
 import re
@@ -93,8 +93,9 @@ def _hide_window(pid):
 
 
 def launch(ns=(1,), memcard=None, state=None, speed="1", renderer="-1", nogui=False, headless=False,
-           eth=False, lobby_state=False, extra_env=None, quiet=False):
-    """Start instances NS; returns {i: pid}. Exits 1 on a bad probe, 75 when another rig holds the lock."""
+           eth=False, lobby_state=False, extra_env=None, quiet=False, token=None):
+    """Start instances NS; returns {i: pid}. Exits 1 on a bad probe, 75 when another rig holds the lock.
+    TOKEN: written to inis/zdxsv_auth_token.txt (fast login); a new instance never takes p1's."""
     zrig.need("RUN", "ISO")
     e = dict(os.environ)
     e.update(extra_env or {})
@@ -125,11 +126,17 @@ def launch(ns=(1,), memcard=None, state=None, speed="1", renderer="-1", nogui=Fa
             os.makedirs(pd, exist_ok=True)
             for sub in ("inis", "bios", "memcards"):
                 shutil.copytree(os.path.join(root, "p1", "PCSX2", sub), os.path.join(pd, sub), dirs_exist_ok=True)
+            tf = os.path.join(pd, "inis", "zdxsv_auth_token.txt")
+            if os.path.exists(tf):
+                os.remove(tf)
         slot = 28010 + i
         _ini(os.path.join(pd, "inis", "PCSX2.ini"), slot, "11" if headless else renderer, speed,
              "true" if eth else "false")
         if memcard:
             shutil.copyfile(memcard, os.path.join(pd, "memcards", "Mcd001.ps2"))
+        if token:
+            with open(os.path.join(pd, "inis", "zdxsv_auth_token.txt"), "w") as f:
+                f.write(token + "\n")
         a = [exe, "-datapath", d, "-batch"]
         if nogui or headless:
             a.append("-nogui")

@@ -6,8 +6,8 @@ ROUTE=top,C = today's menu path + ログイン at TOP), CARD (p1 card name, defa
 SPEED (launch -Speed, default 1), SHOW=1 (windowed), LOBBY=fake (boot_lobby.py instead of the stack:
 only the lobby API login and the lobby up to the user_id list), SAVE_CARD (path: p1's card after the run is copied there).
 ROUTE_END=1: after the user_id screen, wait until the route keys are all sent (MAXS bounds it).
-Fast login on (ZDXSV_FAST_LOGIN=1, not LOBBY=fake, no ZDXSV_AUTH_AT_DNAS=1) with no token file: the run seeds a
-token for the card's account (the server takes no NET file key) and removes the file after.
+Fast login on (ZDXSV_FAST_LOGIN=1, no ZDXSV_AUTH_AT_DNAS=1) with no token file: the run writes a token for the
+card's account (LOBBY=fake: its login_key) and removes the file after.
 Exit 0 = the screen is up within LIMIT s. Logs: OUT/boottime.txt (net step changes), stack logs.
 """
 import os
@@ -24,19 +24,20 @@ API = "127.0.0.1:9881"
 
 
 def seed_token(out, p1, card):
-    """Fast login on against the local stack and no token file: a token for the card's account (the server
-    takes no NET file key). Returns the token file it wrote, None (nothing to do), False (failed)."""
+    """Fast login on and no token file: a token for the card's account. Returns the token file it wrote,
+    None (nothing to do), False (failed)."""
     import tokenlogin
     e = launch.pcsx2_env()
-    inis = os.path.join(p1, "inis")
-    if (e["ZDXSV_FAST_LOGIN"] != "1" or e["ZDXSV_AUTH_AT_DNAS"] == "1" or zrig.env("LOBBY") == "fake"
-            or os.path.exists(os.path.join(inis, tokenlogin.TOKEN_FILE))):
+    path = os.path.join(p1, "inis", tokenlogin.TOKEN_FILE)
+    if e["ZDXSV_FAST_LOGIN"] != "1" or e["ZDXSV_AUTH_AT_DNAS"] == "1" or os.path.exists(path):
         return None
-    err = tokenlogin.seed_card(out, inis, card)
+    token, err = tokenlogin.card_token(os.path.join(out, "zdxsv.db"), card, zrig.env("LOBBY") == "fake")
     if err:
         print(f"FAIL token for the card: {err}", flush=True)
         return False
-    return os.path.join(inis, tokenlogin.TOKEN_FILE)
+    with open(path, "w") as f:
+        f.write(token + "\n")
+    return path
 
 
 def run(out, after=None, prepare=None):

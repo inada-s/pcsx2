@@ -31,9 +31,9 @@ namespace Zdxsv
 	// speedhacks too in a battle; an OSD message names the overridden ones (SyncSettings.cpp)
 	void SyncSettingsEnforce();
 	// In VSyncStart, the Z game: when the game starts DNAS on the way to the lobby, log in through the login API with
-	// the token in <settings>/zdxsv_auth_token.txt, else the NET file's login key, and jump to the lobby connect, skipping
+	// the token in <settings>/zdxsv_auth_token.txt and jump to the lobby connect, skipping
 	// DNAS and the login browser (FastLogin.cpp); again at every DNAS start.
-	// No key or no answer: the game goes on as without it. FastLoginReset in GgpoOnVmShutdown drops a pending login.
+	// No token or no answer: the game goes on as without it. FastLoginReset in GgpoOnVmShutdown drops a pending login.
 	void FastLoginOnVsync();
 	void FastLoginReset();
 	// Boot to the lobby user_id selection at unlimited speed, pressing through the menus on the fixed zdxsv route (FastBoot.cpp).

@@ -443,11 +443,11 @@ def stun(port, battle):
 
 
 def login_api(port, db, lobby_addr):
-    """POST /lbs/login (form login_key) as zdxsv's: the account's session from zdxsv.db (a recorded login's), else a new one."""
+    """POST /lbs/login (form token = the login_key, see tokenlogin.card_token) as zdxsv's: the account's session from zdxsv.db (a recorded login's), else a new one."""
     class H(http.server.BaseHTTPRequestHandler):
         def do_POST(self):
             form = urllib.parse.parse_qs(self.rfile.read(int(self.headers.get("Content-Length", 0))).decode())
-            key = form.get("login_key", [""])[0]
+            key = form.get("token", [""])[0]
             sid = ""
             if db and key:
                 with sqlite3.connect(db) as c:

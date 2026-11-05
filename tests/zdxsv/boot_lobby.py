@@ -1,5 +1,6 @@
 """Stand-in lobby for the boot to the user_id selection (boottime.py LOBBY=fake): the lobby API's
-POST /lbs/login and the lobby's login exchange up to the user_id list (0x6131), nothing after.
+POST /lbs/login (form token, answered as the login_key) and the lobby's login exchange up to the user_id list
+(0x6131), nothing after.
 
   boot_lobby.py --public IP:8200 [--port 8200] [--api 127.0.0.1:9881] [--pidfile path]
 
@@ -72,7 +73,7 @@ def api(public):
         def do_POST(self):
             n = min(int(self.headers.get("Content-Length") or 0), 4096)
             form = urllib.parse.parse_qs(self.rfile.read(n).decode("ascii", "replace"))
-            key = form.get("login_key", [""])[0]
+            key = form.get("token", [""])[0]
             if self.path != "/lbs/login" or not key:
                 self.send_response(404)
                 self.end_headers()

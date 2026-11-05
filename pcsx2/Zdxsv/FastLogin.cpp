@@ -43,7 +43,6 @@ namespace Zdxsv
 		constexpr u32 kLobbySub = kGp - 0x59f0;
 		constexpr u32 kLobbyStep = kGp - 0x59f4; // in phase 0x17: 4 = browser closing, display restored
 		constexpr u32 kLbsCount = kGp - 0x5cac;
-		constexpr u32 kNetFileLoginKey = 0xf43960; // filled by the NET file load
 		// The browser's result area: zeroed, then only the fields the lobby connect reads.
 		constexpr u32 kResultBegin = 0x900900;
 		constexpr u32 kResultEnd = 0x904000;
@@ -54,7 +53,6 @@ namespace Zdxsv
 		constexpr u32 kResultLbsList = 0x901a43; // "<lbs id>,<name>": the lobby address is looked up by this id
 		constexpr u32 kResultStatus = 0x903aac; // "999" = login accepted
 		constexpr u32 kSelectedLbsId = 0xc63560;
-		constexpr size_t kLoginKeyLen = 10;
 		constexpr size_t kLbsIdLen = 12;
 
 		struct LoginResult
@@ -316,28 +314,17 @@ namespace Zdxsv
 			s_fast.applied = false;
 			if (!Enabled() || Url().empty())
 				return;
-			std::string form;
-			if (const std::optional<std::string> token = AuthTokenRead())
+			const std::optional<std::string> token = AuthTokenRead();
+			if (!token)
 			{
-				form = "token=" + *token;
-			}
-			else if (!s_fast.sign_in_tried && SignInAtDnas())
-			{
-				StartSignIn();
+				if (!s_fast.sign_in_tried && SignInAtDnas())
+					StartSignIn();
+				else
+					Console.WriteLn("Zdxsv: fast login: no token, normal login");
 				return;
 			}
-			else
-			{
-				const char* key = reinterpret_cast<const char*>(&eeMem->Main[kNetFileLoginKey]);
-				const std::string login_key(key, strnlen(key, kLoginKeyLen + 1));
-				if (login_key.size() != kLoginKeyLen || !Printable(login_key, kLoginKeyLen))
-				{
-					Console.WriteLn("Zdxsv: fast login: no token and no login key in the NET file");
-					return;
-				}
-				form = "login_key=" + login_key;
-			}
-			Console.WriteLn("Zdxsv: fast login: by %s", form.starts_with("token=") ? "token" : "NET file key");
+			std::string form = "token=" + *token;
+			Console.WriteLn("Zdxsv: fast login: by token");
 			std::lock_guard lock(s_fast.mutex);
 			s_fast.answered = false;
 			s_fast.holding = false;

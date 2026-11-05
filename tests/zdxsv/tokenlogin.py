@@ -34,27 +34,28 @@ def migrate(out):
     return 0
 
 
-def seed_card(out, inis, card):
-    """Token for the account whose login_key the card holds, into OUT's db and <inis>/zdxsv_auth_token.txt.
-    Returns an error text or None."""
-    migrate(out)
+def card_token(db, card, stand_in=False):
+    """(token, error) for the account whose login_key the card holds in DB. stand_in: the token is the
+    login_key itself (fake_lobby.py, boot_lobby.py); else a new token stored in DB (migrated first)."""
+    if not stand_in:
+        migrate(os.path.dirname(db))
     data = open(card, "rb").read()
     token = base64.urlsafe_b64encode(secrets.token_bytes(32)).rstrip(b"=").decode()
-    c = sqlite3.connect(os.path.join(out, "zdxsv.db"))
+    c = sqlite3.connect(db)
     try:
         keys = [r[0] for r in c.execute("SELECT login_key FROM account") if r[0] and r[0].encode() in data]
         if len(keys) != 1:
-            return f"{os.path.basename(card)} matches {len(keys)} accounts in the db"
+            return None, f"{os.path.basename(card)} matches {len(keys)} accounts in {db}"
+        if stand_in:
+            return keys[0], None
         c.execute("INSERT INTO auth_token (token_hash, login_key, created) VALUES (?, ?, ?)",
                   (hashlib.sha256(token.encode()).hexdigest(), keys[0], datetime.now()))
         c.commit()
     except sqlite3.Error as e:
-        return f"db: {e} (migratedb.log)"
+        return None, f"db: {e} (migratedb.log)"
     finally:
         c.close()
-    with open(os.path.join(inis, TOKEN_FILE), "w") as f:
-        f.write(token + "\n")
-    return None
+    return token, None
 
 
 def prepare(out):
