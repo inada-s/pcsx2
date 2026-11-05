@@ -159,7 +159,7 @@ void ZdxsvSettingsWidget::signIn()
 	updateAccount();
 	std::thread([widget = QPointer<ZdxsvSettingsWidget>(this), cancel = m_sign_in_cancel,
 					carry = m_ui.zdxsvCarryCode->text().toStdString()]() {
-		const std::string error = Zdxsv::AuthSignIn(carry, [](const std::string& url) { Host::OpenURL(url); }, *cancel);
+		const std::string error = Zdxsv::AuthSignIn(carry, Zdxsv::AuthOpenBrowser, *cancel);
 		QtHost::RunOnUIThread([widget, cancel, error]() {
 			if (!widget || widget->m_sign_in_cancel != cancel)
 				return;

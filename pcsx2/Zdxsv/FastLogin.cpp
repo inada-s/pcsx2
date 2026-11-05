@@ -9,6 +9,8 @@
 
 #include "Config.h"
 #include "Memory.h"
+#include "Host.h"
+#include "VMManager.h"
 
 #include "common/Console.h"
 #include "common/FileSystem.h"
@@ -62,11 +64,15 @@ namespace Zdxsv
 			enum class Step
 			{
 				Idle,
+				SigningIn,
 				Pending,
 				Done,
 			};
 			Step step = Step::Idle;
 			std::mutex mutex;
+			bool sign_in_tried = false;
+			bool sign_in_ended = false;
+			bool sign_in_paused = false;
 			bool answered = false;
 			bool applied = false;
 			std::optional<LoginResult> result;
@@ -77,6 +83,12 @@ namespace Zdxsv
 		bool Enabled()
 		{
 			return BoolSetting("ZdxsvFastLogin", true, "ZDXSV_FAST_LOGIN");
+		}
+
+		bool SignInAtDnas()
+		{
+			const char* env = TestEnv("ZDXSV_AUTH_AT_DNAS");
+			return !env || std::strcmp(env, "0") != 0;
 		}
 
 		std::string Url()
@@ -177,6 +189,39 @@ namespace Zdxsv
 			eeMem->Main[kLobbySub] = 0;
 			eeMem->Main[kLobbyPhase] = 0x17;
 		}
+		void StartSignIn()
+		{
+			std::lock_guard lock(s_fast.mutex);
+			s_fast.sign_in_tried = true;
+			s_fast.sign_in_ended = false;
+			s_fast.sign_in_paused = false;
+			s_fast.cancel = std::make_shared<std::atomic<bool>>(false);
+			s_fast.step = FastLogin::Step::SigningIn;
+			Console.WriteLn("Zdxsv: fast login: no token, signing in with the VM paused");
+			const std::shared_ptr<std::atomic<bool>> cancel = s_fast.cancel;
+			Host::RunOnCPUThread([cancel]() {
+				if (cancel->load())
+					return;
+				VMManager::SetPaused(true);
+				std::lock_guard lock(s_fast.mutex);
+				s_fast.sign_in_paused = true;
+			});
+			std::thread([cancel]() {
+				const std::string error = AuthSignIn("", AuthOpenBrowser, *cancel);
+				Console.WriteLn("Zdxsv: fast login: sign-in %s", error.empty() ? "done" : error.c_str());
+				{
+					std::lock_guard lock(s_fast.mutex);
+					if (s_fast.cancel != cancel)
+						return;
+					s_fast.sign_in_ended = true;
+				}
+				if (!cancel->load())
+					Host::RunOnCPUThread([]() {
+						if (VMManager::GetState() == VMState::Paused)
+							VMManager::SetPaused(false);
+					});
+			}).detach();
+		}
 	} // namespace
 
 	void FastLoginOnVsync()
@@ -186,7 +231,25 @@ namespace Zdxsv
 		{
 			// Every DNAS start logs in again: after ネット終了 or a lost lobby the game comes back here.
 			if (!at_dnas)
+			{
 				s_fast.step = FastLogin::Step::Idle;
+				s_fast.sign_in_tried = false;
+			}
+			return;
+		}
+		if (s_fast.step == FastLogin::Step::SigningIn)
+		{
+			std::lock_guard lock(s_fast.mutex);
+			if (!s_fast.sign_in_ended)
+			{
+				// Vsyncs still run until the pause takes effect; running after it means the player resumed: give up.
+				if (!s_fast.sign_in_paused || VMManager::GetState() != VMState::Running)
+					return;
+				Console.WriteLn("Zdxsv: fast login: resumed during the sign-in, sign-in cancelled");
+				if (s_fast.cancel)
+					s_fast.cancel->store(true);
+			}
+			s_fast.step = FastLogin::Step::Idle;
 			return;
 		}
 		if (s_fast.step == FastLogin::Step::Idle)
@@ -201,6 +264,11 @@ namespace Zdxsv
 			if (const std::optional<std::string> token = AuthTokenRead())
 			{
 				form = "token=" + *token;
+			}
+			else if (!s_fast.sign_in_tried && SignInAtDnas())
+			{
+				StartSignIn();
+				return;
 			}
 			else
 			{
@@ -252,5 +320,8 @@ namespace Zdxsv
 		s_fast.result.reset();
 		s_fast.applied = false;
 		s_fast.step = FastLogin::Step::Idle;
+		s_fast.sign_in_tried = false;
+		s_fast.sign_in_ended = false;
+		s_fast.sign_in_paused = false;
 	}
 } // namespace Zdxsv

@@ -13,6 +13,9 @@ namespace Zdxsv
 	// The server-issued emulator token in the settings folder, if present and well formed.
 	std::optional<std::string> AuthTokenRead();
 
+	// Logs the URL and opens it in the browser (not with ZDXSV_AUTH_NO_BROWSER).
+	void AuthOpenBrowser(const std::string& url);
+
 	// Blocking, off the UI thread. open_url gets the server's sign-in page URL; the browser comes back to a
 	// 127.0.0.1 listener. carry is an optional carry-over code. Saves the token. Returns an empty string or an error.
 	std::string AuthSignIn(const std::string& carry, const std::function<void(const std::string&)>& open_url,

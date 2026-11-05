@@ -193,6 +193,13 @@ namespace Zdxsv
 		}
 	} // namespace
 
+	void AuthOpenBrowser(const std::string& url)
+	{
+		Console.WriteLn("Zdxsv: auth: open %s", url.c_str());
+		if (!TestEnv("ZDXSV_AUTH_NO_BROWSER"))
+			Host::OpenURL(url);
+	}
+
 	std::optional<std::string> AuthTokenRead()
 	{
 		std::optional<std::string> s = FileSystem::ReadFileToString(TokenPath().c_str());
