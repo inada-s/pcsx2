@@ -167,6 +167,24 @@ def pwcheck_ok(path, n):
     return cm > 0 and s == 0
 
 
+def ggpo_ends(logs, nb):
+    """The end msg frame is each position's own (round-end steps run per point of view), so peers may
+    differ; every recording must run past every peer's end msg for any upload to play every view."""
+    ends = []
+    for i, f in logs:
+        ls = rd(f)
+        em = [int(m[1]) for l in ls for m in re.finditer(r"net end msg of frame ([0-9]+) confirmed", l)]
+        bf = [(int(m[1]), int(m[2])) for l in ls
+              for m in re.finditer(r"net battle end frames ([0-9]+) rollback frames [0-9]+ loads [0-9]+ mismatches ([0-9]+)", l)]
+        for k in range(max(len(em), len(bf))):
+            ends.append((i, k + 1, em[k] if k < len(em) else None, *(bf[k] if k < len(bf) else (None, None))))
+    good = len(ends) == len(logs) * nb and all(None not in e and e[4] == 0 for e in ends)
+    for k in range(1, nb + 1):
+        b = [e for e in ends if e[1] == k]
+        good = good and bool(b) and max(e[2] for e in b) < min(e[3] for e in b)
+    return ends, good
+
+
 def main():
     zrig.take()
     zrig.need("ZDXSV_DIR", "IP", "CARDS", "USERS", "RUN")
@@ -739,23 +757,10 @@ def main():
                                                          r"^ZdxsvGgpoPort = [0-9]*")]
             p = pm[0] if pm else ""
             ok(f"p{gd} GGPO port from the setting", p.isdigit() and int(p) > 0 and c(f, f"ZdxsvGgpo: net player .* port {p} "))
-        # every GGPO client: nb GGPO battle ends; per battle the same end msg frame (the stop frame follows each
-        # peer's own confirmation); 0 mismatches
-        ends = []
-        for i in gclients:
-            ls = rd(el(i))
-            em = [m[1] for l in ls for m in re.finditer(r"net end msg of frame ([0-9]*) confirmed", l)]
-            mm = [m[1] for l in ls for m in re.finditer(r"net battle end frames [0-9]* rollback frames [0-9]* loads [0-9]* mismatches ([0-9]*)", l)]
-            for k in range(max(len(em), len(mm))):
-                ends.append((i, k + 1, em[k] if k < len(em) else "", mm[k] if k < len(mm) else ""))
-        for i, k, a, m in ends:
-            say(f"ggpo end p{i} battle {k} end_msg {a} mismatches {m}")
-        per = {}
-        bad = any(m != "0" for _, _, _, m in ends)
-        for _, k, a, _ in ends:
-            bad = bad or (k in per and per[k] != a)
-            per[k] = a
-        ok(f"ggpo end msg frame agrees per battle ({nb}), 0 mismatches", len(ends) == ngc * nb and len(per) == nb and not bad)
+        ends, good = ggpo_ends([(i, el(i)) for i in gclients], nb)
+        for i, k, a, f, m in ends:
+            say(f"ggpo end p{i} battle {k} end_msg {a} frames {f} mismatches {m}")
+        ok(f"ggpo battle ends x{nb}: every recording past every peer's end msg, 0 mismatches", good)
         if E("REPORT"):
             for l in g(lobby, "p2p matching report:"):
                 say(l[:300])
