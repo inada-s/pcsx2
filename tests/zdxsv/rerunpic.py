@@ -20,7 +20,7 @@ def main(argv):
     frames = int(zrig.env("FRAMES", "400"))
     shutil.rmtree(out, ignore_errors=True)
     os.makedirs(out)
-    os.environ["ZDXSV_SNAP"] = f"{out},1,9000"
+    os.environ["ZDXSV_SNAP"] = f"{out},1,9000,{9000 + frames}"
     zrig.export(argv[0] if argv else "")
     _, lines = deltatest.run(["-Var", "ZDXSV_GGPO", "-Spec", f"start=9000,frames={frames},check=2,mask=fcff",
                               "-Route", "arcade", "-End", str(9100 + frames), "-Tag", "t", "-Out", out], show=False)
