@@ -39,6 +39,9 @@ public:
       virtual bool TryForward(sockaddr_storage &from, UdpMsg *msg, int len) { return false; }
       // zdxsv: then, for a packet not forwarded, before it is queued: replies sent here do not wait for OnMsg.
       virtual void OnReceived(sockaddr_storage &from, UdpMsg *msg, int len) { }
+      // zdxsv: with GGPO_NETWORK_DELAY set, every 1 ms on the network thread, NetMutex held: delayed sends
+      // leave when due, not at the next poll of the game thread.
+      virtual void PumpSendQueues() { }
    };
 
    Udp();

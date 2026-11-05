@@ -85,6 +85,7 @@ public:
    // zdxsv: where the packet is read (network thread), NetMutex held: answers a QualityReport and times a
    // QualityReply at once, not at the next poll of the game thread.
    void OnReceived(sockaddr_storage &from, UdpMsg *msg, int len);
+   void PumpSendQueue();
    bool IsFromPeer(const sockaddr_storage &from) const;
    void OnMsg(UdpMsg *msg, int len);
    void Disconnect();
@@ -133,7 +134,6 @@ protected:
    void LogEvent(const char *prefix, const UdpProtocol::Event &evt);
    void SendSyncRequest();
    void SendMsg(UdpMsg *msg, sockaddr_storage* to = nullptr);
-   void PumpSendQueue();
    void SendPendingOutput();
    bool OnInvalid(UdpMsg *msg, int len);
    bool OnSyncRequest(UdpMsg *msg, int len);
