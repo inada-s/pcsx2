@@ -1095,14 +1095,17 @@ namespace Zdxsv
 		}
 		TracePad();
 		TraceInputs();
-		// ZDXSV_SNAP=dir,n[,from]: GS screenshot dir/v<vsync>.png every n vsyncs from vsync `from` (needs a
+		// ZDXSV_SNAP=dir,n[,from[,to]]: GS screenshot dir/v<vsync>.png every n vsyncs in [from, to) (needs a
 		// real renderer, not -Headless)
 		static const char* snap = Zdxsv::TestEnv("ZDXSV_SNAP");
 		static const char* snap_c = snap ? std::strchr(snap, ',') : nullptr;
 		static const int snap_n = snap_c ? std::atoi(snap_c + 1) : 0;
-		static const u32 snap_from = snap_c && std::strchr(snap_c + 1, ',') ? std::atoi(std::strchr(snap_c + 1, ',') + 1) : 0;
-		if (snap_n > 0 && !g_ggpo_in_rollback && g_FrameCount >= snap_from && g_FrameCount % snap_n == 0)
-			GSQueueSnapshot(fmt::format("{}\\v{}.png", std::string(snap, std::strchr(snap, ',')), g_FrameCount));
+		static const char* snap_f = snap_c ? std::strchr(snap_c + 1, ',') : nullptr;
+		static const u32 snap_from = snap_f ? std::atoi(snap_f + 1) : 0;
+		static const char* snap_t = snap_f ? std::strchr(snap_f + 1, ',') : nullptr;
+		static const u32 snap_to = snap_t ? std::atoi(snap_t + 1) : UINT32_MAX;
+		if (snap_n > 0 && !g_ggpo_in_rollback && g_FrameCount >= snap_from && g_FrameCount < snap_to && g_FrameCount % snap_n == 0)
+			GSQueueSnapshot(Path::Combine(std::string_view(snap, std::strchr(snap, ',') - snap), fmt::format("v{}.png", g_FrameCount)));
 		if (!g_ggpo_enabled)
 			return;
 		if (!g_ggpo_active)

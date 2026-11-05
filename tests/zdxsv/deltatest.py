@@ -23,6 +23,19 @@ def pine(*a, quiet_out=False):
                     stdout=subprocess.DEVNULL if quiet_out else None)
 
 
+def wait_snaps(quiet_s=5, max_s=300):
+    """ZDXSV_SNAP PNGs are compressed on threads that a kill cuts off: wait until their sizes stop changing."""
+    d = os.environ.get("ZDXSV_SNAP", "").split(",")[0]
+    if not d or not os.path.isdir(d):
+        return
+    last, still, t0 = None, 0.0, time.time()
+    while time.time() - t0 < max_s and still < quiet_s:
+        sizes = {e.name: e.stat().st_size for e in os.scandir(d) if e.name.endswith(".png")}
+        still = still + 1 if sizes == last else 0
+        last = sizes
+        time.sleep(1)
+
+
 def run(argv, show=True):
     """(rc, the ZdxsvDelta/ZdxsvGgpo log lines); the lines printed when SHOW."""
     o = {"-Spec": "start=1500,frames=3000,depth=8,every=20", "-Var": "ZDXSV_DELTA_TEST", "-Snaps": "",
@@ -45,6 +58,7 @@ def run(argv, show=True):
         pine("snap", os.path.join(out, f"{o['-Tag']}-f{f}.png"), "0.5", quiet_out=True)
     pine("seq", f"f{o['-End']}")
     time.sleep(2)
+    wait_snaps()
     log = os.path.join(out, f"{o['-Tag']}-emulog.txt")
     shutil.copyfile(os.path.join(os.environ["RUN"], "p1", "PCSX2", "logs", "emulog.txt"), log)
     zrig.kill_name("pcsx2")
