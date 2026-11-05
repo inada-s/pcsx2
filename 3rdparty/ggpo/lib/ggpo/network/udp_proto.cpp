@@ -710,16 +710,10 @@ UdpProtocol::OnInput(UdpMsg *msg, int len)
    }
 
    /*
-    * If a disconnect is requested, go ahead and disconnect now.
+    * If a disconnect is requested, disconnect once the inputs in this packet are queued (below).
     */
    bool disconnect_requested = msg->u.input.disconnect_requested;
-   if (disconnect_requested) {
-      if (_current_state != Disconnected && !_disconnect_event_sent) {
-         Log("udpproto%d | Disconnecting endpoint on remote request.", _queue);
-         QueueEvent(Event(Event::Disconnected));
-         _disconnect_event_sent = true;
-      }
-   } else {
+   if (!disconnect_requested) {
       /*
        * Update the peer connection status if this peer is still considered to be part
        * of the network.
@@ -807,6 +801,13 @@ UdpProtocol::OnInput(UdpMsg *msg, int len)
       }
    }
    ASSERT(_last_received_input.frame >= last_received_frame_number);
+
+   // zdxsv: after the inputs: the peer's last packet carries its last inputs, which the disconnect would drop.
+   if (disconnect_requested && _current_state != Disconnected && !_disconnect_event_sent) {
+      Log("udpproto%d | Disconnecting endpoint on remote request.", _queue);
+      QueueEvent(Event(Event::Disconnected));
+      _disconnect_event_sent = true;
+   }
 
    /*
     * Get rid of our buffered input

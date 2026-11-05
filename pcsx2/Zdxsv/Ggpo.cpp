@@ -10,6 +10,9 @@
 #include "Zdxsv/ReplayList.h"
 #include "MTGS.h"
 #include "Input/InputManager.h"
+#ifdef _WIN32
+#include "common/RedtapeWindows.h"
+#endif
 #include "ImGui/FullscreenUI.h"
 
 namespace Zdxsv
@@ -61,6 +64,25 @@ namespace Zdxsv
 		int s_waits = 0; // net: frames that waited for a peer
 		int s_sync_frames = 0; // net: frames slept for GGPO time sync
 		bool s_sync_trimmed = false; // g_frame_period_trim_us holds a time sync wait
+
+		// A net session runs the process at high priority: other programs delay the limiter's wake and the frame less.
+		void SessionPriority(bool high)
+		{
+#ifdef _WIN32
+			static DWORD s_normal = 0;
+			if (high && !s_normal)
+			{
+				s_normal = GetPriorityClass(GetCurrentProcess());
+				SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
+			}
+			else if (!high && s_normal)
+			{
+				SetPriorityClass(GetCurrentProcess(), s_normal);
+				s_normal = 0;
+			}
+#endif
+		}
+
 		double s_sync_max_ms = 0;
 		// ZDXSV_SAVE_ALL=1: delta-save every GGPO frame. Default (net, sync=0): skip the save of a frame at or
 		// below GGPO's last confirmed frame (all inputs received: never a rollback target).
@@ -280,8 +302,8 @@ namespace Zdxsv
 		// Local inputs of the next frame, then the synced inputs go to the pads.
 		bool NextInputs()
 		{
-			if (s_net)
-				return NetNextInputs();
+			if (s_net) // the session start: no input yet, GGPO's frame delay fills the first frames
+				return NetSyncAndApply();
 			if (s_session_frames % 5 == 0)
 			{
 				for (Input& in : s_random)
@@ -786,6 +808,10 @@ namespace Zdxsv
 			const char* dms = Zdxsv::TestEnv("ZDXSV_NET_DISCONNECT_MS");
 			ggpo_set_disconnect_timeout(s_session, dms ? std::atoi(dms) : 10000);
 			ggpo_set_disconnect_notify_start(s_session, 1000);
+			// A frame is confirmed once this peer has its inputs; otherwise, with 3+ players, also once every peer reported them: one more one-way trip of prediction.
+			ggpo_set_disconnect_without_rollback(s_session, true);
+			g_limiter_no_catch_up = true;
+			SessionPriority(true);
 			// relay servers before the players, in the battle info's order on every peer (ggpo_add_relay_server)
 			if (s_lobby)
 				for (const Zdxsv::RelayServerAddr& r : s_net_servers)
@@ -822,7 +848,7 @@ namespace Zdxsv
 				if (ggpo_add_player(s_session, &player, &s_handles[p]) != GGPO_OK)
 					return "start failed";
 				if (player.type == GGPO_PLAYERTYPE_LOCAL)
-					ggpo_set_frame_delay(s_session, s_handles[p], s_delay);
+					ggpo_set_frame_delay(s_session, s_handles[p], s_delay + 1); // + 1: the input is added before the advance
 			}
 			// Every peer arms at its own first key msg: block until all are synchronized.
 			constexpr double START_TIMEOUT_S = 10;
@@ -879,9 +905,9 @@ namespace Zdxsv
 			ggpo_disconnect_player(s_session, s_handles[s_net_me]);
 		}
 
-		bool NetNextInputs()
+		bool NetAddLocalInput(int frame)
 		{
-			NetInput in = NetPack(s_rand_env ? RandInput() : HostInput());
+			NetInput in = NetPack(s_rand_env ? RandInput() : HostInput(), frame);
 			GGPOErrorCode rc = ggpo_add_local_input(s_session, s_handles[s_net_me], &in, sizeof(in));
 			if (rc == GGPO_ERRORCODE_PREDICTION_THRESHOLD)
 			{
@@ -901,7 +927,32 @@ namespace Zdxsv
 				Console.Error("ZdxsvGgpo: net add_local_input %d", rc);
 				return false;
 			}
-			return NetSyncAndApply();
+			return true;
+		}
+
+		// The input was added before the advance, so add_local_input no longer stops the next frame at GGPO's
+		// prediction limit: the same check here, after the rollback.
+		bool NetWaitPredictionLimit()
+		{
+			constexpr int LIMIT = 6; // MAX_PREDICTION_FRAMES
+			const auto at_limit = [] {
+				int frame = 0, confirmed = 0;
+				ggpo_get_current_frame(s_session, &frame);
+				ggpo_get_last_confirmed_frame(s_session, &confirmed);
+				return frame >= LIMIT && frame - confirmed >= LIMIT;
+			};
+			if (!at_limit())
+				return true;
+			s_waits++;
+			Common::Timer wait;
+			while (at_limit() && !s_disconnected && wait.GetTimeSeconds() < 10)
+			{
+				ggpo_idle(s_session, 0);
+				Threading::Sleep(1);
+				NetEndCheck();
+			}
+			s_wait_ms.Add(wait.GetTimeMilliseconds());
+			return s_disconnected || !at_limit();
 		}
 
 		// Inputs of frame s_net_frame: own host pad to pad 0, every position's (A, B) to s_rings.zd_hist, kind-3
@@ -934,6 +985,7 @@ namespace Zdxsv
 	bool g_ggpo_enabled = false; // GgpoOnVmInitialize
 	bool g_mtvu_off = false; // GgpoOnVmInitialize, cleared at VM shutdown
 	s32 g_frame_period_trim_us = 0;
+	bool g_limiter_no_catch_up = false;
 	// The ZDXSV_GGPO options of this VM: the variable, else DEFAULT_OPTIONS for the Z game, else empty = off.
 	// Set by GgpoOnVmInitialize before the CPU runs.
 	std::string s_options;
@@ -1064,6 +1116,8 @@ namespace Zdxsv
 			s_osd_panel = {};
 		}
 		std::fill(std::begin(s_handles), std::end(s_handles), GGPOPlayerHandle{});
+		g_limiter_no_catch_up = false;
+		SessionPriority(false);
 		if (std::exchange(s_sync_trimmed, false))
 			g_frame_period_trim_us = 0;
 		s_frames_ahead = s_waits = s_sync_frames = s_save_skipped = s_session_frames = s_top_frame = s_reruns_left = 0;
@@ -1160,14 +1214,15 @@ namespace Zdxsv
 	}
 
 	// The limiter sleep and input poll that VSyncStart left for after the rollback.
-	static void DeferredThrottle()
+	static void DeferredThrottle(bool poll = true)
 	{
 		if (!std::exchange(s_throttle_deferred, false))
 			return;
 		Common::Timer timer;
 		if (!VMManager::Internal::IsExecutionInterrupted())
 			VMManager::Internal::Throttle();
-		VMManager::Internal::PollInputOnCPUThread();
+		if (poll)
+			VMManager::Internal::PollInputOnCPUThread();
 		s_sleep_ms.Add(timer.GetTimeMilliseconds());
 	}
 
@@ -1235,6 +1290,22 @@ namespace Zdxsv
 				Stop("failed");
 			return;
 		}
+		// net: the input is read and sent before the rollback, so its age does not depend on the rollback's length.
+		if (s_net)
+		{
+			if (s_throttle_deferred)
+			{
+				VMManager::Internal::PollInputOnCPUThread();
+				if (!s_session) // the input poll ran a VM shutdown or reset
+					return;
+			}
+			// Not at frame 0: an input added before the first read lets GGPO discard frames the next read needs.
+			if (s_session_frames != 0 && !NetAddLocalInput(s_net_frame + 1))
+			{
+				Stop("failed");
+				return;
+			}
+		}
 		if (ggpo_advance_frame(s_session) != GGPO_OK || ggpo_idle(s_session, 0) != GGPO_OK)
 		{
 			Stop("failed");
@@ -1252,7 +1323,7 @@ namespace Zdxsv
 			// A peer leaves once it confirmed the end msg, which took our input of that frame: an end msg still to
 			// come is no later than our last input's frame.
 			if (s_disconnected_until < 0)
-				s_disconnected_until = s_net_frame + s_delay;
+				s_disconnected_until = s_net_frame + s_delay + 1;
 			if (!s_net || s_net_frame > s_disconnected_until)
 			{
 				Stop("disconnected");
@@ -1295,6 +1366,14 @@ namespace Zdxsv
 			SamplePeerPings();
 		if (s_net)
 			SampleFps();
+		if (s_net)
+		{
+			const bool ok = NetWaitPredictionLimit();
+			DeferredThrottle(false);
+			if (!ok || !NetSyncAndApply())
+				Stop("failed");
+			return;
+		}
 		DeferredThrottle();
 		if (!s_session) // the input poll ran a VM shutdown or reset
 			return;

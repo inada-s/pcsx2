@@ -255,7 +255,7 @@ namespace Zdxsv
 	constexpr u32 NET_FNO_RECV = 0x14;
 	void NetSaved(int frame);
 	Input RandInput();
-	NetInput NetPack(const Input& pad);
+	NetInput NetPack(const Input& pad, int frame);
 	void NetApply(const NetInput* in);
 	void NetReport();
 	extern std::vector<NetInput> s_play_inputs;

@@ -17,6 +17,7 @@ pcsx2 must turn it off for the VM. N=4 plays p1..p4. N=2 plays p1 (position 0) +
 INI0="Section:Key=Value;..." (syncset): ini entries for peer 0 only; its ini before them is kept in PCSX2.ini.rbk0
 and put back by the next run. SPEED0=X: peer 0 runs at speed X.
 LAT (one-way ms; set = a udprelay.py per peer pair), JITTER (ms, 0), LOSS (0..1, 0).
+MAXWAIT=n: FAIL if a peer's OSD `Wait` (frames stopped at GGPO's prediction limit) ends above n.
 STALL=ms: suspend the peer at position 1 for ms every 5 s, 8 times from 40 s, so the others run ahead.
 Sync check: pwcheck compares each player's x, y, z and game RNG B (0x6d793c) on every frame (RNG A takes
 machine-local sound draws: reported, not judged; OWN: no effect).
@@ -264,6 +265,14 @@ def main(argv):
             print(f"p{peers[0]} frames ahead at the end: {ahead}", flush=True)
             if not ahead or max(ahead) > MAX_AHEAD_AFTER_STALL:
                 print("FAIL STALL: time sync did not bring the peer back", flush=True)
+                ok = 1
+    if zrig.env("MAXWAIT"):
+        for p in peers:
+            osd = lines(emulog(p), "osd frame")
+            m = re.search(r"Wait (\d+)", osd[-1]) if osd else None
+            print(f"p{p} prediction limit waits: {m[1] if m else 'none'}", flush=True)
+            if not m or int(m[1]) > int(zrig.env("MAXWAIT")):
+                print("FAIL MAXWAIT", flush=True)
                 ok = 1
     print(f"rbk N={n} seed={seed or 'none'}: {round(time.time() - t0)} s, {'PASS' if ok == 0 else 'FAIL'}", flush=True)
     return ok

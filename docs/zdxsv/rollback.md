@@ -193,8 +193,11 @@ The game runs with its own input delay 0; GGPO adds the input delay.
   frame without a confirmed end message. Otherwise it is a `net battle end`,
   with the replay ending at the end message frame. The tail frames run on zero inputs for the peers, so the
   replay and the pw hashes stop at the frame confirmed at the end. GGPO's
-  `disconnect_without_rollback` stays off: a peer that stops sending
-  mid-battle still rolls back to its last received input.
+  `disconnect_without_rollback` is on: a frame is confirmed once this peer has
+  its inputs, not once every peer reported them, which with 3 or more players
+  would add one one-way trip of prediction. A peer that stops sending
+  mid-battle keeps its received inputs and gets zero inputs after them, with no
+  rollback.
 - After a `net battle end` or `disconnected` the battle socket answers as a
   closed connection until the game closes it: sends are dropped, nothing to
   recv, the poll fails. The battle server closes the connection on the
@@ -219,6 +222,19 @@ Three mechanisms keep the peers on the same frame:
 - **Round handshake lag** (`ZDXSV_K3_LAG`): a round-handshake message goes
   into the input a fixed number of GGPO frames after the game sent it, more
   than GGPO's prediction window, so it does not depend on network timing.
+
+### Frame order and pacing (`net=1`)
+
+With `ZdxsvLowLatencyVsync` a battle frame ends: present, input poll and send,
+GGPO advance, rollback, wait at the prediction limit, limiter sleep, then the
+next frame runs. The input goes out before the rollback and the sleep: the peers
+get it that much earlier, and its age does not depend on the rollback's length.
+The press is that much older when the frame runs. The input joins GGPO before
+the advance, so GGPO's frame delay is the battle delay + 1, for the same frame.
+
+During a battle the limiter does not pay a late frame back with shorter ones:
+the next frame waits a full period from the late one. The process runs at high
+priority (Windows) for the session.
 
 ### Rollback budget
 
