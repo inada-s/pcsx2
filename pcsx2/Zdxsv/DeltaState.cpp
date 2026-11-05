@@ -67,7 +67,7 @@ namespace Zdxsv
 		// Hot pages: written in HOT_AFTER save intervals in a row. They stay writable and are copied at
 		// every save and load instead, which saves the protect calls (one per fastmem alias, ~17 us a
 		// page) and the fault. Unchanged for COLD_AFTER intervals: watched again.
-		u8 HOT_AFTER = 1, COLD_AFTER = 32;
+		constexpr u8 HOT_AFTER = 1, COLD_AFTER = 32;
 
 		// One page index space: EE RAM, IOP RAM, SPU2 RAM. vtlb watches the EE pages; the IOP and
 		// SPU2 pages (one host view each, written on the CPU thread only) are watched here.
@@ -76,7 +76,6 @@ namespace Zdxsv
 		constexpr u32 SPU_FIRST = IOP_FIRST + Ps2MemSize::TotalIopRam / PAGE_BYTES;
 		constexpr u32 SPU_BYTES = 0x200000;
 		constexpr u32 ALL_PAGES = SPU_FIRST + SPU_BYTES / PAGE_BYTES;
-		bool s_paged = false;
 		bool s_host_watched[ALL_PAGES - IOP_FIRST] = {};
 
 		u8* PagePtr(u32 page)
@@ -93,7 +92,6 @@ namespace Zdxsv
 			return Ps2MemSize::ExposedIopRam / PAGE_BYTES;
 		}
 
-		int s_hot_enabled = -1;
 		bool s_is_hot[ALL_PAGES] = {};
 		u8 s_run[ALL_PAGES] = {}; // cold: save intervals in a row with a write; hot: without a change
 		int s_last_write[ALL_PAGES] = {}; // cold: s_save_calls of the last interval with a write
@@ -164,8 +162,6 @@ namespace Zdxsv
 		void WatchAll()
 		{
 			mmap_DeltaWatchAll();
-			if (!s_paged)
-				return;
 			std::fill_n(&s_host_watched[0], IopPages(), true);
 			std::fill_n(&s_host_watched[SPU_FIRST - IOP_FIRST], ALL_PAGES - SPU_FIRST, true);
 			HostSys::MemProtect(iopMem->Main, Ps2MemSize::ExposedIopRam, PageAccess_ReadOnly());
@@ -279,7 +275,7 @@ namespace Zdxsv
 				}
 				s_run[page] = (s_last_write[page] == s_save_calls - 1) ? static_cast<u8>(std::min(s_run[page] + 1, 255)) : 1;
 				s_last_write[page] = s_save_calls;
-				if (s_hot_enabled && s_run[page] >= HOT_AFTER)
+				if (s_run[page] >= HOT_AFTER)
 				{
 					s_is_hot[page] = true;
 					s_run[page] = 0;
@@ -309,19 +305,6 @@ namespace Zdxsv
 		Common::Timer total;
 		ScopedGuard add_total([&total]() { s_total_ms += total.GetTimeMilliseconds(); });
 		s_save_calls++;
-		if (s_hot_enabled < 0)
-		{
-			const char* env = std::getenv("ZDXSV_DELTA_HOT");
-			s_hot_enabled = !(env && env[0] == '0');
-			if (env && s_hot_enabled)
-			{
-				const std::vector<std::string_view> v = StringUtil::SplitString(env, ',');
-				HOT_AFTER = static_cast<u8>(std::clamp(StringUtil::FromChars<int>(v[0]).value_or(HOT_AFTER), 1, 255));
-				if (v.size() > 1)
-					COLD_AFTER = static_cast<u8>(std::clamp(StringUtil::FromChars<int>(v[1]).value_or(COLD_AFTER), 1, 255));
-				Console.WriteLn("ZdxsvDelta: hot after %d, cold after %d", HOT_AFTER, COLD_AFTER);
-			}
-		}
 		if (!s_states.empty())
 		{
 			const int last = s_states.rbegin()->first;
@@ -346,11 +329,9 @@ namespace Zdxsv
 			// Never with DeltaStateDiscardBefore keeping the newest frame (a load of this frame would restore them).
 			if (!s_open.empty())
 				Console.Error("ZdxsvDelta: save of frame %d with no saved frame left, %zu stale open pages", frame, s_open.size());
-			const char* paged = std::getenv("ZDXSV_DELTA_PAGED");
-			s_paged = !(paged && paged[0] == '0');
-			SaveState_DeltaSetPagedRam(s_paged);
+			SaveState_DeltaSetPagedRam(true);
 			mmap_DeltaSetHook(&OnWrite);
-			mmap_DeltaSetFaultHook(s_paged ? &OnHostFault : nullptr);
+			mmap_DeltaSetFaultHook(&OnHostFault);
 			WatchAll();
 		}
 		std::vector<u8> buffer;
