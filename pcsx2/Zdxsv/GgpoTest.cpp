@@ -84,7 +84,7 @@ namespace Zdxsv
 		static int calls = 0;
 		if (calls == 0)
 		{
-			std::seed_seq seq{static_cast<u32>(std::atoi(s_rand_env)), static_cast<u32>(s_net_me)};
+			std::seed_seq seq{static_cast<u32>(std::atoi(s_rand_env)), static_cast<u32>(s_battle.me)};
 			rng.seed(seq);
 		}
 		if (calls++ % 5 == 0)

@@ -50,7 +50,7 @@ namespace Zdxsv
 			}
 			PutInt(pb, 20, s_replay_start_at);
 			PutInt(pb, 40, s_players);
-			PutInt(pb, 41, s_net_me);
+			PutInt(pb, 41, s_battle.me);
 			PutInt(pb, 42, s_delay);
 			PutString(pb, 43, ids);
 			PutBytes(pb, 45, s_replay_hle0.rx.data(), s_replay_hle0.rx.size());
@@ -275,7 +275,7 @@ namespace Zdxsv
 		s_replay_ps.push_back(s_rb.ps.rel);
 		int confirmed = -1;
 		if (s_session && ggpo_get_last_confirmed_frame(s_session, &confirmed) == GGPO_OK)
-			s_replay_confirmed = std::max(s_replay_confirmed, std::min(confirmed, s_net_last_real));
+			s_replay_confirmed = std::max(s_replay_confirmed, std::min(confirmed, s_battle.last_real));
 		LiveFeed(static_cast<size_t>(s_replay_confirmed + 1));
 	}
 
@@ -317,7 +317,7 @@ namespace Zdxsv
 		for (const char c : code)
 			name += std::isalnum(static_cast<unsigned char>(c)) || c == '-' || c == '_' ? c : '_';
 		if (name.empty())
-			name = fmt::format("rbk-{}-p{}", s_replay_start_at, s_net_me);
+			name = fmt::format("rbk-{}-p{}", s_replay_start_at, s_battle.me);
 		using namespace Pb;
 		std::vector<uint8_t> pb = ReplayHeader(code, ids);
 		pb.reserve(frames * s_players * sizeof(NetInput) + pb.size() + 1024);
