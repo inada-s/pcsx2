@@ -31,7 +31,7 @@ namespace Zdxsv
 				s_live_seen.push_back(code);
 		}
 
-		size_t s_live_round_bytes = 0; // of s_live_got.rounds already in s_play_file_rounds
+		size_t s_live_round_bytes = 0; // of s_live_got.rounds already in s_play_loads.file_rounds
 
 		// BattleLogFile round_data entries -> win_team per round
 		std::optional<std::vector<int>> LiveWins(const std::vector<u8>& r)
@@ -70,8 +70,8 @@ namespace Zdxsv
 				return;
 			s_live_round_bytes = r.size();
 			std::lock_guard lock(s_battle_loads_mtx);
-			LogLiveWins(*wins, s_play_file_rounds.size());
-			s_play_file_rounds = std::move(*wins);
+			LogLiveWins(*wins, s_play_loads.file_rounds.size());
+			s_play_loads.file_rounds = std::move(*wins);
 		}
 
 		void LiveTake()
@@ -86,22 +86,22 @@ namespace Zdxsv
 			const size_t fb = hashed ? got : in_bytes;
 			if (const size_t n = s_live_got.inputs.size() / fb; n > 0 && s_live_close.empty())
 			{
-				const bool add_hashes = hashed && s_play_hashes.size() == static_cast<size_t>(s_play_frames);
-				const size_t at = s_play_inputs.size();
-				s_play_inputs.resize(at + n * s_players);
+				const bool add_hashes = hashed && s_play.hashes.size() == static_cast<size_t>(s_play.frames);
+				const size_t at = s_play.inputs.size();
+				s_play.inputs.resize(at + n * s_players);
 				for (size_t i = 0; i < n; i++)
 				{
 					const u8* record = s_live_got.inputs.data() + i * fb;
-					std::memcpy(&s_play_inputs[at + i * s_players], record, in_bytes);
+					std::memcpy(&s_play.inputs[at + i * s_players], record, in_bytes);
 					if (add_hashes)
 					{
 						u32 hash;
 						std::memcpy(&hash, record + in_bytes, sizeof(hash));
-						s_play_hashes.push_back(hash);
+						s_play.hashes.push_back(hash);
 					}
 				}
 				s_live_got.inputs.erase(s_live_got.inputs.begin(), s_live_got.inputs.begin() + n * fb);
-				s_play_frames += static_cast<int>(n);
+				s_play.frames += static_cast<int>(n);
 			}
 			if (s_live_got.closed && s_live_close.empty())
 				s_live_close = s_live_got.close.empty() ? "end" : s_live_got.close;
@@ -128,17 +128,17 @@ namespace Zdxsv
 			{
 				s_pace_log = 0;
 				Console.WriteLn("ZdxsvGgpo: live: pace frame %d gap %d trim %d us rate %.2f hz, %d waits %.0f ms", next,
-					s_play_frames - next, g_frame_period_trim_us, s_pace_hz, s_live_waits, s_live_wait_ms);
+					s_play.frames - next, g_frame_period_trim_us, s_pace_hz, s_live_waits, s_live_wait_ms);
 			}
 			const bool idle = s_pace_call.GetTimeSeconds() > PACE_IDLE_S; // paused, or a long wait at the edge
 			s_pace_call.Reset();
-			if (s_pace_off || s_live_catchup || s_run_load >= 0 || s_play_target >= 0 || s_to_phase != TO_OFF ||
+			if (s_pace_off || s_live_catchup || s_play.run_load >= 0 || s_play.target >= 0 || s_to_phase != TO_OFF ||
 				!s_live_close.empty())
 			{
 				LivePaceReset();
 				return;
 			}
-			const int recv = s_play_frames;
+			const int recv = s_play.frames;
 			if (recv != s_pace_last_recv)
 			{
 				s_pace_last_recv = recv;
@@ -187,7 +187,7 @@ namespace Zdxsv
 		// ZDXSV_REPLAY_SYNC=0 (test control): members publish their frame but neither wait nor chase
 		const bool s_sync_test_off = [] { const char* e = TestEnv("ZDXSV_REPLAY_SYNC"); return e && e[0] == '0'; }();
 
-		bool PlayCatchingUp() { return s_run_load >= 0 || s_play_target >= 0 || s_live_catchup; }
+		bool PlayCatchingUp() { return s_play.run_load >= 0 || s_play.target >= 0 || s_live_catchup; }
 
 		// Not the CPU thread. Host: publishes its pause, tiles the windows; guest: follows the pause, quits with the host.
 		void SyncWatch(bool host)
@@ -235,7 +235,7 @@ namespace Zdxsv
 	std::deque<std::pair<int, int>> s_play_pov_at; // ZDXSV_REPLAY_POV_AT=frame:position,...
 	PlaySent s_play_sent[GGPO_MAX_PLAYERS];
 	std::unique_ptr<Zdxsv::LiveDown> s_live_down;
-	Zdxsv::LiveStreams s_live_got; // inputs not in s_play_inputs yet (part of a frame)
+	Zdxsv::LiveStreams s_live_got; // inputs not in s_play.inputs yet (part of a frame)
 	std::string s_live_close; // "" = running
 	bool s_live_catchup = false, s_live_close_logged = false;
 	int s_live_waits = 0, s_live_hold_want = -1;
@@ -375,12 +375,12 @@ namespace Zdxsv
 		const int next = s_net_frame + 1;
 		if (s_live_hold_want < 0)
 		{
-			if (next < s_play_frames || !s_live_close.empty())
+			if (next < s_play.frames || !s_live_close.empty())
 				return false;
-			s_live_hold_want = next + (s_run_load >= 0 || s_play_target >= 0 || s_live_catchup ? 1 : LIVE_BUFFER);
+			s_live_hold_want = next + (s_play.run_load >= 0 || s_play.target >= 0 || s_live_catchup ? 1 : LIVE_BUFFER);
 			s_live_hold_wait.Reset();
 		}
-		if (s_play_frames < s_live_hold_want && s_live_close.empty() && s_play_req.load() == INT_MIN)
+		if (s_play.frames < s_live_hold_want && s_live_close.empty() && s_play_req.load() == INT_MIN)
 			return true;
 		s_live_hold_want = -1;
 		s_live_waits++;
@@ -392,11 +392,11 @@ namespace Zdxsv
 	void LiveNext(int next)
 	{
 		LiveTake();
-		if (!s_live_close.empty() && next >= s_play_frames && !std::exchange(s_live_close_logged, true))
-			Console.WriteLn("ZdxsvGgpo: live: stream closed (%s) at frame %d, %d waits %.0f ms", s_live_close.c_str(), s_play_frames,
+		if (!s_live_close.empty() && next >= s_play.frames && !std::exchange(s_live_close_logged, true))
+			Console.WriteLn("ZdxsvGgpo: live: stream closed (%s) at frame %d, %d waits %.0f ms", s_live_close.c_str(), s_play.frames,
 				s_live_waits, s_live_wait_ms);
-		const int ahead = s_play_frames - next;
-		if (!s_live_catchup && ahead > LIVE_BUFFER + LIVE_CATCHUP && s_run_load < 0 && s_play_target < 0)
+		const int ahead = s_play.frames - next;
+		if (!s_live_catchup && ahead > LIVE_BUFFER + LIVE_CATCHUP && s_play.run_load < 0 && s_play.target < 0)
 		{
 			s_live_catchup = true;
 			s_live_limiter = VMManager::GetLimiterMode();
@@ -446,7 +446,7 @@ namespace Zdxsv
 			const std::string trace = trace_env ? trace_env : "";
 			for (int p = 0; p < s_players && p < Zdxsv::SpectateSync::GRID; p++)
 			{
-				if (p == me || !s_play_pov_ok[p])
+				if (p == me || !s_play.pov_ok[p])
 					continue;
 				std::vector<std::pair<std::string, std::string>> env = {
 					{"ZDXSV_REPLAY_POV", std::to_string(p)}, {"ZDXSV_REPLAY_GROUP", g}, {"ZDXSV_REPLAY_FOUR", "0"}};
