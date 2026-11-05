@@ -115,6 +115,9 @@ namespace Zdxsv
 			{0x48, 0, {}, 0}, {0x05, 0, {}, 0}, {0x29, 0, {}, 0}, {0x2b, 0, {}, 0}, {0x2e, 0, {}, 0}, {0x36, 0, {}, 0},
 			{0x01, 0, {}, 0}, {0x3b, 0, {}, 0}, {0x1e, 0, {}, 0}, {0x3d, 0, {}, 0}, {0x3e, 0, {}, 0},
 			{0x03, 0, {}, 0}, {0x04, 4, {}, 0}, // battle socket options: set; get (result = value size, value 0 at +0x22)
+			// ネット終了, from 0x3c to 0x06: the game waits up to 10 s for the link state to drop and closes no socket itself.
+			{0x0b, 0, {}, 0}, {0x3c, 0, {}, 0}, {0x1f, 0, {}, 0}, {0x02, 0, {}, 0}, {0x3a, 0, {}, 0}, {0x2f, -2, {}, 0},
+			{0x2d, 0, {}, 0}, {0x2a, 0, {}, 0}, {0x06, 0, {}, 0},
 		};
 		constexpr u32 kFnoLinkUp = 0x46; // 1 on the first call, then 0
 		constexpr u32 kFnoConnect = 0x07;
@@ -125,6 +128,9 @@ namespace Zdxsv
 		constexpr u32 kFnoRecvLobby = 0x13;
 		constexpr u32 kFnoRecv = 0x14;
 		constexpr u32 kFnoResolve = 0x3f;
+		constexpr u32 kFnoNetEnd = 0x06;
+		constexpr u32 kFnoNetEndStart = 0x3c;
+		constexpr u32 kFnoLinkState = 0x38;
 		constexpr u32 kRxMax = 0x3e0;
 		constexpr int kSlots = 4; // the socket id is connect's result; later calls pass it at +0x1c
 
@@ -135,6 +141,7 @@ namespace Zdxsv
 			std::shared_ptr<std::atomic<u32>> server_ip; // without a fixed ip: the host DNS answer for SERVER_HOST
 			u32 link_calls = 0;
 			u8 last_net = 0;
+			bool net_ending = false;
 			sock_t socks[kSlots] = {INVALID_SOCKET, INVALID_SOCKET, INVALID_SOCKET, INVALID_SOCKET};
 			u32 peer[kSlots] = {};
 			u16 peer_port[kSlots] = {}; // network order
@@ -510,7 +517,11 @@ namespace Zdxsv
 			const Reply* r = std::find_if(std::begin(kReplies), std::end(kReplies), [fno](const Reply& r) { return r.fno == fno; });
 			if (r == std::end(kReplies))
 				return false;
-			res = r->result;
+			if (fno == kFnoNetEnd)
+				for (int id = 0; id < kSlots; id++)
+					CloseSlot(id);
+			s_state.net_ending = fno == kFnoNetEndStart || (s_state.net_ending && fno != kFnoNetEnd);
+			res = fno == kFnoLinkState && s_state.net_ending ? 0 : r->result;
 			const s32 rs = cpuRegs.GPR.n.a2.SL[0];
 			if (rs > 0x1c)
 				std::memset(b + 0x1c, 0, std::min(rs, 0x400) - 0x1c);

@@ -21,7 +21,7 @@ import zrig
 API = "127.0.0.1:9881"
 
 
-def run(out):
+def run(out, after=None):
     run_ = os.environ["RUN"]
     p1 = os.path.join(run_, "p1", "PCSX2")
     card = zrig.env("CARD") or os.environ["CARDS"].split()[0]
@@ -98,7 +98,8 @@ def run(out):
              "--emulog", emulog, "--out", out, "--limit", zrig.env("LIMIT", "5"), "--maxs", zrig.env("MAXS", "200")]
         if zrig.env("ROUTE"):
             a += ["--route", os.environ["ROUTE"]] + (["--route-end"] if zrig.env("ROUTE_END") else [])
-        return subprocess.call(a)
+        rc = subprocess.call(a)
+        return after(out) if rc == 0 and after else rc
     finally:
         cleanup()
 
