@@ -39,7 +39,7 @@ this table says it is missing.
 ## Online play ([lobby.md](lobby.md))
 
 - **Switch for all online battle extensions**: `ZDXSV_EXTENSIONS=0`.
-- **Online without DEV9**: with the platform info, a TCP battle, a GGPO battle and TLS; every connection menu button connects with no network setting, also from a blank card; `ZdxsvNoDev9`, `ZDXSV_NODEV9`.
+- **Online without DEV9**: with the platform info, a TCP battle, a GGPO battle and TLS; every connection menu button connects with no network setting, also from a blank card; ネット終了 closes the lobby connection and returns to the main menu; `ZdxsvNoDev9`, `ZDXSV_NODEV9`.
 - **Fast login**: DNAS and the login browser skipped; `ZdxsvFastLogin`, `ZdxsvLoginApiUrl`.
 - **Fast boot**: boot to the lobby user_id selection with no input; `ZdxsvFastBoot`, `ZdxsvFastBootState`, `ZdxsvFastBootLobby` (on through ID 1 into the lobby).
 - **Platform info `0x9950` to the lobby**: `ZDXSV_PLATFORM_INFO`.
