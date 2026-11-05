@@ -33,6 +33,7 @@ Checks (besides m4.py's): GGPO clients: `lobby peer position` x(N-1) and `net pl
 """
 import os
 import re
+import socket
 import subprocess
 import sys
 
@@ -47,6 +48,15 @@ def ok(name, cond):
         RC[0] = 1
 
 
+def has_addr(ip):
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+        try:
+            s.bind((ip, 0))
+            return True
+        except OSError:
+            return False
+
+
 def main():
     zrig.need("RUN")
     run = os.environ["RUN"]
@@ -59,6 +69,9 @@ def main():
     # RELAY checks assume the ping test (GDELAY=auto); a fixed delay skips it
     if relay and not auto:
         print(f"m4ggpo: RELAY needs GDELAY=auto (got {gdelay})")
+        return 2
+    if relay and alt and not has_addr("127.0.0.2"):
+        print("m4ggpo: RELAY_ALT needs 127.0.0.2 on the loopback (macOS: sudo ifconfig lo0 alias 127.0.0.2)")
         return 2
     for i in gc:
         prev = zrig.env(f"PCSX2_ENV_P{i}")  # keep a caller's per-client env (m4lat.py)
