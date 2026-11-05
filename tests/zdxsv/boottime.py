@@ -21,12 +21,14 @@ import zrig
 API = "127.0.0.1:9881"
 
 
-def run(out, after=None):
+def run(out, after=None, prepare=None):
     run_ = os.environ["RUN"]
     p1 = os.path.join(run_, "p1", "PCSX2")
     card = zrig.env("CARD") or os.environ["CARDS"].split()[0]
     os.makedirs(out, exist_ok=True)
     shutil.copyfile(os.path.join(run_, "zdxsv.db"), os.path.join(out, "zdxsv.db"))
+    if prepare and prepare(out):
+        return 1
     procs = []
 
     def killall():
