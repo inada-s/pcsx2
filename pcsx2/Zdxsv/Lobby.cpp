@@ -630,7 +630,7 @@ namespace Zdxsv
 		// ("host:port,host:port"; none = no item with a port)
 		std::vector<std::string> NatStunServers()
 		{
-			const char* env = std::getenv("ZDXSV_NAT_STUN");
+			const char* env = TestEnv("ZDXSV_NAT_STUN");
 			std::stringstream list(env ? env : "stun.l.google.com:19302,stun.cloudflare.com:3478");
 			std::vector<std::string> out;
 			for (std::string item; std::getline(list, item, ',');)

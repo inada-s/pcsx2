@@ -5,6 +5,7 @@
 #include "Zdxsv/Ggpo.h"
 #include "Zdxsv/Lobby.h"
 #include "Zdxsv/ReplayList.h"
+#include "Zdxsv/TestOptions.h"
 
 #include "Host.h"
 #include "IconsPromptFont.h"
@@ -136,7 +137,7 @@ namespace Zdxsv
 		// mouse moves over the bottom quarter, 1 = always, 2 = never; ZDXSV_REPLAY_BAR=1 / =0 overrides it (always / never).
 		void DrawReplayBar(float scale, float margin)
 		{
-			static const char* const s_env = std::getenv("ZDXSV_REPLAY_BAR");
+			static const char* const s_env = TestEnv("ZDXSV_REPLAY_BAR");
 			static float s_idle = 0.0f;
 			static ImVec2 s_prev_mouse(-1.0f, -1.0f);
 			static std::string s_layout; // logged when it changes: test drivers (tests/zdxsv/pcsx2ctl.ps1 bar:) click from it

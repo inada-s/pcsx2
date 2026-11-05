@@ -4,6 +4,7 @@
 #include "Zdxsv/CpuHooks.h"
 #include "Zdxsv/FastLogin.h"
 #include "Zdxsv/Settings.h"
+#include "Zdxsv/TestOptions.h"
 
 #include "Memory.h"
 
@@ -75,7 +76,7 @@ namespace Zdxsv
 
 		std::string Url()
 		{
-			if (const char* env = std::getenv("ZDXSV_LOGIN_API_URL"))
+			if (const char* env = TestEnv("ZDXSV_LOGIN_API_URL"))
 				return env;
 			return Host::GetStringSettingValue("DEV9/Eth", "ZdxsvLoginApiUrl", ServerApiUrl("/lbs/login").c_str());
 		}

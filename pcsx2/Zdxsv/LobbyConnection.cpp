@@ -130,7 +130,7 @@ namespace Zdxsv
 
 		std::string UdpTestUrl()
 		{
-			if (const char* env = std::getenv("ZDXSV_UDPTEST_URL"))
+			if (const char* env = TestEnv("ZDXSV_UDPTEST_URL"))
 				return env;
 			return Host::GetStringSettingValue("DEV9/Eth", "ZdxsvUdpTestUrl", UDPTEST_URL);
 		}
@@ -186,7 +186,7 @@ namespace Zdxsv
 			LobbySetLogger([](const std::string& s) { Console.WriteLn("DEV9: %s", s.c_str()); });
 			filter = new LobbyFilter();
 			// The lobby's UDP STUN is on its host at 8201 (zdxsv docker-compose); ZDXSV_STUN_PORT overrides.
-			const char* stunPortEnv = std::getenv("ZDXSV_STUN_PORT");
+			const char* stunPortEnv = TestEnv("ZDXSV_STUN_PORT");
 			const u16 stunPort = stunPortEnv ? static_cast<u16>(std::atoi(stunPortEnv)) : 8201;
 			std::string lines = OpenUdp(serverIp, stunPort, static_cast<u16>(ggpoPort));
 			// Connectivity test of the GGPO port, once per run, on its own thread so the DEV9 rx thread does

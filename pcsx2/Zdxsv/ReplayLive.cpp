@@ -4,6 +4,7 @@
 // Replay playback of a live stream and the spectator sync of several viewers.
 
 #include "Zdxsv/GgpoShared.h"
+#include "Zdxsv/TestOptions.h"
 #include "IconsFontAwesome.h"
 
 namespace Zdxsv
@@ -17,7 +18,7 @@ namespace Zdxsv
 		LimiterModeType s_live_limiter = LimiterModeType::Nominal;
 		std::vector<std::string> s_live_seen; // battle codes watched, oldest first, kept across the resets
 		int s_live_next_left = [] {
-			const char* e = std::getenv("ZDXSV_LIVE_NEXT");
+			const char* e = TestEnv("ZDXSV_LIVE_NEXT");
 			return e ? std::atoi(e) : -1; // -1 = the setting decides (no limit)
 		}();
 		int s_live_skips = 0; // battles auto-next could not play, kept across the resets
@@ -116,7 +117,7 @@ namespace Zdxsv
 		constexpr int PACE_DEADBAND_MAX = 2, PACE_US_PER_FRAME = 40, PACE_STALL = 5, PACE_LOG = 600;
 		constexpr double PACE_I_GAIN = 0.25, PACE_I_LIMIT = 600, PACE_FLOOR_US = -4000, PACE_CEIL_US = 8000;
 		constexpr double PACE_WINDOW_S = 1, PACE_ALPHA = 0.25, PACE_MIN_HZ = 30, PACE_MAX_HZ = 65, PACE_IDLE_S = 0.1;
-		const bool s_pace_off = [] { const char* e = std::getenv("ZDXSV_LIVE_PACING"); return e && e[0] == '0'; }();
+		const bool s_pace_off = [] { const char* e = TestEnv("ZDXSV_LIVE_PACING"); return e && e[0] == '0'; }();
 		double s_pace_i = 0, s_pace_hz = 0;
 		Common::Timer s_pace_win, s_pace_call;
 		int s_pace_win_recv = -1, s_pace_last_recv = 0, s_pace_stall = 0, s_pace_log = 0;
@@ -184,7 +185,7 @@ namespace Zdxsv
 		u32 s_sync_seek_gen = 0;
 		int s_sync_pids[Zdxsv::SpectateSync::GRID] = {};
 		// ZDXSV_REPLAY_SYNC=0 (test control): members publish their frame but neither wait nor chase
-		const bool s_sync_test_off = [] { const char* e = std::getenv("ZDXSV_REPLAY_SYNC"); return e && e[0] == '0'; }();
+		const bool s_sync_test_off = [] { const char* e = TestEnv("ZDXSV_REPLAY_SYNC"); return e && e[0] == '0'; }();
 
 		bool PlayCatchingUp() { return s_run_load >= 0 || s_play_target >= 0 || s_live_catchup; }
 
@@ -420,8 +421,8 @@ namespace Zdxsv
 	// CPU thread, after the replay loaded as position `me`.
 	void SyncStart(int me)
 	{
-		const char* group = std::getenv("ZDXSV_REPLAY_GROUP");
-		const char* four = std::getenv("ZDXSV_REPLAY_FOUR");
+		const char* group = TestEnv("ZDXSV_REPLAY_GROUP");
+		const char* four = TestEnv("ZDXSV_REPLAY_FOUR");
 		const bool host = !group && four && four[0] == '1';
 		if (!group && !host)
 			return;
@@ -441,7 +442,8 @@ namespace Zdxsv
 		{
 			Zdxsv::SpectateSync::HostLimiter(static_cast<int>(VMManager::GetLimiterMode()));
 			s_sync_pids[me] = Zdxsv::SpectateSync::SelfPid();
-			const std::string trace = std::getenv("ZDXSV_NET_TRACE") ? std::getenv("ZDXSV_NET_TRACE") : "";
+			const char* trace_env = TestEnv("ZDXSV_NET_TRACE");
+			const std::string trace = trace_env ? trace_env : "";
 			for (int p = 0; p < s_players && p < Zdxsv::SpectateSync::GRID; p++)
 			{
 				if (p == me || !s_play_pov_ok[p])

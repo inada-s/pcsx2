@@ -5,10 +5,11 @@
 
 #include "Zdxsv/GgpoShared.h"
 #include "Zdxsv/ReplayList.h"
+#include "Zdxsv/TestOptions.h"
 
 namespace Zdxsv
 {
-	const char* const s_to_test = std::getenv("ZDXSV_REPLAY_TAKEOVER");
+	const char* const s_to_test = TestEnv("ZDXSV_REPLAY_TAKEOVER");
 
 	namespace
 	{
@@ -16,13 +17,13 @@ namespace Zdxsv
 		int s_play_hash_cut = 0;
 		int s_play_late = 0, s_play_late_loads = 0, s_play_late_max = 0, s_play_late_run = 0;
 		const int s_play_key_every = [] {
-			const char* e = std::getenv("ZDXSV_REPLAY_KEY");
+			const char* e = TestEnv("ZDXSV_REPLAY_KEY");
 			return e ? std::atoi(e) : 600;
 		}();
-		const bool s_play_key_nohle = std::getenv("ZDXSV_REPLAY_KEY_NOHLE") != nullptr;
+		const bool s_play_key_nohle = TestEnv("ZDXSV_REPLAY_KEY_NOHLE") != nullptr;
 		// ZDXSV_CYCLE_LOG=n: EE and IOP cycle counters every n played frames (exact timing check of a CPU core change).
 		const int s_cycle_log = [] {
-			const char* e = std::getenv("ZDXSV_CYCLE_LOG");
+			const char* e = TestEnv("ZDXSV_CYCLE_LOG");
 			return e ? std::atoi(e) : 0;
 		}();
 		u8 s_tick_st = 0;
@@ -423,7 +424,7 @@ namespace Zdxsv
 	bool s_to_skip = false, s_to_start_held = false;
 	int s_to_test_at = s_to_test ? std::atoi(s_to_test) : -1;
 	int s_to_test_retry = [] {
-		const char* e = std::getenv("ZDXSV_REPLAY_TAKEOVER_RETRY");
+		const char* e = TestEnv("ZDXSV_REPLAY_TAKEOVER_RETRY");
 		return e ? std::atoi(e) : -1;
 	}();
 
@@ -559,7 +560,7 @@ namespace Zdxsv
 		s_bar_frame = -1;
 		s_net_over = true; // the battle sock goes back to the IOP
 		PlayReport(what);
-		if (const char* e = std::getenv("ZDXSV_REPLAY_EXIT"); ReplayReturnArmed() || (e && e[0] == '1'))
+		if (const char* e = TestEnv("ZDXSV_REPLAY_EXIT"); ReplayReturnArmed() || (e && e[0] == '1'))
 			Host::RunOnCPUThread([] { Host::RequestVMShutdown(false, false, false); });
 		else if (!s_play_at_end)
 			Host::RunOnCPUThread([] { VMManager::SetPaused(true); });
