@@ -138,7 +138,7 @@ def c(p, rx):
 
 def ts(l):
     try:
-        return float(l[1:12])
+        return float(l[1:l.index("]")])
     except ValueError:
         return 0.0
 
