@@ -84,19 +84,7 @@ namespace Zdxsv
 		}
 
 		double s_sync_max_ms = 0;
-		// ZDXSV_SAVE_ALL=1: delta-save every GGPO frame. Default (net, sync=0): skip the save of a frame at or
-		// below GGPO's last confirmed frame (all inputs received: never a rollback target).
-		const bool s_save_all = [] {
-			const char* e = std::getenv("ZDXSV_SAVE_ALL");
-			return e && e[0] == '1';
-		}();
 		int s_save_skipped = 0;
-		// ZDXSV_RERUN_DRAW=0: the GS drops the draw calls of rollback rerun frames (g_gs_skip_draws): they
-		// are not presented, and the next frame draws over them. Default: drawn.
-		const bool s_rerun_draw = [] {
-			const char* e = std::getenv("ZDXSV_RERUN_DRAW");
-			return !(e && e[0] == '0');
-		}();
 		// The game builds a frame's draw list in its render callbacks, VU1 draws it in the next frame, and
 		// the picture is shown one vblank later: the first present after a rollback shows what VU1 drew in
 		// the last rerun frame, from the list of the one before. So only the last two rerun frames run the
@@ -105,7 +93,7 @@ namespace Zdxsv
 		// after a rollback shows the frame drawn before the rollback (the predicted one), not an older one.
 		// ZDXSV_RERUN_TAIL=n: the last n rerun frames run the callbacks and the last n - 1 VU1, or n with
 		// g_single_draw_list (default 2; 0 with it). Without g_single_draw_list one less breaks the picture
-		// after each rollback (tests/zdxsv/rerunpic.sh).
+		// after each rollback (tests/zdxsv/rerunpic.py).
 		const int s_rerun_tail = [] {
 			const char* e = std::getenv("ZDXSV_RERUN_TAIL");
 			return e ? std::max(0, std::atoi(e)) : -1;
@@ -121,11 +109,7 @@ namespace Zdxsv
 			return e && e[0] == '1';
 		}();
 		// LowLatencyVsync: present, rollback, then sleep and poll input (GgpoDeferThrottle). A corrected frame
-		// shows one frame later. ZDXSV_PRESENT_FIRST=0: sleep and poll in VSyncStart, the rollback after them.
-		const bool s_present_first = [] {
-			const char* e = std::getenv("ZDXSV_PRESENT_FIRST");
-			return !(e && e[0] == '0');
-		}();
+		// shows one frame later.
 		bool s_throttle_deferred = false;
 		int s_top_frame = 0; // the frame of the last save outside a rollback
 		int s_reruns_left = 0; // rerun frames left in this rollback
@@ -247,9 +231,9 @@ namespace Zdxsv
 			const double n = std::max(s_session_frames, 1);
 			const double ours = s_ours_ms.sum / n,
 				split = (s_save_ms.sum + s_hash_ms.sum + s_load_ms.sum + s_rerun_ms.sum + s_wait_ms.sum + s_sleep_ms.sum) / n;
-			Console.WriteLn("ZdxsvGgpo: %s between frames ms per frame %.2f: save %.2f hash %.2f load %.2f rerun %.2f wait %.2f sleep %.2f rest (ggpo) %.2f | sync=%d present_first=%d",
+			Console.WriteLn("ZdxsvGgpo: %s between frames ms per frame %.2f: save %.2f hash %.2f load %.2f rerun %.2f wait %.2f sleep %.2f rest (ggpo) %.2f | sync=%d",
 				what, ours, s_save_ms.sum / n, s_hash_ms.sum / n, s_load_ms.sum / n, s_rerun_ms.sum / n, s_wait_ms.sum / n, s_sleep_ms.sum / n,
-				ours - split, s_sync, s_present_first);
+				ours - split, s_sync);
 			Console.WriteLn("ZdxsvGgpo: %s rerun frame split: vu1 ms %.2f, spu2 ms %.3f, ee Mcycles %.3f", what,
 				Common::Timer::ConvertValueToMilliseconds(g_rerun_vu1_ticks) / std::max(s_rollback_frames, 1),
 				Common::Timer::ConvertValueToMilliseconds(g_rerun_spu2_ticks) / std::max(s_rollback_frames, 1), s_rerun_mcycles.Mean());
@@ -534,7 +518,8 @@ namespace Zdxsv
 		{
 			Common::Timer timer;
 			int confirmed = -1;
-			if (!s_save_all && !s_sync && ggpo_get_last_confirmed_frame(s_session, &confirmed) == GGPO_OK && frame <= confirmed)
+			// A confirmed frame (every input received) is never a rollback target.
+			if (!s_sync && ggpo_get_last_confirmed_frame(s_session, &confirmed) == GGPO_OK && frame <= confirmed)
 				s_save_skipped++;
 			else if (!Zdxsv::DeltaStateSave(frame))
 				return false;
@@ -596,8 +581,6 @@ namespace Zdxsv
 			Common::Timer timer;
 			EeProfileOnRerun();
 			const u64 cycle0 = cpuRegs.cycle;
-			if (!s_rerun_draw)
-				MTGS::RunOnGSThread([]() { g_gs_skip_draws = true; });
 			--s_reruns_left;
 			const int tail = s_rerun_tail >= 0 ? s_rerun_tail : (g_single_draw_list ? 0 : 2);
 			g_rerun_vu1_skip = !s_rerun_vu1 && s_reruns_left >= tail - (g_single_draw_list ? 0 : 1);
@@ -607,8 +590,6 @@ namespace Zdxsv
 				RerunKeepAfterRerunFrame(s_reruns_left == 0);
 			g_rerun_vu1_skip = g_rerun_draw_skip = false;
 			s_rerun_mcycles.Add((cpuRegs.cycle - cycle0) / 1e6);
-			if (!s_rerun_draw)
-				MTGS::RunOnGSThread([]() { g_gs_skip_draws = false; });
 			s_rerun_ms.Add(timer.GetTimeMilliseconds());
 			g_ggpo_in_rollback = false;
 			s_rerun = true;
@@ -987,7 +968,6 @@ namespace Zdxsv
 	bool g_rerun_draw_skip = false;
 	u64 g_rerun_spu2_ticks = 0;
 	bool g_gs_rerun_frame = false;
-	bool g_gs_skip_draws = false;
 	bool s_net_env = false; // net=1 in s_options, or a replay plays (GgpoOnVmInitialize)
 	// ZDXSV_RBK=i/N: until GGPO arms, every lobby / battle connect RPC is answered here (RbkCall).
 	int s_rbk_me = -1, s_rbk_n = 0;
@@ -1199,7 +1179,7 @@ namespace Zdxsv
 
 	bool GgpoDeferThrottle()
 	{
-		s_throttle_deferred = s_present_first && g_ggpo_active && s_session && !s_play_env && s_frame_ended;
+		s_throttle_deferred = g_ggpo_active && s_session && !s_play_env && s_frame_ended;
 		return s_throttle_deferred;
 	}
 
