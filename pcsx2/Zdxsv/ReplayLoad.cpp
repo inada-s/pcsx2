@@ -5,6 +5,7 @@
 
 #include "Zdxsv/GgpoShared.h"
 #include "Zdxsv/ReplayList.h"
+#include "Zdxsv/TestOptions.h"
 #include "IconsFontAwesome.h"
 
 #include "rapidjson/document.h"
@@ -332,7 +333,7 @@ namespace Zdxsv
 		// per URL). Set empty = the booted state is used as it is.
 		bool PlayCommonState()
 		{
-			const char* env = std::getenv("ZDXSV_REPLAY_STATE");
+			const char* env = TestEnv("ZDXSV_REPLAY_STATE");
 			const std::string src = env ? env : Host::GetStringSettingValue("DEV9/Eth", "ZdxsvReplayStateUrl", REPLAY_STATE_URL);
 			std::string path = src;
 			if (src.empty()) // the booted state, saved at the first start for a switch's start
@@ -532,7 +533,7 @@ namespace Zdxsv
 			PlayFailed(TRANSLATE_STR("Zdxsv", "Failed to start the replay. The replay file could not be read, or it is corrupted or outdated."));
 			return;
 		}
-		const char* e = std::getenv("ZDXSV_REPLAY_POV");
+		const char* e = TestEnv("ZDXSV_REPLAY_POV");
 		if (const std::string pov = e ? e : s_play_picked_pov >= 0 ? std::to_string(s_play_picked_pov) : ""; !pov.empty())
 		{
 			const int p = std::atoi(pov.c_str());
@@ -631,7 +632,7 @@ namespace Zdxsv
 			PlayFrame(0);
 			return;
 		}
-		if (const char* e = std::getenv("ZDXSV_REPLAY_TURBO"); e && e[0] == '1')
+		if (const char* e = TestEnv("ZDXSV_REPLAY_TURBO"); e && e[0] == '1')
 			VMManager::SetLimiterMode(LimiterModeType::Turbo);
 		static const bool keys_once = [] {
 			s_keys_on = BoolSetting("ZdxsvReplayKeyDisplay", false, "ZDXSV_REPLAY_KEY_DISPLAY");
@@ -641,17 +642,17 @@ namespace Zdxsv
 		s_play_skip_ms = BoolSetting("ZdxsvReplaySkipMs", true, "ZDXSV_REPLAY_SKIP_MS");
 		if (s_play_skip_ms)
 			PlayRunBegin(1);
-		if (const char* e = std::getenv("ZDXSV_REPLAY_ROUND_AT"))
+		if (const char* e = TestEnv("ZDXSV_REPLAY_ROUND_AT"))
 			for (const std::string_view one : StringUtil::SplitString(e, ','))
 				if (const size_t c = one.find(':'); c != std::string_view::npos)
 					s_play_round_at.emplace_back(StringUtil::FromChars<int>(one.substr(0, c)).value_or(-1),
 						StringUtil::FromChars<int>(one.substr(c + 1)).value_or(-1));
-		if (const char* e = std::getenv("ZDXSV_REPLAY_SEEK"))
+		if (const char* e = TestEnv("ZDXSV_REPLAY_SEEK"))
 			for (const std::string_view one : StringUtil::SplitString(e, ','))
 				if (const size_t c = one.find(':'); c != std::string_view::npos)
 					s_play_seeks.emplace_back(StringUtil::FromChars<int>(one.substr(0, c)).value_or(-1),
 						StringUtil::FromChars<int>(one.substr(c + 1)).value_or(0));
-		if (const char* e = std::getenv("ZDXSV_REPLAY_POV_AT"))
+		if (const char* e = TestEnv("ZDXSV_REPLAY_POV_AT"))
 			for (const std::string_view one : StringUtil::SplitString(e, ','))
 				if (const size_t c = one.find(':'); c != std::string_view::npos)
 					s_play_pov_at.emplace_back(StringUtil::FromChars<int>(one.substr(0, c)).value_or(-1),
@@ -733,7 +734,7 @@ namespace Zdxsv
 			LiveNext(next);
 		if (next >= s_play_frames)
 			PlayRunEnd("replay ended first", s_net_frame);
-		const char* exit_env = std::getenv("ZDXSV_REPLAY_EXIT");
+		const char* exit_env = TestEnv("ZDXSV_REPLAY_EXIT");
 		if (next < s_play_frames || (s_to_phase == TO_ON && !(exit_env && exit_env[0] == '1')))
 		{
 			s_play_at_end = false;
@@ -748,7 +749,7 @@ namespace Zdxsv
 			s_play_at_end = true;
 			PlayReport("done, auto-next"); // the next battle's VM reset drops this one's stats and pw hashes
 		}
-		else if (const char* e = std::getenv("ZDXSV_REPLAY_EXIT"); s_play_at_end || (e && e[0] == '1'))
+		else if (const char* e = TestEnv("ZDXSV_REPLAY_EXIT"); s_play_at_end || (e && e[0] == '1'))
 			PlayStop("end");
 		else
 		{

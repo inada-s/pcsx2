@@ -4,6 +4,7 @@
 #include "Zdxsv/ReplayList.h"
 #include "Zdxsv/Settings.h"
 #include "Zdxsv/Proto.h"
+#include "Zdxsv/TestOptions.h"
 #include "Config.h"
 #include "Host.h"
 #include "common/Console.h"
@@ -200,7 +201,7 @@ namespace Zdxsv
 			host = host.substr(0, colon);
 		if (host.empty())
 			return {};
-		const char* port = std::getenv("ZDXSV_STUN_PORT");
+		const char* port = TestEnv("ZDXSV_STUN_PORT");
 		return fmt::format("udp://{}:{}/{}", host, port ? std::atoi(port) : 8201, battle_code);
 	}
 } // namespace Zdxsv
