@@ -346,11 +346,16 @@ namespace Zdxsv
 	};
 	extern PlaySent s_play_sent[GGPO_MAX_PLAYERS];
 	extern std::unique_ptr<Zdxsv::LiveDown> s_live_down;
-	extern Zdxsv::LiveStreams s_live_got; // inputs not in s_play.inputs yet (part of a frame)
-	extern std::string s_live_close; // "" = running
-	extern bool s_live_catchup, s_live_close_logged;
-	extern int s_live_waits, s_live_hold_want; // the frame count the hold at the newest frame waits for, -1 = none
-	extern double s_live_wait_ms;
+	struct LivePlay
+	{
+		Zdxsv::LiveStreams got; // inputs not in s_play.inputs yet (part of a frame)
+		std::string close; // "" = running
+		bool catchup = false, close_logged = false;
+		int waits = 0;
+		int hold_want = -1; // the frame count the hold at the newest frame waits for, -1 = none
+		double wait_ms = 0;
+	};
+	extern LivePlay s_live_play;
 	extern Common::Timer s_live_hold_wait;
 
 	// Live auto-next: after a closed stream, a thread polls the lobby for the newest battle not watched yet.
