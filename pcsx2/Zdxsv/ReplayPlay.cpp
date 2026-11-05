@@ -39,7 +39,7 @@ namespace Zdxsv
 		void PlayBarPublish()
 		{
 			u32 povs = 0;
-			for (int p = 0; p < s_players; p++)
+			for (int p = 0; p < s_opt.players; p++)
 				povs |= s_play.pov_ok[p] ? (1u << p) : 0u;
 			s_bar_frames = s_play.frames;
 			s_bar_pov = s_battle.me;
@@ -58,7 +58,7 @@ namespace Zdxsv
 		u16 PlayB(int f, int p)
 		{
 			u16 ab[2];
-			std::memcpy(ab, &s_play.inputs[static_cast<size_t>(f) * s_players + p].pad, sizeof(ab));
+			std::memcpy(ab, &s_play.inputs[static_cast<size_t>(f) * s_opt.players + p].pad, sizeof(ab));
 			return ab[1] & ~1u; // bit 0 = game state, not a key
 		}
 
@@ -204,7 +204,7 @@ namespace Zdxsv
 		}();
 		std::mt19937 s_to_rng{1};
 
-		const NetInput& PlayRow(int f, int p) { return s_play.inputs[static_cast<size_t>(f) * s_players + p]; }
+		const NetInput& PlayRow(int f, int p) { return s_play.inputs[static_cast<size_t>(f) * s_opt.players + p]; }
 
 		u16 PlayOwnB(int f)
 		{
@@ -238,9 +238,9 @@ namespace Zdxsv
 			PlayBarPublish();
 			NetSaved(f);
 			NetInput in[GGPO_MAX_PLAYERS];
-			std::memcpy(in, &PlayRow(std::min(f, s_play.frames - 1), 0), sizeof(NetInput) * s_players);
+			std::memcpy(in, &PlayRow(std::min(f, s_play.frames - 1), 0), sizeof(NetInput) * s_opt.players);
 			if (f >= s_play.frames)
-				for (int p = 0; p < s_players; p++)
+				for (int p = 0; p < s_opt.players; p++)
 					std::memset(&in[p].pad, 0, sizeof(u16) * 2); // (A, B); seq unchanged = no new msgs
 			s_to_queue.push_back(NetPack(TakeoverPad(f), s_battle.frame));
 			in[s_battle.me] = s_to_queue.front();
@@ -523,7 +523,7 @@ namespace Zdxsv
 		PlayBarPublish();
 		PlayKeysPublish(f);
 		NetSaved(f);
-		const NetInput* in = &s_play.inputs[static_cast<size_t>(f) * s_players];
+		const NetInput* in = &s_play.inputs[static_cast<size_t>(f) * s_opt.players];
 		u16 ab[2];
 		std::memcpy(ab, &in[s_battle.me].pad, sizeof(ab));
 		s_rings.zd_pad[f & 127] = PadFromB(ab[1]);
@@ -606,8 +606,8 @@ namespace Zdxsv
 			return;
 		const int req = s_play_pov_req.load();
 		int p = req >= 0 ? req : s_battle.me;
-		for (int i = 0; i < s_players; i++)
-			if (p = (p + 1) % s_players; s_play.pov_ok[p])
+		for (int i = 0; i < s_opt.players; i++)
+			if (p = (p + 1) % s_opt.players; s_play.pov_ok[p])
 				break;
 		if (p == s_battle.me)
 		{
@@ -783,7 +783,7 @@ namespace Zdxsv
 
 	std::string ReplayRoundResults()
 	{
-		const int pov = s_bar_pov, players = s_players;
+		const int pov = s_bar_pov, players = s_opt.players;
 		if (pov < 0 || players < 1)
 			return {};
 		const int team = pov < players / 2 ? 1 : 2; // team 1 = the first half of the positions
@@ -797,7 +797,7 @@ namespace Zdxsv
 
 	std::vector<u32> ReplayRoundMs(int& players)
 	{
-		players = s_players;
+		players = s_opt.players;
 		std::lock_guard lock(s_battle_loads_mtx);
 		return s_play_loads.file_rounds.empty() ? s_play_loads.ms : s_play_loads.file_ms;
 	}

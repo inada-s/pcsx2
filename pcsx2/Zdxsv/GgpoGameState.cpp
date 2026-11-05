@@ -111,12 +111,12 @@ namespace Zdxsv
 	// sync=1 part of SaveGameState: checksum, synctest diff samples.
 	void HashSave(int frame, int* checksum)
 	{
-		if (s_hash != Hash::Full)
+		if (s_opt.hash != Hash::Full)
 		{
 			// hash=pw / pos: the sample keeps the raw bytes (4 player works / PosRng) to name what differed.
 			std::vector<u8> raw;
 			u64 hash;
-			if (s_hash == Hash::Pw)
+			if (s_opt.hash == Hash::Pw)
 			{
 				raw.assign(&eeMem->Main[PW_BASE], &eeMem->Main[PW_BASE + 4 * PW_SIZE]);
 				raw.insert(raw.end(), &eeMem->Main[RNG_A], &eeMem->Main[RNG_A + 2]);

@@ -53,7 +53,7 @@ namespace Zdxsv
 				; // GGPO input (below), released by NetSyncAndApply
 			else if (kind == 2 || kind == 7 || kind == 9 || kind == 0xf)
 			{
-				for (int q = 0; q < s_players; q++)
+				for (int q = 0; q < s_opt.players; q++)
 					if (q != s_battle.me)
 					{
 						s_rb.net_rx.push_back(m[0]);
@@ -470,10 +470,10 @@ namespace Zdxsv
 		const int f = s_battle.frame;
 		ReplayLog(f, in);
 		ApplyPad(0, s_rings.zd_pad[f & 127]);
-		for (int p = 0; p < s_players; p++)
+		for (int p = 0; p < s_opt.players; p++)
 			std::memcpy(s_rings.zd_hist[f & 127][p], &in[p].pad, sizeof(s_rings.zd_hist[f & 127][p]));
 		// a predicted input repeats its seq, so entries come only from real inputs: no rollback state
-		for (int p = 0; p < s_players; p++)
+		for (int p = 0; p < s_opt.players; p++)
 		{
 			const bool fresh = in[p].seq != s_rings.net_seq_at[(f - 1) & 63][p];
 			const u8* d = in[p].data;
@@ -492,11 +492,11 @@ namespace Zdxsv
 		for (;;)
 		{
 			bool all = true;
-			for (int p = 0; p < s_players; p++)
+			for (int p = 0; p < s_opt.players; p++)
 				all = all && s_rb.zds_seen[p] > s_rb.zds_rel;
 			if (!all)
 				break;
-			for (int p = 0; p < s_players; p++)
+			for (int p = 0; p < s_opt.players; p++)
 				if (p != s_battle.me)
 					s_rb.net_rx.insert(s_rb.net_rx.end(), s_battle.zds_k3[p][s_rb.zds_rel].begin(), s_battle.zds_k3[p][s_rb.zds_rel].end());
 			if (s_net_trace)
@@ -508,7 +508,7 @@ namespace Zdxsv
 		const auto release = [&](PS& b, int k, char tag) {
 			if (!b.hold || b.go)
 				return;
-			for (int p = 0; p < s_players; p++)
+			for (int p = 0; p < s_opt.players; p++)
 				if (static_cast<u8>(in[p].pad.unused[k] - b.rel) < 1 || static_cast<u8>(in[p].pad.unused[k] - b.rel) >= 128)
 					return;
 			b.go = true;
@@ -544,7 +544,7 @@ namespace Zdxsv
 		{
 			// lobby=1: the first key msg of a battle with a new battle info starts the next GGPO battle; the
 			// sends of the ended battle (same battle info) stay with the IOP
-			if (s_lobby && !s_play_env && !s_rbk && key && LobbyNewBattle())
+			if (s_opt.lobby && !s_play_env && !s_rbk && key && LobbyNewBattle())
 			{
 				NetReset();
 				Console.WriteLn("ZdxsvGgpo: next lobby battle at vsync %u", g_FrameCount);
@@ -587,7 +587,7 @@ namespace Zdxsv
 			for (s32 i = 0; i + 1 < len && d[i] >= 2 && i + d[i] <= len; i += d[i])
 				if ((d[i + 1] >> 4) == 2)
 					me = d[i + 1] & 0xf;
-			if (s_lobby && !LobbyArm(me))
+			if (s_opt.lobby && !LobbyArm(me))
 				return s_battle.lobby_cut && LobbyCutCall(fno, sock, len);
 			s_battle.armed = true;
 			if (s_rbk)
@@ -660,7 +660,7 @@ namespace Zdxsv
 
 	bool GgpoBattleRefuses(Error* error)
 	{
-		if (!g_ggpo_active || !s_net || s_play_env)
+		if (!g_ggpo_active || !s_opt.net || s_play_env)
 			return false;
 		const std::string_view msg = TRANSLATE_SV("Zdxsv", "Not available during an online battle.");
 		Console.WriteLn("ZdxsvGgpo: refused during the battle (pause, speed or state load)");
@@ -673,7 +673,7 @@ namespace Zdxsv
 
 	bool OnlinePauseMenuRefuses()
 	{
-		const bool battle = g_ggpo_active && s_net && !s_play_env;
+		const bool battle = g_ggpo_active && s_opt.net && !s_play_env;
 		if (!battle && !LobbyConnectionOpen())
 			return false;
 		Console.WriteLn("Zdxsv: pause menu refused (%s)", battle ? "battle" : "lobby");

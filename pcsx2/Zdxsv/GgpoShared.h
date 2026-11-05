@@ -101,8 +101,6 @@ namespace Zdxsv
 	extern int s_rbk_me, s_rbk_n;
 	extern bool s_rbk; // also set by a replay's common start (PlayLoad)
 	extern const char* s_rand_env;
-	extern bool s_net; // net=1 parsed
-	extern int s_players; // players= (net)
 	extern const bool s_pw_hash;
 	constexpr u32 PW_BASE = 0x8395d8, PW_SIZE = 0x2200;
 	extern std::map<int, std::array<u64, 5>> s_pw;
@@ -188,16 +186,32 @@ namespace Zdxsv
 		Pos,
 		Full
 	};
-	extern Hash s_hash;
-	extern int s_port, s_delay;
+	// ZDXSV_GGPO key=value options, set by Parse; players, delay and net also change at runtime.
+	struct GgpoOptions
+	{
+		bool net = false;
+		int players = 4;
+		Hash hash = Hash::Pw; // synctest checksum
+		int port = 7001;
+		int delay = 0;
+		bool delay_set = false; // delay= given: fixed; else a lobby battle picks it from the peers' rtt
+		bool lobby = false;
+		bool bad_session = false; // badsession=1 (test): the ping test uses another session id
+		std::string replay_dir; // replay=DIR; without it lobby=1 saves to <data dir>/replays, other net runs none
+		bool replay_off = false; // replay=0
+		std::string upload_url; // upload=URL (test), else setting DEV9/Eth ZdxsvReplayUploadUrl
+		int relay = 0; // relay=R (net): remote p is at port R + 8 * me + p (one UDP relay per pair), not port + p
+		int start = 1500, frames = 3000, check = 6;
+		u32 seed = 1;
+		bool host_input = false, no_input = false, control_input = false;
+		u16 mask = 0xffff;
+		bool sync = true; // sync=0: no state hashes (checksum 0)
+		std::string peer_host = "127.0.0.1";
+		bool osd = true;
+	};
+	extern GgpoOptions s_opt;
 	extern int s_lobby_port; // setting DEV9/Eth ZdxsvGgpoPort (0: a random port, saved); port= overrides it
-	extern bool s_delay_set; // delay= given: fixed; else a lobby battle picks it from the peers' rtt
 	extern int s_min_delay; // mindelay=, else setting DEV9/Eth ZdxsvGgpoMinDelay
-	extern bool s_lobby; // lobby=1
-	extern bool s_bad_session; // badsession=1 (test): the ping test uses another session id
-	extern std::string s_replay_dir; // replay=DIR; without it lobby=1 saves to <data dir>/replays, other net runs none
-	extern bool s_replay_off; // replay=0
-	extern std::string s_upload_url; // upload=URL (test), else setting DEV9/Eth ZdxsvReplayUploadUrl
 	extern std::vector<LobbyPlayer> s_lobby_players, s_net_players;
 	extern std::mutex s_lobby_mtx;
 	extern std::vector<Zdxsv::PeerAddr> s_net_peers; // per position, picked when armed
