@@ -196,6 +196,7 @@
     <ClCompile Include="DEV9\Sessions\TCP_Session\TCP_Session_In.cpp" />
     <ClCompile Include="DEV9\Sessions\TCP_Session\TCP_Session_Out.cpp" />
     <ClCompile Include="Zdxsv\Lobby.cpp" />
+    <ClCompile Include="Zdxsv\LobbyBattleInfo.cpp" />
     <ClCompile Include="Zdxsv\LobbyConnection.cpp" />
     <ClCompile Include="Zdxsv\LobbyLive.cpp" />
     <ClCompile Include="Zdxsv\LobbyPing.cpp" />

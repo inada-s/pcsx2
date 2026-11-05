@@ -374,6 +374,7 @@ set(pcsx2DEV9Sources
 	DEV9/Sessions/UDP_Session/UDP_FixedPort.cpp
 	DEV9/Sessions/UDP_Session/UDP_Session.cpp
 	Zdxsv/Lobby.cpp
+	Zdxsv/LobbyBattleInfo.cpp
 	Zdxsv/LobbyConnection.cpp
 	Zdxsv/LobbyLive.cpp
 	Zdxsv/LobbyPing.cpp
