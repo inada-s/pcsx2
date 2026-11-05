@@ -50,8 +50,8 @@ EMU=1: the 4 clients are emulators instead (platform info, TCP to the battle ser
   checks: cut + cut ended per client, no GGPO session, no result with frames.
   GGPO_CLIENTS without a client of CLIENTS (GGPO): that client has no GGPO port (ZDXSV_GGPO=0), so every
   GGPO client cuts (`a peer has no GGPO address`); the same wait and checks as BAD_SESSION.
-  SYNC_SALT=K (GGPO): client K gets ZDXSV_SYNC_SALT=m4z (another sync fingerprint, as another build): every
-  GGPO client cuts (`settings or build differ`); the same wait and checks as BAD_SESSION.
+  SYNC_SALT=K (GGPO): client K gets ZDXSV_SYNC_SALT=m4z (another sync fingerprint, as another build):
+  the lobby gets two fingerprints, every client enters the battle, no battle starts (the lobby matches equal ones only).
   DROP_SYNC=K (GGPO): client K gets ZDXSV_DROP_SYNC=0 (position 0's sync missing from its battle info): only
   client K cuts, the others start GGPO; checks: K refuses their GGPO session, each other client closes on
   `another session` within 3 s of `net armed` (not the 10 s start timeout), every client back in the lobby.
@@ -485,6 +485,14 @@ def main():
         ok(f"p{i} zproxy registered + in battle", c(lobby, f"Register zproxy {u}") and c(lobby, f"zproxy user {u}"))
         ok(f"p{i} PS2 -> zproxy -> UDP", c(zl, "PS2との接続に成功しました") and c(zl, "UDP通信を開始します")
            and not c(zl, "対戦サーバとの接続に失敗"))
+    if E("SYNC_SALT"):
+        # the lobby starts a battle only among equal sync fingerprints
+        fps = {m[1] for l in g(lobby, "platform emu map") for m in [re.search(r" sync:([0-9a-f]+)", l)] if m}
+        say(f"sync fingerprints at the lobby: {' '.join(sorted(fps))}")
+        ok(f"lobby got {nc} different sync fingerprints", len(fps) == nc)
+        ok(f"every client entered the lobby battle (x{nc})", c(lobby, r"C->S \[Q\] ID:0x640E") >= nc)
+        ok("no battle between different sync fingerprints", c(battle, "join udp peer|join success") == 0)
+        return RC[0]
     ok(f"join udp peer x{nz}", c(battle, "join udp peer") == nz)
     ok(f"join tcp x{nc - nz}", c(battle, "join success") == nc - nz)
     every = [el(i) for i in clients]
