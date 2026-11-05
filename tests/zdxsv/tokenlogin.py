@@ -26,11 +26,16 @@ def token_path():
     return os.path.join(os.environ["RUN"], "p1", "PCSX2", "inis", TOKEN_FILE)
 
 
-def prepare(out):
+def migrate(out):
     z = zrig.env("ZBIN") or os.path.join(os.environ["ZDXSV_DIR"], "bin", "zdxsv" + zrig.EXE)
     with open(os.path.join(out, "migratedb.log"), "wb") as f:
         subprocess.call([z, "migratedb"], cwd=out, env=dict(os.environ, ZDXSV_DB_NAME="zdxsv.db"),
                         stdout=f, stderr=subprocess.STDOUT)
+    return 0
+
+
+def prepare(out):
+    migrate(out)
     token = base64.urlsafe_b64encode(secrets.token_bytes(32)).rstrip(b"=").decode()
     c = sqlite3.connect(os.path.join(out, "zdxsv.db"))
     try:

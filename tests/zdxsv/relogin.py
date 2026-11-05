@@ -11,6 +11,7 @@ import time
 
 import boottime
 import netend
+import tokenlogin
 import zrig
 
 KEYS = "w16000,C" + ",w4000,Up,w400,C" * 18
@@ -47,7 +48,7 @@ def main():
     os.environ.setdefault("LIMIT", "60")
     zrig.take()
     zrig.need("ZDXSV_DIR", "IP", "OUT", "CARDS")
-    return boottime.run(os.environ["OUT"], after)
+    return boottime.run(os.environ["OUT"], after, tokenlogin.migrate)
 
 
 if __name__ == "__main__":
