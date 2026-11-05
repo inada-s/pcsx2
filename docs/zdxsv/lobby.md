@@ -26,7 +26,6 @@ for a game host, or the battle server of the last battle info.
 
 | Game port | TLS port | Server |
 |---|---|---|
-| 443 | 8220 | DNAS |
 | 8200 | 8221 | lobby |
 | 8210 | 8222 | battle (TCP) |
 
@@ -41,7 +40,8 @@ for a game host, or the battle server of the last battle info.
   the game's connection and shows an OSD message.
 - TLS is off while the client has no pins. Rigs: `ZDXSV_TLS_TEST_PIN=1`
   trusts the zdxsv test CA, `ZDXSV_TLS=0` turns TLS off.
-- Not covered: the login pages (port 80), UDP (GGPO, relays, live streams),
+- Not covered: DNAS (443) and the login pages (port 80): the emulator logs
+  in by token (fast login); UDP (GGPO, relays, live streams),
   real PS2s and zproxy.
 
 ## Messages added to the lobby connection

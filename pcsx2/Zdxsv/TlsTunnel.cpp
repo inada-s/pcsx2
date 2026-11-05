@@ -65,7 +65,6 @@ namespace Zdxsv
 			u16 tls;
 		};
 		constexpr TlsPort kPorts[] = {
-			{443, 8220}, // DNAS and login pages
 			{8200, 8221}, // lobby
 			{8210, 8222}, // battle
 		};
