@@ -25,7 +25,7 @@ skips does not run on that path.
 ### Network paths
 
 The game's network calls (net RPCs) take one of two paths. Online with
-`ZdxsvNoDev9` on (the default in release builds) the net RPCs never reach DEV9; zdxsv adds nothing to the DEV9 path.
+`ZdxsvNoDev9` on (the default) the net RPCs never reach DEV9; zdxsv adds nothing to the DEV9 path.
 
 | Path | When | Network | Lobby features |
 |---|---|---|---|
@@ -39,7 +39,7 @@ this table says it is missing.
 ## Online play ([lobby.md](lobby.md))
 
 - **Switch for all online battle extensions**: `ZDXSV_EXTENSIONS=0`.
-- **Online without DEV9**: experimental, with the platform info, a TCP battle, a GGPO battle and TLS; every connection menu button connects with no network setting, also from a blank card; `ZdxsvNoDev9`, `ZDXSV_NODEV9`.
+- **Online without DEV9**: with the platform info, a TCP battle, a GGPO battle and TLS; every connection menu button connects with no network setting, also from a blank card; `ZdxsvNoDev9`, `ZDXSV_NODEV9`.
 - **Fast login**: DNAS and the login browser skipped; `ZdxsvFastLogin`, `ZdxsvLoginApiUrl`.
 - **Fast boot**: boot to the lobby user_id selection with no input; `ZdxsvFastBoot`, `ZdxsvFastBootState`, `ZdxsvFastBootLobby` (on through ID 1 into the lobby).
 - **Platform info `0x9950` to the lobby**: `ZDXSV_PLATFORM_INFO`.
