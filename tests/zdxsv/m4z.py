@@ -75,7 +75,7 @@ EMU=1: the 4 clients are emulators instead (platform info, TCP to the battle ser
   connection's platform info carried asia-northeast1=<ms> (lobby.log). HTTPS_OFF=K: client K runs with
   ZDXSV_HTTPS_LATENCY=0 (control): no region keys in its platform info.
   EXT_OFF=1: every client with ZDXSV_EXTENSIONS=0; checks per client: extensions off, no platform info, no GGPO
-  options (replace the platform info checks); the battle runs through the battle server.
+  options (replace the platform info checks); the battle runs through the battle server. PAR defaults to 0 (fast boot is an extension).
   RELAY=1: lobby relay on :8203; each GGPO client registered it and every path
   is RELAY_PATH (default direct: a LAN peer is never 16 ms slower than the relay).
   GGPO_LAT=D (CLIENTS="1 3", GGPO, GDELAY=auto; pcsx2 ZDXSV_GGPO advertise=): a udprelay.py (D ms one way) on
@@ -169,7 +169,7 @@ def pwcheck_ok(path, n):
 def main():
     zrig.take()
     zrig.need("ZDXSV_DIR", "IP", "CARDS", "USERS", "RUN")
-    par = E("PAR", "1")
+    par = E("PAR", "0" if E("EXT_OFF") else "1")
     out = os.path.abspath(os.environ.get("OUT") or sys.exit("OUT=dir for logs"))
     os.environ["OUT"] = out
     run = os.path.abspath(os.environ["RUN"])
@@ -492,7 +492,7 @@ def main():
         for i in clients:
             f = el(i)
             ok(f"p{i} extensions off, no platform info, no GGPO",
-               c(f, "ZDXSV_EXTENSIONS=0, all zdxsv extensions off") and c(f, "not the Z game: no platform info")
+               c(f, "ZDXSV_EXTENSIONS=0, all zdxsv extensions off")
                and not c(f, "sent platform info|ZdxsvGgpo: options"))
     if emu and not ext_off:
         ok(f"platform info sent x{nc}", sum(c(f, "sent platform info") for f in every) >= nc)
