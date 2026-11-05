@@ -215,7 +215,7 @@ namespace Zdxsv
 					{
 						Cand c;
 						c.addr = a;
-						if (ToSockaddr(a, c.sa, c.len))
+						if (LobbyToSockaddr(a, c.sa, c.len))
 							c.s = a.V6() ? m_s6 : m_s4;
 						m_cand[p].push_back(c);
 					}
@@ -224,7 +224,7 @@ namespace Zdxsv
 					for (const PeerAddr* a : {&m_relays[k].addr, &m_relays[k].addr6})
 					{
 						Cand& c = m_rpath[k][a->V6() ? 1 : 0];
-						if (!a->ip.empty() && ToSockaddr(*a, c.sa, c.len))
+						if (!a->ip.empty() && LobbyToSockaddr(*a, c.sa, c.len))
 							c.s = a->V6() ? m_s6 : m_s4;
 					}
 			}
@@ -397,7 +397,7 @@ namespace Zdxsv
 						c.sa = from;
 						c.len = len;
 						c.s = s;
-						c.addr = FromSockaddr(from);
+						c.addr = LobbyFromSockaddr(from);
 						fc->push_back(c);
 						it = fc->end() - 1;
 					}
@@ -483,7 +483,7 @@ namespace Zdxsv
 					for (int i = 0; i < 2; i++)
 						for (const sockaddr_storage& a : m_rpath[k][i].answered)
 						{
-							servers.back().sources.push_back(FromSockaddr(a));
+							servers.back().sources.push_back(LobbyFromSockaddr(a));
 							line += " answers from " + servers.back().sources.back().String();
 						}
 				}
@@ -563,7 +563,7 @@ namespace Zdxsv
 		const int n = static_cast<int>(byPosition.size());
 		if (me < 0 || me >= n || n > 4)
 			return;
-		const sock_t s4 = BindUdp(AF_INET, port), s6 = BindUdp(AF_INET6, port);
+		const sock_t s4 = LobbyBindUdp(AF_INET, port), s6 = LobbyBindUdp(AF_INET6, port);
 		if (s4 == INVALID_SOCKET && s6 == INVALID_SOCKET)
 		{
 			g_pingError = "bind :" + std::to_string(port) + " failed (IPv4 and IPv6)";
@@ -650,7 +650,7 @@ namespace Zdxsv
 		FinishPingTest();
 		if (me < 0 || me >= 4)
 			return;
-		const sock_t s4 = BindUdp(AF_INET, port), s6 = BindUdp(AF_INET6, port);
+		const sock_t s4 = LobbyBindUdp(AF_INET, port), s6 = LobbyBindUdp(AF_INET6, port);
 		if (s4 == INVALID_SOCKET && s6 == INVALID_SOCKET)
 		{
 			LobbyLog("cut refusal: bind :" + std::to_string(port) + " failed");
@@ -700,7 +700,7 @@ namespace Zdxsv
 					reply[GGPO_HDR + 4] = 1;
 					sendto(s, reinterpret_cast<const char*>(reply), sizeof(reply), 0, reinterpret_cast<const sockaddr*>(&from), fromLen);
 					replies++;
-					const PeerAddr peer = FromSockaddr(from);
+					const PeerAddr peer = LobbyFromSockaddr(from);
 					if (std::find_if(refused.begin(), refused.end(), [&](const PeerAddr& a) { return a.String() == peer.String(); }) == refused.end())
 					{
 						refused.push_back(peer);

@@ -49,7 +49,7 @@ namespace Zdxsv
 	}
 
 	// numeric PeerAddr -> sockaddr_in / sockaddr_in6; false if the ip doesn't parse
-	inline bool ToSockaddr(const PeerAddr& a, sockaddr_storage& sa, socklen_t& len)
+	inline bool LobbyToSockaddr(const PeerAddr& a, sockaddr_storage& sa, socklen_t& len)
 	{
 		sa = {};
 		if (a.V6())
@@ -68,7 +68,7 @@ namespace Zdxsv
 	}
 
 	// sockaddr_in / sockaddr_in6 -> numeric PeerAddr; ip "" for another family
-	inline PeerAddr FromSockaddr(const sockaddr_storage& sa)
+	inline PeerAddr LobbyFromSockaddr(const sockaddr_storage& sa)
 	{
 		char buf[INET6_ADDRSTRLEN] = {};
 		if (sa.ss_family == AF_INET6)
@@ -88,7 +88,7 @@ namespace Zdxsv
 
 	// UDP socket of family af bound to port on every address; IPv6 only on AF_INET6 (one socket per
 	// family). INVALID_SOCKET if it can't be opened or bound.
-	inline sock_t BindUdp(int af, uint16_t port)
+	inline sock_t LobbyBindUdp(int af, uint16_t port)
 	{
 		sock_t s = socket(af, SOCK_DGRAM, IPPROTO_UDP);
 		if (s == INVALID_SOCKET)
@@ -99,10 +99,10 @@ namespace Zdxsv
 		if (af == AF_INET6)
 		{
 			setsockopt(s, IPPROTO_IPV6, IPV6_V6ONLY, reinterpret_cast<const char*>(&on), sizeof(on));
-			ToSockaddr({"::", port}, sa, len);
+			LobbyToSockaddr({"::", port}, sa, len);
 		}
 		else
-			ToSockaddr({"0.0.0.0", port}, sa, len);
+			LobbyToSockaddr({"0.0.0.0", port}, sa, len);
 		if (bind(s, reinterpret_cast<const sockaddr*>(&sa), len) != 0)
 		{
 			closesocket(s);

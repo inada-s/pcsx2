@@ -818,7 +818,7 @@ namespace Zdxsv
 		sock_t probe6 = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
 		sockaddr_storage dst6{}, self6{};
 		socklen_t len6 = 0;
-		if (probe6 != INVALID_SOCKET && ToSockaddr({"2001:db8::1", 53}, dst6, len6) &&
+		if (probe6 != INVALID_SOCKET && LobbyToSockaddr({"2001:db8::1", 53}, dst6, len6) &&
 			connect(probe6, reinterpret_cast<const sockaddr*>(&dst6), len6) == 0 &&
 			getsockname(probe6, reinterpret_cast<sockaddr*>(&self6), &len6) == 0 && self6.ss_family == AF_INET6)
 		{
