@@ -69,7 +69,7 @@ this table says it is missing.
 Keys (`net=1`, `lobby=1`, `port=`, `delay=`, ...) are parts of `ZDXSV_GGPO`.
 
 - **GGPO library**: `3rdparty/ggpo`.
-- **GGPO pump thread**: sockets every 1 ms; `net=1`.
+- **GGPO pings answered on the network thread**: `net=1`.
 - **GGPO time sync spread over frames**: `net=1`.
 - **Relay forwarding while GGPO is held**: `net=1`.
 - **GGPO session check**: battle code in the sync handshake; `ZDXSV_NET_SESSION`.

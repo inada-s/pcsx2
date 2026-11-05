@@ -15,6 +15,7 @@
 #include "timesync.h"
 #include "ggponet.h"
 #include "ring_buffer.h"
+#include <atomic>
 #include <vector>
 #include <mutex>
 
@@ -81,6 +82,10 @@ public:
    void SendInput(GameInput &input);
    void SendInputAck();
    bool HandlesMsg(sockaddr_storage& from, UdpMsg *msg);
+   // zdxsv: where the packet is read (network thread), NetMutex held: answers a QualityReport and times a
+   // QualityReply at once, not at the next poll of the game thread.
+   void OnReceived(sockaddr_storage &from, UdpMsg *msg, int len);
+   bool IsFromPeer(const sockaddr_storage &from) const;
    void OnMsg(UdpMsg *msg, int len);
    void Disconnect();
    void SendAppData(const void *data, int len, bool spectators);
@@ -174,14 +179,14 @@ protected:
    /*
     * Stats
     */
-   int            _round_trip_time;
-   int            _smooth_round_trip_time;
-   int            _packets_sent;
-   int            _bytes_sent;
+   std::atomic<int> _round_trip_time;
+   std::atomic<int> _smooth_round_trip_time;
+   std::atomic<int> _packets_sent;
+   std::atomic<int> _bytes_sent;
    int            _kbps_sent;
    int            _stats_start_time;
    int            _recv_packet_loss;
-   int            _send_packet_loss;
+   std::atomic<int> _send_packet_loss;
 
    /*
     * The state machine
@@ -215,7 +220,7 @@ protected:
    GameInput                  _last_received_input;
    GameInput                  _last_sent_input;
    GameInput                  _last_acked_input;
-   unsigned int               _last_send_time;
+   std::atomic<unsigned int>  _last_send_time;
    unsigned int               _last_recv_time;
    unsigned int               _shutdown_timeout;
    unsigned int               _disconnect_event_sent;

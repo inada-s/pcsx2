@@ -187,3 +187,9 @@ SpectatorBackend::OnMsg(sockaddr_storage &from, UdpMsg *msg, int len)
    }
 }
 
+void
+SpectatorBackend::OnReceived(sockaddr_storage &from, UdpMsg *msg, int len)
+{
+   _host.OnReceived(from, msg, len);
+}
+

@@ -165,12 +165,9 @@ The game runs with its own input delay 0; GGPO adds the input delay.
   as `session mismatch` and answers the other's requests for 1 s more; the
   other closes as `session mismatch` too, or as `start timeout` when GGPO
   sent it no refusal in that time.
-- Once synchronized, a thread pumps the GGPO sockets every 1 ms
-  (`ggpo_idle(-1)`: receive, send, relay forwarding; no callbacks), as
-  flycast's `ggpoIdleLoop`. A mutex keeps it off GGPO while the frame loop
-  runs its GGPO calls.
 - A GGPO network thread waits on the sockets (`select`) and reads each packet
-  as it arrives: packets this peer relays for others go out at once, the rest
+  as it arrives: packets this peer relays for others go out at once, a quality
+  report (ping) is answered and a quality reply timed at once, the rest
   wait for the frame loop. So a relaying peer's rollbacks and limiter sleep do
   not delay the peers it relays for.
 - Time sync: when GGPO reports this peer ahead, it waits one frame
