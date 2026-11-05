@@ -258,17 +258,37 @@ namespace Zdxsv
 	NetInput NetPack(const Input& pad, int frame);
 	void NetApply(const NetInput* in);
 	void NetReport();
-	extern std::vector<NetInput> s_play_inputs;
-	extern std::vector<u32> s_play_hashes;
-	extern std::map<int, u32> s_play_rngs; // frame -> GameRng
-	extern int s_play_rng_pos;
-	extern std::vector<std::pair<int, int>> s_play_cut;
-	extern std::vector<u8> s_play_ps_rel; // per frame: the file's play-start barrier releases (PS::rel) before it
-	extern int s_play_frames;
+	// One file's play state; PlayReset clears it whole, so only state that starts fresh per file belongs here.
+	struct PlayState
+	{
+		std::vector<NetInput> inputs;
+		std::vector<u32> hashes;
+		std::map<int, u32> rngs; // frame -> GameRng
+		int rng_pos = -1;
+		std::vector<std::pair<int, int>> cut;
+		std::vector<u8> ps_rel; // per frame: the file's play-start barrier releases (PS::rel) before it
+		int frames = 0;
+		int rearm_seek = -1; // a switch's common start: the frame to seek to from its key 0
+		bool booted_saved = false; // ZDXSV_REPLAY_STATE empty: the booted state is in the cache (PlayCommonState)
+		std::deque<std::pair<int, int>> seeks; // ZDXSV_REPLAY_SEEK
+		bool at_end = false; // paused after the last frame (no ZDXSV_REPLAY_EXIT)
+		int target = -1; // seeking: frames run unlimited up to this one
+		int hi = -1, tick_f = -1;
+		int run_load = -1; // running unlimited until this load has ended, -1 = none (skip MS selection = 1)
+		std::deque<std::pair<int, int>> round_at; // ZDXSV_REPLAY_ROUND_AT=frame:round,...
+		bool pov_ok[GGPO_MAX_PLAYERS] = {};
+	};
+	extern PlayState s_play;
+	// Written on the CPU thread; the GS thread reads it under s_battle_loads_mtx.
+	struct PlayLoads
+	{
+		std::vector<int> battle;
+		std::vector<int> file_rounds, results;
+		std::vector<u32> file_ms, ms; // per round, as MsIds packs them
+	};
+	extern PlayLoads s_play_loads;
 	extern std::vector<std::vector<u8>> s_play_answers; // common start: the file's lobby answers (RbkBody)
-	extern int s_play_rearm_seek; // a switch's common start: the frame to seek to from its key 0
-	extern LimiterModeType s_play_rearm_limiter; // and the limiter before it
-	extern bool s_play_booted_saved; // ZDXSV_REPLAY_STATE empty: the booted state is in the cache (PlayCommonState)
+	extern LimiterModeType s_play_rearm_limiter; // the limiter before s_play.rearm_seek
 
 	// Seek key: the full state as .p2s in the cache folder (zipped on a thread) plus the HLE state outside it.
 	// A seek loads the newest key at or before the target and runs up to it unlimited.
@@ -286,22 +306,12 @@ namespace Zdxsv
 		}
 	};
 	extern std::map<int, std::unique_ptr<PlayKey>> s_play_keys[GGPO_MAX_PLAYERS]; // by point of view (position)
-	extern std::deque<std::pair<int, int>> s_play_seeks; // ZDXSV_REPLAY_SEEK
 	extern std::atomic<int> s_play_req; // requested seek target, INT_MIN = none
-	extern bool s_play_at_end; // paused after the last frame (no ZDXSV_REPLAY_EXIT)
-	extern int s_play_target; // seeking: frames run unlimited up to this one
 	extern LimiterModeType s_play_limiter;
 	extern bool s_play_skip_ms;
 	extern std::atomic<bool> s_keys_on; // replay key display
 	extern std::mutex s_battle_loads_mtx;
-	extern std::vector<int> s_battle_loads; // written on the CPU thread; the GS thread reads it under s_battle_loads_mtx
-	extern int s_play_hi, s_tick_f;
-	extern std::vector<int> s_play_file_rounds, s_round_results;
-	extern std::vector<u32> s_play_file_ms, s_round_ms; // per round, as MsIds packs them
-	extern int s_run_load; // running unlimited until this load has ended, -1 = none (skip MS selection = 1)
 	extern std::atomic<int> s_play_round_req; // requested round, 0 = briefing, INT_MIN = none
-	extern std::deque<std::pair<int, int>> s_play_round_at; // ZDXSV_REPLAY_ROUND_AT=frame:round,...
-	extern bool s_play_pov_ok[GGPO_MAX_PLAYERS];
 	void PlayKeyApply(const PlayKey& k);
 	int PlaySeek(int target, bool pov_switch = false);
 	void PlayRunBegin(int load);
@@ -336,7 +346,7 @@ namespace Zdxsv
 	};
 	extern PlaySent s_play_sent[GGPO_MAX_PLAYERS];
 	extern std::unique_ptr<Zdxsv::LiveDown> s_live_down;
-	extern Zdxsv::LiveStreams s_live_got; // inputs not in s_play_inputs yet (part of a frame)
+	extern Zdxsv::LiveStreams s_live_got; // inputs not in s_play.inputs yet (part of a frame)
 	extern std::string s_live_close; // "" = running
 	extern bool s_live_catchup, s_live_close_logged;
 	extern int s_live_waits, s_live_hold_want; // the frame count the hold at the newest frame waits for, -1 = none
