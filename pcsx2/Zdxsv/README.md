@@ -59,6 +59,8 @@ options: `docs/zdxsv/`.
 | `DeltaState.cpp`, `DeltaState.h` | Fast per-frame save and load of the VM for rollback (copy-on-write EE RAM pages) |
 | `DeltaFreeze.cpp`, `DeltaFreeze.h` | The non-EE-RAM part of a delta state: CPU, IOP, VU, SPU2, DEV9, pad; section timing and offset names for reports |
 | `Lobby.cpp`, `Lobby.h` | Lobby side of a GGPO battle: platform info, battle info notice, STUN, ping test, relay, match report |
+| `LobbyLive.cpp` | Live spectating over the lobby's UDP socket: `LiveUp` streams a battle, `LiveDown` receives one |
+| `LobbyNet.h` | Platform sockets and helpers shared by `Lobby.cpp` and `LobbyLive.cpp` only |
 | `Proto.h` | Minimal protobuf wire codec: the lobby's Ping / Pong, replay files |
 | `replay.proto` | Replay file schema (gdxsv's BattleLogFile + PCSX2 fields); documentation, not compiled |
 | `SyncSettings.cpp`, `SyncSettings.h` | Sync-relevant settings forced while the Z game runs (speedhacks during battles only), their fingerprint for the lobby (UI: `ZdxsvSettingsWidget::markSyncForced`) |
