@@ -332,43 +332,45 @@ namespace Zdxsv
 			return true;
 		}
 
-		// per position: 0 connected, 1 interrupted, 2 disconnected (GGPO events, for the OSD)
-		int s_peer_state[GGPO_MAX_PLAYERS] = {};
+		struct PeerReport
+		{
+			int state[GGPO_MAX_PLAYERS] = {}; // per position: 0 connected, 1 interrupted, 2 disconnected (GGPO events, for the OSD)
+			std::vector<int> pings[GGPO_MAX_PLAYERS]; // ms, sampled once a second for the report
+			std::pair<int, int> loss[GGPO_MAX_PLAYERS] = {}; // GGPO packets lost: received, sent
+			Common::Timer fps_timer;
+			int fps_mark = 0;
+			std::vector<int> fps_history; // frames run in each second, for the report
+		};
+		PeerReport s_peers;
+
 		void SetPeerState(GGPOPlayerHandle h, int state)
 		{
 			for (int p = 0; p < GGPO_MAX_PLAYERS; p++)
 				if (s_handles[p] == h)
-					s_peer_state[p] = state;
+					s_peers.state[p] = state;
 		}
-
-		std::vector<int> s_peer_pings[GGPO_MAX_PLAYERS]; // ms, sampled once a second for the report
-		std::pair<int, int> s_peer_loss[GGPO_MAX_PLAYERS]; // GGPO packets lost: received, sent
 
 		void SamplePeerPings()
 		{
 			for (int p = 0; p < s_players; p++)
 			{
 				GGPONetworkStats st{};
-				if (p != s_net_me && s_peer_state[p] == 0 && ggpo_get_network_stats(s_session, s_handles[p], &st) == GGPO_OK &&
+				if (p != s_net_me && s_peers.state[p] == 0 && ggpo_get_network_stats(s_session, s_handles[p], &st) == GGPO_OK &&
 					st.network.ping > 0)
-					s_peer_pings[p].push_back(st.network.ping);
+					s_peers.pings[p].push_back(st.network.ping);
 				// GGPO's counters are totals and stop once the peer is gone: the last sample is the battle's
-				if (p != s_net_me && s_peer_state[p] == 0 && ggpo_get_network_stats(s_session, s_handles[p], &st) == GGPO_OK)
-					s_peer_loss[p] = {st.network.recv_packet_loss, st.network.send_packet_loss};
+				if (p != s_net_me && s_peers.state[p] == 0 && ggpo_get_network_stats(s_session, s_handles[p], &st) == GGPO_OK)
+					s_peers.loss[p] = {st.network.recv_packet_loss, st.network.send_packet_loss};
 			}
 		}
 
-		Common::Timer s_fps_timer;
-		int s_fps_mark = 0;
-		std::vector<int> s_fps_history; // frames run in each second, for the report
-
 		void SampleFps()
 		{
-			if (s_fps_timer.GetTimeSeconds() < 1.0 || s_fps_history.size() >= 3600)
+			if (s_peers.fps_timer.GetTimeSeconds() < 1.0 || s_peers.fps_history.size() >= 3600)
 				return;
-			s_fps_timer.Reset();
-			s_fps_history.push_back(s_session_frames - s_fps_mark);
-			s_fps_mark = s_session_frames;
+			s_peers.fps_timer.Reset();
+			s_peers.fps_history.push_back(s_session_frames - s_peers.fps_mark);
+			s_peers.fps_mark = s_session_frames;
 		}
 
 		// report lines: disconnected_positions=0,2 (empty: none), ping_<position>=min/median/max ms (none: -1/-1/-1)
@@ -377,17 +379,17 @@ namespace Zdxsv
 			std::string left, pings;
 			for (int p = 0; p < s_players; p++)
 			{
-				if (s_peer_state[p] == 2)
+				if (s_peers.state[p] == 2)
 					left += (left.empty() ? "" : ",") + std::to_string(p);
 				if (p == s_net_me)
 					continue;
-				std::vector<int> v = s_peer_pings[p];
+				std::vector<int> v = s_peers.pings[p];
 				std::sort(v.begin(), v.end());
 				pings += v.empty() ? fmt::format("ping_{}=-1/-1/-1\n", p) : fmt::format("ping_{}={}/{}/{}\n", p, v.front(), v[v.size() / 2], v.back());
-				pings += fmt::format("loss_{}={}/{}\n", p, s_peer_loss[p].first, s_peer_loss[p].second);
+				pings += fmt::format("loss_{}={}/{}\n", p, s_peers.loss[p].first, s_peers.loss[p].second);
 			}
 			std::string fps;
-			for (int f : s_fps_history)
+			for (int f : s_peers.fps_history)
 				fps += (fps.empty() ? "" : ",") + std::to_string(f);
 			return "disconnected_positions=" + left + "\n" + pings + "timesync=" + std::to_string(s_sync_frames) +
 			       "\ninput_blocks=" + std::to_string(s_waits) + "\nfps_history=" + fps + "\n";
@@ -407,7 +409,7 @@ namespace Zdxsv
 		{
 			if (!s_net || !s_session)
 				return;
-			if (!s_osd && std::all_of(std::begin(s_peer_state), std::end(s_peer_state), [](int s) { return s == 0; }))
+			if (!s_osd && std::all_of(std::begin(s_peers.state), std::end(s_peers.state), [](int s) { return s == 0; }))
 			{
 				std::lock_guard lock(s_osd_mtx);
 				s_osd_lines.clear();
@@ -429,12 +431,12 @@ namespace Zdxsv
 				if (!who.pilot.empty())
 					lines.push_back({" " + who.pilot, OSD_TEXT});
 				GGPONetworkStats st{};
-				if (s_peer_state[p] == 2)
+				if (s_peers.state[p] == 2)
 					lines.push_back({" Disconnected", OsdPingColor(999)});
 				else if (ggpo_get_network_stats(s_session, s_handles[p], &st) == GGPO_OK)
 				{
 					// Interrupted in place of the ping, so the line fits the OSD's fixed width
-					if (s_peer_state[p] == 1)
+					if (s_peers.state[p] == 1)
 						lines.push_back({fmt::format(" Interrupted  P {}", st.sync.predicted_frames), OsdPingColor(999)});
 					else
 						lines.push_back({fmt::format(" Ping {}ms{}  P {}", st.network.ping,
@@ -468,7 +470,7 @@ namespace Zdxsv
 					peer.name = s_net_players[p].name;
 					peer.pilot = s_net_players[p].pilot;
 				}
-				peer.connected = s_peer_state[p] != 2;
+				peer.connected = s_peers.state[p] != 2;
 				GGPONetworkStats st{};
 				if (peer.connected && ggpo_get_network_stats(s_session, s_handles[p], &st) == GGPO_OK)
 				{
@@ -874,7 +876,7 @@ namespace Zdxsv
 			if (s_disconnected)
 			{
 				s_disconnected = false;
-				std::fill(std::begin(s_peer_state), std::end(s_peer_state), 0);
+				std::fill(std::begin(s_peers.state), std::end(s_peers.state), 0);
 			}
 			Console.WriteLn("ZdxsvGgpo: net end msg of frame %d confirmed at frame %d, leaving the peers", s_rb.end_frame, s_net_frame);
 			ggpo_disconnect_player(s_session, s_handles[s_net_me]);
@@ -1076,13 +1078,7 @@ namespace Zdxsv
 		for (auto& k3 : s_zds_k3)
 			k3.clear();
 		s_pw.clear();
-		std::fill(std::begin(s_peer_state), std::end(s_peer_state), 0);
-		for (auto& v : s_peer_pings)
-			v.clear();
-		std::fill(std::begin(s_peer_loss), std::end(s_peer_loss), std::pair<int, int>{});
-		s_fps_history.clear();
-		s_fps_mark = 0;
-		s_fps_timer.Reset();
+		s_peers = {};
 		{
 			std::lock_guard lock(s_osd_mtx);
 			s_osd_hold_until = 0;
