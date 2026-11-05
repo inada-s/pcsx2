@@ -103,7 +103,6 @@ namespace Zdxsv
 	extern const char* s_rand_env;
 	extern bool s_net; // net=1 parsed
 	extern int s_players; // players= (net)
-	extern u32 s_zds_echo, s_zds_skip;
 	extern const bool s_pw_hash;
 	constexpr u32 PW_BASE = 0x8395d8, PW_SIZE = 0x2200;
 	extern std::map<int, std::array<u64, 5>> s_pw;
@@ -117,8 +116,6 @@ namespace Zdxsv
 	u32 MsIds();
 	int RoundResult(u32 a, u32 b);
 	extern std::FILE* s_pw_dump;
-	extern std::vector<std::vector<u8>> s_zds_k3[GGPO_MAX_PLAYERS]; // per sender, by index
-	extern u32 s_zds_k3rel;
 	// Play-start barrier: the n-th battle load passes once every peer's synced count (Input::unused[1])
 	// reaches n. The MS-select load has the same barrier (count in Input::unused[0]), off when a file
 	// recorded without it plays. Part of the rollback state.
@@ -129,23 +126,13 @@ namespace Zdxsv
 		bool operator==(const PS&) const = default;
 	};
 	extern bool s_ms_on;
-	extern u32 s_zd_steps, s_zd_changed;
-	extern bool s_net_armed, s_net_over, s_net_closed;
-	extern bool s_lobby_cut; // lobby=1 ping test failed: the battle connection is silent (LobbyCutCall)
-	extern u32 s_cut_sends;
-	extern int s_net_me; // local battle position
-	extern std::vector<std::vector<u8>> s_net_sent; // every msg the game sent since armed, in order
 	extern const int s_k3_lag;
 	struct NetOut
 	{
 		int frame; // GGPO frame of the send
-		size_t idx; // index in s_net_sent
+		size_t idx; // index in s_battle.sent
 		std::vector<u8> m;
 	};
-	extern std::deque<NetOut> s_net_out; // committed, not yet in a local input
-	extern std::vector<int> s_net_sent_at; // GGPO frame of each s_net_sent entry (latest timeline)
-	extern NetInput s_net_local;
-	extern int s_net_frame; // GGPO frame being run (last save or load)
 	// The HLE state outside the VM that a rollback (s_net_at) or a replay key (PlayKey) restores with the
 	// VM state. A new field here is saved and restored everywhere.
 	struct RollbackState
@@ -166,8 +153,30 @@ namespace Zdxsv
 		u8 net_seq_at[64][GGPO_MAX_PLAYERS] = {}; // per frame & 63: each player's synced seq
 	};
 	extern FrameRings s_rings;
-	extern int s_net_end; // frames since the end msg (kind f) was sent or received, -1 = not yet
-	extern int s_net_last_real; // last frame with the peers' inputs (the session left them at the end), INT_MAX = none
+	// The battle socket's HLE state of the current battle.
+	struct BattleNet
+	{
+		bool started = false; // the session was opened (lobby=1: until the next battle's NetReset)
+		bool armed = false, over = false, closed = false;
+		bool lobby_cut = false; // lobby=1 ping test failed: the battle connection is silent (LobbyCutCall)
+		u32 cut_sends = 0;
+		int me = -1; // local battle position
+		std::vector<std::vector<u8>> sent; // every msg the game sent since armed, in order
+		std::vector<int> sent_at; // GGPO frame of each sent entry (latest timeline)
+		std::deque<NetOut> out; // committed, not yet in a local input
+		NetInput local = {};
+		int frame = 0; // GGPO frame being run (last save or load)
+		int end = -1; // frames since the end msg (kind f) was sent or received, -1 = not yet
+		int last_real = INT_MAX; // last frame with the peers' inputs (the session left them at the end), INT_MAX = none
+		u32 zd_steps = 0, zd_changed = 0;
+		u32 zds_echo = 0, zds_skip = 0;
+		// zds: kind 3 (round handshake) is the one barrier: each machine reaches it at its own frame
+		// (scene/load timing: one side can be a frame later), so it goes through the GGPO input
+		// and the n-th kind 3 of every remote goes to recv once all peers' n-th is in the synced stream.
+		std::vector<std::vector<u8>> zds_k3[GGPO_MAX_PLAYERS]; // per sender, by index
+		u32 zds_k3rel = 0;
+	};
+	extern BattleNet s_battle;
 	struct NetStats
 	{
 		u32 sends, msgs, recvs, rxmsgs, rxbytes, polls, other, nowait, senddiff, toolong, maxq, restamp, late;
@@ -198,7 +207,6 @@ namespace Zdxsv
 	extern std::string s_report_ids; // battle info lines naming the battle (SetLobbyPeers)
 	extern std::string s_report; // P2PMatchingReport of the last lobby battle (TakeLobbyReport)
 	extern GGPOSession* s_session;
-	extern bool s_started; // the session was opened (lobby=1: until the next battle's NetReset)
 	extern bool s_frame_ended; // the CPU left Execute() at a vsync
 	extern int s_session_frames;
 	extern std::array<float, PadDualshock2::Inputs::LENGTH> s_host;

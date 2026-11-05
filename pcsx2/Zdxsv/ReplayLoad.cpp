@@ -253,7 +253,7 @@ namespace Zdxsv
 			}
 			s_ms_on = r.hle0.size() == std::size(h);
 			std::copy(r.hle0.begin(), r.hle0.end(), h);
-			// The kind-3 counters index s_zds_k3 (NetApply) and the file holds no kind-3 bodies: only the empty barrier
+			// The kind-3 counters index s_battle.zds_k3 (NetApply) and the file holds no kind-3 bodies: only the empty barrier
 			// the recorder writes (ReplayBegin, right after the session reset) can be played.
 			if (std::any_of(h + 4, h + 9, [](int v) { return v != 0; }))
 			{
@@ -402,17 +402,17 @@ namespace Zdxsv
 			if (pov < 0 || pov >= s_players || !s_play.pov_ok[pov])
 			{
 				Console.Error("ZdxsvGgpo: replay: no point of view %d in the battle", pov);
-				return s_net_frame + 1;
+				return s_battle.frame + 1;
 			}
-			const int old = s_net_me;
+			const int old = s_battle.me;
 			const auto swap_sent = [](int p) {
-				std::swap(s_net_sent, s_play_sent[p].sent);
-				std::swap(s_net_sent_at, s_play_sent[p].at);
-				std::swap(s_net_out, s_play_sent[p].out);
+				std::swap(s_battle.sent, s_play_sent[p].sent);
+				std::swap(s_battle.sent_at, s_play_sent[p].at);
+				std::swap(s_battle.out, s_play_sent[p].out);
 			};
 			swap_sent(old); // park the old position's sent msgs
 			swap_sent(pov);
-			s_net_me = pov;
+			s_battle.me = pov;
 			Console.WriteLn("ZdxsvGgpo: replay: point of view %d -> %d at frame %d, vsync %u", old, pov, target, g_FrameCount);
 			if (!s_play_keys[pov].at(0)->ok) // never played: its own battle start first
 			{
@@ -421,16 +421,16 @@ namespace Zdxsv
 				Console.Error("ZdxsvGgpo: replay: point of view %d: no common state", pov);
 				swap_sent(pov);
 				swap_sent(old);
-				s_net_me = old;
-				return s_net_frame + 1;
+				s_battle.me = old;
+				return s_battle.frame + 1;
 			}
 			const int next = PlaySeek(target, true);
 			if (next >= 0)
 				return next;
 			swap_sent(pov);
 			swap_sent(old);
-			s_net_me = old;
-			return s_net_frame + 1;
+			s_battle.me = old;
+			return s_battle.frame + 1;
 		}
 
 		// Takeover requests at the frame end before `next` runs (may set it). Returns true: pause after it.
@@ -470,7 +470,7 @@ namespace Zdxsv
 					Console.Error("ZdxsvGgpo: replay takeover: not while spectating live");
 				else if (TakeoverBegin(next))
 				{
-					PlayRunEnd("cancelled by a takeover", s_net_frame);
+					PlayRunEnd("cancelled by a takeover", s_battle.frame);
 					if (!s_to_test)
 					{
 						align();
@@ -486,7 +486,7 @@ namespace Zdxsv
 			}
 			else if (req == TO_REQ_RETRY && phase == TO_ON)
 			{
-				Console.WriteLn("ZdxsvGgpo: replay takeover: retry at frame %d", s_net_frame);
+				Console.WriteLn("ZdxsvGgpo: replay takeover: retry at frame %d", s_battle.frame);
 				if (load())
 				{
 					if (s_to_test)
@@ -560,19 +560,19 @@ namespace Zdxsv
 			s_play.target = -1;
 			VMManager::SetLimiterMode(LimiterModeType::Unlimited); // the lobby phase up to the arm
 		}
-		s_started = s_net_armed = s_frame_ended = false;
+		s_battle.started = s_battle.armed = s_frame_ended = false;
 		g_ggpo_active = false;
 		// the battle socket's HLE state as at the first start (the arm adds the lobby frames to net_rx)
 		s_rb = {};
 		s_rings = {};
-		s_net_frame = 0;
-		s_net_end = -1;
-		s_net_last_real = INT_MAX;
-		s_zd_steps = s_zd_changed = s_zds_echo = s_zds_skip = s_zds_k3rel = 0;
-		for (auto& k3 : s_zds_k3)
+		s_battle.frame = 0;
+		s_battle.end = -1;
+		s_battle.last_real = INT_MAX;
+		s_battle.zd_steps = s_battle.zd_changed = s_battle.zds_echo = s_battle.zds_skip = s_battle.zds_k3rel = 0;
+		for (auto& k3 : s_battle.zds_k3)
 			k3.clear();
 		s_net = true;
-		s_net_me = pov;
+		s_battle.me = pov;
 		s_rbk = true;
 		s_rbk_me = pov;
 		s_rbk_n = s_players;
@@ -587,7 +587,7 @@ namespace Zdxsv
 	void PlayCommonStart()
 	{
 		s_play_common = false;
-		const int me = s_net_me;
+		const int me = s_battle.me;
 		PlayKey& k0 = *s_play_keys[me].at(0);
 		const bool hle_same = k0.rb.net_rx == s_rb.net_rx && k0.rb.ps == s_rb.ps && k0.rb.ms == s_rb.ms;
 		Error error;
@@ -603,7 +603,7 @@ namespace Zdxsv
 		Console.WriteLn("ZdxsvGgpo: replay: common start armed at vsync %u as position %d (asked %d), frame 0 HLE state %s",
 			g_FrameCount, me, s_rbk_me, me != s_play.rng_pos ? "not compared" : hle_same ? "equals the file's" : "differs from the file's");
 		// PlayBegin loads that state as PlayLoad does
-		s_started = false;
+		s_battle.started = false;
 		g_ggpo_active = false;
 		Host::RunOnCPUThread([me] { PlayBegin(me); });
 	}
@@ -618,10 +618,10 @@ namespace Zdxsv
 			return;
 		}
 		s_net = true;
-		s_net_me = me;
+		s_battle.me = me;
 		PlayKeyApply(k0);
-		s_net_armed = true;
-		s_started = true;
+		s_battle.armed = true;
+		s_battle.started = true;
 		g_ggpo_active = true;
 		if (const int seek = std::exchange(s_play.rearm_seek, -1); seek >= 0)
 		{
@@ -661,7 +661,7 @@ namespace Zdxsv
 		for (int p = 0; p < s_players; p++)
 			if (s_play.pov_ok[p])
 				povs += fmt::format("{}{}", povs.empty() ? "" : ",", p);
-		Console.WriteLn("ZdxsvGgpo: replay: point of view %d (positions with a file: %s), %d frames", s_net_me, povs.c_str(), s_play.frames);
+		Console.WriteLn("ZdxsvGgpo: replay: point of view %d (positions with a file: %s), %d frames", s_battle.me, povs.c_str(), s_play.frames);
 		SyncStart(me);
 		PlayFrame(0);
 	}
@@ -669,7 +669,7 @@ namespace Zdxsv
 	void PlayNext()
 	{
 		s_session_frames++;
-		int next = s_net_frame + 1;
+		int next = s_battle.frame + 1;
 		if (!s_play.seeks.empty() && s_play.seeks.front().first == next)
 		{
 			s_play_req = s_play.seeks.front().second;
@@ -706,20 +706,20 @@ namespace Zdxsv
 			}
 			else
 			{
-				req = s_play.hi > s_net_frame ? s_play.hi : INT_MIN;
+				req = s_play.hi > s_battle.frame ? s_play.hi : INT_MIN;
 				run = load;
 			}
 		}
 		if (const bool chase = std::exchange(s_sync_chase, false); req != INT_MIN && !chase && Zdxsv::SpectateSync::IsHost())
 			Zdxsv::SpectateSync::HostSeek(req);
-		if (req != INT_MIN || run >= 0 || (pov >= 0 && pov != s_net_me))
+		if (req != INT_MIN || run >= 0 || (pov >= 0 && pov != s_battle.me))
 		{
-			PlayRunEnd("cancelled by a seek", s_net_frame);
-			LiveCatchupEnd(s_net_frame);
+			PlayRunEnd("cancelled by a seek", s_battle.frame);
+			LiveCatchupEnd(s_battle.frame);
 		}
 		if (req == 0 && s_play_loads.battle.size() > 1)
 			req = s_play_loads.battle[1]; // from the start = from the briefing
-		if (pov >= 0 && pov != s_net_me)
+		if (pov >= 0 && pov != s_battle.me)
 		{
 			if (next = PlaySwitch(pov, req != INT_MIN ? req : next); next == -2)
 				return; // PlayCommonStart plays on
@@ -733,7 +733,7 @@ namespace Zdxsv
 		if (s_live_down)
 			LiveNext(next);
 		if (next >= s_play.frames)
-			PlayRunEnd("replay ended first", s_net_frame);
+			PlayRunEnd("replay ended first", s_battle.frame);
 		const char* exit_env = TestEnv("ZDXSV_REPLAY_EXIT");
 		if (next < s_play.frames || (s_to_phase == TO_ON && !(exit_env && exit_env[0] == '1')))
 		{
@@ -755,7 +755,7 @@ namespace Zdxsv
 		{
 			// a seek requested while paused here plays on; resuming without one stops the replay
 			s_play.at_end = true;
-			Console.WriteLn("ZdxsvGgpo: replay at its end (frame %d of %d, vsync %u), paused", s_net_frame, s_play.frames, g_FrameCount);
+			Console.WriteLn("ZdxsvGgpo: replay at its end (frame %d of %d, vsync %u), paused", s_battle.frame, s_play.frames, g_FrameCount);
 			VMManager::SetPaused(true); // now: a queued pause lets one more frame run, which ends the replay
 		}
 	}

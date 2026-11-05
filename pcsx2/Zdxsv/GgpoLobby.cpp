@@ -82,8 +82,8 @@ namespace Zdxsv
 			{
 				Console.WriteLn("ZdxsvGgpo: lobby battle connection cut: %s (position %d, %d players, vsync %u)",
 					why, me, n, g_FrameCount);
-				s_lobby_cut = true;
-				s_cut_sends = 0;
+				s_battle.lobby_cut = true;
+				s_battle.cut_sends = 0;
 				report("cut");
 				s_report += std::string("reason=") + why + "\n";
 				if (s_lobby_session && s_lobby_me >= 0)
@@ -155,8 +155,8 @@ namespace Zdxsv
 			{
 				Console.WriteLn("ZdxsvGgpo: lobby battle connection cut: %d of %d peers answered the ping test (position %d, waited %.1f s, vsync %u)",
 					up, n - 1, me, wait.GetTimeSeconds(), g_FrameCount);
-				s_lobby_unreachable = s_lobby_logged = s_lobby_cut = true;
-				s_cut_sends = 0;
+				s_lobby_unreachable = s_lobby_logged = s_battle.lobby_cut = true;
+				s_battle.cut_sends = 0;
 				report("cut");
 				s_report += "answered=" + std::to_string(up) + "\n" + rtts;
 				Zdxsv::StartCutRefusal(me, static_cast<u16>(GgpoLobbyPort()), CUT_REFUSAL_MS);
@@ -194,7 +194,7 @@ namespace Zdxsv
 		u8* ram = eeMem->Main;
 		s32 result = 0;
 		if (sock == NET_BATTLE_SOCK && fno == NET_FNO_SEND)
-			result = std::clamp<s32>(len, 0, 0x3ca), s_cut_sends++;
+			result = std::clamp<s32>(len, 0, 0x3ca), s_battle.cut_sends++;
 		else if (sock == NET_BATTLE_SOCK && fno == NET_FNO_POLL)
 			result = -1;
 		else if (!(sock == NET_BATTLE_SOCK && fno == NET_FNO_RECV))
@@ -202,11 +202,11 @@ namespace Zdxsv
 			if (fno == 7 || fno == 0xd)
 			{
 				Console.WriteLn("ZdxsvGgpo: lobby battle connection cut ended at vsync %u: game RPC 0x%x after %u dropped sends",
-					g_FrameCount, fno, s_cut_sends);
-				s_lobby_cut = false;
+					g_FrameCount, fno, s_battle.cut_sends);
+				s_battle.lobby_cut = false;
 				std::lock_guard lock(s_lobby_mtx);
 				if (!s_report.empty())
-					s_report += "cut_sends=" + std::to_string(s_cut_sends) + "\n";
+					s_report += "cut_sends=" + std::to_string(s_battle.cut_sends) + "\n";
 			}
 			return false;
 		}

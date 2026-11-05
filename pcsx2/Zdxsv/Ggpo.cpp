@@ -359,11 +359,11 @@ namespace Zdxsv
 			for (int p = 0; p < s_players; p++)
 			{
 				GGPONetworkStats st{};
-				if (p != s_net_me && s_peers.state[p] == 0 && ggpo_get_network_stats(s_session, s_handles[p], &st) == GGPO_OK &&
+				if (p != s_battle.me && s_peers.state[p] == 0 && ggpo_get_network_stats(s_session, s_handles[p], &st) == GGPO_OK &&
 					st.network.ping > 0)
 					s_peers.pings[p].push_back(st.network.ping);
 				// GGPO's counters are totals and stop once the peer is gone: the last sample is the battle's
-				if (p != s_net_me && s_peers.state[p] == 0 && ggpo_get_network_stats(s_session, s_handles[p], &st) == GGPO_OK)
+				if (p != s_battle.me && s_peers.state[p] == 0 && ggpo_get_network_stats(s_session, s_handles[p], &st) == GGPO_OK)
 					s_peers.loss[p] = {st.network.recv_packet_loss, st.network.send_packet_loss};
 			}
 		}
@@ -385,7 +385,7 @@ namespace Zdxsv
 			{
 				if (s_peers.state[p] == 2)
 					left += (left.empty() ? "" : ",") + std::to_string(p);
-				if (p == s_net_me)
+				if (p == s_battle.me)
 					continue;
 				std::vector<int> v = s_peers.pings[p];
 				std::sort(v.begin(), v.end());
@@ -426,7 +426,7 @@ namespace Zdxsv
 			lines.push_back({fmt::format("Roll {}  Wait {}  Sync {}", s_stats.rollback_frames, s_run.waits, s_run.sync_frames), OSD_TEXT});
 			for (int p = 0; p < s_players; p++)
 			{
-				if (p == s_net_me)
+				if (p == s_battle.me)
 					continue;
 				const LobbyPlayer who = p < static_cast<int>(s_net_players.size()) ? s_net_players[p] : LobbyPlayer{};
 				lines.push_back({fmt::format("{}P {}", p + 1, who.id), OSD_TEXT});
@@ -460,11 +460,11 @@ namespace Zdxsv
 			panel.rollback_frames = s_stats.rollback_frames;
 			panel.sync_frames = s_run.sync_frames;
 			GGPONetworkStats own{};
-			if (ggpo_get_network_stats(s_session, s_handles[s_net_me], &own) == GGPO_OK)
+			if (ggpo_get_network_stats(s_session, s_handles[s_battle.me], &own) == GGPO_OK)
 				panel.predicted_frames = own.sync.predicted_frames;
 			for (int p = 0; p < s_players; p++)
 			{
-				if (p == s_net_me)
+				if (p == s_battle.me)
 					continue;
 				GgpoOsdPeer peer;
 				peer.position = p;
@@ -505,7 +505,7 @@ namespace Zdxsv
 					s_run.frames_ahead = ev->u.timesync.frames_ahead;
 					break;
 				case GGPO_EVENTCODE_DISCONNECTED_FROM_PEER:
-					if (s_net_end >= 0)
+					if (s_battle.end >= 0)
 						break;
 					s_run.disconnected = true;
 					SetPeerState(ev->u.disconnected.player, 2);
@@ -669,8 +669,8 @@ namespace Zdxsv
 			}
 			if (s_net)
 			{
-				s_net_over = true;
-				s_net_closed = std::strcmp(what, "net battle end") == 0 || std::strcmp(what, "disconnected") == 0;
+				s_battle.over = true;
+				s_battle.closed = std::strcmp(what, "net battle end") == 0 || std::strcmp(what, "disconnected") == 0;
 				ReplayWrite(what);
 				NetReport();
 			}
@@ -716,7 +716,7 @@ namespace Zdxsv
 
 		void NetLoaded(int frame)
 		{
-			s_net_frame = frame;
+			s_battle.frame = frame;
 			const int end_frame = s_rb.end_frame;
 			s_rb = s_net_at[frame & 127];
 			if (end_frame >= 0 && s_rb.end_frame < 0)
@@ -725,12 +725,12 @@ namespace Zdxsv
 
 		const char* NetStart(GGPOSessionCallbacks& cb)
 		{
-			if (s_net_me < 0 || s_net_me >= s_players)
+			if (s_battle.me < 0 || s_battle.me >= s_players)
 			{
-				Console.Error("ZdxsvGgpo: net position %d not below players=%d", s_net_me, s_players);
+				Console.Error("ZdxsvGgpo: net position %d not below players=%d", s_battle.me, s_players);
 				return "start failed";
 			}
-			const int local_port = s_lobby ? s_port : s_port + s_net_me;
+			const int local_port = s_lobby ? s_port : s_port + s_battle.me;
 			const std::string code = IdValue(ReplayIds(), "battle_code");
 			if (s_net_trace) // battle start marker (pwcheck.py --battle): BATTLES=N lobby battles in one process
 				std::fprintf(s_net_trace, "%u B %s\n", g_FrameCount, code.empty() ? "-" : code.c_str());
@@ -769,7 +769,7 @@ namespace Zdxsv
 				GGPOPlayer player{};
 				player.size = sizeof(GGPOPlayer);
 				player.player_num = p + 1;
-				player.type = (p == s_net_me) ? GGPO_PLAYERTYPE_LOCAL : GGPO_PLAYERTYPE_REMOTE;
+				player.type = (p == s_battle.me) ? GGPO_PLAYERTYPE_LOCAL : GGPO_PLAYERTYPE_REMOTE;
 				if (player.type == GGPO_PLAYERTYPE_REMOTE && s_lobby)
 				{
 					const Zdxsv::PeerAddr& a = s_net_peers[p];
@@ -783,7 +783,7 @@ namespace Zdxsv
 				else if (player.type == GGPO_PLAYERTYPE_REMOTE)
 				{
 					StringUtil::Strlcpy(player.u.remote.ip_address, s_peer_host.c_str(), sizeof(player.u.remote.ip_address));
-					player.u.remote.port = static_cast<unsigned short>(s_relay ? s_relay + 8 * s_net_me + p : s_port + p);
+					player.u.remote.port = static_cast<unsigned short>(s_relay ? s_relay + 8 * s_battle.me + p : s_port + p);
 				}
 				if (ggpo_add_player(s_session, &player, &s_handles[p]) != GGPO_OK)
 					return "start failed";
@@ -815,7 +815,7 @@ namespace Zdxsv
 				return "start timeout";
 			}
 			Console.WriteLn("ZdxsvGgpo: net player %d of %d port %d delay %d, %zu msgs sent before the start, waited %.1f s",
-				s_net_me + 1, s_players, local_port, s_delay, s_net_sent.size(), wait.GetTimeSeconds());
+				s_battle.me + 1, s_players, local_port, s_delay, s_battle.sent.size(), wait.GetTimeSeconds());
 			return nullptr;
 		}
 
@@ -825,29 +825,29 @@ namespace Zdxsv
 		// frame are no longer the peers': the replay and the pw hashes stop there.
 		void NetEndCheck()
 		{
-			if (!s_net || s_net_end >= 0 || s_rb.end_frame < 0)
+			if (!s_net || s_battle.end >= 0 || s_rb.end_frame < 0)
 				return;
 			int confirmed = INT_MAX;
 			ggpo_get_last_confirmed_frame(s_session, &confirmed);
 			if (confirmed < s_rb.end_frame)
 				return;
-			s_net_end = 0;
+			s_battle.end = 0;
 			// A peer that left first had confirmed this end msg: it ended the battle, it did not drop out. Its
 			// inputs after the end msg frame may be missing, and our own inputs then count as confirmed.
-			s_net_last_real = s_run.disconnected ? s_rb.end_frame : confirmed;
+			s_battle.last_real = s_run.disconnected ? s_rb.end_frame : confirmed;
 			if (s_run.disconnected)
 			{
 				s_run.disconnected = false;
 				std::fill(std::begin(s_peers.state), std::end(s_peers.state), 0);
 			}
-			Console.WriteLn("ZdxsvGgpo: net end msg of frame %d confirmed at frame %d, leaving the peers", s_rb.end_frame, s_net_frame);
-			ggpo_disconnect_player(s_session, s_handles[s_net_me]);
+			Console.WriteLn("ZdxsvGgpo: net end msg of frame %d confirmed at frame %d, leaving the peers", s_rb.end_frame, s_battle.frame);
+			ggpo_disconnect_player(s_session, s_handles[s_battle.me]);
 		}
 
 		bool NetAddLocalInput(int frame)
 		{
 			NetInput in = NetPack(s_rand_env ? RandInput() : HostInput(), frame);
-			GGPOErrorCode rc = ggpo_add_local_input(s_session, s_handles[s_net_me], &in, sizeof(in));
+			GGPOErrorCode rc = ggpo_add_local_input(s_session, s_handles[s_battle.me], &in, sizeof(in));
 			if (rc == GGPO_ERRORCODE_PREDICTION_THRESHOLD)
 			{
 				s_run.waits++;
@@ -857,7 +857,7 @@ namespace Zdxsv
 					ggpo_idle(s_session, 0);
 					Threading::Sleep(1);
 					NetEndCheck();
-					rc = ggpo_add_local_input(s_session, s_handles[s_net_me], &in, sizeof(in));
+					rc = ggpo_add_local_input(s_session, s_handles[s_battle.me], &in, sizeof(in));
 				}
 				s_stats.wait_ms.Add(wait.GetTimeMilliseconds());
 			}
@@ -894,7 +894,7 @@ namespace Zdxsv
 			return s_run.disconnected || !at_limit();
 		}
 
-		// Inputs of frame s_net_frame: own host pad to pad 0, every position's (A, B) to s_rings.zd_hist, kind-3
+		// Inputs of frame s_battle.frame: own host pad to pad 0, every position's (A, B) to s_rings.zd_hist, kind-3
 		// msgs with a new seq to the barrier (the n-th of each remote to recv once all peers' n-th arrived).
 		bool NetSyncAndApply()
 		{
@@ -946,18 +946,6 @@ namespace Zdxsv
 	const char* s_rand_env = Zdxsv::TestEnv("ZDXSV_RAND_INPUT");
 	bool s_net = false; // net=1 parsed
 	int s_players = 4; // players= (net)
-	u32 s_zds_echo = 0, s_zds_skip = 0;
-	// zds: kind 3 (round handshake) is the one barrier: each machine reaches it at its own frame
-	// (scene/load timing: one side can be a frame later), so it goes through the GGPO input
-	// and the n-th kind 3 of every remote goes to recv once all peers' n-th is in the synced stream.
-	std::vector<std::vector<u8>> s_zds_k3[GGPO_MAX_PLAYERS]; // per sender, by index
-	u32 s_zds_k3rel = 0;
-	u32 s_zd_steps = 0, s_zd_changed = 0;
-	bool s_net_armed = false, s_net_over = false, s_net_closed = false;
-	bool s_lobby_cut = false; // lobby=1 ping test failed: the battle connection is silent (LobbyCutCall)
-	u32 s_cut_sends = 0;
-	int s_net_me = -1; // local battle position
-	std::vector<std::vector<u8>> s_net_sent; // every msg the game sent since armed, in order
 	// ZDXSV_K3_LAG: a msg sent at GGPO frame s goes into the local input of frame s + lag. With lag above
 	// GGPO's 6 prediction frames, frame s is final when s + lag is added, so a send first made in a rerun
 	// still lands on a fixed frame.
@@ -965,14 +953,9 @@ namespace Zdxsv
 		const char* e = Zdxsv::TestEnv("ZDXSV_K3_LAG");
 		return e ? std::max(0, std::atoi(e)) : 8;
 	}();
-	std::deque<NetOut> s_net_out; // committed, not yet in a local input
-	std::vector<int> s_net_sent_at; // GGPO frame of each s_net_sent entry (latest timeline)
-	NetInput s_net_local = {};
-	int s_net_frame = 0; // GGPO frame being run (last save or load)
 	RollbackState s_rb;
 	FrameRings s_rings;
-	int s_net_end = -1; // frames since the end msg (kind f) was sent or received, -1 = not yet
-	int s_net_last_real = INT_MAX;
+	BattleNet s_battle;
 	NetStats s_ns = {};
 	Hash s_hash = Hash::Pw; // hash= (synctest checksum)
 	int s_port = 7001, s_delay = 0;
@@ -988,7 +971,6 @@ namespace Zdxsv
 	std::vector<LobbyPlayer> s_lobby_players, s_net_players;
 
 	GGPOSession* s_session = nullptr;
-	bool s_started = false; // the session was opened (lobby=1: until the next battle's NetReset)
 	bool s_frame_ended = false; // the CPU left Execute() at a vsync
 	static bool s_frame_hold = false; // the next frame waits, the CPU does not run (GgpoHoldsFrame)
 	static Common::Timer s_hold_poll;
@@ -1020,25 +1002,13 @@ namespace Zdxsv
 	// (Stop closed the session; its stats are reported).
 	void NetReset()
 	{
-		s_started = s_net_armed = s_net_over = s_net_closed = s_lobby_cut = false;
+		s_battle = {};
 		s_frame_ended = s_rerun = false;
 		s_run = {};
-		s_net_me = -1;
-		s_cut_sends = 0;
-		s_net_sent.clear();
-		s_net_sent_at.clear();
 		s_rb = {};
-		s_net_out.clear();
-		s_net_local = {};
-		s_net_frame = 0;
 		std::fill(std::begin(s_net_at), std::end(s_net_at), RollbackState{});
-		s_net_end = -1;
-		s_net_last_real = INT_MAX;
 		s_ns = {};
 		s_rings = {};
-		s_zd_steps = s_zd_changed = s_zds_echo = s_zds_skip = s_zds_k3rel = 0;
-		for (auto& k3 : s_zds_k3)
-			k3.clear();
 		s_pw.clear();
 		s_peers = {};
 		{
@@ -1060,7 +1030,7 @@ namespace Zdxsv
 
 	void GgpoOnVsync()
 	{
-		if (s_rbk && s_net_env && !s_net_armed)
+		if (s_rbk && s_net_env && !s_battle.armed)
 			VMManager::SetLimiterMode(LimiterModeType::Turbo);
 		// Once: the rbk knobs as received; zdxsv/rbk.sh compares this line to what it meant to pass
 		static bool rbk_env_logged = false;
@@ -1073,7 +1043,7 @@ namespace Zdxsv
 		}
 		// ZDXSV_VM_TEST=frame:shutdown|reset|mute|ui (tests of GgpoOnVmShutdown; mute: the GGPO network goes silent): once, when a session or replay reaches GGPO frame `frame`
 		static const char* vm_test = TestEnv("ZDXSV_VM_TEST");
-		if (vm_test && g_ggpo_active && !g_ggpo_in_rollback && s_net_frame == std::atoi(vm_test))
+		if (vm_test && g_ggpo_active && !g_ggpo_in_rollback && s_battle.frame == std::atoi(vm_test))
 		{
 			const char* test = vm_test;
 			vm_test = nullptr;
@@ -1093,7 +1063,7 @@ namespace Zdxsv
 				});
 			else
 				Host::RunOnCPUThread([] { Host::RequestVMShutdown(false, false, false); });
-			Console.WriteLn("ZdxsvGgpo: vm test %s at frame %d", test, s_net_frame);
+			Console.WriteLn("ZdxsvGgpo: vm test %s at frame %d", test, s_battle.frame);
 		}
 		TracePad();
 		TraceInputs();
@@ -1112,7 +1082,7 @@ namespace Zdxsv
 			return;
 		if (!g_ggpo_active)
 		{
-			if (!g_ggpo_enabled || s_started)
+			if (!g_ggpo_enabled || s_battle.started)
 				return;
 			if (s_vsyncs++ == 0)
 			{
@@ -1120,11 +1090,11 @@ namespace Zdxsv
 				if (s_play_env)
 					Host::RunOnCPUThread(PlayLoad);
 			}
-			if (s_play_env && !(s_play_common && s_net_armed)) // PlayLoad starts it, or the arm of a common start
+			if (s_play_env && !(s_play_common && s_battle.armed)) // PlayLoad starts it, or the arm of a common start
 				return;
-			if (s_net ? !s_net_armed : s_vsyncs < s_start)
+			if (s_net ? !s_battle.armed : s_vsyncs < s_start)
 				return;
-			s_started = true;
+			s_battle.started = true;
 			g_ggpo_active = true;
 			s_stats.gs_frame0 = g_perfmon.GetFrame();
 		}
@@ -1231,7 +1201,7 @@ namespace Zdxsv
 					return;
 			}
 			// Not at frame 0: an input added before the first read lets GGPO discard frames the next read needs.
-			if (s_session_frames != 0 && !NetAddLocalInput(s_net_frame + 1))
+			if (s_session_frames != 0 && !NetAddLocalInput(s_battle.frame + 1))
 			{
 				Stop("failed");
 				return;
@@ -1244,18 +1214,18 @@ namespace Zdxsv
 		}
 		s_session_frames++;
 		NetEndCheck();
-		if (s_net && s_net_end >= 0 && ++s_net_end > s_net_tail)
+		if (s_net && s_battle.end >= 0 && ++s_battle.end > s_net_tail)
 		{
 			Stop("net battle end");
 			return;
 		}
-		if (s_run.disconnected && s_net_end < 0)
+		if (s_run.disconnected && s_battle.end < 0)
 		{
 			// A peer leaves once it confirmed the end msg, which took our input of that frame: an end msg still to
 			// come is no later than our last input's frame.
 			if (s_run.disconnected_until < 0)
-				s_run.disconnected_until = s_net_frame + s_delay + 1;
-			if (!s_net || s_net_frame > s_run.disconnected_until)
+				s_run.disconnected_until = s_battle.frame + s_delay + 1;
+			if (!s_net || s_battle.frame > s_run.disconnected_until)
 			{
 				Stop("disconnected");
 				return;
@@ -1419,14 +1389,14 @@ namespace Zdxsv
 	// the scene retries it next frame), pc = the step's epilogue. Trace `<tag>H frame n`.
 	static bool BarrierHold(PS& b, char tag, u32 epilogue)
 	{
-		if (!g_ggpo_active || !s_net_armed || s_net_over)
+		if (!g_ggpo_active || !s_battle.armed || s_battle.over)
 			return false;
 		if (!b.hold)
 		{
 			b.hold = true;
 			b.n++;
 			if (s_net_trace)
-				std::fprintf(s_net_trace, "%u %cH%s %d %d\n", g_FrameCount, tag, g_ggpo_in_rollback ? "r" : "", s_net_frame, b.n);
+				std::fprintf(s_net_trace, "%u %cH%s %d %d\n", g_FrameCount, tag, g_ggpo_in_rollback ? "r" : "", s_battle.frame, b.n);
 		}
 		if (b.go)
 		{
@@ -1479,7 +1449,7 @@ namespace Zdxsv
 	// a1 = ring entry: +2 A, +6 B as u16; bit 0 of B is game-wide state, kept). Trace `Z frame p slot A B`.
 	void OnStepCopy()
 	{
-		if (!g_ggpo_active || !s_net_armed)
+		if (!g_ggpo_active || !s_battle.armed)
 			return;
 		const int p = static_cast<s8>(cpuRegs.GPR.n.s0.UL[0]);
 		const u32 e = cpuRegs.GPR.n.a1.UL[0] & 0x1ffffff;
@@ -1490,23 +1460,23 @@ namespace Zdxsv
 		std::memcpy(&a, ram + e + 2, 2);
 		std::memcpy(&b, ram + e + 6, 2);
 		const int c = ram[e] & 63;
-		const int k = s_net_frame;
+		const int k = s_battle.frame;
 		const u16* ab = s_rings.zd_hist[k & 127][p];
 		const u16 na = ab[0];
 		const u16 nb = static_cast<u16>((ab[1] & ~1u) | (b & 1u));
-		s_zd_steps++;
+		s_battle.zd_steps++;
 		if (a != na || b != nb)
-			s_zd_changed++;
+			s_battle.zd_changed++;
 		std::memcpy(ram + e + 2, &na, 2);
 		std::memcpy(ram + e + 6, &nb, 2);
 		if (s_net_trace)
 			std::fprintf(s_net_trace, "%u Z%s %d %d %02x %04x %04x %04x %04x %02x %d\n", g_FrameCount, g_ggpo_in_rollback ? "r" : "",
-				s_net_frame, p, ((e - 0xc61f40) / 8) & 63, na, nb, a, b, c, k);
+				s_battle.frame, p, ((e - 0xc61f40) / 8) & 63, na, nb, a, b, c, k);
 	}
 
 	void NetSaved(int frame)
 	{
-		s_net_frame = frame;
+		s_battle.frame = frame;
 		s_net_at[frame & 127] = s_rb;
 		if (s_pw_hash)
 		{
@@ -1529,13 +1499,13 @@ namespace Zdxsv
 	void NetReport()
 	{
 		Console.WriteLn("ZdxsvGgpo: net sends %u msgs %u (sent %zu, unsent %zu) recvs %u rxmsgs %u rxbytes %u polls %u other %u nowait %u senddiff %u toolong %u maxq %u waits %d sync %d (max %.1f ms) k3lag %d restamp %u late %u",
-			s_ns.sends, s_ns.msgs, s_net_sent.size(), s_net_out.size(), s_ns.recvs, s_ns.rxmsgs, s_ns.rxbytes, s_ns.polls,
+			s_ns.sends, s_ns.msgs, s_battle.sent.size(), s_battle.out.size(), s_ns.recvs, s_ns.rxmsgs, s_ns.rxbytes, s_ns.polls,
 			s_ns.other, s_ns.nowait, s_ns.senddiff, s_ns.toolong, s_ns.maxq, s_run.waits, s_run.sync_frames, s_run.sync_max_ms, s_k3_lag, s_ns.restamp, s_ns.late);
-		Console.WriteLn("ZdxsvGgpo: zd steps %u changed %u echo %u skip %u k3 %d/%d/%d/%d rel %d (fwd %u)", s_zd_steps, s_zd_changed, s_zds_echo, s_zds_skip,
-			s_rb.zds_seen[0], s_rb.zds_seen[1], s_rb.zds_seen[2], s_rb.zds_seen[3], s_rb.zds_rel, s_zds_k3rel);
+		Console.WriteLn("ZdxsvGgpo: zd steps %u changed %u echo %u skip %u k3 %d/%d/%d/%d rel %d (fwd %u)", s_battle.zd_steps, s_battle.zd_changed, s_battle.zds_echo, s_battle.zds_skip,
+			s_rb.zds_seen[0], s_rb.zds_seen[1], s_rb.zds_seen[2], s_rb.zds_seen[3], s_rb.zds_rel, s_battle.zds_k3rel);
 		if (s_pw_hash && s_net_trace)
 		{
-			s_pw.erase(s_pw.upper_bound(s_net_last_real), s_pw.end());
+			s_pw.erase(s_pw.upper_bound(s_battle.last_real), s_pw.end());
 			for (const auto& [f, h] : s_pw)
 				std::fprintf(s_net_trace, "0 H %d %016llx %016llx %016llx %016llx %08llx\n", f, static_cast<unsigned long long>(h[0]),
 					static_cast<unsigned long long>(h[1]), static_cast<unsigned long long>(h[2]), static_cast<unsigned long long>(h[3]),
@@ -1564,7 +1534,7 @@ namespace Zdxsv
 		return true;
 	}
 	// EE probe (iR5900.cpp): GGPO frame being run, the frame numbers of NET_TRACE H lines and PW dumps.
-	int ProbeFrame() { return s_net_frame; }
+	int ProbeFrame() { return s_battle.frame; }
 
 	void GgpoOnVmShutdown(const char* what)
 	{

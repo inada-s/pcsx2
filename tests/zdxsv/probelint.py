@@ -9,7 +9,7 @@ Rules, each from a run that read a bad probe:
 - flush: a write that ends a line (`\\n` format or fputc('\\n')) to a FILE opened with fopen must be
   followed by fflush/fclose of that FILE before the next `return` / its function's end, unless the FILE is setvbuf
   _IONBF (on Windows _IOLBF = full buffering): the rig kills pcsx2 and buffered lines are lost (hits read as none).
-- key: a dump path built from the GGPO frame (ProbeFrame(), s_net_frame): rollbacks rerun GGPO
+- key: a dump path built from the GGPO frame (ProbeFrame(), s_battle.frame): rollbacks rerun GGPO
   frames, key dumps on g_FrameCount = vsync.
 - stale (--exe): a checked file newer than the exe, content changed since a lint saw it older
   (`<exe>.probelint` sha1 stamp; a `git stash` mtime bump alone passes): the run would read the old probe.
@@ -127,7 +127,7 @@ def lint(path):
                 if not re.search(r"\b(fflush|fclose)\s*\(\s*%s\s*\)" % re.escape(fp), seg):
                     errs.append("%s:%d: flush: line written to %s, no fflush(%s) before the function ends (rig kill loses it)"
                                 % (rel, n + 1, fp, fp))
-        if "fopen" in s and re.search(r"ProbeFrame\s*\(|s_net_frame", s):
+        if "fopen" in s and re.search(r"ProbeFrame\s*\(|s_battle\.frame", s):
             errs.append("%s:%d: key: dump path from the GGPO frame (rollback reruns it); key on g_FrameCount" % (rel, n + 1))
     for (fp, stem), sites in tags.items():
         if len({f for _, f in sites}) > 1:

@@ -368,7 +368,7 @@ namespace Zdxsv
 		if (!s_live_down)
 			return false;
 		LiveTake();
-		const int next = s_net_frame + 1;
+		const int next = s_battle.frame + 1;
 		if (s_live_play.hold_want < 0)
 		{
 			if (next < s_play.frames || !s_live_play.close.empty())

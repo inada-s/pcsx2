@@ -47,7 +47,7 @@ namespace Zdxsv
 			if (std::memcmp(a, last_a, sizeof(a)) != 0)
 			{
 				std::memcpy(last_a, a, sizeof(a));
-				std::fprintf(s_net_trace, "%u A %d %04x %04x %04x %04x\n", g_FrameCount, s_net_frame, a[0], a[1], a[2], a[3]);
+				std::fprintf(s_net_trace, "%u A %d %04x %04x %04x %04x\n", g_FrameCount, s_battle.frame, a[0], a[1], a[2], a[3]);
 			}
 			// `L vsync frame lead maxlead slots state`: lockstep lead 0xc62be0 (queued - executed
 			// counters), its cap 0xc62be1, slots per key msg 0xc62bdf, tick state 0xc627b4, when changed
@@ -57,7 +57,7 @@ namespace Zdxsv
 			if (std::memcmp(cl, last_l, 4) != 0)
 			{
 				std::memcpy(last_l, cl, 4);
-				std::fprintf(s_net_trace, "%u L %d %d %d %d %d\n", g_FrameCount, s_net_frame, cl[0], cl[1], cl[2], cl[3]);
+				std::fprintf(s_net_trace, "%u L %d %d %d %d %d\n", g_FrameCount, s_battle.frame, cl[0], cl[1], cl[2], cl[3]);
 			}
 		}
 		static u8 last[9];

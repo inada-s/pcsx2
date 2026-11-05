@@ -47,55 +47,55 @@ namespace Zdxsv
 		{
 			s_ns.msgs++;
 			if (m.size() >= 2 && (m[1] >> 4) == 0xf && s_rb.end_frame < 0)
-				s_rb.end_frame = s_net_frame;
+				s_rb.end_frame = s_battle.frame;
 			const int kind = m.size() >= 2 && m[0] == m.size() ? m[1] >> 4 : -1;
 			if (kind == 3)
 				; // GGPO input (below), released by NetSyncAndApply
 			else if (kind == 2 || kind == 7 || kind == 9 || kind == 0xf)
 			{
 				for (int q = 0; q < s_players; q++)
-					if (q != s_net_me)
+					if (q != s_battle.me)
 					{
 						s_rb.net_rx.push_back(m[0]);
 						s_rb.net_rx.push_back(static_cast<u8>((m[1] & 0xf0) | q));
 						s_rb.net_rx.insert(s_rb.net_rx.end(), m.begin() + 2, m.end());
 					}
 				if (!g_ggpo_in_rollback)
-					s_zds_echo++;
+					s_battle.zds_echo++;
 			}
-			else if (!g_ggpo_in_rollback && s_zds_skip++ < 20)
+			else if (!g_ggpo_in_rollback && s_battle.zds_skip++ < 20)
 				Console.Warning("ZdxsvGgpo: zds msg kind %d (%zu bytes) not echoed", kind, m.size());
-			if (s_rb.net_pos < s_net_sent.size())
+			if (s_rb.net_pos < s_battle.sent.size())
 			{
-				if (s_net_sent[s_rb.net_pos] != m && s_ns.senddiff++ < 40)
+				if (s_battle.sent[s_rb.net_pos] != m && s_ns.senddiff++ < 40)
 				{
 					std::string a, b;
 					char h[4];
-					for (u8 v : s_net_sent[s_rb.net_pos])
+					for (u8 v : s_battle.sent[s_rb.net_pos])
 						std::snprintf(h, sizeof(h), "%02x", v), a += h;
 					for (u8 v : m)
 						std::snprintf(h, sizeof(h), "%02x", v), b += h;
-					Console.Warning("ZdxsvGgpo: net rerun send %zu differs (frame %d) sent %s rerun %s", s_rb.net_pos, s_net_frame, a.c_str(), b.c_str());
+					Console.Warning("ZdxsvGgpo: net rerun send %zu differs (frame %d) sent %s rerun %s", s_rb.net_pos, s_battle.frame, a.c_str(), b.c_str());
 				}
-				if (s_net_sent_at[s_rb.net_pos] != s_net_frame && m.size() >= 2 && (m[1] >> 4) == 3)
+				if (s_battle.sent_at[s_rb.net_pos] != s_battle.frame && m.size() >= 2 && (m[1] >> 4) == 3)
 				{
-					auto it = std::find_if(s_net_out.begin(), s_net_out.end(), [](const NetOut& o) { return o.idx == s_rb.net_pos; });
-					if (it != s_net_out.end())
-						it->frame = s_net_frame, s_ns.restamp++;
+					auto it = std::find_if(s_battle.out.begin(), s_battle.out.end(), [](const NetOut& o) { return o.idx == s_rb.net_pos; });
+					if (it != s_battle.out.end())
+						it->frame = s_battle.frame, s_ns.restamp++;
 					else if (s_ns.late++ < 20)
-						Console.Warning("ZdxsvGgpo: net rerun send %zu moved %d -> %d after it went into an input", s_rb.net_pos, s_net_sent_at[s_rb.net_pos], s_net_frame);
+						Console.Warning("ZdxsvGgpo: net rerun send %zu moved %d -> %d after it went into an input", s_rb.net_pos, s_battle.sent_at[s_rb.net_pos], s_battle.frame);
 					if (s_net_trace)
-						std::fprintf(s_net_trace, "%u OM %zu %d %d\n", g_FrameCount, s_rb.net_pos, s_net_sent_at[s_rb.net_pos], s_net_frame);
+						std::fprintf(s_net_trace, "%u OM %zu %d %d\n", g_FrameCount, s_rb.net_pos, s_battle.sent_at[s_rb.net_pos], s_battle.frame);
 				}
-				s_net_sent_at[s_rb.net_pos] = s_net_frame;
+				s_battle.sent_at[s_rb.net_pos] = s_battle.frame;
 			}
 			else
 			{
-				s_net_sent.push_back(m);
-				s_net_sent_at.push_back(s_net_frame);
+				s_battle.sent.push_back(m);
+				s_battle.sent_at.push_back(s_battle.frame);
 				if (m.size() >= 2 && (m[1] >> 4) == 3)
-					s_net_out.push_back({s_net_frame, s_rb.net_pos, std::move(m)});
-				s_ns.maxq = std::max<u32>(s_ns.maxq, static_cast<u32>(s_net_out.size()));
+					s_battle.out.push_back({s_battle.frame, s_rb.net_pos, std::move(m)});
+				s_ns.maxq = std::max<u32>(s_ns.maxq, static_cast<u32>(s_battle.out.size()));
 			}
 			s_rb.net_pos++;
 		}
@@ -425,7 +425,7 @@ namespace Zdxsv
 	// the game, its (A, B) + the own kind-3 msgs due since the last input.
 	NetInput NetPack(const Input& pad, int frame)
 	{
-		NetInput in = s_net_local;
+		NetInput in = s_battle.local;
 		in.pad = pad;
 		s_rings.zd_pad[frame & 127] = in.pad;
 		u16 ab[2];
@@ -437,11 +437,11 @@ namespace Zdxsv
 		in.pad.unused[0] = s_rb.ms.n;
 		in.pad.unused[1] = s_rb.ps.n;
 		std::vector<u8> data;
-		while (!s_net_out.empty() && (s_k3_lag == 0 || s_net_out.front().frame + s_k3_lag <= frame))
+		while (!s_battle.out.empty() && (s_k3_lag == 0 || s_battle.out.front().frame + s_k3_lag <= frame))
 		{
-			const std::vector<u8>& m = s_net_out.front().m;
+			const std::vector<u8>& m = s_battle.out.front().m;
 			if (s_net_trace)
-				std::fprintf(s_net_trace, "%u O %d %zu %d\n", g_FrameCount, frame, s_net_out.front().idx, s_net_out.front().frame);
+				std::fprintf(s_net_trace, "%u O %d %zu %d\n", g_FrameCount, frame, s_battle.out.front().idx, s_battle.out.front().frame);
 			if (m.size() > sizeof(in.data))
 			{
 				if (s_ns.toolong++ < 20)
@@ -451,7 +451,7 @@ namespace Zdxsv
 				break;
 			else
 				data.insert(data.end(), m.begin(), m.end());
-			s_net_out.pop_front();
+			s_battle.out.pop_front();
 		}
 		if (!data.empty())
 		{
@@ -460,14 +460,14 @@ namespace Zdxsv
 			std::memset(in.data, 0, sizeof(in.data));
 			std::memcpy(in.data, data.data(), data.size());
 		}
-		s_net_local = in;
+		s_battle.local = in;
 		return in;
 	}
 
-	// The synced inputs of frame s_net_frame (live: GGPO, replay: the file) to the game.
+	// The synced inputs of frame s_battle.frame (live: GGPO, replay: the file) to the game.
 	void NetApply(const NetInput* in)
 	{
-		const int f = s_net_frame;
+		const int f = s_battle.frame;
 		ReplayLog(f, in);
 		ApplyPad(0, s_rings.zd_pad[f & 127]);
 		for (int p = 0; p < s_players; p++)
@@ -482,7 +482,7 @@ namespace Zdxsv
 				for (u32 i = 0; i + 1 < len && d[i] >= 2 && i + d[i] <= len; i += d[i])
 					if ((d[i + 1] >> 4) == 3)
 					{
-						std::vector<std::vector<u8>>& v = s_zds_k3[p];
+						std::vector<std::vector<u8>>& v = s_battle.zds_k3[p];
 						if (v.size() <= static_cast<size_t>(s_rb.zds_seen[p]))
 							v.resize(s_rb.zds_seen[p] + 1);
 						v[s_rb.zds_seen[p]++].assign(d + i, d + i + d[i]);
@@ -497,12 +497,12 @@ namespace Zdxsv
 			if (!all)
 				break;
 			for (int p = 0; p < s_players; p++)
-				if (p != s_net_me)
-					s_rb.net_rx.insert(s_rb.net_rx.end(), s_zds_k3[p][s_rb.zds_rel].begin(), s_zds_k3[p][s_rb.zds_rel].end());
+				if (p != s_battle.me)
+					s_rb.net_rx.insert(s_rb.net_rx.end(), s_battle.zds_k3[p][s_rb.zds_rel].begin(), s_battle.zds_k3[p][s_rb.zds_rel].end());
 			if (s_net_trace)
 				std::fprintf(s_net_trace, "%u K3%s %d %d\n", g_FrameCount, g_ggpo_in_rollback ? "r" : "", f, s_rb.zds_rel);
 			if (!g_ggpo_in_rollback)
-				s_zds_k3rel++;
+				s_battle.zds_k3rel++;
 			s_rb.zds_rel++;
 		}
 		const auto release = [&](PS& b, int k, char tag) {
@@ -540,7 +540,7 @@ namespace Zdxsv
 		const s16 len = *reinterpret_cast<const s16*>(ram + NET_REQ_LEN);
 		u8* d = ram + NET_REQ_DATA;
 		const bool key = fno == NET_FNO_SEND && sock == NET_BATTLE_SOCK && len > 0 && len <= 0x3ca && HasKeyMsg(d, len);
-		if (s_net_over)
+		if (s_battle.over)
 		{
 			// lobby=1: the first key msg of a battle with a new battle info starts the next GGPO battle; the
 			// sends of the ended battle (same battle info) stay with the IOP
@@ -549,7 +549,7 @@ namespace Zdxsv
 				NetReset();
 				Console.WriteLn("ZdxsvGgpo: next lobby battle at vsync %u", g_FrameCount);
 			}
-			else if (!s_net_closed || sock != NET_BATTLE_SOCK)
+			else if (!s_battle.closed || sock != NET_BATTLE_SOCK)
 				return false;
 			else
 			{
@@ -562,7 +562,7 @@ namespace Zdxsv
 					result = -1;
 				else if (fno != NET_FNO_RECV)
 				{
-					s_net_closed = false;
+					s_battle.closed = false;
 					Console.WriteLn("ZdxsvGgpo: battle sock released at vsync %u: game RPC 0x%x", g_FrameCount, fno);
 					return false;
 				}
@@ -572,13 +572,13 @@ namespace Zdxsv
 				return true;
 			}
 		}
-		if (s_rbk && !s_net_armed && !key) // connect (fno 7) has the address in the sock field
+		if (s_rbk && !s_battle.armed && !key) // connect (fno 7) has the address in the sock field
 			return RbkCall(fno, len, d);
-		if (s_lobby_cut)
+		if (s_battle.lobby_cut)
 			return LobbyCutCall(fno, sock, len);
 		if (sock != NET_BATTLE_SOCK)
 			return false;
-		if (!s_net_armed)
+		if (!s_battle.armed)
 		{
 			// sock 0 is the lobby TCP too: arm at the battle's first key msg
 			if (!key)
@@ -588,8 +588,8 @@ namespace Zdxsv
 				if ((d[i + 1] >> 4) == 2)
 					me = d[i + 1] & 0xf;
 			if (s_lobby && !LobbyArm(me))
-				return s_lobby_cut && LobbyCutCall(fno, sock, len);
-			s_net_armed = true;
+				return s_battle.lobby_cut && LobbyCutCall(fno, sock, len);
+			s_battle.armed = true;
 			if (s_rbk)
 			{
 				s_rb.net_rx.insert(s_rb.net_rx.end(), s_rbk_rx.begin(), s_rbk_rx.end());
@@ -599,8 +599,8 @@ namespace Zdxsv
 			if (!s_rbk || !Zdxsv::TestEnv("ZDXSV_RBK_TURBO"))
 				VMManager::SetLimiterMode(LimiterModeType::Nominal);
 			if (me >= 0)
-				s_net_me = me;
-			Console.WriteLn("ZdxsvGgpo: net armed at vsync %u, position %d", g_FrameCount, s_net_me);
+				s_battle.me = me;
+			Console.WriteLn("ZdxsvGgpo: net armed at vsync %u, position %d", g_FrameCount, s_battle.me);
 		}
 		if (*reinterpret_cast<const s16*>(ram + NET_NOWAIT) != 0)
 			s_ns.nowait++;
