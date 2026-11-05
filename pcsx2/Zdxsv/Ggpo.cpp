@@ -95,17 +95,17 @@ namespace Zdxsv
 		// g_single_draw_list (default 2; 0 with it). Without g_single_draw_list one less breaks the picture
 		// after each rollback (tests/zdxsv/rerunpic.py).
 		const int s_rerun_tail = [] {
-			const char* e = std::getenv("ZDXSV_RERUN_TAIL");
+			const char* e = TestEnv("ZDXSV_RERUN_TAIL");
 			return e ? std::max(0, std::atoi(e)) : -1;
 		}();
 		// ZDXSV_RERUN_VU1=1: VU1 in every rerun frame.
 		const bool s_rerun_vu1 = [] {
-			const char* e = std::getenv("ZDXSV_RERUN_VU1");
+			const char* e = TestEnv("ZDXSV_RERUN_VU1");
 			return e && e[0] == '1';
 		}();
 		// ZDXSV_RERUN_EE_DRAW=1: render callbacks in every rerun frame.
 		const bool s_rerun_ee_draw = [] {
-			const char* e = std::getenv("ZDXSV_RERUN_EE_DRAW");
+			const char* e = TestEnv("ZDXSV_RERUN_EE_DRAW");
 			return e && e[0] == '1';
 		}();
 		// LowLatencyVsync: present, rollback, then sleep and poll input (GgpoDeferThrottle). A corrected frame
@@ -1110,20 +1110,21 @@ namespace Zdxsv
 		if (s_rbk && !s_play_env && !rbk_env_logged)
 		{
 			rbk_env_logged = true;
-			const auto env = [](const char* k) { const char* v = std::getenv(k); return v && *v ? v : "-"; };
+			const auto env = [](const char* k) { const char* v = TestEnv(k); return v && *v ? v : "-"; };
 			Console.WriteLn("ZdxsvGgpo: rbk env pos=%d/%d rand=%s turbo=%s clamp=%s ggpo=%s", s_rbk_me, s_rbk_n,
 				env("ZDXSV_RAND_INPUT"), env("ZDXSV_RBK_TURBO"), env("ZDXSV_EE_CLAMP"), env("ZDXSV_GGPO"));
 		}
 		// ZDXSV_VM_TEST=frame:shutdown|reset|mute|ui (tests of GgpoOnVmShutdown; mute: the GGPO network goes silent): once, when a session or replay reaches GGPO frame `frame`
-		static const char* vm_test = std::getenv("ZDXSV_VM_TEST");
+		static const char* vm_test = TestEnv("ZDXSV_VM_TEST");
 		if (vm_test && g_ggpo_active && !g_ggpo_in_rollback && s_net_frame == std::atoi(vm_test))
 		{
+			const char* test = vm_test;
 			vm_test = nullptr;
-			if (std::strstr(std::getenv("ZDXSV_VM_TEST"), ":mute"))
+			if (std::strstr(test, ":mute"))
 				ggpo_set_mute(s_session, true);
-			else if (std::strstr(std::getenv("ZDXSV_VM_TEST"), ":reset"))
+			else if (std::strstr(test, ":reset"))
 				Host::RunOnCPUThread([] { VMManager::Reset(); });
-			else if (std::strstr(std::getenv("ZDXSV_VM_TEST"), ":ui"))
+			else if (std::strstr(test, ":ui"))
 				Host::RunOnCPUThread([] {
 					VMManager::SetLimiterMode(LimiterModeType::Turbo);
 					VMManager::FrameAdvance(1);
@@ -1135,7 +1136,7 @@ namespace Zdxsv
 				});
 			else
 				Host::RunOnCPUThread([] { Host::RequestVMShutdown(false, false, false); });
-			Console.WriteLn("ZdxsvGgpo: vm test %s at frame %d", std::getenv("ZDXSV_VM_TEST"), s_net_frame);
+			Console.WriteLn("ZdxsvGgpo: vm test %s at frame %d", test, s_net_frame);
 		}
 		TracePad();
 		TraceInputs();
@@ -1367,15 +1368,15 @@ namespace Zdxsv
 	void GgpoOnVmInitialize(const char* serial, u32 crc)
 	{
 		TakeNextReplay(s_play_picked, s_play_picked_pov);
-		const char* play = std::getenv("ZDXSV_REPLAY");
+		const char* play = TestEnv("ZDXSV_REPLAY");
 		s_play_env = play ? play : s_play_picked.empty() ? nullptr : s_play_picked.c_str();
 		s_play_listed = !play && !s_play_picked.empty();
-		const char* e = std::getenv("ZDXSV_GGPO");
+		const char* e = TestEnv("ZDXSV_GGPO");
 		// ZDXSV_GAME_CRC=hex (test): the CRC taken as the Z game's, to run the wrong-game path on the Z game
 		const char* want_env = Zdxsv::TestEnv("ZDXSV_GAME_CRC");
 		const u32 want = want_env ? static_cast<u32>(std::strtoul(want_env, nullptr, 16)) : GAME_CRC;
 		const bool serial_match = std::strcmp(serial, GAME_SERIAL) == 0;
-		const char* ext = std::getenv("ZDXSV_EXTENSIONS");
+		const char* ext = TestEnv("ZDXSV_EXTENSIONS");
 		const bool ext_off = ext && std::strcmp(ext, "0") == 0;
 		g_z_game = serial_match && crc == want && !ext_off;
 		SingleDrawListOnVmInitialize();
