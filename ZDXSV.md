@@ -72,9 +72,9 @@ first sign-in makes a new account; PCSX2 keeps a sign-in token for this PC and l
 use the account you play on a PS2, type ｄｃ in the lobby chat on the PS2, enter the code it shows
 in Carry-over code, then sign in (within 10 minutes). Sign Out revokes the token.
 With no token, going online opens the sign-in page and pauses the game until you sign in; resume
-the game to skip it and log in as before.
+the game to cancel it and go back to the network menu.
 If the zdxsv login server does not answer, the game pauses and PCSX2 retries until it answers;
-resume the game to log in without it.
+resume the game to go back to the network menu. A refused login also goes back there.
 
 ## Crash reports
 
