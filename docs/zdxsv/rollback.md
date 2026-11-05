@@ -170,6 +170,8 @@ The game runs with its own input delay 0; GGPO adds the input delay.
   report (ping) is answered and a quality reply timed at once, the rest
   wait for the frame loop. So a relaying peer's rollbacks and limiter sleep do
   not delay the peers it relays for.
+- With `GGPO_NETWORK_DELAY` set, the network thread also sends delayed
+  packets when they are due (every 1 ms), not at the next frame.
 - Time sync: when GGPO reports this peer ahead, it waits one frame
   (1/60 s, `ggpo_idle` while waiting) every 10 frames until the suggested
   frames are used, as flycast. That frame's limiter period grows by the wait, so

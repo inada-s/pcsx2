@@ -810,3 +810,18 @@ Peer2PeerBackend::OnReceived(sockaddr_storage &from, UdpMsg *msg, int len)
       _spectators[i].OnReceived(from, msg, len);
    }
 }
+
+void
+Peer2PeerBackend::PumpSendQueues()
+{
+   for (int i = 0; i < _num_players; i++) {
+      if (_endpoints[i].IsInitialized()) {
+         _endpoints[i].PumpSendQueue();
+      }
+   }
+   for (int i = 0; i < _num_spectators; i++) {
+      if (_spectators[i].IsInitialized()) {
+         _spectators[i].PumpSendQueue();
+      }
+   }
+}

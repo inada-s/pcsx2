@@ -46,6 +46,7 @@ public:
    void OnMsg(sockaddr_storage &from, UdpMsg *msg, int len) override;
    bool TryForward(sockaddr_storage &from, UdpMsg *msg, int len) override;
    void OnReceived(sockaddr_storage &from, UdpMsg *msg, int len) override;
+   void PumpSendQueues() override;
 
 protected:
    GGPOErrorCode PlayerHandleToQueue(GGPOPlayerHandle player, int *queue);
