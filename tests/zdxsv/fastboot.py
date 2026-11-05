@@ -52,7 +52,7 @@ def step(out, name, limit, line):
 def main():
     zrig.need("OUT", "RUN")
     out, run = os.environ["OUT"], os.environ["RUN"]
-    states = os.path.join(run, "p1", "PCSX2", "sstates", "* zdxsv-fastboot *.p2s")
+    states = os.path.join(run, "p1", "PCSX2", "sstates", "* zdxsv-fastboot*.p2s")
     for f in glob.glob(states):
         os.remove(f)
     os.makedirs(out, exist_ok=True)
