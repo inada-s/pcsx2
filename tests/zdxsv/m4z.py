@@ -54,7 +54,8 @@ EMU=1: the 4 clients are emulators instead (platform info, TCP to the battle ser
   the lobby gets two fingerprints, every client enters the battle, no battle starts (the lobby matches equal ones only).
   DROP_SYNC=K (GGPO): client K gets ZDXSV_DROP_SYNC=0 (position 0's sync missing from its battle info): only
   client K cuts, the others start GGPO; checks: K refuses their GGPO session, each other client closes on
-  `another session` within 3 s of `net armed` (not the 10 s start timeout), every client back in the lobby.
+  `another session` within 3 s of `net armed` (not the 10 s start timeout), every client back in the lobby;
+  REPORT=1: K reports `cut`, the others `ggpo` closed on `session mismatch`.
   BREAK=K (GGPO): client K shuts down at GGPO frame BREAK_FRAME (default 1500) of the battle (BREAK_MODE=mute:
   its GGPO packets are dropped from then on, its battle TCP stays up); waits for the other clients to log in to
   the lobby again. Checks per other client: peer disconnected; prints the s from the disconnect to its next
@@ -638,8 +639,13 @@ def main():
                 say(l[:300])
             ok("no match report without a battle code", not c(lobby, 'p2p matching report: battle_code=""'))
             rc = report_code()
-            ok(f"match report x{ngc}: battle code {rc}, result cut, cut ended",
-               sum(1 for l in g(lobby, f'p2p matching report: battle_code="{rc}"') if 'result="cut"' in l and "cut_sends=" in l) == ngc)
+            rs = g(lobby, f'p2p matching report: battle_code="{rc}"')
+            ncut = 1 if cut == "drop" else ngc
+            ok(f"match report x{ncut}: battle code {rc}, result cut, cut ended",
+               sum(1 for l in rs if 'result="cut"' in l and "cut_sends=" in l) == ncut)
+            if cut == "drop":
+                ok(f"match report x{ngc - 1}: battle code {rc}, result ggpo, closed on session mismatch",
+                   sum(1 for l in rs if 'result="ggpo"' in l and 'close_reason="session mismatch"' in l) == ngc - 1)
         return RC[0]
 
     def breakwait():
