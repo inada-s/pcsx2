@@ -54,6 +54,7 @@
 
 #include "fmt/format.h"
 
+#include "pcsx2/Zdxsv/AuthHooks.h"
 #include "pcsx2/Zdxsv/CrashReportHooks.h"
 
 #include <cmath>
@@ -2508,6 +2509,7 @@ int main(int argc, char* argv[])
 	LogWindow::updateSettings();
 
 	Zdxsv::CrashReportsStart();
+	Zdxsv::AuthSignInFromEnv();
 
 	// Start up the CPU thread.
 	QtHost::HookSignals();

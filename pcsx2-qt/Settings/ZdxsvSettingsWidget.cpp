@@ -7,6 +7,7 @@
 #include "SettingsWindow.h"
 #include "QtHost.h"
 
+#include "pcsx2/Zdxsv/AuthSignIn.h"
 #include "pcsx2/Zdxsv/CrashReportHooks.h"
 #include "pcsx2/Zdxsv/SyncSettings.h"
 #include "pcsx2/Zdxsv/Upnp.h"
@@ -116,6 +117,14 @@ ZdxsvSettingsWidget::ZdxsvSettingsWidget(SettingsWindow* settings_dialog, QWidge
 	connect(m_ui.zdxsvPresetMid, &QPushButton::clicked, this, [this]() { applyPreset(2.0f, 2); });
 	connect(m_ui.zdxsvPresetHigh, &QPushButton::clicked, this, [this]() { applyPreset(3.0f, 2); });
 	connect(m_ui.zdxsvUPnPNow, &QPushButton::clicked, this, &ZdxsvSettingsWidget::mapUpnpNow);
+	connect(m_ui.zdxsvSignIn, &QPushButton::clicked, this, &ZdxsvSettingsWidget::signIn);
+	connect(m_ui.zdxsvSignOut, &QPushButton::clicked, this, &ZdxsvSettingsWidget::signOut);
+	updateAccount();
+	dialog()->registerWidgetHelp(m_ui.zdxsvSignIn, tr("Sign in with Discord"), tr("None"),
+		tr("Opens the zdxsv sign-in page in your browser. The first sign-in creates your account; a carry-over code from "
+		   "the lobby on a PS2 links that account instead. PCSX2 keeps a sign-in token for this PC."));
+	dialog()->registerWidgetHelp(m_ui.zdxsvSignOut, tr("Sign Out"), tr("None"),
+		tr("Revokes this PC's sign-in token on the server and deletes it."));
 	dialog()->registerWidgetHelp(m_ui.zdxsvUPnPNow, tr("UPnP Now"), tr("None"),
 		tr("Asks the router (UPnP) now to forward the battle UDP port to this PC, and shows the result. The mapping is removed when PCSX2 exits."));
 	dialog()->registerWidgetHelp(m_ui.zdxsvPresetLow, tr("Recommended Settings for Low-Spec PC"), tr("None"),
@@ -126,7 +135,58 @@ ZdxsvSettingsWidget::ZdxsvSettingsWidget(SettingsWindow* settings_dialog, QWidge
 		tr("Sets Internal Resolution to 3x Native (~1080p) and Minimum Input Delay to 2."));
 }
 
-ZdxsvSettingsWidget::~ZdxsvSettingsWidget() = default;
+ZdxsvSettingsWidget::~ZdxsvSettingsWidget()
+{
+	if (m_sign_in_cancel)
+		m_sign_in_cancel->store(true);
+}
+
+void ZdxsvSettingsWidget::updateAccount()
+{
+	const bool signed_in = Zdxsv::AuthTokenRead().has_value();
+	const bool busy = m_sign_in_cancel != nullptr;
+	if (!busy)
+		m_ui.zdxsvAccountStatus->setText(signed_in ? tr("Signed in on this PC.") : tr("Not signed in. Online play needs a sign-in."));
+	m_ui.zdxsvSignIn->setEnabled(!busy);
+	m_ui.zdxsvCarryCode->setEnabled(!busy);
+	m_ui.zdxsvSignOut->setEnabled(!busy && signed_in);
+}
+
+void ZdxsvSettingsWidget::signIn()
+{
+	m_sign_in_cancel = std::make_shared<std::atomic<bool>>(false);
+	m_ui.zdxsvAccountStatus->setText(tr("Finish the sign-in in your browser..."));
+	updateAccount();
+	std::thread([widget = QPointer<ZdxsvSettingsWidget>(this), cancel = m_sign_in_cancel,
+					carry = m_ui.zdxsvCarryCode->text().toStdString()]() {
+		const std::string error = Zdxsv::AuthSignIn(carry, Zdxsv::AuthOpenBrowser, *cancel);
+		QtHost::RunOnUIThread([widget, cancel, error]() {
+			if (!widget || widget->m_sign_in_cancel != cancel)
+				return;
+			widget->m_sign_in_cancel.reset();
+			widget->updateAccount();
+			if (!error.empty())
+				widget->m_ui.zdxsvAccountStatus->setText(tr("Sign-in failed: %1").arg(QString::fromStdString(error)));
+			else
+				widget->m_ui.zdxsvCarryCode->clear();
+		});
+	}).detach();
+}
+
+void ZdxsvSettingsWidget::signOut()
+{
+	m_ui.zdxsvSignOut->setEnabled(false);
+	std::thread([widget = QPointer<ZdxsvSettingsWidget>(this)]() {
+		const std::string error = Zdxsv::AuthSignOut();
+		QtHost::RunOnUIThread([widget, error]() {
+			if (!widget)
+				return;
+			widget->updateAccount();
+			if (!error.empty())
+				widget->m_ui.zdxsvAccountStatus->setText(tr("Signed out on this PC; %1").arg(QString::fromStdString(error)));
+		});
+	}).detach();
+}
 
 void ZdxsvSettingsWidget::applyPreset(float upscale_multiplier, int min_delay)
 {

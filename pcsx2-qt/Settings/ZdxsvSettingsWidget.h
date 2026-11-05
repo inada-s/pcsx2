@@ -6,6 +6,9 @@
 #include "ui_ZdxsvSettingsWidget.h"
 #include "SettingsWidget.h"
 
+#include <atomic>
+#include <memory>
+
 class ZdxsvSettingsWidget : public SettingsWidget
 {
 	Q_OBJECT
@@ -21,6 +24,10 @@ public:
 private:
 	void applyPreset(float upscale_multiplier, int min_delay);
 	void mapUpnpNow();
+	void updateAccount();
+	void signIn();
+	void signOut();
 
 	Ui::ZdxsvSettingsWidget m_ui;
+	std::shared_ptr<std::atomic<bool>> m_sign_in_cancel;
 };

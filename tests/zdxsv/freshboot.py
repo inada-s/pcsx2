@@ -19,6 +19,7 @@ import threading
 import time
 
 import launch
+import tokenlogin
 import zrig
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -70,9 +71,13 @@ def fresh_boot(i, say=print):
     if p is None:
         say(f"FAIL launch p{i}")
         return False
+    card = os.path.join(os.environ["RUN"], f"Mcd001-{os.environ['CARDS'].split()[i - 1]}.ps2")
+    token, err = tokenlogin.card_token(os.path.join(os.environ["TRACE"], "zdxsv.db"), card, stand_in=True)
+    if err:
+        say(f"FAIL token p{i}: {err}")
+        return False
     kw = p[1]
-    kw.update(speed=zrig.env("SPEED", "1"), extra_env=e, quiet=True,
-              memcard=os.path.join(os.environ["RUN"], f"Mcd001-{os.environ['CARDS'].split()[i - 1]}.ps2"))
+    kw.update(speed=zrig.env("SPEED", "1"), extra_env=e, quiet=True, memcard=card, token=token)
     if str(i) not in zrig.env("SHOW").split():
         kw["headless"] = True
     pid = launch.launch([i], **kw).get(i)
@@ -242,6 +247,9 @@ def servers(fake_args=(), relays=()):
                                 os.path.join(o, f"emulog-p{i}.txt"))
             except OSError:
                 pass
+            tf = os.path.join(run, f"p{i}", "PCSX2", "inis", "zdxsv_auth_token.txt")
+            if os.path.exists(tf):
+                os.remove(tf)
 
     atexit.register(cleanup)
     start([z, "battle"], "battle.log", cwd=run)

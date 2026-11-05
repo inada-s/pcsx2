@@ -257,6 +257,8 @@ set(pcsx2Headers
 	Zdxsv/InputHooks.h
 	Zdxsv/SaveStateHooks.h
 	Zdxsv/MediaHooks.h
+	Zdxsv/AuthHooks.h
+	Zdxsv/AuthSignIn.h
 	Zdxsv/CrashReportHooks.h
 	Zdxsv/UiHooks.h
 	Zdxsv/Settings.h
@@ -383,6 +385,8 @@ set(pcsx2DEV9Sources
 	Zdxsv/Upnp.cpp
 	Zdxsv/ServerHosts.cpp
 	Zdxsv/FastBoot.cpp
+	Zdxsv/AuthSignIn.cpp
+	Zdxsv/AuthTest.cpp
 	Zdxsv/FastLogin.cpp
 	Zdxsv/HttpsLatency.cpp
 	Zdxsv/TlsTunnel.cpp

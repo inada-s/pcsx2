@@ -276,6 +276,54 @@ for High-Spec PC</string>
     </widget>
    </item>
    <item>
+    <widget class="QGroupBox" name="zdxsvAccountGroup">
+     <property name="title">
+      <string>Account</string>
+     </property>
+     <layout class="QVBoxLayout" name="zdxsvAccountLayout">
+      <item>
+       <widget class="QLabel" name="zdxsvAccountStatus">
+        <property name="wordWrap">
+         <bool>true</bool>
+        </property>
+       </widget>
+      </item>
+      <item>
+       <layout class="QHBoxLayout" name="zdxsvAccountButtons">
+        <item>
+         <widget class="QLabel" name="zdxsvCarryLabel">
+          <property name="text">
+           <string>Carry-over code (optional):</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QLineEdit" name="zdxsvCarryCode">
+          <property name="maxLength">
+           <number>16</number>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="zdxsvSignIn">
+          <property name="text">
+           <string>Sign in with Discord</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QPushButton" name="zdxsvSignOut">
+          <property name="text">
+           <string>Sign Out</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
     <widget class="QGroupBox" name="zdxsvCrashReportsGroup">
      <property name="title">
       <string>Crash Reports</string>
