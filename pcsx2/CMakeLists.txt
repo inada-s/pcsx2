@@ -150,6 +150,7 @@ set(pcsx2Sources
 	Zdxsv/Ggpo.cpp
 	Zdxsv/GgpoOsd.cpp
 	Zdxsv/GgpoNetStatus.cpp
+	Zdxsv/GgpoSession.cpp
 	Zdxsv/GgpoBattle.cpp
 	Zdxsv/GgpoBudget.cpp
 	Zdxsv/GgpoGameState.cpp

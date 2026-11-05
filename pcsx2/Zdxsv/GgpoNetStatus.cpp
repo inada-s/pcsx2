@@ -171,7 +171,7 @@ namespace Zdxsv
 		s_osd_panel = std::move(panel);
 	}
 
-	// Stop: after a disconnect the lines stay up 10 s, so the player sees who left.
+	// GgpoStop: after a disconnect the lines stay up 10 s, so the player sees who left.
 	void NetStatusHold(bool disconnected)
 	{
 		std::lock_guard lock(s_osd_mtx);

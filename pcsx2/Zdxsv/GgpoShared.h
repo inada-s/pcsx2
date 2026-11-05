@@ -479,4 +479,24 @@ namespace Zdxsv
 	int GgpoBudgetDelay(int rtt, int min_delay, float budget);
 	void GgpoBudgetFrame(bool sample, double rerun_ms, double wait_ms, double sleep_ms);
 	void GgpoBudgetSessionEnd(bool learn);
+
+	// Ggpo.cpp
+	constexpr int GGPO_PLAYERS = 2;
+	extern RollbackState s_net_at[128];
+	extern bool s_vm_closing;
+	extern std::mt19937 s_ggpo_rng;
+	void GgpoPriority(bool high);
+	void GgpoReport(const char* what);
+	Input GgpoHostInput();
+	bool GgpoSyncAndApply(bool rerun);
+	bool GgpoRunFrame();
+
+	// GgpoSession.cpp
+	extern std::recursive_mutex s_ggpo_mtx;
+	void GgpoStop(const char* what);
+	const char* GgpoStart();
+	void NetEndCheck();
+	bool NetAddLocalInput(int frame);
+	bool NetWaitPredictionLimit();
+	bool NetSyncAndApply();
 } // namespace Zdxsv

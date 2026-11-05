@@ -461,6 +461,7 @@
     <ClCompile Include="Zdxsv\Ggpo.cpp" />
     <ClCompile Include="Zdxsv\GgpoOsd.cpp" />
     <ClCompile Include="Zdxsv\GgpoNetStatus.cpp" />
+    <ClCompile Include="Zdxsv\GgpoSession.cpp" />
     <ClCompile Include="Zdxsv\GgpoBattle.cpp" />
     <ClCompile Include="Zdxsv\GgpoBudget.cpp" />
     <ClCompile Include="Zdxsv\GgpoGameState.cpp" />
