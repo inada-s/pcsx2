@@ -10,6 +10,7 @@
 #include "Config.h"
 #include "Memory.h"
 #include "Host.h"
+#include "IconsFontAwesome.h"
 #include "VMManager.h"
 
 #include "common/Console.h"
@@ -17,8 +18,10 @@
 #include "common/HTTPDownloader.h"
 #include "common/Path.h"
 
+#include "fmt/format.h"
 #include "rapidjson/document.h"
 
+#include <algorithm>
 #include <atomic>
 #include <cctype>
 #include <cstring>
@@ -73,6 +76,8 @@ namespace Zdxsv
 			bool sign_in_tried = false;
 			bool sign_in_ended = false;
 			bool sign_in_paused = false;
+			bool holding = false;
+			bool hold_paused = false;
 			bool answered = false;
 			bool applied = false;
 			std::optional<LoginResult> result;
@@ -138,31 +143,82 @@ namespace Zdxsv
 			return r;
 		}
 
+		s32 Post(const std::string& url, const std::string& form, std::optional<LoginResult>& result, const std::atomic<bool>& cancel)
+		{
+			s32 status = HTTPDownloader::HTTP_STATUS_ERROR;
+			std::unique_ptr<HTTPDownloader> http = HTTPDownloader::Create(Host::GetHTTPUserAgent());
+			if (!http)
+				return status;
+			http->SetTimeout(5.0f);
+			http->CreatePostRequest(url, form,
+				[&result, &status](s32 code, const std::string&, HTTPDownloader::Request::Data data) {
+					status = code;
+					if (code == HTTPDownloader::HTTP_STATUS_OK)
+						result = Parse(std::string(data.begin(), data.end()));
+				},
+				nullptr, "application/x-www-form-urlencoded");
+			while (http->HasAnyRequests() && !cancel.load())
+			{
+				http->PollRequests();
+				std::this_thread::sleep_for(std::chrono::milliseconds(5));
+			}
+			return status;
+		}
+
+		// No answer or a server error: hold the game at DNAS (paused) and retry until the server answers
+		// or the player resumes. A refusal (4xx) is an answer.
 		void Request(std::string url, std::string form, std::shared_ptr<std::atomic<bool>> cancel)
 		{
 			std::optional<LoginResult> result;
-			if (std::unique_ptr<HTTPDownloader> http = HTTPDownloader::Create(Host::GetHTTPUserAgent()))
+			for (int wait = 2;; wait = std::min(wait * 2, 30))
 			{
-				http->SetTimeout(5.0f);
-				http->CreatePostRequest(url, form,
-					[&result](s32 code, const std::string&, HTTPDownloader::Request::Data data) {
-						if (code == HTTPDownloader::HTTP_STATUS_OK)
-							result = Parse(std::string(data.begin(), data.end()));
-					},
-					nullptr, "application/x-www-form-urlencoded");
-				while (http->HasAnyRequests() && !cancel->load())
+				result.reset();
+				const s32 status = Post(url, form, result, *cancel);
+				if (cancel->load())
+					return;
+				if (status >= 200 && status < 500)
+					break;
 				{
-					http->PollRequests();
-					std::this_thread::sleep_for(std::chrono::milliseconds(5));
+					std::lock_guard lock(s_fast.mutex);
+					if (s_fast.cancel != cancel)
+						return;
+					if (!s_fast.holding)
+					{
+						s_fast.holding = true;
+						Host::RunOnCPUThread([cancel]() {
+							if (cancel->load())
+								return;
+							VMManager::SetPaused(true);
+							std::lock_guard lock(s_fast.mutex);
+							if (s_fast.cancel == cancel && s_fast.holding)
+								s_fast.hold_paused = true;
+						});
+					}
 				}
+				Console.WriteLn("Zdxsv: fast login: no answer from the login API (%d), game held, retry in %d s", status, wait);
+				Host::AddIconOSDMessage("ZdxsvLoginHold", ICON_FA_NETWORK_WIRED,
+					fmt::format("zdxsv login server not answering, retrying in {} s. Resume the game to log in without it.", wait),
+					static_cast<float>(wait + 1));
+				for (int i = 0; i < wait * 10 && !cancel->load(); i++)
+					std::this_thread::sleep_for(std::chrono::milliseconds(100));
+				if (cancel->load())
+					return;
 			}
-			if (cancel->load())
-				return;
 			std::lock_guard lock(s_fast.mutex);
 			if (s_fast.cancel != cancel)
 				return;
 			s_fast.result = std::move(result);
 			s_fast.answered = true;
+			if (!s_fast.holding)
+				return;
+			s_fast.holding = false;
+			s_fast.hold_paused = false;
+			Console.WriteLn("Zdxsv: fast login: login API answered, game resumed");
+			Host::RemoveKeyedOSDMessage("ZdxsvLoginHold");
+			Host::RunOnCPUThread([]() {
+				if (VMManager::GetState() == VMState::Paused)
+					VMManager::SetPaused(false);
+			});
 		}
 
 		void Put(u32 addr, const std::string& s)
@@ -284,6 +340,8 @@ namespace Zdxsv
 			Console.WriteLn("Zdxsv: fast login: by %s", form.starts_with("token=") ? "token" : "NET file key");
 			std::lock_guard lock(s_fast.mutex);
 			s_fast.answered = false;
+			s_fast.holding = false;
+			s_fast.hold_paused = false;
 			s_fast.result.reset();
 			s_fast.cancel = std::make_shared<std::atomic<bool>>(false);
 			std::thread(Request, Url(), std::move(form), s_fast.cancel).detach();
@@ -292,7 +350,18 @@ namespace Zdxsv
 		}
 		std::lock_guard lock(s_fast.mutex);
 		if (!s_fast.answered)
+		{
+			if (!s_fast.hold_paused || VMManager::GetState() != VMState::Running)
+				return;
+			Console.WriteLn("Zdxsv: fast login: resumed while held, normal login");
+			Host::RemoveKeyedOSDMessage("ZdxsvLoginHold");
+			if (s_fast.cancel)
+				s_fast.cancel->store(true);
+			s_fast.holding = false;
+			s_fast.hold_paused = false;
+			s_fast.step = FastLogin::Step::Done;
 			return;
+		}
 		s_fast.step = FastLogin::Step::Done;
 		// The game left DNAS meanwhile (failed or done): too late to jump.
 		if (!s_fast.result || eeMem->Main[kNetState] != 0x21 || eeMem->Main[kLobbyPhase] != 2)
@@ -323,5 +392,7 @@ namespace Zdxsv
 		s_fast.sign_in_tried = false;
 		s_fast.sign_in_ended = false;
 		s_fast.sign_in_paused = false;
+		s_fast.holding = false;
+		s_fast.hold_paused = false;
 	}
 } // namespace Zdxsv
