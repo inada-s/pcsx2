@@ -198,6 +198,7 @@
     <ClCompile Include="Zdxsv\Lobby.cpp" />
     <ClCompile Include="Zdxsv\LobbyConnection.cpp" />
     <ClCompile Include="Zdxsv\LobbyLive.cpp" />
+    <ClCompile Include="Zdxsv\LobbyPing.cpp" />
     <ClCompile Include="Zdxsv\Upnp.cpp" />
     <ClCompile Include="Zdxsv\ServerHosts.cpp" />
     <ClCompile Include="Zdxsv\FastBoot.cpp" />
