@@ -562,7 +562,7 @@ exit %errorlevel%
 :downloadfile
 if not exist "%~1" (
   echo Downloading %~1 from %~2...
-  curl -L -o "%~1" "%~2" || goto error
+  curl -L --retry 5 --retry-all-errors --ssl-revoke-best-effort -o "%~1" "%~2" || goto error
 )
 
 rem based on https://gist.github.com/gsscoder/e22daefaff9b5d8ac16afb070f1a7971
