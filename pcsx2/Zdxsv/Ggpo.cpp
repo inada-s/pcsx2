@@ -1258,7 +1258,7 @@ namespace Zdxsv
 
 	static void Returned()
 	{
-		std::lock_guard ggpo_lock(s_ggpo_mtx);
+		std::unique_lock ggpo_lock(s_ggpo_mtx);
 		if (s_play_env)
 		{
 			s_frame_hold = !s_play_common && LiveHold();
@@ -1359,7 +1359,10 @@ namespace Zdxsv
 		if (s_net)
 		{
 			const bool ok = NetWaitPredictionLimit();
+			// The pump runs during the sleep: pings held back by it would read as latency, and time sync uses them.
+			ggpo_lock.unlock();
 			DeferredThrottle(false);
+			ggpo_lock.lock();
 			if (!ok || !NetSyncAndApply())
 				Stop("failed");
 			return;
