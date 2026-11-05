@@ -16,6 +16,7 @@
 #include <atomic>
 #include <deque>
 #include <mutex>
+#include <thread>
 
 #define MAX_UDP_ENDPOINTS     16
 
@@ -33,24 +34,25 @@ public:
    struct Callbacks {
       virtual ~Callbacks() { }
       virtual void OnMsg(sockaddr_storage &from, UdpMsg *msg, int len) = 0;
-      // zdxsv: called as soon as a packet is read, with RecvMutex held, also from ForwardRelayed on
-      // another thread. True: handled there (a relayed packet); otherwise it is queued for OnMsg.
+      // zdxsv: called as soon as a packet is read, on the network thread or in OnLoopPoll, with NetMutex held.
+      // Returns true if the packet was handled there (relay forwarding); otherwise it is queued for OnMsg.
       virtual bool TryForward(sockaddr_storage &from, UdpMsg *msg, int len) { return false; }
    };
 
    Udp();
 
    void Init(uint16 port, Poll *p, Callbacks *callbacks);
+   // zdxsv: read the sockets on a network thread so that packets are read and relayed while the
+   // game thread is busy (a rollback). OnMsg still runs only from OnLoopPoll, on the game thread.
+   void StartNetThread();
+   void StopNetThread();
+   // zdxsv: held while reading the sockets and dispatching queued packets. Guards what TryForward reads.
+   std::mutex &NetMutex() { return _net_mutex; }
    
    void SendTo(char *buffer, int len, int flags, struct sockaddr *dst, int destlen);
 
    virtual bool OnLoopPoll(void *cookie);
 
-   // zdxsv: reads the sockets now and forwards relayed packets; the rest wait for OnLoopPoll.
-   // Safe while another thread is in a GGPO call. Returns the packets TryForward handled.
-   int ForwardRelayed();
-   // zdxsv: held while reading the sockets and handling packets. Guards what TryForward reads.
-   std::mutex &RecvMutex() { return _recv_mutex; }
    // zdxsv (tests): drops every packet sent and received from now on, as a network that went silent.
    void SetMute(bool mute) { _mute = mute; }
 
@@ -66,15 +68,18 @@ protected:
    Callbacks      *_callbacks;
    std::atomic<bool> _mute{false};
 
-   int ReadSockets();
+   void ReadSockets();
+   void NetThreadLoop();
 
    struct RecvPacket {
       sockaddr_storage from;
       int              len;
       uint8            data[MAX_UDP_PACKET_SIZE];
    };
-   std::mutex             _recv_mutex;
-   std::deque<RecvPacket> _recv_queue;
+   std::mutex              _net_mutex;
+   std::deque<RecvPacket>  _recv_queue;
+   std::thread             _net_thread;
+   std::atomic<bool>       _net_stop;
    int                    _recv_dropped;
 };
 
