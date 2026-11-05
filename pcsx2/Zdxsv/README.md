@@ -73,6 +73,8 @@ options: `docs/zdxsv/`.
 | `SpectateSync.cpp`, `SpectateSync.h` | Four-screen replay: one PCSX2 per position, kept on the same frame through shared memory |
 | `ServerHosts.cpp`, `ServerHosts.h` | Addresses the game's server hosts resolved to; whether that was the built-in server (public server) |
 | `FastBoot.cpp` | Boot at unlimited speed to the lobby user_id selection, pressing through the menus on the fixed network route; optionally on through ID 1 into the lobby |
+| `AuthSignIn.cpp`, `AuthSignIn.h` | Sign-in through the server in the browser (127.0.0.1 callback, PKCE), the token file, sign-out |
+| `AuthTest.cpp` | Sign-in and sign-out at app start for the rigs (`ZDXSV_AUTH_SIGNIN_TEST`) |
 | `FastLogin.cpp`, `FastLogin.h` | Login through the login API at DNAS start, the browser's result written to guest RAM, jump to the lobby connect |
 | `SingleDrawList.cpp` | `ZdxsvSingleDrawList`: game code patch that draws a frame's list in that frame |
 | `NoDev9.cpp` | `ZDXSV_NODEV9`: online without DEV9, the net RPCs answered on the EE and TCP on a host socket |
@@ -91,6 +93,7 @@ options: `docs/zdxsv/`.
 | `LobbySocket.h` | The game's TCP connections on host sockets: lobby filter, TLS, HTTPS latency |
 | `MediaHooks.h` | Hook header: GS present, SPU2 output |
 | `UiHooks.h` | Hook header: hotkeys, replay control bar |
+| `AuthHooks.h` | Hook header: Qt host start; implemented in `AuthTest.cpp` |
 | `CrashReportHooks.h` | Hook header: Qt host start and exit; implemented in `pcsx2-qt/Zdxsv/CrashReports.cpp` |
 | `Settings.h` | `BoolSetting()`: a `[DEV9/Eth] Zdxsv*` setting, overridden by its environment variable; default replay state URL |
 | `TestOptions.h` | `TestEnv()`: environment options meant for tests and diagnostics; every build reads them |

@@ -65,6 +65,13 @@ If your memory card is empty, the game makes the files it needs by itself:
 Later sessions need no input: from game start, fast boot runs the game at full speed through the title, 通信対戦 and ブロードバンド接続, the emulator logs in by itself, and the game stops at the ID selection (DNAS and the top screen are skipped). If the memory card is not formatted or has no NET file (for example a new card, before the steps above), fast boot stops at once and returns the controls to you at normal speed. If the path does not fit for another reason, it gives up after 4 minutes of game time (well under a minute on most PCs).
 To turn fast boot off (for example to play offline), uncheck Fast boot in Settings → zdxsv.
 
+## Account
+
+Settings → zdxsv → Account → Sign in with Discord opens the zdxsv sign-in page in your browser. The
+first sign-in makes a new account; PCSX2 keeps a sign-in token for this PC and logs in with it. To
+use the account you play on a PS2, type ｄｃ in the lobby chat on the PS2, enter the code it shows
+in Carry-over code, then sign in (within 10 minutes). Sign Out revokes the token.
+
 ## Crash reports
 
 When PCSX2 crashes, it sends a crash report to the zdxsv developers.

@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 zdxsv contributors
 // SPDX-License-Identifier: GPL-3.0+
 
+#include "Zdxsv/AuthSignIn.h"
 #include "Zdxsv/CpuHooks.h"
 #include "Zdxsv/FastLogin.h"
 #include "Zdxsv/Settings.h"
@@ -50,8 +51,6 @@ namespace Zdxsv
 		constexpr u32 kSelectedLbsId = 0xc63560;
 		constexpr size_t kLoginKeyLen = 10;
 		constexpr size_t kLbsIdLen = 12;
-		constexpr const char* kTokenFile = "zdxsv_auth_token.txt";
-		constexpr size_t kMaxTokenLen = 128;
 
 		struct LoginResult
 		{
@@ -127,21 +126,6 @@ namespace Zdxsv
 			return r;
 		}
 
-		std::optional<std::string> AuthToken()
-		{
-			std::optional<std::string> s = FileSystem::ReadFileToString(Path::Combine(EmuFolders::Settings, kTokenFile).c_str());
-			if (!s)
-				return std::nullopt;
-			while (!s->empty() && std::isspace(static_cast<unsigned char>(s->back())))
-				s->pop_back();
-			if (s->empty() || s->size() > kMaxTokenLen)
-				return std::nullopt;
-			for (unsigned char c : *s)
-				if (!std::isalnum(c) && c != '-' && c != '_')
-					return std::nullopt;
-			return s;
-		}
-
 		void Request(std::string url, std::string form, std::shared_ptr<std::atomic<bool>> cancel)
 		{
 			std::optional<LoginResult> result;
@@ -214,7 +198,7 @@ namespace Zdxsv
 			if (!Enabled() || Url().empty())
 				return;
 			std::string form;
-			if (const std::optional<std::string> token = AuthToken())
+			if (const std::optional<std::string> token = AuthTokenRead())
 			{
 				form = "token=" + *token;
 			}

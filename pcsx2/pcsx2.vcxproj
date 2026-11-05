@@ -203,6 +203,8 @@
     <ClCompile Include="Zdxsv\Upnp.cpp" />
     <ClCompile Include="Zdxsv\ServerHosts.cpp" />
     <ClCompile Include="Zdxsv\FastBoot.cpp" />
+    <ClCompile Include="Zdxsv\AuthSignIn.cpp" />
+    <ClCompile Include="Zdxsv\AuthTest.cpp" />
     <ClCompile Include="Zdxsv\FastLogin.cpp" />
     <ClCompile Include="Zdxsv\HttpsLatency.cpp" />
     <ClCompile Include="Zdxsv\TlsTunnel.cpp" />
@@ -949,6 +951,8 @@
     <ClInclude Include="Zdxsv\InputHooks.h" />
     <ClInclude Include="Zdxsv\SaveStateHooks.h" />
     <ClInclude Include="Zdxsv\MediaHooks.h" />
+    <ClInclude Include="Zdxsv\AuthHooks.h" />
+    <ClInclude Include="Zdxsv\AuthSignIn.h" />
     <ClInclude Include="Zdxsv\CrashReportHooks.h" />
     <ClInclude Include="Zdxsv\UiHooks.h" />
     <ClInclude Include="Zdxsv\Settings.h" />
