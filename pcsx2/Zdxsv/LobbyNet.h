@@ -3,10 +3,11 @@
 
 #pragma once
 
-// Sockets shared by the lobby files (Lobby.cpp, LobbyLive.cpp, LobbyPing.cpp); included by no other component.
+// Sockets and addresses shared by the lobby files (Lobby*.cpp); included by no other component.
 
 #include "Zdxsv/Lobby.h"
 
+#include <cstdlib>
 #include <cstring>
 #include <string>
 
@@ -109,5 +110,43 @@ namespace Zdxsv
 			return INVALID_SOCKET;
 		}
 		return s;
+	}
+
+	// "a.b.c.d:port" -> network byte order ip, host order port
+	inline bool LobbyParseAddr(const std::string& s, uint32_t& ip, uint16_t& port)
+	{
+		const size_t colon = s.rfind(':');
+		in_addr addr{};
+		if (colon == std::string::npos || inet_pton(AF_INET, s.substr(0, colon).c_str(), &addr) != 1)
+			return false;
+		const int p = std::atoi(s.c_str() + colon + 1);
+		if (p <= 0 || p > 0xFFFF)
+			return false;
+		std::memcpy(&ip, &addr, 4);
+		port = static_cast<uint16_t>(p);
+		return true;
+	}
+
+	// "a.b.c.d:port" or "[v6]:port" -> numeric ip (as inet_ntop writes it), host order port
+	inline bool LobbyParsePeerAddr(const std::string& s, PeerAddr& out)
+	{
+		const size_t colon = s.rfind(':');
+		if (colon == std::string::npos)
+			return false;
+		std::string host = s.substr(0, colon);
+		const bool v6 = host.size() > 2 && host.front() == '[' && host.back() == ']';
+		if (v6)
+			host = host.substr(1, host.size() - 2);
+		const int p = std::atoi(s.c_str() + colon + 1);
+		if (p <= 0 || p > 0xFFFF)
+			return false;
+		char buf[INET6_ADDRSTRLEN] = {};
+		in6_addr a6{};
+		in_addr a4{};
+		if (v6 ? (inet_pton(AF_INET6, host.c_str(), &a6) != 1 || !inet_ntop(AF_INET6, &a6, buf, sizeof(buf))) :
+				 (inet_pton(AF_INET, host.c_str(), &a4) != 1 || !inet_ntop(AF_INET, &a4, buf, sizeof(buf))))
+			return false;
+		out = {buf, static_cast<uint16_t>(p)};
+		return true;
 	}
 } // namespace Zdxsv
