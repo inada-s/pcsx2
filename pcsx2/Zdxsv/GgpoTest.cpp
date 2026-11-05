@@ -21,9 +21,9 @@ namespace Zdxsv
 			std::memcpy(&y, &raw[w], 4);
 			if (x == y)
 				continue;
-			if (s_hash == Hash::Pw && w == 4 * PW_SIZE)
+			if (s_opt.hash == Hash::Pw && w == 4 * PW_SIZE)
 				Console.WriteLn("ZdxsvGgpo: DIFF frame %d rng: %08x -> %08x", frame, x, y);
-			else if (s_hash == Hash::Pw)
+			else if (s_opt.hash == Hash::Pw)
 				Console.WriteLn("ZdxsvGgpo: DIFF frame %d player %zu +0x%04zx: %08x -> %08x", frame, w / PW_SIZE, w % PW_SIZE, x, y);
 			else
 				Console.WriteLn("ZdxsvGgpo: DIFF frame %d posrng +%zu: %08x -> %08x", frame, w, x, y);

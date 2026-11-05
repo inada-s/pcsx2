@@ -12,7 +12,7 @@ namespace Zdxsv
 	namespace
 	{
 		std::string s_replay_rec_dir; // where it is saved, "" = not saved
-		std::vector<NetInput> s_replay_inputs; // [frame * s_players + position]
+		std::vector<NetInput> s_replay_inputs; // [frame * s_opt.players + position]
 		// per frame, before its inputs: ReplayStateHash, GameRng, the tick state (load ends -> load_frames), the play
 		// starts passed (-> play_start_frames, game_end_frames), RoundRecord and MsIds (-> round_data)
 		std::vector<u32> s_replay_hashes, s_replay_rngs, s_replay_records, s_replay_ms;
@@ -49,9 +49,9 @@ namespace Zdxsv
 				PutBytes(pb, 11, user.data(), user.size());
 			}
 			PutInt(pb, 20, s_replay_start_at);
-			PutInt(pb, 40, s_players);
+			PutInt(pb, 40, s_opt.players);
 			PutInt(pb, 41, s_battle.me);
-			PutInt(pb, 42, s_delay);
+			PutInt(pb, 42, s_opt.delay);
 			PutString(pb, 43, ids);
 			PutBytes(pb, 45, s_replay_hle0.rx.data(), s_replay_hle0.rx.size());
 			PutPackedInts(pb, 46, s_replay_hle0.hle);
@@ -67,7 +67,7 @@ namespace Zdxsv
 			std::vector<uint8_t> round, entry;
 			Pb::PutInt(round, 1, win);
 			std::vector<int64_t> used_ms; // by position, 1-based
-			for (int p = 0; p < s_players; p++)
+			for (int p = 0; p < s_opt.players; p++)
 				used_ms.push_back(((s_replay_ms[f] >> (p * 8)) & 0xff) + 1);
 			Pb::PutPackedInts(round, 2, used_ms);
 			Pb::PutBytes(entry, 18, round.data(), round.size());
@@ -79,15 +79,15 @@ namespace Zdxsv
 		{
 			if (!s_live)
 				return;
-			frames = std::min({frames, s_replay_inputs.size() / s_players, s_replay_hashes.size()});
+			frames = std::min({frames, s_replay_inputs.size() / s_opt.players, s_replay_hashes.size()});
 			const size_t have = s_live->Frames();
 			if (frames <= have)
 				return;
-			const size_t in_bytes = s_players * sizeof(NetInput);
+			const size_t in_bytes = s_opt.players * sizeof(NetInput);
 			std::vector<u8> records((frames - have) * (in_bytes + sizeof(u32)));
 			for (size_t f = have, at = 0; f < frames; f++, at += in_bytes + sizeof(u32))
 			{
-				std::memcpy(&records[at], s_replay_inputs.data() + f * s_players, in_bytes);
+				std::memcpy(&records[at], s_replay_inputs.data() + f * s_opt.players, in_bytes);
 				std::memcpy(&records[at + in_bytes], &s_replay_hashes[f], sizeof(u32));
 			}
 			s_live->AddFrames(records.data(), frames - have);
@@ -103,19 +103,19 @@ namespace Zdxsv
 
 		std::string RecordDir()
 		{
-			if (s_replay_off || !s_net)
+			if (s_opt.replay_off || !s_opt.net)
 				return {};
-			if (!s_replay_dir.empty())
-				return s_replay_dir;
-			return s_lobby && Host::GetBoolSettingValue("DEV9/Eth", "ZdxsvSaveReplay", true) ? Zdxsv::ReplayDir() : std::string();
+			if (!s_opt.replay_dir.empty())
+				return s_opt.replay_dir;
+			return s_opt.lobby && Host::GetBoolSettingValue("DEV9/Eth", "ZdxsvSaveReplay", true) ? Zdxsv::ReplayDir() : std::string();
 		}
 
 		// upload=URL, else the settings, but only when the game found the public server by DNS: a lobby reached
 		// through a host entry (a rig, a local server) posts nowhere without upload=.
 		std::string ReplayUploadUrl()
 		{
-			if (!s_upload_url.empty())
-				return s_upload_url;
+			if (!s_opt.upload_url.empty())
+				return s_opt.upload_url;
 			if (!DnsUsedServerHost() || !Host::GetBoolSettingValue("DEV9/Eth", "ZdxsvReplayUpload", true))
 				return {};
 			return Host::GetStringSettingValue("DEV9/Eth", "ZdxsvReplayUploadUrl", ServerApiUrl("/lbs/replay_upload").c_str());
@@ -200,7 +200,7 @@ namespace Zdxsv
 	std::string ReplayIds()
 	{
 		std::lock_guard lock(s_lobby_mtx);
-		return s_lobby ? s_report_ids : std::string();
+		return s_opt.lobby ? s_report_ids : std::string();
 	}
 
 	std::string IdValue(const std::string& ids, std::string_view key)
@@ -217,7 +217,7 @@ namespace Zdxsv
 	// Records when the battle is saved, uploaded or streamed live: each one goes without the others.
 	void ReplayBegin()
 	{
-		if (!s_net)
+		if (!s_opt.net)
 			return;
 		std::string dir = RecordDir();
 		const std::string ids = ReplayIds(), code = IdValue(ids, "battle_code"), to = IdValue(ids, "live_uplink");
@@ -249,7 +249,7 @@ namespace Zdxsv
 		s_replay_answers = Zdxsv::LobbyStartAnswers();
 		s_live.reset();
 		if (!to.empty())
-			s_live = std::make_shared<Zdxsv::LiveUp>(to, code, s_lobby_session, ReplayHeader(code, ids), s_players * sizeof(NetInput) + sizeof(u32));
+			s_live = std::make_shared<Zdxsv::LiveUp>(to, code, s_lobby_session, ReplayHeader(code, ids), s_opt.players * sizeof(NetInput) + sizeof(u32));
 		Console.WriteLn("ZdxsvGgpo: replay: recording (save %s, upload %d, live %d)", dir.empty() ? "off" : dir.c_str(), upload ? 1 : 0,
 			to.empty() ? 0 : 1);
 	}
@@ -259,8 +259,8 @@ namespace Zdxsv
 	{
 		if (!s_replay_rec || f < 0)
 			return;
-		s_replay_inputs.resize(static_cast<size_t>(f) * s_players);
-		s_replay_inputs.insert(s_replay_inputs.end(), in, in + s_players);
+		s_replay_inputs.resize(static_cast<size_t>(f) * s_opt.players);
+		s_replay_inputs.insert(s_replay_inputs.end(), in, in + s_opt.players);
 		s_replay_hashes.resize(f);
 		s_replay_hashes.push_back(ReplayStateHash());
 		s_replay_rngs.resize(f);
@@ -290,7 +290,7 @@ namespace Zdxsv
 			if (const int win = RoundResult(s_replay_records[f - 1], s_replay_records[f]))
 			{
 				s += fmt::format("{}{}:", s.empty() ? "" : ";", win);
-				for (int p = 0; p < s_players; p++)
+				for (int p = 0; p < s_opt.players; p++)
 					s += fmt::format("{}{}", p ? "," : "", ((s_replay_ms[f] >> (p * 8)) & 0xff) + 1);
 			}
 		}
@@ -305,7 +305,7 @@ namespace Zdxsv
 			return;
 		Common::Timer timer;
 		const std::string dir = std::exchange(s_replay_rec_dir, {});
-		const size_t frames = std::min<size_t>(s_replay_inputs.size() / s_players, s_replay_confirmed + 1);
+		const size_t frames = std::min<size_t>(s_replay_inputs.size() / s_opt.players, s_replay_confirmed + 1);
 		if (s_live)
 		{
 			LiveFeed(frames);
@@ -320,11 +320,11 @@ namespace Zdxsv
 			name = fmt::format("rbk-{}-p{}", s_replay_start_at, s_battle.me);
 		using namespace Pb;
 		std::vector<uint8_t> pb = ReplayHeader(code, ids);
-		pb.reserve(frames * s_players * sizeof(NetInput) + pb.size() + 1024);
+		pb.reserve(frames * s_opt.players * sizeof(NetInput) + pb.size() + 1024);
 		PutInt(pb, 21, static_cast<s64>(std::time(nullptr)));
 		PutString(pb, 24, what);
 		PutInt(pb, 48, static_cast<int64_t>(frames));
-		PutBytes(pb, 49, s_replay_inputs.data(), frames * s_players * sizeof(NetInput));
+		PutBytes(pb, 49, s_replay_inputs.data(), frames * s_opt.players * sizeof(NetInput));
 		PutBytes(pb, 52, s_replay_hashes.data(), frames * sizeof(u32));
 		if (frames > 0)
 			PutUint(pb, 53, s_replay_rngs[0]);

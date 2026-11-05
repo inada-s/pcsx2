@@ -289,10 +289,10 @@ namespace Zdxsv
 				s_play_loads.file_ms = r.round_ms;
 			}
 			s_play.rng_pos = static_cast<int>(me);
-			s_players = static_cast<int>(players);
+			s_opt.players = static_cast<int>(players);
 			// key 0 of each position: its state is saved at its common start's arm (PlayCommonStart); the HLE state
 			// here (the recorder's) is only compared there
-			for (int p = 0; p < s_players; p++)
+			for (int p = 0; p < s_opt.players; p++)
 			{
 				auto k = std::make_unique<PlayKey>();
 				k->path = Path::Combine(EmuFolders::Cache, fmt::format("zdxsv-replay-p{}.p2s", p));
@@ -313,12 +313,12 @@ namespace Zdxsv
 			for (int f = 0; f < s_play.frames; f++)
 			{
 				s_play.ps_rel[f] = rel;
-				const NetInput* in = &s_play.inputs[static_cast<size_t>(f) * s_players];
-				if (std::all_of(in, in + s_players, [rel](const NetInput& i) { return static_cast<u8>(i.pad.unused[1] - rel - 1) < 127; }))
+				const NetInput* in = &s_play.inputs[static_cast<size_t>(f) * s_opt.players];
+				if (std::all_of(in, in + s_opt.players, [rel](const NetInput& i) { return static_cast<u8>(i.pad.unused[1] - rel - 1) < 127; }))
 					rel++;
 			}
 			Console.WriteLn("ZdxsvGgpo: replay %s: recorded at position %lld of %d, %lld frames, rx0 %zu bytes, "
-							"%zu lobby answers, state hashes %s, rngs %zu", path.c_str(), me, s_players, frames,
+							"%zu lobby answers, state hashes %s, rngs %zu", path.c_str(), me, s_opt.players, frames,
 				rb.net_rx.size(), s_play_answers.size(), r.hashes.empty() ? "no" : "yes",
 				(r.start_rng ? 1 : 0) + std::min(r.load_frames.size(), r.load_rngs.size()));
 			if (s_net_trace) // battle start marker: pwcheck.py --battle splits a multi-battle trace (live auto-next)
@@ -399,7 +399,7 @@ namespace Zdxsv
 		// Returns the frame to run next.
 		int PlaySwitch(int pov, int target)
 		{
-			if (pov < 0 || pov >= s_players || !s_play.pov_ok[pov])
+			if (pov < 0 || pov >= s_opt.players || !s_play.pov_ok[pov])
 			{
 				Console.Error("ZdxsvGgpo: replay: no point of view %d in the battle", pov);
 				return s_battle.frame + 1;
@@ -537,7 +537,7 @@ namespace Zdxsv
 		if (const std::string pov = e ? e : s_play_picked_pov >= 0 ? std::to_string(s_play_picked_pov) : ""; !pov.empty())
 		{
 			const int p = std::atoi(pov.c_str());
-			if (p >= 0 && p < s_players && s_play.pov_ok[p])
+			if (p >= 0 && p < s_opt.players && s_play.pov_ok[p])
 				me = p;
 			else
 				Console.Error("ZdxsvGgpo: replay: point of view %s is not a position of the battle, playing position %d", pov.c_str(), me);
@@ -571,13 +571,13 @@ namespace Zdxsv
 		s_battle.zd_steps = s_battle.zd_changed = s_battle.zds_echo = s_battle.zds_skip = s_battle.zds_k3rel = 0;
 		for (auto& k3 : s_battle.zds_k3)
 			k3.clear();
-		s_net = true;
+		s_opt.net = true;
 		s_battle.me = pov;
 		s_rbk = true;
 		s_rbk_me = pov;
-		s_rbk_n = s_players;
+		s_rbk_n = s_opt.players;
 		RbkReset();
-		Console.WriteLn("ZdxsvGgpo: replay: common start as position %d of %d, %zu lobby answers%s", pov, s_players,
+		Console.WriteLn("ZdxsvGgpo: replay: common start as position %d of %d, %zu lobby answers%s", pov, s_opt.players,
 			s_play_answers.size(), seek >= 0 ? fmt::format(", then seek to {}", seek).c_str() : "");
 		return true;
 	}
@@ -617,7 +617,7 @@ namespace Zdxsv
 			Console.Error("ZdxsvGgpo: replay: state load failed: %s", error.GetDescription().c_str());
 			return;
 		}
-		s_net = true;
+		s_opt.net = true;
 		s_battle.me = me;
 		PlayKeyApply(k0);
 		s_battle.armed = true;
@@ -658,7 +658,7 @@ namespace Zdxsv
 					s_play_pov_at.emplace_back(StringUtil::FromChars<int>(one.substr(0, c)).value_or(-1),
 						StringUtil::FromChars<int>(one.substr(c + 1)).value_or(-1));
 		std::string povs;
-		for (int p = 0; p < s_players; p++)
+		for (int p = 0; p < s_opt.players; p++)
 			if (s_play.pov_ok[p])
 				povs += fmt::format("{}{}", povs.empty() ? "" : ",", p);
 		Console.WriteLn("ZdxsvGgpo: replay: point of view %d (positions with a file: %s), %d frames", s_battle.me, povs.c_str(), s_play.frames);

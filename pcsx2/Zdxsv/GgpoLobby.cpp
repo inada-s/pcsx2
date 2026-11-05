@@ -71,7 +71,7 @@ namespace Zdxsv
 		                  !s_lobby_session ? "no ggpo_session" :
 		                  (n < 2 || n > GGPO_MAX_PLAYERS) ? "player count" :
 		                  (me < 0 || me >= n || me != s_lobby_me) ? "own position not in the battle info" :
-		                  (unlisted && s_delay_set) ? "a peer has no GGPO address" :
+		                  (unlisted && s_opt.delay_set) ? "a peer has no GGPO address" :
 		                                              nullptr;
 		auto report = [&](const char* result) {
 			s_report = s_report_ids + "result=" + result + "\nposition=" + std::to_string(me) + "\nplayers=" + std::to_string(n) + "\n";
@@ -99,7 +99,7 @@ namespace Zdxsv
 					Console.WriteLn("ZdxsvGgpo: no sync fingerprint in the battle info at positions %s", sync_missing.c_str());
 					LobbyCutOsd(TRANSLATE_STR("Zdxsv", "No battle: the battle information from the lobby is incomplete."));
 				}
-				else if (unlisted && s_delay_set)
+				else if (unlisted && s_opt.delay_set)
 					LobbyCutOsd(TRANSLATE_STR("Zdxsv", "No battle: an opponent could not be reached (no network address)."));
 				else
 					LobbyCutOsd(TRANSLATE_STR("Zdxsv", "No battle: the battle information from the lobby is incomplete."));
@@ -111,7 +111,7 @@ namespace Zdxsv
 		for (int p = 0; p < n; p++)
 			if (!s_lobby_peers[p].empty())
 				peers[p] = s_lobby_peers[p].front();
-		if (!s_delay_set)
+		if (!s_opt.delay_set)
 		{
 			// one-way time to the slowest peer in 16 ms frames, rounded up
 			Common::Timer wait;
@@ -166,21 +166,21 @@ namespace Zdxsv
 				return false;
 			}
 			const float learned = GgpoBudgetLearned(), used = GgpoBudgetUsed();
-			s_delay = GgpoBudgetDelay(rtt, s_min_delay, used);
+			s_opt.delay = GgpoBudgetDelay(rtt, s_min_delay, used);
 			Console.WriteLn("ZdxsvGgpo: lobby delay %d: slowest peer rtt %d ms (%d of %d peers measured), min %d, rollback budget %.2f (learned %.2f), waited %.1f s for the ping test",
-				s_delay, rtt, up, n - 1, s_min_delay, used, learned, wait.GetTimeSeconds());
+				s_opt.delay, rtt, up, n - 1, s_min_delay, used, learned, wait.GetTimeSeconds());
 			report("ggpo");
-			s_report += "delay=" + std::to_string(s_delay) + "\nmin_delay=" + std::to_string(s_min_delay) + "\nrollback_budget=" +
+			s_report += "delay=" + std::to_string(s_opt.delay) + "\nmin_delay=" + std::to_string(s_min_delay) + "\nrollback_budget=" +
 			            fmt::format("{:.2f}", learned) + "\nrollback_budget_used=" + fmt::format("{:.2f}", used) + "\n" + rtts;
 		}
 		else
 		{
 			report("ggpo");
-			s_report += "delay=" + std::to_string(s_delay) + "\nfixed_delay=1\n";
+			s_report += "delay=" + std::to_string(s_opt.delay) + "\nfixed_delay=1\n";
 			s_net_via.clear();
 			s_net_servers.clear();
 		}
-		s_players = n;
+		s_opt.players = n;
 		s_net_peers = std::move(peers);
 		s_net_players = s_lobby_players;
 		s_armed_gen = s_lobby_gen;
@@ -249,7 +249,7 @@ namespace Zdxsv
 		s_lobby_gen++;
 		s_lobby_me = me;
 		s_lobby_logged = s_lobby_unreachable = false;
-		if (s_bad_session && session)
+		if (s_opt.bad_session && session)
 		{
 			session ^= 0x5a5a5a5a;
 			Console.WriteLn("ZdxsvGgpo: badsession=1: ping test session %08x", session);
@@ -260,7 +260,7 @@ namespace Zdxsv
 		std::vector<int> teams;
 		for (const LobbyPlayer& p : s_lobby_players)
 			teams.push_back(p.team);
-		if (me >= 0 && session && !s_delay_set && pingMs > 0)
+		if (me >= 0 && session && !s_opt.delay_set && pingMs > 0)
 			Zdxsv::StartPingTest(session, me, s_lobby_peers, static_cast<u16>(GgpoLobbyPort()), pingMs, s_lobby_relays, teams);
 	}
 

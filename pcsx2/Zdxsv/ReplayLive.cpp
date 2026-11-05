@@ -78,7 +78,7 @@ namespace Zdxsv
 		{
 			const bool ok = s_live_down->Take(s_live_play.got, LIVE_STALL_MS);
 			LiveRounds();
-			const size_t in_bytes = s_players * sizeof(NetInput);
+			const size_t in_bytes = s_opt.players * sizeof(NetInput);
 			const size_t got = static_cast<size_t>(s_live_play.got.frameBytes);
 			const bool hashed = got == in_bytes + sizeof(u32);
 			if (got > 0 && got != in_bytes && !hashed && s_live_play.close.empty())
@@ -88,11 +88,11 @@ namespace Zdxsv
 			{
 				const bool add_hashes = hashed && s_play.hashes.size() == static_cast<size_t>(s_play.frames);
 				const size_t at = s_play.inputs.size();
-				s_play.inputs.resize(at + n * s_players);
+				s_play.inputs.resize(at + n * s_opt.players);
 				for (size_t i = 0; i < n; i++)
 				{
 					const u8* record = s_live_play.got.inputs.data() + i * fb;
-					std::memcpy(&s_play.inputs[at + i * s_players], record, in_bytes);
+					std::memcpy(&s_play.inputs[at + i * s_opt.players], record, in_bytes);
 					if (add_hashes)
 					{
 						u32 hash;
@@ -440,7 +440,7 @@ namespace Zdxsv
 			s_sync_pids[me] = Zdxsv::SpectateSync::SelfPid();
 			const char* trace_env = TestEnv("ZDXSV_NET_TRACE");
 			const std::string trace = trace_env ? trace_env : "";
-			for (int p = 0; p < s_players && p < Zdxsv::SpectateSync::GRID; p++)
+			for (int p = 0; p < s_opt.players && p < Zdxsv::SpectateSync::GRID; p++)
 			{
 				if (p == me || !s_play.pov_ok[p])
 					continue;
