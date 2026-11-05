@@ -115,6 +115,12 @@ def alive(pid):
         return False
     if WIN:
         return any(p == pid for p, *_ in _procs())
+    # an exited child of this process stays a zombie until reaped, and kill(pid, 0) still succeeds on it
+    try:
+        if os.waitpid(pid, os.WNOHANG)[0] == pid:
+            return False
+    except ChildProcessError:
+        pass
     try:
         os.kill(pid, 0)
         return True
