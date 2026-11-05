@@ -62,7 +62,16 @@ namespace Zdxsv
 		std::vector<std::vector<u8>> s_buffer_pool;
 		bool s_break_ee = false, s_break_host = false;
 		int s_save_calls = 0;
-		double s_watch_ms = 0, s_state_ms = 0, s_total_ms = 0; // DeltaStateTimes()
+
+		struct Times
+		{
+			int saves = 0, loads = 0;
+			double watch_ms = 0, state_ms = 0, total_ms = 0;
+			double hot_pages = 0;
+			u64 faults = 0; // write faults (each one unprotect, later one protect)
+			double lrestore_ms = 0, lwatch_ms = 0, lstate_ms = 0, lpages = 0;
+		};
+		Times s_times;
 
 		// Hot pages: written in HOT_AFTER save intervals in a row. They stay writable and are copied at
 		// every save and load instead, which saves the protect calls (one per fastmem alias, ~17 us a
@@ -96,12 +105,9 @@ namespace Zdxsv
 		u8 s_run[ALL_PAGES] = {}; // cold: save intervals in a row with a write; hot: without a change
 		int s_last_write[ALL_PAGES] = {}; // cold: s_save_calls of the last interval with a write
 		std::vector<u32> s_hot;
-		double s_hot_pages = 0; // DeltaStateTimes(): mean hot pages per save
-		u64 s_faults = 0; // DeltaStateTimes(): write faults (each one unprotect, later one protect)
 		u32 s_restored[ALL_PAGES] = {}; // s_load_calls of the load that restored the page
 		u32 s_reused[ALL_PAGES] = {}; // s_load_calls of the load whose s_open took the page's restored buffer
 		int s_load_calls = 0;
-		double s_lrestore_ms = 0, s_lwatch_ms = 0, s_lstate_ms = 0, s_lpages = 0; // DeltaStateTimes()
 
 		std::unique_ptr<u8[]> TakePage()
 		{
@@ -128,7 +134,7 @@ namespace Zdxsv
 			std::unique_ptr<u8[]> data = TakePage();
 			std::memcpy(data.get(), PagePtr(page), PAGE_BYTES);
 			s_open.push_back({page, std::move(data)});
-			s_faults++;
+			s_times.faults++;
 		}
 
 		void HostProtect(u32 page, bool read_only)
@@ -293,18 +299,25 @@ namespace Zdxsv
 
 	std::string DeltaStateTimes()
 	{
-		const double n = std::max(s_save_calls, 1), l = std::max(s_load_calls, 1);
-		return fmt::format("Save ms: watch {:.3f} state {:.3f} total {:.3f} hot pages {:.1f} faults {:.1f}", s_watch_ms / n, s_state_ms / n,
-			s_total_ms / n, s_hot_pages / n, s_faults / n) +
-			fmt::format(" | Load ms: pages {:.3f} watch {:.3f} state {:.3f} pages restored {:.1f}", s_lrestore_ms / l,
-				s_lwatch_ms / l, s_lstate_ms / l, s_lpages / l);
+		const double n = std::max(s_times.saves, 1), l = std::max(s_times.loads, 1);
+		return fmt::format("Save ms: watch {:.3f} state {:.3f} total {:.3f} hot pages {:.1f} faults {:.1f}", s_times.watch_ms / n, s_times.state_ms / n,
+			s_times.total_ms / n, s_times.hot_pages / n, s_times.faults / n) +
+			fmt::format(" | Load ms: pages {:.3f} watch {:.3f} state {:.3f} pages restored {:.1f}", s_times.lrestore_ms / l,
+				s_times.lwatch_ms / l, s_times.lstate_ms / l, s_times.lpages / l);
+	}
+
+	void DeltaStateTimesReset()
+	{
+		s_times = {};
+		SaveState_DeltaTimesReset();
 	}
 
 	bool DeltaStateSave(int frame)
 	{
 		Common::Timer total;
-		ScopedGuard add_total([&total]() { s_total_ms += total.GetTimeMilliseconds(); });
+		ScopedGuard add_total([&total]() { s_times.total_ms += total.GetTimeMilliseconds(); });
 		s_save_calls++;
+		s_times.saves++;
 		if (!s_states.empty())
 		{
 			const int last = s_states.rbegin()->first;
@@ -321,8 +334,8 @@ namespace Zdxsv
 			s_deltas[last] = std::move(s_open);
 			s_open = std::move(next);
 			SnapshotHot(snapshot);
-			s_hot_pages += s_hot.size();
-			s_watch_ms += watch.GetTimeMilliseconds();
+			s_times.hot_pages += s_hot.size();
+			s_times.watch_ms += watch.GetTimeMilliseconds();
 		}
 		else
 		{
@@ -343,7 +356,7 @@ namespace Zdxsv
 		Common::Timer state;
 		if (!SaveState_DeltaSave(buffer))
 			return false;
-		s_state_ms += state.GetTimeMilliseconds();
+		s_times.state_ms += state.GetTimeMilliseconds();
 		s_states[frame] = std::move(buffer);
 		return true;
 	}
@@ -360,14 +373,15 @@ namespace Zdxsv
 		// Oldest first, each page once: it gets its data from the earliest delta at or after frame.
 		Common::Timer timer;
 		s_load_calls++;
+		s_times.loads++;
 		std::vector<u32> touched;
 		Delta reuse;
 		for (auto it = s_deltas.lower_bound(frame); it != s_deltas.end(); ++it)
 			RestoreDelta(it->second, touched, reuse);
 		RestoreDelta(s_open, touched, reuse);
 		s_deltas.erase(s_deltas.lower_bound(frame), s_deltas.end());
-		s_lpages += touched.size();
-		s_lrestore_ms += timer.GetTimeMilliseconds();
+		s_times.lpages += touched.size();
+		s_times.lrestore_ms += timer.GetTimeMilliseconds();
 		timer.Reset();
 		touched.erase(std::remove_if(touched.begin(), touched.end(), [](u32 page) { return s_is_hot[page]; }), touched.end());
 		WatchPages(touched);
@@ -381,7 +395,7 @@ namespace Zdxsv
 				s_open.push_back({page, std::move(data)});
 			}
 		}
-		s_lwatch_ms += timer.GetTimeMilliseconds();
+		s_times.lwatch_ms += timer.GetTimeMilliseconds();
 
 		while (s_states.rbegin()->first > frame)
 		{
@@ -392,7 +406,7 @@ namespace Zdxsv
 
 		timer.Reset();
 		const bool ok = SaveState_DeltaLoad(state->second);
-		s_lstate_ms += timer.GetTimeMilliseconds();
+		s_times.lstate_ms += timer.GetTimeMilliseconds();
 		return ok;
 	}
 

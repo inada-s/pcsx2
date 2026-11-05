@@ -1056,6 +1056,7 @@ namespace Zdxsv
 		s_diff_logged = 0;
 		g_rerun_vu1_ticks = g_rerun_spu2_ticks = 0;
 		s_stats = {};
+		Zdxsv::DeltaStateTimesReset();
 	}
 
 	void GgpoOnVsync()

@@ -33,6 +33,8 @@ namespace Zdxsv
 	void DeltaStateMaskScratch(std::vector<u8>& state);
 	// Mean wall ms of the parts of DeltaStateSave so far.
 	std::string DeltaStateTimes();
+	// Zeroes the DeltaStateTimes and SaveState_DeltaTimes sums.
+	void DeltaStateTimesReset();
 	// Drops everything and stops EE RAM tracking.
 	void DeltaStateClear();
 

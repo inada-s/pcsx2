@@ -16,6 +16,7 @@ bool SaveState_DeltaLoad(const std::vector<u8>& buffer);
 std::string SaveState_DeltaDescribe(const std::vector<u8>& buffer, size_t offset);
 // Mean wall ms per section of the delta saves and loads so far.
 std::string SaveState_DeltaTimes();
+void SaveState_DeltaTimesReset();
 // Byte ranges (offset, size) of the last SaveState_DeltaSave holding values no later frame reads
 // as saved (decode scratch, MTGS-thread counters reset on load): left out of hashes and compares.
 const std::vector<std::pair<size_t, size_t>>& SaveState_DeltaScratch();
