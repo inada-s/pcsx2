@@ -31,7 +31,7 @@ namespace Zdxsv
 				s_live_seen.push_back(code);
 		}
 
-		size_t s_live_round_bytes = 0; // of s_live_got.rounds already in s_play_loads.file_rounds
+		size_t s_live_round_bytes = 0; // of s_live_play.got.rounds already in s_play_loads.file_rounds
 
 		// BattleLogFile round_data entries -> win_team per round
 		std::optional<std::vector<int>> LiveWins(const std::vector<u8>& r)
@@ -62,7 +62,7 @@ namespace Zdxsv
 		// The stream's round results (ahead of playback) as the file's round_data.
 		void LiveRounds()
 		{
-			const std::vector<u8>& r = s_live_got.rounds;
+			const std::vector<u8>& r = s_live_play.got.rounds;
 			if (r.size() <= s_live_round_bytes)
 				return;
 			std::optional<std::vector<int>> wins = LiveWins(r);
@@ -76,22 +76,22 @@ namespace Zdxsv
 
 		void LiveTake()
 		{
-			const bool ok = s_live_down->Take(s_live_got, LIVE_STALL_MS);
+			const bool ok = s_live_down->Take(s_live_play.got, LIVE_STALL_MS);
 			LiveRounds();
 			const size_t in_bytes = s_players * sizeof(NetInput);
-			const size_t got = static_cast<size_t>(s_live_got.frameBytes);
+			const size_t got = static_cast<size_t>(s_live_play.got.frameBytes);
 			const bool hashed = got == in_bytes + sizeof(u32);
-			if (got > 0 && got != in_bytes && !hashed && s_live_close.empty())
-				s_live_close = fmt::format("frame size {}, not {}", got, in_bytes);
+			if (got > 0 && got != in_bytes && !hashed && s_live_play.close.empty())
+				s_live_play.close = fmt::format("frame size {}, not {}", got, in_bytes);
 			const size_t fb = hashed ? got : in_bytes;
-			if (const size_t n = s_live_got.inputs.size() / fb; n > 0 && s_live_close.empty())
+			if (const size_t n = s_live_play.got.inputs.size() / fb; n > 0 && s_live_play.close.empty())
 			{
 				const bool add_hashes = hashed && s_play.hashes.size() == static_cast<size_t>(s_play.frames);
 				const size_t at = s_play.inputs.size();
 				s_play.inputs.resize(at + n * s_players);
 				for (size_t i = 0; i < n; i++)
 				{
-					const u8* record = s_live_got.inputs.data() + i * fb;
+					const u8* record = s_live_play.got.inputs.data() + i * fb;
 					std::memcpy(&s_play.inputs[at + i * s_players], record, in_bytes);
 					if (add_hashes)
 					{
@@ -100,15 +100,15 @@ namespace Zdxsv
 						s_play.hashes.push_back(hash);
 					}
 				}
-				s_live_got.inputs.erase(s_live_got.inputs.begin(), s_live_got.inputs.begin() + n * fb);
+				s_live_play.got.inputs.erase(s_live_play.got.inputs.begin(), s_live_play.got.inputs.begin() + n * fb);
 				s_play.frames += static_cast<int>(n);
 			}
-			if (s_live_got.closed && s_live_close.empty())
-				s_live_close = s_live_got.close.empty() ? "end" : s_live_got.close;
-			if (!ok && s_live_close.empty())
+			if (s_live_play.got.closed && s_live_play.close.empty())
+				s_live_play.close = s_live_play.got.close.empty() ? "end" : s_live_play.got.close;
+			if (!ok && s_live_play.close.empty())
 			{
 				Console.Error("ZdxsvGgpo: live: nothing from the lobby for %d s, stream lost", LIVE_STALL_MS / 1000);
-				s_live_close = "lost";
+				s_live_play.close = "lost";
 			}
 		}
 
@@ -128,12 +128,12 @@ namespace Zdxsv
 			{
 				s_pace_log = 0;
 				Console.WriteLn("ZdxsvGgpo: live: pace frame %d gap %d trim %d us rate %.2f hz, %d waits %.0f ms", next,
-					s_play.frames - next, g_frame_period_trim_us, s_pace_hz, s_live_waits, s_live_wait_ms);
+					s_play.frames - next, g_frame_period_trim_us, s_pace_hz, s_live_play.waits, s_live_play.wait_ms);
 			}
 			const bool idle = s_pace_call.GetTimeSeconds() > PACE_IDLE_S; // paused, or a long wait at the edge
 			s_pace_call.Reset();
-			if (s_pace_off || s_live_catchup || s_play.run_load >= 0 || s_play.target >= 0 || s_to_phase != TO_OFF ||
-				!s_live_close.empty())
+			if (s_pace_off || s_live_play.catchup || s_play.run_load >= 0 || s_play.target >= 0 || s_to_phase != TO_OFF ||
+				!s_live_play.close.empty())
 			{
 				LivePaceReset();
 				return;
@@ -187,7 +187,7 @@ namespace Zdxsv
 		// ZDXSV_REPLAY_SYNC=0 (test control): members publish their frame but neither wait nor chase
 		const bool s_sync_test_off = [] { const char* e = TestEnv("ZDXSV_REPLAY_SYNC"); return e && e[0] == '0'; }();
 
-		bool PlayCatchingUp() { return s_play.run_load >= 0 || s_play.target >= 0 || s_live_catchup; }
+		bool PlayCatchingUp() { return s_play.run_load >= 0 || s_play.target >= 0 || s_live_play.catchup; }
 
 		// Not the CPU thread. Host: publishes its pause, tiles the windows; guest: follows the pause, quits with the host.
 		void SyncWatch(bool host)
@@ -235,11 +235,7 @@ namespace Zdxsv
 	std::deque<std::pair<int, int>> s_play_pov_at; // ZDXSV_REPLAY_POV_AT=frame:position,...
 	PlaySent s_play_sent[GGPO_MAX_PLAYERS];
 	std::unique_ptr<Zdxsv::LiveDown> s_live_down;
-	Zdxsv::LiveStreams s_live_got; // inputs not in s_play.inputs yet (part of a frame)
-	std::string s_live_close; // "" = running
-	bool s_live_catchup = false, s_live_close_logged = false;
-	int s_live_waits = 0, s_live_hold_want = -1;
-	double s_live_wait_ms = 0;
+	LivePlay s_live_play;
 	Common::Timer s_live_hold_wait;
 	std::unique_ptr<LiveWait> s_live_wait;
 	std::string s_live_next_url; // the battle auto-next moved on to, "" = ZDXSV_REPLAY
@@ -256,12 +252,12 @@ namespace Zdxsv
 			return std::nullopt;
 		}
 		s_live_open_error.clear();
-		s_live_got = {};
-		s_live_down->Take(s_live_got, LIVE_STALL_MS);
-		const size_t fb = std::max(s_live_got.frameBytes, 1);
-		const size_t frames = s_live_got.inputs.size() / fb;
+		s_live_play.got = {};
+		s_live_down->Take(s_live_play.got, LIVE_STALL_MS);
+		const size_t fb = std::max(s_live_play.got.frameBytes, 1);
+		const size_t frames = s_live_play.got.inputs.size() / fb;
 		using namespace Pb;
-		std::vector<u8> pb = std::move(s_live_got.header);
+		std::vector<u8> pb = std::move(s_live_play.got.header);
 		PutInt(pb, 48, static_cast<int64_t>(frames));
 		// An uplink appends the frame's state hash to each record: never a whole number of inputs.
 		if (fb % sizeof(NetInput) == sizeof(u32))
@@ -270,25 +266,25 @@ namespace Zdxsv
 			std::vector<u8> inputs(frames * in_bytes), hashes(frames * sizeof(u32));
 			for (size_t f = 0; f < frames; f++)
 			{
-				std::memcpy(&inputs[f * in_bytes], &s_live_got.inputs[f * fb], in_bytes);
-				std::memcpy(&hashes[f * sizeof(u32)], &s_live_got.inputs[f * fb + in_bytes], sizeof(u32));
+				std::memcpy(&inputs[f * in_bytes], &s_live_play.got.inputs[f * fb], in_bytes);
+				std::memcpy(&hashes[f * sizeof(u32)], &s_live_play.got.inputs[f * fb + in_bytes], sizeof(u32));
 			}
 			PutBytes(pb, 49, inputs.data(), inputs.size());
 			PutBytes(pb, 52, hashes.data(), hashes.size());
 		}
 		else
-			PutBytes(pb, 49, s_live_got.inputs.data(), frames * fb);
-		s_live_got.inputs.erase(s_live_got.inputs.begin(), s_live_got.inputs.begin() + frames * fb);
-		pb.insert(pb.end(), s_live_got.rounds.begin(), s_live_got.rounds.end());
-		s_live_round_bytes = s_live_got.rounds.size();
-		if (const std::optional<std::vector<int>> wins = LiveWins(s_live_got.rounds))
+			PutBytes(pb, 49, s_live_play.got.inputs.data(), frames * fb);
+		s_live_play.got.inputs.erase(s_live_play.got.inputs.begin(), s_live_play.got.inputs.begin() + frames * fb);
+		pb.insert(pb.end(), s_live_play.got.rounds.begin(), s_live_play.got.rounds.end());
+		s_live_round_bytes = s_live_play.got.rounds.size();
+		if (const std::optional<std::vector<int>> wins = LiveWins(s_live_play.got.rounds))
 			LogLiveWins(*wins, 0);
 		const std::string code = s_live_down->Code();
 		LiveSeen(code);
 		if (!s_live_next_url.empty() && s_live_next_left > 0)
 			s_live_next_left--; // a battle moved on to that does not open is skipped, not counted
 		Console.WriteLn("ZdxsvGgpo: live: battle %s, %zu frames, %zu bytes of round results so far%s", code.c_str(), frames, s_live_round_bytes,
-			s_live_got.closed ? ", closed" : "");
+			s_live_play.got.closed ? ", closed" : "");
 		return pb;
 	}
 
@@ -352,7 +348,7 @@ namespace Zdxsv
 
 	void LiveCatchupEnd(int f)
 	{
-		if (!std::exchange(s_live_catchup, false))
+		if (!std::exchange(s_live_play.catchup, false))
 			return;
 		VMManager::SetLimiterMode(s_live_limiter);
 		Console.WriteLn("ZdxsvGgpo: live: caught up at frame %d, vsync %u", f, g_FrameCount);
@@ -373,18 +369,18 @@ namespace Zdxsv
 			return false;
 		LiveTake();
 		const int next = s_battle.frame + 1;
-		if (s_live_hold_want < 0)
+		if (s_live_play.hold_want < 0)
 		{
-			if (next < s_play.frames || !s_live_close.empty())
+			if (next < s_play.frames || !s_live_play.close.empty())
 				return false;
-			s_live_hold_want = next + (s_play.run_load >= 0 || s_play.target >= 0 || s_live_catchup ? 1 : LIVE_BUFFER);
+			s_live_play.hold_want = next + (s_play.run_load >= 0 || s_play.target >= 0 || s_live_play.catchup ? 1 : LIVE_BUFFER);
 			s_live_hold_wait.Reset();
 		}
-		if (s_play.frames < s_live_hold_want && s_live_close.empty() && s_play_req.load() == INT_MIN)
+		if (s_play.frames < s_live_play.hold_want && s_live_play.close.empty() && s_play_req.load() == INT_MIN)
 			return true;
-		s_live_hold_want = -1;
-		s_live_waits++;
-		s_live_wait_ms += s_live_hold_wait.GetTimeMilliseconds();
+		s_live_play.hold_want = -1;
+		s_live_play.waits++;
+		s_live_play.wait_ms += s_live_hold_wait.GetTimeMilliseconds();
 		return false;
 	}
 
@@ -392,18 +388,18 @@ namespace Zdxsv
 	void LiveNext(int next)
 	{
 		LiveTake();
-		if (!s_live_close.empty() && next >= s_play.frames && !std::exchange(s_live_close_logged, true))
-			Console.WriteLn("ZdxsvGgpo: live: stream closed (%s) at frame %d, %d waits %.0f ms", s_live_close.c_str(), s_play.frames,
-				s_live_waits, s_live_wait_ms);
+		if (!s_live_play.close.empty() && next >= s_play.frames && !std::exchange(s_live_play.close_logged, true))
+			Console.WriteLn("ZdxsvGgpo: live: stream closed (%s) at frame %d, %d waits %.0f ms", s_live_play.close.c_str(), s_play.frames,
+				s_live_play.waits, s_live_play.wait_ms);
 		const int ahead = s_play.frames - next;
-		if (!s_live_catchup && ahead > LIVE_BUFFER + LIVE_CATCHUP && s_play.run_load < 0 && s_play.target < 0)
+		if (!s_live_play.catchup && ahead > LIVE_BUFFER + LIVE_CATCHUP && s_play.run_load < 0 && s_play.target < 0)
 		{
-			s_live_catchup = true;
+			s_live_play.catchup = true;
 			s_live_limiter = VMManager::GetLimiterMode();
 			VMManager::SetLimiterMode(LimiterModeType::Unlimited);
 			Console.WriteLn("ZdxsvGgpo: live: %d frames behind at frame %d: catching up", ahead, next);
 		}
-		else if (s_live_catchup && ahead <= LIVE_BUFFER + LIVE_EDGE)
+		else if (s_live_play.catchup && ahead <= LIVE_BUFFER + LIVE_EDGE)
 			LiveCatchupEnd(next);
 		LivePace(next);
 	}
