@@ -258,6 +258,7 @@ Udp::ReadSockets()
          if (_callbacks->TryForward(recv_addr, msg, len)) {
             continue;
          }
+         _callbacks->OnReceived(recv_addr, msg, len);
          if (_recv_queue.size() >= MAX_QUEUED_PACKETS) {
             if (++_recv_dropped % 100 == 1) {
                LogInfo("receive queue full, %d packets dropped", _recv_dropped);

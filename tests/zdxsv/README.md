@@ -146,7 +146,7 @@ Scripts are in `tests/zdxsv/` except `run.py` (repository root) and
 | Feature | Test | Control |
 |---|---|---|
 | GGPO library | unit: `GGPO.*` in `tests/ctest/core/ggpo_tests.cpp` | `GGPO.SyncTestCatchesStateOutsideSave` |
-| GGPO pump thread | `TRACE=0 rbk.py 2 1` x2: `pump thread started` per peer, logged OSD pings 0-5 ms | `PCSX2_ENV=ZDXSV_NET_PUMP=0`: no such line, pings 2-23 ms |
+| GGPO pings answered on the network thread | `TRACE=0 rbk.py 2 1` x2: logged OSD pings 0-1 ms | a build that answers quality reports from the frame loop (`ggpo_idle`): pings 3-15 ms |
 | GGPO time sync spread over frames | `STALL=400 LAT=100 rbk.py 2 1`: peer 1 suspended 400 ms 8 times; peer 0 logs `sync N (max X ms)` with N >= 2, X < 25. `TURBO= STALL=400 rbk.py 2 1`: also OSD `P` at most 3 at the end | a build that sleeps all suggested frames at once: X about 33 (2 frames). A build whose waits the frame limiter takes back: `P` about 5 |
 | Frames confirmed on this peer's own receipt | `TURBO= TRACE=0 LAT=50 DELAY=2 MAXWAIT=50 rbk.py 4 1`: PASS | `ggpo_set_disconnect_without_rollback` removed: about 1300 waits, FAIL MAXWAIT |
 | Input sent before the rollback and the limiter sleep; limiter does not catch up; high priority | no pass criterion of its own: `TURBO= TRACE=0 LAT=50 DELAY=2 rbk.py 2 1`, compare the OSD `P` and the rollback depth (rollback frames / loads) between builds. Sync: `rbk.py 2 1`, `rbk.py 4 1` | input after the sleep: `P` and depth about 1 higher on the peer that is ahead |

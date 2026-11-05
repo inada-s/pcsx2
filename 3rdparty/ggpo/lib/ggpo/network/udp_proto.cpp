@@ -379,7 +379,15 @@ UdpProtocol::HandlesMsg(sockaddr_storage &from, UdpMsg *msg)
        _peer_addr_len = sizeof(from); // XXX
        return true;
    }
+   return IsFromPeer(from);
+}
 
+bool
+UdpProtocol::IsFromPeer(const sockaddr_storage &from) const
+{
+   if (_peer_addr_len == 0) {
+      return false;
+   }
    if (SameAddress(from, _peer_addr)) {
       return true;
    }
@@ -452,6 +460,30 @@ IsValidInputBits(uint8 *bits, int num_bits, int max_button)
       }
    }
    return true;
+}
+
+void
+UdpProtocol::OnReceived(sockaddr_storage &from, UdpMsg *msg, int len)
+{
+   if (msg->hdr.type != UdpMsg::QualityReport && msg->hdr.type != UdpMsg::QualityReply) {
+      return;
+   }
+   if (!_udp || msg->hdr.remote_endpoint != _queue || !IsFromPeer(from)
+       || msg->hdr.const_magic != CONST_MAGIC || msg->hdr.magic != _remote_magic_number
+       || !IsValidMsgLength(msg, len)) {
+      return;
+   }
+   if (msg->hdr.type == UdpMsg::QualityReport) {
+      UdpMsg *reply = new UdpMsg(UdpMsg::QualityReply);
+      reply->u.quality_reply.pong = msg->u.quality_report.ping;
+      reply->u.quality_reply.packet_loss = _recv_packet_loss;
+      SendMsg(reply);
+   } else {
+      int rtt = int(GGPOPlatform::GetCurrentTimeMS() - msg->u.quality_reply.pong);
+      _round_trip_time = rtt;
+      _smooth_round_trip_time = _smooth_round_trip_time == 0 ? rtt : int(0.5 + 0.75 * _smooth_round_trip_time + 0.25 * rtt);
+      _send_packet_loss = msg->u.quality_reply.packet_loss;
+   }
 }
 
 void
@@ -542,7 +574,7 @@ UdpProtocol::UpdateNetworkStats(void)
    Log("udpproto%d | Network Stats -- Bandwidth: %.2f KBps   Packets Sent: %5d (%.2f pps)   "
        "KB Sent: %.2f    UDP Overhead: %.2f %%.", _queue,
        (float)_kbps_sent,
-       _packets_sent,
+       _packets_sent.load(),
        (float)_packets_sent * 1000 / (now - _stats_start_time),
        total_bytes_sent / 1024.0,
        udp_overhead);
@@ -838,12 +870,6 @@ UdpProtocol::OnInputAck(UdpMsg *msg, int len)
 bool
 UdpProtocol::OnQualityReport(UdpMsg *msg, int len)
 {
-   // send a reply so the other side can compute the round trip transmit time.
-   UdpMsg *reply = new UdpMsg(UdpMsg::QualityReply);
-   reply->u.quality_reply.pong = msg->u.quality_report.ping;
-   reply->u.quality_reply.packet_loss = _recv_packet_loss;
-   SendMsg(reply);
-
    _remote_frame_advantage = msg->u.quality_report.frame_advantage;
    return true;
 }
@@ -851,10 +877,6 @@ UdpProtocol::OnQualityReport(UdpMsg *msg, int len)
 bool
 UdpProtocol::OnQualityReply(UdpMsg *msg, int len)
 {
-   int rtt = int(GGPOPlatform::GetCurrentTimeMS() - msg->u.quality_reply.pong);
-   _round_trip_time = rtt;
-   _smooth_round_trip_time = _smooth_round_trip_time == 0 ? rtt : int(0.5 + 0.75 * _smooth_round_trip_time + 0.25 * rtt);
-   _send_packet_loss = msg->u.quality_reply.packet_loss;
    return true;
 }
 

@@ -613,52 +613,11 @@ namespace Zdxsv
 				Console.Warning("ZdxsvGgpo: ggpo: %s", msg);
 		}
 
-		// net: a thread pumps GGPO's sockets every 1 ms (ggpo_idle -1: receive and send only, no callbacks),
-		// so pings and input acks do not wait for the next vsync. GGPO's network thread reads the sockets and relays.
-		// ZDXSV_NET_PUMP=0: no thread (GGPO polled only by the frame loop).
-		// s_ggpo_mtx guards every GGPO call: the frame loop holds it through Returned, the thread per pump.
+		// s_ggpo_mtx guards every GGPO call: the frame loop holds it through Returned.
 		std::recursive_mutex s_ggpo_mtx;
-		std::atomic<bool> s_pump_run{false};
-		struct PumpThread
-		{
-			std::thread t;
-			void Stop()
-			{
-				s_pump_run = false;
-				if (t.joinable())
-					t.join();
-			}
-			~PumpThread() { Stop(); }
-		} s_pump;
-
-		void PumpStart()
-		{
-			const char* e = Zdxsv::TestEnv("ZDXSV_NET_PUMP");
-			if (e && std::strcmp(e, "0") == 0)
-				return;
-			s_pump.Stop();
-			s_pump_run = true;
-			s_pump.t = std::thread([] {
-				Threading::SetNameOfCurrentThread("ZdxsvGgpoPump");
-				while (s_pump_run)
-				{
-					// try_lock: Stop joins this thread while it holds the lock
-					std::unique_lock lock(s_ggpo_mtx, std::try_to_lock);
-					if (lock.owns_lock())
-					{
-						if (s_session)
-							ggpo_idle(s_session, -1);
-					}
-					lock = {};
-					Threading::Sleep(1);
-				}
-			});
-			Console.WriteLn("ZdxsvGgpo: pump thread started");
-		}
 
 		void Stop(const char* what)
 		{
-			s_pump.Stop();
 			std::lock_guard ggpo_lock(s_ggpo_mtx);
 			if (s_disconnected)
 				UpdateOsd(false); // the frame's lines predate the disconnect event
@@ -853,7 +812,6 @@ namespace Zdxsv
 			}
 			Console.WriteLn("ZdxsvGgpo: net player %d of %d port %d delay %d, %zu msgs sent before the start, waited %.1f s",
 				s_net_me + 1, s_players, local_port, s_delay, s_net_sent.size(), wait.GetTimeSeconds());
-			PumpStart();
 			return nullptr;
 		}
 
@@ -1337,7 +1295,6 @@ namespace Zdxsv
 		if (s_net)
 		{
 			const bool ok = NetWaitPredictionLimit();
-			// The pump runs during the sleep: pings held back by it would read as latency, and time sync uses them.
 			ggpo_lock.unlock();
 			DeferredThrottle(false);
 			ggpo_lock.lock();
