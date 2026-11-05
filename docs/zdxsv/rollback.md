@@ -225,10 +225,12 @@ Three mechanisms keep the peers on the same frame:
 
 ### Frame order and pacing (`net=1`)
 
-With `ZdxsvLowLatencyVsync` a battle frame ends: present, rollback, input poll
-and send, limiter sleep, then the next frame runs. The input goes out before
-the sleep so the peers get it that much earlier; the press is that much older
-when the frame runs.
+With `ZdxsvLowLatencyVsync` a battle frame ends: present, input poll and send,
+GGPO advance, rollback, wait at the prediction limit, limiter sleep, then the
+next frame runs. The input goes out before the rollback and the sleep: the peers
+get it that much earlier, and its age does not depend on the rollback's length.
+The press is that much older when the frame runs. The input joins GGPO before
+the advance, so GGPO's frame delay is the battle delay + 1, for the same frame.
 
 During a battle the limiter does not pay a late frame back with shorter ones:
 the next frame waits a full period from the late one. The process runs at high

@@ -421,27 +421,27 @@ namespace Zdxsv
 		std::fflush(s_net_trace);
 	}
 
-	// Own input of frame s_net_frame (live: GGPO adds the delay; replay takeover: PlayFrame): pad 0 undelayed to
+	// Own input of frame (live: GGPO adds the delay; replay takeover: PlayFrame): pad 0 undelayed to
 	// the game, its (A, B) + the own kind-3 msgs due since the last input.
-	NetInput NetPack(const Input& pad)
+	NetInput NetPack(const Input& pad, int frame)
 	{
 		NetInput in = s_net_local;
 		in.pad = pad;
-		s_rings.zd_pad[s_net_frame & 127] = in.pad;
+		s_rings.zd_pad[frame & 127] = in.pad;
 		u16 ab[2];
 		ZdPadAB(in.pad, ab[0], ab[1]);
 		if (s_net_trace)
-			std::fprintf(s_net_trace, "%u Q %d %04x %04x\n", g_FrameCount, s_net_frame, ab[0], ab[1]);
+			std::fprintf(s_net_trace, "%u Q %d %04x %04x\n", g_FrameCount, frame, ab[0], ab[1]);
 		in.pad = {};
 		std::memcpy(&in.pad, ab, sizeof(ab));
 		in.pad.unused[0] = s_rb.ms.n;
 		in.pad.unused[1] = s_rb.ps.n;
 		std::vector<u8> data;
-		while (!s_net_out.empty() && (s_k3_lag == 0 || s_net_out.front().frame + s_k3_lag <= s_net_frame))
+		while (!s_net_out.empty() && (s_k3_lag == 0 || s_net_out.front().frame + s_k3_lag <= frame))
 		{
 			const std::vector<u8>& m = s_net_out.front().m;
 			if (s_net_trace)
-				std::fprintf(s_net_trace, "%u O %d %zu %d\n", g_FrameCount, s_net_frame, s_net_out.front().idx, s_net_out.front().frame);
+				std::fprintf(s_net_trace, "%u O %d %zu %d\n", g_FrameCount, frame, s_net_out.front().idx, s_net_out.front().frame);
 			if (m.size() > sizeof(in.data))
 			{
 				if (s_ns.toolong++ < 20)

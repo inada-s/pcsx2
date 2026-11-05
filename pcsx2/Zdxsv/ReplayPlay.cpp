@@ -238,7 +238,7 @@ namespace Zdxsv
 			if (f >= s_play_frames)
 				for (int p = 0; p < s_players; p++)
 					std::memset(&in[p].pad, 0, sizeof(u16) * 2); // (A, B); seq unchanged = no new msgs
-			s_to_queue.push_back(NetPack(TakeoverPad(f)));
+			s_to_queue.push_back(NetPack(TakeoverPad(f), s_net_frame));
 			in[s_net_me] = s_to_queue.front();
 			s_to_queue.pop_front();
 			NetApply(in);

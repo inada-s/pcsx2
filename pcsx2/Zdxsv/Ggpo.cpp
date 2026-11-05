@@ -302,8 +302,8 @@ namespace Zdxsv
 		// Local inputs of the next frame, then the synced inputs go to the pads.
 		bool NextInputs()
 		{
-			if (s_net)
-				return NetNextInputs();
+			if (s_net) // the session start: no input yet, GGPO's frame delay fills the first frames
+				return NetSyncAndApply();
 			if (s_session_frames % 5 == 0)
 			{
 				for (Input& in : s_random)
@@ -848,7 +848,7 @@ namespace Zdxsv
 				if (ggpo_add_player(s_session, &player, &s_handles[p]) != GGPO_OK)
 					return "start failed";
 				if (player.type == GGPO_PLAYERTYPE_LOCAL)
-					ggpo_set_frame_delay(s_session, s_handles[p], s_delay);
+					ggpo_set_frame_delay(s_session, s_handles[p], s_delay + 1); // + 1: the input is added before the advance
 			}
 			// Every peer arms at its own first key msg: block until all are synchronized.
 			constexpr double START_TIMEOUT_S = 10;
@@ -905,9 +905,9 @@ namespace Zdxsv
 			ggpo_disconnect_player(s_session, s_handles[s_net_me]);
 		}
 
-		bool NetAddLocalInput()
+		bool NetAddLocalInput(int frame)
 		{
-			NetInput in = NetPack(s_rand_env ? RandInput() : HostInput());
+			NetInput in = NetPack(s_rand_env ? RandInput() : HostInput(), frame);
 			GGPOErrorCode rc = ggpo_add_local_input(s_session, s_handles[s_net_me], &in, sizeof(in));
 			if (rc == GGPO_ERRORCODE_PREDICTION_THRESHOLD)
 			{
@@ -930,9 +930,29 @@ namespace Zdxsv
 			return true;
 		}
 
-		bool NetNextInputs()
+		// The input was added before the advance, so add_local_input no longer stops the next frame at GGPO's
+		// prediction limit: the same check here, after the rollback.
+		bool NetWaitPredictionLimit()
 		{
-			return NetAddLocalInput() && NetSyncAndApply();
+			constexpr int LIMIT = 6; // MAX_PREDICTION_FRAMES
+			const auto at_limit = [] {
+				int frame = 0, confirmed = 0;
+				ggpo_get_current_frame(s_session, &frame);
+				ggpo_get_last_confirmed_frame(s_session, &confirmed);
+				return frame >= LIMIT && frame - confirmed >= LIMIT;
+			};
+			if (!at_limit())
+				return true;
+			s_waits++;
+			Common::Timer wait;
+			while (at_limit() && !s_disconnected && wait.GetTimeSeconds() < 10)
+			{
+				ggpo_idle(s_session, 0);
+				Threading::Sleep(1);
+				NetEndCheck();
+			}
+			s_wait_ms.Add(wait.GetTimeMilliseconds());
+			return s_disconnected || !at_limit();
 		}
 
 		// Inputs of frame s_net_frame: own host pad to pad 0, every position's (A, B) to s_rings.zd_hist, kind-3
@@ -1270,6 +1290,22 @@ namespace Zdxsv
 				Stop("failed");
 			return;
 		}
+		// net: the input is read and sent before the rollback, so its age does not depend on the rollback's length.
+		if (s_net)
+		{
+			if (s_throttle_deferred)
+			{
+				VMManager::Internal::PollInputOnCPUThread();
+				if (!s_session) // the input poll ran a VM shutdown or reset
+					return;
+			}
+			// Not at frame 0: an input added before the first read lets GGPO discard frames the next read needs.
+			if (s_session_frames != 0 && !NetAddLocalInput(s_net_frame + 1))
+			{
+				Stop("failed");
+				return;
+			}
+		}
 		if (ggpo_advance_frame(s_session) != GGPO_OK || ggpo_idle(s_session, 0) != GGPO_OK)
 		{
 			Stop("failed");
@@ -1287,7 +1323,7 @@ namespace Zdxsv
 			// A peer leaves once it confirmed the end msg, which took our input of that frame: an end msg still to
 			// come is no later than our last input's frame.
 			if (s_disconnected_until < 0)
-				s_disconnected_until = s_net_frame + s_delay;
+				s_disconnected_until = s_net_frame + s_delay + 1;
 			if (!s_net || s_net_frame > s_disconnected_until)
 			{
 				Stop("disconnected");
@@ -1330,15 +1366,11 @@ namespace Zdxsv
 			SamplePeerPings();
 		if (s_net)
 			SampleFps();
-		// net: the input goes out before the limiter sleep, not after it: the peers get it that much earlier.
-		if (s_net && s_throttle_deferred)
+		if (s_net)
 		{
-			VMManager::Internal::PollInputOnCPUThread();
-			if (!s_session) // the input poll ran a VM shutdown or reset
-				return;
-			const bool added = NetAddLocalInput();
+			const bool ok = NetWaitPredictionLimit();
 			DeferredThrottle(false);
-			if (!added || !NetSyncAndApply())
+			if (!ok || !NetSyncAndApply())
 				Stop("failed");
 			return;
 		}
