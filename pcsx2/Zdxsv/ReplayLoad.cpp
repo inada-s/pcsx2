@@ -444,17 +444,17 @@ namespace Zdxsv
 			if (s_to_phase == TO_ON && !s_to_test)
 			{
 				const bool start = s_host[PadDualshock2::Inputs::PAD_START] >= 0.5f;
-				if (start && !s_to_start_held)
+				if (start && !s_to.start_held)
 					req = TO_REQ_RETRY;
-				s_to_start_held = start;
+				s_to.start_held = start;
 			}
 			const int phase = s_to_phase;
 			const bool aligning = phase == TO_ALIGN || phase == TO_COUNT;
 			const auto align = [] {
 				s_to_phase = TO_ALIGN;
-				s_to_skip = false;
-				s_to_start_held = s_host[PadDualshock2::Inputs::PAD_START] >= 0.5f; // skip needs a new press
-				Console.WriteLn("ZdxsvGgpo: replay takeover: hold the replay's input %04x at frame %d", s_to_target.load(), s_to_frame);
+				s_to.skip = false;
+				s_to.start_held = s_host[PadDualshock2::Inputs::PAD_START] >= 0.5f; // skip needs a new press
+				Console.WriteLn("ZdxsvGgpo: replay takeover: hold the replay's input %04x at frame %d", s_to_target.load(), s_to.frame);
 			};
 			const auto load = [&next] {
 				const int t = TakeoverLoad();

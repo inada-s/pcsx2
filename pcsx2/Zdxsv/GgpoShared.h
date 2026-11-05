@@ -404,8 +404,20 @@ namespace Zdxsv
 	extern std::atomic<int> s_to_phase;
 	extern std::atomic<int> s_to_req;
 	extern std::atomic<u16> s_to_target; // own B of the file at T
-	extern int s_to_frame; // T
-	extern bool s_to_skip, s_to_start_held;
+	struct Takeover
+	{
+		int frame = -1; // T
+		int delay = 0;
+		bool skip = false, start_held = false;
+		std::unique_ptr<PlayKey> key; // the state before T
+		std::vector<std::vector<u8>> sent; // own sends before T
+		std::vector<int> sent_at;
+		std::deque<NetOut> out; // own kind-3 msgs before T not in the file's own inputs up to T + delay - 1
+		NetInput local; // the file's own input at T + delay - 1
+		std::deque<NetInput> queue; // packed own inputs, `delay` frames ahead
+		Common::Timer::Value count_t0 = 0;
+	};
+	extern Takeover s_to;
 	extern const char* const s_to_test;
 	extern int s_to_test_at;
 	extern int s_to_test_retry;

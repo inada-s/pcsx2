@@ -189,14 +189,6 @@ namespace Zdxsv
 			if (s_play.run_load >= 0 && s_play.run_load < static_cast<int>(s_play_loads.battle.size()) && s_play_loads.battle[s_play.run_load] == f)
 				PlayRunEnd(s_play.run_load == 1 ? "briefing" : "start", f);
 		}
-		int s_to_delay = 0;
-		std::unique_ptr<PlayKey> s_to_key; // the state before T
-		std::vector<std::vector<u8>> s_to_sent; // own sends before T
-		std::vector<int> s_to_sent_at;
-		std::deque<NetOut> s_to_out; // own kind-3 msgs before T not in the file's own inputs up to T + delay - 1
-		NetInput s_to_local; // the file's own input at T + delay - 1
-		std::deque<NetInput> s_to_queue; // packed own inputs, `delay` frames ahead
-		Common::Timer::Value s_to_count_t0 = 0;
 		const char s_to_test_src = [] {
 			const char* c = s_to_test ? std::strchr(s_to_test, ':') : nullptr;
 			const std::string_view src = c ? c + 1 : "";
@@ -218,7 +210,7 @@ namespace Zdxsv
 		Input TakeoverPad(int f)
 		{
 			if (s_to_test_src == 'r')
-				return PadFromB(PlayOwnB(f + s_to_delay));
+				return PadFromB(PlayOwnB(f + s_to.delay));
 			if (s_to_test_src == 'n')
 			{
 				static Input in = PadFromB(0);
@@ -242,9 +234,9 @@ namespace Zdxsv
 			if (f >= s_play.frames)
 				for (int p = 0; p < s_opt.players; p++)
 					std::memset(&in[p].pad, 0, sizeof(u16) * 2); // (A, B); seq unchanged = no new msgs
-			s_to_queue.push_back(NetPack(TakeoverPad(f), s_battle.frame));
-			in[s_battle.me] = s_to_queue.front();
-			s_to_queue.pop_front();
+			s_to.queue.push_back(NetPack(TakeoverPad(f), s_battle.frame));
+			in[s_battle.me] = s_to.queue.front();
+			s_to.queue.pop_front();
 			NetApply(in);
 		}
 
@@ -407,8 +399,7 @@ namespace Zdxsv
 	std::atomic<int> s_to_phase{TO_OFF};
 	std::atomic<int> s_to_req{TO_REQ_NONE};
 	std::atomic<u16> s_to_target{0}; // own B of the file at T
-	int s_to_frame = -1; // T
-	bool s_to_skip = false, s_to_start_held = false;
+	Takeover s_to;
 	int s_to_test_at = s_to_test ? std::atoi(s_to_test) : -1;
 	int s_to_test_retry = [] {
 		const char* e = TestEnv("ZDXSV_REPLAY_TAKEOVER_RETRY");
@@ -418,54 +409,54 @@ namespace Zdxsv
 	// At T = the next frame (the running state = before T): keeps the state and the own sent msgs.
 	bool TakeoverBegin(int t)
 	{
-		s_to_delay = s_min_delay;
-		if (t < 1 || t + s_to_delay > s_play.frames)
+		s_to.delay = s_min_delay;
+		if (t < 1 || t + s_to.delay > s_play.frames)
 		{
 			Console.Error("ZdxsvGgpo: replay takeover at frame %d: not within the replay (%d frames)", t, s_play.frames);
 			return false;
 		}
-		s_to_key = PlayKeyMake(t, fmt::format("zdxsv-replay-takeover-p{}.p2s", s_battle.me));
-		if (!s_to_key)
+		s_to.key = PlayKeyMake(t, fmt::format("zdxsv-replay-takeover-p{}.p2s", s_battle.me));
+		if (!s_to.key)
 			return false;
 		const size_t pos = std::min(s_rb.net_pos, s_battle.sent.size());
-		s_to_sent.assign(s_battle.sent.begin(), s_battle.sent.begin() + pos);
-		s_to_sent_at.assign(s_battle.sent_at.begin(), s_battle.sent_at.begin() + pos);
+		s_to.sent.assign(s_battle.sent.begin(), s_battle.sent.begin() + pos);
+		s_to.sent_at.assign(s_battle.sent_at.begin(), s_battle.sent_at.begin() + pos);
 		// the own msg bytes of the file's inputs up to T + delay - 1 = the oldest kind-3 sends, in order
 		size_t bytes = 0;
 		u8 seq = 0;
-		for (int f = 0; f < t + s_to_delay; f++)
+		for (int f = 0; f < t + s_to.delay; f++)
 		{
 			const NetInput& in = PlayRow(f, s_battle.me);
 			if (in.seq != seq)
 				bytes += in.len;
 			seq = in.seq;
 		}
-		s_to_out.clear();
+		s_to.out.clear();
 		for (size_t i = 0; i < pos; i++)
 		{
-			const std::vector<u8>& m = s_to_sent[i];
+			const std::vector<u8>& m = s_to.sent[i];
 			if (m.size() < 2 || (m[1] >> 4) != 3)
 				continue;
-			if (s_to_out.empty() && (m.size() > sizeof(NetInput::data) || m.size() <= bytes))
+			if (s_to.out.empty() && (m.size() > sizeof(NetInput::data) || m.size() <= bytes))
 			{
 				if (m.size() <= sizeof(NetInput::data))
 					bytes -= m.size();
 				continue;
 			}
-			s_to_out.push_back({s_to_sent_at[i], i, m});
+			s_to.out.push_back({s_to.sent_at[i], i, m});
 		}
-		s_to_local = PlayRow(t + s_to_delay - 1, s_battle.me);
-		s_to_frame = t;
+		s_to.local = PlayRow(t + s_to.delay - 1, s_battle.me);
+		s_to.frame = t;
 		s_to_target = PlayOwnB(t);
 		Console.WriteLn("ZdxsvGgpo: replay takeover at frame %d, delay %d, own sends %zu, kind-3 not in an input %zu%s", t,
-			s_to_delay, pos, s_to_out.size(), bytes ? " (msg bytes of the file left over)" : "");
+			s_to.delay, pos, s_to.out.size(), bytes ? " (msg bytes of the file left over)" : "");
 		return true;
 	}
 
 	// Back to the state before T with the own sent msgs of then. Returns T, or -1.
 	int TakeoverLoad()
 	{
-		PlayKey& k = *s_to_key;
+		PlayKey& k = *s_to.key;
 		if (k.zip.joinable())
 			k.zip.join();
 		Error error;
@@ -475,31 +466,31 @@ namespace Zdxsv
 			return -1;
 		}
 		PlayKeyApply(k);
-		s_battle.sent = s_to_sent;
-		s_battle.sent_at = s_to_sent_at;
+		s_battle.sent = s_to.sent;
+		s_battle.sent_at = s_to.sent_at;
 		s_battle.out.clear();
-		s_to_start_held = true; // a START held now retries on its release + press only
-		return s_to_frame;
+		s_to.start_held = true; // a START held now retries on its release + press only
+		return s_to.frame;
 	}
 
 	void TakeoverStart()
 	{
-		s_battle.sent = s_to_sent;
-		s_battle.sent_at = s_to_sent_at;
-		s_battle.out = s_to_out;
-		s_battle.local = s_to_local;
-		s_to_queue.clear();
-		for (int i = 0; i < s_to_delay; i++)
-			s_to_queue.push_back(PlayRow(s_to_frame + i, s_battle.me));
+		s_battle.sent = s_to.sent;
+		s_battle.sent_at = s_to.sent_at;
+		s_battle.out = s_to.out;
+		s_battle.local = s_to.local;
+		s_to.queue.clear();
+		for (int i = 0; i < s_to.delay; i++)
+			s_to.queue.push_back(PlayRow(s_to.frame + i, s_battle.me));
 		s_to_phase = TO_ON;
-		Console.WriteLn("ZdxsvGgpo: replay takeover starts at frame %d, vsync %u", s_to_frame, g_FrameCount);
+		Console.WriteLn("ZdxsvGgpo: replay takeover starts at frame %d, vsync %u", s_to.frame, g_FrameCount);
 	}
 
 	void TakeoverOff(const char* why)
 	{
 		s_to_phase = TO_OFF;
-		s_to_queue.clear();
-		s_to_key.reset();
+		s_to.queue.clear();
+		s_to.key.reset();
 		Console.WriteLn("ZdxsvGgpo: replay takeover %s at frame %d, vsync %u", why, s_battle.frame, g_FrameCount);
 	}
 
@@ -590,10 +581,7 @@ namespace Zdxsv
 		s_to_phase = TO_OFF;
 		s_to_req = TO_REQ_NONE;
 		s_to_target = 0;
-		s_to_frame = -1;
-		s_to_skip = s_to_start_held = false;
-		s_to_queue.clear();
-		s_to_key.reset();
+		s_to = {};
 	}
 
 	void ReplaySeekBy(int frames)
@@ -665,9 +653,9 @@ namespace Zdxsv
 	{
 		if (s_to_phase != TO_ALIGN && s_to_phase != TO_COUNT)
 			return;
-		s_to_skip = true;
+		s_to.skip = true;
 		s_to_phase = TO_COUNT;
-		s_to_count_t0 = Common::Timer::GetCurrentValue();
+		s_to.count_t0 = Common::Timer::GetCurrentValue();
 	}
 
 	void ReplayTakeoverCancel()
@@ -709,22 +697,22 @@ namespace Zdxsv
 		ZdPadAB(TakeoverHostInput(), a, b);
 		s_to_current = b;
 		const bool start = s_host[PadDualshock2::Inputs::PAD_START] >= 0.5f;
-		if (start && !s_to_start_held)
+		if (start && !s_to.start_held)
 			ReplayTakeoverSkip();
-		s_to_start_held = start;
+		s_to.start_held = start;
 		const Common::Timer::Value now = Common::Timer::GetCurrentValue();
 		if (s_to_phase == TO_ALIGN && b == s_to_target)
 		{
 			s_to_phase = TO_COUNT;
-			s_to_count_t0 = now;
+			s_to.count_t0 = now;
 		}
-		else if (s_to_phase == TO_COUNT && !s_to_skip && b != s_to_target)
+		else if (s_to_phase == TO_COUNT && !s_to.skip && b != s_to_target)
 			s_to_phase = TO_ALIGN;
-		const double ms = s_to_phase == TO_COUNT ? Common::Timer::ConvertValueToMilliseconds(now - s_to_count_t0) : 0.0;
+		const double ms = s_to_phase == TO_COUNT ? Common::Timer::ConvertValueToMilliseconds(now - s_to.count_t0) : 0.0;
 		s_to_left = s_to_phase == TO_COUNT ? static_cast<float>(std::max(0.0, 1.0 - ms / 1000.0)) : 1.0f;
 		if (s_to_phase == TO_COUNT && ms >= 1000.0)
 		{
-			Console.WriteLn("ZdxsvGgpo: replay takeover: input %s, starting", s_to_skip ? "matching skipped" : "matched");
+			Console.WriteLn("ZdxsvGgpo: replay takeover: input %s, starting", s_to.skip ? "matching skipped" : "matched");
 			s_to_req = TO_REQ_START;
 			VMManager::SetPaused(false);
 		}
