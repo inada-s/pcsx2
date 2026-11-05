@@ -247,5 +247,6 @@ Scripts are in `tests/zdxsv/` except `run.py` (repository root) and
 | Release workflow | none | none |
 | Windows CI build | the workflow itself; it also runs the unit tests | none |
 | PINE opcodes `0x30` to `0x32` | no test of its own; the rig scripts drive the emulator through them (`pine.py`) | none |
+| Fake lobby log lines from concurrent connections | `lograce.py`: 4 threads log 3000 `0x6138` and `BATTLE RESULT` lines each through `fake_lobby.log`, none lost or glued | `fake_lobby.log` as an unlocked `print()`: lines glued and lost, FAIL |
 | EE probe, watch and rerun profile | `probelint.py`: refuses a bad or stale probe list | none |
 | `run.py` | `rbk_test` ends with the sync check of `pwcheck.py` | none |
