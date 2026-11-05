@@ -5,13 +5,14 @@
 # the display window), PCSX2 closed. The replay's own log lines are in <dir>\PCSX2\logs\emulog.txt (or the
 # data dir's logs\). No -Row: lists only.
 # -Boot <iso>: boots that game first (25 s) and opens the window over it; the end prints whether the window is open again.
+# -Row2 <regex> [-Wait2 60]: then reopens the window, plays that row in the same process (shut down confirmed), waits -Wait2 s.
 # -Set 'Edit:<name>=<text>;Check:<name>;Combo:<name>=<item>' fills the tab's fields first (UIA accessible names).
 # -Button <name>: invokes that button on the picked row instead of Play.
 # - The lobby API URL (Remote, Live) comes from the ini ([DEV9/Eth] ZdxsvLobbyApiUrl).
 # - Qt menus do not answer UIA Invoke: menu and rows are clicked with the mouse at their UIA rectangles.
 # Exit 1 with the visible element names when a step finds nothing.
 param([Parameter(Mandatory)][string]$DataPath, [string]$Exe = '',
-      [string]$Tab = 'Local', [string]$Row = '', [string]$Set = '', [string]$Button = '', [string]$Pov = '', [int]$Wait = 90, [string]$Shot = '', [string]$Boot = '')
+      [string]$Tab = 'Local', [string]$Row = '', [string]$Set = '', [string]$Button = '', [string]$Pov = '', [int]$Wait = 90, [string]$Shot = '', [string]$Boot = '', [string]$Row2 = '', [int]$Wait2 = 60)
 $ErrorActionPreference = 'Stop'
 if (-not $Exe) { $Exe = Join-Path $PSScriptRoot '..\..\bin\pcsx2-qtx64.exe' }
 . "$PSScriptRoot\localnet.ps1"  # fast login and no-DEV9 pinned to the box
@@ -63,91 +64,94 @@ try {
   if (-not $main) { "FAIL: no PCSX2 window in 30 s: $(foreach ($w in Wins) { "[$($w.Current.Name)]" })"; exit 1 }
   Start-Sleep $(if ($Boot) { 25 } else { 2 })
   [void][RUI]::SetForegroundWindow([IntPtr]$main.Current.NativeWindowHandle)
-  $tools = Find $main $CT::MenuItem '^Tools$'
-  if (-not $tools) { "FAIL: no Tools menu: $(Names $main)"; exit 1 }
-  Click $tools
-  $item = $null
-  for ($i = 0; $i -lt 20 -and -not $item; $i++) { foreach ($w in @($main) + (Wins)) { if (-not $item) { $item = Find $w $CT::MenuItem 'zdxsv Replays' 0.25 } } }
-  if (-not $item) { "FAIL: no 'zdxsv Replays' menu item: $(foreach ($w in Wins) { Names $w })"; exit 1 }
-  Click $item
-  $dlg = $null
-  for ($i = 0; $i -lt 40 -and -not $dlg; $i++) {
-    Start-Sleep -Milliseconds 250
-    foreach ($w in @($main.FindAll('Descendants', (New-Object System.Windows.Automation.PropertyCondition($A::ControlTypeProperty, $CT::Window)))) + (Wins)) { if ($w.Current.Name -eq 'zdxsv Replays') { $dlg = $w } }
-  }
-  if (-not $dlg) { "FAIL: no zdxsv Replays dialog: $(foreach ($w in Wins) { "[$($w.Current.Name)]" })"; exit 1 }
-  "dialog open"
-  $tabItem = Find $dlg $CT::TabItem "^$Tab$"
-  if (-not $tabItem) { "FAIL: no tab $Tab : $(Names $dlg)"; exit 1 }
-  Click $tabItem
-  foreach ($s in @($Set -split ';' | Where-Object { $_ })) {
-    if ($s -notmatch '^(Edit|Check|Combo):([^=]+)(=(.*))?$') { "FAIL: bad -Set $s"; exit 1 }
-    $kind, $name, $value = $Matches[1], $Matches[2], $Matches[4]
-    $e = Find $dlg $CT::$(if ($kind -eq 'Check') { 'CheckBox' } else { $kind -replace 'Combo', 'ComboBox' }) "^$([regex]::Escape($name))$"
-    if (-not $e) { "FAIL: no $kind $name : $(Names $dlg)"; exit 1 }
-    switch ($kind) {
-      'Edit' { $e.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue($value) }
-      'Check' { $e.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern).Toggle() }
-      'Combo' {
-        Click $e
-        $opt = $null
-        foreach ($w in @($dlg) + (Wins)) { if (-not $opt) { $opt = Find $w $CT::ListItem "^$([regex]::Escape($value))$" 3 } }
-        if (-not $opt) { "FAIL: no $value in $name"; exit 1 }
-        Click $opt
-      }
+  foreach ($round in @(1) + @(if ($Row2) { 2 })) {
+    $tools = Find $main $CT::MenuItem '^Tools$'
+    if (-not $tools) { "FAIL: no Tools menu: $(Names $main)"; exit 1 }
+    Click $tools
+    $item = $null
+    for ($i = 0; $i -lt 20 -and -not $item; $i++) { foreach ($w in @($main) + (Wins)) { if (-not $item) { $item = Find $w $CT::MenuItem 'zdxsv Replays' 0.25 } } }
+    if (-not $item) { "FAIL: no 'zdxsv Replays' menu item: $(foreach ($w in Wins) { Names $w })"; exit 1 }
+    Click $item
+    $dlg = $null
+    for ($i = 0; $i -lt 40 -and -not $dlg; $i++) {
+      Start-Sleep -Milliseconds 250
+      foreach ($w in @($main.FindAll('Descendants', (New-Object System.Windows.Automation.PropertyCondition($A::ControlTypeProperty, $CT::Window)))) + (Wins)) { if ($w.Current.Name -eq 'zdxsv Replays') { $dlg = $w } }
     }
-    "set $s"
+    if (-not $dlg) { "FAIL: no zdxsv Replays dialog: $(foreach ($w in Wins) { "[$($w.Current.Name)]" })"; exit 1 }
+    "dialog open"
+    $tabItem = Find $dlg $CT::TabItem "^$Tab$"
+    if (-not $tabItem) { "FAIL: no tab $Tab : $(Names $dlg)"; exit 1 }
+    Click $tabItem
+    foreach ($s in @($Set -split ';' | Where-Object { $_ })) {
+      if ($s -notmatch '^(Edit|Check|Combo):([^=]+)(=(.*))?$') { "FAIL: bad -Set $s"; exit 1 }
+      $kind, $name, $value = $Matches[1], $Matches[2], $Matches[4]
+      $e = Find $dlg $CT::$(if ($kind -eq 'Check') { 'CheckBox' } else { $kind -replace 'Combo', 'ComboBox' }) "^$([regex]::Escape($name))$"
+      if (-not $e) { "FAIL: no $kind $name : $(Names $dlg)"; exit 1 }
+      switch ($kind) {
+        'Edit' { $e.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern).SetValue($value) }
+        'Check' { $e.GetCurrentPattern([System.Windows.Automation.TogglePattern]::Pattern).Toggle() }
+        'Combo' {
+          Click $e
+          $opt = $null
+          foreach ($w in @($dlg) + (Wins)) { if (-not $opt) { $opt = Find $w $CT::ListItem "^$([regex]::Escape($value))$" 3 } }
+          if (-not $opt) { "FAIL: no $value in $name"; exit 1 }
+          Click $opt
+        }
+      }
+      "set $s"
+    }
+    $btn = switch ($Tab) { 'Remote' { 'Search' } 'Live' { 'Refresh' } default { '' } }
+    if ($btn) {
+      $b = Find $dlg $CT::Button "^$btn$"
+      if (-not $b) { "FAIL: no $btn button: $(Names $dlg)"; exit 1 }
+      $b.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+    }
+    Start-Sleep 3
+    $status = foreach ($e in $dlg.FindAll('Descendants', (New-Object System.Windows.Automation.PropertyCondition($A::ControlTypeProperty, $CT::Text)))) {
+      if (-not $e.Current.IsOffscreen) { $e.Current.Name } }
+    "labels: $($status -join ' | ')"
+    # QTreeWidget rows: one element per cell; a row's cells share the Y of their rectangle
+    $cells = @(foreach ($e in $dlg.FindAll('Descendants', $all)) {
+      $t = $e.Current.ControlType
+      if (-not $e.Current.IsOffscreen -and ($t -eq $CT::DataItem -or $t -eq $CT::TreeItem -or $t -eq $CT::ListItem) -and $e.Current.Name) { $e } })
+    $rows = $cells | Group-Object { [int]$_.Current.BoundingRectangle.Y } | Sort-Object { [int]$_.Name }
+    foreach ($r in $rows) { "row: $(($r.Group | Sort-Object { $_.Current.BoundingRectangle.X } | ForEach-Object { $_.Current.Name }) -join ' | ')" }
+    if (-not $Row) { exit 0 }
+    $pick, $hold = if ($round -eq 1) { $Row, $Wait } else { $Row2, $Wait2 }
+    $hit = $rows | Where-Object { (($_.Group | ForEach-Object { $_.Current.Name }) -join ' | ') -match $pick } | Select-Object -First 1
+    if (-not $hit) { "FAIL: no row matches $pick"; exit 1 }
+    Click ($hit.Group | Sort-Object { $_.Current.BoundingRectangle.X } | Select-Object -First 1)
+    if ($Button) {
+      $b = Find $dlg $CT::Button "^$([regex]::Escape($Button))$"
+      if (-not $b -or -not $b.Current.IsEnabled) { "FAIL: $Button missing or disabled"; exit 1 }
+      $b.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+      Start-Sleep 3 # settings are written 1 s after a change
+      "pressed $Button; labels: $(@(foreach ($e in $dlg.FindAll('Descendants', (New-Object System.Windows.Automation.PropertyCondition($A::ControlTypeProperty, $CT::Text)))) { if (-not $e.Current.IsOffscreen) { $e.Current.Name } }) -join ' | ')"
+      exit 0
+    }
+    if ($Pov) {
+      # the point of view combo is the dialog's bottom one
+      $combo = @($dlg.FindAll('Descendants', (New-Object System.Windows.Automation.PropertyCondition($A::ControlTypeProperty, $CT::ComboBox))) |
+        Where-Object { -not $_.Current.IsOffscreen } | Sort-Object { $_.Current.BoundingRectangle.Y }) | Select-Object -Last 1
+      Click $combo
+      $opt = $null
+      foreach ($w in @($dlg) + (Wins)) { if (-not $opt) { $opt = Find $w $CT::ListItem "^$Pov$" 3 } }
+      if (-not $opt) { "FAIL: no point of view $Pov"; exit 1 }
+      Click $opt
+    }
+    $play = Find $dlg $CT::Button '^Play$'
+    if (-not $play -or -not $play.Current.IsEnabled) { "FAIL: Play missing or disabled"; exit 1 }
+    $play.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+    "play invoked"
+    if ($Boot -or $round -eq 2) {
+      $yes = $null
+      foreach ($w in @($dlg) + (Wins)) { if (-not $yes) { $yes = Find $w $CT::Button '^&?Yes$' 3 } }
+      if (-not $yes) { "FAIL: no shut down question: $(foreach ($w in Wins) { Names $w })"; exit 1 }
+      $yes.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
+      "shut down confirmed"
+    }
+    Start-Sleep $hold
   }
-  $btn = switch ($Tab) { 'Remote' { 'Search' } 'Live' { 'Refresh' } default { '' } }
-  if ($btn) {
-    $b = Find $dlg $CT::Button "^$btn$"
-    if (-not $b) { "FAIL: no $btn button: $(Names $dlg)"; exit 1 }
-    $b.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
-  }
-  Start-Sleep 3
-  $status = foreach ($e in $dlg.FindAll('Descendants', (New-Object System.Windows.Automation.PropertyCondition($A::ControlTypeProperty, $CT::Text)))) {
-    if (-not $e.Current.IsOffscreen) { $e.Current.Name } }
-  "labels: $($status -join ' | ')"
-  # QTreeWidget rows: one element per cell; a row's cells share the Y of their rectangle
-  $cells = @(foreach ($e in $dlg.FindAll('Descendants', $all)) {
-    $t = $e.Current.ControlType
-    if (-not $e.Current.IsOffscreen -and ($t -eq $CT::DataItem -or $t -eq $CT::TreeItem -or $t -eq $CT::ListItem) -and $e.Current.Name) { $e } })
-  $rows = $cells | Group-Object { [int]$_.Current.BoundingRectangle.Y } | Sort-Object { [int]$_.Name }
-  foreach ($r in $rows) { "row: $(($r.Group | Sort-Object { $_.Current.BoundingRectangle.X } | ForEach-Object { $_.Current.Name }) -join ' | ')" }
-  if (-not $Row) { exit 0 }
-  $hit = $rows | Where-Object { (($_.Group | ForEach-Object { $_.Current.Name }) -join ' | ') -match $Row } | Select-Object -First 1
-  if (-not $hit) { "FAIL: no row matches $Row"; exit 1 }
-  Click ($hit.Group | Sort-Object { $_.Current.BoundingRectangle.X } | Select-Object -First 1)
-  if ($Button) {
-    $b = Find $dlg $CT::Button "^$([regex]::Escape($Button))$"
-    if (-not $b -or -not $b.Current.IsEnabled) { "FAIL: $Button missing or disabled"; exit 1 }
-    $b.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
-    Start-Sleep 3 # settings are written 1 s after a change
-    "pressed $Button; labels: $(@(foreach ($e in $dlg.FindAll('Descendants', (New-Object System.Windows.Automation.PropertyCondition($A::ControlTypeProperty, $CT::Text)))) { if (-not $e.Current.IsOffscreen) { $e.Current.Name } }) -join ' | ')"
-    exit 0
-  }
-  if ($Pov) {
-    # the point of view combo is the dialog's bottom one
-    $combo = @($dlg.FindAll('Descendants', (New-Object System.Windows.Automation.PropertyCondition($A::ControlTypeProperty, $CT::ComboBox))) |
-      Where-Object { -not $_.Current.IsOffscreen } | Sort-Object { $_.Current.BoundingRectangle.Y }) | Select-Object -Last 1
-    Click $combo
-    $opt = $null
-    foreach ($w in @($dlg) + (Wins)) { if (-not $opt) { $opt = Find $w $CT::ListItem "^$Pov$" 3 } }
-    if (-not $opt) { "FAIL: no point of view $Pov"; exit 1 }
-    Click $opt
-  }
-  $play = Find $dlg $CT::Button '^Play$'
-  if (-not $play -or -not $play.Current.IsEnabled) { "FAIL: Play missing or disabled"; exit 1 }
-  $play.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
-  "play invoked"
-  if ($Boot) {
-    $yes = $null
-    foreach ($w in @($dlg) + (Wins)) { if (-not $yes) { $yes = Find $w $CT::Button '^&?Yes$' 3 } }
-    if (-not $yes) { "FAIL: no shut down question: $(foreach ($w in Wins) { Names $w })"; exit 1 }
-    $yes.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
-    "shut down confirmed"
-  }
-  Start-Sleep $Wait
   if ($Shot) {
     $h = (Get-Process -Id $p.Id).MainWindowHandle
     foreach ($w in Wins) { if ($w.Current.Name -notmatch '^PCSX2' -and $w.Current.Name) { $h = [IntPtr]$w.Current.NativeWindowHandle } }
