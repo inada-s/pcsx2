@@ -1,7 +1,7 @@
 """Local zdxsv stack without docker: battle, lobby, login, dnas.
 Usage: python tests/zdxsv/stack.py [IP]   (IP = address pcsx2 peers dial; default first non-loopback)
 Logs + db: $RUN. Runs in the foreground; Ctrl-C / kill stops all.
-Env: ZDXSV_DIR (checkout), ZBIN (another build, e.g. a control), LOBBY_ARGS (-v=2: every message),
+Env: ZDXSV_DIR (checkout), ZBIN (another build, e.g. a control), LOBBY_ARGS (-v=2: every message), BATTLE_ARGS (the same for the battle server),
 DZ (exe for `dnas`, default ZBIN), DNAS (a standalone DNAS server instead), ZDXSV_LOBBY_API_ADDR.
 """
 import os
@@ -42,7 +42,7 @@ def main(argv):
             procs.append(subprocess.Popen(args, env=env, stdin=subprocess.DEVNULL, stdout=f, stderr=subprocess.STDOUT))
 
     try:
-        start([z, "battle"], "battle.log")
+        start([z, *e.get("BATTLE_ARGS", "").split(), "battle"], "battle.log")
         time.sleep(2)
         start([z, *e.get("LOBBY_ARGS", "").split(), "lobby"], "lobby.log")
         start([z, "login"], "login.log")

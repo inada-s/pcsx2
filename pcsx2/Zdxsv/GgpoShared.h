@@ -156,6 +156,7 @@ namespace Zdxsv
 	{
 		bool started = false; // the session was opened (lobby=1: until the next battle's NetReset)
 		bool armed = false, over = false, closed = false;
+		bool local_server = false; // lobby=1: the battle server was answered on the EE (BattleServerCall)
 		bool lobby_cut = false; // lobby=1 ping test failed: the battle connection is silent (LobbyCutCall)
 		u32 cut_sends = 0;
 		int me = -1; // local battle position
@@ -312,7 +313,10 @@ namespace Zdxsv
 	std::string ReplayRoundsReport(); // "win:ms,..;.." per round, ms = the MS id + 1 by position
 	void NetReset();
 	bool LobbyNewBattle();
+	bool LobbyPendingBattle(int& me, int& n);
 	constexpr u32 NET_FNO_SEND = 0x10;
+	constexpr u32 NET_FNO_CONNECT = 7;
+	constexpr u32 NET_FNO_CLOSE = 0xd;
 	constexpr u32 NET_BATTLE_SOCK = 0;
 	extern u32 s_game_gp; // game gp, latched in OnNetRpc
 	extern std::FILE* s_net_trace;
