@@ -49,7 +49,7 @@ this table says it is missing.
 - **Playing as a console**: seen as a real PS2; `ZDXSV_PLATFORM_INFO=0`.
 - **A console behind a separate zproxy process**: `ZDXSV_PLATFORM_INFO=0`, server set by the lobby.
 - **First login from a blank memory card**: always.
-- **TLS to the zdxsv server**: DNAS, lobby, battle TCP, pinned keys; on when the client has pins.
+- **TLS to the zdxsv server**: lobby only, pinned keys; on when the client has pins.
 - **Lobby connection kept while paused**: line checks `0x6001` answered.
 - **Pause menu**: refused while connected to the zdxsv lobby.
 - **Settings page**: Settings → zdxsv.

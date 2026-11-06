@@ -32,7 +32,6 @@ for a game host or the lobby address the fast login received.
 | Game port | TLS port | Server |
 |---|---|---|
 | 8200 | 8221 | lobby |
-| 8210 | 8222 | battle (TCP) |
 
 - The connection goes to a local port; a thread there connects to the
   server's TLS port and copies the bytes both ways.
