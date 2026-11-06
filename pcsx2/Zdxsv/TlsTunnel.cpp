@@ -65,7 +65,7 @@ namespace Zdxsv
 			u16 tls;
 		};
 		constexpr TlsPort kPorts[] = {
-			{8200, 8221}, // lobby
+			{8200, 8220}, // lobby
 		};
 
 		constexpr int kTimeoutMs = 10000;

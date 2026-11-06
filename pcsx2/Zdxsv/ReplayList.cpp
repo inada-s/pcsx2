@@ -202,6 +202,6 @@ namespace Zdxsv
 		if (host.empty())
 			return {};
 		const char* port = TestEnv("ZDXSV_STUN_PORT");
-		return fmt::format("udp://{}:{}/{}", host, port ? std::atoi(port) : 8201, battle_code);
+		return fmt::format("udp://{}:{}/{}", host, port ? std::atoi(port) : 8221, battle_code);
 	}
 } // namespace Zdxsv
