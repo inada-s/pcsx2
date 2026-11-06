@@ -66,7 +66,6 @@ namespace Zdxsv
 		};
 		constexpr TlsPort kPorts[] = {
 			{8200, 8221}, // lobby
-			{8210, 8222}, // battle
 		};
 
 		constexpr int kTimeoutMs = 10000;
@@ -381,7 +380,7 @@ namespace Zdxsv
 		const u32 ip = std::bit_cast<u32>(addr->sin_addr);
 		const u16 port = ntohs(addr->sin_port);
 		const TlsPort* tls_port = FindPort(port);
-		if (!tls_port || !Options().enabled || !(IsServerAddress(ip) || IsBattleServer(ip, port)))
+		if (!tls_port || !Options().enabled || !IsServerAddress(ip))
 			return;
 
 		static std::once_flag psa_once;
