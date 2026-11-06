@@ -556,7 +556,7 @@ def main():
     if emu and E("ZDXSV_TLS_TEST_PIN") == "1":
         for i in clients:
             f = el(i)
-            for t in ["8221"]:
+            for t in ["8220"]:
                 ok(f"p{i} TLS port {t}", c(f, f"Zdxsv: TLS: .* through TLS port {t}"))
             ok(f"p{i} no TLS failure", not c(f, r"OSD \[ZdxsvTls\]"))
     if c(battle, "join udp peer|join success") < 1 and not ee:

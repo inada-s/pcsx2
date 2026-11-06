@@ -3,7 +3,7 @@ against the local stack (boottime.py), route top to the lobby's user_id selectio
   OUT=<dir> python tests/zdxsv/nodev9.py
 Env: MAXS (s to wait, default 200), NODEV9 (ZDXSV_NODEV9, default $IP).
 Exit 0 = the user_id screen is up and p1 logged no-DEV9 on, a fast login session with the lobby on $IP,
-DNAS got no POST, no connect refused, and pcsx2 had TCP to $IP only on the lobby (8200, TLS 8221) and login API (9881)
+DNAS got no POST, no connect refused, and pcsx2 had TCP to $IP only on the lobby (8200, TLS 8220) and login API (9881)
 ports, and to no other host but 127.0.0.1.
 """
 import os
@@ -23,7 +23,7 @@ def main():
     nodev9 = zrig.env("NODEV9", ip)
     maxs = zrig.env("MAXS", "200")
     os.makedirs(out, exist_ok=True)
-    local = re.compile(r"^(0\.0\.0\.0|::|127\.0\.0\.1):|^" + re.escape(ip) + r":(8200|8221|9881)$")
+    local = re.compile(r"^(0\.0\.0\.0|::|127\.0\.0\.1):|^" + re.escape(ip) + r":(8200|8220|9881)$")
     remote, samples, done = [], [0], threading.Event()
 
     def sample():
