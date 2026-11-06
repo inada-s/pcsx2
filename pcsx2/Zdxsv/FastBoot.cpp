@@ -231,6 +231,9 @@ namespace Zdxsv
 			return UserIdOnVsync();
 		if (s_boot.frame > kGiveUpFrames)
 			return Finish("gave up");
+		// Connecting again would run the failed sign-in or login again, and again: the player connects.
+		if (FastLoginWentBack())
+			return Finish("stopped, fast login went back to the network menu");
 
 		const u32 lobby = Pointer(kLobbyObject);
 		if (lobby && eeMem->Main[lobby + kLobbyMarker] == kStepNoUserId)

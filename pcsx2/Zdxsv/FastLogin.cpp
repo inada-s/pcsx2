@@ -82,6 +82,7 @@ namespace Zdxsv
 			bool answered = false;
 			s32 status = 0;
 			bool applied = false;
+			bool went_back = false;
 			std::optional<LoginResult> result;
 			std::shared_ptr<std::atomic<bool>> cancel;
 		};
@@ -279,6 +280,7 @@ namespace Zdxsv
 				fmt::format("zdxsv login failed: {}. Sign in from Settings > zdxsv, then connect again.", why), 15.0f);
 			eeMem->Main[kNetSub] = 0;
 			eeMem->Main[kNetState] = kNetConnectMenu;
+			s_fast.went_back = true;
 		}
 		void StartSignIn()
 		{
@@ -411,6 +413,11 @@ namespace Zdxsv
 		return s_fast.applied;
 	}
 
+	bool FastLoginWentBack()
+	{
+		return s_fast.went_back;
+	}
+
 	void FastLoginReset()
 	{
 		std::lock_guard lock(s_fast.mutex);
@@ -420,6 +427,7 @@ namespace Zdxsv
 		s_fast.answered = false;
 		s_fast.result.reset();
 		s_fast.applied = false;
+		s_fast.went_back = false;
 		s_fast.step = FastLogin::Step::Idle;
 		s_fast.sign_in_tried = false;
 		s_fast.sign_in_ended = false;
