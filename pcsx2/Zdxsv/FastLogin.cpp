@@ -4,6 +4,7 @@
 #include "Zdxsv/AuthSignIn.h"
 #include "Zdxsv/CpuHooks.h"
 #include "Zdxsv/FastLogin.h"
+#include "Zdxsv/ServerHosts.h"
 #include "Zdxsv/Settings.h"
 #include "Zdxsv/TestOptions.h"
 
@@ -24,6 +25,7 @@
 #include <algorithm>
 #include <atomic>
 #include <cctype>
+#include <cstdio>
 #include <cstring>
 #include <memory>
 #include <mutex>
@@ -119,6 +121,26 @@ namespace Zdxsv
 				if (c < 0x20 || c > 0x7e)
 					return false;
 			return true;
+		}
+
+		// The game connects to the lobby by this address without a name lookup, so the TLS tunnel only
+		// knows it as a server address from here.
+		void AddLobbyServerAddress(const std::string& lobby_addr)
+		{
+			unsigned a[4], port;
+			char end;
+			if (std::sscanf(lobby_addr.c_str(), "%u.%u.%u.%u:%u%c", &a[0], &a[1], &a[2], &a[3], &port, &end) != 5)
+				return;
+			u8 bytes[4];
+			for (int i = 0; i < 4; i++)
+			{
+				if (a[i] > 255)
+					return;
+				bytes[i] = static_cast<u8>(a[i]);
+			}
+			u32 ip;
+			std::memcpy(&ip, bytes, 4);
+			ServerAddressAdd(ip);
 		}
 
 		std::optional<LoginResult> Parse(const std::string& body)
@@ -379,6 +401,7 @@ namespace Zdxsv
 			return;
 		}
 		Apply(*s_fast.result);
+		AddLobbyServerAddress(s_fast.result->lobby_addr);
 		s_fast.applied = true;
 		Console.WriteLn("Zdxsv: fast login: session %s, lobby %s", s_fast.result->session_id.c_str(), s_fast.result->lobby_addr.c_str());
 	}
