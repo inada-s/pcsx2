@@ -121,6 +121,8 @@ namespace Zdxsv
 		};
 		constexpr u32 kFnoLinkUp = 0x46; // 1 on the first call, then 0
 		constexpr u32 kFnoConnect = 0x07;
+		constexpr u16 kLobbyPort = 8200;
+		constexpr u16 kBattlePort = 8210;
 		constexpr u32 kFnoClose = 0x0d;
 		constexpr u32 kFnoAfterClose = 0x16;
 		constexpr u32 kFnoPoll = 0x0f;
@@ -297,8 +299,18 @@ namespace Zdxsv
 				id++;
 			if (id == kSlots)
 				return -1;
-			std::memcpy(&s_state.peer[id], b + 0x1c, 4);
-			std::memcpy(&s_state.peer_port[id], b + 0x20, 2);
+			u32 ip;
+			u16 port;
+			std::memcpy(&ip, b + 0x1c, 4);
+			std::memcpy(&port, b + 0x20, 2);
+			if (ntohs(port) != kLobbyPort && ntohs(port) != kBattlePort)
+			{
+				const u8* q = reinterpret_cast<const u8*>(&ip);
+				Console.WriteLn("Zdxsv: no DEV9: connect to %u.%u.%u.%u:%u refused", q[0], q[1], q[2], q[3], ntohs(port));
+				return -1;
+			}
+			s_state.peer[id] = ip;
+			s_state.peer_port[id] = port;
 			return Open(id) ? id : -1;
 		}
 

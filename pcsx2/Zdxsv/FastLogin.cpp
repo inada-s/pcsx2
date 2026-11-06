@@ -37,7 +37,8 @@ namespace Zdxsv
 	{
 		// Guest addresses of SLPS-25419 (g_z_game checks serial and CRC).
 		constexpr u32 kGp = 0x6dd770;
-		constexpr u32 kNetState = 0xcd1360; // network menu machine: 0x21 = DNAS, 0x27 = login browser
+		constexpr u32 kNetState = 0xcd1360; // network menu machine: 3 = connection menu, 0x21 = DNAS, 0x27 = login browser
+		constexpr u8 kNetConnectMenu = 3;
 		constexpr u32 kNetSub = 0xcd1361;
 		constexpr u32 kLobbyPhase = kGp - 0x59ec; // 2 = lobby connect, 0x17 = login browser
 		constexpr u32 kLobbySub = kGp - 0x59f0;
@@ -77,6 +78,7 @@ namespace Zdxsv
 			bool holding = false;
 			bool hold_paused = false;
 			bool answered = false;
+			s32 status = 0;
 			bool applied = false;
 			std::optional<LoginResult> result;
 			std::shared_ptr<std::atomic<bool>> cancel;
@@ -168,10 +170,11 @@ namespace Zdxsv
 		void Request(std::string url, std::string form, std::shared_ptr<std::atomic<bool>> cancel)
 		{
 			std::optional<LoginResult> result;
+			s32 status;
 			for (int wait = 2;; wait = std::min(wait * 2, 30))
 			{
 				result.reset();
-				const s32 status = Post(url, form, result, *cancel);
+				status = Post(url, form, result, *cancel);
 				if (cancel->load())
 					return;
 				if (status >= 200 && status < 500)
@@ -195,7 +198,7 @@ namespace Zdxsv
 				}
 				Console.WriteLn("Zdxsv: fast login: no answer from the login API (%d), game held, retry in %d s", status, wait);
 				Host::AddIconOSDMessage("ZdxsvLoginHold", ICON_FA_NETWORK_WIRED,
-					fmt::format("zdxsv login server not answering, retrying in {} s. Resume the game to log in without it.", wait),
+					fmt::format("zdxsv login server not answering, retrying in {} s. Resume the game to go back to the network menu.", wait),
 					static_cast<float>(wait + 1));
 				for (int i = 0; i < wait * 10 && !cancel->load(); i++)
 					std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -206,6 +209,7 @@ namespace Zdxsv
 			if (s_fast.cancel != cancel)
 				return;
 			s_fast.result = std::move(result);
+			s_fast.status = status;
 			s_fast.answered = true;
 			if (!s_fast.holding)
 				return;
@@ -242,6 +246,17 @@ namespace Zdxsv
 			eeMem->Main[kLobbyStep] = 4;
 			eeMem->Main[kLobbySub] = 0;
 			eeMem->Main[kLobbyPhase] = 0x17;
+		}
+
+		// Without a session the game must not run DNAS: it goes back to the connection menu, from where the
+		// player connects again (and the next DNAS start signs in or logs in again).
+		void BackToNetMenu(const std::string& why)
+		{
+			Console.WriteLn("Zdxsv: fast login: %s, back to the network menu", why.c_str());
+			Host::AddIconOSDMessage("ZdxsvLoginError", ICON_FA_NETWORK_WIRED,
+				fmt::format("zdxsv login failed: {}. Sign in from Settings > zdxsv, then connect again.", why), 15.0f);
+			eeMem->Main[kNetSub] = 0;
+			eeMem->Main[kNetState] = kNetConnectMenu;
 		}
 		void StartSignIn()
 		{
@@ -320,7 +335,7 @@ namespace Zdxsv
 				if (!s_fast.sign_in_tried && SignInAtDnas())
 					StartSignIn();
 				else
-					Console.WriteLn("Zdxsv: fast login: no token, normal login");
+					BackToNetMenu("not signed in");
 				return;
 			}
 			std::string form = "token=" + *token;
@@ -340,20 +355,25 @@ namespace Zdxsv
 		{
 			if (!s_fast.hold_paused || VMManager::GetState() != VMState::Running)
 				return;
-			Console.WriteLn("Zdxsv: fast login: resumed while held, normal login");
 			Host::RemoveKeyedOSDMessage("ZdxsvLoginHold");
 			if (s_fast.cancel)
 				s_fast.cancel->store(true);
 			s_fast.holding = false;
 			s_fast.hold_paused = false;
 			s_fast.step = FastLogin::Step::Done;
+			if (at_dnas)
+				BackToNetMenu("login server not answering");
 			return;
 		}
 		s_fast.step = FastLogin::Step::Done;
-		// The game left DNAS meanwhile (failed or done): too late to jump.
-		if (!s_fast.result || eeMem->Main[kNetState] != 0x21 || eeMem->Main[kLobbyPhase] != 2)
+		if (!at_dnas)
 		{
-			Console.WriteLn("Zdxsv: fast login: %s, normal login", s_fast.result ? "DNAS already over" : "no answer from the login API");
+			Console.WriteLn("Zdxsv: fast login: the game left DNAS before the answer");
+			return;
+		}
+		if (!s_fast.result)
+		{
+			BackToNetMenu(fmt::format("login refused (HTTP {})", s_fast.status));
 			return;
 		}
 		Apply(*s_fast.result);
