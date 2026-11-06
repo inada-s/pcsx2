@@ -28568,10 +28568,6 @@ for High-Spec PC</source>
       <translation>アカウント</translation>
     </message>
     <message>
-      <source>Carry-over code (optional):</source>
-      <translation>引き継ぎコード (任意):</translation>
-    </message>
-    <message>
       <source>Sign in with Discord</source>
       <translation>Discord でサインイン</translation>
     </message>
@@ -28588,10 +28584,6 @@ for High-Spec PC</source>
       <translation>更新</translation>
     </message>
     <message>
-      <source>Add Account</source>
-      <translation>アカウントを追加</translation>
-    </message>
-    <message>
       <source>Single draw list: draw each frame in that frame (one frame less input lag).</source>
       <translation>シングル描画リスト: 各フレームの絵をそのフレーム内で描画します (入力遅延が 1 フレーム短くなります)。</translation>
     </message>
@@ -28606,22 +28598,6 @@ for High-Spec PC</source>
     <message>
       <source>The game draws each frame&apos;s picture in that frame instead of the next: one frame less from input to picture. Only this PC&apos;s picture changes; battles stay in sync with players who have it off. Other games are never affected.</source>
       <translation>ゲームが各フレームの絵を次のフレームではなく、そのフレーム内で描画します。入力から画面まで 1 フレーム短くなります。変わるのはこの PC の画面だけで、オフにしているプレイヤーとの対戦も同期したままです。他のゲームには影響しません。</translation>
-    </message>
-    <message>
-      <source>The one you signed in with</source>
-      <translation>サインインしたアカウント</translation>
-    </message>
-    <message>
-      <source>One Discord account holds up to 5 zdxsv accounts: accounts carried over from a PS2, and extra ones, for example to play against yourself on this PC. Going online uses the account picked here.</source>
-      <translation>1 つの Discord アカウントで zdxsv アカウントを 5 つまで持てます。PS2 から引き継いだアカウントや、この PC で自分同士で対戦するための追加のアカウントなどです。オンラインではここで選んだアカウントを使います。</translation>
-    </message>
-    <message>
-      <source>Creates one more zdxsv account for the signed-in Discord account (up to 5) and picks it.</source>
-      <translation>サインイン中の Discord アカウントに zdxsv アカウントを 1 つ追加し (5 つまで)、それを選びます。</translation>
-    </message>
-    <message>
-      <source>Opens the zdxsv sign-in page in your browser. The first sign-in creates your account; a carry-over code from the lobby on a PS2 links that account instead. PCSX2 keeps a sign-in token for this PC.</source>
-      <translation>ブラウザで zdxsv のサインインページを開きます。最初のサインインでアカウントが作られます。PS2 のロビーで発行した引き継ぎコードを入れると、代わりにそのアカウントを結び付けます。PCSX2 はこの PC 用のサインイントークンを保存します。</translation>
     </message>
     <message>
       <source>Revokes this PC&apos;s sign-in token on the server and deletes it.</source>
@@ -28644,10 +28620,6 @@ for High-Spec PC</source>
       <translation>アカウント %1</translation>
     </message>
     <message>
-      <source> (signed in with)</source>
-      <translation> (サインインに使用)</translation>
-    </message>
-    <message>
       <source>Finish the sign-in in your browser...</source>
       <translation>ブラウザでサインインを完了してください...</translation>
     </message>
@@ -28666,6 +28638,72 @@ for High-Spec PC</source>
     <message>
       <source>Set to the default while Gundam vs. Z Gundam runs (the same on every player&apos;s emulator).</source>
       <translation>ガンダムVS.Ζガンダムの実行中は既定値になります (全プレイヤーのエミュレーターで同じ値)。</translation>
+    </message>
+  <message>
+      <source>To play with an account from a PS2: type ｄｃ in the lobby chat on the PS2, then enter the carry-over code it shows here within 10 minutes.</source>
+      <translation>PS2 で遊んでいたアカウントを使うには、PS2 のロビーのチャットで ｄｃ と入力し、表示された引き継ぎコードを 10 分以内にここへ入力してください。</translation>
+    </message>
+    <message>
+      <source>Carry Over from PS2</source>
+      <translation>PS2 から引き継ぐ</translation>
+    </message>
+    <message>
+      <source>The first one</source>
+      <translation>最初のアカウント</translation>
+    </message>
+    <message>
+      <source>Opens the zdxsv sign-in page in your browser. PCSX2 keeps a sign-in token for this PC. Signing in creates no zdxsv account: add one, or carry one over from a PS2.</source>
+      <translation>ブラウザで zdxsv のサインインページを開きます。PCSX2 はこの PC 用のサインイントークンを保存します。サインインしても zdxsv アカウントは作られません。アカウントを追加するか、PS2 から引き継いでください。</translation>
+    </message>
+  <message>
+      <source>Cancel Sign-in</source>
+      <translation>サインインを中止</translation>
+    </message>
+    <message>
+      <source>Sign-in cancelled.</source>
+      <translation>サインインを中止しました。</translation>
+    </message>
+  <message>
+      <source>Carry Over from PS2...</source>
+      <translation>PS2 から引き継ぐ...</translation>
+    </message>
+  <message>
+      <source>Adds the zdxsv account you play on a PS2 to the signed-in Discord account. Get the code by typing ｄｃ in the lobby chat on the PS2; it works once, within 10 minutes. The PS2 keeps playing with the account.</source>
+      <translation>PS2 で遊んでいる zdxsv アカウントを、サインイン中の Discord アカウントに追加します。コードは PS2 のロビーのチャットで ｄｃ と入力すると表示されます。10 分以内に 1 回だけ使えます。PS2 でも引き続きそのアカウントで遊べます。</translation>
+    </message>
+  <message>
+      <source>Carry-over code (optional):</source>
+      <translation>引き継ぎコード (任意):</translation>
+    </message>
+    <message>
+      <source>Signed in on this PC. Your zdxsv account is made when you first connect; to use your PS2 account, carry it over first.</source>
+      <translation>この PC でサインイン済みです。zdxsv アカウントは最初の接続で作られます。PS2 のアカウントを使う場合は、先に引き継いでください。</translation>
+    </message>
+  <message>
+      <source>Your zdxsv accounts: the ones made in PCSX2, ones carried over from a PS2, and empty slots, made when you first connect with one picked. Going online uses the account picked here.</source>
+      <translation>zdxsv アカウントの一覧です。PCSX2 で作ったもの、PS2 から引き継いだもの、未作成の枠が並びます。未作成の枠は、選んで最初に接続したときに作られます。オンラインではここで選んだアカウントを使います。</translation>
+    </message>
+    <message>
+      <source>Adds the zdxsv account you play on a PS2 to the signed-in Discord account. Get the code by typing ｄｃ in the chat of the Kennedy Port lobby on the PS2; it works once, within 3 minutes. The PS2 keeps playing with the account.</source>
+      <translation>PS2 で遊んでいる zdxsv アカウントを、サインイン中の Discord アカウントに追加します。コードは PS2 でケネディポートのロビーのチャットに ｄｃ と入力すると表示されます。3 分以内に 1 回だけ使えます。PS2 でも引き続きそのアカウントで遊べます。</translation>
+    </message>
+    <message>
+      <source>Use the account you play on a PS2 on this PC too. The PS2 keeps playing with the same account.
+
+Steps:
+1. On the PS2, enter the Kennedy Port lobby.
+2. Type ｄｃ in the chat: a carry-over code is shown.
+3. Within 3 minutes, enter the code below.</source>
+      <translation>PS2 で遊んでいるアカウントを、この PC でも使えるようにします。PS2 でも、これまでどおり同じアカウントで遊べます。
+
+手順:
+1. PS2 でケネディポートのロビーに入る
+2. チャットで ｄｃ と入力すると、引き継ぎコードが表示される
+3. 3 分以内に、そのコードを下に入力する</translation>
+    </message>
+  <message>
+      <source>Account %1: not made yet (made at the first connection)</source>
+      <translation>アカウント %1: 未作成 (最初の接続で作成)</translation>
     </message>
   </context>
 </TS>

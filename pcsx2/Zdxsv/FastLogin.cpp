@@ -61,7 +61,11 @@ namespace Zdxsv
 		struct LoginResult
 		{
 			std::string login_key, session_id, lobby_addr, lbs_info;
+			int account = 0; // the account's number among the Discord account's, 0 when not given
 		};
+
+		// ZdxsvAccount -1: an account added in the settings and not made yet; the next login makes it.
+		constexpr int kNewAccount = -1;
 
 		struct FastLogin
 		{
@@ -163,6 +167,8 @@ namespace Zdxsv
 			if (!(v = JsonString(doc, "lbs_info")) || !Printable(*v, 64) || v->find(',') != kLbsIdLen)
 				return std::nullopt;
 			r.lbs_info = *v;
+			if (doc.HasMember("account") && doc["account"].IsInt() && doc["account"].GetInt() > 0)
+				r.account = doc["account"].GetInt();
 			return r;
 		}
 
@@ -273,11 +279,12 @@ namespace Zdxsv
 
 		// Without a session the game must not run DNAS: it goes back to the connection menu, from where the
 		// player connects again (and the next DNAS start signs in or logs in again).
-		void BackToNetMenu(const std::string& why)
+		void BackToNetMenu(const std::string& why,
+			const char* what_to_do = "Sign in from Settings > zdxsv, then connect again.")
 		{
 			Console.WriteLn("Zdxsv: fast login: %s, back to the network menu", why.c_str());
 			Host::AddIconOSDMessage("ZdxsvLoginError", ICON_FA_NETWORK_WIRED,
-				fmt::format("zdxsv login failed: {}. Sign in from Settings > zdxsv, then connect again.", why), 15.0f);
+				fmt::format("zdxsv login failed: {}. {}", why, what_to_do), 15.0f);
 			eeMem->Main[kNetSub] = 0;
 			eeMem->Main[kNetState] = kNetConnectMenu;
 			s_fast.went_back = true;
@@ -300,7 +307,7 @@ namespace Zdxsv
 				s_fast.sign_in_paused = true;
 			});
 			std::thread([cancel]() {
-				const std::string error = AuthSignIn("", AuthOpenBrowser, *cancel);
+				const std::string error = AuthSignIn(AuthOpenBrowser, *cancel);
 				Console.WriteLn("Zdxsv: fast login: sign-in %s", error.empty() ? "done" : error.c_str());
 				{
 					std::lock_guard lock(s_fast.mutex);
@@ -365,6 +372,8 @@ namespace Zdxsv
 			std::string form = "token=" + *token;
 			if (const int account = Host::GetIntSettingValue("DEV9/Eth", "ZdxsvAccount", 0); account > 0)
 				form += "&account=" + std::to_string(account);
+			else if (account == kNewAccount)
+				form += "&account=new";
 			Console.WriteLn("Zdxsv: fast login: by token");
 			std::lock_guard lock(s_fast.mutex);
 			s_fast.answered = false;
@@ -397,10 +406,28 @@ namespace Zdxsv
 			Console.WriteLn("Zdxsv: fast login: the game left DNAS before the answer");
 			return;
 		}
+		if (!s_fast.result && s_fast.status == 409)
+		{
+			BackToNetMenu("this Discord account has made its zdxsv account already",
+				"Pick an account in Settings > zdxsv, then connect again.");
+			return;
+		}
+		if (!s_fast.result && s_fast.status == 404)
+		{
+			BackToNetMenu("no zdxsv account yet",
+				"Add an account or carry one over from a PS2 in Settings > zdxsv, then connect again.");
+			return;
+		}
 		if (!s_fast.result)
 		{
 			BackToNetMenu(fmt::format("login refused (HTTP {})", s_fast.status));
 			return;
+		}
+		if (s_fast.result->account > 0 && Host::GetIntSettingValue("DEV9/Eth", "ZdxsvAccount", 0) == kNewAccount)
+		{
+			Host::SetBaseIntSettingValue("DEV9/Eth", "ZdxsvAccount", s_fast.result->account);
+			Host::CommitBaseSettingChanges();
+			Console.WriteLn("Zdxsv: fast login: new account %d made", s_fast.result->account);
 		}
 		Apply(*s_fast.result);
 		AddLobbyServerAddress(s_fast.result->lobby_addr);

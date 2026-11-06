@@ -67,12 +67,12 @@ To turn fast boot off (for example to play offline), uncheck Fast boot in Settin
 
 ## Account
 
-Settings → zdxsv → Account → Sign in with Discord opens the zdxsv sign-in page in your browser. The
-first sign-in makes a new account; PCSX2 keeps a sign-in token for this PC and logs in with it. To
-use the account you play on a PS2, type ｄｃ in the lobby chat on the PS2, enter the code it shows
-in Carry-over code, then sign in (within 10 minutes). Sign Out revokes the token.
-One Discord account holds up to 5 zdxsv accounts (carried-over ones and extra ones, for example to play
-against yourself). Account picks the one used online; Add Account creates another.
+Settings → zdxsv → Account → Sign in with Discord opens the zdxsv sign-in page in your browser.
+PCSX2 keeps a sign-in token for this PC and logs in with it. Account lists your zdxsv accounts and the empty slots
+the server allows; an empty slot becomes an account when you first connect with it picked. Carry Over
+from PS2 adds the account you play on a PS2 (on the PS2, type ｄｃ in the chat of the Kennedy Port lobby and enter the code it shows within 3 minutes; the
+PS2 keeps playing with it). Account picks the one used online.
+Sign Out revokes the token.
 
 With no token, going online opens the sign-in page and pauses the game until you sign in; resume
 the game to cancel it and go back to the network menu.

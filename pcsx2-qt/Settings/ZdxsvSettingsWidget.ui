@@ -30,20 +30,6 @@
       <item>
        <layout class="QHBoxLayout" name="zdxsvAccountButtons">
         <item>
-         <widget class="QLabel" name="zdxsvCarryLabel">
-          <property name="text">
-           <string>Carry-over code (optional):</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QLineEdit" name="zdxsvCarryCode">
-          <property name="maxLength">
-           <number>16</number>
-          </property>
-         </widget>
-        </item>
-        <item>
          <widget class="QPushButton" name="zdxsvSignIn">
           <property name="text">
            <string>Sign in with Discord</string>
@@ -56,6 +42,13 @@
            <string>Sign Out</string>
           </property>
          </widget>
+        </item>
+        <item>
+         <spacer name="zdxsvAccountButtonsSpacer">
+          <property name="orientation">
+           <enum>Qt::Orientation::Horizontal</enum>
+          </property>
+         </spacer>
         </item>
        </layout>
       </item>
@@ -86,9 +79,9 @@
          </widget>
         </item>
         <item>
-         <widget class="QPushButton" name="zdxsvAccountAdd">
+         <widget class="QPushButton" name="zdxsvCarry">
           <property name="text">
-           <string>Add Account</string>
+           <string>Carry Over from PS2...</string>
           </property>
          </widget>
         </item>

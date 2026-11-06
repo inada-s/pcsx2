@@ -232,18 +232,8 @@ namespace Zdxsv
 		return s;
 	}
 
-	std::string AuthSignIn(const std::string& carry, const std::function<void(const std::string&)>& open_url,
-		const std::atomic<bool>& cancel)
+	std::string AuthSignIn(const std::function<void(const std::string&)>& open_url, const std::atomic<bool>& cancel)
 	{
-		std::string carry_code;
-		for (unsigned char c : carry)
-		{
-			if (std::isspace(c))
-				continue;
-			if (!std::isalnum(c) || carry_code.size() >= kMaxCarryLen)
-				return "invalid carry-over code";
-			carry_code.push_back(static_cast<char>(std::toupper(c)));
-		}
 		const std::string start = AuthUrl("/start");
 		if (start.empty())
 			return "no sign-in server";
@@ -269,10 +259,8 @@ namespace Zdxsv
 
 		const std::string verifier = RandomUrlSafe(64);
 		const std::string state = RandomUrlSafe(32);
-		std::string url = start + "?redirect_port=" + std::to_string(port) + "&state=" + state +
-						  "&code_challenge=" + Challenge(verifier);
-		if (!carry_code.empty())
-			url += "&carry=" + carry_code;
+		const std::string url = start + "?redirect_port=" + std::to_string(port) + "&state=" + state +
+								"&code_challenge=" + Challenge(verifier);
 		Console.WriteLn("Zdxsv: auth: sign-in started, callback port %d", port);
 		open_url(url);
 
@@ -345,41 +333,83 @@ namespace Zdxsv
 		return error;
 	}
 
-	std::string AuthAccounts(bool add, AuthAccountList* list)
+	namespace
 	{
-		const std::optional<std::string> token = AuthTokenRead();
-		if (!token)
-			return "not signed in";
-		s32 status;
-		const std::string body = Post(AuthUrl(add ? "/accounts/add" : "/accounts"), "token=" + *token, &status);
-		if (status == 409)
-			return "this Discord account has the most accounts";
-		if (status != HTTPDownloader::HTTP_STATUS_OK)
-			return "account request failed (" + std::to_string(status) + ")";
-		rapidjson::Document doc;
-		doc.Parse(body.data(), body.size());
-		if (!doc.IsObject() || !doc.HasMember("accounts") || !doc["accounts"].IsArray())
-			return "bad account response";
-		*list = {};
-		for (const auto& a : doc["accounts"].GetArray())
+		std::string ParseAccounts(const std::string& body, AuthAccountList* list)
 		{
-			std::vector<std::string> names;
-			if (a.IsObject() && a.HasMember("users") && a["users"].IsArray())
+			rapidjson::Document doc;
+			doc.Parse(body.data(), body.size());
+			if (!doc.IsObject() || !doc.HasMember("accounts") || !doc["accounts"].IsArray())
+				return "bad account response";
+			*list = {};
+			for (const auto& a : doc["accounts"].GetArray())
 			{
-				for (const auto& u : a["users"].GetArray())
+				std::vector<std::string> names;
+				if (a.IsObject() && a.HasMember("users") && a["users"].IsArray())
 				{
-					if (u.IsString())
-						names.emplace_back(u.GetString(), u.GetStringLength());
+					for (const auto& u : a["users"].GetArray())
+					{
+						if (u.IsString())
+							names.emplace_back(u.GetString(), u.GetStringLength());
+					}
 				}
+				list->users.push_back(std::move(names));
+				list->carried.push_back(a.IsObject() && a.HasMember("carried") && a["carried"].IsBool() && a["carried"].GetBool());
 			}
-			list->users.push_back(std::move(names));
+			const auto get_int = [&doc](const char* name) {
+				return doc.HasMember(name) && doc[name].IsInt() ? doc[name].GetInt() : 0;
+			};
+			list->default_account = get_int("default");
+			list->max_new = get_int("max_new");
+			list->max_carried = get_int("max_carried");
+			list->added = get_int("added");
+			return {};
 		}
-		const auto get_int = [&doc](const char* name) {
-			return doc.HasMember(name) && doc[name].IsInt() ? doc[name].GetInt() : 0;
-		};
-		list->default_account = get_int("default");
-		list->max_accounts = get_int("max");
-		list->added = get_int("added");
-		return {};
+
+		std::string AccountsRequest(const char* path, const std::string& extra, AuthAccountList* list)
+		{
+			const std::optional<std::string> token = AuthTokenRead();
+			if (!token)
+				return "not signed in";
+			s32 status;
+			const std::string body = Post(AuthUrl(path), "token=" + *token + extra, &status);
+			switch (status)
+			{
+				case HTTPDownloader::HTTP_STATUS_OK:
+					return ParseAccounts(body, list);
+				case 400:
+					return "wrong or expired carry-over code";
+				case 409:
+					return "this Discord account has carried over the most accounts";
+				case 422:
+					return "that account is linked to a Discord account already";
+				case 429:
+					return "too many wrong carry-over codes, try again later";
+				default:
+					return "account request failed (" + std::to_string(status) + ")";
+			}
+		}
+	} // namespace
+
+	std::string AuthAccounts(AuthAccountList* list)
+	{
+		return AccountsRequest("/accounts", "", list);
 	}
+
+	std::string AuthCarry(const std::string& code, AuthAccountList* list)
+	{
+		std::string clean;
+		for (unsigned char c : code)
+		{
+			if (std::isspace(c))
+				continue;
+			if (!std::isalnum(c) || clean.size() >= kMaxCarryLen)
+				return "invalid carry-over code";
+			clean.push_back(static_cast<char>(std::toupper(c)));
+		}
+		if (clean.empty())
+			return "enter the carry-over code";
+		return AccountsRequest("/accounts/carry", "&code=" + clean, list);
+	}
+
 } // namespace Zdxsv
