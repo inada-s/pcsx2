@@ -103,7 +103,7 @@ def db_query(out, sql, *args):
 def run_p1(out, run_, card, value, emulog):
     if os.path.exists(emulog):
         os.remove(emulog)
-    ex = {"ZDXSV_TLS": "0", "ZDXSV_FAST_LOGIN": "0", "ZDXSV_NODEV9": "0", "ZDXSV_AUTH_SIGNIN_TEST": value,
+    ex = {"ZDXSV_TLS": "0", "ZDXSV_FAST_LOGIN": "0", "DEV9": "1", "ZDXSV_AUTH_SIGNIN_TEST": value,
           "ZDXSV_AUTH_URL": f"http://{API}/auth"}
     return launch.launch([1], speed="1", memcard=os.path.join(run_, f"Mcd001-{card}.ps2"),
                          headless=not zrig.env("SHOW"), extra_env=ex)[1]

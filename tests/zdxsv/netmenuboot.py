@@ -13,7 +13,7 @@ import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 os.environ.update(ZDXSV_FAST_BOOT="1", ZDXSV_FAST_LOGIN="1", ZDXSV_AUTH_AT_DNAS="0", ZDXSV_TLS="0",
-                  ZDXSV_NODEV9="127.0.0.1", ZDXSV_LOGIN_API_URL="http://127.0.0.1:1/lbs/login")
+                  ZDXSV_SERVER_HOST="127.0.0.1", ZDXSV_LOGIN_API_URL="http://127.0.0.1:1/lbs/login")
 import launch  # noqa: E402
 import zrig  # noqa: E402
 

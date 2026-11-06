@@ -7,8 +7,8 @@
 
 namespace Zdxsv
 {
-	// The game's hosts resolve to ServerHost() (no ZDXSV_NODEV9 address): the game plays on the zdxsv
-	// server of the build.
+	// The game's hosts resolve to the build's ServerHost() (no ZDXSV_SERVER_HOST env): the game plays on
+	// the zdxsv server of the build.
 	void ServerHostUsed();
 	bool DnsUsedServerHost();
 	// ip (network order) is a zdxsv server: the game's hosts resolved to it.
