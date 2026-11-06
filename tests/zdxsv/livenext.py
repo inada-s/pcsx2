@@ -56,7 +56,7 @@ def main():
             break
     time.sleep(10)  # a wait that does not hold would boot on or stop by now
     shutil.copyfile(log, keep)
-    w = lines(re.escape(f"ZdxsvGgpo: live: auto-next: waiting for a new battle at 127.0.0.1:{port} "
+    w = lines(re.escape(f"ZdxsvGgpo: live: auto-next: waiting for a new battle at http://127.0.0.1:{port} "
                         "(0 watched, 1 skipped): skipped, "))
     p = lines(r"\(VMManager\) Pausing")
     r = len(lines(r"\(VMManager\) Resuming|ZdxsvGgpo: replay .*: end|auto-next: stopped"))
