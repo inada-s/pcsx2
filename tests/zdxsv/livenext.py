@@ -1,4 +1,4 @@
-"""live auto-next skip test: a headless spectator in instance pN opens ZDXSV_REPLAY=udp://127.0.0.1:PORT where no
+"""live auto-next skip test: a headless spectator in instance pN opens ZDXSV_REPLAY=live:http://127.0.0.1:PORT where no
 lobby answers, with ZDXSV_LIVE_NEXT=1. Exit 0 = the failed open is skipped: the log names the skip and its cause,
 the VM pauses and waits for a new battle there (nothing boots to the title screen).
   OUT=dir python tests/zdxsv/livenext.py   Env: N (instance, default 1), PORT (default 8209, nothing may listen),
@@ -41,7 +41,7 @@ def main():
     except OSError:
         pass
     pid = launch.launch([n], state=state, headless=True, quiet=True, extra_env={
-        "ZDXSV_REPLAY": f"udp://127.0.0.1:{port}", "ZDXSV_LIVE_NEXT": "1", "ZDXSV_REPLAY_EXIT": "1"})[int(n)]
+        "ZDXSV_REPLAY": f"live:http://127.0.0.1:{port}", "ZDXSV_LIVE_NEXT": "1", "ZDXSV_REPLAY_EXIT": "1"})[int(n)]
     print(f"p{n} pid {pid} slot {28010 + int(n)}", flush=True)
 
     def lines(rx):

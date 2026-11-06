@@ -71,7 +71,7 @@ Tools → zdxsv Replays, as flycast's replay lists:
 - **Favorites**: the kept rows (`ZdxsvReplayFavorites`); Play asks the lobby
   API for the battle's `replay_url`.
 - **Live**: the lobby's `/lbs/live` (running battles first, refreshed every 10 s
-  while the tab is shown). Plays `udp://<API host>:8201/<code>`.
+  while the tab is shown). Plays `live:<API URL>#<code>`.
 - Remote, Live and Favorites ask the lobby API of setting `ZdxsvLobbyApiUrl`
   (ini only, `options.md`).
 - **Point of view**: the recorder's or a position (`ZDXSV_REPLAY_POV`).
@@ -147,9 +147,9 @@ A lobby GGPO battle is streamed to the lobby while it runs, as gdxsv does
   joins at round 3 has rounds 1-2 before its catch-up replays them. The
   spectator shows them as a file's `round_data` and logs a round its own
   playback ends with another winner.
-- Transfer: 1000-byte datagrams, go-back-N on the receiver's ack, both
-  uplink to lobby and lobby to spectator.
-- Spectator: `ZDXSV_REPLAY=udp://host:port[/battle code]` (no code = the
+- Transfer: the lobby HTTP API (`ZdxsvLobbyApiUrl`): the uplink POSTs
+  `/lbs/live_push` from the lobby's ack, spectators long-poll `/lbs/live_pull`.
+- Spectator: `ZDXSV_REPLAY=live:<API URL>[#battle code]` (no code = the
   newest live battle). It starts from the common state and plays as a
   replay from the uplink's point of view, checking the state hashes as a
   replay file's.

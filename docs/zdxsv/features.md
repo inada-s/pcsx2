@@ -135,7 +135,7 @@ Keys (`net=1`, `lobby=1`, `port=`, `delay=`, ...) are parts of `ZDXSV_GGPO`.
 - **Point of view**: Home; `ZDXSV_REPLAY_POV`, `ZDXSV_REPLAY_POV_AT`.
 - **Control bar**: `ZdxsvReplayBar`.
 - **Key display**: End; `ZdxsvReplayKeyDisplay`.
-- **Live spectating**: lobby `live_uplink=1`; `ZDXSV_REPLAY=udp://...`.
+- **Live spectating**: lobby `live_uplink=1`; `ZDXSV_REPLAY=live:...`.
 - **Live round results**.
 - **Live speed trim**: `ZDXSV_LIVE_PACING=0` turns it off.
 - **Live wait without blocking**.
