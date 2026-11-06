@@ -15,7 +15,7 @@ Env defaults for pcsx2 (also when imported: launch()):
 - ZDXSV_GGPO unset -> 0 (lobby battles on the battle server); ZDXSV_GGPO=default leaves GGPO on.
 - ZDXSV_FAST_BOOT unset -> 0 (fast boot presses through the menus the routes drive); =default leaves it.
 - Network pins, so a run never reaches the production server (also a release exe's built-in host):
-  ZDXSV_FAST_LOGIN unset -> 0; ZDXSV_LOGIN_API_URL unset -> http://127.0.0.1:9881/lbs/login;
+  ZDXSV_FAST_LOGIN unset -> 1 (no DEV9 refuses DNAS: boottime.py seeds a token); ZDXSV_LOGIN_API_URL unset -> http://127.0.0.1:9881/lbs/login;
   ZDXSV_NODEV9 unset -> $IP, else 0 (0: the DEV9 path with the ini's hosts).
   ZDXSV_AUTH_URL unset -> http://127.0.0.1:9881/auth; ZDXSV_AUTH_NO_BROWSER=1 always (sign-in URLs only logged).
   ZDXSV_AUTH_AT_DNAS unset -> 0 (no sign-in at DNAS without a token: back to the network menu).
@@ -36,7 +36,7 @@ def pcsx2_env(base=None):
             e[k] = "0"
         elif e[k] == "default":
             del e[k]
-    e["ZDXSV_FAST_LOGIN"] = e.get("ZDXSV_FAST_LOGIN") or "0"
+    e["ZDXSV_FAST_LOGIN"] = e.get("ZDXSV_FAST_LOGIN") or "1"
     e["ZDXSV_LOGIN_API_URL"] = e.get("ZDXSV_LOGIN_API_URL") or "http://127.0.0.1:9881/lbs/login"
     e["ZDXSV_NODEV9"] = e.get("ZDXSV_NODEV9") or e.get("IP") or "0"
     e["ZDXSV_AUTH_URL"] = e.get("ZDXSV_AUTH_URL") or "http://127.0.0.1:9881/auth"

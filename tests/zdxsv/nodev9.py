@@ -3,7 +3,8 @@ against the local stack (boottime.py), route top to the lobby's user_id selectio
   OUT=<dir> python tests/zdxsv/nodev9.py
 Env: MAXS (s to wait, default 200), NODEV9 (ZDXSV_NODEV9, default $IP).
 Exit 0 = the user_id screen is up and p1 logged no-DEV9 on, a fast login session with the lobby on $IP,
-DNAS got no POST, and pcsx2 had no TCP connection to a host other than $IP or 127.0.0.1.
+DNAS got no POST, no connect refused, and pcsx2 had TCP to $IP only on the lobby (8200, TLS 8221) and login API (9881)
+ports, and to no other host but 127.0.0.1.
 """
 import os
 import re
@@ -22,7 +23,7 @@ def main():
     nodev9 = zrig.env("NODEV9", ip)
     maxs = zrig.env("MAXS", "200")
     os.makedirs(out, exist_ok=True)
-    local = re.compile(r"^(0\.0\.0\.0|::|127\.0\.0\.1|" + re.escape(ip) + r"):")
+    local = re.compile(r"^(0\.0\.0\.0|::|127\.0\.0\.1):|^" + re.escape(ip) + r":(8200|8221|9881)$")
     remote, samples, done = [], [0], threading.Event()
 
     def sample():
@@ -49,7 +50,8 @@ def main():
         (f"fast login session, lobby {ip}",
          any(re.search(r"Zdxsv: fast login: session [0-9]*, lobby " + re.escape(ip) + ":", l) for l in lines)),
         ("DNAS: no POST", os.path.isfile(dnas) and b"POST" not in open(dnas, "rb").read()),
-        ("pcsx2: no TCP to another host", samples[0] >= 3 and not remote),
+        ("no connect refused", not any("connect to" in l and "refused" in l for l in lines)),
+        ("pcsx2: TCP only to the lobby and the login API", samples[0] >= 3 and not remote),
     ]
     for name, ok in checks:
         print(("PASS " if ok else "FAIL ") + name)
