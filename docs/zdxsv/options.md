@@ -23,13 +23,14 @@ tests.
 
 CMake cache variables. Only the official release build (`zdxsv_release.yml`,
 tags `zdxsv-X.Y.Z`) sets them from the repository variables of the same name
-([tools](tools.md)); a build from source
-has none, so it connects to no server until the player sets one (`ZdxsvLoginApiUrl`,
-`ZdxsvLobbyApiUrl`, `ZdxsvReplayUploadUrl`, `ZdxsvUdpTestUrl`, host entries).
+([tools](tools.md)); a build from source connects to a zdxsv on this machine
+(zdxsv `scripts/run-local.sh`). `ZDXSV_SERVER_HOST` and `ZDXSV_API_URL` are also
+environment variables (test): set, they replace the build's value.
 
 | Option | Default | Meaning |
 |---|---|---|
-| `ZDXSV_SERVER_HOST` | empty | The game server host: the internal DNS looks up the game's server names as it, and `https://<host>:8443` is the default of the API URLs below (`server` in their Default column). Empty: names resolve as they are, the API URLs are empty. Release: the repository variable. |
+| `ZDXSV_SERVER_HOST` | `127.0.0.1` | The game server host: with `ZdxsvNoDev9` the game's server names resolve to it. Empty: no-DEV9 off. Release: the repository variable. |
+| `ZDXSV_API_URL` | `https://<ZDXSV_SERVER_HOST>:8443`; without a host `http://127.0.0.1:8203` (a local zdxsv's `ZDXSV_LOBBY_API_ADDR`) | The zdxsv public API, the default of the API URLs below (`server` + path in their Default column). Empty: the API URLs are empty. |
 | `ZDXSV_UDPTEST_URL` | empty | Default of `ZdxsvUdpTestUrl`. Release: the repository variable. |
 | `ZDXSV_SENTRY_DSN` | empty | Where crash reports go. Empty: no crash reports and no setting. Release: the repository variable. |
 
@@ -72,11 +73,11 @@ page greys it out and its tooltip names the variable.
 | `[DEV9/Eth] ZdxsvLoginApiUrl` | server `/lbs/login` | feature | The zdxsv login API (`POST`; the zdxsv lobby API `/lbs/login`) (form `token`; JSON `login_key`, `session_id`, `lobby_addr`, `lbs_info`) used by `ZdxsvFastLogin`. The same with or without DEV9 (`ZdxsvNoDev9`). `ZDXSV_LOGIN_API_URL` overrides it (the rigs: the local stack). Ini only. |
 | `[DEV9/Eth] ZdxsvAuthUrl` | server `/auth` | feature | The zdxsv sign-in base URL for Settings → zdxsv → Account: the browser opens `<url>/start` (the reply comes to a listener on `127.0.0.1`, random port, for 10 minutes); `POST <url>/token` (PKCE) saves the token to `inis/zdxsv_auth_token.txt`, the token `ZdxsvFastLogin` sends; Sign Out `POST <url>/revoke` and deletes the file. `ZDXSV_AUTH_URL` overrides it. Ini only. |
 | `[DEV9/Eth] ZdxsvAccount` | `0` | feature | Which account of the signed-in Discord account the fast login uses (form `account`, 1-5); `0`: the one the token was issued for. Settings → zdxsv → Account sets it from `POST <ZdxsvAuthUrl>/accounts` (`/accounts/add` adds one); sign-in and sign-out reset it to `0`. |
-| `[DEV9/Eth] ZdxsvNoDev9` | `true` | feature | Z game: online with or without DEV9 (`EthEnable`). The game's net RPCs are answered on the EE: network setup from fixed replies, every name resolves to `ZDXSV_SERVER_HOST` (host DNS, 5 s wait), TCP on host sockets (4 slots), only to port 8200 (the lobby); any other connect fails (no DNAS, no login pages, no battle server: needs `ZdxsvFastLogin`, and GGPO for battles). No server host (a build from source): off unless `ZDXSV_NODEV9=<IPv4>`. Lobby and a 1v1 GGPO battle tested. `ZDXSV_NODEV9` overrides (`0` off, `<IPv4>` every name resolves to it). Ini only. |
+| `[DEV9/Eth] ZdxsvNoDev9` | `true` | feature | Z game: online with or without DEV9 (`EthEnable`). The game's net RPCs are answered on the EE: network setup from fixed replies, every name resolves to `ZDXSV_SERVER_HOST` (host DNS, 5 s wait), TCP on host sockets (4 slots), only to port 8200 (the lobby); any other connect fails (no DNAS, no login pages, no battle server: needs `ZdxsvFastLogin`, and GGPO for battles). An empty server host: off unless `ZDXSV_NODEV9=<IPv4>`. Lobby and a 1v1 GGPO battle tested. `ZDXSV_NODEV9` overrides (`0` off, `<IPv4>` every name resolves to it). Ini only. |
 | `[DEV9/Eth] ZdxsvLobbyApiUrl` | server | feature | The lobby's public API (`http://host:port`, zdxsv `ZDXSV_LOBBY_API_ADDR`) the replay window's Remote (`/lbs/replay`) and Live (`/lbs/live`) tabs and the Favorites tab ask; empty = none. A live battle is watched at `live:<this URL>#<code>`. |
 | `[DEV9/Eth] ZdxsvReplayFavorites` | empty | feature | The replay window's Favorites: one value per battle (battle code, start time, players and rounds, tab-separated), at most 1000; added from the Remote tab, removed in the Favorites tab. |
 | `[DEV9/Eth] ZdxsvReplayReturn` | `true` | feature | A replay started from the replay window returns to the game (and the window) when it ends (`replay.md`). |
-| `[DEV9/Eth] ZdxsvReplayUpload` | `true` | feature | Post each lobby battle's `.pb` to `ZdxsvReplayUploadUrl` (flycast `UploadReplay`, on by default). Only when the game found the server by DNS (no host entry for the game hosts): a local server's battles post nowhere. `upload=` overrides it. |
+| `[DEV9/Eth] ZdxsvReplayUpload` | `true` | feature | Post each lobby battle's `.pb` to `ZdxsvReplayUploadUrl` (flycast `UploadReplay`, on by default). Only when the game's hosts resolve to `ZDXSV_SERVER_HOST` (no-DEV9 without a `ZDXSV_NODEV9` address): a battle on the DEV9 path or on a `ZDXSV_NODEV9` address posts nowhere. `upload=` overrides it. |
 | `[DEV9/Eth] ZdxsvReplayUploadUrl` | server `/lbs/replay_upload` | feature | The lobby's replay upload API (zdxsv `/lbs/replay_upload`, as gdxsv lbs); empty = no upload. |
 | `[DEV9/Eth] ZdxsvSaveReplay` | `true` | feature | Save each lobby battle's `.pb` to `ZdxsvReplayPath`. `replay=` in `ZDXSV_GGPO` overrides it. |
 | `[DEV9/Eth] ZdxsvReplayPath` | `<data dir>/replays` | feature | Folder lobby battles save to and the Local replay list reads; relative to the data dir. A folder that cannot be created: the default. |

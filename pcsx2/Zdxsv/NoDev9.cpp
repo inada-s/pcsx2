@@ -139,7 +139,7 @@ namespace Zdxsv
 		{
 			bool on = false;
 			u32 ip = 0; // every name resolves to it, network order
-			std::shared_ptr<std::atomic<u32>> server_ip; // without a fixed ip: the host DNS answer for SERVER_HOST
+			std::shared_ptr<std::atomic<u32>> server_ip; // without a fixed ip: the host DNS answer for ServerHost()
 			u32 link_calls = 0;
 			u8 last_net = 0;
 			bool net_ending = false;
@@ -167,7 +167,7 @@ namespace Zdxsv
 			hints.ai_family = AF_INET;
 			hints.ai_socktype = SOCK_STREAM;
 			addrinfo* res = nullptr;
-			if (getaddrinfo(SERVER_HOST, nullptr, &hints, &res) == 0 && res)
+			if (getaddrinfo(ServerHost(), nullptr, &hints, &res) == 0 && res)
 				out->store(reinterpret_cast<const sockaddr_in*>(res->ai_addr)->sin_addr.s_addr);
 			if (res)
 				freeaddrinfo(res);
@@ -184,7 +184,7 @@ namespace Zdxsv
 				std::this_thread::sleep_for(std::chrono::milliseconds(10));
 			s_state.ip = s_state.server_ip->load();
 			if (!s_state.ip)
-				Console.Error("Zdxsv: no DEV9: no address for %s", SERVER_HOST);
+				Console.Error("Zdxsv: no DEV9: no address for %s", ServerHost());
 			return s_state.ip;
 		}
 
@@ -391,7 +391,7 @@ namespace Zdxsv
 		unsigned q[4] = {};
 		if (!e || std::sscanf(e, "%u.%u.%u.%u", &q[0], &q[1], &q[2], &q[3]) != 4)
 		{
-			if (!SERVER_HOST[0])
+			if (!ServerHost()[0])
 			{
 				Console.WriteLn("Zdxsv: no DEV9: off, no server host (ZDXSV_NODEV9=<ipv4> sets one)");
 				return;
@@ -400,7 +400,7 @@ namespace Zdxsv
 			ServerHostUsed();
 			s_state.server_ip = std::make_shared<std::atomic<u32>>(0);
 			std::thread(ResolveServer, s_state.server_ip).detach();
-			Console.WriteLn("Zdxsv: no DEV9: the net RPCs are answered on the EE, names resolve to %s", SERVER_HOST);
+			Console.WriteLn("Zdxsv: no DEV9: the net RPCs are answered on the EE, names resolve to %s", ServerHost());
 			return;
 		}
 		s_state.on = g_no_dev9 = true;

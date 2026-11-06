@@ -16,6 +16,7 @@ have no default (gui needs neither; without BIOS, the BIOS setting is left as it
     N=2 python run.py rom
     N=4 SEED=7 python run.py rbk_test_random
     ZDXSV=203.0.113.5 python run.py rom    # point the game's server hosts at another zdxsv (default: this PC)
+    SIGNOUT=1 python run.py rom            # delete the instances' sign-in tokens first (sign in again)
     FRAME_LATENCY=0 python run.py rom      # maximum frame latency 0 (optimal frame pacing)
     LAT=100 JITTER=20 LOSS=0.05 N=4 python run.py rbk_test_random   # 100 ms one-way +-20 ms, 5 % loss
 
@@ -53,10 +54,12 @@ BIOS_FILE = os.getenv("BIOS_FILE", "SCPH-50000_JPN_Con_0190_20030822_v10_[D9407A
 # Copied into an instance's memcards/ when it has no Mcd001.ps2 yet. Unset = PCSX2 makes an empty card.
 MEMCARD = os.getenv("MEMCARD", "")
 # Server address for the game's zdxsv hosts; PCSX2's internal DNS answers 127.0.0.1 with this PC's address.
-# Empty = no host entries written: the build's ZDXSV_SERVER_HOST (release: production; source build: none).
+# Empty = no host entries written: the build's ZDXSV_SERVER_HOST (release: production; source build: 127.0.0.1).
+# Another address is also given as ZDXSV_SERVER_HOST; that server's API then needs ZDXSV_API_URL.
 ZDXSV = os.getenv("ZDXSV", "127.0.0.1")
 # Trusts the zdxsv test CA, the certificate a local server uses. 0 = only the production pins.
 os.environ.setdefault("ZDXSV_TLS_TEST_PIN", "1")
+SIGNOUT = os.getenv("SIGNOUT") == "1"
 STATE = os.getenv("STATE", "")
 # Maximum frame latency ([EmuCore/GS] VsyncQueueSize): frames the emulation may run ahead of the
 # display. 2 = PCSX2 default; 0 = optimal frame pacing (waits for the display every frame, least lag).
@@ -116,6 +119,10 @@ def prepare_instance(idx: int):
     root = data_root(idx)
     (root / "inis").mkdir(parents=True, exist_ok=True)
     (root / "memcards").mkdir(parents=True, exist_ok=True)
+    token = root / "inis" / "zdxsv_auth_token.txt"
+    if SIGNOUT and token.exists():
+        token.unlink()
+        print(f"signed out: deleted {token}")
     if MEMCARD and Path(MEMCARD).is_file() and not (root / "memcards" / "Mcd001.ps2").exists():
         shutil.copy(MEMCARD, root / "memcards" / "Mcd001.ps2")
 
@@ -393,6 +400,8 @@ def exec_mode(mode: str):
             cmd = [str(PCSX2), "-datapath", str(data_root(i).parent), "-logfile", str(log)]
             if mode != "gui":
                 cmd += ["-batch", "-nogui", *args, "--", ROM]
+            if ZDXSV and ZDXSV != "127.0.0.1":
+                extra_env.setdefault("ZDXSV_SERVER_HOST", ZDXSV)
             print(" ".join(f"{k}={v}" for k, v in extra_env.items()), subprocess.list2cmdline(cmd))
             p = subprocess.Popen(cmd, cwd=PCSX2.parent, env={**os.environ, **extra_env})
             procs.append(p)
