@@ -6,6 +6,7 @@
 // bytes from their start. Stream format: docs/zdxsv/replay.md "Live stream".
 
 #include "Zdxsv/Lobby.h"
+#include "Zdxsv/LobbyNet.h"
 
 #include "common/Console.h"
 #include "common/StringUtil.h"
@@ -423,8 +424,8 @@ namespace Zdxsv
 				};
 				std::string error;
 				const int status = HttpPost(url, next, error);
-				Console.WriteLn("Zdxsv live: upload %s ended, %zu frames%s, HTTP %d%s", code.c_str(), sent, ended ? " and the close" : "", status,
-					error.empty() ? "" : (" (" + error + ")").c_str());
+				LobbyLog("live: uplink " + code + (ended && status == 204 ? " closed: " : " gave up on the close: ") + std::to_string(sent) +
+					", HTTP " + std::to_string(status) + (error.empty() ? "" : " (" + error + ")"));
 				done = true;
 			}
 		};
@@ -439,6 +440,7 @@ namespace Zdxsv
 		s.code = std::move(code);
 		s.header = std::move(header);
 		s.frameBytes = frameBytes;
+		LobbyLog("live: uplink " + s.code + " to " + s.url);
 		std::thread([s = m->s] { s->Run(); }).detach();
 	}
 
