@@ -513,8 +513,12 @@ def main():
         ok(f"every client entered the lobby battle (x{nc})", c(lobby, r"C->S \[Q\] ID:0x640E") >= nc)
         ok("no battle between different sync fingerprints", c(battle, "join udp peer|join success") == 0)
         return RC[0]
+    # a GGPO lobby battle: the emulator answers the battle server's part, the game never connects to it
+    ee = sum(1 for i in clients if c(el(i), "ZdxsvGgpo: battle server answered on the EE"))
+    if ee:
+        ok(f"battle server answered on the EE x{ee}, battle server unused", not c(battle, r"\[ROOM\]"))
     ok(f"join udp peer x{nz}", c(battle, "join udp peer") == nz)
-    ok(f"join tcp x{nc - nz}", c(battle, "join success") == nc - nz)
+    ok(f"join tcp x{nc - nz - ee}", c(battle, "join success") == nc - nz - ee)
     every = [el(i) for i in clients]
     if ext_off:
         for i in clients:
@@ -534,7 +538,7 @@ def main():
             for t in ["8221"] + ([] if ggpo else ["8222"]):
                 ok(f"p{i} TLS port {t}", c(f, f"Zdxsv: TLS: .* through TLS port {t}"))
             ok(f"p{i} no TLS failure", not c(f, r"OSD \[ZdxsvTls\]"))
-    if c(battle, "join udp peer|join success") < 1:
+    if c(battle, "join udp peer|join success") < 1 and not ee:
         say("FAIL no battle")
         return 1
     # a peer missing from the battle: 4 results never come

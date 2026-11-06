@@ -42,6 +42,14 @@ namespace Zdxsv
 		std::lock_guard lock(s_lobby_mtx);
 		return s_lobby_gen != s_armed_gen;
 	}
+	// lobby=1: a battle info not armed yet that lists our position; n = its player count
+	bool LobbyPendingBattle(int& me, int& n)
+	{
+		std::lock_guard lock(s_lobby_mtx);
+		me = s_lobby_me;
+		n = static_cast<int>(s_lobby_peers.size());
+		return s_lobby_info && s_lobby_gen != s_armed_gen && me >= 0 && me < n && n <= GGPO_MAX_PLAYERS;
+	}
 	// lobby=1, at the battle's first key msg: GGPO only when the battle info has every peer and our
 	// position; else the battle connection is cut (LobbyCutCall, logged once per battle info). Without a
 	// battle info it is not a lobby battle: the call goes to the IOP.

@@ -15,7 +15,7 @@ options: `docs/zdxsv/`.
 | battle position | The player slot 0..3 in a battle. GGPO player = battle position + 1 |
 | own, remote | The battle position this machine plays; the other positions |
 | net RPC | The game's network call from the EE to the IOP. `fno` = its function number (send, recv, poll, connect, ...) |
-| battle sock | The game's socket 0, its connection to the battle server; with GGPO its send, recv and poll are answered on the EE side |
+| battle sock | The game's socket 0, its connection to the battle server; with GGPO its send, recv and poll are answered on the EE side, in a lobby battle (`lobby=1`) from the connect on |
 | net HLE | That emulation of the battle sock over GGPO: no packet reaches the IOP or the battle server |
 | msg, kind | One McsMessage of the game: byte 0 = length, byte 1 = kind << 4 \| sender |
 | key msg | Kind 2: the msg that carries a player's input; the first one on the battle sock arms GGPO |
