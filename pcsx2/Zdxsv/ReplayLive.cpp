@@ -23,7 +23,7 @@ namespace Zdxsv
 		}();
 		int s_live_skips = 0; // battles auto-next could not play, kept across the resets
 		std::string s_live_open_error; // why the last LiveOpen failed, "" = it opened
-		constexpr int LIVE_NEXT_POLL_S = 5, LIVE_NEWEST_MS = 2000, LIVE_NEXT_SKIP = 32; // the skip list fits one datagram
+		constexpr int LIVE_NEXT_POLL_S = 5, LIVE_NEWEST_MS = 2000, LIVE_NEXT_SKIP = 32; // bounds the skip query
 
 		void LiveSeen(const std::string& code)
 		{
