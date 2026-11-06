@@ -1,8 +1,12 @@
-# settingsui.ps1 [-Exe pcsx2-qtx64.exe] [-DataPath dir] [-Iso game.iso [-Boot 30]] [-Page zdxsv] [-Match regex] [-Shot out.png] [-Click name [-Wait 3]] [-Quit]
+# settingsui.ps1 [-Exe pcsx2-qtx64.exe] [-DataPath dir] [-Iso game.iso [-Boot 30]] [-Page zdxsv] [-Match regex] [-Shot out.png] [-Click name [-Wait 3]] [-Select 'name=item regex'] [-Scroll percent] [-Quit]
 # Start a portable PCSX2 (portable.ini or portable.txt next to the exe; -DataPath: -datapath dir instead), open Settings -> page -Page,
 # -Click: invoke the button whose AutomationId ends with that name, wait -Wait s (default 3: the settings save), then
 # print each control whose AutomationId or name matches -Match (default: the page name) with its enabled
 # state and value, save a PrintWindow capture of the settings window to -Shot, close PCSX2.
+# -Select: after -Click, pick the first item matching the regex in the combo box whose AutomationId ends with name
+#   (UIA expand, then a mouse click on the item: UIA Select on a Qt popup item does not commit it), wait -Wait s.
+# -Scroll: before the capture, set the page's vertical scroll bar to that percent (100: the bottom; Qt scroll areas
+#   expose no UIA ScrollPattern, only the bar's RangeValue).
 # -Quit: close the windows and wait for a normal exit (exit-time cleanup runs); without it PCSX2 is killed.
 # Env overrides (ZDXSV_*) set by the caller apply, e.g. to see env-overridden settings greyed out.
 # -Iso: boots the game first and opens Settings -Boot s later (e.g. the Z game: sync-forced items greyed out).
@@ -15,7 +19,7 @@
 # Exit 1 with the visible element names when a step finds nothing.
 param([string]$Exe = (Join-Path $PSScriptRoot '..\..\bin\pcsx2-qtx64.exe'), [string]$Page = 'zdxsv',
       [string]$Match = '', [string]$Shot = '', [string]$DataPath = '', [string]$Iso = '', [int]$Boot = 30,
-      [string]$Click = '', [int]$Wait = 3, [switch]$Quit)
+      [string]$Click = '', [int]$Wait = 3, [string]$Select = '', [int]$Scroll = -1, [switch]$Quit)
 $ErrorActionPreference = 'Stop'
 . "$PSScriptRoot\localnet.ps1"  # fast login and no-DEV9 pinned to the box
 if (-not $Match) { $Match = $Page }
@@ -100,6 +104,23 @@ try {
     $btn.GetCurrentPattern([System.Windows.Automation.InvokePattern]::Pattern).Invoke()
     "clicked $Click"; Start-Sleep $Wait
   }
+  if ($Select) {
+    $sname, $sitem = $Select -split '=', 2
+    $combo = $null
+    foreach ($e in $win.FindAll('Descendants', $all)) { if ($e.Current.AutomationId -match "\.$sname`$") { $combo = $e } }
+    if (-not $combo) { "FAIL: no combo box '$sname'"; exit 1 }
+    $vp = $combo.GetCurrentPattern([System.Windows.Automation.ValuePattern]::Pattern)
+    $ec = $combo.GetCurrentPattern([System.Windows.Automation.ExpandCollapsePattern]::Pattern)
+    $ec.Expand(); Start-Sleep 1
+    $items = @($combo.FindAll('Descendants', $all) | Where-Object { $_.Current.ControlType -eq [System.Windows.Automation.ControlType]::ListItem })
+    $hit = $items | Where-Object { $_.Current.Name -match $sitem } | Select-Object -First 1
+    if (-not $hit) { $ec.Collapse(); "FAIL: no item '$sitem' in '$sname': $(($items | ForEach-Object { $_.Current.Name }) -join ' | ')"; exit 1 }
+    $r = $hit.Current.BoundingRectangle
+    [void][SUI]::SetCursorPos([int]($r.Left + $r.Width / 2), [int]($r.Top + $r.Height / 2)); Start-Sleep -Milliseconds 200
+    [SUI]::mouse_event(2, 0, 0, 0, [UIntPtr]::Zero); [SUI]::mouse_event(4, 0, 0, 0, [UIntPtr]::Zero); Start-Sleep -Milliseconds 500
+    if ($vp.Current.Value -notmatch $sitem) { "FAIL: '$sname' shows '$($vp.Current.Value)' after selecting '$($hit.Current.Name)'"; exit 1 }
+    "selected $sname '$($vp.Current.Value)'"; Start-Sleep $Wait
+  }
   $n = 0
   foreach ($e in $win.FindAll('Descendants', $all)) {
     $id = $e.Current.AutomationId; $nm = $e.Current.Name
@@ -111,6 +132,17 @@ try {
     $n++
   }
   "controls matching '$Match': $n"
+  if ($Scroll -ge 0) {
+    $sc = $null
+    foreach ($e in $win.FindAll('Descendants', $all)) {
+      $pat = $null
+      if ($e.Current.ControlType -eq [System.Windows.Automation.ControlType]::ScrollBar -and $e.Current.BoundingRectangle.Height -gt $e.Current.BoundingRectangle.Width -and
+          $e.TryGetCurrentPattern([System.Windows.Automation.RangeValuePattern]::Pattern, [ref]$pat)) { $sc = $pat }
+    }
+    if (-not $sc) { "FAIL: no vertical scroll bar on the page"; exit 1 }
+    $sc.SetValue($sc.Current.Minimum + ($sc.Current.Maximum - $sc.Current.Minimum) * $Scroll / 100); Start-Sleep 1
+    "scrolled to $($sc.Current.Value) of $($sc.Current.Minimum)-$($sc.Current.Maximum)"
+  }
   if ($Shot) {
     $h = [IntPtr]$win.Current.NativeWindowHandle
     $wr = New-Object SUI+RECT; [void][SUI]::GetWindowRect($h, [ref]$wr)

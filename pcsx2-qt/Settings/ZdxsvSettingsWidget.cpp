@@ -119,7 +119,17 @@ ZdxsvSettingsWidget::ZdxsvSettingsWidget(SettingsWindow* settings_dialog, QWidge
 	connect(m_ui.zdxsvUPnPNow, &QPushButton::clicked, this, &ZdxsvSettingsWidget::mapUpnpNow);
 	connect(m_ui.zdxsvSignIn, &QPushButton::clicked, this, &ZdxsvSettingsWidget::signIn);
 	connect(m_ui.zdxsvSignOut, &QPushButton::clicked, this, &ZdxsvSettingsWidget::signOut);
+	connect(m_ui.zdxsvAccountRefresh, &QPushButton::clicked, this, [this]() { loadAccounts(false); });
+	connect(m_ui.zdxsvAccountAdd, &QPushButton::clicked, this, [this]() { loadAccounts(true); });
+	connect(m_ui.zdxsvAccountPick, &QComboBox::activated, this, &ZdxsvSettingsWidget::pickAccount);
 	updateAccount();
+	if (Zdxsv::AuthTokenRead())
+		loadAccounts(false);
+	dialog()->registerWidgetHelp(m_ui.zdxsvAccountPick, tr("Account"), tr("The one you signed in with"),
+		tr("One Discord account holds up to 5 zdxsv accounts: accounts carried over from a PS2, and extra ones, "
+		   "for example to play against yourself on this PC. Going online uses the account picked here."));
+	dialog()->registerWidgetHelp(m_ui.zdxsvAccountAdd, tr("Add Account"), tr("None"),
+		tr("Creates one more zdxsv account for the signed-in Discord account (up to 5) and picks it."));
 	dialog()->registerWidgetHelp(m_ui.zdxsvSignIn, tr("Sign in with Discord"), tr("None"),
 		tr("Opens the zdxsv sign-in page in your browser. The first sign-in creates your account; a carry-over code from "
 		   "the lobby on a PS2 links that account instead. PCSX2 keeps a sign-in token for this PC."));
@@ -150,6 +160,67 @@ void ZdxsvSettingsWidget::updateAccount()
 	m_ui.zdxsvSignIn->setEnabled(!busy);
 	m_ui.zdxsvCarryCode->setEnabled(!busy);
 	m_ui.zdxsvSignOut->setEnabled(!busy && signed_in);
+	m_ui.zdxsvAccountPick->setEnabled(!busy && signed_in && m_ui.zdxsvAccountPick->count() > 0);
+	m_ui.zdxsvAccountRefresh->setEnabled(!busy && signed_in);
+	m_ui.zdxsvAccountAdd->setEnabled(!busy && signed_in);
+	if (!signed_in)
+		m_ui.zdxsvAccountPick->clear();
+}
+
+static void SetPickedAccount(int account)
+{
+	Host::SetBaseIntSettingValue("DEV9/Eth", "ZdxsvAccount", account);
+	Host::CommitBaseSettingChanges();
+}
+
+void ZdxsvSettingsWidget::loadAccounts(bool add)
+{
+	m_ui.zdxsvAccountRefresh->setEnabled(false);
+	m_ui.zdxsvAccountAdd->setEnabled(false);
+	std::thread([widget = QPointer<ZdxsvSettingsWidget>(this), add]() {
+		Zdxsv::AuthAccountList list;
+		const std::string error = Zdxsv::AuthAccounts(add, &list);
+		QtHost::RunOnUIThread([widget, error, list]() {
+			if (!widget)
+				return;
+			if (!error.empty())
+			{
+				widget->updateAccount();
+				widget->m_ui.zdxsvAccountStatus->setText(tr("Accounts: %1").arg(QString::fromStdString(error)));
+				return;
+			}
+			if (list.added > 0)
+				SetPickedAccount(list.added);
+			int picked = Host::GetBaseIntSettingValue("DEV9/Eth", "ZdxsvAccount", 0);
+			if (picked < 1 || picked > static_cast<int>(list.users.size()))
+				picked = list.default_account;
+			QComboBox* combo = widget->m_ui.zdxsvAccountPick;
+			combo->clear();
+			for (size_t i = 0; i < list.users.size(); i++)
+			{
+				QStringList names;
+				for (const std::string& name : list.users[i])
+					names.append(QString::fromStdString(name));
+				QString text = tr("Account %1").arg(i + 1);
+				if (!names.isEmpty())
+					text += QStringLiteral(": ") + names.join(QStringLiteral(", "));
+				if (static_cast<int>(i + 1) == list.default_account)
+					text += tr(" (signed in with)");
+				combo->addItem(text, static_cast<int>(i + 1));
+			}
+			combo->setCurrentIndex(combo->findData(picked));
+			widget->updateAccount();
+			widget->m_ui.zdxsvAccountAdd->setEnabled(
+				widget->m_ui.zdxsvAccountAdd->isEnabled() && static_cast<int>(list.users.size()) < list.max_accounts);
+		});
+	}).detach();
+}
+
+void ZdxsvSettingsWidget::pickAccount(int index)
+{
+	const QVariant account = m_ui.zdxsvAccountPick->itemData(index);
+	if (account.isValid())
+		SetPickedAccount(account.toInt());
 }
 
 void ZdxsvSettingsWidget::signIn()
@@ -168,7 +239,11 @@ void ZdxsvSettingsWidget::signIn()
 			if (!error.empty())
 				widget->m_ui.zdxsvAccountStatus->setText(tr("Sign-in failed: %1").arg(QString::fromStdString(error)));
 			else
+			{
 				widget->m_ui.zdxsvCarryCode->clear();
+				SetPickedAccount(0);
+				widget->loadAccounts(false);
+			}
 		});
 	}).detach();
 }
@@ -181,6 +256,7 @@ void ZdxsvSettingsWidget::signOut()
 		QtHost::RunOnUIThread([widget, error]() {
 			if (!widget)
 				return;
+			SetPickedAccount(0);
 			widget->updateAccount();
 			if (!error.empty())
 				widget->m_ui.zdxsvAccountStatus->setText(tr("Signed out on this PC; %1").arg(QString::fromStdString(error)));

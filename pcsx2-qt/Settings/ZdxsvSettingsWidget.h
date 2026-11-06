@@ -27,6 +27,8 @@ private:
 	void updateAccount();
 	void signIn();
 	void signOut();
+	void loadAccounts(bool add);
+	void pickAccount(int index);
 
 	Ui::ZdxsvSettingsWidget m_ui;
 	std::shared_ptr<std::atomic<bool>> m_sign_in_cancel;
