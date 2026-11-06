@@ -28,7 +28,7 @@ EMU=1: the 4 clients are emulators instead (platform info, TCP to the battle ser
   -> replay_url -> the stored .pb). Checks: the replay_url it took = the stored url, played to its end; with
   PWTRACE=1 its player work + rng = the players' (pwcheck, OUT/trace-api.txt).
   LIVE=N (GGPO): once the lobby logs `live uplink`, instance N (not a client) plays
-  ZDXSV_REPLAY=udp://127.0.0.1:8201 (the lobby's UDP socket, the newest live battle) with PW hashes
+  ZDXSV_REPLAY=udp://127.0.0.1:8221 (the lobby's UDP socket, the newest live battle) with PW hashes
   (OUT/trace-live.txt). Checks: one client was the uplink, the spectator's stream closed at the uplink's saved
   .pb frame count, the lobby logged the close with that count; with PWTRACE=1 its player work + rng = the
   players' (pwcheck).
@@ -355,7 +355,7 @@ def main():
             log(f"live uplink after {int(time.time() - t1)} s: spectator p{n}")
             if E("LIVE_AT"):
                 time.sleep(float(E("LIVE_AT")))
-            env = dict(ZDXSV_REPLAY="udp://127.0.0.1:8201", ZDXSV_LIVE_NEXT=E("LIVE_NEXT", "0"), ZDXSV_REPLAY_EXIT="1",
+            env = dict(ZDXSV_REPLAY="udp://127.0.0.1:8221", ZDXSV_LIVE_NEXT=E("LIVE_NEXT", "0"), ZDXSV_REPLAY_EXIT="1",
                        ZDXSV_PW_HASH="1", ZDXSV_NET_TRACE=os.path.join(out, "trace-live.txt"))
             pid = launch.launch(ns=(int(n),), headless=True, speed=E("LIVE_SPEED", "1"), extra_env=env, quiet=True,
                                 state=E("LIVE_STATE") or os.path.join(E("RBKSTATES"), "rbk-p1.p2s"))[int(n)]
@@ -553,7 +553,7 @@ def main():
     if emu and E("ZDXSV_TLS_TEST_PIN") == "1":
         for i in clients:
             f = el(i)
-            for t in ["8221"]:
+            for t in ["8220"]:
                 ok(f"p{i} TLS port {t}", c(f, f"Zdxsv: TLS: .* through TLS port {t}"))
             ok(f"p{i} no TLS failure", not c(f, r"OSD \[ZdxsvTls\]"))
     if c(battle, "join udp peer|join success") < 1 and not ee:
