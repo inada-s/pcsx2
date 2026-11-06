@@ -4,8 +4,8 @@ Env as boottime.py. The server (ZBIN) must have /auth/ (Discord sign-in). The te
 of the db, serves a fake provider on 127.0.0.1, starts p1 with ZDXSV_AUTH_SIGNIN_TEST=1 and plays the
 browser: the start page, its provider link and every redirect up to the emulator's 127.0.0.1 callback.
 Then p1 again with ZDXSV_AUTH_SIGNIN_TEST=signout.
-Exit 0 = after sign-in p1's token file holds a token the db stores for the account linked to the fake
-provider user; after sign-out the file is gone and the db has no token for that account.
+Exit 0 = after sign-in p1's token file holds a token the db stores for the fake provider user (no account is
+made); after sign-out the file is gone and the db has no token for that user.
 """
 import hashlib
 import html
@@ -147,23 +147,20 @@ def main():
             print(f"FAIL: {err}")
             return 1
         token = wait(lambda: os.path.exists(token_file) and open(token_file).read().strip(), 15)
-        rows = db_query(out, "SELECT login_key FROM auth_identity WHERE provider = 'discord' AND provider_user_id = ?",
-                        USER_ID)
-        key = rows[0][0] if rows else None
-        stored = db_query(out, "SELECT login_key FROM auth_token WHERE token_hash = ?",
+        stored = db_query(out, "SELECT provider, provider_user_id FROM auth_token WHERE token_hash = ?",
                           hashlib.sha256(token.encode()).hexdigest()) if token else []
-        signed_in = bool(key) and stored == [(key,)]
-        print(f"sign-in: token file {'set' if token else 'none'}, account {key}, db token account "
-              f"{stored[0][0] if stored else None}")
+        signed_in = stored == [("discord", USER_ID)]
+        print(f"sign-in: token file {'set' if token else 'none'}, db token identity {stored[0] if stored else None}")
         zrig.kill(pid)
         zrig.kill_name("pcsx2")
         pid = run_p1(out, run_, card, "signout", emulog)
         gone = wait(lambda: not os.path.exists(token_file), 60)
-        left = db_query(out, "SELECT COUNT(*) FROM auth_token WHERE login_key = ?", key)[0][0] if key else -1
+        left = db_query(out, "SELECT COUNT(*) FROM auth_token WHERE provider = 'discord' AND provider_user_id = ?",
+                        USER_ID)[0][0]
         clean = wait(lambda: re.search(r"Zdxsv: auth: signed out\r?$", open(emulog, encoding="utf-8",
                                                                          errors="replace").read(), re.M), 10)
         signed_out = bool(gone) and left == 0 and bool(clean)
-        print(f"sign-out: token file {'gone' if gone else 'still there'}, db tokens for the account {left}, "
+        print(f"sign-out: token file {'gone' if gone else 'still there'}, db tokens for the identity {left}, "
               f"emulog {'clean' if clean else 'reports an error'}")
         ok = signed_in and signed_out
         print("PASS" if ok else "FAIL")

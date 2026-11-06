@@ -13,15 +13,25 @@
 #include "pcsx2/Zdxsv/Upnp.h"
 
 #include <QtCore/QPointer>
+#include <QtCore/QRegularExpression>
 #include <QtCore/QTimer>
+#include <QtGui/QFontDatabase>
+#include <QtGui/QRegularExpressionValidator>
 #include <QtWidgets/QComboBox>
+#include <QtWidgets/QDialog>
+#include <QtWidgets/QDialogButtonBox>
+#include <QtWidgets/QLabel>
 #include <QtWidgets/QLineEdit>
 #include <QtWidgets/QPushButton>
+#include <QtWidgets/QVBoxLayout>
 
 #include <cstdlib>
 #include <cstring>
 #include <thread>
 #include <vector>
+
+// ZdxsvAccount -1: an empty account slot, made at the first login (pcsx2/Zdxsv/FastLogin.cpp).
+static constexpr int kNewAccount = -1;
 
 // The environment wins over a setting (pcsx2/Zdxsv/Settings.h): a widget whose setting is overridden is disabled
 // and says by what.
@@ -119,20 +129,23 @@ ZdxsvSettingsWidget::ZdxsvSettingsWidget(SettingsWindow* settings_dialog, QWidge
 	connect(m_ui.zdxsvUPnPNow, &QPushButton::clicked, this, &ZdxsvSettingsWidget::mapUpnpNow);
 	connect(m_ui.zdxsvSignIn, &QPushButton::clicked, this, &ZdxsvSettingsWidget::signIn);
 	connect(m_ui.zdxsvSignOut, &QPushButton::clicked, this, &ZdxsvSettingsWidget::signOut);
-	connect(m_ui.zdxsvAccountRefresh, &QPushButton::clicked, this, [this]() { loadAccounts(false); });
-	connect(m_ui.zdxsvAccountAdd, &QPushButton::clicked, this, [this]() { loadAccounts(true); });
+	connect(m_ui.zdxsvAccountRefresh, &QPushButton::clicked, this, [this]() { loadAccounts(AccountRequest::List); });
+	connect(m_ui.zdxsvCarry, &QPushButton::clicked, this, &ZdxsvSettingsWidget::carryOver);
 	connect(m_ui.zdxsvAccountPick, &QComboBox::activated, this, &ZdxsvSettingsWidget::pickAccount);
 	updateAccount();
 	if (Zdxsv::AuthTokenRead())
-		loadAccounts(false);
-	dialog()->registerWidgetHelp(m_ui.zdxsvAccountPick, tr("Account"), tr("The one you signed in with"),
-		tr("One Discord account holds up to 5 zdxsv accounts: accounts carried over from a PS2, and extra ones, "
-		   "for example to play against yourself on this PC. Going online uses the account picked here."));
-	dialog()->registerWidgetHelp(m_ui.zdxsvAccountAdd, tr("Add Account"), tr("None"),
-		tr("Creates one more zdxsv account for the signed-in Discord account (up to 5) and picks it."));
+		loadAccounts(AccountRequest::List);
+	dialog()->registerWidgetHelp(m_ui.zdxsvAccountPick, tr("Account"), tr("The first one"),
+		tr("Your zdxsv accounts: the ones made in PCSX2, ones carried over from a PS2, and empty slots, made when "
+		   "you first connect with one picked. Going online uses the account picked here."));
 	dialog()->registerWidgetHelp(m_ui.zdxsvSignIn, tr("Sign in with Discord"), tr("None"),
-		tr("Opens the zdxsv sign-in page in your browser. The first sign-in creates your account; a carry-over code from "
-		   "the lobby on a PS2 links that account instead. PCSX2 keeps a sign-in token for this PC."));
+		tr("Opens the zdxsv sign-in page in your browser. PCSX2 keeps a sign-in token for this PC. Signing in "
+		   "creates no zdxsv account: add one, or carry one over from a PS2."));
+	dialog()->registerWidgetHelp(m_ui.zdxsvCarry, tr("Carry Over from PS2..."), tr("None"),
+		tr("Adds the zdxsv account you play on a PS2 to the signed-in Discord account. Get the code by "
+		   "typing ｄｃ in the chat of the Kennedy Port lobby on the PS2; it works once, within 3 minutes. The PS2 "
+		   "keeps playing "
+		   "with the account."));
 	dialog()->registerWidgetHelp(m_ui.zdxsvSignOut, tr("Sign Out"), tr("None"),
 		tr("Revokes this PC's sign-in token on the server and deletes it."));
 	dialog()->registerWidgetHelp(m_ui.zdxsvUPnPNow, tr("UPnP Now"), tr("None"),
@@ -157,12 +170,11 @@ void ZdxsvSettingsWidget::updateAccount()
 	const bool busy = m_sign_in_cancel != nullptr;
 	if (!busy)
 		m_ui.zdxsvAccountStatus->setText(signed_in ? tr("Signed in on this PC.") : tr("Not signed in. Online play needs a sign-in."));
-	m_ui.zdxsvSignIn->setEnabled(!busy);
-	m_ui.zdxsvCarryCode->setEnabled(!busy);
+	m_ui.zdxsvSignIn->setText(busy ? tr("Cancel Sign-in") : tr("Sign in with Discord"));
 	m_ui.zdxsvSignOut->setEnabled(!busy && signed_in);
 	m_ui.zdxsvAccountPick->setEnabled(!busy && signed_in && m_ui.zdxsvAccountPick->count() > 0);
 	m_ui.zdxsvAccountRefresh->setEnabled(!busy && signed_in);
-	m_ui.zdxsvAccountAdd->setEnabled(!busy && signed_in);
+	m_ui.zdxsvCarry->setEnabled(!busy && signed_in && m_carry_room);
 	if (!signed_in)
 		m_ui.zdxsvAccountPick->clear();
 }
@@ -173,14 +185,45 @@ static void SetPickedAccount(int account)
 	Host::CommitBaseSettingChanges();
 }
 
-void ZdxsvSettingsWidget::loadAccounts(bool add)
+void ZdxsvSettingsWidget::carryOver()
+{
+	QDialog dialog(this);
+	dialog.setWindowTitle(tr("Carry Over from PS2"));
+	QLabel* text = new QLabel(tr("Use the account you play on a PS2 on this PC too. The PS2 keeps playing with the same "
+								 "account.\n\n"
+								 "Steps:\n"
+								 "1. On the PS2, enter the Kennedy Port lobby.\n"
+								 "2. Type ｄｃ in the chat: a carry-over code is shown.\n"
+								 "3. Within 3 minutes, enter the code below."),
+		&dialog);
+	text->setWordWrap(true);
+	QLineEdit* code = new QLineEdit(&dialog);
+	code->setMaxLength(8);
+	code->setValidator(new QRegularExpressionValidator(QRegularExpression(QStringLiteral("[A-Za-z0-9]{0,8}")), code));
+	code->setAlignment(Qt::AlignCenter);
+	code->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
+	code->setPlaceholderText(QStringLiteral("XXXXXXXX"));
+	QDialogButtonBox* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, &dialog);
+	connect(buttons, &QDialogButtonBox::accepted, &dialog, &QDialog::accept);
+	connect(buttons, &QDialogButtonBox::rejected, &dialog, &QDialog::reject);
+	QVBoxLayout* layout = new QVBoxLayout(&dialog);
+	layout->addWidget(text);
+	layout->addWidget(code);
+	layout->addWidget(buttons);
+	dialog.setFixedWidth(360);
+	if (dialog.exec() == QDialog::Accepted && !code->text().isEmpty())
+		loadAccounts(AccountRequest::Carry, code->text().toUpper().toStdString());
+}
+
+void ZdxsvSettingsWidget::loadAccounts(AccountRequest request, const std::string& carry_code)
 {
 	m_ui.zdxsvAccountRefresh->setEnabled(false);
-	m_ui.zdxsvAccountAdd->setEnabled(false);
-	std::thread([widget = QPointer<ZdxsvSettingsWidget>(this), add]() {
+	m_ui.zdxsvCarry->setEnabled(false);
+	std::thread([widget = QPointer<ZdxsvSettingsWidget>(this), request, code = carry_code]() {
 		Zdxsv::AuthAccountList list;
-		const std::string error = Zdxsv::AuthAccounts(add, &list);
-		QtHost::RunOnUIThread([widget, error, list]() {
+		const std::string error =
+			request == AccountRequest::Carry ? Zdxsv::AuthCarry(code, &list) : Zdxsv::AuthAccounts(&list);
+		QtHost::RunOnUIThread([widget, request, error, list]() {
 			if (!widget)
 				return;
 			if (!error.empty())
@@ -192,8 +235,15 @@ void ZdxsvSettingsWidget::loadAccounts(bool add)
 			if (list.added > 0)
 				SetPickedAccount(list.added);
 			int picked = Host::GetBaseIntSettingValue("DEV9/Eth", "ZdxsvAccount", 0);
-			if (picked < 1 || picked > static_cast<int>(list.users.size()))
+			int made = 0, carried = 0;
+			for (bool c : list.carried)
+				(c ? carried : made)++;
+			const bool room = made < list.max_new;
+			widget->m_carry_room = carried < list.max_carried;
+			if ((picked == kNewAccount && !room) || (picked != kNewAccount && (picked < 1 || picked > static_cast<int>(list.users.size()))))
 				picked = list.default_account;
+			if (list.users.empty() && room)
+				picked = kNewAccount;
 			QComboBox* combo = widget->m_ui.zdxsvAccountPick;
 			combo->clear();
 			for (size_t i = 0; i < list.users.size(); i++)
@@ -204,14 +254,16 @@ void ZdxsvSettingsWidget::loadAccounts(bool add)
 				QString text = tr("Account %1").arg(i + 1);
 				if (!names.isEmpty())
 					text += QStringLiteral(": ") + names.join(QStringLiteral(", "));
-				if (static_cast<int>(i + 1) == list.default_account)
-					text += tr(" (signed in with)");
 				combo->addItem(text, static_cast<int>(i + 1));
 			}
+			for (int i = made; i < list.max_new; i++)
+				combo->addItem(tr("Account %1: not made yet (made at the first connection)").arg(combo->count() + 1), kNewAccount);
 			combo->setCurrentIndex(combo->findData(picked));
 			widget->updateAccount();
-			widget->m_ui.zdxsvAccountAdd->setEnabled(
-				widget->m_ui.zdxsvAccountAdd->isEnabled() && static_cast<int>(list.users.size()) < list.max_accounts);
+			if (list.users.empty())
+				widget->m_ui.zdxsvAccountStatus->setText(
+					tr("Signed in on this PC. Your zdxsv account is made when you first connect; to use your PS2 account, "
+					   "carry it over first."));
 		});
 	}).detach();
 }
@@ -219,18 +271,28 @@ void ZdxsvSettingsWidget::loadAccounts(bool add)
 void ZdxsvSettingsWidget::pickAccount(int index)
 {
 	const QVariant account = m_ui.zdxsvAccountPick->itemData(index);
-	if (account.isValid())
-		SetPickedAccount(account.toInt());
+	if (!account.isValid())
+		return;
+	SetPickedAccount(account.toInt());
+	loadAccounts(AccountRequest::List);
 }
 
 void ZdxsvSettingsWidget::signIn()
 {
+	if (m_sign_in_cancel)
+	{
+		// The browser may never come back (its page closed): the wait would hold the buttons for minutes.
+		m_sign_in_cancel->store(true);
+		m_sign_in_cancel.reset();
+		updateAccount();
+		m_ui.zdxsvAccountStatus->setText(tr("Sign-in cancelled."));
+		return;
+	}
 	m_sign_in_cancel = std::make_shared<std::atomic<bool>>(false);
 	m_ui.zdxsvAccountStatus->setText(tr("Finish the sign-in in your browser..."));
 	updateAccount();
-	std::thread([widget = QPointer<ZdxsvSettingsWidget>(this), cancel = m_sign_in_cancel,
-					carry = m_ui.zdxsvCarryCode->text().toStdString()]() {
-		const std::string error = Zdxsv::AuthSignIn(carry, Zdxsv::AuthOpenBrowser, *cancel);
+	std::thread([widget = QPointer<ZdxsvSettingsWidget>(this), cancel = m_sign_in_cancel]() {
+		const std::string error = Zdxsv::AuthSignIn(Zdxsv::AuthOpenBrowser, *cancel);
 		QtHost::RunOnUIThread([widget, cancel, error]() {
 			if (!widget || widget->m_sign_in_cancel != cancel)
 				return;
@@ -240,9 +302,8 @@ void ZdxsvSettingsWidget::signIn()
 				widget->m_ui.zdxsvAccountStatus->setText(tr("Sign-in failed: %1").arg(QString::fromStdString(error)));
 			else
 			{
-				widget->m_ui.zdxsvCarryCode->clear();
 				SetPickedAccount(0);
-				widget->loadAccounts(false);
+				widget->loadAccounts(AccountRequest::List);
 			}
 		});
 	}).detach();

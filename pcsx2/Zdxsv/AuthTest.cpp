@@ -23,9 +23,9 @@ namespace Zdxsv
 			std::thread([]() { AuthSignOut(); }).detach();
 			return;
 		}
-		std::thread([carry = std::string(env[0] == '1' && !env[1] ? "" : env)]() {
+		std::thread([]() {
 			static const std::atomic<bool> never{false};
-			const std::string error = AuthSignIn(carry, [](const std::string& url) {
+			const std::string error = AuthSignIn([](const std::string& url) {
 				Console.WriteLn("Zdxsv: auth: open %s", url.c_str());
 			}, never);
 			if (!error.empty())

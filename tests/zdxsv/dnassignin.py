@@ -70,7 +70,8 @@ def after(out):
     try:
         session = c.execute("SELECT session_id FROM account WHERE login_key = ?", (key,)).fetchone()[0]
         tok = open(tokenlogin.token_path()).read().strip() if os.path.exists(tokenlogin.token_path()) else ""
-        stored = c.execute("SELECT login_key FROM auth_token WHERE token_hash = ?",
+        stored = c.execute("SELECT a.login_key FROM auth_token t JOIN auth_identity a ON a.provider = t.provider "
+                           "AND a.provider_user_id = t.provider_user_id WHERE t.token_hash = ?",
                            (hashlib.sha256(tok.encode()).hexdigest(),)).fetchall()
     finally:
         c.close()

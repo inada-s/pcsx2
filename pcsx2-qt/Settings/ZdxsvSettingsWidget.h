@@ -27,9 +27,17 @@ private:
 	void updateAccount();
 	void signIn();
 	void signOut();
-	void loadAccounts(bool add);
+	enum class AccountRequest
+	{
+		List,
+		Carry,
+	};
+	void loadAccounts(AccountRequest request, const std::string& carry_code = {});
+	void carryOver();
 	void pickAccount(int index);
 
 	Ui::ZdxsvSettingsWidget m_ui;
 	std::shared_ptr<std::atomic<bool>> m_sign_in_cancel;
+	// The signed-in Discord account can carry over one more account (as the server last answered).
+	bool m_carry_room = false;
 };
