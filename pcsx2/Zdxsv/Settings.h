@@ -11,10 +11,13 @@
 #include <cstdlib>
 #include <string>
 
-// Set only by the release build (CMake ZDXSV_SERVER_HOST, ZDXSV_UDPTEST_URL): a build from source connects to
-// no server until the player sets one.
+// The release build sets them (CMake ZDXSV_SERVER_HOST, ZDXSV_API_URL, ZDXSV_UDPTEST_URL): a build from source
+// connects to a local zdxsv (its scripts/run-local.sh).
 #ifndef ZDXSV_SERVER_HOST
-#define ZDXSV_SERVER_HOST ""
+#define ZDXSV_SERVER_HOST "127.0.0.1"
+#endif
+#ifndef ZDXSV_API_URL
+#define ZDXSV_API_URL "http://127.0.0.1:8203"
 #endif
 #ifndef ZDXSV_UDPTEST_URL
 #define ZDXSV_UDPTEST_URL ""
@@ -24,15 +27,22 @@ namespace Zdxsv
 {
 	// default of ZdxsvReplayStateUrl: the post-entry state a replay starts from
 	inline constexpr const char* REPLAY_STATE_URL = "https://storage.googleapis.com/zdxsv/misc/rbk-p1.p2s";
-	// the host the game's server names are looked up as
-	inline constexpr const char* SERVER_HOST = ZDXSV_SERVER_HOST;
 	// default of ZdxsvUdpTestUrl: the udptest function (zdxsv infra/udptest)
 	inline constexpr const char* UDPTEST_URL = ZDXSV_UDPTEST_URL;
 
-	// https://SERVER_HOST:8443<path>; "" without a server host
+	// the host the game's server names are looked up as; "" = none
+	inline const char* ServerHost()
+	{
+		const char* e = std::getenv("ZDXSV_SERVER_HOST");
+		return e ? e : ZDXSV_SERVER_HOST;
+	}
+
+	// the zdxsv public API + path; "" without one
 	inline std::string ServerApiUrl(const char* path)
 	{
-		return SERVER_HOST[0] ? std::string("https://") + SERVER_HOST + ":8443" + path : std::string();
+		const char* e = std::getenv("ZDXSV_API_URL");
+		const std::string base = e ? e : ZDXSV_API_URL;
+		return base.empty() ? base : base + path;
 	}
 
 	// env: "0" = off, any other value = on
