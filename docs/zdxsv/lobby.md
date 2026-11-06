@@ -14,8 +14,13 @@ game's server hosts resolve to the build option `ZDXSV_SERVER_HOST`
 
 ## Battle server connection
 
-The game always talks TCP to the battle server, as on a PS2. When a battle
-runs over GGPO, the emulator answers the game's battle socket itself.
+A PS2 talks TCP to the battle server. In a GGPO lobby battle (`lobby=1`) the
+emulator answers the game's battle socket itself from the connect on, and the
+game never reaches the battle server: the connect to the battle server of a
+battle info that lists our position gets the server's greet, and each message
+the game sends before its first key message comes back once per other
+position, as the server's relay would send it. Without such a battle info the
+connect goes to the battle server.
 
 ## TLS to the zdxsv server
 

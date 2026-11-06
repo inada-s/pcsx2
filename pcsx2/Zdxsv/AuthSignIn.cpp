@@ -324,4 +324,42 @@ namespace Zdxsv
 		Console.WriteLn("Zdxsv: auth: signed out%s%s", error.empty() ? "" : ", ", error.c_str());
 		return error;
 	}
+
+	std::string AuthAccounts(bool add, AuthAccountList* list)
+	{
+		const std::optional<std::string> token = AuthTokenRead();
+		if (!token)
+			return "not signed in";
+		s32 status;
+		const std::string body = Post(AuthUrl(add ? "/accounts/add" : "/accounts"), "token=" + *token, &status);
+		if (status == 409)
+			return "this Discord account has the most accounts";
+		if (status != HTTPDownloader::HTTP_STATUS_OK)
+			return "account request failed (" + std::to_string(status) + ")";
+		rapidjson::Document doc;
+		doc.Parse(body.data(), body.size());
+		if (!doc.IsObject() || !doc.HasMember("accounts") || !doc["accounts"].IsArray())
+			return "bad account response";
+		*list = {};
+		for (const auto& a : doc["accounts"].GetArray())
+		{
+			std::vector<std::string> names;
+			if (a.IsObject() && a.HasMember("users") && a["users"].IsArray())
+			{
+				for (const auto& u : a["users"].GetArray())
+				{
+					if (u.IsString())
+						names.emplace_back(u.GetString(), u.GetStringLength());
+				}
+			}
+			list->users.push_back(std::move(names));
+		}
+		const auto get_int = [&doc](const char* name) {
+			return doc.HasMember(name) && doc[name].IsInt() ? doc[name].GetInt() : 0;
+		};
+		list->default_account = get_int("default");
+		list->max_accounts = get_int("max");
+		list->added = get_int("added");
+		return {};
+	}
 } // namespace Zdxsv

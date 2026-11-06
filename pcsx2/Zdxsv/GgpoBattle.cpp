@@ -5,6 +5,7 @@
 // RPCs of the battle sock (OnNetCall) and the built-in battle start of a rig run (RbkCall).
 
 #include "Zdxsv/GgpoShared.h"
+#include "Zdxsv/LobbySocket.h"
 #include "Zdxsv/UiHooks.h"
 #include "IconsFontAwesome.h"
 
@@ -111,6 +112,12 @@ namespace Zdxsv
 		// ZDXSV_RBK: answers of a real start (traced with 4 players and tests/zdxsv/fake_lobby.py): lobby frames are
 		// `18 cat cmd size seq 00ffffff body` (BE, 12-byte header), the game's `81 01 ..`.
 		std::vector<u8> s_rbk_rx; // what recv 0x13 / 0x14 and the poll's readable count see
+		// lobby=1: the battle server answered on the EE until GGPO arms; players 0 = off
+		struct BattleServerAnswer
+		{
+			std::vector<u8> rx;
+			int me = -1, players = 0;
+		} s_bs;
 		bool s_rbk_started = false; // 0x6910 (battle start) queued
 		u32 s_rbk_calls[0x50] = {};
 		constexpr u32 RBK_FNO_RECV_LOBBY = 0x13;
@@ -206,9 +213,80 @@ namespace Zdxsv
 			return {};
 		}
 
-		// Sock-0 RPC fno before GGPO arms. Results as recorded in that trace: send 0, poll as the battle
-		// poll, getopt 4 (0x2008 -> 0, 0x2001 -> 1 at data+2), 0x38 3, close / socket / connect /
-		// setopt 0, link up 0. Other fnos go to the IOP or the no-DEV9 sockets.
+		bool NetAnswer(s32 result)
+		{
+			*reinterpret_cast<s32*>(eeMem->Main + NET_RES_LEN) = result;
+			cpuRegs.GPR.n.v0.SD[0] = result;
+			cpuRegs.pc = cpuRegs.GPR.n.ra.UL[0];
+			return true;
+		}
+
+		// The battle server's part of a battle before GGPO arms: its greet on connect, then each battle msg
+		// sent back once per remote position with the sender nibble rewritten. rx is what recv 0x13 / 0x14
+		// and the poll's readable count see. Poll as the battle poll, getopt 4 (0x2008 -> 0, 0x2001 -> 1 at
+		// data+2), setopt 0. Returns false for other fnos.
+		bool BattleServerCall(std::vector<u8>& rx, int me, int players, u32 fno, s16 len, u8* d, s32& result)
+		{
+			u8* ram = eeMem->Main;
+			result = 0;
+			switch (fno)
+			{
+				case NET_FNO_POLL:
+					*reinterpret_cast<u16*>(ram + NET_REQ_LEN) = 4;
+					*reinterpret_cast<u16*>(ram + NET_REQ_DATA + 2) = 0x2000;
+					*reinterpret_cast<u16*>(ram + NET_REQ_DATA + 4) = static_cast<u16>(std::min<size_t>(rx.size(), NET_RX_MAX));
+					return true;
+				case RBK_FNO_RECV_LOBBY: // header, then body
+				case NET_FNO_RECV:
+				{
+					const u32 max = static_cast<u32>(std::clamp<s32>(len, 0, NET_RX_MAX));
+					u32 n = 0;
+					if (fno == NET_FNO_RECV) // whole McsMessages
+						while (n + 1 < rx.size() && rx[n] >= 2 && n + rx[n] <= std::min<size_t>(rx.size(), max))
+							n += rx[n];
+					else
+						n = std::min<u32>(max, static_cast<u32>(rx.size()));
+					std::memcpy(d, rx.data(), n);
+					rx.erase(rx.begin(), rx.begin() + n);
+					result = static_cast<s32>(n);
+					return true;
+				}
+				case NET_FNO_SEND:
+				{
+					const s32 n = std::clamp<s32>(len, 0, 0x3ca);
+					if (n >= 12 && d[0] == 0x82) // battle conn msg: the greet needs no answer
+						return true;
+					for (s32 i = 0; i + 1 < n && d[i] >= 2 && i + d[i] <= n; i += d[i])
+						for (int q = 0; q < players; q++)
+							if (q != me)
+							{
+								const size_t at = rx.size();
+								rx.insert(rx.end(), d + i, d + i + d[i]);
+								rx[at + 1] = static_cast<u8>((d[i + 1] & 0xf0) | q);
+							}
+					return true;
+				}
+				case NET_FNO_CONNECT:
+				{
+					static constexpr u8 greet[12] = {0x28, 0x01, 0x10, 0x31, 0, 0, 0, 1, 0, 0xff, 0xff, 0xff};
+					rx.insert(rx.end(), greet, greet + 12);
+					return true;
+				}
+				case 4:
+				{
+					const u32 v = *reinterpret_cast<const u16*>(ram + NET_REQ_LEN) == 0x2001;
+					std::memcpy(ram + NET_REQ_DATA + 2, &v, 4);
+					result = 4;
+					return true;
+				}
+				case 3:
+					return true;
+			}
+			return false;
+		}
+
+		// Sock-0 RPC fno before GGPO arms. Results as recorded in that trace: the battle server's
+		// (BattleServerCall), 0x38 3, close / socket / link up 0. Other fnos go to the IOP or the no-DEV9 sockets.
 		bool RbkCall(u32 fno, s16 len, u8* d)
 		{
 			u8* ram = eeMem->Main;
@@ -223,25 +301,8 @@ namespace Zdxsv
 						RbkQueue(0x10, 0x6910, 0x1000, {});
 						Console.WriteLn("ZdxsvGgpo: rbk position %d of %d, battle start at vsync %u", s_rbk_me + 1, s_rbk_n, g_FrameCount);
 					}
-					*reinterpret_cast<u16*>(ram + NET_REQ_LEN) = 4;
-					*reinterpret_cast<u16*>(ram + NET_REQ_DATA + 2) = 0x2000;
-					*reinterpret_cast<u16*>(ram + NET_REQ_DATA + 4) = static_cast<u16>(std::min<size_t>(s_rbk_rx.size(), NET_RX_MAX));
+					BattleServerCall(s_rbk_rx, s_rbk_me, s_rbk_n, fno, len, d, result);
 					break;
-				case RBK_FNO_RECV_LOBBY: // header, then body
-				case NET_FNO_RECV:
-				{
-					const u32 max = static_cast<u32>(std::clamp<s32>(len, 0, NET_RX_MAX));
-					u32 n = 0;
-					if (fno == NET_FNO_RECV) // whole McsMessages
-						while (n + 1 < s_rbk_rx.size() && s_rbk_rx[n] >= 2 && n + s_rbk_rx[n] <= std::min<size_t>(s_rbk_rx.size(), max))
-							n += s_rbk_rx[n];
-					else
-						n = std::min<u32>(max, static_cast<u32>(s_rbk_rx.size()));
-					std::memcpy(d, s_rbk_rx.data(), n);
-					s_rbk_rx.erase(s_rbk_rx.begin(), s_rbk_rx.begin() + n);
-					result = static_cast<s32>(n);
-					break;
-				}
 				case NET_FNO_SEND:
 				{
 					const s32 n = std::clamp<s32>(len, 0, 0x3ca);
@@ -258,32 +319,8 @@ namespace Zdxsv
 							o += 12 + size;
 						}
 					}
-					else if (n >= 12 && d[0] == 0x82) // battle conn msg: the greet needs no answer
-						;
-					else // battle McsMessages: back once per remote position, sender nibble rewritten
-					{
-						for (s32 i = 0; i + 1 < n && d[i] >= 2 && i + d[i] <= n; i += d[i])
-							for (int q = 0; q < s_rbk_n; q++)
-								if (q != s_rbk_me)
-								{
-									const size_t at = s_rbk_rx.size();
-									s_rbk_rx.insert(s_rbk_rx.end(), d + i, d + i + d[i]);
-									s_rbk_rx[at + 1] = static_cast<u8>((d[i + 1] & 0xf0) | q);
-								}
-					}
-					break;
-				}
-				case 7: // battle server connect: its greet
-				{
-					static constexpr u8 greet[12] = {0x28, 0x01, 0x10, 0x31, 0, 0, 0, 1, 0, 0xff, 0xff, 0xff};
-					s_rbk_rx.insert(s_rbk_rx.end(), greet, greet + 12);
-					break;
-				}
-				case 4:
-				{
-					const u32 v = *reinterpret_cast<const u16*>(ram + NET_REQ_LEN) == 0x2001;
-					std::memcpy(ram + NET_REQ_DATA + 2, &v, 4);
-					result = 4;
+					else
+						BattleServerCall(s_rbk_rx, s_rbk_me, s_rbk_n, fno, len, d, result);
 					break;
 				}
 				case 0x38:
@@ -292,12 +329,12 @@ namespace Zdxsv
 				case 0xd: // lobby close
 					s_rbk_rx.clear();
 					break;
-				case 3:
 				case 0x16:
 				case 0x46: // link up: 1 makes the game close the lobby it resumed with
 					break;
 				default:
-					return false;
+					if (!BattleServerCall(s_rbk_rx, s_rbk_me, s_rbk_n, fno, len, d, result))
+						return false;
 			}
 			*reinterpret_cast<s32*>(ram + NET_RES_LEN) = result;
 			cpuRegs.GPR.n.v0.SD[0] = result;
@@ -525,6 +562,8 @@ namespace Zdxsv
 	void RbkReset()
 	{
 		s_rbk_rx.clear();
+		s_bs.rx.clear();
+		s_bs.players = 0;
 		s_rbk_started = false;
 		std::fill(std::begin(s_rbk_calls), std::end(s_rbk_calls), 0u);
 	}
@@ -540,6 +579,48 @@ namespace Zdxsv
 		const s16 len = *reinterpret_cast<const s16*>(ram + NET_REQ_LEN);
 		u8* d = ram + NET_REQ_DATA;
 		const bool key = fno == NET_FNO_SEND && sock == NET_BATTLE_SOCK && len > 0 && len <= 0x3ca && HasKeyMsg(d, len);
+		// lobby=1: the battle server is answered on the EE (BattleServerCall); the game never reaches it
+		if (s_opt.lobby && !s_play_env && !s_rbk && fno == NET_FNO_CONNECT && (!s_battle.armed || s_battle.over))
+		{
+			u32 ip;
+			std::memcpy(&ip, ram + NET_REQ_SOCK, 4);
+			int me, players;
+			if (IsBattleServer(ip, static_cast<u16>(d[0] << 8 | d[1])) && LobbyPendingBattle(me, players))
+			{
+				if (s_battle.lobby_cut)
+					LobbyCutCall(fno, sock, len);
+				if (s_battle.over)
+					NetReset();
+				s_bs.rx.clear();
+				s_bs.me = me;
+				s_bs.players = players;
+				s32 result;
+				BattleServerCall(s_bs.rx, me, players, fno, len, d, result);
+				Console.WriteLn("ZdxsvGgpo: battle server answered on the EE, position %d of %d, vsync %u", me, players, g_FrameCount);
+				return NetAnswer(result);
+			}
+		}
+		if (s_bs.players && !s_battle.armed && sock == NET_BATTLE_SOCK)
+		{
+			if (fno == NET_FNO_CLOSE)
+			{
+				if (s_battle.lobby_cut)
+					LobbyCutCall(fno, sock, len);
+				s_bs.rx.clear();
+				s_bs.players = 0;
+				return NetAnswer(0);
+			}
+			s32 result;
+			if (!s_battle.lobby_cut && !key && BattleServerCall(s_bs.rx, s_bs.me, s_bs.players, fno, len, d, result))
+				return NetAnswer(result);
+		}
+		if (s_battle.over && s_battle.local_server && (fno == NET_FNO_CONNECT || (fno == NET_FNO_CLOSE && sock == NET_BATTLE_SOCK)))
+		{
+			s_battle.local_server = s_battle.closed = false;
+			Console.WriteLn("ZdxsvGgpo: battle sock released at vsync %u: game RPC 0x%x", g_FrameCount, fno);
+			if (fno == NET_FNO_CLOSE)
+				return NetAnswer(0);
+		}
 		if (s_battle.over)
 		{
 			// lobby=1: the first key msg of a battle with a new battle info starts the next GGPO battle; the
@@ -549,7 +630,7 @@ namespace Zdxsv
 				NetReset();
 				Console.WriteLn("ZdxsvGgpo: next lobby battle at vsync %u", g_FrameCount);
 			}
-			else if (!s_battle.closed || sock != NET_BATTLE_SOCK)
+			else if (!(s_battle.closed || s_battle.local_server) || sock != NET_BATTLE_SOCK)
 				return false;
 			else
 			{
@@ -560,6 +641,8 @@ namespace Zdxsv
 					result = std::clamp<s32>(len, 0, 0x3ca);
 				else if (fno == NET_FNO_POLL)
 					result = -1;
+				else if (s_battle.local_server && fno != NET_FNO_RECV)
+					return false;
 				else if (fno != NET_FNO_RECV)
 				{
 					s_battle.closed = false;
@@ -594,6 +677,13 @@ namespace Zdxsv
 			{
 				s_rb.net_rx.insert(s_rb.net_rx.end(), s_rbk_rx.begin(), s_rbk_rx.end());
 				s_rbk_rx.clear();
+			}
+			if (s_bs.players)
+			{
+				s_rb.net_rx.insert(s_rb.net_rx.end(), s_bs.rx.begin(), s_bs.rx.end());
+				s_bs.rx.clear();
+				s_bs.players = 0;
+				s_battle.local_server = true;
 			}
 			// ZDXSV_RBK_TURBO=1: the battle runs turbo too (GGPO paces the peers by frame)
 			if (!s_rbk || !Zdxsv::TestEnv("ZDXSV_RBK_TURBO"))

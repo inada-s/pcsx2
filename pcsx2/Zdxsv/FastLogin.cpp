@@ -339,6 +339,8 @@ namespace Zdxsv
 				return;
 			}
 			std::string form = "token=" + *token;
+			if (const int account = Host::GetIntSettingValue("DEV9/Eth", "ZdxsvAccount", 0); account > 0)
+				form += "&account=" + std::to_string(account);
 			Console.WriteLn("Zdxsv: fast login: by token");
 			std::lock_guard lock(s_fast.mutex);
 			s_fast.answered = false;
