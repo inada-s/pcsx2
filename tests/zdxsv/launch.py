@@ -16,7 +16,8 @@ Env defaults for pcsx2 (also when imported: launch()):
 - ZDXSV_FAST_BOOT unset -> 0 (fast boot presses through the menus the routes drive); =default leaves it.
 - Network pins, so a run never reaches the production server (also a release exe's built-in host):
   ZDXSV_FAST_LOGIN unset -> 1 (no DEV9 refuses DNAS: boottime.py seeds a token); ZDXSV_LOGIN_API_URL unset -> http://127.0.0.1:9881/lbs/login;
-  ZDXSV_NODEV9 unset -> $IP, else 0 (0: the DEV9 path with the ini's hosts).
+  ZDXSV_SERVER_HOST = $IP (online without DEV9, every name resolves to the box); DEV9=1 or no IP: empty
+  (the DEV9 path with the ini's hosts, as a PS2). server_host() is the value a run gets.
   ZDXSV_AUTH_URL unset -> http://127.0.0.1:9881/auth; ZDXSV_AUTH_NO_BROWSER=1 always (sign-in URLs only logged).
   ZDXSV_AUTH_AT_DNAS unset -> 0 (no sign-in at DNAS without a token: back to the network menu).
 """
@@ -29,6 +30,11 @@ import sys
 import zrig
 
 
+def server_host(e=None):
+    e = os.environ if e is None else e
+    return "" if e.get("DEV9") == "1" else e.get("ZDXSV_SERVER_HOST") or e.get("IP") or ""
+
+
 def pcsx2_env(base=None):
     e = dict(os.environ if base is None else base)
     for k in ("ZDXSV_GGPO", "ZDXSV_FAST_BOOT"):
@@ -38,7 +44,7 @@ def pcsx2_env(base=None):
             del e[k]
     e["ZDXSV_FAST_LOGIN"] = e.get("ZDXSV_FAST_LOGIN") or "1"
     e["ZDXSV_LOGIN_API_URL"] = e.get("ZDXSV_LOGIN_API_URL") or "http://127.0.0.1:9881/lbs/login"
-    e["ZDXSV_NODEV9"] = e.get("ZDXSV_NODEV9") or e.get("IP") or "0"
+    e["ZDXSV_SERVER_HOST"] = server_host(e)
     e["ZDXSV_AUTH_URL"] = e.get("ZDXSV_AUTH_URL") or "http://127.0.0.1:9881/auth"
     e["ZDXSV_AUTH_NO_BROWSER"] = "1"
     e["ZDXSV_AUTH_AT_DNAS"] = e.get("ZDXSV_AUTH_AT_DNAS") or "0"

@@ -231,7 +231,7 @@ def main():
             e["ZDXSV_EXTENSIONS"] = "0"
             return e
         if not emu:
-            e.update(ZDXSV_PLATFORM_INFO="0", ZDXSV_NODEV9="0", ZDXSV_TLS="0")
+            e.update(ZDXSV_PLATFORM_INFO="0", DEV9="1", ZDXSV_TLS="0")
             return e
         # PWTRACE=1: player-work hashes + net trace per client (OUT/trace-p<i>.txt; rplay.py compares a replay to them)
         if E("PWTRACE"):

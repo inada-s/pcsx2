@@ -9,6 +9,6 @@ if (-not $env:ZDXSV_LOGIN_API_URL) { $env:ZDXSV_LOGIN_API_URL = 'http://127.0.0.
 if (-not $env:ZDXSV_AUTH_URL) { $env:ZDXSV_AUTH_URL = 'http://127.0.0.1:9881/auth' }
 $env:ZDXSV_AUTH_NO_BROWSER = '1'
 if (-not $env:ZDXSV_AUTH_AT_DNAS) { $env:ZDXSV_AUTH_AT_DNAS = '0' }
-# Online without DEV9 (on by default) resolves every name to the build's server host: pinned to the box.
-# ZDXSV_NODEV9=0: the DEV9 path with the ini's hosts.
-if (-not $env:ZDXSV_NODEV9) { $env:ZDXSV_NODEV9 = if ($env:IP) { $env:IP } else { '0' } }
+# Online without DEV9 resolves every name to the server host: pinned to the box.
+# DEV9=1 (or no IP): empty server host, the DEV9 path with the ini's hosts.
+$env:ZDXSV_SERVER_HOST = if ($env:DEV9 -eq '1') { '' } elseif ($env:ZDXSV_SERVER_HOST) { $env:ZDXSV_SERVER_HOST } elseif ($env:IP) { $env:IP } else { '' }

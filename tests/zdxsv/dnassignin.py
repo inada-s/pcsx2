@@ -90,7 +90,7 @@ def main():
     os.environ.update(ZDXSV_DISCORD_CLIENT_ID="test-client", ZDXSV_DISCORD_CLIENT_SECRET="test-secret",
                       ZDXSV_AUTH_PUBLIC_URL=f"http://{signin.API}",
                       ZDXSV_AUTH_PROVIDER_URL=f"http://127.0.0.1:{provider.server_address[1]}",
-                      ZDXSV_FAST_LOGIN="1", ZDXSV_AUTH_AT_DNAS="1", ZDXSV_NODEV9="0")
+                      ZDXSV_FAST_LOGIN="1", ZDXSV_AUTH_AT_DNAS="1", DEV9="1")
     os.environ.setdefault("LIMIT", "600")
     try:
         return boottime.run(os.environ["OUT"], after, prepare)
