@@ -31,7 +31,7 @@ The game's network calls (net RPCs) take one of two paths. Online with
 | Path | When | Network | Lobby features |
 |---|---|---|---|
 | DEV9 | `ZdxsvNoDev9` off, or no server host | DEV9 adapter, as upstream | none |
-| No DEV9 | `ZdxsvNoDev9` on with a server host | `NoDev9.cpp` answers the net RPCs on the EE; TCP on host sockets | fast login; the lobby connection filter: platform info, battle info, match report, outdated notice (read off the code; the platform info tested); TCP battle (1v1) through the battle server; GGPO battle (1v1), the GGPO hook answering the battle sock first; TLS (DNAS, lobby, battle TCP); line checks while paused (the lobby socket read on the paused idle poll). |
+| No DEV9 | `ZdxsvNoDev9` on with a server host | `NoDev9.cpp` answers the net RPCs on the EE; TCP on host sockets, only to ports 8200 (the lobby) and 8210 (the battle server) | fast login; the lobby connection filter: platform info, battle info, match report, outdated notice (read off the code; the platform info tested); TCP battle (1v1) through the battle server; GGPO battle (1v1), the GGPO hook answering the battle sock first; TLS (lobby, battle TCP); line checks while paused (the lobby socket read on the paused idle poll). |
 | Battle sock over GGPO | an armed GGPO battle, on either path | `GgpoBattle.cpp`: send, recv and poll answered from GGPO inputs | — |
 
 A lobby feature added on one path is added to the other in the same change, or
@@ -41,7 +41,7 @@ this table says it is missing.
 
 - **Switch for all online battle extensions**: `ZDXSV_EXTENSIONS=0`.
 - **Online without DEV9**: with the platform info, a TCP battle, a GGPO battle and TLS; every connection menu button connects with no network setting, also from a blank card; ネット終了 closes the lobby connection and returns to the main menu; `ZdxsvNoDev9`, `ZDXSV_NODEV9`.
-- **Fast login**: DNAS and the login browser skipped; no answer or a server error from the login API holds the game at DNAS (VM paused, OSD, retry 2-30 s backoff) until it answers or the player resumes (normal login); `ZdxsvFastLogin`, `ZdxsvLoginApiUrl`.
+- **Fast login**: DNAS and the login browser skipped; no answer or a server error from the login API holds the game at DNAS (VM paused, OSD, retry 2-30 s backoff) until it answers or the player resumes (then, like no token or a refused login, back to the network menu: no DNAS); `ZdxsvFastLogin`, `ZdxsvLoginApiUrl`.
 - **Sign-in**: Settings → zdxsv → Account, or the fast login at DNAS with no token (VM paused), signs in through the server (Discord) and saves the token the fast login sends; `ZdxsvAuthUrl`. Account picks one of the Discord account's up to 5 accounts (`ZdxsvAccount`).
 - **Fast boot**: boot to the lobby user_id selection with no input; `ZdxsvFastBoot`, `ZdxsvFastBootState`, `ZdxsvFastBootLobby` (on through ID 1 into the lobby).
 - **Platform info `0x9950` to the lobby**: `ZDXSV_PLATFORM_INFO`.

@@ -75,9 +75,9 @@ One Discord account holds up to 5 zdxsv accounts (carried-over ones and extra on
 against yourself). Account picks the one used online; Add Account creates another.
 
 With no token, going online opens the sign-in page and pauses the game until you sign in; resume
-the game to skip it and log in as before.
+the game to cancel it and go back to the network menu.
 If the zdxsv login server does not answer, the game pauses and PCSX2 retries until it answers;
-resume the game to log in without it.
+resume the game to go back to the network menu. A refused login also goes back there.
 
 ## Crash reports
 
