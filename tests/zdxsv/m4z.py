@@ -12,7 +12,7 @@ windowed with GS snapshots), MAXS (s after mash to wait for results).
 GAUGE, COUNT, TIME: the lobby battle rule (戦力ゲージ, 連続対戦数, 作戦時間 s; menu values) as the stack's
 ZDXSV_LOBBY_BATTLE_*. Default GAUGE=1 COUNT=1 (one round, the first shoot-down ends it); `GAUGE=0 COUNT=0`:
 the lobby's default rule (rematches picked by the mash).
-EMU=1: the 4 clients are emulators instead (platform info, TCP to the battle server, no zproxy by default;
+EMU=1: the 4 clients are emulators instead (platform info, no zproxy by default; no DEV9 refuses the battle server: battles need GGPO;
   ZDXSV_TLS=0 unless ZDXSV_TLS_TEST_PIN=1);
   GGPO=7101: with ZDXSV_GGPO net=1,lobby=1,port=GGPO+i-1 on GGPO_CLIENTS (default "1 2 3 4"; a lobby with
   the GGPO battle info, ZBIN): the battle runs over GGPO (checks below).
