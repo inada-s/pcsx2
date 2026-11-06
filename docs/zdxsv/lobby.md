@@ -27,7 +27,7 @@ connect goes to the battle server.
 The emulator carries the game's TCP connections to the zdxsv server through
 TLS (`Zdxsv/TlsTunnel.cpp`); the game still sees plain TCP. A connection is
 wrapped when its port is in the table below and its address is a DNS answer
-for a game host.
+for a game host or the lobby address the fast login received.
 
 | Game port | TLS port | Server |
 |---|---|---|
