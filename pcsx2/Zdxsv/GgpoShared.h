@@ -99,7 +99,7 @@ namespace Zdxsv
 	static_assert(sizeof(NetInput) == 32);
 	extern bool s_net_env; // net=1 in s_options, or a replay plays (GgpoOnVmInitialize)
 	extern int s_rbk_me, s_rbk_n;
-	extern bool s_rbk; // also set by a replay's common start (PlayLoad)
+	extern bool s_rbk; // also set by a replay's common start (PlayLoad); back to ZDXSV_RBK at VM shutdown
 	extern const char* s_rand_env;
 	extern const bool s_pw_hash;
 	constexpr u32 PW_BASE = 0x8395d8, PW_SIZE = 0x2200;

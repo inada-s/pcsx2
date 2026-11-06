@@ -268,10 +268,15 @@ namespace Zdxsv
 	bool s_net_env = false; // net=1 in s_options, or a replay plays (GgpoOnVmInitialize)
 	// ZDXSV_RBK=i/N: until GGPO arms, every lobby / battle connect RPC is answered here (RbkCall).
 	int s_rbk_me = -1, s_rbk_n = 0;
-	bool s_rbk = [] { // also set by a replay's common start (PlayLoad)
+	bool RbkFromEnv()
+	{
+		s_rbk_me = -1;
+		s_rbk_n = 0;
 		const char* e = Zdxsv::TestEnv("ZDXSV_RBK");
 		return e && std::sscanf(e, "%d/%d", &s_rbk_me, &s_rbk_n) == 2 && s_rbk_me >= 0 && s_rbk_me < s_rbk_n && s_rbk_n <= 4;
-	}();
+	}
+	// Also set by a replay's common start (PlayLoad); back to ZDXSV_RBK at VM shutdown.
+	bool s_rbk = RbkFromEnv();
 	const char* s_rand_env = Zdxsv::TestEnv("ZDXSV_RAND_INPUT");
 	// ZDXSV_K3_LAG: a msg sent at GGPO frame s goes into the local input of frame s + lag. With lag above
 	// GGPO's 6 prediction frames, frame s is final when s + lag is added, so a send first made in a rerun
@@ -734,6 +739,7 @@ namespace Zdxsv
 		FastBootReset();
 		SingleDrawListReset();
 		NoDev9Reset();
+		s_rbk = RbkFromEnv();
 		if (!g_ggpo_enabled)
 			return;
 		size_t keys = 0;
