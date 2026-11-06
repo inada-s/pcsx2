@@ -221,7 +221,7 @@ namespace Zdxsv
 				return -1;
 			}
 			const std::optional<std::vector<u8>> file =
-				live ? LiveOpen(path.substr(6)) : http ? HttpOpen(path) : FileSystem::ReadBinaryFile(Path::ToNativePath(path).c_str()); // '/' fails on Windows
+				live ? LiveOpen(path) : http ? HttpOpen(path) : FileSystem::ReadBinaryFile(Path::ToNativePath(path).c_str()); // '/' fails on Windows
 			const std::string_view all = file ? std::string_view(reinterpret_cast<const char*>(file->data()), file->size()) : std::string_view();
 			ReplayFile r;
 			if (all.empty() || !ReplayParse(all, r) || r.version <= 0)
