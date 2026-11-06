@@ -28563,5 +28563,109 @@ for High-Spec PC</source>
       <source>UDP port %1 opened (until PCSX2 exits).</source>
       <translation>UDP ポート %1 を開きました (PCSX2 の終了まで)。</translation>
     </message>
+  <message>
+      <source>Account</source>
+      <translation>アカウント</translation>
+    </message>
+    <message>
+      <source>Carry-over code (optional):</source>
+      <translation>引き継ぎコード (任意):</translation>
+    </message>
+    <message>
+      <source>Sign in with Discord</source>
+      <translation>Discord でサインイン</translation>
+    </message>
+    <message>
+      <source>Sign Out</source>
+      <translation>サインアウト</translation>
+    </message>
+    <message>
+      <source>Account:</source>
+      <translation>アカウント:</translation>
+    </message>
+    <message>
+      <source>Refresh</source>
+      <translation>更新</translation>
+    </message>
+    <message>
+      <source>Add Account</source>
+      <translation>アカウントを追加</translation>
+    </message>
+    <message>
+      <source>Single draw list: draw each frame in that frame (one frame less input lag).</source>
+      <translation>シングル描画リスト: 各フレームの絵をそのフレーム内で描画します (入力遅延が 1 フレーム短くなります)。</translation>
+    </message>
+    <message>
+      <source>Overridden by the environment variable %1=%2</source>
+      <translation>環境変数 %1=%2 で上書きされています</translation>
+    </message>
+    <message>
+      <source>Single Draw List</source>
+      <translation>シングル描画リスト</translation>
+    </message>
+    <message>
+      <source>The game draws each frame&apos;s picture in that frame instead of the next: one frame less from input to picture. Only this PC&apos;s picture changes; battles stay in sync with players who have it off. Other games are never affected.</source>
+      <translation>ゲームが各フレームの絵を次のフレームではなく、そのフレーム内で描画します。入力から画面まで 1 フレーム短くなります。変わるのはこの PC の画面だけで、オフにしているプレイヤーとの対戦も同期したままです。他のゲームには影響しません。</translation>
+    </message>
+    <message>
+      <source>The one you signed in with</source>
+      <translation>サインインしたアカウント</translation>
+    </message>
+    <message>
+      <source>One Discord account holds up to 5 zdxsv accounts: accounts carried over from a PS2, and extra ones, for example to play against yourself on this PC. Going online uses the account picked here.</source>
+      <translation>1 つの Discord アカウントで zdxsv アカウントを 5 つまで持てます。PS2 から引き継いだアカウントや、この PC で自分同士で対戦するための追加のアカウントなどです。オンラインではここで選んだアカウントを使います。</translation>
+    </message>
+    <message>
+      <source>Creates one more zdxsv account for the signed-in Discord account (up to 5) and picks it.</source>
+      <translation>サインイン中の Discord アカウントに zdxsv アカウントを 1 つ追加し (5 つまで)、それを選びます。</translation>
+    </message>
+    <message>
+      <source>Opens the zdxsv sign-in page in your browser. The first sign-in creates your account; a carry-over code from the lobby on a PS2 links that account instead. PCSX2 keeps a sign-in token for this PC.</source>
+      <translation>ブラウザで zdxsv のサインインページを開きます。最初のサインインでアカウントが作られます。PS2 のロビーで発行した引き継ぎコードを入れると、代わりにそのアカウントを結び付けます。PCSX2 はこの PC 用のサインイントークンを保存します。</translation>
+    </message>
+    <message>
+      <source>Revokes this PC&apos;s sign-in token on the server and deletes it.</source>
+      <translation>この PC のサインイントークンをサーバーで無効にし、削除します。</translation>
+    </message>
+    <message>
+      <source>Signed in on this PC.</source>
+      <translation>この PC でサインイン済みです。</translation>
+    </message>
+    <message>
+      <source>Not signed in. Online play needs a sign-in.</source>
+      <translation>サインインしていません。オンラインプレイにはサインインが必要です。</translation>
+    </message>
+    <message>
+      <source>Accounts: %1</source>
+      <translation>アカウント: %1</translation>
+    </message>
+    <message>
+      <source>Account %1</source>
+      <translation>アカウント %1</translation>
+    </message>
+    <message>
+      <source> (signed in with)</source>
+      <translation> (サインインに使用)</translation>
+    </message>
+    <message>
+      <source>Finish the sign-in in your browser...</source>
+      <translation>ブラウザでサインインを完了してください...</translation>
+    </message>
+    <message>
+      <source>Sign-in failed: %1</source>
+      <translation>サインインに失敗しました: %1</translation>
+    </message>
+    <message>
+      <source>Signed out on this PC; %1</source>
+      <translation>この PC でサインアウトしました。%1</translation>
+    </message>
+    <message>
+      <source>Set to the default during online battles, replays and live spectating (the same on every player&apos;s emulator).</source>
+      <translation>オンライン対戦、リプレイ、ライブ観戦の間は既定値になります (全プレイヤーのエミュレーターで同じ値)。</translation>
+    </message>
+    <message>
+      <source>Set to the default while Gundam vs. Z Gundam runs (the same on every player&apos;s emulator).</source>
+      <translation>ガンダムVS.Ζガンダムの実行中は既定値になります (全プレイヤーのエミュレーターで同じ値)。</translation>
+    </message>
   </context>
 </TS>
