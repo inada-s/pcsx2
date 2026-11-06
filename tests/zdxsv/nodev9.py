@@ -1,7 +1,7 @@
-"""Online without DEV9: p1 boots with ZDXSV_NODEV9=$IP, the fast login on and ZDXSV_HTTPS_LATENCY=0 (DEV9 adapter off, launch.py),
+"""Online without DEV9: p1 boots with ZDXSV_SERVER_HOST=$IP, the fast login on and ZDXSV_HTTPS_LATENCY=0 (DEV9 adapter off, launch.py),
 against the local stack (boottime.py), route top to the lobby's user_id selection.
   OUT=<dir> python tests/zdxsv/nodev9.py
-Env: MAXS (s to wait, default 200), NODEV9 (ZDXSV_NODEV9, default $IP).
+Env: MAXS (s to wait, default 200), NODEV9 (ZDXSV_SERVER_HOST, default $IP).
 Exit 0 = the user_id screen is up and p1 logged no-DEV9 on, a fast login session with the lobby on $IP,
 DNAS got no POST, no connect refused, and pcsx2 had TCP to $IP only on the lobby (8200, TLS 8220) and login API (9881)
 ports, and to no other host but 127.0.0.1.
@@ -34,7 +34,7 @@ def main():
 
     t = threading.Thread(target=sample, daemon=True)
     t.start()
-    e = dict(os.environ, ZDXSV_NODEV9=nodev9, ZDXSV_FAST_LOGIN="1", ZDXSV_HTTPS_LATENCY="0", ROUTE="top", LIMIT=maxs, MAXS=maxs)
+    e = dict(os.environ, ZDXSV_SERVER_HOST=nodev9, ZDXSV_FAST_LOGIN="1", ZDXSV_HTTPS_LATENCY="0", ROUTE="top", LIMIT=maxs, MAXS=maxs)
     rc = subprocess.call([zrig.PY, os.path.join(HERE, "boottime.py")], env=e)
     done.set()
     t.join()

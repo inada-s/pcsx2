@@ -22,6 +22,7 @@ import sys
 import threading
 import time
 
+import launch
 from pine import Pine, shrink
 
 RUN = os.environ.get("RUN", ".")  # rig data root
@@ -98,7 +99,7 @@ ROUTES = {
 # No DEV9 (launch.sh default, localnet.sh): every connection menu button goes to the terms (net 3 -> 5), then
 # connects with no setup screens and no setting list (5 -> 6, 7 -> 0x21 on their own). The connection
 # menu and the terms drop input in their first second: Key~lstate! presses until one is taken.
-if (os.environ.get("ZDXSV_NODEV9") or os.environ.get("IP") or "0") != "0":
+if launch.server_host():
     ROUTES["top"] = "Return~scene=2/500,Down~menu=7/400,C~scene=7,C~net=2,C~net=3/500,C~lstate!/500,@net=5,"\
                     "Up~lstate!/500,C~lstate!/500,@net=0x21/30000"
     # Blank card: NET file created and saved as in "fresh", then no netcnf GUI and no reboot. Keyed on net/nsub

@@ -11,7 +11,6 @@
 #include "Zdxsv/ServerHosts.h"
 #include "Zdxsv/Settings.h"
 #include "Zdxsv/SaveStateHooks.h"
-#include "Zdxsv/TestOptions.h"
 
 #include "Memory.h"
 #include "R5900.h"
@@ -23,7 +22,6 @@
 #include <atomic>
 #include <cerrno>
 #include <chrono>
-#include <cstdio>
 #include <cstring>
 #include <memory>
 #include <thread>
@@ -385,27 +383,20 @@ namespace Zdxsv
 	void NoDev9OnVmInitialize()
 	{
 		NoDev9Reset();
-		if (!g_z_game || !BoolSetting("ZdxsvNoDev9", true, "ZDXSV_NODEV9"))
+		if (!g_z_game)
 			return;
-		const char* e = TestEnv("ZDXSV_NODEV9");
-		unsigned q[4] = {};
-		if (!e || std::sscanf(e, "%u.%u.%u.%u", &q[0], &q[1], &q[2], &q[3]) != 4)
+		if (!ServerHost()[0])
 		{
-			if (!ServerHost()[0])
-			{
-				Console.WriteLn("Zdxsv: no DEV9: off, no server host (ZDXSV_NODEV9=<ipv4> sets one)");
-				return;
-			}
-			s_state.on = g_no_dev9 = true;
-			ServerHostUsed();
-			s_state.server_ip = std::make_shared<std::atomic<u32>>(0);
-			std::thread(ResolveServer, s_state.server_ip).detach();
-			Console.WriteLn("Zdxsv: no DEV9: the net RPCs are answered on the EE, names resolve to %s", ServerHost());
+			Console.WriteLn("Zdxsv: no DEV9: off, empty server host");
 			return;
 		}
 		s_state.on = g_no_dev9 = true;
-		s_state.ip = (q[0] & 0xff) | (q[1] & 0xff) << 8 | (q[2] & 0xff) << 16 | (q[3] & 0xff) << 24;
-		Console.WriteLn("Zdxsv: no DEV9: the net RPCs are answered on the EE, names resolve to %s", e);
+		// A host given at run time is a test server: no replay uploads to it.
+		if (!std::getenv("ZDXSV_SERVER_HOST"))
+			ServerHostUsed();
+		s_state.server_ip = std::make_shared<std::atomic<u32>>(0);
+		std::thread(ResolveServer, s_state.server_ip).detach();
+		Console.WriteLn("Zdxsv: no DEV9: the net RPCs are answered on the EE, names resolve to %s", ServerHost());
 	}
 
 	void NoDev9Reset()
