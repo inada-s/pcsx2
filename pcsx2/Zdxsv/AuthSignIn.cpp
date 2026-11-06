@@ -166,6 +166,26 @@ namespace Zdxsv
 												 "Cache-Control: no-store\r\nConnection: close\r\nContent-Length: ") +
 									 std::to_string(std::strlen(page)) + "\r\n\r\n" + page;
 			send(client, resp.data(), static_cast<int>(resp.size()), 0);
+			// A close with request bytes still unread resets the connection, and the browser drops the page:
+			// end the send side, then read to the browser's close. Bounded.
+#ifdef _WIN32
+			shutdown(client, SD_SEND);
+#else
+			shutdown(client, SHUT_WR);
+#endif
+			const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+			while (std::chrono::steady_clock::now() < deadline)
+			{
+				fd_set fds;
+				FD_ZERO(&fds);
+				FD_SET(client, &fds);
+				timeval tv{0, 200000};
+				if (select(static_cast<int>(client) + 1, &fds, nullptr, nullptr, &tv) <= 0)
+					continue;
+				char buf[512];
+				if (recv(client, buf, sizeof(buf), 0) <= 0)
+					break;
+			}
 		}
 
 		// The request line of one connection, or empty. Bounded in size and time.
