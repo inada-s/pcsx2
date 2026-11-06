@@ -18,7 +18,7 @@ Env defaults for pcsx2 (also when imported: launch()):
   ZDXSV_FAST_LOGIN unset -> 0; ZDXSV_LOGIN_API_URL unset -> http://127.0.0.1:9881/lbs/login;
   ZDXSV_NODEV9 unset -> $IP, else 0 (0: the DEV9 path with the ini's hosts).
   ZDXSV_AUTH_URL unset -> http://127.0.0.1:9881/auth; ZDXSV_AUTH_NO_BROWSER=1 always (sign-in URLs only logged).
-  ZDXSV_AUTH_AT_DNAS unset -> 0 (no sign-in at DNAS without a token: the normal login).
+  ZDXSV_AUTH_AT_DNAS unset -> 0 (no sign-in at DNAS without a token: back to the network menu).
 """
 import os
 import re
