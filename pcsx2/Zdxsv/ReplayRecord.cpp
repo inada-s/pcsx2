@@ -121,6 +121,14 @@ namespace Zdxsv
 			return Host::GetStringSettingValue("DEV9/Eth", "ZdxsvReplayUploadUrl", ServerApiUrl("/lbs/replay_upload").c_str());
 		}
 
+		// live=URL, else the lobby API setting, under the same public-server condition as ReplayUploadUrl.
+		std::string LiveUplinkUrl()
+		{
+			if (!s_opt.live_url.empty())
+				return s_opt.live_url;
+			return DnsUsedServerHost() ? Zdxsv::LobbyApiUrl() : std::string();
+		}
+
 		// Every player posts <battle_code>.pb (multipart field "file")
 		// to the uploader, which keeps the first one (409 for the others). Detached: a slow upload blocks neither
 		// the next battle nor the exit.
@@ -220,7 +228,7 @@ namespace Zdxsv
 		if (!s_opt.net)
 			return;
 		std::string dir = RecordDir();
-		const std::string ids = ReplayIds(), code = IdValue(ids, "battle_code"), to = IdValue(ids, "live_uplink");
+		const std::string ids = ReplayIds(), code = IdValue(ids, "battle_code"), to = IdValue(ids, "live_uplink").empty() ? std::string() : LiveUplinkUrl();
 		Error error;
 		if (!dir.empty() && !FileSystem::DirectoryExists(dir.c_str()) && !FileSystem::CreateDirectoryPath(dir.c_str(), true, &error))
 		{

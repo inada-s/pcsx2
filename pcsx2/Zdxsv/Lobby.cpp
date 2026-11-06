@@ -439,7 +439,6 @@ namespace Zdxsv
 
 		// The platform info lines of the last OpenUdp. DEV9 thread only.
 		std::string g_udpLines;
-		std::string g_udpAddr; // the STUN address OpenUdp asked (LobbyUdpAddr)
 
 		// StartUdpTest's thread
 		struct UdpTestRun
@@ -471,7 +470,6 @@ namespace Zdxsv
 	std::string OpenUdp(uint32_t stunIP, uint16_t stunPort, uint16_t bindPort)
 	{
 		g_udpLines.clear();
-		g_udpAddr = AddrString(stunIP, stunPort);
 		sockaddr_in addr{};
 		socklen_t len = sizeof(addr);
 		const auto open = [&addr, &len](uint16_t p) {
@@ -729,8 +727,4 @@ namespace Zdxsv
 		return ip == g_info.serverIP && port == g_info.serverPort;
 	}
 
-	std::string LobbyUdpAddr()
-	{
-		return g_udpAddr;
-	}
 } // namespace Zdxsv

@@ -88,6 +88,8 @@ namespace Zdxsv
 					s_opt.bad_session = (n != 0);
 				else if (key == "osd")
 					s_opt.osd = (n != 0);
+				else if (key == "live")
+					s_opt.live_url = value;
 				else if (key == "upload")
 					s_opt.upload_url = value;
 				else if (key == "advertise")

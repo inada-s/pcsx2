@@ -213,7 +213,7 @@ namespace Zdxsv
 		// plays any point of view: each starts from the common state with its own lobby answers (PlayCommonStart).
 		int PlayLoadFile(const std::string& path)
 		{
-			const bool live = path.starts_with("udp://");
+			const bool live = path.starts_with("live:");
 			const bool http = path.starts_with("http://") || path.starts_with("https://");
 			if (s_play.frames > 0 || s_live_down)
 			{
@@ -526,7 +526,7 @@ namespace Zdxsv
 		for (const std::string_view path : StringUtil::SplitString(paths, ';'))
 			if (const int p = PlayLoadFile(std::string(path)); me < 0)
 				me = p;
-		if (me < 0 && paths.starts_with("udp://") && LiveAutoNext(true))
+		if (me < 0 && paths.starts_with("live:") && LiveAutoNext(true))
 			return; // flycast too skips a live battle that does not play and keeps waiting
 		if (me < 0)
 		{

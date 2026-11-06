@@ -259,6 +259,7 @@ namespace Zdxsv
 		std::string replay_dir; // replay=DIR; without it lobby=1 saves to <data dir>/replays, other net runs none
 		bool replay_off = false; // replay=0
 		std::string upload_url; // upload=URL (test), else setting DEV9/Eth ZdxsvReplayUploadUrl
+		std::string live_url; // live=URL (test): the lobby API for the live uplink, else setting DEV9/Eth ZdxsvLobbyApiUrl
 		int relay = 0; // relay=R (net): remote p is at port R + 8 * me + p (one UDP relay per pair), not port + p
 		int start = 1500, frames = 3000, check = 6;
 		u32 seed = 1;

@@ -121,8 +121,8 @@ namespace Zdxsv
 							sync == info.syncs.end() ? std::string() : sync->second, team == info.teams.end() ? 0 : team->second});
 					}
 					std::string ids = "battle_code=" + info.battleCode + "\nuser_id=" + info.userId + "\n";
-					if (info.liveUplink && !LobbyUdpAddr().empty())
-						ids += "live_uplink=" + LobbyUdpAddr() + "\n"; // Ggpo.cpp ReplayBegin streams the battle there
+					if (info.liveUplink)
+						ids += "live_uplink=1\n";
 					SetLobbyPeers(me, std::move(byPosition), info.ggpoSession, info.ggpoPingMs, std::move(ids), std::move(players), info.relays);
 				});
 			return port;

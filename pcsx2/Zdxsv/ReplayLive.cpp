@@ -299,8 +299,8 @@ namespace Zdxsv
 		if (s_live_next_left < 0 ? !Host::GetBoolSettingValue("DEV9/Eth", "ZdxsvLiveAutoNext", false) : s_live_next_left == 0)
 			return false;
 		const std::string_view src = s_live_next_url.empty() ? std::string_view(s_play_env) : std::string_view(s_live_next_url);
-		const std::string_view rest = src.substr(std::min<size_t>(6, src.size())); // after udp://
-		std::string host(rest.substr(0, rest.find('/')));
+		std::string host, src_code;
+		Zdxsv::LiveSourceSplit(src, host, src_code);
 		const std::string why = !skip ? "" : !s_live_open_error.empty() ? s_live_open_error : "not a replay stream";
 		if (skip)
 			s_live_skips++;
@@ -331,7 +331,7 @@ namespace Zdxsv
 					!code.empty() && std::ranges::find(seen, code) == seen.end())
 				{
 					Console.WriteLn("ZdxsvGgpo: live: auto-next: moving on to %s after %.0f s", code.c_str(), since.GetTimeSeconds());
-					Host::RunOnCPUThread([code, url = fmt::format("udp://{}/{}", host, code)] {
+					Host::RunOnCPUThread([code, url = Zdxsv::LiveSource(host, code)] {
 						if (!VMManager::HasValidVM())
 							return;
 						LiveSeen(code);
