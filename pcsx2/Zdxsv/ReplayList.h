@@ -53,6 +53,6 @@ namespace Zdxsv
 
 	// [DEV9/Eth] ZdxsvLobbyApiUrl: the lobby's public API (http://host:port, /lbs/replay and /lbs/live); default the release build's server, "" = none.
 	std::string LobbyApiUrl();
-	// udp://<API host>:<STUN port>/<code>: the live stream of a /lbs/live battle; "" without an API URL.
+	// The LiveSource of a /lbs/live battle at LobbyApiUrl().
 	std::string LiveReplaySource(const std::string& battle_code);
 } // namespace Zdxsv

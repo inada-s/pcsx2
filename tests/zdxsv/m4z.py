@@ -28,7 +28,7 @@ EMU=1: the 4 clients are emulators instead (platform info, TCP to the battle ser
   -> replay_url -> the stored .pb). Checks: the replay_url it took = the stored url, played to its end; with
   PWTRACE=1 its player work + rng = the players' (pwcheck, OUT/trace-api.txt).
   LIVE=N (GGPO): once the lobby logs `live uplink`, instance N (not a client) plays
-  ZDXSV_REPLAY=udp://127.0.0.1:8221 (the lobby's UDP socket, the newest live battle) with PW hashes
+  ZDXSV_REPLAY=live:http://127.0.0.1:9881 (the lobby API, the newest live battle) with PW hashes
   (OUT/trace-live.txt). Checks: one client was the uplink, the spectator's stream closed at the uplink's saved
   .pb frame count, the lobby logged the close with that count; with PWTRACE=1 its player work + rng = the
   players' (pwcheck).
@@ -259,6 +259,7 @@ def main():
             v = f"net=1,lobby=1,port={int(ggpo) + int(i) - 1}" + ("" if gdelay == "auto" else f",delay={gdelay}")
             v += f",mindelay={E('GMIN')}" if E("GMIN") else ""
             v += ",upload=http://127.0.0.1:9881/lbs/replay_upload" if E("UPLOAD") else ""
+            v += ",live=http://127.0.0.1:9881" if E("LIVE") else ""
             v += f",{E('GOPT')}" if E("GOPT") else ""
             v += ",badsession=1" if i == E("BAD_SESSION") else ""
             v += f",advertise={7300 + (i == '1')}" if E("GGPO_LAT") else ""
@@ -355,7 +356,7 @@ def main():
             log(f"live uplink after {int(time.time() - t1)} s: spectator p{n}")
             if E("LIVE_AT"):
                 time.sleep(float(E("LIVE_AT")))
-            env = dict(ZDXSV_REPLAY="udp://127.0.0.1:8221", ZDXSV_LIVE_NEXT=E("LIVE_NEXT", "0"), ZDXSV_REPLAY_EXIT="1",
+            env = dict(ZDXSV_REPLAY="live:http://127.0.0.1:9881", ZDXSV_LIVE_NEXT=E("LIVE_NEXT", "0"), ZDXSV_REPLAY_EXIT="1",
                        ZDXSV_PW_HASH="1", ZDXSV_NET_TRACE=os.path.join(out, "trace-live.txt"))
             pid = launch.launch(ns=(int(n),), headless=True, speed=E("LIVE_SPEED", "1"), extra_env=env, quiet=True,
                                 state=E("LIVE_STATE") or os.path.join(E("RBKSTATES"), "rbk-p1.p2s"))[int(n)]
@@ -371,6 +372,8 @@ def main():
     if E("RELAY"):
         os.environ["ZDXSV_LOBBY_RELAY_ADDR"] = ":8203"
     relay_path = E("RELAY_PATH", "direct")
+    if E("LIVE"):
+        os.environ.setdefault("ZDXSV_LOBBY_API_ADDR", "127.0.0.1:9881")
     if E("UPLOAD"):
         if not ggpo:
             say("FAIL UPLOAD needs GGPO")

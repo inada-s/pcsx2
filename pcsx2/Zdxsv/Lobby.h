@@ -87,11 +87,7 @@ namespace Zdxsv
 	// STUN answered, udp_addr6 only with a global IPv6 address); "" if the socket can't be opened.
 	std::string OpenUdp(uint32_t stunIP, uint16_t stunPort, uint16_t bindPort = 0);
 
-	// "ip:port" of the lobby UDP socket OpenUdp asked (live spectating goes there too), "" before.
-	std::string LobbyUdpAddr();
-
-	// Live spectating over the lobby's UDP socket: each stream (header, inputs) goes in 1000-byte
-	// datagrams, go-back-N from the receiver's ack, on its own thread.
+	// Live spectating over the lobby HTTP API (zdxsv /lbs/live_push, /lbs/live_pull), each end on its own thread.
 	struct LiveStreams
 	{
 		std::vector<uint8_t> header; // a replay BattleLogFile without inputs
@@ -105,8 +101,8 @@ namespace Zdxsv
 	class LiveUp
 	{
 	public:
-		// to = LobbyUdpAddr(); session = the battle's ggpo_session.
-		LiveUp(const std::string& to, std::string code, uint32_t session, std::vector<uint8_t> header, int frameBytes);
+		// api = the lobby API URL (http[s]://host:port); session = the battle's ggpo_session.
+		LiveUp(const std::string& api, std::string code, uint32_t session, std::vector<uint8_t> header, int frameBytes);
 		~LiveUp(); // stops the thread
 		void AddFrames(const void* data, size_t frames); // the next confirmed frames, in order
 		void AddRound(const std::vector<uint8_t>& entry); // a BattleLogFile round_data entry (field 18), once confirmed
@@ -117,7 +113,12 @@ namespace Zdxsv
 		struct Impl;
 		std::unique_ptr<Impl> m;
 	};
-	// A spectator: url = "host:port[/battle code]" (no code: the newest live battle there).
+	// "live:<lobby API URL>[#battle code]" (no code: the newest live battle there): a live source for ZDXSV_REPLAY
+	// and the replay list; "" without an API URL.
+	std::string LiveSource(const std::string& api, const std::string& code);
+	// false: src is not a live source.
+	bool LiveSourceSplit(std::string_view src, std::string& api, std::string& code);
+	// A spectator of a live source.
 	class LiveDown
 	{
 	public:
@@ -125,10 +126,10 @@ namespace Zdxsv
 		// Subscribes and waits up to timeoutMs for the header and a frame (or the close).
 		static std::unique_ptr<LiveDown> Open(const std::string& url, int timeoutMs, std::string& error);
 		std::string Code();
-		// The battle code a subscribe without one gets at hostPort: with skip empty the newest live battle
+		// The battle code a pull without one gets from api: with skip empty the newest live battle
 		// (running ones first), else the newest running one not in skip (auto-next); "" = none or no answer
-		// in timeoutMs. A lobby older than skip answers as if it were empty.
-		static std::string Newest(const std::string& hostPort, const std::vector<std::string>& skip, int timeoutMs);
+		// in timeoutMs.
+		static std::string Newest(const std::string& api, const std::vector<std::string>& skip, int timeoutMs);
 		// Moves the frames received since the last call into s.inputs (with the header on the first call),
 		// copies the round results to s.rounds, sets s.closed / s.close; false = nothing from the lobby for stallMs.
 		bool Take(LiveStreams& s, int stallMs);

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0+
 
 #include "Zdxsv/ReplayList.h"
+#include "Zdxsv/Lobby.h"
 #include "Zdxsv/Settings.h"
 #include "Zdxsv/Proto.h"
 #include "Zdxsv/TestOptions.h"
@@ -191,17 +192,6 @@ namespace Zdxsv
 
 	std::string LiveReplaySource(const std::string& battle_code)
 	{
-		std::string_view host = LobbyApiUrl();
-		if (const size_t s = host.find("://"); s != std::string_view::npos)
-			host.remove_prefix(s + 3);
-		host = host.substr(0, host.find('/'));
-		// drop the API port: the live stream is on the lobby's STUN port, as LobbyConnection's
-		const size_t colon = host.rfind(':');
-		if (colon != std::string_view::npos && host.find(']', colon) == std::string_view::npos)
-			host = host.substr(0, colon);
-		if (host.empty())
-			return {};
-		const char* port = TestEnv("ZDXSV_STUN_PORT");
-		return fmt::format("udp://{}:{}/{}", host, port ? std::atoi(port) : 8221, battle_code);
+		return LiveSource(LobbyApiUrl(), battle_code);
 	}
 } // namespace Zdxsv

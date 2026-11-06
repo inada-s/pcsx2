@@ -73,7 +73,7 @@ page greys it out and its tooltip names the variable.
 | `[DEV9/Eth] ZdxsvAuthUrl` | server `/auth` | feature | The zdxsv sign-in base URL for Settings → zdxsv → Account: the browser opens `<url>/start` (the reply comes to a listener on `127.0.0.1`, random port, for 10 minutes); `POST <url>/token` (PKCE) saves the token to `inis/zdxsv_auth_token.txt`, the token `ZdxsvFastLogin` sends; Sign Out `POST <url>/revoke` and deletes the file. `ZDXSV_AUTH_URL` overrides it. Ini only. |
 | `[DEV9/Eth] ZdxsvAccount` | `0` | feature | Which account of the signed-in Discord account the fast login uses (form `account`, 1-5); `0`: the one the token was issued for. Settings → zdxsv → Account sets it from `POST <ZdxsvAuthUrl>/accounts` (`/accounts/add` adds one); sign-in and sign-out reset it to `0`. |
 | `[DEV9/Eth] ZdxsvNoDev9` | `true` | feature | Z game: online with or without DEV9 (`EthEnable`). The game's net RPCs are answered on the EE: network setup from fixed replies, every name resolves to `ZDXSV_SERVER_HOST` (host DNS, 5 s wait), TCP on host sockets (4 slots), only to ports 8200 (the lobby) and 8210 (the battle server); any other connect fails (no DNAS, no login pages: needs `ZdxsvFastLogin`). No server host (a build from source): off unless `ZDXSV_NODEV9=<IPv4>`. Lobby and a 1v1 TCP battle tested; GGPO not. `ZDXSV_NODEV9` overrides (`0` off, `<IPv4>` every name resolves to it). Ini only. |
-| `[DEV9/Eth] ZdxsvLobbyApiUrl` | server | feature | The lobby's public API (`http://host:port`, zdxsv `ZDXSV_LOBBY_API_ADDR`) the replay window's Remote (`/lbs/replay`) and Live (`/lbs/live`) tabs and the Favorites tab ask; empty = none. A live battle is watched at `udp://<its host>:8201/<code>` (`ZDXSV_STUN_PORT` overrides the port). |
+| `[DEV9/Eth] ZdxsvLobbyApiUrl` | server | feature | The lobby's public API (`http://host:port`, zdxsv `ZDXSV_LOBBY_API_ADDR`) the replay window's Remote (`/lbs/replay`) and Live (`/lbs/live`) tabs and the Favorites tab ask; empty = none. A live battle is watched at `live:<this URL>#<code>`. |
 | `[DEV9/Eth] ZdxsvReplayFavorites` | empty | feature | The replay window's Favorites: one value per battle (battle code, start time, players and rounds, tab-separated), at most 1000; added from the Remote tab, removed in the Favorites tab. |
 | `[DEV9/Eth] ZdxsvReplayReturn` | `true` | feature | A replay started from the replay window returns to the game (and the window) when it ends (`replay.md`). |
 | `[DEV9/Eth] ZdxsvReplayUpload` | `true` | feature | Post each lobby battle's `.pb` to `ZdxsvReplayUploadUrl` (flycast `UploadReplay`, on by default). Only when the game found the server by DNS (no host entry for the game hosts): a local server's battles post nowhere. `upload=` overrides it. |
@@ -136,6 +136,7 @@ turns GGPO off and leaves the other extensions on. Any other value turns it on. 
 | `osd=0` / `osd=1` | the setting | feature | Hide or show the network status OSD, over `ZdxsvNetOsd`. |
 | `replay=DIR` | see meaning | feature | Save every battle to `DIR`. Lobby battles save to the folder of `ZdxsvSaveReplay` / `ZdxsvReplayPath` without it. `replay=0` turns saving off (upload and live streaming still run). |
 | `upload=URL` | the setting | test | Replay upload API, over `ZdxsvReplayUpload` and `ZdxsvReplayUploadUrl`, also with a host entry. |
+| `live=URL` | `ZdxsvLobbyApiUrl` | test | Lobby API the live uplink posts to, also with a host entry (without it, only a server found by DNS gets the stream). |
 | `badsession=1` | off | control | The ping test of this client uses another session id, so no peer answers it and every client cuts the battle connection. |
 | `advertise=P` | off | test | The platform info announces only `127.0.0.1:P`, so peers reach this client through a local `udprelay.py` at P that adds latency. |
 
@@ -179,7 +180,7 @@ See [replay.md](replay.md).
 | Option | Default | Use | Meaning |
 |---|---|---|---|
 | `ZDXSV_REPLAY=file.pb` | off | feature | Play a saved replay. One file plays every position (a 2nd one is skipped). |
-| `ZDXSV_REPLAY=udp://host:port[/code]` | off | feature | Watch a lobby battle live through the lobby (its UDP port; no code = the newest live battle). See `replay.md` Live spectating. |
+| `ZDXSV_REPLAY=live:<API URL>[#code]` | off | feature | Watch a lobby battle live through the lobby HTTP API (`http[s]://host:port`; no code = the newest live battle). See `replay.md` Live spectating. |
 | `ZDXSV_REPLAY_POV=P` | the recorder's position | feature | Point of view P, picked before the start: the lobby answers name it as the own position. |
 | `ZDXSV_REPLAY_STATE=url\|path` | the setting | feature | The post-entry state a replay starts from, over `ZdxsvReplayStateUrl`. |
 | `ZDXSV_REPLAY_BAR=1` / `=0` | the setting | feature | Always show the control bar, or never, over `ZdxsvReplayBar`. |
