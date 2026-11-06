@@ -545,6 +545,9 @@ void MainWindow::connectSignals()
 	connect(m_ui.actionCheckForUpdates, &QAction::triggered, this, [this]() { checkForUpdates(true, true); });
 	connect(m_ui.actionOpenDataDirectory, &QAction::triggered, this, &MainWindow::onToolsOpenDataDirectoryTriggered);
 	connect(m_ui.menuTools->addAction(tr("zdxsv Replays...")), &QAction::triggered, this, [this]() { ZdxsvReplayDialog::openDialog(this); });
+	QAction* zdxsv_settings = new QAction(QIcon::fromTheme(QStringLiteral("zdxsv-line")), tr("&zdxsv"), this);
+	m_ui.menuSettings->insertAction(m_ui.actionInterfaceSettings, zdxsv_settings);
+	connect(zdxsv_settings, &QAction::triggered, [this]() { doSettings("zdxsv"); });
 	connect(m_ui.actionCoverDownloader, &QAction::triggered, this, &MainWindow::onToolsCoverDownloaderTriggered);
 	connect(m_ui.actionGridViewShowTitles, &QAction::triggered, m_game_list_widget, &GameListWidget::setShowCoverTitles);
 	connect(m_ui.actionGridViewShowFullTitles, &QAction::triggered, m_game_list_widget, &GameListWidget::setShowFullCoverTitles);
