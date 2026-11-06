@@ -192,7 +192,7 @@ See [replay.md](replay.md).
 | `ZDXSV_CYCLE_LOG=n` | off | test | Log `ZdxsvGgpo: cycles at frame f: ee .. iop ..` every n played frames. Two builds that differ in the CPU core must log the same values; the state hash does not catch an EE cycle shift. |
 | `ZDXSV_EVENT_LOG=file[,lines[,from]]` | off | test | Replay playback: from the common state load, write one line per EE (`E`) and IOP (`I`) event test, `ee <cycle> <pc> iop <cycle> <pc>`, up to `lines` (2000000). Two builds that differ in the CPU core: `diff` the files, the first differing line is where the timing first splits. With `from` (rerun with the line number less a few), after `from` event lines also one `B ee <cycle> <pc>` line per EE recompiler (x86 and ARM64) block entry; `lines` counts these too. |
 | `ZDXSV_LIVE_NEXT=N` | the setting | test | Live auto-next for N more battles (0 = off), over `ZdxsvLiveAutoNext`. |
-| `ZDXSV_LIVE_PACING=0` | on | test | Live: no speed trim, only the wait for 30 frames at the newest one (control). |
+| `ZDXSV_LIVE_PACING=0` | on | test | Live: no speed trim, only the wait for 60 frames at the newest one (control). |
 | `ZDXSV_REPLAY_SEEK=at:to[,at:to...]` | off | test | Seek to frame `to` when frame `at` is reached. |
 | `ZDXSV_REPLAY_POV_AT=frame:P[,...]` | off | test | Switch to position P when that frame is reached. |
 | `ZDXSV_REPLAY_ROUND_AT=frame:N[,...]` | off | test | Jump to round N (0 = the briefing) when that frame is reached. |

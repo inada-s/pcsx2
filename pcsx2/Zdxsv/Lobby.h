@@ -87,7 +87,7 @@ namespace Zdxsv
 	// STUN answered, udp_addr6 only with a global IPv6 address); "" if the socket can't be opened.
 	std::string OpenUdp(uint32_t stunIP, uint16_t stunPort, uint16_t bindPort = 0);
 
-	// Live spectating over the lobby HTTP API (zdxsv /lbs/live_push, /lbs/live_pull), each end on its own thread.
+	// Live spectating over the lobby HTTP API (/lbs/live_stream), each end on its own thread.
 	struct LiveStreams
 	{
 		std::vector<uint8_t> header; // a replay BattleLogFile without inputs
@@ -97,18 +97,18 @@ namespace Zdxsv
 		bool closed = false;
 		std::string close;
 	};
-	// The battle's uplink (battle info live_uplink=1): sends what it is given, until the lobby acked the close.
+	// The battle's uplink (battle info live_uplink=1): streams what it is given, 3 times a second, until the close.
 	class LiveUp
 	{
 	public:
 		// api = the lobby API URL (http[s]://host:port); session = the battle's ggpo_session.
 		LiveUp(const std::string& api, std::string code, uint32_t session, std::vector<uint8_t> header, int frameBytes);
-		~LiveUp(); // stops the thread
+		~LiveUp(); // the upload ends without the close
 		void AddFrames(const void* data, size_t frames); // the next confirmed frames, in order
 		void AddRound(const std::vector<uint8_t>& entry); // a BattleLogFile round_data entry (field 18), once confirmed
 		size_t Frames();
 		void Close(const std::string& reason);
-		bool Done(); // the lobby acked the close, or the thread gave up
+		bool Done(); // the upload ended
 	private:
 		struct Impl;
 		std::unique_ptr<Impl> m;
@@ -122,8 +122,8 @@ namespace Zdxsv
 	class LiveDown
 	{
 	public:
-		~LiveDown(); // stops the thread
-		// Subscribes and waits up to timeoutMs for the header and a frame (or the close).
+		~LiveDown(); // the thread stops on its own
+		// Opens the stream and waits up to timeoutMs for the header and a frame (or the close).
 		static std::unique_ptr<LiveDown> Open(const std::string& url, int timeoutMs, std::string& error);
 		std::string Code();
 		// The battle code a pull without one gets from api: with skip empty the newest live battle

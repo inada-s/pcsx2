@@ -27,7 +27,7 @@ EMU=1: the 4 clients are emulators instead (platform info, no zproxy by default;
   client) plays ZDXSV_REPLAY=http://127.0.0.1:9881/lbs/replay?battle_code=<first code> (the lobby's public API
   -> replay_url -> the stored .pb). Checks: the replay_url it took = the stored url, played to its end; with
   PWTRACE=1 its player work + rng = the players' (pwcheck, OUT/trace-api.txt).
-  LIVE=N (GGPO): once the lobby logs `live uplink`, instance N (not a client) plays
+  LIVE=N (GGPO): once the lobby logs `live upload`, instance N (not a client) plays
   ZDXSV_REPLAY=live:http://127.0.0.1:9881 (the lobby API, the newest live battle) with PW hashes
   (OUT/trace-live.txt). Checks: one client was the uplink, the spectator's stream closed at the uplink's saved
   .pb frame count, the lobby logged the close with that count; with PWTRACE=1 its player work + rng = the
@@ -346,10 +346,10 @@ def main():
 
             t1 = time.time()
             for _ in range(1800):
-                if c(lobby, "live uplink"):
+                if c(lobby, "live upload"):
                     break
                 time.sleep(2)
-            if not c(lobby, "live uplink"):
+            if not c(lobby, "live upload"):
                 log(f"no live uplink in {int(time.time() - t1)} s")
                 return
             n = E("LIVE")
@@ -948,7 +948,7 @@ def main():
             say(l)
         for l in [l for x in every for l in g(x, "live: |ZdxsvGgpo: live")][:12 * nw]:
             say(l[:200])
-        for l in g(lobby, r"live (open|uplink|subscribe|close|drop)")[:8 * nw]:
+        for l in g(lobby, r"live (open|upload|end|drop)")[:8 * nw]:
             say(l[:200])
         # per watched battle, in order: its code and the frame its stream closed at
         ls = rd(f)
@@ -971,7 +971,7 @@ def main():
             say(f"{code}: uplink p{' '.join(up) or 'none'} saved frames {fr or 'none'}, spectator closed at {sf or 'none'}")
             ok(f"{code}: one client was the live uplink", len(up) == 1)
             ok(f"{code}: spectator stream closed at the uplink's saved frame count", bool(sf) and fr == sf)
-            ok(f"{code}: lobby closed the live battle with that count", c(lobby, f"live close {code} .* frames {fr}$"))
+            ok(f"{code}: lobby ended the live upload at its end", c(lobby, f"live end {code} eof "))
         sc = [m[0] for l in ls for m in [re.search(r"replay state check: hashes [0-9]* checked, [0-9]* differ", l)] if m]
         sc = sc[-1] if sc else ""
         say(f"spectator {sc or 'no state check'}")

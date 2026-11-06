@@ -27,8 +27,8 @@ namespace Zdxsv
 			std::vector<int64_t> hle;
 		} s_replay_hle0;
 		std::vector<std::vector<u8>> s_replay_answers; // the battle start's lobby answers (Zdxsv::LobbyStartAnswers) at frame 0
-		// The battle's live uplink (battle info live_uplink=, the lobby's UDP address): fed the confirmed frames;
-		// left running after GgpoStop until the lobby acked the close, replaced by the next battle's.
+		// The battle's live uplink (battle info live_uplink=, the lobby API): fed the confirmed frames;
+		// left running after GgpoStop until its upload ended, replaced by the next battle's.
 		std::shared_ptr<Zdxsv::LiveUp> s_live;
 
 		// The BattleLogFile fields known at frame 0 (the live header; ReplayWrite adds the end, inputs and state).

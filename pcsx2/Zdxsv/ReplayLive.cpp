@@ -14,7 +14,7 @@ namespace Zdxsv
 
 		// Live: at the newest frame, wait until LIVE_BUFFER more are there or the stream is closed. More than
 		// LIVE_BUFFER + LIVE_CATCHUP frames behind, run unlimited until LIVE_BUFFER + LIVE_EDGE.
-		constexpr int LIVE_BUFFER = 30, LIVE_CATCHUP = 270, LIVE_EDGE = 60, LIVE_STALL_MS = 30000, LIVE_OPEN_MS = 15000;
+		constexpr int LIVE_BUFFER = 60, LIVE_CATCHUP = 270, LIVE_EDGE = 60, LIVE_STALL_MS = 30000, LIVE_OPEN_MS = 15000;
 		LimiterModeType s_live_limiter = LimiterModeType::Nominal;
 		std::vector<std::string> s_live_seen; // battle codes watched, oldest first, kept across the resets
 		int s_live_next_left = [] {
@@ -23,7 +23,7 @@ namespace Zdxsv
 		}();
 		int s_live_skips = 0; // battles auto-next could not play, kept across the resets
 		std::string s_live_open_error; // why the last LiveOpen failed, "" = it opened
-		constexpr int LIVE_NEXT_POLL_S = 5, LIVE_NEWEST_MS = 2000, LIVE_NEXT_SKIP = 32; // the skip list fits one datagram
+		constexpr int LIVE_NEXT_POLL_S = 5, LIVE_NEWEST_MS = 2000, LIVE_NEXT_SKIP = 32; // bounds the skip query
 
 		void LiveSeen(const std::string& code)
 		{
@@ -114,15 +114,16 @@ namespace Zdxsv
 
 		// Pacing: while following the edge, g_frame_period_trim_us holds the unplayed frames at LIVE_BUFFER:
 		// feedforward at the stream's rate plus PI terms on the buffer error (P outside a deadband).
-		constexpr int PACE_DEADBAND_MAX = 2, PACE_US_PER_FRAME = 40, PACE_STALL = 5, PACE_LOG = 600;
+		constexpr int PACE_DEADBAND_MAX = 2, PACE_US_PER_FRAME = 40, PACE_LOG = 600;
 		constexpr double PACE_I_GAIN = 0.25, PACE_I_LIMIT = 600, PACE_FLOOR_US = -4000, PACE_CEIL_US = 8000;
-		constexpr double PACE_WINDOW_S = 1, PACE_ALPHA = 0.25, PACE_MIN_HZ = 30, PACE_MAX_HZ = 65, PACE_IDLE_S = 0.1;
+		// frames arrive in bursts 3 times a second: a stall and the rate window span several bursts
+		constexpr double PACE_WINDOW_S = 3, PACE_ALPHA = 0.25, PACE_MIN_HZ = 30, PACE_MAX_HZ = 65, PACE_IDLE_S = 0.1, PACE_STALL_S = 1;
 		const bool s_pace_off = [] { const char* e = TestEnv("ZDXSV_LIVE_PACING"); return e && e[0] == '0'; }();
 		struct PaceState
 		{
 			double i = 0, hz = 0;
-			Common::Timer win, call;
-			int win_recv = -1, last_recv = 0, stall = 0, log = 0;
+			Common::Timer win, call, recv_at;
+			int win_recv = -1, last_recv = 0, log = 0;
 		};
 		PaceState s_pace;
 
@@ -146,11 +147,9 @@ namespace Zdxsv
 			if (recv != s_pace.last_recv)
 			{
 				s_pace.last_recv = recv;
-				s_pace.stall = 0;
+				s_pace.recv_at.Reset();
 			}
-			else if (s_pace.stall < PACE_STALL)
-				s_pace.stall++;
-			if (s_pace.stall >= PACE_STALL || idle || s_pace.win_recv < 0)
+			if (s_pace.recv_at.GetTimeSeconds() >= PACE_STALL_S || idle || s_pace.win_recv < 0)
 			{
 				// the silence is not the match's rate: restart the window, play at nominal
 				g_frame_period_trim_us = 0;

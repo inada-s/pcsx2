@@ -136,27 +136,33 @@ A lobby GGPO battle is streamed to the lobby while it runs, as gdxsv does
 (zdxsv `pkg/lobby/spectator.go`).
 
 - Uplink: the lobby marks one GGPO player per battle (`live_uplink=1` in the
-  battle info). That client sends the replay header and every confirmed
-  frame to the lobby's UDP address, then the close; whether saving or
-  upload is on or not. A frame record is the inputs plus the frame's u32 state
-  hash (`frame_bytes` = players x 32 + 4); records without it still play.
+  battle info). That client streams the replay header, every confirmed
+  frame and the close to the lobby, whether saving or upload is on or not.
+  A frame is the inputs plus the frame's u32 state hash (`frame_bytes` =
+  players x 32 + 4); frames without it still play.
 - Round results: at each confirmed round end the uplink adds the round's
-  `round_data` entry (winner, MS per position) and sends all of them so far
-  (`round_data` 45, acked by its length in `round_ack` 43). The lobby keeps
-  the longest and sends it to each spectator after the header, so one who
-  joins at round 3 has rounds 1-2 before its catch-up replays them. The
-  spectator shows them as a file's `round_data` and logs a round its own
-  playback ends with another winner.
-- Transfer: the lobby HTTP API (`ZdxsvLobbyApiUrl`): the uplink POSTs
-  `/lbs/live_push` from the lobby's ack, spectators long-poll `/lbs/live_pull`.
+  `round_data` entry (winner, MS per position) to the stream after the frames
+  before it. The spectator shows them as a file's `round_data` and logs a
+  round its own playback ends with another winner.
+- Transfer: the lobby HTTP API (`ZdxsvLobbyApiUrl`), `/lbs/live_stream`. The
+  uplink opens one POST at the battle start and streams the body (chunked)
+  until the close; a spectator opens one GET and gets the same bytes from
+  their start until the upload ends. The lobby does not parse them. Both the
+  uplink and the lobby send 3 times a second (an empty batch: a keep-alive
+  record), on their own threads.
+- Live stream: `ZLV1`, then records: u8 type, u32 LE payload length, payload.
+  Types: 0 keep-alive (empty), 1 header (a `BattleLogFile` without inputs),
+  2 inputs (u32 LE `frame_bytes`, then frames, in order), 3 round (one
+  `round_data` entry), 4 end (the close reason, UTF-8). Others are skipped.
+  A stream that ends without an end record: stream lost.
 - Spectator: `ZDXSV_REPLAY=live:<API URL>[#battle code]` (no code = the
   newest live battle). It starts from the common state and plays as a
   replay from the uplink's point of view, checking the state hashes as a
   replay file's.
 - Pacing (as flycast `gdxsv:LiveBufferFrames`): at the newest frame it waits
-  until 30 more frames are there; far behind it runs unthrottled to catch
+  until 60 more frames are there; far behind it runs unthrottled to catch
   up. In between the frame limiter's period is trimmed by a few ms per frame
-  to stay 30 frames behind without stalls. Nothing from the lobby for 30 s =
+  to stay 60 frames behind without stalls. Nothing from the lobby for 30 s =
   stream lost.
 - The wait at the newest frame holds the frame (as flycast): the CPU does
   not run, the VM loop does. Pause, shutdown and closing the window answer
