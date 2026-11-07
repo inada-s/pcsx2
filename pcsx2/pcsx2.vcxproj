@@ -480,6 +480,7 @@
     <ClCompile Include="Zdxsv\SingleDrawList.cpp" />
     <ClCompile Include="Zdxsv\SpectateSync.cpp" />
     <ClCompile Include="Zdxsv\SyncSettings.cpp" />
+    <ClCompile Include="Zdxsv\GamePatches.cpp" />
     <ClCompile Include="Zdxsv\OnlineLimits.cpp" />
     <ClCompile Include="Zdxsv\IntHooks.cpp" />
     <ClCompile Include="Zdxsv\RecHooks.cpp" />
@@ -947,6 +948,7 @@
     <ClInclude Include="Zdxsv\ReplayList.h" />
     <ClInclude Include="Zdxsv\SpectateSync.h" />
     <ClInclude Include="Zdxsv\SyncSettings.h" />
+    <ClInclude Include="Zdxsv\PatchHooks.h" />
     <ClInclude Include="Zdxsv\OnlineLimits.h" />
     <ClInclude Include="Zdxsv\PineHooks.h" />
     <ClInclude Include="Zdxsv\RecHooks.h" />

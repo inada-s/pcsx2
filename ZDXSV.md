@@ -54,6 +54,10 @@ If the game slows down in battles, use the low-spec button.
 sooner after your input. It changes only your picture: you stay in sync with
 players who have it off.
 
+For a 16:9 picture, turn on Settings → Graphics → Display → "Apply Widescreen
+Patches". This build has the game's widescreen patch built in and reads no
+patch or cheat files (pnach) for the game.
+
 ## First time in the game
 
 If your memory card is empty, the game makes the files it needs by itself:
