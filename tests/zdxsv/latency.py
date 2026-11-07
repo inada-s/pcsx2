@@ -1,7 +1,7 @@
 """Pad input latency on the title main menu. One instance, p1 data dir, windowed.
   latency.py                      -> measure on the menu cursor byte, 40 presses
   latency.py -Spec 'count=10'     -> search mode (no addr=): candidate bytes
-  latency.py -LowLatency 0|1      -> sets EmuCore/GS ZdxsvLowLatencyVsync in p1's ini first
+  latency.py -LowLatency 0|1      -> sets EmuCore/GS ZdxsvLowLatencyPresent in p1's ini first
   -Out latency.csv (CSV per press), -Seed 1
 p1's card autoloads system data; f2600 + Start = attract -> main menu.
 Prints the ZdxsvLatency log lines.
@@ -25,7 +25,7 @@ def main(argv):
     zrig.need("RUN")
     pd = os.path.join(os.environ["RUN"], "p1", "PCSX2")
     if o["-LowLatency"]:
-        zrig.ini_set(os.path.join(pd, "inis", "PCSX2.ini"), "EmuCore/GS", "ZdxsvLowLatencyVsync",
+        zrig.ini_set(os.path.join(pd, "inis", "PCSX2.ini"), "EmuCore/GS", "ZdxsvLowLatencyPresent",
                      "true" if o["-LowLatency"] == "1" else "false")
     m = re.search(r"count=([0-9]+)", o["-Spec"])
     count = int(m.group(1)) if m else 20

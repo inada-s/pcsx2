@@ -40,7 +40,7 @@ namespace Zdxsv
 	// Boot to the lobby user_id selection at unlimited speed, pressing through the menus on the fixed zdxsv route (FastBoot.cpp).
 	void FastBootOnVsync();
 	void FastBootReset();
-	// ZdxsvSingleDrawList, Z game: the game draws a frame's list in that frame, not the next (SingleDrawList.cpp).
+	// Z game: the game draws a frame's list in that frame, not the next.
 	extern bool g_single_draw_list;
 	void SingleDrawListOnVmInitialize();
 	// In VSyncStart with g_single_draw_list: patches the game code once it is loaded.
@@ -75,7 +75,7 @@ namespace Zdxsv
 	extern bool g_limiter_no_catch_up;
 	// In VSyncStart.
 	void GgpoOnVsync();
-	// In VSyncStart with LowLatencyVsync, after the present. true: a session frame ended, and
+	// In VSyncStart with LowLatencyPresent, after the present. true: a session frame ended, and
 	// GgpoOnExecuteReturned does the limiter sleep and the input poll after the rollback, so a
 	// rollback shorter than the sleep does not delay the next present.
 	bool GgpoDeferThrottle();

@@ -56,10 +56,6 @@ Settings → zdxsv has three buttons, for a low-, mid- and high-spec PC. Each se
 the internal resolution (Native, 2x or 3x) and the minimum input delay (3, 2 or 2).
 If the game slows down in battles, use the low-spec button.
 
-"Single draw list" (Settings → zdxsv) shows each frame's picture one frame
-sooner after your input. It changes only your picture: you stay in sync with
-players who have it off.
-
 For a 16:9 picture, turn on Settings → Graphics → Display → "Apply Widescreen
 Patches". This build has the game's widescreen patch built in and reads no
 patch or cheat files (pnach) for the game.

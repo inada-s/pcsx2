@@ -106,8 +106,8 @@ Hotkeys are under Settings > Hotkeys, group "Zdxsv Replay".
   position's newest key at or before the current frame; a position not
   played yet first runs its own battle start from the common state.
 - **Control bar**: play or pause, seek -10 s and +10 s, time, timeline,
-  point of view, round steps, takeover. When it shows: setting
-  `ZdxsvReplayBar`.
+  point of view, round steps, takeover. Shown while paused and for 3 s
+  after the mouse moves over the bottom quarter.
 - **Key display** (as flycast `gdxsv:ReplayKeyDisplay`): the last 14 input
   changes of the shown position, each with the frames it was held.
 - **Skip mobile suit selection** (as flycast

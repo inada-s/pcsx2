@@ -519,7 +519,7 @@ static __fi void VSyncStart(u64 sCycle)
 	Zdxsv::EeOpTestOnVsync();
 
 	bool deferred = false;
-	if (EmuConfig.EmulationSpeed.LowLatencyVsync && Zdxsv::g_z_game)
+	if (EmuConfig.EmulationSpeed.LowLatencyPresent && Zdxsv::g_z_game)
 	{
 		// zdxsv: present the finished frame now, sleep, then poll input right before the next
 		// frame is emulated. Press -> present loses the limiter sleep. In a GGPO session the

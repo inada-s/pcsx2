@@ -56,13 +56,9 @@ ZdxsvSettingsWidget::ZdxsvSettingsWidget(SettingsWindow* settings_dialog, QWidge
 	SettingWidgetBinder::BindWidgetToIntSetting(sif, m_ui.zdxsvGgpoPort, "DEV9/Eth", "ZdxsvGgpoPort", 0);
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvNetOsd, "DEV9/Eth", "ZdxsvNetOsd", true);
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvUPnP, "DEV9/Eth", "ZdxsvUPnP", true);
-	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvLowLatencyVsync, "EmuCore/GS", "ZdxsvLowLatencyVsync", true);
-	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvSingleDrawList, "DEV9/Eth", "ZdxsvSingleDrawList", true);
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvLiveAutoNext, "DEV9/Eth", "ZdxsvLiveAutoNext", false);
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvReplaySkipMs, "DEV9/Eth", "ZdxsvReplaySkipMs", true);
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvReplayKeyDisplay, "DEV9/Eth", "ZdxsvReplayKeyDisplay", false);
-	SettingWidgetBinder::BindWidgetToIntSetting(sif, m_ui.zdxsvReplayBar, "DEV9/Eth", "ZdxsvReplayBar", 0);
-	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvReplayUpload, "DEV9/Eth", "ZdxsvReplayUpload", true);
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvSaveReplay, "DEV9/Eth", "ZdxsvSaveReplay", true);
 	SettingWidgetBinder::BindWidgetToFolderSetting(sif, m_ui.zdxsvReplayPath, m_ui.zdxsvReplayPathBrowse, m_ui.zdxsvReplayPathOpen,
 		m_ui.zdxsvReplayPathReset, "DEV9/Eth", "ZdxsvReplayPath", Path::Combine(EmuFolders::DataRoot, "replays"));
@@ -73,7 +69,7 @@ ZdxsvSettingsWidget::ZdxsvSettingsWidget(SettingsWindow* settings_dialog, QWidge
 		connect(m_ui.zdxsvCrashReports, &QCheckBox::checkStateChanged, this,
 			[](Qt::CheckState state) { Zdxsv::CrashReportsSetEnabled(state == Qt::Checked); });
 		dialog()->registerWidgetHelp(m_ui.zdxsvCrashReports, tr("Crash Reports"), tr("Checked"),
-			tr("When PCSX2 crashes, a report is sent to the zdxsv developers. It contains part of the memory of PCSX2 at the moment of the crash, your version of PCSX2, your operating system and a random ID of this installation. Turning this on takes effect at the next start."));
+			tr("Sends a report to the zdxsv developers when PCSX2 crashes."));
 	}
 	else
 	{
@@ -81,7 +77,6 @@ ZdxsvSettingsWidget::ZdxsvSettingsWidget(SettingsWindow* settings_dialog, QWidge
 	}
 
 	MarkEnvOverride(m_ui.zdxsvFastBoot, "ZDXSV_FAST_BOOT");
-	MarkEnvOverride(m_ui.zdxsvSingleDrawList, "ZDXSV_SINGLE_DRAW_LIST");
 	// The mindelay=, port=, osd=, upload= and replay= keys of ZDXSV_GGPO override those settings.
 	MarkEnvOverride(m_ui.zdxsvGgpoMinDelay, "ZDXSV_GGPO", "mindelay=");
 	MarkEnvOverride(m_ui.zdxsvGgpoPort, "ZDXSV_GGPO", "port=");
@@ -89,39 +84,29 @@ ZdxsvSettingsWidget::ZdxsvSettingsWidget(SettingsWindow* settings_dialog, QWidge
 	MarkEnvOverride(m_ui.zdxsvLiveAutoNext, "ZDXSV_LIVE_NEXT");
 	MarkEnvOverride(m_ui.zdxsvReplaySkipMs, "ZDXSV_REPLAY_SKIP_MS");
 	MarkEnvOverride(m_ui.zdxsvReplayKeyDisplay, "ZDXSV_REPLAY_KEY_DISPLAY");
-	MarkEnvOverride(m_ui.zdxsvReplayBar, "ZDXSV_REPLAY_BAR");
-	MarkEnvOverride(m_ui.zdxsvReplayUpload, "ZDXSV_GGPO", "upload=");
 	MarkEnvOverride(m_ui.zdxsvSaveReplay, "ZDXSV_GGPO", "replay=");
 	MarkEnvOverride(m_ui.zdxsvReplayPath, "ZDXSV_GGPO", "replay=");
 
 	dialog()->registerWidgetHelp(m_ui.zdxsvFastBoot, tr("Fast Boot"), tr("Checked"),
-		tr("From game start to the lobby ID selection with no input: runs at unlimited speed and presses through the title, main menu and network menus (broadband, network setting 1), then returns to normal speed. Stops at once when the route cannot go on, for example with an unformatted memory card or no NET file on it. Uncheck it to play offline."));
+		tr("Goes from game start to the lobby ID selection with no input. Uncheck it to play offline."));
 	dialog()->registerWidgetHelp(m_ui.zdxsvGgpoMinDelay, tr("Minimum Input Delay"), tr("2"),
-		tr("Lowest GGPO input delay (frames, 2 to 6) a battle picks from the ping test. Also the delay of a replay takeover."));
+		tr("Lowest input delay of a battle (frames). Higher: fewer rollbacks, but slower controls."));
 	dialog()->registerWidgetHelp(m_ui.zdxsvGgpoPort, tr("Battle UDP Port"), tr("0"),
-		tr("UDP port the emulator uses for online battles. 0: a random port (29700 to 29800) is picked at the next game start and saved here."));
+		tr("UDP port for online battles. 0: picked at random. Forward it on your router if you cannot connect."));
 	dialog()->registerWidgetHelp(m_ui.zdxsvNetOsd, tr("Network Status"), tr("Checked"),
-		tr("Shows the network status overlay (one line per opponent) during online battles."));
+		tr("Shows the connection status during online battles."));
 	dialog()->registerWidgetHelp(m_ui.zdxsvUPnP, tr("UPnP"), tr("Checked"),
-		tr("When the connectivity test at the first lobby connection finds the battle UDP port closed, asks the router (UPnP) to forward it to this PC, then tests again. The mapping is removed when PCSX2 exits."));
-	dialog()->registerWidgetHelp(m_ui.zdxsvLowLatencyVsync, tr("Low-Latency Vsync"), tr("Checked"),
-		tr("Presents the finished frame before the frame limiter sleeps, and polls input right before the next frame runs. Other games are never affected."));
-	dialog()->registerWidgetHelp(m_ui.zdxsvSingleDrawList, tr("Single Draw List"), tr("Checked"),
-		tr("The game draws each frame's picture in that frame instead of the next: one frame less from input to picture. Only this PC's picture changes; battles stay in sync with players who have it off. Other games are never affected."));
+		tr("When the battle port is closed, automatically changes the router's settings."));
 	dialog()->registerWidgetHelp(m_ui.zdxsvLiveAutoNext, tr("Live Auto-Next"), tr("Unchecked"),
-		tr("Live spectating: when a stream ends, watch the lobby's next live battle."));
+		tr("When a live battle ends, watches the next one."));
 	dialog()->registerWidgetHelp(m_ui.zdxsvReplaySkipMs, tr("Skip Mobile Suit Selection"), tr("Checked"),
-		tr("A replay runs at full speed up to the briefing."));
+		tr("Replays skip the mobile suit selection."));
 	dialog()->registerWidgetHelp(m_ui.zdxsvReplayKeyDisplay, tr("Key Display"), tr("Unchecked"),
-		tr("Replays start with the key display on. The Toggle Key Display hotkey switches it."));
-	dialog()->registerWidgetHelp(m_ui.zdxsvReplayBar, tr("Control Bar"), tr("When paused or the mouse moves"),
-		tr("When the replay control bar is shown."));
-	dialog()->registerWidgetHelp(m_ui.zdxsvReplayUpload, tr("Upload Replays"), tr("Checked"),
-		tr("After each lobby battle, its replay is posted to the zdxsv server, where anyone can watch it (Tools → zdxsv Replays, Remote)."));
+		tr("Replays start with the key display on."));
 	dialog()->registerWidgetHelp(m_ui.zdxsvSaveReplay, tr("Save Replays"), tr("Checked"),
-		tr("After each lobby battle, its replay is saved in the replay folder (Tools → zdxsv Replays, Local)."));
+		tr("Saves each lobby battle's replay on this PC."));
 	dialog()->registerWidgetHelp(m_ui.zdxsvReplayPath, tr("Replay Folder"), tr("replays in the data folder"),
-		tr("Where replays are saved and the Local replay list reads from. A folder that cannot be created falls back to the default."));
+		tr("Where replays are saved."));
 
 	connect(m_ui.zdxsvPresetLow, &QPushButton::clicked, this, [this]() { applyPreset(1.0f, 3); });
 	connect(m_ui.zdxsvPresetMid, &QPushButton::clicked, this, [this]() { applyPreset(2.0f, 2); });
@@ -136,26 +121,21 @@ ZdxsvSettingsWidget::ZdxsvSettingsWidget(SettingsWindow* settings_dialog, QWidge
 	if (Zdxsv::AuthTokenRead())
 		loadAccounts(AccountRequest::List);
 	dialog()->registerWidgetHelp(m_ui.zdxsvAccountPick, tr("Account"), tr("The first one"),
-		tr("Your zdxsv accounts: the ones made in PCSX2, ones carried over from a PS2, and empty slots, made when "
-		   "you first connect with one picked. Going online uses the account picked here."));
+		tr("The account used online."));
 	dialog()->registerWidgetHelp(m_ui.zdxsvSignIn, tr("Sign in with Discord"), tr("None"),
-		tr("Opens the zdxsv sign-in page in your browser. PCSX2 keeps a sign-in token for this PC. Signing in "
-		   "creates no zdxsv account: add one, or carry one over from a PS2."));
+		tr("Signs in to zdxsv in your browser."));
 	dialog()->registerWidgetHelp(m_ui.zdxsvCarry, tr("Carry Over from PS2..."), tr("None"),
-		tr("Adds the zdxsv account you play on a PS2 to the signed-in Discord account. Get the code by "
-		   "typing ｄｃ in the chat of the Kennedy Port lobby on the PS2; it works once, within 3 minutes. The PS2 "
-		   "keeps playing "
-		   "with the account."));
+		tr("Uses your PS2 account on this PC too. Get the code by typing ｄｃ in the Kennedy Port lobby chat on the PS2."));
 	dialog()->registerWidgetHelp(m_ui.zdxsvSignOut, tr("Sign Out"), tr("None"),
 		tr("Revokes this PC's sign-in token on the server and deletes it."));
 	dialog()->registerWidgetHelp(m_ui.zdxsvUPnPNow, tr("UPnP Now"), tr("None"),
-		tr("Asks the router (UPnP) now to forward the battle UDP port to this PC, and shows the result. The mapping is removed when PCSX2 exits."));
+		tr("Opens the battle port on the router now."));
 	dialog()->registerWidgetHelp(m_ui.zdxsvPresetLow, tr("Recommended Settings for Low-Spec PC"), tr("None"),
-		tr("Sets Internal Resolution to Native (PS2) and Minimum Input Delay to 3."));
+		tr("Native resolution, input delay 3."));
 	dialog()->registerWidgetHelp(m_ui.zdxsvPresetMid, tr("Recommended Settings for Mid-Spec PC"), tr("None"),
-		tr("Sets Internal Resolution to 2x Native (~720p) and Minimum Input Delay to 2."));
+		tr("2x resolution, input delay 2."));
 	dialog()->registerWidgetHelp(m_ui.zdxsvPresetHigh, tr("Recommended Settings for High-Spec PC"), tr("None"),
-		tr("Sets Internal Resolution to 3x Native (~1080p) and Minimum Input Delay to 2."));
+		tr("3x resolution, input delay 2."));
 }
 
 ZdxsvSettingsWidget::~ZdxsvSettingsWidget()
