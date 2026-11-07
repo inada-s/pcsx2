@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: GPL-3.0+
 
 // PCSX2 features limited while the Z game is online (connected to the zdxsv lobby or in a net battle): PINE
-// (every request), macro buttons (turbo included), input recording, manual hardware renderer fixes and dumps.
+// (every request), macro buttons (turbo included), input recording, manual hardware renderer fixes, dumps and
+// debugger breakpoints (cleared when the game goes online: a hit stops the emulator).
 // Switching online or offline reloads the settings, so the limits come and go with the connection.
 
 #include "Zdxsv/OnlineLimits.h"
@@ -13,6 +14,7 @@
 #include "Zdxsv/TestOptions.h"
 
 #include "Config.h"
+#include "DebugTools/Breakpoints.h"
 #include "Host.h"
 #include "IconsFontAwesome.h"
 #include "VMManager.h"
@@ -21,6 +23,7 @@
 #include "common/Error.h"
 
 #include <atomic>
+#include <cstdlib>
 #include <cstring>
 
 namespace Zdxsv
@@ -34,6 +37,7 @@ namespace Zdxsv
 			std::atomic<bool> online{false}; // g_online_limits for other threads
 			std::atomic<bool> pine_refused{false}; // read on the PINE thread
 			std::atomic<bool> pine_logged{false}; // one log line per online period
+			bool test_breakpoint_set = false;
 		};
 		OnlineLimitsState s_online;
 
@@ -54,20 +58,49 @@ namespace Zdxsv
 			s_online.pine_refused.store(online && !PineExempt(), std::memory_order_relaxed);
 			s_online.pine_logged.store(false, std::memory_order_relaxed);
 		}
+
+		void ClearBreakpoints()
+		{
+			if (CBreakPoints::GetNumBreakpoints() == 0 && CBreakPoints::GetNumMemchecks() == 0)
+				return;
+			CBreakPoints::ClearAllBreakPoints();
+			CBreakPoints::ClearAllMemChecks();
+			Console.WriteLn("ZdxsvOnline: debugger breakpoints cleared");
+		}
+
+		// ZDXSV_TEST_BREAKPOINT=<hex EE address> (test): one breakpoint there at the first vsync, as if set in the
+		// debugger before going online; the address must never run
+		void SetTestBreakpoint()
+		{
+			s_online.test_breakpoint_set = true;
+			const char* e = TestEnv("ZDXSV_TEST_BREAKPOINT");
+			if (!e || !*e)
+				return;
+			const u32 addr = static_cast<u32>(std::strtoul(e, nullptr, 16));
+			Host::RunOnCPUThread([addr] {
+				CBreakPoints::AddBreakPoint(BREAKPOINT_EE, addr);
+				Console.WriteLn("ZdxsvOnline: test breakpoint at %08x", addr);
+			});
+		}
 	} // namespace
 
 	void OnlineLimitsOnVsync()
 	{
 		if (g_ggpo_in_rollback)
 			return;
+		if (!s_online.test_breakpoint_set)
+			SetTestBreakpoint();
 		const bool online = OnlineNow();
 		if (online == g_online_limits)
 			return;
 		SetOnline(online);
 		Console.WriteLn("ZdxsvOnline: %s: settings reloaded", online ? "online" : "offline");
-		Host::RunOnCPUThread([] {
-			if (VMManager::HasValidVM())
-				VMManager::ApplySettings();
+		Host::RunOnCPUThread([online] {
+			if (!VMManager::HasValidVM())
+				return;
+			VMManager::ApplySettings();
+			if (online)
+				ClearBreakpoints();
 		});
 	}
 
@@ -95,6 +128,7 @@ namespace Zdxsv
 	void OnlineLimitsReset()
 	{
 		SetOnline(false);
+		s_online.test_breakpoint_set = false;
 	}
 
 	bool OnlineRefuses(Error* error)

@@ -57,7 +57,7 @@ this table says it is missing.
 - **Lobby connection kept while paused**: line checks `0x6001` answered.
 - **Pause menu**: refused while connected to the zdxsv lobby.
 - **PCSX2 features limited while online** (zdxsv lobby or net battle): PINE refused (`ZDXSV_PINE_ONLINE`); macro buttons (turbo included) not loaded; input recording, manual hardware renderer fixes, texture and draw data dumping off; `ZDXSV_SYNC_FORCE=0` turns the settings part off.
-- **Operations refused while online** (OSD "Not available while online."): state saves and loads, disc changes, memory card swaps and setting changes, GS dumps, video capture, the software renderer toggle, upscale hotkeys, GS settings that recreate the renderer or change the upscale (held until offline); the debugger window closes and does not open.
+- **Operations refused while online** (OSD "Not available while online."): state saves and loads, disc changes, memory card swaps and setting changes, GS dumps, video capture, the software renderer toggle, upscale hotkeys, GS settings that recreate the renderer or change the upscale (held until offline); the debugger window closes and does not open; debugger breakpoints and memory checks are cleared when the game goes online.
 - **Settings page**: Settings → zdxsv.
 - **Recommended-settings buttons**: Low, Mid, High on Settings → zdxsv.
 
