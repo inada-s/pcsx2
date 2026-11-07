@@ -67,6 +67,7 @@ options: `docs/zdxsv/`.
 | `LobbyNet.h` | Platform sockets and address helpers shared by the `Lobby*.cpp` files only |
 | `Proto.h` | Minimal protobuf wire codec: the lobby's Ping / Pong, replay files |
 | `replay.proto` | Replay file schema (gdxsv's BattleLogFile + PCSX2 fields); documentation, not compiled |
+| `GamePatches.cpp` | The Z game's patches (widescreen), built in in place of pnach files (seam: `PatchHooks.h`) |
 | `SyncSettings.cpp`, `SyncSettings.h` | Sync-relevant settings forced while the Z game runs (speedhacks during battles only), their fingerprint for the lobby (UI: `ZdxsvSettingsWidget::markSyncForced`) |
 | `LobbyConnection.cpp` | A TCP connection to the lobby (no-DEV9 host socket): platform info message, GGPO lobby setup, lobby filter |
 | `HttpsLatency.cpp` | HTTPS latency test to the cloud regions, sent in the platform info |

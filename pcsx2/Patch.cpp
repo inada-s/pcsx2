@@ -18,6 +18,7 @@
 #include "Memory.h"
 #include "Patch.h"
 #include "R5900.h"
+#include "Zdxsv/PatchHooks.h"
 
 #include "IconsFontAwesome.h"
 #include "fmt/format.h"
@@ -364,6 +365,13 @@ bool Patch::ContainsPatchName(const std::vector<PatchInfo>& patches, const std::
 template <typename F>
 void Patch::EnumeratePnachFiles(const std::string_view serial, u32 crc, bool cheats, bool for_ui, const F& f)
 {
+	if (const char* zdxsv_pnach = Zdxsv::PatchZGamePnach(crc))
+	{
+		if (!cheats)
+			f(std::string("zdxsv built-in patches"), std::string(zdxsv_pnach));
+		return;
+	}
+
 	// Prefer files on disk over the zip.
 	std::vector<std::string> disk_patch_files;
 	if (for_ui || !Achievements::IsHardcoreModeActive())

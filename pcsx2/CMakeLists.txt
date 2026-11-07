@@ -174,6 +174,7 @@ set(pcsx2Sources
 	Zdxsv/SingleDrawList.cpp
 	Zdxsv/SpectateSync.cpp
 	Zdxsv/SyncSettings.cpp
+	Zdxsv/GamePatches.cpp
 	Zdxsv/IntHooks.cpp
 	Zdxsv/RecHooks.cpp
 	Zdxsv/RecProbe.cpp
@@ -263,6 +264,7 @@ set(pcsx2Headers
 	Zdxsv/CpuHooks.h
 	Zdxsv/InputHooks.h
 	Zdxsv/SaveStateHooks.h
+	Zdxsv/PatchHooks.h
 	Zdxsv/MediaHooks.h
 	Zdxsv/AuthHooks.h
 	Zdxsv/AuthSignIn.h
