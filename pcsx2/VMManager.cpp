@@ -1774,6 +1774,8 @@ bool VMManager::RequestReset()
 void VMManager::Reset()
 {
 	pxAssert(HasValidVM());
+	if (s_state.load(std::memory_order_acquire) != VMState::Resetting && Zdxsv::g_online_limits && Zdxsv::OnlineRefusesReset())
+		return;
 
 	// If we're running, we're probably going to be executing this at event test time,
 	// at vsync, which happens in the middle of event handling. Resetting everything

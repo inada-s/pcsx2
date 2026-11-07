@@ -4,6 +4,7 @@
 // Replay playback of a live stream and the spectator sync of several viewers.
 
 #include "Zdxsv/GgpoShared.h"
+#include "Zdxsv/OnlineLimits.h"
 #include "Zdxsv/TestOptions.h"
 #include "IconsFontAwesome.h"
 
@@ -335,6 +336,7 @@ namespace Zdxsv
 							return;
 						LiveSeen(code);
 						s_live_next_url = url;
+						OnlineAllowReset();
 						VMManager::Reset();
 						VMManager::SetPaused(false);
 					});

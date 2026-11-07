@@ -13,6 +13,8 @@ namespace Zdxsv
 {
 	// Connected to the zdxsv lobby or in a net battle (GgpoBattle.cpp). CPU thread.
 	bool OnlineNow();
+	bool OnlineBattleNow();
+	void OnlineAllowReset();
 	// The state the settings were last applied with (OnlineLimitsOnVsync). CPU thread.
 	bool OnlineLimitsActive();
 	// In SyncSettingsEnforce while online: the limited settings off in `c`; names of the changed ones appended to

@@ -963,7 +963,11 @@ void FullscreenUI::RequestShutdown(bool save_state)
 
 void FullscreenUI::DoShutdown(bool save_state)
 {
-	Host::RunOnCPUThread([save_state]() { Host::RequestVMShutdown(false, save_state, save_state); });
+	Host::RunOnCPUThread([save_state]() {
+		if (Zdxsv::g_online_limits && Zdxsv::OnlineRefuses())
+			return;
+		Host::RequestVMShutdown(false, save_state, save_state);
+	});
 }
 
 void FullscreenUI::RequestReset()

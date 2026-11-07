@@ -374,7 +374,10 @@ namespace Zdxsv
 			if (std::strstr(test, ":mute"))
 				ggpo_set_mute(s_session, true);
 			else if (std::strstr(test, ":reset"))
-				Host::RunOnCPUThread([] { VMManager::Reset(); });
+				Host::RunOnCPUThread([] {
+					OnlineAllowReset();
+					VMManager::Reset();
+				});
 			else if (std::strstr(test, ":ui"))
 				Host::RunOnCPUThread([] {
 					VMManager::SetLimiterMode(LimiterModeType::Turbo);
