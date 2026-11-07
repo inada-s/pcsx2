@@ -9,13 +9,16 @@
 #include "Zdxsv/CpuHooks.h"
 #include "Zdxsv/InputHooks.h"
 #include "Zdxsv/PineHooks.h"
+#include "Zdxsv/UiHooks.h"
 #include "Zdxsv/TestOptions.h"
 
 #include "Config.h"
 #include "Host.h"
+#include "IconsFontAwesome.h"
 #include "VMManager.h"
 
 #include "common/Console.h"
+#include "common/Error.h"
 
 #include <atomic>
 #include <cstring>
@@ -28,6 +31,7 @@ namespace Zdxsv
 	{
 		struct OnlineLimitsState
 		{
+			std::atomic<bool> online{false}; // g_online_limits for other threads
 			std::atomic<bool> pine_refused{false}; // read on the PINE thread
 			std::atomic<bool> pine_logged{false}; // one log line per online period
 		};
@@ -46,6 +50,7 @@ namespace Zdxsv
 		void SetOnline(bool online)
 		{
 			g_online_limits = online;
+			s_online.online.store(online, std::memory_order_relaxed);
 			s_online.pine_refused.store(online && !PineExempt(), std::memory_order_relaxed);
 			s_online.pine_logged.store(false, std::memory_order_relaxed);
 		}
@@ -90,6 +95,24 @@ namespace Zdxsv
 	void OnlineLimitsReset()
 	{
 		SetOnline(false);
+	}
+
+	bool OnlineRefuses(Error* error)
+	{
+		if (!s_online.online.load(std::memory_order_relaxed))
+			return false;
+		const std::string msg = TRANSLATE_STR("Zdxsv", "Not available while online.");
+		Console.WriteLn("ZdxsvOnline: refused while online");
+		if (error)
+			Error::SetString(error, msg);
+		else
+			Host::AddIconOSDMessage("ZdxsvOnlineRefuses", ICON_FA_TRIANGLE_EXCLAMATION, msg, Host::OSD_WARNING_DURATION);
+		return true;
+	}
+
+	bool OnlineNowAnyThread()
+	{
+		return s_online.online.load(std::memory_order_relaxed);
 	}
 
 	bool PineRefuses()

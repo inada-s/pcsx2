@@ -56,6 +56,7 @@
 
 #include "pcsx2/Zdxsv/AuthHooks.h"
 #include "pcsx2/Zdxsv/CrashReportHooks.h"
+#include "Zdxsv/QtHooks.h"
 
 #include <cmath>
 #include <csignal>
@@ -2526,6 +2527,7 @@ int main(int argc, char* argv[])
 	// Create all window objects, the emuthread might still be starting up at this point.
 	g_main_window = new MainWindow();
 	g_main_window->initialize();
+	Zdxsv::QtOnlineLimitsWatch(g_main_window);
 
 	// When running in batch mode, ensure game list is loaded, but don't scan for any new files.
 	if (!s_batch_mode)

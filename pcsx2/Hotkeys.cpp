@@ -254,7 +254,7 @@ DEFINE_HOTKEY("ReloadPatches", TRANSLATE_NOOP("Hotkeys", "System"), TRANSLATE_NO
 	})
 DEFINE_HOTKEY("SwapMemCards", TRANSLATE_NOOP("Hotkeys", "System"),
 	TRANSLATE_NOOP("Hotkeys", "Swap Memory Cards"), [](s32 pressed) {
-		if (!pressed && VMManager::HasValidVM())
+		if (!pressed && VMManager::HasValidVM() && !(Zdxsv::g_online_limits && Zdxsv::OnlineRefuses()))
 			Host::RunOnCPUThread([]() {
 				FileMcd_Swap();
 			});

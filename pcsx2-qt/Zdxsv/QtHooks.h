@@ -5,10 +5,13 @@
 
 #include "common/Pcsx2Defs.h"
 
+class QObject;
 class QWidget;
 
 namespace Zdxsv
 {
 	// Player and pilot names on the OSD are Japanese whatever the UI language. UI thread, before the fonts load.
 	void QtFontsDownloadJapanese(QWidget* dialog_parent);
+	// UI thread, after the main window exists: closes the debugger window whenever the Z game is online.
+	void QtOnlineLimitsWatch(QObject* parent);
 } // namespace Zdxsv

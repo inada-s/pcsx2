@@ -45,6 +45,7 @@
 #include "pcsx2/SaveState.h"
 #include "pcsx2/SIO/Sio.h"
 #include "pcsx2/GS/GSExtra.h"
+#include "pcsx2/Zdxsv/UiHooks.h"
 
 #include "common/Assertions.h"
 #include "common/CocoaTools.h"
@@ -3315,6 +3316,9 @@ void MainWindow::doGameSettings(const char* category)
 
 void MainWindow::openDebugger()
 {
+	if (Zdxsv::OnlineRefuses())
+		return;
+
 	DebuggerWindow* dwnd = DebuggerWindow::getInstance();
 	dwnd->isVisible() ? dwnd->activateWindow() : dwnd->show();
 }
