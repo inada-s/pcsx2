@@ -78,7 +78,7 @@ options: `docs/zdxsv/`.
 | `AuthSignIn.cpp`, `AuthSignIn.h` | Sign-in through the server in the browser (127.0.0.1 callback, PKCE), the token file, sign-out |
 | `AuthTest.cpp` | Sign-in and sign-out at app start for the rigs (`ZDXSV_AUTH_SIGNIN_TEST`) |
 | `FastLogin.cpp`, `FastLogin.h` | Login through the login API at DNAS start, the browser's result written to guest RAM, jump to the lobby connect |
-| `SingleDrawList.cpp` | `ZdxsvSingleDrawList`: game code patch that draws a frame's list in that frame |
+| `SingleDrawList.cpp` | single draw list: game code patch that draws a frame's list in that frame |
 | `NoDev9.cpp` | Online without DEV9 (Z game with a server host), the net RPCs answered on the EE and TCP on a host socket |
 | `Upnp.cpp`, `Upnp.h` | UPnP mapping of the GGPO port on the router (`3rdparty/miniupnpc`), removed at exit |
 | `TlsTunnel.cpp` | TLS to the zdxsv server: the game's TCP connections go through a local tunnel, the server is checked by its public-key pins |
@@ -88,6 +88,7 @@ options: `docs/zdxsv/`.
 | `RecProbe.cpp` | Debug: EE recompiler probes and store watches (`ZDXSV_EE_PROBE`, `ZDXSV_EE_WATCH`) |
 | `Overlays.cpp` | On-screen replay keys and replay control bar |
 | `GgpoOsd.cpp` | GGPO network status panel (flycast `NETWORK STATS`) |
+| `pcsx2-qt/Zdxsv/QtEmulationSettings.cpp` | Low-latency present checkbox on Settings → Emulation (`QtHooks.h`, seam in `pcsx2-qt/Settings/EmulationSettingsWidget.cpp`) |
 | `pcsx2-qt/Zdxsv/QtOnlineLimits.cpp` | Closes the debugger window while online (`QtHooks.h`, seam in `pcsx2-qt/QtHost.cpp`) |
 | `pcsx2-qt/Zdxsv/QtFonts.cpp` | Noto Sans JP download at UI start, for the panel's Japanese names (`QtHooks.h`, seam in `pcsx2-qt/Translations.cpp`) |
 | `CpuHooks.h` | Hook header: recompilers, counters, MTGS, VMManager |

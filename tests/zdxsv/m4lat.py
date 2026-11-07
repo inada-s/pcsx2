@@ -40,8 +40,8 @@ def main():
     os.makedirs(out, exist_ok=True)
     pd = os.path.join(os.environ["RUN"], "p1", "PCSX2")
     ini = os.path.join(pd, "inis", "PCSX2.ini")
-    zrig.ini_set(ini, "EmuCore/GS", "ZdxsvLowLatencyVsync", "false" if zrig.env("LOWLAT", "1") == "0" else "true")
-    for l in zrig.log_lines(ini, "ZdxsvLowLatencyVsync"):
+    zrig.ini_set(ini, "EmuCore/GS", "ZdxsvLowLatencyPresent", "false" if zrig.env("LOWLAT", "1") == "0" else "true")
+    for l in zrig.log_lines(ini, "ZdxsvLowLatencyPresent"):
         print(l)
     go = os.path.join(out, "go")
     if os.path.exists(go):

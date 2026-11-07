@@ -260,7 +260,7 @@ namespace Zdxsv
 				static_cast<unsigned long long>(s_cfg.start), s_cfg.hold, s_cfg.gap, s_cfg.seed);
 			if (s_cfg.has_addr)
 				Console.WriteLn("ZdxsvLatency: addr=%08x", EeAddr(s_cfg.addr));
-			Console.WriteLn("ZdxsvLatency: LowLatencyVsync=%d", EmuConfig.EmulationSpeed.LowLatencyVsync && g_z_game ? 1 : 0);
+			Console.WriteLn("ZdxsvLatency: LowLatencyPresent=%d", EmuConfig.EmulationSpeed.LowLatencyPresent && g_z_game ? 1 : 0);
 		}
 
 		void Snapshot(std::vector<u8>& dst)
@@ -550,7 +550,7 @@ namespace Zdxsv
 			for (size_t i = 0; i < s_pace_ms.size() && i < s_split.size(); i++)
 			{
 				late += s_pace_ms[i] > 1.5 * m;
-				// split i + 1 holds a rollback before push i (LowLatencyVsync), split i - 1 one before the
+				// split i + 1 holds a rollback before push i (LowLatencyPresent), split i - 1 one before the
 				// sleep that present i follows (default order)
 				bool rb = false;
 				for (size_t j = i ? i - 1 : 0; j <= i + 1 && j < s_split.size(); j++)
@@ -732,7 +732,7 @@ namespace Zdxsv
 		if (!s_cfg.has_addr || s_presses.empty())
 			return;
 		// The frame emulated since the last poll ends here, before it is pushed; with the
-		// default order the limiter sleep follows, with LowLatencyVsync the push does.
+		// default order the limiter sleep follows, with LowLatencyPresent the push does.
 		Press& p = s_presses.back();
 		if (!p.ram && *ByteAt(s_cfg.addr) != p.pre)
 		{

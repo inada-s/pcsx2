@@ -723,6 +723,7 @@ Pcsx2Config::GSOptions::GSOptions()
 	DisableFramebufferFetch = false;
 	DisableVertexShaderExpand = false;
 	SkipDuplicateFrames = true;
+	VsyncEnable = true;
 	OsdMessagesPos = OsdOverlayPos::TopLeft;
 	OsdPerformancePos = OsdOverlayPos::TopRight;
 	OsdShowSpeed = false;
@@ -1719,7 +1720,7 @@ Pcsx2Config::EmulationSpeedOptions::EmulationSpeedOptions()
 	bitset = 0;
 
 	SyncToHostRefreshRate = false;
-	LowLatencyVsync = true;
+	LowLatencyPresent = true;
 }
 
 void Pcsx2Config::EmulationSpeedOptions::SanityCheck()
@@ -1743,7 +1744,7 @@ void Pcsx2Config::EmulationSpeedOptions::LoadSave(SettingsWrapper& wrap)
 	//SettingsWrapBitBool(SyncToHostRefreshRate);
 	SyncToHostRefreshRate = wrap.EntryBitBool("EmuCore/GS", "SyncToHostRefreshRate", SyncToHostRefreshRate, SyncToHostRefreshRate);
 	UseVSyncForTiming = wrap.EntryBitBool("EmuCore/GS", "UseVSyncForTiming", UseVSyncForTiming, UseVSyncForTiming);
-	LowLatencyVsync = wrap.EntryBitBool("EmuCore/GS", "ZdxsvLowLatencyVsync", LowLatencyVsync, LowLatencyVsync);
+	LowLatencyPresent = wrap.EntryBitBool("EmuCore/GS", "ZdxsvLowLatencyPresent", LowLatencyPresent, LowLatencyPresent);
 }
 
 bool Pcsx2Config::EmulationSpeedOptions::operator==(const EmulationSpeedOptions& right) const

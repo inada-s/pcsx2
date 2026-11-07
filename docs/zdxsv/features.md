@@ -22,6 +22,7 @@ skips does not run on that path.
 | Patch loader (`PatchHooks.h`) | `GamePatches` | Z game patches built in |
 | PINE server (`PineHooks.h`) | `OnlineLimits` | PINE refused while online |
 | Pad macro buttons (`InputHooks.h`) | `OnlineLimits` | macro buttons off while online |
+| Qt emulation settings (`QtHooks.h`) | `pcsx2-qt/Zdxsv/QtEmulationSettings` | low-latency present checkbox |
 | Qt fonts | `pcsx2-qt/Zdxsv/QtFonts` | Noto Sans JP download before the OSD fonts load |
 | VMManager, GS, MTGS, hotkeys, Qt main window (`UiHooks.h`, `QtHooks.h`) | `OnlineLimits`, `pcsx2-qt/Zdxsv/QtOnlineLimits` | operations refused while online, debugger window closed |
 | Qt host start and exit (`CrashReportHooks.h`) | `pcsx2-qt/Zdxsv/CrashReports` | crash reports |
@@ -63,7 +64,8 @@ this table says it is missing.
 
 ## Input latency ([options.md](options.md))
 
-- **Low-latency vsync**: present before the limiter sleep; `ZdxsvLowLatencyVsync`.
+- **VSync on by default**: `[EmuCore/GS] VsyncEnable`.
+- **Low-latency present**: present before the limiter sleep; `ZdxsvLowLatencyPresent` (Settings → Emulation).
 - **Net battle pacing**: input sent before the limiter sleep, no limiter catch-up after a late frame, high process priority; `ZDXSV_EXTENSIONS=0`. See [rollback.md](rollback.md).
 - **Input latency measurement**: `ZDXSV_INPUT_LATENCY`.
 - **Input to picture by pixel color**: `ZDXSV_INPUT_LATENCY` key `pixel=`.
@@ -84,7 +86,7 @@ Keys (`net=1`, `lobby=1`, `port=`, `delay=`, ...) are parts of `ZDXSV_GGPO`.
 - **Rollback budget in the lobby delay**: lobby battle without `delay=`.
 - **Delta save states**: used by GGPO; `ZDXSV_DELTA_TEST`.
 - **Faster rerun frames**: `ZDXSV_RERUN_*`.
-- **Single draw list**: on (setting `ZdxsvSingleDrawList`); `ZDXSV_SINGLE_DRAW_LIST=0` turns it off.
+- **Single draw list**: always on, no setting; `ZDXSV_SINGLE_DRAW_LIST=0` turns it off.
 - **Battle start and MS select load barriers**: GGPO session.
 - **GGPO synctest in a running game**: `ZDXSV_GGPO` without `net=1`.
 - **Rerun keep**: the bone matrix slots and beam saber trails are not rolled back during battle play, and parts attached to a player are drawn in every rerun frame; `ZDXSV_RERUN_KEEP`, `ZDXSV_RERUN_PARTS`.
@@ -140,7 +142,7 @@ Keys (`net=1`, `lobby=1`, `port=`, `delay=`, ...) are parts of `ZDXSV_GGPO`.
 - **Common state**: a cached copy that does not load is downloaded again once.
 - **Seek**: PageUp, PageDown; `ZDXSV_REPLAY_SEEK`.
 - **Point of view**: Home; `ZDXSV_REPLAY_POV`, `ZDXSV_REPLAY_POV_AT`.
-- **Control bar**: `ZdxsvReplayBar`.
+- **Control bar**: shown while paused or after the mouse moves; no setting.
 - **Key display**: End; `ZdxsvReplayKeyDisplay`.
 - **Live spectating**: lobby `live_uplink=1`; `ZDXSV_REPLAY=live:...`.
 - **Live round results**.

@@ -83,7 +83,7 @@ RNG A (u16 0x6d7940, ~40 draws a battle frame), so after such a rollback
 RNG A differs from a run without one. RNG A is already peer-local (sound
 picks draw from it) and the players and RNG B stay in sync (rbk N=2 and N=4).
 
-The single draw list (`ZdxsvSingleDrawList`) removes the frame between the list and VU1. The
+The single draw list (`SingleDrawList.cpp`, always on) removes the frame between the list and VU1. The
 game keeps two draw-list slots chosen by a per-frame flag (u32 0x7ae1c0); its
 main loop sends the list of the frame before (`slot[flag ^ 1]`) ahead of the
 logic. The patch moves the send after the logic and makes it, and the VIF1
@@ -224,7 +224,7 @@ Three mechanisms keep the peers on the same frame:
 
 ### Frame order and pacing (`net=1`)
 
-With `ZdxsvLowLatencyVsync` a battle frame ends: present, input poll and send,
+With `ZdxsvLowLatencyPresent` a battle frame ends: present, input poll and send,
 GGPO advance, rollback, wait at the prediction limit, limiter sleep, then the
 next frame runs. The input goes out before the rollback and the sleep: the peers
 get it that much earlier, and its age does not depend on the rollback's length.

@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0+
 
 #include "Zdxsv/CpuHooks.h"
-#include "Zdxsv/Settings.h"
+#include "Zdxsv/TestOptions.h"
 
 #include "Memory.h"
 
@@ -98,7 +98,8 @@ namespace Zdxsv
 
 	void SingleDrawListOnVmInitialize()
 	{
-		g_single_draw_list = g_z_game && BoolSetting("ZdxsvSingleDrawList", true, "ZDXSV_SINGLE_DRAW_LIST");
+		const char* e = TestEnv("ZDXSV_SINGLE_DRAW_LIST");
+		g_single_draw_list = g_z_game && !(e && e[0] == '0');
 		s_state = {};
 		if (g_single_draw_list)
 			Console.WriteLn("Zdxsv: single draw list on");

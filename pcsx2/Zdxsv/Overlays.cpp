@@ -133,8 +133,8 @@ namespace Zdxsv
 		}
 
 		// zdxsv replay control bar (ZDXSV_REPLAY): play/pause, seek -10 s / +10 s, time and frame, a timeline (click or
-		// drag, seek on release), point of view. Setting ZdxsvReplayBar: 0 = shown while paused and for 3 s after the
-		// mouse moves over the bottom quarter, 1 = always, 2 = never; ZDXSV_REPLAY_BAR=1 / =0 overrides it (always / never).
+		// drag, seek on release), point of view. Shown while paused and for 3 s after the mouse moves over the bottom
+		// quarter; ZDXSV_REPLAY_BAR=1 / =0: always / never.
 		void DrawReplayBar(float scale, float margin)
 		{
 			static const char* const s_env = TestEnv("ZDXSV_REPLAY_BAR");
@@ -147,7 +147,7 @@ namespace Zdxsv
 			if (!Zdxsv::g_ggpo_enabled || FullscreenUI::HasActiveWindow() || !Zdxsv::ReplayBarInfo(frame, frames, pov, povs, target) ||
 				frames <= 0)
 				return;
-			const int mode = s_env ? (s_env[0] == '0' ? 2 : 1) : Host::GetIntSettingValue("DEV9/Eth", "ZdxsvReplayBar", 0);
+			const int mode = s_env ? (s_env[0] == '0' ? 2 : 1) : 0;
 			if (mode == 2)
 				return;
 

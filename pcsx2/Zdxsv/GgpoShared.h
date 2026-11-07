@@ -207,7 +207,7 @@ namespace Zdxsv
 		int save_skipped = 0;
 		int top_frame = 0; // the frame of the last save outside a rollback
 		int reruns_left = 0; // rerun frames left in this rollback
-		// LowLatencyVsync: present, rollback, then sleep and poll input (GgpoDeferThrottle). A corrected frame
+		// LowLatencyPresent: present, rollback, then sleep and poll input (GgpoDeferThrottle). A corrected frame
 		// shows one frame later.
 		bool throttle_deferred = false;
 	};

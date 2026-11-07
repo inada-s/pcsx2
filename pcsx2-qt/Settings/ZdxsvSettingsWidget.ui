@@ -91,20 +91,32 @@
     </widget>
    </item>
    <item>
-    <widget class="QGroupBox" name="startGroupBox">
-     <property name="title">
-      <string>Game Start</string>
-     </property>
-     <layout class="QVBoxLayout" name="startLayout">
-      <item>
-       <widget class="QCheckBox" name="zdxsvFastBoot">
-        <property name="text">
-         <string>Fast boot: go from game start to the lobby ID selection with no input. Takes effect at the next game start.</string>
-        </property>
-       </widget>
-      </item>
-     </layout>
-    </widget>
+    <layout class="QHBoxLayout" name="zdxsvPresetLayout">
+     <item>
+      <widget class="QPushButton" name="zdxsvPresetLow">
+       <property name="text">
+        <string>Recommended Settings
+for Low-Spec PC</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="zdxsvPresetMid">
+       <property name="text">
+        <string>Recommended Settings
+for Mid-Spec PC</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="zdxsvPresetHigh">
+       <property name="text">
+        <string>Recommended Settings
+for High-Spec PC</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
    </item>
    <item>
     <widget class="QGroupBox" name="battleGroupBox">
@@ -113,11 +125,18 @@
      </property>
      <layout class="QVBoxLayout" name="battleLayout">
       <item>
+       <widget class="QCheckBox" name="zdxsvFastBoot">
+        <property name="text">
+         <string>Fast boot</string>
+        </property>
+       </widget>
+      </item>
+      <item>
        <layout class="QHBoxLayout" name="zdxsvGgpoMinDelayLayout">
         <item>
          <widget class="QLabel" name="zdxsvGgpoMinDelayLabel">
           <property name="text">
-           <string>Minimum input delay (frames). The delay is picked from the ping to the opponents, never below this. Takes effect at the next game start.</string>
+           <string>Minimum input delay (frames):</string>
           </property>
           <property name="wordWrap">
            <bool>true</bool>
@@ -144,7 +163,7 @@
         <item>
          <widget class="QLabel" name="zdxsvGgpoPortLabel">
           <property name="text">
-           <string>UDP port for battles. 0 picks a random port at the next game start and keeps it. Forward this UDP port on your router if direct connections fail.</string>
+           <string>Battle UDP port:</string>
           </property>
           <property name="wordWrap">
            <bool>true</bool>
@@ -169,14 +188,14 @@
       <item>
        <widget class="QCheckBox" name="zdxsvNetOsd">
         <property name="text">
-         <string>Show the network status overlay during online battles. Takes effect at the next game start.</string>
+         <string>Network status overlay</string>
         </property>
        </widget>
       </item>
       <item>
        <widget class="QCheckBox" name="zdxsvUPnP">
         <property name="text">
-         <string>Open the battle UDP port on the router with UPnP when the connectivity test finds it closed.</string>
+         <string>Open the port with UPnP</string>
         </property>
        </widget>
       </item>
@@ -201,48 +220,6 @@
         </item>
        </layout>
       </item>
-      <item>
-       <widget class="QCheckBox" name="zdxsvLowLatencyVsync">
-        <property name="text">
-         <string>Low-latency vsync: show each frame before the frame limiter waits (shorter input lag).</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <widget class="QCheckBox" name="zdxsvSingleDrawList">
-        <property name="text">
-         <string>Single draw list: draw each frame in that frame (one frame less input lag).</string>
-        </property>
-       </widget>
-      </item>
-      <item>
-       <layout class="QHBoxLayout" name="zdxsvPresetLayout">
-        <item>
-         <widget class="QPushButton" name="zdxsvPresetLow">
-          <property name="text">
-           <string>Recommended Settings
-for Low-Spec PC</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QPushButton" name="zdxsvPresetMid">
-          <property name="text">
-           <string>Recommended Settings
-for Mid-Spec PC</string>
-          </property>
-         </widget>
-        </item>
-        <item>
-         <widget class="QPushButton" name="zdxsvPresetHigh">
-          <property name="text">
-           <string>Recommended Settings
-for High-Spec PC</string>
-          </property>
-         </widget>
-        </item>
-       </layout>
-      </item>
      </layout>
     </widget>
    </item>
@@ -255,72 +232,39 @@ for High-Spec PC</string>
       <item row="0" column="0" colspan="2">
        <widget class="QCheckBox" name="zdxsvLiveAutoNext">
         <property name="text">
-         <string>Live spectating: watch the next live battle automatically.</string>
+         <string>Live auto-next</string>
         </property>
        </widget>
       </item>
       <item row="1" column="0" colspan="2">
        <widget class="QCheckBox" name="zdxsvReplaySkipMs">
         <property name="text">
-         <string>Skip the mobile suit selection.</string>
+         <string>Skip mobile suit selection</string>
         </property>
        </widget>
       </item>
       <item row="2" column="0" colspan="2">
        <widget class="QCheckBox" name="zdxsvReplayKeyDisplay">
         <property name="text">
-         <string>Start with the key display on.</string>
+         <string>Key display at start</string>
         </property>
        </widget>
       </item>
-      <item row="3" column="0">
-       <widget class="QLabel" name="zdxsvReplayBarLabel">
-        <property name="text">
-         <string>Control bar:</string>
-        </property>
-       </widget>
-      </item>
-      <item row="3" column="1">
-       <widget class="QComboBox" name="zdxsvReplayBar">
-        <item>
-         <property name="text">
-          <string>When paused or the mouse moves</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>Always</string>
-         </property>
-        </item>
-        <item>
-         <property name="text">
-          <string>Never</string>
-         </property>
-        </item>
-       </widget>
-      </item>
-      <item row="4" column="0" colspan="2">
-       <widget class="QCheckBox" name="zdxsvReplayUpload">
-        <property name="text">
-         <string>Upload the replay of each lobby battle to the zdxsv server.</string>
-        </property>
-       </widget>
-      </item>
-      <item row="5" column="0" colspan="2">
+      <item row="3" column="0" colspan="2">
        <widget class="QCheckBox" name="zdxsvSaveReplay">
         <property name="text">
-         <string>Save the replay of each lobby battle on this PC.</string>
+         <string>Save replays</string>
         </property>
        </widget>
       </item>
-      <item row="6" column="0">
+      <item row="4" column="0">
        <widget class="QLabel" name="zdxsvReplayPathLabel">
         <property name="text">
          <string>Replay folder:</string>
         </property>
        </widget>
       </item>
-      <item row="6" column="1">
+      <item row="4" column="1">
        <layout class="QHBoxLayout" name="zdxsvReplayPathLayout">
         <item>
          <widget class="QLineEdit" name="zdxsvReplayPath"/>
@@ -360,7 +304,7 @@ for High-Spec PC</string>
       <item>
        <widget class="QCheckBox" name="zdxsvCrashReports">
         <property name="text">
-         <string>Send crash reports to the zdxsv developers.</string>
+         <string>Send crash reports</string>
         </property>
        </widget>
       </item>

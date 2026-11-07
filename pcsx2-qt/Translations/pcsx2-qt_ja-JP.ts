@@ -28151,22 +28151,17 @@ PCSX2 will be able to run once you&apos;ve placed your BIOS image inside the fol
       <translation>クラッシュレポート</translation>
     </message>
     <message>
-      <source>When PCSX2 crashes, a report is sent to the zdxsv developers. It contains part of the memory of PCSX2 at the moment of the crash, your version of PCSX2, your operating system and a random ID of this installation. Turning this on takes effect at the next start.</source>
-      <translation>PCSX2 がクラッシュすると、レポートを zdxsv の開発者に送信します。レポートには、クラッシュ時の PCSX2 のメモリの一部、PCSX2 のバージョン、OS の情報、このインストールのランダムな ID が含まれます。オンにした場合は次回の起動から有効です。</translation>
+      <source>Sends a report to the zdxsv developers when PCSX2 crashes.</source>
+      <translation>PCSX2 がクラッシュしたとき、開発者にレポートを送ります。</translation>
     </message>
     <message>
-      <source>Send crash reports to the zdxsv developers.</source>
-      <translation>クラッシュレポートを zdxsv の開発者に送信します。</translation>
-    </message>
-    <message>
-      <location filename="../Settings/ZdxsvSettingsWidget.ui" line="20"/>
-      <source>Game Start</source>
-      <translation>ゲーム起動</translation>
+      <source>Send crash reports</source>
+      <translation>クラッシュレポートを送信</translation>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.ui" line="27"/>
-      <source>Fast boot: go from game start to the lobby ID selection with no input. Takes effect at the next game start.</source>
-      <translation>高速起動: ゲーム起動からロビーの ID 選択まで操作なしで進めます。次のゲーム起動から有効です。</translation>
+      <source>Fast boot</source>
+      <translation>高速起動</translation>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="71"/>
@@ -28175,8 +28170,8 @@ PCSX2 will be able to run once you&apos;ve placed your BIOS image inside the fol
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="72"/>
-      <source>From game start to the lobby ID selection with no input: runs at unlimited speed and presses through the title, main menu and network menus (broadband, network setting 1), then returns to normal speed. Stops at once when the route cannot go on, for example with an unformatted memory card or no NET file on it. Uncheck it to play offline.</source>
-      <translation>ゲーム起動からロビーの ID 選択まで操作なしで進めます: 最高速でタイトル、メインメニュー、通信メニュー (ブロードバンド接続、ネットワーク設定 1) を進め、通常速度に戻します。先へ進めないとき (例: メモリーカードが未フォーマット、NET ファイルがない) はすぐに止まります。オフラインで遊ぶときはチェックを外します。</translation>
+      <source>Goes from game start to the lobby ID selection with no input. Uncheck it to play offline.</source>
+      <translation>ゲーム起動からロビーの ID 選択まで操作なしで進めます。オフラインで遊ぶときは外してください。</translation>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.ui" line="20"/>
@@ -28190,23 +28185,18 @@ PCSX2 will be able to run once you&apos;ve placed your BIOS image inside the fol
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.ui" line="35"/>
-      <source>Minimum input delay (frames). The delay is picked from the ping to the opponents, never below this. Takes effect at the next game start.</source>
-      <translation>最小入力遅延 (フレーム)。遅延は対戦相手との ping から決まり、この値より小さくはなりません。次のゲーム起動から有効です。</translation>
+      <source>Minimum input delay (frames):</source>
+      <translation>最小入力遅延 (フレーム):</translation>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.ui" line="62"/>
-      <source>UDP port for battles. 0 picks a random port at the next game start and keeps it. Forward this UDP port on your router if direct connections fail.</source>
-      <translation>対戦用の UDP ポート。0 にすると次のゲーム起動時にランダムなポートを選んで保存します。直接接続できない場合はルーターでこの UDP ポートを転送してください。</translation>
+      <source>Battle UDP port:</source>
+      <translation>対戦用 UDP ポート:</translation>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.ui" line="87"/>
-      <source>Show the network status overlay during online battles. Takes effect at the next game start.</source>
-      <translation>オンライン対戦中に通信状態を画面に表示します。次のゲーム起動から有効です。</translation>
-    </message>
-    <message>
-      <location filename="../Settings/ZdxsvSettingsWidget.ui" line="94"/>
-      <source>Low-latency vsync: show each frame before the frame limiter waits (shorter input lag).</source>
-      <translation>低遅延 VSync: フレームリミッターが待つ前に各フレームを表示します (入力遅延が短くなります)。</translation>
+      <source>Network status overlay</source>
+      <translation>通信状態の表示</translation>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.ui" line="103"/>
@@ -28236,39 +28226,18 @@ for High-Spec PC</source>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.ui" line="138"/>
-      <source>Live spectating: watch the next live battle automatically.</source>
-      <translation>ライブ観戦: 次のライブバトルを自動で観戦します。</translation>
+      <source>Live auto-next</source>
+      <translation>ライブ自動切り替え</translation>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.ui" line="145"/>
-      <source>Skip the mobile suit selection.</source>
-      <translation>機体選択をスキップします。</translation>
+      <source>Skip mobile suit selection</source>
+      <translation>機体選択をスキップ</translation>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.ui" line="152"/>
-      <source>Start with the key display on.</source>
-      <translation>キー表示をオンにして開始します。</translation>
-    </message>
-    <message>
-      <location filename="../Settings/ZdxsvSettingsWidget.ui" line="159"/>
-      <source>Control bar:</source>
-      <translation>コントロールバー:</translation>
-    </message>
-    <message>
-      <location filename="../Settings/ZdxsvSettingsWidget.ui" line="167"/>
-      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="80"/>
-      <source>When paused or the mouse moves</source>
-      <translation>一時停止中またはマウス操作時</translation>
-    </message>
-    <message>
-      <location filename="../Settings/ZdxsvSettingsWidget.ui" line="172"/>
-      <source>Always</source>
-      <translation>常に表示</translation>
-    </message>
-    <message>
-      <location filename="../Settings/ZdxsvSettingsWidget.ui" line="177"/>
-      <source>Never</source>
-      <translation>表示しない</translation>
+      <source>Key display at start</source>
+      <translation>開始時にキー表示</translation>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.ui" line="185"/>
@@ -28276,14 +28245,9 @@ for High-Spec PC</source>
       <translation>開始ステート (URL またはファイル):</translation>
     </message>
     <message>
-      <location filename="../Settings/ZdxsvSettingsWidget.ui" line="195"/>
-      <source>Upload the replay of each lobby battle to the zdxsv server.</source>
-      <translation>ロビー対戦ごとのリプレイを zdxsv サーバーにアップロードします。</translation>
-    </message>
-    <message>
       <location filename="../Settings/ZdxsvSettingsWidget.ui" line="205"/>
-      <source>Save the replay of each lobby battle on this PC.</source>
-      <translation>ロビー対戦ごとのリプレイをこの PC に保存します。</translation>
+      <source>Save replays</source>
+      <translation>リプレイを保存</translation>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.ui" line="212"/>
@@ -28346,8 +28310,8 @@ for High-Spec PC</source>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="67"/>
-      <source>Lowest GGPO input delay (frames, 2 to 6) a battle picks from the ping test. Also the delay of a replay takeover.</source>
-      <translation>対戦時に ping テストから選ばれる GGPO 入力遅延の下限 (フレーム、2〜6)。リプレイからの操作引き継ぎの遅延にも使います。</translation>
+      <source>Lowest input delay of a battle (frames). Higher: fewer rollbacks, but slower controls.</source>
+      <translation>対戦の入力遅延の下限 (フレーム)。大きくすると巻き戻しが減りますが、操作の反応が遅くなります。</translation>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="68"/>
@@ -28361,8 +28325,8 @@ for High-Spec PC</source>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="69"/>
-      <source>UDP port the emulator uses for online battles. 0: a random port (29700 to 29800) is picked at the next game start and saved here.</source>
-      <translation>エミュレーターがオンライン対戦に使う UDP ポート。0: 次のゲーム起動時にランダムなポート (29700〜29800) を選んでここに保存します。</translation>
+      <source>UDP port for online battles. 0: picked at random. Forward it on your router if you cannot connect.</source>
+      <translation>オンライン対戦用の UDP ポート。0: ランダムに選びます。接続できないときはルーターで転送してください。</translation>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="70"/>
@@ -28371,18 +28335,18 @@ for High-Spec PC</source>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="71"/>
-      <source>Shows the network status overlay (one line per opponent) during online battles.</source>
-      <translation>オンライン対戦中に通信状態 (対戦相手ごとに 1 行) を画面に表示します。</translation>
+      <source>Shows the connection status during online battles.</source>
+      <translation>オンライン対戦中に通信状態を表示します。</translation>
     </message>
     <message>
-      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="72"/>
-      <source>Low-Latency Vsync</source>
-      <translation>低遅延 VSync</translation>
+      <location filename="../Zdxsv/QtEmulationSettings.cpp" line="72"/>
+      <source>Low-Latency Present</source>
+      <translation>低遅延表示</translation>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="73"/>
-      <source>Presents the finished frame before the frame limiter sleeps, and polls input right before the next frame runs. Other games are never affected.</source>
-      <translation>フレームリミッターが待つ前に完成したフレームを表示し、次のフレームの直前に入力を読み取ります。他のゲームには影響しません。</translation>
+      <source>Shows each frame sooner after your input. Downside: frame pacing can be less even.</source>
+      <translation>入力から画面までを短くします。デメリット: フレームの表示間隔が不揃いになることがあります。</translation>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="74"/>
@@ -28397,8 +28361,8 @@ for High-Spec PC</source>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="75"/>
-      <source>Live spectating: when a stream ends, watch the lobby's next live battle.</source>
-      <translation>ライブ観戦: 配信が終わったら、ロビーの次のライブバトルを観戦します。</translation>
+      <source>When a live battle ends, watches the next one.</source>
+      <translation>ライブ観戦が終わると次の対戦を観ます。</translation>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="76"/>
@@ -28407,8 +28371,8 @@ for High-Spec PC</source>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="77"/>
-      <source>A replay runs at full speed up to the briefing.</source>
-      <translation>リプレイをブリーフィングまで最高速で進めます。</translation>
+      <source>Replays skip the mobile suit selection.</source>
+      <translation>リプレイで機体選択を飛ばします。</translation>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="78"/>
@@ -28417,18 +28381,8 @@ for High-Spec PC</source>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="79"/>
-      <source>Replays start with the key display on. The Toggle Key Display hotkey switches it.</source>
-      <translation>リプレイをキー表示オンで開始します。「キー表示の切り替え」ホットキーで切り替えられます。</translation>
-    </message>
-    <message>
-      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="80"/>
-      <source>Control Bar</source>
-      <translation>コントロールバー</translation>
-    </message>
-    <message>
-      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="81"/>
-      <source>When the replay control bar is shown.</source>
-      <translation>リプレイのコントロールバーを表示するタイミング。</translation>
+      <source>Replays start with the key display on.</source>
+      <translation>リプレイをキー表示ありで始めます。</translation>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="82"/>
@@ -28441,24 +28395,14 @@ for High-Spec PC</source>
       <translation>リプレイとライブバトルを開始するセーブステート: URL (キャッシュフォルダに一度だけダウンロード) またはファイル。空欄: 実行中のゲームのステート。</translation>
     </message>
     <message>
-      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="84"/>
-      <source>Upload Replays</source>
-      <translation>リプレイをアップロード</translation>
-    </message>
-    <message>
-      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="85"/>
-      <source>After each lobby battle, its replay is posted to the zdxsv server, where anyone can watch it (Tools → zdxsv Replays, Remote).</source>
-      <translation>ロビー対戦のたびにリプレイを zdxsv サーバーに送信し、誰でも観られるようにします (ツール → zdxsv リプレイ、リモート)。</translation>
-    </message>
-    <message>
       <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="91"/>
       <source>Save Replays</source>
       <translation>リプレイを保存</translation>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="92"/>
-      <source>After each lobby battle, its replay is saved in the replay folder (Tools → zdxsv Replays, Local).</source>
-      <translation>ロビー対戦のたびにリプレイをリプレイフォルダに保存します (ツール → zdxsv リプレイ、ローカル)。</translation>
+      <source>Saves each lobby battle&apos;s replay on this PC.</source>
+      <translation>ロビー対戦のリプレイをこの PC に保存します。</translation>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="93"/>
@@ -28472,8 +28416,8 @@ for High-Spec PC</source>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="94"/>
-      <source>Where replays are saved and the Local replay list reads from. A folder that cannot be created falls back to the default.</source>
-      <translation>リプレイの保存先で、ローカルのリプレイ一覧もここから読みます。作成できないフォルダの場合は既定のフォルダを使います。</translation>
+      <source>Where replays are saved.</source>
+      <translation>リプレイの保存先です。</translation>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="90"/>
@@ -28489,8 +28433,8 @@ for High-Spec PC</source>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="91"/>
-      <source>Sets Internal Resolution to Native (PS2) and Minimum Input Delay to 3.</source>
-      <translation>内部解像度をネイティブ (PS2)、最小入力遅延を 3 にします。</translation>
+      <source>Native resolution, input delay 3.</source>
+      <translation>ネイティブ解像度、入力遅延 3。</translation>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="92"/>
@@ -28499,8 +28443,8 @@ for High-Spec PC</source>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="93"/>
-      <source>Sets Internal Resolution to 2x Native (~720p) and Minimum Input Delay to 2.</source>
-      <translation>内部解像度を 2x ネイティブ (~720p)、最小入力遅延を 2 にします。</translation>
+      <source>2x resolution, input delay 2.</source>
+      <translation>2 倍解像度、入力遅延 2。</translation>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="94"/>
@@ -28509,8 +28453,8 @@ for High-Spec PC</source>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="95"/>
-      <source>Sets Internal Resolution to 3x Native (~1080p) and Minimum Input Delay to 2.</source>
-      <translation>内部解像度を 3x ネイティブ (~1080p)、最小入力遅延を 2 にします。</translation>
+      <source>3x resolution, input delay 2.</source>
+      <translation>3 倍解像度、入力遅延 2。</translation>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="145"/>
@@ -28524,8 +28468,8 @@ for High-Spec PC</source>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.ui" line="94"/>
-      <source>Open the battle UDP port on the router with UPnP when the connectivity test finds it closed.</source>
-      <translation>接続テストで対戦用 UDP ポートが閉じていた場合、UPnP でルーターのポートを開きます。</translation>
+      <source>Open the port with UPnP</source>
+      <translation>UPnP でポートを開く</translation>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.ui" line="103"/>
@@ -28540,13 +28484,13 @@ for High-Spec PC</source>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="83"/>
-      <source>When the connectivity test at the first lobby connection finds the battle UDP port closed, asks the router (UPnP) to forward it to this PC, then tests again. The mapping is removed when PCSX2 exits.</source>
-      <translation>最初のロビー接続時の接続テストで対戦用 UDP ポートが閉じていた場合、ルーターに (UPnP で) この PC への転送を依頼してから再テストします。転送設定は PCSX2 の終了時に削除されます。</translation>
+      <source>When the battle port is closed, automatically changes the router&apos;s settings.</source>
+      <translation>対戦用ポートが閉じているとき、自動でルーターの設定を変更します。</translation>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="108"/>
-      <source>Asks the router (UPnP) now to forward the battle UDP port to this PC, and shows the result. The mapping is removed when PCSX2 exits.</source>
-      <translation>対戦用 UDP ポートをこの PC へ転送するよう今すぐルーターに (UPnP で) 依頼し、結果を表示します。転送設定は PCSX2 の終了時に削除されます。</translation>
+      <source>Opens the battle port on the router now.</source>
+      <translation>今すぐルーターで対戦用ポートを開きます。</translation>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="137"/>
@@ -28584,20 +28528,8 @@ for High-Spec PC</source>
       <translation>更新</translation>
     </message>
     <message>
-      <source>Single draw list: draw each frame in that frame (one frame less input lag).</source>
-      <translation>シングル描画リスト: 各フレームの絵をそのフレーム内で描画します (入力遅延が 1 フレーム短くなります)。</translation>
-    </message>
-    <message>
       <source>Overridden by the environment variable %1=%2</source>
       <translation>環境変数 %1=%2 で上書きされています</translation>
-    </message>
-    <message>
-      <source>Single Draw List</source>
-      <translation>シングル描画リスト</translation>
-    </message>
-    <message>
-      <source>The game draws each frame&apos;s picture in that frame instead of the next: one frame less from input to picture. Only this PC&apos;s picture changes; battles stay in sync with players who have it off. Other games are never affected.</source>
-      <translation>ゲームが各フレームの絵を次のフレームではなく、そのフレーム内で描画します。入力から画面まで 1 フレーム短くなります。変わるのはこの PC の画面だけで、オフにしているプレイヤーとの対戦も同期したままです。他のゲームには影響しません。</translation>
     </message>
     <message>
       <source>Revokes this PC&apos;s sign-in token on the server and deletes it.</source>
@@ -28652,8 +28584,8 @@ for High-Spec PC</source>
       <translation>最初のアカウント</translation>
     </message>
     <message>
-      <source>Opens the zdxsv sign-in page in your browser. PCSX2 keeps a sign-in token for this PC. Signing in creates no zdxsv account: add one, or carry one over from a PS2.</source>
-      <translation>ブラウザで zdxsv のサインインページを開きます。PCSX2 はこの PC 用のサインイントークンを保存します。サインインしても zdxsv アカウントは作られません。アカウントを追加するか、PS2 から引き継いでください。</translation>
+      <source>Signs in to zdxsv in your browser.</source>
+      <translation>ブラウザで zdxsv にサインインします。</translation>
     </message>
   <message>
       <source>Cancel Sign-in</source>
@@ -28680,12 +28612,12 @@ for High-Spec PC</source>
       <translation>この PC でサインイン済みです。zdxsv アカウントは最初の接続で作られます。PS2 のアカウントを使う場合は、先に引き継いでください。</translation>
     </message>
   <message>
-      <source>Your zdxsv accounts: the ones made in PCSX2, ones carried over from a PS2, and empty slots, made when you first connect with one picked. Going online uses the account picked here.</source>
-      <translation>zdxsv アカウントの一覧です。PCSX2 で作ったもの、PS2 から引き継いだもの、未作成の枠が並びます。未作成の枠は、選んで最初に接続したときに作られます。オンラインではここで選んだアカウントを使います。</translation>
+      <source>The account used online.</source>
+      <translation>オンラインで使うアカウントです。</translation>
     </message>
     <message>
-      <source>Adds the zdxsv account you play on a PS2 to the signed-in Discord account. Get the code by typing ｄｃ in the chat of the Kennedy Port lobby on the PS2; it works once, within 3 minutes. The PS2 keeps playing with the account.</source>
-      <translation>PS2 で遊んでいる zdxsv アカウントを、サインイン中の Discord アカウントに追加します。コードは PS2 でケネディポートのロビーのチャットに ｄｃ と入力すると表示されます。3 分以内に 1 回だけ使えます。PS2 でも引き続きそのアカウントで遊べます。</translation>
+      <source>Uses your PS2 account on this PC too. Get the code by typing ｄｃ in the Kennedy Port lobby chat on the PS2.</source>
+      <translation>PS2 のアカウントをこの PC でも使えるようにします。コードは PS2 でケネディポートのロビーチャットに ｄｃ と入力すると出ます。</translation>
     </message>
     <message>
       <source>Use the account you play on a PS2 on this PC too. The PS2 keeps playing with the same account.
