@@ -82,7 +82,7 @@ namespace Zdxsv
 				static_cast<int>(message.size()), message.data());
 			s.log_lens[s.log_next] = n < 0 ? 0 : std::min<u32>(static_cast<u32>(n), LOG_TAIL_LINE_SIZE - 1);
 			s.log_next = (s.log_next + 1) % LOG_TAIL_LINES;
-			s.log_count = std::min(s.log_count + 1, LOG_TAIL_LINES);
+			s.log_count = std::min<u32>(s.log_count + 1, LOG_TAIL_LINES);
 		}
 
 		// Runs in the crashed process: no lock (the crashed thread may hold it), no allocation.
