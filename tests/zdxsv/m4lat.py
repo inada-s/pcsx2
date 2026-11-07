@@ -39,15 +39,13 @@ def main():
     out = os.environ["OUT"]
     os.makedirs(out, exist_ok=True)
     pd = os.path.join(os.environ["RUN"], "p1", "PCSX2")
-    ini = os.path.join(pd, "inis", "PCSX2.ini")
-    zrig.ini_set(ini, "EmuCore/GS", "ZdxsvLowLatencyPresent", "false" if zrig.env("LOWLAT", "1") == "0" else "true")
-    for l in zrig.log_lines(ini, "ZdxsvLowLatencyPresent"):
-        print(l)
     go = os.path.join(out, "go")
     if os.path.exists(go):
         os.remove(go)
     lat = (f"ZDXSV_INPUT_LATENCY=btn={zrig.env('BTN', 'down')},back={zrig.env('BACK', 'up')},go={go},"
            f"seed={zrig.env('SEED', '1')},out={os.path.join(out, 'lat.csv')},{os.environ['SPEC']}")
+    if zrig.env("LOWLAT", "1") == "0":
+        lat = "ZDXSV_LOW_LATENCY_PRESENT=0 " + lat
     e = dict(os.environ, SHOW="1", MASHP="2 3 4", GO=go, GODELAY=zrig.env("GODELAY", "30"), PCSX2_ENV_P1=lat)
     m4out = os.path.join(out, "m4.out")
     with open(m4out, "wb") as f:

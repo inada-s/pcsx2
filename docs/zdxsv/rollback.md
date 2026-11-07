@@ -224,7 +224,7 @@ Three mechanisms keep the peers on the same frame:
 
 ### Frame order and pacing (`net=1`)
 
-With `ZdxsvLowLatencyPresent` a battle frame ends: present, input poll and send,
+With low-latency present (always on) a battle frame ends: present, input poll and send,
 GGPO advance, rollback, wait at the prediction limit, limiter sleep, then the
 next frame runs. The input goes out before the rollback and the sleep: the peers
 get it that much earlier, and its age does not depend on the rollback's length.

@@ -57,7 +57,6 @@ page greys it out and its tooltip names the variable.
 | `[DEV9/Eth] ZdxsvRollbackBudget` | `1.0` | internal | Rollback budget learned per PC (frames, 0..1.5), saved after each long net battle (`rollback.md`). |
 | `[DEV9/Eth] ZdxsvGgpoPort` | `0` | feature | UDP port of lobby battles (ping test and GGPO). 0 or out of range: a random port in 29700..29800, picked when the game starts with `lobby=1` and saved to the setting. `port=` overrides it. |
 | `[EmuCore/GS] VsyncEnable` | `true` | feature | Upstream VSync, on by default in this build (upstream: off); Settings → Emulation. |
-| `[EmuCore/GS] ZdxsvLowLatencyPresent` | `true` | feature | Present the finished frame before the frame limiter sleeps, and poll input right before the next frame runs (in a net battle: before the sleep, see [rollback.md](rollback.md)). On Settings → Emulation, not the zdxsv page. |
 | `[DEV9/Eth] ZdxsvLiveAutoNext` | `false` | feature | Live spectating: when a stream ends, watch the lobby's next live battle. `ZDXSV_LIVE_NEXT` overrides it. |
 | `[DEV9/Eth] ZdxsvUPnP` | `true` | feature | When the connectivity test finds the GGPO port not open, map it on the router with UPnP and test again (`lobby.md`). |
 | `[DEV9/Eth] ZdxsvNetOsd` | `true` | feature | Network status OSD in GGPO battles. Read when the game starts. `osd=` overrides it. Off: shown only while an opponent is interrupted or disconnected. |
@@ -154,6 +153,7 @@ turns GGPO off and leaves the other extensions on. Any other value turns it on. 
 | `ZDXSV_RERUN_VU1=1` | off | control | VU1 microprograms run in every rerun frame. Default: only in the last rerun frame of a rollback, whose drawing the first present after the rollback shows; none with the single draw list. |
 | `ZDXSV_RERUN_TAIL=n` | 2 (0 with the single draw list) | control | The last n rerun frames of a rollback run the game's render callbacks, the last n - 1 VU1 microprograms (n with the single draw list). Without the single draw list, below the default the picture after a rollback breaks (`tests/zdxsv/rerunpic.py` FAIL control). |
 | `ZDXSV_SINGLE_DRAW_LIST=0` | on | control | Z game: no single draw list (the game draws a frame's draw list in the next frame, as stock). See rollback.md. |
+| `ZDXSV_LOW_LATENCY_PRESENT=0` | on | control | Z game: no low-latency present. On: present the finished frame before the frame limiter sleeps, and poll input right before the next frame runs (in a net battle: before the sleep, see [rollback.md](rollback.md)). |
 | `ZDXSV_AUTH_SIGNIN_TEST=1\|signout` | unset | test | At app start, `1` signs in once through `ZdxsvAuthUrl` and logs `Zdxsv: auth: open <url>` instead of opening a browser; `signout` signs out. |
 | `ZDXSV_AUTH_URL=<url>` | unset | test | Overrides `ZdxsvAuthUrl`. |
 | `ZDXSV_AUTH_AT_DNAS=0` | unset (on) | test | `ZdxsvFastLogin` with no token skips the sign-in at DNAS (back to the network menu); the rigs set it unless set. |

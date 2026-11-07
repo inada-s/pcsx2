@@ -179,7 +179,6 @@
     </ClCompile>
     <ClCompile Include="Tools\ZdxsvReplayDialog.cpp" />
     <ClCompile Include="Zdxsv\QtFonts.cpp" />
-    <ClCompile Include="Zdxsv\QtEmulationSettings.cpp" />
     <ClCompile Include="Zdxsv\QtOnlineLimits.cpp" />
     <ClCompile Include="Settings\DEV9UiCommon.cpp" />
     <ClCompile Include="Settings\HddCreateQt.cpp" />
