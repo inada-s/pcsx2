@@ -46,6 +46,7 @@ dumping are off; they come back when you leave the lobby. Save states, changing 
 disc or memory cards, video capture, GS dumps, the debugger and graphics settings
 that restart the renderer or change the resolution are not available either
 ("Not available while online."); graphics changes apply after you leave the lobby.
+Debugger breakpoints are removed when you enter the lobby.
 
 ## Recommended settings
 
