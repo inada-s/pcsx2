@@ -23,6 +23,7 @@ skips does not run on that path.
 | PINE server (`PineHooks.h`) | `OnlineLimits` | PINE refused while online |
 | Pad macro buttons (`InputHooks.h`) | `OnlineLimits` | macro buttons off while online |
 | Qt fonts | `pcsx2-qt/Zdxsv/QtFonts` | Noto Sans JP download before the OSD fonts load |
+| VMManager, GS, MTGS, hotkeys, Qt main window (`UiHooks.h`, `QtHooks.h`) | `OnlineLimits`, `pcsx2-qt/Zdxsv/QtOnlineLimits` | operations refused while online, debugger window closed |
 | Qt host start and exit (`CrashReportHooks.h`) | `pcsx2-qt/Zdxsv/CrashReports` | crash reports |
 | Qt host start (`AuthHooks.h`) | `Zdxsv/AuthSignIn` | sign-in test trigger (`ZDXSV_AUTH_SIGNIN_TEST`) |
 
@@ -56,6 +57,7 @@ this table says it is missing.
 - **Lobby connection kept while paused**: line checks `0x6001` answered.
 - **Pause menu**: refused while connected to the zdxsv lobby.
 - **PCSX2 features limited while online** (zdxsv lobby or net battle): PINE refused (`ZDXSV_PINE_ONLINE`); macro buttons (turbo included) not loaded; input recording, manual hardware renderer fixes, texture and draw data dumping off; `ZDXSV_SYNC_FORCE=0` turns the settings part off.
+- **Operations refused while online** (OSD "Not available while online."): state saves and loads, disc changes, memory card swaps and setting changes, GS dumps, video capture, the software renderer toggle, upscale hotkeys, GS settings that recreate the renderer or change the upscale (held until offline); the debugger window closes and does not open.
 - **Settings page**: Settings → zdxsv.
 - **Recommended-settings buttons**: Low, Mid, High on Settings → zdxsv.
 

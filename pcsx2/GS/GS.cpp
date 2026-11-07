@@ -21,6 +21,7 @@
 #include "GS/Renderers/HW/GSRendererHW.h"
 #include "GS/Renderers/HW/GSTextureReplacements.h"
 #include "VMManager.h"
+#include "Zdxsv/UiHooks.h"
 
 #ifdef ENABLE_OPENGL
 #include "GS/Renderers/OpenGL/GSDeviceOGL.h"
@@ -481,6 +482,9 @@ int GSfreeze(FreezeAction mode, freezeData* data)
 
 void GSQueueSnapshot(const std::string& path, u32 gsdump_frames)
 {
+	if (gsdump_frames > 0 && Zdxsv::g_online_limits && Zdxsv::OnlineRefuses())
+		return;
+
 	if (g_gs_renderer)
 		g_gs_renderer->QueueSnapshot(path, gsdump_frames);
 }
@@ -493,6 +497,9 @@ void GSStopGSDump()
 
 bool GSBeginCapture(std::string filename)
 {
+	if (Zdxsv::g_online_limits && Zdxsv::OnlineRefuses())
+		return false;
+
 	if (g_gs_renderer)
 		return g_gs_renderer->BeginCapture(std::move(filename));
 	else
@@ -1121,6 +1128,9 @@ std::pair<u8, u8> GSGetRGBA8AlphaMinMax(const void* data, u32 width, u32 height,
 
 static void HotkeyAdjustUpscaleMultiplier(const float delta)
 {
+	if (Zdxsv::g_online_limits && Zdxsv::OnlineRefuses())
+		return;
+
 	if (!g_gs_renderer)
 		return;
 

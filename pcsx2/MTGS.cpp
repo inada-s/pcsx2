@@ -7,6 +7,7 @@
 #include "MTVU.h"
 #include "Zdxsv/CpuHooks.h"
 #include "Zdxsv/MediaHooks.h"
+#include "Zdxsv/UiHooks.h"
 #include "Host.h"
 #include "IconsFontAwesome.h"
 #include "VMManager.h"
@@ -1023,6 +1024,9 @@ void MTGS::SetSoftwareRendering(bool software, GSInterlaceMode interlace, bool d
 
 void MTGS::ToggleSoftwareRendering()
 {
+	if (Zdxsv::g_online_limits && Zdxsv::OnlineRefuses())
+		return;
+
 	// reading from the GS thread.. but should be okay here
 	SetSoftwareRendering(GSIsHardwareRenderer(), EmuConfig.GS.InterlaceMode);
 }

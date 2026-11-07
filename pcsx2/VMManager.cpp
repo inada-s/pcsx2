@@ -2062,6 +2062,8 @@ bool VMManager::LoadState(const char* filename, Error* error)
 {
 	if (Zdxsv::g_ggpo_active && Zdxsv::GgpoBattleRefuses(error))
 		return false;
+	if (Zdxsv::g_online_limits && Zdxsv::OnlineRefuses(error))
+		return false;
 
 	if (Achievements::IsHardcoreModeActive())
 	{
@@ -2090,6 +2092,8 @@ bool VMManager::LoadState(const char* filename, Error* error)
 bool VMManager::LoadStateFromSlot(s32 slot, bool backup, Error* error)
 {
 	if (Zdxsv::g_ggpo_active && Zdxsv::GgpoBattleRefuses(error))
+		return false;
+	if (Zdxsv::g_online_limits && Zdxsv::OnlineRefuses(error))
 		return false;
 
 	const std::string filename = GetCurrentSaveStateFileName(slot, backup);
@@ -2136,6 +2140,9 @@ bool VMManager::LoadStateFromSlot(s32 slot, bool backup, Error* error)
 void VMManager::SaveState(
 	const char* filename, bool zip_on_thread, bool backup_old_state, std::function<void(const std::string&)> error_callback)
 {
+	if (Zdxsv::g_online_limits && Zdxsv::OnlineRefuses())
+		return;
+
 	if (MemcardBusy::IsBusy())
 	{
 		error_callback(TRANSLATE_STR("VMManager",
@@ -2148,6 +2155,9 @@ void VMManager::SaveState(
 
 void VMManager::SaveStateToSlot(s32 slot, bool zip_on_thread, std::function<void(const std::string&)> error_callback)
 {
+	if (Zdxsv::g_online_limits && Zdxsv::OnlineRefuses())
+		return;
+
 	const std::string filename(GetCurrentSaveStateFileName(slot));
 	if (filename.empty())
 	{
@@ -2366,6 +2376,9 @@ void VMManager::FrameAdvance(u32 num_frames /*= 1*/)
 
 bool VMManager::ChangeDisc(CDVD_SourceType source, std::string path)
 {
+	if (Zdxsv::g_online_limits && Zdxsv::OnlineRefuses())
+		return false;
+
 	const CDVD_SourceType old_type = CDVDsys_GetSourceType();
 	const std::string old_path(CDVDsys_GetFile(old_type));
 
@@ -3035,6 +3048,10 @@ void VMManager::CheckForGSConfigChanges(const Pcsx2Config& old_config)
 	if (EmuConfig.GS == old_config.GS)
 		return;
 
+	if (Zdxsv::g_online_limits && (!EmuConfig.GS.RestartOptionsAreEqual(old_config.GS) ||
+		EmuConfig.GS.UpscaleMultiplier != old_config.GS.UpscaleMultiplier) && Zdxsv::OnlineRefuses())
+		EmuConfig.GS = old_config.GS;
+
 	Console.WriteLn("Updating GS configuration...");
 
 	// We could just check whichever NTSC or PAL is appropriate for our current mode,
@@ -3107,6 +3124,12 @@ void VMManager::CheckForMemoryCardConfigChanges(const Pcsx2Config& old_config)
 
 	if (!changed)
 		return;
+
+	if (Zdxsv::g_online_limits && Zdxsv::OnlineRefuses())
+	{
+		std::copy(std::begin(old_config.Mcd), std::end(old_config.Mcd), std::begin(EmuConfig.Mcd));
+		return;
+	}
 
 	Console.WriteLn("Updating memory card configuration");
 

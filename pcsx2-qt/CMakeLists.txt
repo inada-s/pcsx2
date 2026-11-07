@@ -168,6 +168,7 @@ target_sources(pcsx2-qt PRIVATE
 	Tools/ZdxsvReplayDialog.cpp
 	Tools/ZdxsvReplayDialog.h
 	Zdxsv/QtFonts.cpp
+	Zdxsv/QtOnlineLimits.cpp
 	Zdxsv/QtHooks.h
 	Settings/DEV9UiCommon.cpp
 	Settings/DEV9UiCommon.h
