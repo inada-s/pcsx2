@@ -14,6 +14,9 @@ namespace Zdxsv
 	// In Pad::SetControllerState: true when the host input was taken (session running).
 	bool GgpoCaptureHostInput(u32 controller, u32 bind, float value);
 
+	// The Z game is online (OnlineLimits.cpp): Pad::LoadMacroButtonConfig loads no macro buttons (turbo included).
+	extern bool g_online_limits;
+
 	extern bool g_input_latency_enabled; // ZDXSV_INPUT_LATENCY is set (debug, Zdxsv/InputLatency.h)
 
 	// CPU thread, SIO2 pad poll that returns the button word to the game (active low).

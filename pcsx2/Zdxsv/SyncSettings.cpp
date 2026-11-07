@@ -9,6 +9,7 @@
 
 #include "Zdxsv/SyncSettings.h"
 #include "Zdxsv/CpuHooks.h"
+#include "Zdxsv/OnlineLimits.h"
 #include "Zdxsv/TestOptions.h"
 
 #include "BuildVersion.h"
@@ -78,6 +79,8 @@ namespace Zdxsv
 				game->applyGameFixes(c, true);
 			note(c.GS.HWDownloadMode != GSHardwareDownloadMode::Enabled, "GS download mode");
 			c.GS.HWDownloadMode = GSHardwareDownloadMode::Enabled;
+			if (OnlineLimitsActive())
+				OnlineLimitsForce(c, changed);
 			if (!battle)
 				return;
 			Pcsx2Config::SpeedhackOptions hacks;
