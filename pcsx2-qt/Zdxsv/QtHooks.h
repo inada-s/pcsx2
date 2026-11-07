@@ -19,5 +19,7 @@ namespace Zdxsv
 	bool QtOnlineShutdownRefuses();
 	// Quitting stays allowed online: in a battle after a question, the way out of a frozen battle.
 	bool QtOnlineExitAllows(QWidget* parent, bool ask);
+	void QtSetupWizardCustomize(QWidget* wizard);
+	bool QtSetupWizardControllerConfirm(QWidget* wizard);
 	void QtEmulationSettingsAdd(SettingsWindow* dialog, QGridLayout* checkboxes);
 } // namespace Zdxsv

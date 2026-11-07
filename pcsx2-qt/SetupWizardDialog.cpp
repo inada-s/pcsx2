@@ -11,12 +11,14 @@
 #include "Settings/ControllerSettingWidgetBinder.h"
 #include "Settings/InterfaceSettingsWidget.h"
 #include "SetupWizardDialog.h"
+#include "Zdxsv/QtHooks.h"
 
 #include "common/StringUtil.h"
 
 SetupWizardDialog::SetupWizardDialog()
 {
 	setupUi();
+	Zdxsv::QtSetupWizardCustomize(this);
 	updatePageLabels(-1);
 	updatePageButtons();
 }
@@ -64,6 +66,11 @@ bool SetupWizardDialog::canShowNextPage()
 			}
 		}
 		break;
+
+		case Page_Controller:
+			if (!Zdxsv::QtSetupWizardControllerConfirm(this))
+				return false;
+			break;
 
 		default:
 			break;
