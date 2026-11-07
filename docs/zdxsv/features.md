@@ -24,7 +24,7 @@ skips does not run on that path.
 | Pad macro buttons (`InputHooks.h`) | `OnlineLimits` | macro buttons off while online |
 | Qt fonts | `pcsx2-qt/Zdxsv/QtFonts` | Noto Sans JP download before the OSD fonts load |
 | VMManager, GS, MTGS, hotkeys, Qt main window (`UiHooks.h`, `QtHooks.h`) | `OnlineLimits`, `pcsx2-qt/Zdxsv/QtOnlineLimits` | operations refused while online, debugger window closed |
-| Qt host start and exit (`CrashReportHooks.h`) | `pcsx2-qt/Zdxsv/CrashReports` | crash reports |
+| Qt host start and exit (`CrashReportHooks.h`), log output (`Log::SetTapOutputLevel` in `common/Console`) | `pcsx2-qt/Zdxsv/CrashReports` | crash reports, the last log lines they carry |
 | Qt host start (`AuthHooks.h`) | `Zdxsv/AuthSignIn` | sign-in test trigger (`ZDXSV_AUTH_SIGNIN_TEST`) |
 
 ### Network paths

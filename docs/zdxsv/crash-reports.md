@@ -17,9 +17,12 @@ because the SDK must start before the page fault handler is installed.
 
 A minidump (the stacks and the memory they point to, which can hold game session data), the
 release (`pcsx2-zdxsv@<git rev>`), the environment, the operating system and a random installation
-ID (the event's user ID, kept in the database folder `sentry` in the data directory). Sentry also gets
-the sender's IP address and derives a location from it. Sessions, tracing, logs and settings files are
-not sent.
+ID (the event's user ID, kept in the database folder `sentry` in the data directory). The settings file `PCSX2.ini` as it is at the crash, attached
+(its folder paths can hold the user name; sign-in tokens are kept in other files). The last 100 log lines (info level and above), kept in memory
+whatever the log settings and written at the crash as `emulog-tail.txt` in the database folder;
+not on macOS, where crashpad runs no in-process crash callback. Sentry also gets
+the sender's IP address and derives a location from it. Sessions, tracing, the rest of the log and per-game
+settings files are not sent.
 
 ## Behavior per platform
 

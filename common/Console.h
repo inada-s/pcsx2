@@ -88,6 +88,9 @@ namespace Log
 	bool IsHostOutputEnabled();
 	void SetHostOutputLevel(LOGLEVEL level, HostCallbackType callback);
 
+	// adds a second callback output, independent of the host one
+	void SetTapOutputLevel(LOGLEVEL level, HostCallbackType callback);
+
 	// sets logging timestamps
 	bool AreTimestampsEnabled();
 	void SetTimestampsEnabled(bool enabled);
