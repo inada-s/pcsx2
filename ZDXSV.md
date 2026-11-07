@@ -43,10 +43,12 @@ menu ("The pause menu is not available while online."); the game keeps running.
 In the lobby and in online battles, macro buttons (turbo included), PINE (external
 tools), input recording, manual hardware renderer fixes and texture or draw data
 dumping are off; they come back when you leave the lobby. Save states, changing the
-disc or memory cards, video capture, GS dumps, the debugger and graphics settings
-that restart the renderer or change the resolution are not available either
-("Not available while online."); graphics changes apply after you leave the lobby.
-Debugger breakpoints are removed when you enter the lobby.
+disc or memory cards, resetting or shutting down the game, video capture, GS dumps,
+the debugger and graphics settings that restart the renderer or change the resolution
+are not available either ("Not available while online."); graphics changes apply
+after you leave the lobby.
+Debugger breakpoints are removed when you enter the lobby. Closing PCSX2 still works;
+in an online battle it asks first (use it if a battle freezes).
 
 ## Recommended settings
 

@@ -46,6 +46,7 @@
 #include "pcsx2/SIO/Sio.h"
 #include "pcsx2/GS/GSExtra.h"
 #include "pcsx2/Zdxsv/UiHooks.h"
+#include "Zdxsv/QtHooks.h"
 
 #include "common/Assertions.h"
 #include "common/CocoaTools.h"
@@ -1684,6 +1685,8 @@ bool MainWindow::requestShutdown(bool allow_confirm, bool allow_save_to_state, b
 {
 	if (!s_vm_valid)
 		return true;
+	if (Zdxsv::QtOnlineShutdownRefuses())
+		return false;
 
 	// If we don't have a crc, we can't save state.
 	allow_save_to_state &= (s_current_disc_crc != 0);
@@ -1749,6 +1752,8 @@ void MainWindow::requestExit(bool allow_confirm)
 	const bool vm_was_valid = QtHost::IsVMValid();
 
 	// this is block, because otherwise closeEvent() will also prompt
+	if (vm_was_valid && !Zdxsv::QtOnlineExitAllows(this, allow_confirm))
+		return;
 	if (!requestShutdown(allow_confirm, true, EmuConfig.SaveStateOnShutdown))
 		return;
 
@@ -2573,6 +2578,8 @@ void MainWindow::closeEvent(QCloseEvent* event)
 	event->ignore();
 
 	// Exit cancelled?
+	if (!Zdxsv::QtOnlineExitAllows(this, true))
+		return;
 	if (!requestShutdown(true, true, EmuConfig.SaveStateOnShutdown))
 		return;
 

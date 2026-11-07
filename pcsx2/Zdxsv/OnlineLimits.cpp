@@ -37,6 +37,8 @@ namespace Zdxsv
 			std::atomic<bool> online{false}; // g_online_limits for other threads
 			std::atomic<bool> pine_refused{false}; // read on the PINE thread
 			std::atomic<bool> pine_logged{false}; // one log line per online period
+			std::atomic<bool> battle{false};
+			bool reset_allowed = false;
 			bool test_breakpoint_set = false;
 		};
 		OnlineLimitsState s_online;
@@ -90,6 +92,7 @@ namespace Zdxsv
 			return;
 		if (!s_online.test_breakpoint_set)
 			SetTestBreakpoint();
+		s_online.battle.store(OnlineBattleNow(), std::memory_order_relaxed);
 		const bool online = OnlineNow();
 		if (online == g_online_limits)
 			return;
@@ -128,6 +131,8 @@ namespace Zdxsv
 	void OnlineLimitsReset()
 	{
 		SetOnline(false);
+		s_online.battle.store(false, std::memory_order_relaxed);
+		s_online.reset_allowed = false;
 		s_online.test_breakpoint_set = false;
 	}
 
@@ -147,6 +152,21 @@ namespace Zdxsv
 	bool OnlineNowAnyThread()
 	{
 		return s_online.online.load(std::memory_order_relaxed);
+	}
+
+	bool OnlineBattleNowAnyThread()
+	{
+		return s_online.battle.load(std::memory_order_relaxed);
+	}
+
+	void OnlineAllowReset()
+	{
+		s_online.reset_allowed = true;
+	}
+
+	bool OnlineRefusesReset()
+	{
+		return !s_online.reset_allowed && OnlineRefuses();
 	}
 
 	bool PineRefuses()

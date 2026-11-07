@@ -762,24 +762,21 @@ namespace Zdxsv
 		return true;
 	}
 
-	namespace
+	bool OnlineBattleNow()
 	{
-		bool NetBattleNow()
-		{
-			return g_ggpo_active && s_opt.net && !s_play_env;
-		}
-	} // namespace
+		return g_ggpo_active && s_opt.net && !s_play_env;
+	}
 
 	bool OnlineNow()
 	{
-		return NetBattleNow() || LobbyConnectionOpen();
+		return OnlineBattleNow() || LobbyConnectionOpen();
 	}
 
 	bool OnlinePauseMenuRefuses()
 	{
 		if (!OnlineNow())
 			return false;
-		Console.WriteLn("Zdxsv: pause menu refused (%s)", NetBattleNow() ? "battle" : "lobby");
+		Console.WriteLn("Zdxsv: pause menu refused (%s)", OnlineBattleNow() ? "battle" : "lobby");
 		Host::AddIconOSDMessage("ZdxsvPauseMenuRefuses", ICON_FA_TRIANGLE_EXCLAMATION,
 			TRANSLATE_STR("Zdxsv", "The pause menu is not available while online."), Host::OSD_WARNING_DURATION);
 		return true;

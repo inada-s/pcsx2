@@ -14,4 +14,7 @@ namespace Zdxsv
 	void QtFontsDownloadJapanese(QWidget* dialog_parent);
 	// UI thread, after the main window exists: closes the debugger window whenever the Z game is online.
 	void QtOnlineLimitsWatch(QObject* parent);
+	bool QtOnlineShutdownRefuses();
+	// Quitting stays allowed online: in a battle after a question, the way out of a frozen battle.
+	bool QtOnlineExitAllows(QWidget* parent, bool ask);
 } // namespace Zdxsv

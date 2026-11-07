@@ -29,6 +29,8 @@ namespace Zdxsv
 	bool OnlineRefuses(Error* error = nullptr);
 	// The Z game is online; any thread (the Qt debugger window).
 	bool OnlineNowAnyThread();
+	bool OnlineBattleNowAnyThread();
+	bool OnlineRefusesReset();
 
 	// Replay play (ZDXSV_REPLAY): seek by `frames` from the current frame (hotkeys "Zdxsv Replay: Seek
 	// Back / Forward 10 s"), done at the next frame start; at the end (paused) it plays on. No-op otherwise.
