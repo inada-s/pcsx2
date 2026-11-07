@@ -1,10 +1,7 @@
 // SPDX-FileCopyrightText: 2026 zdxsv contributors
 // SPDX-License-Identifier: GPL-3.0+
 
-// PCSX2 features limited while the Z game is online (connected to the zdxsv lobby or in a net battle): PINE
-// (every request), macro buttons (turbo included), input recording, manual hardware renderer fixes, dumps and
-// debugger breakpoints (cleared when the game goes online: a hit stops the emulator).
-// Switching online or offline reloads the settings, so the limits come and go with the connection.
+// Breakpoints set before going online are cleared: a hit would stop the emulator, and every peer with it.
 
 #include "Zdxsv/OnlineLimits.h"
 #include "Zdxsv/CpuHooks.h"
@@ -34,16 +31,15 @@ namespace Zdxsv
 	{
 		struct OnlineLimitsState
 		{
-			std::atomic<bool> online{false}; // g_online_limits for other threads
-			std::atomic<bool> pine_refused{false}; // read on the PINE thread
-			std::atomic<bool> pine_logged{false}; // one log line per online period
+			std::atomic<bool> online{false};
+			std::atomic<bool> pine_refused{false};
+			std::atomic<bool> pine_logged{false};
 			std::atomic<bool> battle{false};
 			bool reset_allowed = false;
 			bool test_breakpoint_set = false;
 		};
 		OnlineLimitsState s_online;
 
-		// ZDXSV_PINE_ONLINE=1 (test): PINE answers while online; the rigs drive the lobby and battles through it
 		bool PineExempt()
 		{
 			static const bool exempt = [] {
@@ -70,8 +66,7 @@ namespace Zdxsv
 			Console.WriteLn("ZdxsvOnline: debugger breakpoints cleared");
 		}
 
-		// ZDXSV_TEST_BREAKPOINT=<hex EE address> (test): one breakpoint there at the first vsync, as if set in the
-		// debugger before going online; the address must never run
+		// The address must never run.
 		void SetTestBreakpoint()
 		{
 			s_online.test_breakpoint_set = true;

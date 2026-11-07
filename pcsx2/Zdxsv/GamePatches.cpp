@@ -11,8 +11,7 @@ namespace Zdxsv
 {
 	namespace
 	{
-		// The widescreen patch of patches.zip (SLPS-25419_435D8236.pnach). Its group name is the one the
-		// EnableWideScreenPatches setting turns on. Render values only: a 0.75 horizontal scale (4:3 to 16:9).
+		// The group name is the one EnableWideScreenPatches turns on. Render values only.
 		constexpr const char* PATCH_Z_GAME_PNACH = R"(gametitle=Kidou Senshi Gundam - Gundam vs. Z Gundam (J)(SLPS-25419)
 
 [Widescreen 16:9]
