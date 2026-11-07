@@ -22,12 +22,9 @@ namespace Zdxsv
 	// a net battle or while the game is connected to the zdxsv lobby, where the menu opens by accident.
 	bool OnlinePauseMenuRefuses();
 
-	extern bool g_online_limits; // the Z game is online: lobby or net battle (OnlineLimits.cpp)
-	// With g_online_limits: true (refused, the reason in `error`, else an OSD notice). Called by state saves and
-	// loads, disc changes, memory card swaps and changes, GS dumps, video capture, the software renderer toggle,
-	// upscale hotkeys and GS settings that recreate the renderer. Any thread.
+	extern bool g_online_limits;
+	// The reason goes to `error`, else to the OSD.
 	bool OnlineRefuses(Error* error = nullptr);
-	// The Z game is online; any thread (the Qt debugger window).
 	bool OnlineNowAnyThread();
 	bool OnlineBattleNowAnyThread();
 	bool OnlineRefusesReset();

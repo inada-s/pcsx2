@@ -12,7 +12,7 @@ namespace Zdxsv
 {
 	// Player and pilot names on the OSD are Japanese whatever the UI language. UI thread, before the fonts load.
 	void QtFontsDownloadJapanese(QWidget* dialog_parent);
-	// UI thread, after the main window exists: closes the debugger window whenever the Z game is online.
+	// After the main window exists.
 	void QtOnlineLimitsWatch(QObject* parent);
 	bool QtOnlineShutdownRefuses();
 	// Quitting stays allowed online: in a battle after a question, the way out of a frozen battle.

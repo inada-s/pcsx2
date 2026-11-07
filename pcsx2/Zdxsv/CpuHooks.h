@@ -30,8 +30,6 @@ namespace Zdxsv
 	// In VMManager::LoadCoreSettings, the Z game: settings that change emulation results to PCSX2's defaults, the
 	// speedhacks too in a battle; an OSD message names the overridden ones (SyncSettings.cpp)
 	void SyncSettingsEnforce();
-	// In VSyncStart, the Z game: going online (zdxsv lobby or net battle) or offline reloads the settings, which
-	// limit PCSX2 features while online (OnlineLimits.cpp).
 	void OnlineLimitsOnVsync();
 	// In VSyncStart, the Z game: when the game starts DNAS on the way to the lobby, log in through the login API with
 	// the token in <settings>/zdxsv_auth_token.txt and jump to the lobby connect, skipping

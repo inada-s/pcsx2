@@ -9,8 +9,6 @@
 
 namespace Zdxsv
 {
-	// Patch::EnumeratePnachFiles (patch loading and the patch and cheat lists of the settings): while the Z game runs,
-	// its ELF CRC `crc` gets this pnach text as its only patches and no cheats; no pnach file is read (patches
-	// folder, cheats folder, patches.zip). nullptr: another game or CRC, pnach files as upstream.
+	// nullptr: another game or CRC.
 	const char* PatchZGamePnach(u32 crc);
 } // namespace Zdxsv
