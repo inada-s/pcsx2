@@ -10,7 +10,6 @@
 #include "QtUtils.h"
 #include "SettingWidgetBinder.h"
 #include "SettingsWindow.h"
-#include "Zdxsv/QtHooks.h"
 
 static constexpr int MINIMUM_EE_CYCLE_RATE = -3;
 static constexpr int MAXIMUM_EE_CYCLE_RATE = 3;
@@ -38,7 +37,6 @@ EmulationSettingsWidget::EmulationSettingsWidget(SettingsWindow* settings_dialog
 	connect(m_ui.vsync, &QCheckBox::checkStateChanged, this, &EmulationSettingsWidget::updateUseVSyncForTimingEnabled);
 	connect(m_ui.syncToHostRefreshRate, &QCheckBox::checkStateChanged, this, &EmulationSettingsWidget::updateUseVSyncForTimingEnabled);
 	m_ui.optimalFramePacing->setTristate(dialog()->isPerGameSettings());
-	Zdxsv::QtEmulationSettingsAdd(dialog(), m_ui.basicCheckboxGridLayout);
 
 	SettingWidgetBinder::BindWidgetToIntSetting(sif, m_ui.eeCycleSkipping, "EmuCore/Speedhacks", "EECycleSkip", DEFAULT_EE_CYCLE_SKIP);
 

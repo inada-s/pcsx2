@@ -144,7 +144,7 @@ Scripts are in `tests/zdxsv/` except `run.py` (repository root) and
 
 | Feature | Test | Control |
 |---|---|---|
-| Low-latency present | `latency.py -LowLatency 1`: press-to-present time on the main menu | `latency.py -LowLatency 0`, or `ZDXSV_GAME_CRC=0` (not the Z game): the time is longer |
+| Low-latency present | `latency.py`: press-to-present time on the main menu | `latency.py -LowLatency 0`, or `ZDXSV_GAME_CRC=0` (not the Z game): the time is longer |
 | Input latency measurement | it is the tool of the test above; `m4lat.py` uses it in a battle (`M4=m4ggpo.py`: over GGPO, frame pacing split by rollback) | none |
 | Input to picture by pixel color | `inputpic.py` (title main menu, 8 presses): every press has a change, prints the offsets; `inputpic.py "ZDXSV_SINGLE_DRAW_LIST=0"`: 2 vsyncs later | `inputpic.py "ZDXSV_INPUT_LATENCY=...,pixel=40:10"` (not on the cursor): exit 1 |
 

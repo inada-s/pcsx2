@@ -88,7 +88,6 @@ options: `docs/zdxsv/`.
 | `RecProbe.cpp` | Debug: EE recompiler probes and store watches (`ZDXSV_EE_PROBE`, `ZDXSV_EE_WATCH`) |
 | `Overlays.cpp` | On-screen replay keys and replay control bar |
 | `GgpoOsd.cpp` | GGPO network status panel (flycast `NETWORK STATS`) |
-| `pcsx2-qt/Zdxsv/QtEmulationSettings.cpp` | Low-latency present checkbox on Settings → Emulation (`QtHooks.h`, seam in `pcsx2-qt/Settings/EmulationSettingsWidget.cpp`) |
 | `pcsx2-qt/Zdxsv/QtOnlineLimits.cpp` | Closes the debugger window while online (`QtHooks.h`, seam in `pcsx2-qt/QtHost.cpp`) |
 | `pcsx2-qt/Zdxsv/QtFonts.cpp` | Noto Sans JP download at UI start, for the panel's Japanese names (`QtHooks.h`, seam in `pcsx2-qt/Translations.cpp`) |
 | `CpuHooks.h` | Hook header: recompilers, counters, MTGS, VMManager |
