@@ -648,6 +648,9 @@ bool Pad::Freeze(StateWrapper& sw)
 
 void Pad::LoadMacroButtonConfig(const SettingsInterface& si, u32 pad, const ControllerInfo* ci, const std::string& section)
 {
+	if (Zdxsv::g_online_limits)
+		return;
+
 	for (u32 i = 0; i < NUM_MACRO_BUTTONS_PER_CONTROLLER; i++)
 	{
 		std::string binds_string;

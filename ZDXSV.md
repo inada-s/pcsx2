@@ -40,6 +40,9 @@ During an online battle, pause, fast forward, slow motion, frame advance and
 loading a save state are not available ("Not available during an online battle.").
 In the lobby and in online battles, Escape (Open Pause Menu) does not open the pause
 menu ("The pause menu is not available while online."); the game keeps running.
+In the lobby and in online battles, macro buttons (turbo included), PINE (external
+tools), input recording, manual hardware renderer fixes and texture or draw data
+dumping are off; they come back when you leave the lobby.
 
 ## Recommended settings
 

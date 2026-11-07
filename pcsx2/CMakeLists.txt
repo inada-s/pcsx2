@@ -175,6 +175,7 @@ set(pcsx2Sources
 	Zdxsv/SpectateSync.cpp
 	Zdxsv/SyncSettings.cpp
 	Zdxsv/GamePatches.cpp
+	Zdxsv/OnlineLimits.cpp
 	Zdxsv/IntHooks.cpp
 	Zdxsv/RecHooks.cpp
 	Zdxsv/RecProbe.cpp
@@ -260,11 +261,13 @@ set(pcsx2Headers
 	Zdxsv/ReplayList.h
 	Zdxsv/SpectateSync.h
 	Zdxsv/SyncSettings.h
+	Zdxsv/OnlineLimits.h
 	Zdxsv/RecHooks.h
 	Zdxsv/CpuHooks.h
 	Zdxsv/InputHooks.h
 	Zdxsv/SaveStateHooks.h
 	Zdxsv/PatchHooks.h
+	Zdxsv/PineHooks.h
 	Zdxsv/MediaHooks.h
 	Zdxsv/AuthHooks.h
 	Zdxsv/AuthSignIn.h

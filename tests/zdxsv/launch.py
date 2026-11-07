@@ -20,6 +20,7 @@ Env defaults for pcsx2 (also when imported: launch()):
   (the DEV9 path with the ini's hosts, as a PS2). server_host() is the value a run gets.
   ZDXSV_AUTH_URL unset -> http://127.0.0.1:9881/auth; ZDXSV_AUTH_NO_BROWSER=1 always (sign-in URLs only logged).
   ZDXSV_AUTH_AT_DNAS unset -> 0 (no sign-in at DNAS without a token: back to the network menu).
+- ZDXSV_PINE_ONLINE unset -> 1: PINE keeps answering while online (the routes drive the lobby and battles).
 """
 import os
 import re
@@ -48,6 +49,7 @@ def pcsx2_env(base=None):
     e["ZDXSV_AUTH_URL"] = e.get("ZDXSV_AUTH_URL") or "http://127.0.0.1:9881/auth"
     e["ZDXSV_AUTH_NO_BROWSER"] = "1"
     e["ZDXSV_AUTH_AT_DNAS"] = e.get("ZDXSV_AUTH_AT_DNAS") or "0"
+    e["ZDXSV_PINE_ONLINE"] = e.get("ZDXSV_PINE_ONLINE") or "1"
     return e
 
 

@@ -1,0 +1,103 @@
+// SPDX-FileCopyrightText: 2026 zdxsv contributors
+// SPDX-License-Identifier: GPL-3.0+
+
+// PCSX2 features limited while the Z game is online (connected to the zdxsv lobby or in a net battle): PINE
+// (every request), macro buttons (turbo included), input recording, manual hardware renderer fixes and dumps.
+// Switching online or offline reloads the settings, so the limits come and go with the connection.
+
+#include "Zdxsv/OnlineLimits.h"
+#include "Zdxsv/CpuHooks.h"
+#include "Zdxsv/InputHooks.h"
+#include "Zdxsv/PineHooks.h"
+#include "Zdxsv/TestOptions.h"
+
+#include "Config.h"
+#include "Host.h"
+#include "VMManager.h"
+
+#include "common/Console.h"
+
+#include <atomic>
+#include <cstring>
+
+namespace Zdxsv
+{
+	bool g_online_limits = false;
+
+	namespace
+	{
+		struct OnlineLimitsState
+		{
+			std::atomic<bool> pine_refused{false}; // read on the PINE thread
+			std::atomic<bool> pine_logged{false}; // one log line per online period
+		};
+		OnlineLimitsState s_online;
+
+		// ZDXSV_PINE_ONLINE=1 (test): PINE answers while online; the rigs drive the lobby and battles through it
+		bool PineExempt()
+		{
+			static const bool exempt = [] {
+				const char* e = TestEnv("ZDXSV_PINE_ONLINE");
+				return e && std::strcmp(e, "1") == 0;
+			}();
+			return exempt;
+		}
+
+		void SetOnline(bool online)
+		{
+			g_online_limits = online;
+			s_online.pine_refused.store(online && !PineExempt(), std::memory_order_relaxed);
+			s_online.pine_logged.store(false, std::memory_order_relaxed);
+		}
+	} // namespace
+
+	void OnlineLimitsOnVsync()
+	{
+		if (g_ggpo_in_rollback)
+			return;
+		const bool online = OnlineNow();
+		if (online == g_online_limits)
+			return;
+		SetOnline(online);
+		Console.WriteLn("ZdxsvOnline: %s: settings reloaded", online ? "online" : "offline");
+		Host::RunOnCPUThread([] {
+			if (VMManager::HasValidVM())
+				VMManager::ApplySettings();
+		});
+	}
+
+	bool OnlineLimitsActive()
+	{
+		return g_online_limits;
+	}
+
+	void OnlineLimitsForce(Pcsx2Config& c, std::string* changed)
+	{
+		const auto note = [changed](bool on, const char* name) {
+			if (on && changed)
+				*changed += (changed->empty() ? "" : ", ") + std::string(name);
+		};
+		note(c.EnableRecordingTools, "input recording");
+		c.EnableRecordingTools = false;
+		note(c.GS.ManualUserHacks, "manual hardware renderer fixes");
+		c.GS.ManualUserHacks = false;
+		note(c.GS.DumpReplaceableTextures, "texture dumping");
+		c.GS.DumpReplaceableTextures = false;
+		note(c.GS.DumpGSData, "draw data dumping");
+		c.GS.DumpGSData = false;
+	}
+
+	void OnlineLimitsReset()
+	{
+		SetOnline(false);
+	}
+
+	bool PineRefuses()
+	{
+		if (!s_online.pine_refused.load(std::memory_order_relaxed))
+			return false;
+		if (!s_online.pine_logged.exchange(true, std::memory_order_relaxed))
+			Console.WriteLn("ZdxsvOnline: PINE requests refused while online");
+		return true;
+	}
+} // namespace Zdxsv

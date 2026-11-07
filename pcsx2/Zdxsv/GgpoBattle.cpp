@@ -6,6 +6,7 @@
 
 #include "Zdxsv/GgpoShared.h"
 #include "Zdxsv/LobbySocket.h"
+#include "Zdxsv/OnlineLimits.h"
 #include "Zdxsv/UiHooks.h"
 #include "IconsFontAwesome.h"
 
@@ -761,12 +762,24 @@ namespace Zdxsv
 		return true;
 	}
 
+	namespace
+	{
+		bool NetBattleNow()
+		{
+			return g_ggpo_active && s_opt.net && !s_play_env;
+		}
+	} // namespace
+
+	bool OnlineNow()
+	{
+		return NetBattleNow() || LobbyConnectionOpen();
+	}
+
 	bool OnlinePauseMenuRefuses()
 	{
-		const bool battle = g_ggpo_active && s_opt.net && !s_play_env;
-		if (!battle && !LobbyConnectionOpen())
+		if (!OnlineNow())
 			return false;
-		Console.WriteLn("Zdxsv: pause menu refused (%s)", battle ? "battle" : "lobby");
+		Console.WriteLn("Zdxsv: pause menu refused (%s)", NetBattleNow() ? "battle" : "lobby");
 		Host::AddIconOSDMessage("ZdxsvPauseMenuRefuses", ICON_FA_TRIANGLE_EXCLAMATION,
 			TRANSLATE_STR("Zdxsv", "The pause menu is not available while online."), Host::OSD_WARNING_DURATION);
 		return true;

@@ -6,6 +6,7 @@
 // Without net=1 the session is a synctest; log lines start with "ZdxsvGgpo".
 
 #include "Zdxsv/GgpoShared.h"
+#include "Zdxsv/OnlineLimits.h"
 #include "Zdxsv/SyncSettings.h"
 #include "Zdxsv/ReplayList.h"
 #include "MTGS.h"
@@ -734,6 +735,7 @@ namespace Zdxsv
 		if (std::strcmp(what, "vm shutdown") == 0)
 			g_mtvu_off = false; // the next VM decides again (a reset VM keeps it off)
 		SyncSettingsReset();
+		OnlineLimitsReset();
 		FastLoginReset();
 		StopCutRefusal();
 		FastBootReset();

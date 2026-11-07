@@ -15,11 +15,13 @@ skips does not run on that path.
 |---|---|---|
 | EE recompilers and interpreter: hook calls before guest instructions | `RecHooks`, `IntHooks`, `GgpoBattle`, `NoDev9`, `FastLogin`, `FastBoot` | net RPC hook (battle sock over GGPO, online without DEV9), fast login, fast boot, load barriers, input feed of GGPO and replays |
 | DEV9 save state | `DeltaState` | DEV9 registers in full and delta states (GGPO, replays) |
-| Counters (vsync), VMManager | `Ggpo`, `Replay*`, `NoDev9`, `FastBoot` | GGPO frame loop, replay playback, VM start / reset / shutdown cleanup |
+| Counters (vsync), VMManager | `Ggpo`, `Replay*`, `NoDev9`, `FastBoot`, `OnlineLimits` | GGPO frame loop, replay playback, VM start / reset / shutdown cleanup, online switch of the limited features |
 | MTGS, GS, SPU2 | `DeltaFreeze`, `SingleDrawList`, `InputLatency`, `Overlays`, `FastBoot` | rerun frame skips, fast boot shows every 8th frame, single draw list, input latency, OSD |
 | Pad | `Ggpo`, `ReplayPlay` | inputs to and from GGPO and replays |
 | Hotkeys, ImGui | `Overlays`, `ReplayPlay`, `GgpoOsd` | replay hotkeys and bar, refused pause and speed changes, network status panel |
 | Patch loader (`PatchHooks.h`) | `GamePatches` | Z game patches built in |
+| PINE server (`PineHooks.h`) | `OnlineLimits` | PINE refused while online |
+| Pad macro buttons (`InputHooks.h`) | `OnlineLimits` | macro buttons off while online |
 | Qt fonts | `pcsx2-qt/Zdxsv/QtFonts` | Noto Sans JP download before the OSD fonts load |
 | Qt host start and exit (`CrashReportHooks.h`) | `pcsx2-qt/Zdxsv/CrashReports` | crash reports |
 | Qt host start (`AuthHooks.h`) | `Zdxsv/AuthSignIn` | sign-in test trigger (`ZDXSV_AUTH_SIGNIN_TEST`) |
@@ -53,6 +55,7 @@ this table says it is missing.
 - **TLS to the zdxsv server**: lobby only, pinned keys; on when the client has pins.
 - **Lobby connection kept while paused**: line checks `0x6001` answered.
 - **Pause menu**: refused while connected to the zdxsv lobby.
+- **PCSX2 features limited while online** (zdxsv lobby or net battle): PINE refused (`ZDXSV_PINE_ONLINE`); macro buttons (turbo included) not loaded; input recording, manual hardware renderer fixes, texture and draw data dumping off; `ZDXSV_SYNC_FORCE=0` turns the settings part off.
 - **Settings page**: Settings → zdxsv.
 - **Recommended-settings buttons**: Low, Mid, High on Settings → zdxsv.
 

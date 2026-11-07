@@ -508,6 +508,8 @@ static __fi void VSyncStart(u64 sCycle)
 		Zdxsv::FastLoginOnVsync();
 	if (Zdxsv::g_z_game)
 		Zdxsv::FastBootOnVsync();
+	if (Zdxsv::g_z_game)
+		Zdxsv::OnlineLimitsOnVsync();
 	if (Zdxsv::g_single_draw_list)
 		Zdxsv::SingleDrawListOnVsync();
 	if (Zdxsv::g_no_dev9)
