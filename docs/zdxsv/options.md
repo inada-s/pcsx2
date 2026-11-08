@@ -53,7 +53,7 @@ page greys it out and its tooltip names the variable.
 
 | Setting | Default | Use | Meaning |
 |---|---|---|---|
-| `[DEV9/Eth] ZdxsvGgpoMinDelay` | `2` | feature | Lowest GGPO input delay (frames, 2..6) a lobby battle picks, and the replay takeover delay; as gdxsv's `MinDelay`. Read when the game starts. `mindelay=` overrides it. |
+| `[DEV9/Eth] ZdxsvGgpoMinDelay` | `2` | feature | Lowest GGPO input delay (frames, 2..6) a lobby battle picks, and the replay takeover delay. Read when the game starts. `mindelay=` overrides it. |
 | `[DEV9/Eth] ZdxsvRollbackBudget` | `1.0` | internal | Rollback budget learned per PC (frames, 0..1.5), saved after each long net battle (`rollback.md`). |
 | `[DEV9/Eth] ZdxsvGgpoPort` | `0` | feature | UDP port of lobby battles (ping test and GGPO). 0 or out of range: a random port in 29700..29800, picked when the game starts with `lobby=1` and saved to the setting. `port=` overrides it. |
 | `[EmuCore/GS] VsyncEnable` | `true` | feature | Upstream VSync, on by default in this build (upstream: off); Settings → Emulation. |
@@ -74,8 +74,8 @@ page greys it out and its tooltip names the variable.
 | `[DEV9/Eth] ZdxsvLobbyApiUrl` | server | feature | The lobby's public API (`http://host:port`, zdxsv `ZDXSV_LOBBY_API_ADDR`) the replay window's Remote (`/lbs/replay`) and Live (`/lbs/live`) tabs and the Favorites tab ask; empty = none. A live battle is watched at `live:<this URL>#<code>`. |
 | `[DEV9/Eth] ZdxsvReplayFavorites` | empty | feature | The replay window's Favorites: one value per battle (battle code, start time, players and rounds, tab-separated), at most 1000; added from the Remote tab, removed in the Favorites tab. |
 | `[DEV9/Eth] ZdxsvReplayReturn` | `true` | feature | A replay started from the replay window returns to the game (and the window) when it ends (`replay.md`). |
-| `[DEV9/Eth] ZdxsvReplayUpload` | `true` | feature | Post each lobby battle's `.pb` to `ZdxsvReplayUploadUrl` (flycast `UploadReplay`, on by default). Only when the game's hosts resolve to the build's `ZDXSV_SERVER_HOST` (no-DEV9, the host not given by the environment): a battle on the DEV9 path or on a host from the environment posts nowhere. `upload=` overrides it. |
-| `[DEV9/Eth] ZdxsvReplayUploadUrl` | server `/lbs/replay_upload` | feature | The lobby's replay upload API (zdxsv `/lbs/replay_upload`, as gdxsv lbs); empty = no upload. |
+| `[DEV9/Eth] ZdxsvReplayUpload` | `true` | feature | Post each lobby battle's `.pb` to `ZdxsvReplayUploadUrl` (on by default). Only when the game's hosts resolve to the build's `ZDXSV_SERVER_HOST` (no-DEV9, the host not given by the environment): a battle on the DEV9 path or on a host from the environment posts nowhere. `upload=` overrides it. |
+| `[DEV9/Eth] ZdxsvReplayUploadUrl` | server `/lbs/replay_upload` | feature | The lobby's replay upload API (zdxsv `/lbs/replay_upload`); empty = no upload. |
 | `[DEV9/Eth] ZdxsvSaveReplay` | `true` | feature | Save each lobby battle's `.pb` to `ZdxsvReplayPath`. `replay=` in `ZDXSV_GGPO` overrides it. |
 | `[DEV9/Eth] ZdxsvReplayPath` | `<data dir>/replays` | feature | Folder lobby battles save to and the Local replay list reads; relative to the data dir. A folder that cannot be created: the default. |
 | `[DEV9/Eth] ZdxsvUdpTestUrl` | `ZDXSV_UDPTEST_URL` (build) | feature | The udptest function (zdxsv `infra/udptest`) the connectivity test asks for a `Hello` from another network before it reports `open`; empty = not asked. `ZDXSV_UDPTEST_URL` overrides it. |
@@ -163,7 +163,7 @@ turns GGPO off and leaves the other extensions on. Any other value turns it on. 
 | `ZDXSV_RERUN_PARTS=0` | on | control | With the bone slots kept: rerun frames that skip the render callbacks do not run the draws of parts attached to a player either (see rollback.md). |
 | `ZDXSV_ROLLBACK_BUDGET=1` | off | test | The lobby delay subtracts the learned `ZdxsvRollbackBudget` instead of 0. |
 | `ZDXSV_NET_TAIL=n` | 300 | tuning | Frames run after the battle end message is confirmed, before the session stops. |
-| `ZDXSV_NET_DISCONNECT_MS=ms` | 10000 | tuning | GGPO disconnect timeout (as flycast). |
+| `ZDXSV_NET_DISCONNECT_MS=ms` | 10000 | tuning | GGPO disconnect timeout. |
 | `GGPO_NETWORK_DELAY=ms` | 0 | test | GGPO holds each sent packet ms * (2/3 .. 1) before sending it ([rollback.md](rollback.md)). |
 | `ZDXSV_NET_SESSION=s` | battle code | test | GGPO session code sent in the sync handshake instead of the battle code; a peer with another code is refused (`session mismatch`). |
 | `ZDXSV_SYNC_FORCE=0` | forced | control | Sync-relevant settings are not forced (`Zdxsv/SyncSettings.cpp`); the log names those that would have been (`ZdxsvSync: ZDXSV_SYNC_FORCE=0, not forced:`). The fingerprint is sent anyway. |

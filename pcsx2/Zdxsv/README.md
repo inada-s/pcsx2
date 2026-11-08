@@ -66,7 +66,7 @@ options: `docs/zdxsv/`.
 | `LobbyPing.cpp` | GGPO ping test between the peers (direct and relay paths) and the cut connection's refusal |
 | `LobbyNet.h` | Platform sockets and address helpers shared by the `Lobby*.cpp` files only |
 | `Proto.h` | Minimal protobuf wire codec: the lobby's Ping / Pong, replay files |
-| `replay.proto` | Replay file schema (gdxsv's BattleLogFile + PCSX2 fields); documentation, not compiled |
+| `replay.proto` | Replay file schema (`BattleLogFile` + PCSX2 fields); documentation, not compiled |
 | `GamePatches.cpp` | The Z game's patches (widescreen), built in in place of pnach files (seam: `PatchHooks.h`) |
 | `OnlineLimits.cpp`, `OnlineLimits.h` | PCSX2 features limited while online (lobby or net battle): the switch, forced settings, PINE refusal, macro buttons, refused operations, breakpoints cleared (seams: `PineHooks.h`, `InputHooks.h`, `UiHooks.h`) |
 | `SyncSettings.cpp`, `SyncSettings.h` | Sync-relevant settings forced while the Z game runs (speedhacks during battles only), their fingerprint for the lobby (UI: `ZdxsvSettingsWidget::markSyncForced`) |
@@ -87,7 +87,7 @@ options: `docs/zdxsv/`.
 | `IntHooks.cpp` | EE interpreter and ARM64 EE recompiler: the hook calls of `RecHooks.cpp` but the probes |
 | `RecProbe.cpp` | Debug: EE recompiler probes and store watches (`ZDXSV_EE_PROBE`, `ZDXSV_EE_WATCH`) |
 | `Overlays.cpp` | On-screen replay keys and replay control bar |
-| `GgpoOsd.cpp` | GGPO network status panel (flycast `NETWORK STATS`) |
+| `GgpoOsd.cpp` | GGPO network status panel (`NETWORK STATS`) |
 | `pcsx2-qt/Zdxsv/QtOnlineLimits.cpp` | Closes the debugger window while online (`QtHooks.h`, seam in `pcsx2-qt/QtHost.cpp`) |
 | `pcsx2-qt/Zdxsv/QtFonts.cpp` | Noto Sans JP download at UI start, for the panel's Japanese names (`QtHooks.h`, seam in `pcsx2-qt/Translations.cpp`) |
 | `CpuHooks.h` | Hook header: recompilers, counters, MTGS, VMManager |
