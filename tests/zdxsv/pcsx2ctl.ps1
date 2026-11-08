@@ -141,15 +141,16 @@ if ($Seq) {
   }
 }
 if ($Shot) {
-  # PrintWindow on the D3D12 window is blank: use pcsx2's own screenshot hotkey (F8 -> <exe dir>/snaps).
-  $snaps = Join-Path (Split-Path $p.Path) 'snaps'
+  # PrintWindow on the D3D12 window is blank: use pcsx2's own screenshot hotkey (F8 -> <data dir>/snaps).
+  $d = Get-DataDir
+  $snaps = if ($d) { "$d\PCSX2\snaps" } else { Join-Path (Split-Path $p.Path) 'snaps' }
   $t0 = Get-Date
   [void][W]::SetForegroundWindow($h)
   [W]::keybd_event(0x77, 0x42, 0, [UIntPtr]::Zero); Start-Sleep -Milliseconds 100
   [W]::keybd_event(0x77, 0x42, 2, [UIntPtr]::Zero)
   for ($i = 0; $i -lt 30; $i++) {
     Start-Sleep -Milliseconds 200
-    $f = Get-ChildItem $snaps -Filter *.png | Where-Object { $_.LastWriteTime -ge $t0.AddSeconds(-1) } | Sort-Object LastWriteTime | Select-Object -Last 1
+    $f = Get-ChildItem $snaps -Filter *.png -ErrorAction SilentlyContinue | Where-Object { $_.LastWriteTime -ge $t0.AddSeconds(-1) } | Sort-Object LastWriteTime | Select-Object -Last 1
     if ($f) { break }
   }
   if (!$f) { "no snap"; exit 1 }
