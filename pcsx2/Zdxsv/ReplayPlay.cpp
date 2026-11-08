@@ -4,6 +4,7 @@
 // Replay playback: frame loop, seek keys, point of view, takeover, the control bar and its hotkeys.
 
 #include "Zdxsv/GgpoShared.h"
+#include "Zdxsv/MediaHooks.h"
 #include "Zdxsv/ReplayList.h"
 #include "Zdxsv/TestOptions.h"
 
@@ -35,6 +36,8 @@ namespace Zdxsv
 		std::atomic<int> s_bar_frame{-1}; // -1 = no replay playing
 		std::atomic<int> s_bar_frames{0}, s_bar_pov{-1}, s_bar_target{-1};
 		std::atomic<u32> s_bar_povs{0}; // bit p = position p has a file
+		std::atomic<int> s_bar_lo{0}, s_bar_hi{0}, s_bar_round{-1}, s_bar_rounds{0}; // round -1: no spans
+		std::atomic<bool> s_bar_battle{false};
 
 		void PlayBarPublish()
 		{
@@ -45,6 +48,12 @@ namespace Zdxsv
 			s_bar_pov = s_battle.me;
 			s_bar_povs = povs;
 			s_bar_target = s_play.target;
+			const int span = PlaySpanAt(s_play.target >= 0 ? s_play.target : s_battle.frame);
+			s_bar_lo = span >= 0 ? s_play.spans[span].first : 0;
+			s_bar_hi = span >= 0 ? s_play.spans[span].second : s_play.frames;
+			s_bar_round = span;
+			s_bar_rounds = static_cast<int>(s_play.spans.size());
+			s_bar_battle = !s_live_down && PlayInBattle(s_battle.frame);
 			s_bar_frame = s_battle.frame;
 		}
 
@@ -226,6 +235,13 @@ namespace Zdxsv
 
 		void PlayFrameTakeover(int f)
 		{
+			const u8 st = eeMem->Main[TICK_STATE];
+			if (st == TICK_END && s_tick_st == TICK_PLAY && !s_to_test && s_to_req == TO_REQ_NONE)
+			{
+				Console.WriteLn("ZdxsvGgpo: replay takeover: the battle ended at frame %d, retrying", f);
+				s_to_req = TO_REQ_RETRY;
+			}
+			s_tick_st = st;
 			s_battle.frame = f;
 			PlayBarPublish();
 			NetSaved(f);
@@ -308,11 +324,50 @@ namespace Zdxsv
 	LimiterModeType s_play_rearm_limiter = LimiterModeType::Nominal;
 	std::map<int, std::unique_ptr<PlayKey>> s_play_keys[GGPO_MAX_PLAYERS]; // by point of view (position)
 	std::atomic<int> s_play_req{INT_MIN}; // requested seek target, INT_MIN = none
-	LimiterModeType s_play_limiter = LimiterModeType::Nominal;
 	// Skip MS selection: from frame 0 the replay runs unlimited to the briefing (the end of battle load 1).
 	bool s_play_skip_ms = true;
 	std::atomic<bool> s_keys_on{false}; // setting ZdxsvReplayKeyDisplay at the first PlayBegin, then the hotkey
 	std::atomic<int> s_play_round_req{INT_MIN}; // requested round, 0 = briefing, INT_MIN = none
+	bool g_replay_hidden_frame = false;
+	bool g_replay_silent_frame = false;
+	bool g_replay_fast_frame = false;
+
+	namespace
+	{
+		// PlayFrame runs after the vsync queued its present: flags set for frame f apply to f's own present, which
+		// shows what f drew from the list the frame before built.
+		constexpr int SEEK_DRAWN_FRAMES = 2;
+		struct PlayHideState
+		{
+			int drawn = 0;
+		} s_hide;
+		const bool s_seek_draw_skip = [] {
+			const char* e = TestEnv("ZDXSV_REPLAY_DRAW_SKIP");
+			return !(e && e[0] == '0');
+		}();
+
+		// Not the unlimited limiter mode: it changes the vsync mode, which can blank the window.
+		void PlayHide(bool undrawn, bool fast)
+		{
+			g_rerun_draw_skip = g_rerun_vu1_skip = undrawn && s_seek_draw_skip;
+			g_replay_silent_frame = undrawn || fast;
+			g_replay_fast_frame = undrawn || fast;
+			s_hide.drawn = undrawn ? 0 : std::min(s_hide.drawn + 1, SEEK_DRAWN_FRAMES);
+			g_replay_hidden_frame = s_hide.drawn < SEEK_DRAWN_FRAMES || fast;
+		}
+
+		void PlayHideReset()
+		{
+			g_rerun_draw_skip = g_rerun_vu1_skip = g_replay_silent_frame = g_replay_fast_frame = g_replay_hidden_frame = false;
+			s_hide = {};
+			s_hide.drawn = SEEK_DRAWN_FRAMES;
+		}
+	} // namespace
+
+	void PlayHideAfterLoad()
+	{
+		s_hide.drawn = 0;
+	}
 
 	void PlayKeyApply(const PlayKey& k)
 	{
@@ -324,6 +379,7 @@ namespace Zdxsv
 	// running state is the old point of view's).
 	int PlaySeek(int target, bool pov_switch)
 	{
+		const u64 t0 = Common::Timer::GetCurrentValue();
 		target = std::clamp(target, 0, s_play.frames - 1);
 		const int next = s_battle.frame + 1;
 		int from = next;
@@ -342,7 +398,7 @@ namespace Zdxsv
 				continue;
 			Common::Timer timer;
 			Error error;
-			if (!VMManager::LoadState(k.path.c_str(), &error))
+			if (!ReplayLoadState(k.path.c_str(), &error))
 			{
 				Console.Error("ZdxsvGgpo: replay seek: key %d load failed: %s", it->first, error.GetDescription().c_str());
 				return pov_switch ? -1 : next;
@@ -362,21 +418,17 @@ namespace Zdxsv
 		Console.WriteLn("ZdxsvGgpo: replay seek %d -> %d: from %d, %d frames to run", s_battle.frame, target, from, target - from);
 		if (from < target)
 		{
-			if (s_play.target < 0)
-				s_play_limiter = VMManager::GetLimiterMode();
 			s_play.target = target;
-			VMManager::SetLimiterMode(LimiterModeType::Unlimited);
+			s_play.seek_from = from;
+			s_play.seek_t0 = t0;
 		}
 		return from;
 	}
 
-	// Runs unlimited until load `load` has ended (after a seek to s_play.hi, if one was started).
+	// Runs unthrottled until load `load` has ended (after a seek to s_play.hi, if one was started).
 	void PlayRunBegin(int load)
 	{
-		if (s_play.target < 0) // else the seek saved it
-			s_play_limiter = VMManager::GetLimiterMode();
 		s_play.run_load = load;
-		VMManager::SetLimiterMode(LimiterModeType::Unlimited);
 		if (load == 1)
 			Console.WriteLn("ZdxsvGgpo: replay skip MS selection: running to the briefing");
 		else
@@ -389,8 +441,7 @@ namespace Zdxsv
 			return;
 		const int load = s_play.run_load;
 		s_play.run_load = -1;
-		if (s_play.target < 0)
-			VMManager::SetLimiterMode(s_play_limiter);
+		g_rerun_draw_skip = g_rerun_vu1_skip = false;
 		if (load == 1)
 			Console.WriteLn("ZdxsvGgpo: replay skip MS selection: %s at frame %d, vsync %u", why, f, g_FrameCount);
 		else
@@ -460,7 +511,7 @@ namespace Zdxsv
 		if (k.zip.joinable())
 			k.zip.join();
 		Error error;
-		if (!k.ok || !VMManager::LoadState(k.path.c_str(), &error))
+		if (!k.ok || !ReplayLoadState(k.path.c_str(), &error))
 		{
 			Console.Error("ZdxsvGgpo: replay takeover: state load failed: %s", error.GetDescription().c_str());
 			return -1;
@@ -498,6 +549,7 @@ namespace Zdxsv
 	{
 		if (s_to_phase == TO_ON)
 		{
+			PlayHide(false, false);
 			PlayFrameTakeover(f);
 			return;
 		}
@@ -505,10 +557,19 @@ namespace Zdxsv
 		if (f == s_play.target)
 		{
 			s_play.target = -1;
-			if (s_play.run_load < 0)
-				VMManager::SetLimiterMode(s_play_limiter);
-			Console.WriteLn("ZdxsvGgpo: replay seek done at frame %d, vsync %u", f, g_FrameCount);
+			const double ms = Common::Timer::ConvertValueToMilliseconds(Common::Timer::GetCurrentValue() - s_play.seek_t0);
+			const int n = f - s_play.seek_from;
+			Console.WriteLn("ZdxsvGgpo: replay seek done at frame %d, vsync %u: %d frames from key %d in %.1f ms, %.2f ms/frame",
+				f, g_FrameCount, n, s_play.seek_from, ms, n > 0 ? ms / n : 0.0);
+			if (std::exchange(s_play.step_pause, false))
+				VMManager::SetPaused(true);
 		}
+		const bool running = s_play.target >= 0 || s_play.run_load >= 0;
+		const int fast_every = PlayFastEvery();
+		PlayHide((s_play.target >= 0 && f < s_play.target - SEEK_DRAWN_FRAMES) || s_play.run_load >= 0,
+			!running && fast_every > 1 && f % fast_every != 0);
+		if (!running)
+			PlaySlowWait();
 		PlayKeySave(f);
 		s_battle.frame = f;
 		PlayBarPublish();
@@ -535,6 +596,7 @@ namespace Zdxsv
 	void PlayStop(const char* what)
 	{
 		g_ggpo_active = false;
+		PlayHideReset();
 		s_bar_frame = -1;
 		s_battle.over = true; // the battle sock goes back to the IOP
 		PlayReport(what);
@@ -571,6 +633,7 @@ namespace Zdxsv
 		}
 		s_round_rec = 0;
 		s_play_round_req = INT_MIN;
+		PlayHideReset();
 		s_play_pov_req = -1;
 		s_play_pov_at.clear();
 		std::fill(std::begin(s_play_sent), std::end(s_play_sent), PlaySent{});
@@ -578,11 +641,26 @@ namespace Zdxsv
 		s_bar_frames = 0;
 		s_bar_pov = s_bar_target = -1;
 		s_bar_povs = 0;
+		s_bar_lo = s_bar_hi = s_bar_rounds = 0;
+		s_bar_round = -1;
+		ReplayControlsReset();
 		s_to_phase = TO_OFF;
 		s_to_req = TO_REQ_NONE;
 		s_to_target = 0;
 		s_to = {};
 	}
+
+	namespace
+	{
+		void PlayRunFromPause()
+		{
+			if (VMManager::GetState() != VMState::Paused)
+				return;
+			if (!s_play.at_end)
+				s_play.step_pause = true;
+			VMManager::SetPaused(false);
+		}
+	} // namespace
 
 	void ReplaySeekBy(int frames)
 	{
@@ -591,28 +669,7 @@ namespace Zdxsv
 		const int req = s_play_req.load();
 		s_play_req = (req != INT_MIN ? req : s_battle.frame + 1) + frames;
 		Console.WriteLn("ZdxsvGgpo: replay seek requested: frame %d", s_play_req.load());
-		if (s_play.at_end && VMManager::GetState() == VMState::Paused)
-			VMManager::SetPaused(false);
-	}
-
-	void ReplayNextPov()
-	{
-		if (!s_play_env || s_play.frames <= 0 || !g_ggpo_active)
-			return;
-		const int req = s_play_pov_req.load();
-		int p = req >= 0 ? req : s_battle.me;
-		for (int i = 0; i < s_opt.players; i++)
-			if (p = (p + 1) % s_opt.players; s_play.pov_ok[p])
-				break;
-		if (p == s_battle.me)
-		{
-			Console.WriteLn("ZdxsvGgpo: replay: no other point of view (1 player)");
-			return;
-		}
-		s_play_pov_req = p;
-		Console.WriteLn("ZdxsvGgpo: replay point of view requested: %d", p);
-		if (s_play.at_end && VMManager::GetState() == VMState::Paused)
-			VMManager::SetPaused(false);
+		PlayRunFromPause();
 	}
 
 	void ReplaySeekTo(int frame)
@@ -621,8 +678,7 @@ namespace Zdxsv
 			return;
 		s_play_req = std::clamp(frame, 0, s_play.frames - 1);
 		Console.WriteLn("ZdxsvGgpo: replay seek requested: frame %d", s_play_req.load());
-		if (VMManager::GetState() == VMState::Paused) // control bar: a seek plays on, also from a pause
-			VMManager::SetPaused(false);
+		PlayRunFromPause();
 	}
 
 	void ReplayTogglePause()
@@ -631,91 +687,10 @@ namespace Zdxsv
 			return;
 		if (s_play.at_end)
 			ReplaySeekTo(0); // play at the end = from the start
-		else if (s_to_phase == TO_ALIGN || s_to_phase == TO_COUNT)
+		else if (s_to_phase == TO_COUNT)
 			ReplayTakeoverCancel();
 		else
 			VMManager::SetPaused(VMManager::GetState() != VMState::Paused);
-	}
-
-	void ReplayTakeover()
-	{
-		if (!s_play_env || s_play.frames <= 0 || !g_ggpo_active)
-			return;
-		if (s_to_phase == TO_OFF || s_to_phase == TO_ON)
-		{
-			s_to_req = s_to_phase == TO_OFF ? TO_REQ_TAKE : TO_REQ_RETRY;
-			if (VMManager::GetState() == VMState::Paused)
-				VMManager::SetPaused(false);
-		}
-	}
-
-	void ReplayTakeoverSkip()
-	{
-		if (s_to_phase != TO_ALIGN && s_to_phase != TO_COUNT)
-			return;
-		s_to.skip = true;
-		s_to_phase = TO_COUNT;
-		s_to.count_t0 = Common::Timer::GetCurrentValue();
-	}
-
-	void ReplayTakeoverCancel()
-	{
-		if (s_to_phase != TO_ALIGN && s_to_phase != TO_COUNT)
-			return;
-		s_to_req = TO_REQ_CANCEL;
-		VMManager::SetPaused(false);
-	}
-
-	void ReplayTakeoverReturn()
-	{
-		if (s_to_phase == TO_OFF)
-			return;
-		s_to_req = TO_REQ_RETURN;
-		VMManager::SetPaused(false);
-	}
-
-	static std::atomic<u16> s_to_current{0};
-	static std::atomic<float> s_to_left{0.0f};
-
-	bool ReplayTakeoverInfo(int& phase, u16& target, u16& current, float& countdown)
-	{
-		if (s_bar_frame < 0)
-			return false;
-		phase = s_to_phase;
-		target = s_to_target;
-		current = s_to_current;
-		countdown = s_to_left;
-		return true;
-	}
-
-	void ReplayTakeoverIdle()
-	{
-		const int phase = s_to_phase;
-		if (phase != TO_ALIGN && phase != TO_COUNT)
-			return;
-		u16 a, b;
-		ZdPadAB(TakeoverHostInput(), a, b);
-		s_to_current = b;
-		const bool start = s_host[PadDualshock2::Inputs::PAD_START] >= 0.5f;
-		if (start && !s_to.start_held)
-			ReplayTakeoverSkip();
-		s_to.start_held = start;
-		const Common::Timer::Value now = Common::Timer::GetCurrentValue();
-		if (s_to_phase == TO_ALIGN && b == s_to_target)
-		{
-			s_to_phase = TO_COUNT;
-			s_to.count_t0 = now;
-		}
-		else if (s_to_phase == TO_COUNT && !s_to.skip && b != s_to_target)
-			s_to_phase = TO_ALIGN;
-		const double ms = s_to_phase == TO_COUNT ? Common::Timer::ConvertValueToMilliseconds(now - s_to.count_t0) : 0.0;
-		s_to_left = s_to_phase == TO_COUNT ? static_cast<float>(std::max(0.0, 1.0 - ms / 1000.0)) : 1.0f;
-		if (s_to_phase == TO_COUNT && ms >= 1000.0)
-		{
-			Console.WriteLn("ZdxsvGgpo: replay takeover: input %s, starting", s_to.skip ? "matching skipped" : "matched");
-			s_to_req = TO_REQ_START;
-			VMManager::SetPaused(false);
-		}
 	}
 
 	bool ReplayBarInfo(int& frame, int& frames, int& pov, u32& povs, int& target)
@@ -727,6 +702,22 @@ namespace Zdxsv
 		pov = s_bar_pov;
 		povs = s_bar_povs;
 		target = s_bar_target;
+		return true;
+	}
+
+	bool ReplayCanTakeOver()
+	{
+		return s_bar_battle;
+	}
+
+	bool ReplayBarSpan(int& lo, int& hi, int& round, int& rounds)
+	{
+		if (!s_play_env || s_bar_frame < 0)
+			return false;
+		lo = s_bar_lo;
+		hi = s_bar_hi;
+		round = s_bar_round;
+		rounds = s_bar_rounds;
 		return true;
 	}
 
@@ -757,17 +748,19 @@ namespace Zdxsv
 		if (!s_play_env || s_play.frames <= 0 || !g_ggpo_active)
 			return;
 		int round = s_play_round_req.load();
-		if (round == INT_MIN)
+		const int f = s_play.target >= 0 ? s_play.target : s_battle.frame;
+		const int span = PlaySpanAt(f);
+		if (round == INT_MIN && span >= 0)
+			round = span + 1;
+		else if (round == INT_MIN)
 		{
 			round = 0; // rounds started at or before the shown frame
-			const int f = s_play.target >= 0 ? s_play.target : s_battle.frame;
 			for (size_t k = 2; k < s_play_loads.battle.size() && s_play_loads.battle[k] <= f; k++)
 				round++;
 		}
-		s_play_round_req = std::max(0, round + delta);
+		s_play_round_req = span >= 0 ? std::clamp(round + delta, 1, static_cast<int>(s_play.spans.size())) : std::max(0, round + delta);
 		Console.WriteLn("ZdxsvGgpo: replay round requested: %d", s_play_round_req.load());
-		if (VMManager::GetState() == VMState::Paused)
-			VMManager::SetPaused(false);
+		PlayRunFromPause();
 	}
 
 	std::vector<int> ReplayRoundStarts()

@@ -7,6 +7,7 @@
 #include "Zdxsv/ReplayList.h"
 #include "Zdxsv/TestOptions.h"
 
+#include "GS/GS.h"
 #include "Host.h"
 #include "IconsPromptFont.h"
 #include "ImGui/FullscreenUI.h"
@@ -93,38 +94,45 @@ namespace Zdxsv
 			return s.empty() ? "-" : s;
 		}
 
-		void DrawReplayKeys(float scale, float margin)
+		void DrawReplayKeys()
 		{
 			std::vector<std::pair<u16, int>> runs;
 			if (!Zdxsv::g_ggpo_enabled || FullscreenUI::HasActiveWindow() || !Zdxsv::ReplayKeys(runs) || runs.empty())
 				return;
 
+			float left, top, right, bottom;
+			GSGetLastDrawRect(&left, &top, &right, &bottom);
+			if (right <= left || bottom <= top)
+				left = 0.0f, top = 0.0f, right = ImGuiManager::GetWindowWidth(), bottom = ImGuiManager::GetWindowHeight();
+			const float unit = (bottom - top) / 480.0f;
 			ImFont* const font = ImGuiManager::GetStandardFont();
-			const float font_size = ImGuiManager::GetFontSizeStandard();
-			const float line_height = ImGuiFullscreen::GetLineHeight({font, font_size});
-			const float pad = std::ceil(4.0f * scale);
+			const float font_size = std::max(8.0f, 12.0f * unit);
+			const float line_height = font_size * 1.25f;
+			const float pad = std::ceil(3.0f * unit);
 			const float count_w = font->CalcTextSizeA(font_size, FLT_MAX, -1.0f, "99 ").x;
 			const float icon_w = font->CalcTextSizeA(font_size, FLT_MAX, -1.0f, ICON_PF_DPAD_LEFT_UP " ").x;
-			const float width = count_w + icon_w * (1 + std::size(buttons));
 
 			ImDrawList* dl = ImGui::GetBackgroundDrawList();
-			const float x = margin;
-			float y = std::floor(ImGuiManager::GetWindowHeight() * 0.40f);
-			dl->AddRectFilled(ImVec2(x, y), ImVec2(x + width + pad * 2.0f, y + line_height * runs.size() + pad * 2.0f), IM_COL32(0, 0, 0, 128));
-			y += pad;
+			const float x = left;
+			float y = top + 130.0f * unit;
+			const float shadow = std::max(1.0f, std::floor(unit));
+			const auto text = [&](float tx, float ty, const char* s) {
+				dl->AddText(font, font_size, ImVec2(tx + shadow, ty + shadow), IM_COL32(0, 0, 0, 220), s);
+				dl->AddText(font, font_size, ImVec2(tx, ty), IM_COL32(255, 255, 255, 255), s);
+			};
 			for (const auto& [b, n] : runs)
 			{
-				const std::string count = fmt::format("{:2}", std::min(n, 99));
-				dl->AddText(font, font_size, ImVec2(x + pad, y), IM_COL32(255, 255, 255, 255), count.c_str());
+				const std::string count = fmt::format("{:02}", std::min(n, 99));
+				text(x + pad, y, count.c_str());
 				float cx = x + pad + count_w;
 				if (const char* d = dir(b))
-					dl->AddText(font, font_size, ImVec2(cx, y), IM_COL32(255, 255, 255, 255), d);
+					text(cx, y, d);
 				cx += icon_w;
 				for (const auto& e : buttons)
 				{
 					if (b & e.bit)
 					{
-						dl->AddText(font, font_size, ImVec2(cx, y), IM_COL32(255, 255, 255, 255), e.icon);
+						text(cx, y, e.icon);
 						cx += icon_w;
 					}
 				}
@@ -132,9 +140,9 @@ namespace Zdxsv
 			}
 		}
 
-		// zdxsv replay control bar (ZDXSV_REPLAY): play/pause, seek -10 s / +10 s, time and frame, a timeline (click or
-		// drag, seek on release), point of view. Shown while paused and for 3 s after the mouse moves over the bottom
-		// quarter; ZDXSV_REPLAY_BAR=1 / =0: always / never.
+		// zdxsv replay control bar (ZDXSV_REPLAY): play/pause, speed, step / seek, rounds, takeover, time, frame, a timeline
+		// of the shown round (click or drag, seek on release). Shown for 3 s after the mouse moves over the bottom quarter
+		// or a pad control; ZDXSV_REPLAY_BAR=1 / =0: always / never.
 		void DrawReplayBar(float scale, float margin)
 		{
 			static const char* const s_env = TestEnv("ZDXSV_REPLAY_BAR");
@@ -158,9 +166,15 @@ namespace Zdxsv
 			if (inside && s_prev_mouse.x >= 0.0f && (mouse.x != s_prev_mouse.x || mouse.y != s_prev_mouse.y) && mouse.y >= h * 0.75f)
 				s_idle = 3.0f;
 			s_prev_mouse = mouse;
+			static u32 s_pokes = 0;
+			if (const u32 pokes = Zdxsv::ReplayPadPokes(); pokes != s_pokes)
+			{
+				s_pokes = pokes;
+				s_idle = 3.0f;
+			}
 			s_idle = std::max(0.0f, s_idle - io.DeltaTime);
 			const bool paused = VMManager::GetState() == VMState::Paused;
-			if (s_idle <= 0.0f && !paused && mode != 1)
+			if (s_idle <= 0.0f && mode != 1)
 				return;
 
 			ImFont* const font = ImGuiManager::GetStandardFont();
@@ -172,9 +186,13 @@ namespace Zdxsv
 			const float pad = std::ceil(8.0f * scale);
 			const auto fmt_time = [](int f) { return fmt::format("{}:{:02}", f / 3600, f / 60 % 60); };
 			const int shown = target >= 0 ? target : frame;
-			const std::string time = fmt::format("{} / {}  {} / {}", fmt_time(shown), fmt_time(frames), shown, frames);
-			const std::string pov_label = fmt::format(ICON_FA_EYE " P{}", pov + 1);
-			const bool can_switch = (povs & ~(1u << pov)) != 0;
+			int lo = 0, hi = frames, span = -1, spans = 0;
+			Zdxsv::ReplayBarSpan(lo, hi, span, spans);
+			if (span < 0 || hi <= lo)
+				lo = 0, hi = frames, span = -1;
+			const int len = hi - lo;
+			const int speed = Zdxsv::ReplaySpeedPercent();
+			const std::string time = fmt::format("{} / {}  {}/{} fr", fmt_time(std::max(0, shown - lo)), fmt_time(len), shown, frames);
 
 			ImGui::SetNextWindowPos(ImVec2(x0, y0));
 			ImGui::SetNextWindowSize(ImVec2(bar_w, bar_h));
@@ -197,13 +215,15 @@ namespace Zdxsv
 					return sz.x;
 				};
 				// a text button; true when clicked
-				const auto button = [&](const char* id, const char* label, bool enabled) {
+				const auto button = [&](const char* id, const char* label, bool enabled, const char* tip = nullptr) {
 					const float tw = font->CalcTextSizeA(font_size, std::numeric_limits<float>::max(), -1.0f, label).x;
 					ImGui::SetCursorScreenPos(ImVec2(x, y0));
 					ImGui::InvisibleButton(id, ImVec2(tw + pad * 2.0f, bar_h));
 					const bool hovered = ImGui::IsItemHovered();
 					if (hovered || ImGui::IsItemActive())
 						s_idle = 3.0f;
+					if (hovered && tip)
+						ImGui::SetTooltip("%s", tip);
 					if (hovered && enabled)
 						dl->AddRectFilled(ImGui::GetItemRectMin(), ImGui::GetItemRectMax(), IM_COL32(255, 255, 255, 40));
 					text_at(x + pad, label, enabled ? text_col : dim_col);
@@ -212,35 +232,53 @@ namespace Zdxsv
 					return enabled && ImGui::IsItemClicked(ImGuiMouseButton_Left);
 				};
 
-				if (button("##pause", paused ? ICON_FA_PLAY : ICON_FA_PAUSE, true))
+				if (button("##pause", paused ? ICON_FA_PLAY : ICON_FA_PAUSE, true, TRANSLATE("Zdxsv", "Play / Pause (Circle)")))
 				{
 					Console.WriteLn("ZdxsvGgpo: replay bar: %s at frame %d", paused ? "play" : "pause", frame);
 					Host::RunOnCPUThread([] { Zdxsv::ReplayTogglePause(); });
 				}
-				if (button("##back", ICON_FA_BACKWARD " 10s", true))
+				if (button("##slower", ICON_FA_CARET_DOWN, speed > 33, TRANSLATE("Zdxsv", "Slower (D-pad Down)")))
 				{
-					Console.WriteLn("ZdxsvGgpo: replay bar: seek -600 at frame %d", frame);
-					Host::RunOnCPUThread([f = shown - 600] { Zdxsv::ReplaySeekTo(f); });
+					Console.WriteLn("ZdxsvGgpo: replay bar: slower at frame %d", frame);
+					Host::RunOnCPUThread([] { Zdxsv::ReplaySpeedBy(-1); });
 				}
-				if (button("##forward", "10s " ICON_FA_FORWARD, true))
 				{
-					Console.WriteLn("ZdxsvGgpo: replay bar: seek +600 at frame %d", frame);
-					Host::RunOnCPUThread([f = shown + 600] { Zdxsv::ReplaySeekTo(f); });
+					const std::string label = fmt::format("{}%", speed);
+					const float sw = font->CalcTextSizeA(font_size, std::numeric_limits<float>::max(), -1.0f, "300%").x;
+					text_at(x + (sw - font->CalcTextSizeA(font_size, std::numeric_limits<float>::max(), -1.0f, label.c_str()).x) * 0.5f,
+						label.c_str(), text_col);
+					x += sw;
+				}
+				if (button("##faster", ICON_FA_CARET_UP, speed < 300, TRANSLATE("Zdxsv", "Faster (D-pad Up)")))
+				{
+					Console.WriteLn("ZdxsvGgpo: replay bar: faster at frame %d", frame);
+					Host::RunOnCPUThread([] { Zdxsv::ReplaySpeedBy(1); });
+				}
+				x += pad;
+				if (button("##back", ICON_FA_CARET_LEFT, true, TRANSLATE("Zdxsv", "-1 s, paused: -1 frame (D-pad Left; hold to repeat)")))
+				{
+					Console.WriteLn("ZdxsvGgpo: replay bar: step back at frame %d", frame);
+					Host::RunOnCPUThread([] { Zdxsv::ReplayStep(-1); });
+				}
+				if (button("##forward", ICON_FA_CARET_RIGHT, true, TRANSLATE("Zdxsv", "+1 s, paused: +1 frame (D-pad Right; hold to repeat)")))
+				{
+					Console.WriteLn("ZdxsvGgpo: replay bar: step forward at frame %d", frame);
+					Host::RunOnCPUThread([] { Zdxsv::ReplayStep(1); });
 				}
 				// round jump: R0 = before round 1 (MS select, briefing)
-				const std::vector<int> rounds = Zdxsv::ReplayRoundStarts();
-				const int round = static_cast<int>(std::upper_bound(rounds.begin(), rounds.end(), shown) - rounds.begin());
-				if (button("##prevround", ICON_FA_BACKWARD_STEP, true))
+				const std::vector<int> rounds = span >= 0 ? std::vector<int>() : Zdxsv::ReplayRoundStarts();
+				const int round = span >= 0 ? span + 1 : static_cast<int>(std::upper_bound(rounds.begin(), rounds.end(), shown) - rounds.begin());
+				if (button("##prevround", ICON_FA_BACKWARD_STEP, true, TRANSLATE("Zdxsv", "Previous round")))
 				{
 					Console.WriteLn("ZdxsvGgpo: replay bar: round -1 at frame %d", frame);
 					Host::RunOnCPUThread([] { Zdxsv::ReplayJumpRound(-1); });
 				}
-				const std::string round_label = fmt::format("R{}", round);
-				const float round_w = font->CalcTextSizeA(font_size, std::numeric_limits<float>::max(), -1.0f, "R00").x;
+				const std::string round_label = span >= 0 ? fmt::format("R{}/{}", round, spans) : fmt::format("R{}", round);
+				const float round_w = font->CalcTextSizeA(font_size, std::numeric_limits<float>::max(), -1.0f, span >= 0 ? "R00/00" : "R00").x;
 				text_at(x + (round_w - font->CalcTextSizeA(font_size, std::numeric_limits<float>::max(), -1.0f, round_label.c_str()).x) * 0.5f,
 					round_label.c_str(), text_col);
 				x += round_w;
-				if (button("##nextround", ICON_FA_FORWARD_STEP, true))
+				if (button("##nextround", ICON_FA_FORWARD_STEP, true, TRANSLATE("Zdxsv", "Next round")))
 				{
 					Console.WriteLn("ZdxsvGgpo: replay bar: round +1 at frame %d", frame);
 					Host::RunOnCPUThread([] { Zdxsv::ReplayJumpRound(1); });
@@ -275,7 +313,7 @@ namespace Zdxsv
 				const std::string retry_label = fmt::format(ICON_FA_ROTATE_LEFT " {}", TRANSLATE_SV("Zdxsv", "Retry"));
 				const std::string takeover_label = fmt::format(ICON_FA_GAMEPAD " {}", TRANSLATE_SV("Zdxsv", "Take over"));
 				const std::string toreplay_label = fmt::format(ICON_FA_FILM " {}", TRANSLATE_SV("Zdxsv", "Replay"));
-				if (button("##takeover", to_phase == 3 ? retry_label.c_str() : takeover_label.c_str(), to_phase == 0 || to_phase == 3))
+				if (button("##takeover", to_phase == 3 ? retry_label.c_str() : takeover_label.c_str(), (to_phase == 0 && Zdxsv::ReplayCanTakeOver()) || to_phase == 3))
 				{
 					Console.WriteLn("ZdxsvGgpo: replay bar: takeover at frame %d", frame);
 					Host::RunOnCPUThread([] { Zdxsv::ReplayTakeover(); });
@@ -288,19 +326,17 @@ namespace Zdxsv
 				x += pad;
 				text_at(x, time.c_str(), text_col);
 				// fixed width (the longest time text + a margin), so the timeline does not move as digits change
-				const std::string widest = fmt::format("{} / {}  {} / {}", fmt_time(frames), fmt_time(frames), frames, frames);
+				const std::string widest = fmt::format("{} / {}  {}/{} fr", fmt_time(frames), fmt_time(frames), frames, frames);
 				x += font->CalcTextSizeA(font_size, std::numeric_limits<float>::max(), -1.0f, widest.c_str()).x + pad * 4.0f;
 
-				// the timeline fills the space left of the point of view button
-				const float pov_w = font->CalcTextSizeA(font_size, std::numeric_limits<float>::max(), -1.0f, pov_label.c_str()).x + pad * 2.0f;
-				const float track_x0 = x, track_x1 = x0 + bar_w - pad - pov_w - pad;
+				const float track_x0 = x, track_x1 = x0 + bar_w - pad * 2.0f;
 				if (track_x1 - track_x0 > pad * 4.0f)
 				{
 					const float track_h = std::ceil(4.0f * scale);
-					const float frac = std::clamp(static_cast<float>(shown) / static_cast<float>(frames), 0.0f, 1.0f);
+					const float frac = std::clamp(static_cast<float>(shown - lo) / static_cast<float>(len), 0.0f, 1.0f);
 					dl->AddRectFilled(ImVec2(track_x0, cy - track_h * 0.5f), ImVec2(track_x1, cy + track_h * 0.5f), IM_COL32(255, 255, 255, 60));
 					dl->AddRectFilled(ImVec2(track_x0, cy - track_h * 0.5f), ImVec2(track_x0 + (track_x1 - track_x0) * frac, cy + track_h * 0.5f),
-						IM_COL32(255, 80, 80, 255));
+						IM_COL32(66, 150, 250, 255));
 					for (const int r : rounds) // round start marks
 					{
 						const float rx = track_x0 + (track_x1 - track_x0) * std::clamp(static_cast<float>(r) / static_cast<float>(frames), 0.0f, 1.0f);
@@ -311,7 +347,7 @@ namespace Zdxsv
 					layout += fmt::format(" timeline {:.0f}-{:.0f}", track_x0, track_x1);
 					const auto frame_at = [&](float mx) {
 						const float t = std::clamp((mx - track_x0) / (track_x1 - track_x0), 0.0f, 1.0f);
-						return std::min(frames - 1, static_cast<int>(std::lround(t * static_cast<float>(frames))));
+						return std::min(hi - 1, lo + static_cast<int>(std::lround(t * static_cast<float>(len))));
 					};
 					const bool active = ImGui::IsItemActive();
 					float knob = track_x0 + (track_x1 - track_x0) * frac;
@@ -320,7 +356,7 @@ namespace Zdxsv
 						s_idle = 3.0f;
 						const int f = frame_at(mouse.x);
 						const float mx = std::clamp(mouse.x, track_x0, track_x1);
-						const std::string tip = fmt::format("{}  {}", fmt_time(f), f);
+						const std::string tip = fmt::format("{}  {}", fmt_time(f - lo), f);
 						const ImVec2 sz = font->CalcTextSizeA(font_size, std::numeric_limits<float>::max(), -1.0f, tip.c_str());
 						const ImVec2 tp(std::clamp(mx - sz.x * 0.5f, 0.0f, w - sz.x), y0 - sz.y - pad);
 						ImDrawList* fg = ImGui::GetForegroundDrawList();
@@ -339,12 +375,6 @@ namespace Zdxsv
 					}
 				}
 
-				x = x0 + bar_w - pad - pov_w;
-				if (button("##pov", pov_label.c_str(), can_switch))
-				{
-					Console.WriteLn("ZdxsvGgpo: replay bar: point of view at frame %d", frame);
-					Host::RunOnCPUThread([] { Zdxsv::ReplayNextPov(); });
-				}
 				layout = fmt::format("{:.0f}x{:.0f} y {:.0f}-{:.0f}{}", w, h, y0, y0 + bar_h, layout);
 				if (layout != s_layout)
 				{
@@ -357,47 +387,79 @@ namespace Zdxsv
 			ImGui::PopStyleVar(2);
 		}
 
-		// replay takeover input matching: the replay's own input
-		// at the takeover frame and the host pad's, then the 1 s countdown
 		void DrawTakeover(float scale)
 		{
 			int phase;
 			u16 target, current;
 			float left;
 			if (!Zdxsv::g_ggpo_enabled || FullscreenUI::HasActiveWindow() || !Zdxsv::ReplayTakeoverInfo(phase, target, current, left) ||
-				(phase != 1 && phase != 2))
+				phase != 2)
 				return;
 			const float w = ImGuiManager::GetWindowWidth(), h = ImGuiManager::GetWindowHeight();
-			ImGui::PushFont(ImGuiManager::GetStandardFont(), ImGuiManager::GetFontSizeStandard());
+			ImFont* const font = ImGuiManager::GetStandardFont();
+			const float font_size = ImGuiManager::GetFontSizeStandard();
+			ImGui::PushFont(font, font_size);
 			ImGui::SetNextWindowPos(ImVec2(w * 0.5f, h * 0.35f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
-			ImGui::SetNextWindowBgAlpha(0.8f);
+			ImGui::SetNextWindowSize(ImVec2(320.0f * scale, 0.0f));
+			ImGui::SetNextWindowBgAlpha(0.85f);
 			if (ImGui::Begin("##zdxsv_takeover", nullptr,
 					ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings |
 						ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav))
 			{
-				if (phase == 1)
+				const float radius = std::ceil(30.0f * scale);
+				const float win_w = ImGui::GetWindowSize().x;
+				ImGui::Dummy(ImVec2(0.0f, 10.0f * scale));
+				const ImVec2 at = ImGui::GetCursorScreenPos();
+				const ImVec2 center(ImGui::GetWindowPos().x + win_w * 0.5f, at.y + radius);
+				ImGui::Dummy(ImVec2(0.0f, radius * 2.0f));
+				ImDrawList* dl = ImGui::GetWindowDrawList();
+				dl->AddCircleFilled(center, radius, IM_COL32(255, 255, 255, 40), 30);
+				const float progress = std::clamp(1.0f - left, 0.0f, 1.0f);
+				if (progress > 0.0f)
 				{
-					ImGui::TextUnformatted(TRANSLATE("Zdxsv", "Takeover: hold the replay's input"));
-					ImGui::Text("%s %s", TRANSLATE("Zdxsv", "Replay:"), BIcons(target).c_str());
-					ImGui::Text("%s %s", TRANSLATE("Zdxsv", "You:"), BIcons(current).c_str());
+					const float a0 = -IM_PI * 0.5f;
+					dl->PathLineTo(center);
+					dl->PathArcTo(center, radius, a0, a0 + progress * IM_PI * 2.0f, 30);
+					dl->PathLineTo(center);
+					dl->PathFillConvex(IM_COL32(255, 255, 255, 200));
 				}
-				else
+				ImGui::Dummy(ImVec2(0.0f, 5.0f * scale));
+				const char* ready = TRANSLATE("Zdxsv", "Get Ready!");
+				ImGui::SetCursorPosX((win_w - ImGui::CalcTextSize(ready).x) * 0.5f);
+				ImGui::TextUnformatted(ready);
+				ImGui::Separator();
+				ImGui::TextUnformatted(TRANSLATE("Zdxsv", "Input:"));
+				const ImVec4 matched(0.4f, 0.9f, 0.5f, 1.0f), missing(1.0f, 0.8f, 0.3f, 1.0f), extra(1.0f, 1.0f, 1.0f, 1.0f);
+				const u16 t = target & ~0x8000u, c = current & ~0x8000u; // START retries
+				if (t == 0)
 				{
-					ImGui::TextUnformatted(TRANSLATE("Zdxsv", "Takeover starts"));
-					ImGui::ProgressBar(1.0f - left, ImVec2(300.0f * scale, 0.0f), "");
+					ImGui::SameLine();
+					ImGui::TextColored(c == 0 ? matched : missing, "%s", TRANSLATE("Zdxsv", "Neutral"));
 				}
-				if (phase == 1 && ImGui::Button(TRANSLATE("Zdxsv", "Skip matching (START)")))
+				static constexpr struct
 				{
-					Console.WriteLn("ZdxsvGgpo: takeover panel: skip");
-					Host::RunOnCPUThread([] { Zdxsv::ReplayTakeoverSkip(); });
-				}
-				ImGui::SameLine();
+					u16 bit;
+					const char* icon;
+				} dirs[] = {
+					{0x2000, ICON_PF_DPAD_UP}, {0x1000, ICON_PF_DPAD_DOWN}, {0x0800, ICON_PF_DPAD_LEFT}, {0x0400, ICON_PF_DPAD_RIGHT}};
+				const auto show = [&](u16 bit, const char* icon) {
+					if (((t | c) & bit) == 0)
+						return;
+					ImGui::SameLine();
+					ImGui::TextColored((t & bit) ? ((c & bit) ? matched : missing) : extra, "%s", icon);
+				};
+				for (const auto& d : dirs)
+					show(d.bit, d.icon);
+				for (const auto& b : buttons)
+					show(b.bit, b.icon);
+				ImGui::PushTextWrapPos(0.0f);
+				ImGui::TextDisabled("%s", TRANSLATE("Zdxsv", "Matching is optional. During Takeover, press START to retry."));
+				ImGui::PopTextWrapPos();
 				if (ImGui::Button(TRANSLATE("Zdxsv", "Cancel")))
 				{
 					Console.WriteLn("ZdxsvGgpo: takeover panel: cancel");
 					Host::RunOnCPUThread([] { Zdxsv::ReplayTakeoverCancel(); });
 				}
-				ImGui::TextDisabled("%s", TRANSLATE("Zdxsv", "While taken over, START retries from the same frame."));
 			}
 			ImGui::End();
 			ImGui::PopFont();
@@ -502,7 +564,7 @@ namespace Zdxsv
 	{
 		DrawPingDiagram();
 		GgpoOsdDraw();
-		DrawReplayKeys(scale, margin);
+		DrawReplayKeys();
 		DrawReplayBar(scale, margin);
 		DrawTakeover(scale);
 	}

@@ -88,6 +88,16 @@ the game to cancel it and go back to the network menu.
 If the zdxsv login server does not answer, the game pauses and PCSX2 retries until it answers;
 resume the game to go back to the network menu. A refused login also goes back there.
 
+## Replays
+
+Tools → zdxsv Replays lists your saved battles and the server's. A replay
+shows the rounds only (the mobile suit selection and the rematch screens are
+skipped; Settings → zdxsv turns this off). Controls on the pad: Circle play /
+pause, Left / Right 1 s back / forward (paused: one frame), Up / Down
+playback speed. The bar at the bottom shows when you move the mouse there.
+"Take over" lets you play on from the current moment in a battle. Save
+states are not available during a replay.
+
 ## Crash reports
 
 When PCSX2 crashes, it sends a crash report to the zdxsv developers.

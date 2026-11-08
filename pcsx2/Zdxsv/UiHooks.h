@@ -34,24 +34,32 @@ namespace Zdxsv
 	void ReplaySeekBy(int frames);
 	// Replay control bar state; false when no replay plays. The actions below run on the CPU thread.
 	bool ReplayBarInfo(int& frame, int& frames, int& pov, u32& povs, int& target);
+	// The shown round's frames [lo, hi) and its index of `rounds` (round -1: the whole replay, no rounds known).
+	bool ReplayBarSpan(int& lo, int& hi, int& round, int& rounds);
+	int ReplaySpeedPercent();
+	bool ReplayCanTakeOver();
+	// Playing: seek `dir` seconds; paused: a one-frame step.
+	void ReplayStep(int dir);
+	void ReplaySpeedBy(int delta);
+	u32 ReplayPadPokes();
+	// Under g_ggpo_active (VMManager): state saves and loads and disc changes.
+	bool ReplayRefuses(Error* error = nullptr);
 	void ReplaySeekTo(int frame);
 	void ReplayTogglePause();
-	// Replay play: switch to the next position that has a file (ZDXSV_REPLAY=a.pb;b.pb) at the current frame.
-	void ReplayNextPov();
 	// Replay play: key display on / off.
 	void ReplayToggleKeys();
-	// Replay play: jump to the start of the round `delta` rounds from the current one (round 0 = the briefing).
+	// Replay play: jump to the start of the round `delta` rounds from the current one (round 0 = the briefing; with
+	// skipping on and the file's rounds, round 1 = the first round's briefing).
 	void ReplayJumpRound(int delta);
 	// Replay play: take over the own position from the current frame (hotkey "Take Over"; while taken over:
-	// retry from that frame, as START), skip the input matching, cancel it, or go back to the replay.
+	// retry from that frame, as START), cancel the countdown, or go back to the replay.
 	void ReplayTakeover();
-	void ReplayTakeoverSkip();
 	void ReplayTakeoverCancel();
 	void ReplayTakeoverReturn();
-	// Takeover state for the overlay (GS thread): phase 0 off, 1 matching, 2 countdown, 3 taken over; target /
-	// current = (B) bits of the replay's input at the frame / of the host pad. False when no replay plays.
+	// Takeover state for the overlay (GS thread): phase 0 off, 2 countdown, 3 taken over; target / current = (B) bits
+	// of the replay's input at the frame / of the host pad. False when no replay plays.
 	bool ReplayTakeoverInfo(int& phase, u16& target, u16& current, float& countdown);
-	// Paused replay (VMManager idle, CPU thread): the takeover's input matching and countdown.
+	// Paused replay (VMManager idle, CPU thread): the host pad's replay controls and the takeover countdown.
 	void ReplayTakeoverIdle();
 
 	// GGPO network status, replay keys and replay control bar (ImGuiManager::RenderOverlays). GS thread.

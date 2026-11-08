@@ -471,6 +471,7 @@
     <ClCompile Include="Zdxsv\GgpoRerunKeep.cpp" />
     <ClCompile Include="Zdxsv\GgpoTest.cpp" />
     <ClCompile Include="Zdxsv\GgpoTrace.cpp" />
+    <ClCompile Include="Zdxsv\ReplayControls.cpp" />
     <ClCompile Include="Zdxsv\ReplayLive.cpp" />
     <ClCompile Include="Zdxsv\ReplayLoad.cpp" />
     <ClCompile Include="Zdxsv\ReplayList.cpp" />

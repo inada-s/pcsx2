@@ -239,7 +239,7 @@ for High-Spec PC</string>
       <item row="1" column="0" colspan="2">
        <widget class="QCheckBox" name="zdxsvReplaySkipMs">
         <property name="text">
-         <string>Skip mobile suit selection</string>
+         <string>Replays show the rounds only (skip mobile suit selection and rematch screens)</string>
         </property>
        </widget>
       </item>

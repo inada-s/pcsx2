@@ -15,15 +15,15 @@ skips does not run on that path.
 |---|---|---|
 | EE recompilers and interpreter: hook calls before guest instructions | `RecHooks`, `IntHooks`, `GgpoBattle`, `NoDev9`, `FastLogin`, `FastBoot` | net RPC hook (battle sock over GGPO, online without DEV9), fast login, fast boot, load barriers, input feed of GGPO and replays |
 | DEV9 save state | `DeltaState` | DEV9 registers in full and delta states (GGPO, replays) |
-| Counters (vsync), VMManager | `Ggpo`, `Replay*`, `NoDev9`, `FastBoot`, `OnlineLimits` | GGPO frame loop, replay playback, VM start / reset / shutdown cleanup, online switch of the limited features |
-| MTGS, GS, SPU2 | `DeltaFreeze`, `SingleDrawList`, `InputLatency`, `Overlays`, `FastBoot` | rerun frame skips, fast boot shows every 8th frame, single draw list, input latency, OSD |
+| Counters (vsync), VMManager | `Ggpo`, `Replay*`, `NoDev9`, `FastBoot`, `OnlineLimits` | GGPO frame loop, replay playback and its unthrottled fast frames, VM start / reset / shutdown cleanup, online switch of the limited features |
+| MTGS, GS, SPU2 | `DeltaFreeze`, `SingleDrawList`, `InputLatency`, `Overlays`, `FastBoot`, `ReplayPlay` | rerun frame skips, replay seek frames not drawn or heard, fast boot shows every 8th frame, single draw list, input latency, OSD |
 | Pad | `Ggpo`, `ReplayPlay` | inputs to and from GGPO and replays |
-| Hotkeys, ImGui | `Overlays`, `ReplayPlay`, `GgpoOsd` | replay hotkeys and bar, refused pause and speed changes, network status panel |
+| Hotkeys, ImGui, GS draw rect | `Overlays`, `ReplayPlay`, `GgpoOsd` | replay hotkeys, bar and key display on the game picture, refused pause and speed changes, network status panel |
 | Patch loader (`PatchHooks.h`) | `GamePatches` | Z game patches built in |
 | PINE server (`PineHooks.h`) | `OnlineLimits` | PINE refused while online |
 | Pad macro buttons (`InputHooks.h`) | `OnlineLimits` | macro buttons off while online |
 | Qt fonts | `pcsx2-qt/Zdxsv/QtFonts` | Noto Sans JP download before the OSD fonts load |
-| VMManager, GS, MTGS, hotkeys, Qt main window (`UiHooks.h`, `QtHooks.h`) | `OnlineLimits`, `pcsx2-qt/Zdxsv/QtOnlineLimits` | operations refused while online, debugger window closed |
+| VMManager, GS, MTGS, hotkeys, Qt main window (`UiHooks.h`, `QtHooks.h`) | `OnlineLimits`, `pcsx2-qt/Zdxsv/QtOnlineLimits`, `ReplayControls` | operations refused while online or during a replay, debugger window closed |
 | Qt host start and exit (`CrashReportHooks.h`), log output (`Log::SetTapOutputLevel` in `common/Console`) | `pcsx2-qt/Zdxsv/CrashReports` | crash reports, the last log lines they carry |
 | Qt host start (`AuthHooks.h`) | `Zdxsv/AuthSignIn` | sign-in test trigger (`ZDXSV_AUTH_SIGNIN_TEST`) |
 
@@ -139,10 +139,13 @@ Keys (`net=1`, `lobby=1`, `port=`, `delay=`, ...) are parts of `ZDXSV_GGPO`.
 - **Replay that does not start**: error OSD.
 - **Play a replay by URL or battle code**: `ZDXSV_REPLAY=http(s)://...`.
 - **Common state**: a cached copy that does not load is downloaded again once.
-- **Seek**: PageUp, PageDown; `ZDXSV_REPLAY_SEEK`.
-- **Point of view**: Home; `ZDXSV_REPLAY_POV`, `ZDXSV_REPLAY_POV_AT`.
-- **Control bar**: shown while paused or after the mouse moves; no setting.
+- **Seek**: PageUp, PageDown, pad Left / Right, bar; `ZDXSV_REPLAY_SEEK`.
+- **Frame step**: pad Left / Right or bar arrows while paused.
+- **Playback speed**: pad Up / Down, bar arrows.
+- **Point of view**: picked before the start; `ZDXSV_REPLAY_POV`, `ZDXSV_REPLAY_POV_AT`.
+- **Control bar**: shown after the mouse moves or a pad control; no setting.
 - **Key display**: End; `ZdxsvReplayKeyDisplay`.
+- **Operations refused during a replay**: state saves and loads, disc changes.
 - **Live spectating**: lobby `live_uplink=1`; `ZDXSV_REPLAY=live:...`.
 - **Live round results**.
 - **Live speed trim**: `ZDXSV_LIVE_PACING=0` turns it off.
@@ -151,7 +154,7 @@ Keys (`net=1`, `lobby=1`, `port=`, `delay=`, ...) are parts of `ZDXSV_GGPO`.
 - **Return to the game after a replay**: `ZdxsvReplayReturn`.
 - **Live auto-next**: `ZdxsvLiveAutoNext`, `ZDXSV_LIVE_NEXT`.
 - **Live auto-next skip**: with auto-next.
-- **Skip mobile suit selection**: `ZdxsvReplaySkipMs`.
+- **Rounds only** (skip mobile suit selection, rematch screens): `ZdxsvReplaySkipMs`.
 - **Round jump**: Shift+PageUp, Shift+PageDown, bar step buttons.
 - **Round mobile suits**: hover the round results on the bar.
 - **Takeover**: bar "Take over" / "Retry" / "Replay", hotkey "Take Over / Retry".

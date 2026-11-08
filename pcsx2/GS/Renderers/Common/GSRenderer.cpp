@@ -981,6 +981,14 @@ void GSRenderer::PresentCurrentFrame()
 	}
 }
 
+void GSGetLastDrawRect(float* left, float* top, float* right, float* bottom)
+{
+	*left = s_last_draw_rect.x;
+	*top = s_last_draw_rect.y;
+	*right = s_last_draw_rect.z;
+	*bottom = s_last_draw_rect.w;
+}
+
 void GSTranslateWindowToDisplayCoordinates(float window_x, float window_y, float* display_x, float* display_y)
 {
 	const float draw_width = s_last_draw_rect.z - s_last_draw_rect.x;

@@ -61,8 +61,8 @@ page greys it out and its tooltip names the variable.
 | `[DEV9/Eth] ZdxsvUPnP` | `true` | feature | When the connectivity test finds the GGPO port not open, map it on the router with UPnP and test again (`lobby.md`). |
 | `[DEV9/Eth] ZdxsvNetOsd` | `true` | feature | Network status OSD in GGPO battles. Read when the game starts. `osd=` overrides it. Off: shown only while an opponent is interrupted or disconnected. |
 | `[DEV9/Eth] ZdxsvCrashReports` | `true` | feature | Send crash reports ([crash-reports.md](crash-reports.md)), in a build with a DSN. Settings → zdxsv. |
-| `[DEV9/Eth] ZdxsvReplaySkipMs` | `true` | feature | A replay skips the mobile suit selection. `ZDXSV_REPLAY_SKIP_MS` overrides it. |
-| `[DEV9/Eth] ZdxsvReplayKeyDisplay` | `false` | feature | Replays start with the key display on. `ZDXSV_REPLAY_KEY_DISPLAY` overrides it. |
+| `[DEV9/Eth] ZdxsvReplaySkipMs` | `true` | feature | A replay plays its rounds only: it skips the mobile suit selections and the rematch screens (a file without round frames: the first mobile suit selection). `ZDXSV_REPLAY_SKIP_MS` overrides it. |
+| `[DEV9/Eth] ZdxsvReplayKeyDisplay` | `true` | feature | Replays start with the key display on. `ZDXSV_REPLAY_KEY_DISPLAY` overrides it. |
 | `[DEV9/Eth] ZdxsvReplayStateUrl` | the hosted `rbk-p1.p2s` | feature | The post-entry state a replay or live battle starts from: URL (downloaded once into the cache folder) or file; empty = the booted state. `ZDXSV_REPLAY_STATE` overrides it. |
 | `[DEV9/Eth] ZdxsvFastBoot` | `true` | feature | Z game, from boot: unlimited speed and automatic presses through the title, main menu and network menus (broadband, network setting 1 with the DEV9 adapter on; the terms screen skipped) to the lobby user_id selection (without fast login: to the login browser), then normal speed. Stops at once at the NET file load when the memory card is unformatted or has no NET file, at the lobby when the account has no user_id, and when fast login goes back to the network menu (the player connects again). Settings → zdxsv → Fast boot. Env `ZDXSV_FAST_BOOT=1/0` overrides. |
 | `[DEV9/Eth] ZdxsvFastBootState` | `true` | feature | With `ZdxsvFastBoot`: the first boot saves a state at the NET file load (`sstates/<serial> zdxsv-fastboot <state version>.p2s`; `zdxsv-fastboot-dev9` on the DEV9 path, as the two stall on each other; no player data, any memory card); later boots load it and skip the title and main menu. Delete the file to retake it. Env `ZDXSV_FAST_BOOT_STATE=1/0` overrides. |
@@ -183,9 +183,10 @@ See [replay.md](replay.md).
 | `ZDXSV_REPLAY=live:<API URL>[#code]` | off | feature | Watch a lobby battle live through the lobby HTTP API (`http[s]://host:port`; no code = the newest live battle). See `replay.md` Live spectating. |
 | `ZDXSV_REPLAY_POV=P` | the recorder's position | feature | Point of view P, picked before the start: the lobby answers name it as the own position. |
 | `ZDXSV_REPLAY_STATE=url\|path` | the setting | feature | The post-entry state a replay starts from, over `ZdxsvReplayStateUrl`. |
-| `ZDXSV_REPLAY_BAR=1` / `=0` | off | diagnostic | Always show the replay control bar, or never (default: while paused and for 3 s after the mouse moves over the bottom quarter). |
+| `ZDXSV_REPLAY_DRAW_SKIP=0` | on | diagnostic | Seek and skip frames draw (the game's draw callbacks and VU1 run); they are still not shown, heard or throttled. |
+| `ZDXSV_REPLAY_BAR=1` / `=0` | off | diagnostic | Always show the replay control bar, or never (default: for 3 s after the mouse moves over the bottom quarter or a pad control). |
 | `ZDXSV_REPLAY_KEY_DISPLAY=1` / `=0` | the setting | feature | Start with the key display on or off, over `ZdxsvReplayKeyDisplay`. |
-| `ZDXSV_REPLAY_SKIP_MS=0` / `=1` | the setting | feature | Do not skip / skip the mobile suit selection, over `ZdxsvReplaySkipMs`. |
+| `ZDXSV_REPLAY_SKIP_MS=0` / `=1` | the setting | feature | Play everything / the rounds only, over `ZdxsvReplaySkipMs`. |
 | `ZDXSV_REPLAY_KEY=n` | 600 | tuning | Interval of the seek keys in frames. 0 = none: no backward seek. |
 | `ZDXSV_REPLAY_TURBO=1` | off | test | Play turbo. |
 | `ZDXSV_REPLAY_EXIT=1` | off | test | Exit at the end instead of pausing. |

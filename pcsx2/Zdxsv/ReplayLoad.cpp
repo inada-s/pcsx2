@@ -34,6 +34,35 @@ namespace Zdxsv
 			std::vector<u32> round_ms; // round_data used_ms as MsIds packs them, 0xff = unknown
 		};
 
+		// PlayState::spans from the file's frames. The load frames are the recorder's; this playback's may come a
+		// frame later (own load late), so a span can start or end a frame early.
+		std::vector<std::pair<int, int>> PlaySpans(const std::vector<int64_t>& loads, const std::vector<int64_t>& play_starts,
+			const std::vector<int64_t>& game_ends, const std::vector<int64_t>& round_ends, s64 frames, std::vector<int>& plays)
+		{
+			std::vector<std::pair<int, int>> spans;
+			plays.clear();
+			for (const int64_t ps : play_starts)
+			{
+				const auto briefing = std::find_if(loads.rbegin(), loads.rend(), [ps](int64_t f) { return f < ps; });
+				if (briefing == loads.rend())
+					continue;
+				int64_t end_of_game = frames;
+				for (size_t i = 0; i < round_ends.size(); i += 2)
+					if (round_ends[i] > ps)
+						end_of_game = std::min(end_of_game, round_ends[i]);
+				for (const int64_t e : game_ends)
+					if (e > ps)
+						end_of_game = std::min(end_of_game, e);
+				const auto rematch = std::find_if(loads.begin(), loads.end(), [end_of_game](int64_t f) { return f > end_of_game; });
+				const int64_t end = rematch == loads.end() ? frames : std::min(*rematch, frames);
+				if (*briefing < 0 || *briefing >= end || (!spans.empty() && *briefing < spans.back().second))
+					continue;
+				spans.emplace_back(static_cast<int>(*briefing), static_cast<int>(end));
+				plays.push_back(static_cast<int>(std::clamp<int64_t>(ps, *briefing, end)));
+			}
+			return spans;
+		}
+
 		bool ReplayParse(std::string_view all, ReplayFile& r)
 		{
 			Pb::Reader rd{reinterpret_cast<const uint8_t*>(all.data()), reinterpret_cast<const uint8_t*>(all.data() + all.size())};
@@ -283,6 +312,11 @@ namespace Zdxsv
 			}
 			for (size_t i = 0; i + 1 < r.round_ends.size(); i += 2)
 				s_play.cut.emplace_back(static_cast<int>(r.round_ends[i]), static_cast<int>(r.round_ends[i + 1]));
+			s_play.spans = PlaySpans(r.load_frames, r.play_starts, r.game_ends, r.round_ends, frames, s_play.plays);
+			std::string spans;
+			for (const auto& [b, e] : s_play.spans)
+				spans += fmt::format(" {}-{}", b, e);
+			Console.WriteLn("ZdxsvGgpo: replay: rounds shown with skipping:%s", spans.empty() ? " none" : spans.c_str());
 			{
 				std::lock_guard lock(s_battle_loads_mtx);
 				s_play_loads.file_rounds = r.rounds;
@@ -374,7 +408,7 @@ namespace Zdxsv
 				}
 			}
 			Error error;
-			bool loaded = VMManager::LoadState(path.c_str(), &error);
+			bool loaded = ReplayLoadState(path.c_str(), &error);
 			// a broken cached copy (a cut download, a bad disk) is downloaded again, once per URL per run: a start
 			// that fails is tried again soon, and a bad file on the server would be downloaded at each try
 			static std::string refetched;
@@ -384,7 +418,7 @@ namespace Zdxsv
 				Console.Error("ZdxsvGgpo: replay: common state %s: cached copy load failed: %s", path.c_str(), error.GetDescription().c_str());
 				FileSystem::DeleteFilePath(path.c_str());
 				error.Clear();
-				loaded = download() && VMManager::LoadState(path.c_str(), &error);
+				loaded = download() && ReplayLoadState(path.c_str(), &error);
 			}
 			if (!loaded)
 			{
@@ -449,12 +483,11 @@ namespace Zdxsv
 				s_to.start_held = start;
 			}
 			const int phase = s_to_phase;
-			const bool aligning = phase == TO_ALIGN || phase == TO_COUNT;
+			const bool aligning = phase == TO_COUNT;
 			const auto align = [] {
-				s_to_phase = TO_ALIGN;
-				s_to.skip = false;
-				s_to.start_held = s_host[PadDualshock2::Inputs::PAD_START] >= 0.5f; // skip needs a new press
-				Console.WriteLn("ZdxsvGgpo: replay takeover: hold the replay's input %04x at frame %d", s_to_target.load(), s_to.frame);
+				s_to_phase = TO_COUNT;
+				s_to.count_t0 = 0;
+				Console.WriteLn("ZdxsvGgpo: replay takeover: countdown at frame %d, the replay's input %04x", s_to.frame, s_to_target.load());
 			};
 			const auto load = [&next] {
 				const int t = TakeoverLoad();
@@ -468,6 +501,8 @@ namespace Zdxsv
 			{
 				if (s_live_down)
 					Console.Error("ZdxsvGgpo: replay takeover: not while spectating live");
+				else if (!PlayInBattle(s_battle.frame))
+					Console.WriteLn("ZdxsvGgpo: replay takeover: only in a battle (frame %d)", s_battle.frame);
 				else if (TakeoverBegin(next))
 				{
 					PlayRunEnd("cancelled by a takeover", s_battle.frame);
@@ -493,8 +528,9 @@ namespace Zdxsv
 						TakeoverStart();
 					else
 					{
+						// right after the state load nothing is drawn: pause a few frames later
 						align();
-						return true;
+						s_to.pause_in = 3;
 					}
 				}
 			}
@@ -527,7 +563,7 @@ namespace Zdxsv
 			if (const int p = PlayLoadFile(std::string(path)); me < 0)
 				me = p;
 		if (me < 0 && paths.starts_with("live:") && LiveAutoNext(true))
-			return; // flycast too skips a live battle that does not play and keeps waiting
+			return; // a live battle that does not play is skipped, the wait goes on
 		if (me < 0)
 		{
 			PlayFailed(TRANSLATE_STR("Zdxsv", "Failed to start the replay. The replay file could not be read, or it is corrupted or outdated."));
@@ -556,7 +592,7 @@ namespace Zdxsv
 		s_play.rearm_seek = seek;
 		if (seek >= 0)
 		{
-			s_play_rearm_limiter = s_play.target >= 0 ? s_play_limiter : VMManager::GetLimiterMode();
+			s_play_rearm_limiter = VMManager::GetLimiterMode();
 			s_play.target = -1;
 			VMManager::SetLimiterMode(LimiterModeType::Unlimited); // the lobby phase up to the arm
 		}
@@ -612,7 +648,7 @@ namespace Zdxsv
 	{
 		const PlayKey& k0 = *s_play_keys[me].at(0);
 		Error error;
-		if (!VMManager::LoadState(k0.path.c_str(), &error))
+		if (!ReplayLoadState(k0.path.c_str(), &error))
 		{
 			Console.Error("ZdxsvGgpo: replay: state load failed: %s", error.GetDescription().c_str());
 			return;
@@ -635,12 +671,12 @@ namespace Zdxsv
 		if (const char* e = TestEnv("ZDXSV_REPLAY_TURBO"); e && e[0] == '1')
 			VMManager::SetLimiterMode(LimiterModeType::Turbo);
 		static const bool keys_once = [] {
-			s_keys_on = BoolSetting("ZdxsvReplayKeyDisplay", false, "ZDXSV_REPLAY_KEY_DISPLAY");
+			s_keys_on = BoolSetting("ZdxsvReplayKeyDisplay", true, "ZDXSV_REPLAY_KEY_DISPLAY");
 			return true;
 		}();
 		(void)keys_once;
 		s_play_skip_ms = BoolSetting("ZdxsvReplaySkipMs", true, "ZDXSV_REPLAY_SKIP_MS");
-		if (s_play_skip_ms)
+		if (s_play_skip_ms && s_play.spans.empty())
 			PlayRunBegin(1);
 		if (const char* e = TestEnv("ZDXSV_REPLAY_ROUND_AT"))
 			for (const std::string_view one : StringUtil::SplitString(e, ','))
@@ -669,6 +705,7 @@ namespace Zdxsv
 	void PlayNext()
 	{
 		s_session_frames++;
+		ReplayPadPoll();
 		int next = s_battle.frame + 1;
 		if (!s_play.seeks.empty() && s_play.seeks.front().first == next)
 		{
@@ -685,7 +722,9 @@ namespace Zdxsv
 			s_play_round_req = s_play.round_at.front().second;
 			s_play.round_at.pop_front();
 		}
-		const bool pause = PlayTakeover(next);
+		bool pause = PlayTakeover(next);
+		if (s_to_phase == TO_COUNT && s_to.pause_in > 0 && --s_to.pause_in == 0)
+			pause = true;
 		if (s_to_phase != TO_OFF) // no seek, round jump or point of view switch
 		{
 			s_play_req = INT_MIN;
@@ -696,7 +735,22 @@ namespace Zdxsv
 		int req = s_play_req.exchange(INT_MIN);
 		const int pov = s_play_pov_req.exchange(-1);
 		int run = -1; // load to run to after the seek
-		if (const int round = s_play_round_req.exchange(INT_MIN); round != INT_MIN)
+		const int round = s_play_round_req.exchange(INT_MIN);
+		if (const int span = PlaySpanAt(s_play.target >= 0 ? s_play.target : s_battle.frame); span >= 0)
+		{
+			const auto& spans = s_play.spans;
+			if (round != INT_MIN)
+			{
+				const int i = std::clamp(round, 1, static_cast<int>(spans.size())) - 1;
+				req = spans[i].first;
+				Console.WriteLn("ZdxsvGgpo: replay round %d: starts at frame %d", i + 1, req);
+			}
+			else if (req == 0)
+				req = spans[0].first;
+			else if (req != INT_MIN)
+				req = std::clamp(req, spans[span].first, spans[span].second - 1);
+		}
+		else if (round != INT_MIN)
 		{
 			const int load = 1 + std::max(0, round);
 			if (load < static_cast<int>(s_play_loads.battle.size()))
@@ -726,10 +780,16 @@ namespace Zdxsv
 		}
 		else if (req != INT_MIN)
 			next = PlaySeek(req);
-		if (req == 0 && next == 0 && s_play_skip_ms)
+		if (req == 0 && next == 0 && s_play_skip_ms && s_play.spans.empty())
 			run = 1; // briefing not reached yet
 		if (run >= 0)
 			PlayRunBegin(run);
+		next = PlaySkipGap(next);
+		if (s_play.step_pause && s_play.target < 0)
+		{
+			s_play.step_pause = false;
+			pause = true;
+		}
 		if (s_live_down)
 			LiveNext(next);
 		if (next >= s_play.frames)
@@ -749,7 +809,7 @@ namespace Zdxsv
 			s_play.at_end = true;
 			PlayReport("done, auto-next"); // the next battle's VM reset drops this one's stats and pw hashes
 		}
-		else if (const char* e = TestEnv("ZDXSV_REPLAY_EXIT"); s_play.at_end || (e && e[0] == '1'))
+		else if (const char* e = TestEnv("ZDXSV_REPLAY_EXIT"); s_play.at_end || (e && e[0] == '1') || ReplayReturnArmed())
 			PlayStop("end");
 		else
 		{

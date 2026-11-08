@@ -20,6 +20,9 @@ namespace Zdxsv
 	extern bool g_gs_rerun_frame;
 	// EE thread: fast boot shows only every few frames, as a window present waits for the display refresh.
 	extern bool g_fast_boot_hidden_frame;
+	// EE thread: replay frames not presented / not heard.
+	extern bool g_replay_hidden_frame;
+	extern bool g_replay_silent_frame;
 
 	// spu2Output while a session runs: counts the sample; true = drop it (a rerun frame), so a rollback
 	// does not play its frames' sound again.
