@@ -7,6 +7,7 @@
 #include "CDVD/IsoReader.h"
 #include "Counters.h"
 #include "Zdxsv/CpuHooks.h"
+#include "Zdxsv/DefaultsHooks.h"
 #include "Zdxsv/UiHooks.h"
 #include "DEV9/DEV9.h"
 #include "DebugTools/DebugInterface.h"
@@ -598,9 +599,12 @@ void VMManager::SetDefaultSettings(
 	{
 		Pad::SetDefaultControllerConfig(si);
 		USB::SetDefaultConfiguration(&si);
+		Zdxsv::InputDefaultsUsb(si);
 	}
 	if (hotkeys)
 		Pad::SetDefaultHotkeyConfig(si);
+	if (hotkeys)
+		Zdxsv::InputDefaultsHotkeys(si);
 	if (ui)
 		Host::SetDefaultUISettings(si);
 }
