@@ -39,7 +39,7 @@ Everything is on only for the one game build it was made for; any other disc run
 
 ### Replays
 
-- GGPO battles saved as gdxsv-style `.pb` files, optionally uploaded to a replay server.
+- GGPO battles saved as `.pb` files, optionally uploaded to a replay server.
 - Playback from a file, a URL or a battle code, with seek, point of view, control bar, key display, round jump, takeover and four-screen view.
 - Live spectating of lobby battles.
 - Replay window (Tools → zdxsv Replays).
