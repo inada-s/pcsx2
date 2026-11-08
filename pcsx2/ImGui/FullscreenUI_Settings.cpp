@@ -10,6 +10,7 @@
 #include "Host/AudioStream.h"
 #include "INISettingsInterface.h"
 #include "ImGui/FullscreenUI_Internal.h"
+#include "Zdxsv/DefaultsHooks.h"
 #include "ImGui/ImGuiFullscreen.h"
 #include "ImGui/ImGuiManager.h"
 #include "Input/InputManager.h"
@@ -4947,7 +4948,9 @@ void FullscreenUI::ResetControllerSettings()
 
 				Pad::SetDefaultControllerConfig(*dsi);
 				Pad::SetDefaultHotkeyConfig(*dsi);
+				Zdxsv::InputDefaultsHotkeys(*dsi);
 				USB::SetDefaultConfiguration(dsi);
+				Zdxsv::InputDefaultsUsb(*dsi);
 				ShowToast(ICON_FA_CIRCLE_CHECK, FSUI_STR("Controller settings reset to default."));
 			}
 		});

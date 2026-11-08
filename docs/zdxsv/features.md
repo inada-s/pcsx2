@@ -29,6 +29,7 @@ skips does not run on that path.
 | VMManager, GS, MTGS, hotkeys, Qt main window (`UiHooks.h`, `QtHooks.h`) | `OnlineLimits`, `pcsx2-qt/Zdxsv/QtOnlineLimits`, `ReplayControls` | operations refused while online or during a replay, debugger window closed |
 | Qt host start and exit (`CrashReportHooks.h`), log output (`Log::SetTapOutputLevel` in `common/Console`) | `pcsx2-qt/Zdxsv/CrashReports` | crash reports, the last log lines they carry |
 | Qt host start (`AuthHooks.h`) | `Zdxsv/AuthSignIn` | sign-in test trigger (`ZDXSV_AUTH_SIGNIN_TEST`) |
+| Default settings and settings load (`DefaultsHooks.h`: `VMManager::SetDefaultSettings`, Big Picture controller reset, Qt host start) | `InputDefaults` | no upstream hotkeys, USB keyboard on port 1 |
 
 ### Network paths
 
@@ -169,6 +170,7 @@ Keys (`net=1`, `lobby=1`, `port=`, `delay=`, ...) are parts of `ZDXSV_GGPO`.
 ## Game window
 
 - **Mouse wheel volume**: the wheel over the game screen changes the volume in 5% steps, OSD with the new volume; not while a menu takes the mouse or the wheel is bound to an input; `ZdxsvWheelVolume`.
+- **Keyboard and hotkeys**: the host keyboard is a USB keyboard on USB port 1 (in-game chat; Settings > Controllers > USB Port 1, None turns it off); no upstream PCSX2 hotkeys are bound by default, the zdxsv replay ones stay (bind any under Settings > Hotkeys). Settings files from before get both once on start (`[Zdxsv] InputDefaultsVersion`).
 
 ## ARM64 builds ([arm64.md](arm64.md))
 

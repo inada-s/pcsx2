@@ -56,6 +56,7 @@
 
 #include "pcsx2/Zdxsv/AuthHooks.h"
 #include "pcsx2/Zdxsv/CrashReportHooks.h"
+#include "pcsx2/Zdxsv/DefaultsHooks.h"
 #include "Zdxsv/QtHooks.h"
 
 #include <cmath>
@@ -1398,6 +1399,8 @@ bool QtHost::InitializeConfig()
 		if (!s_run_setup_wizard)
 			SaveSettings();
 	}
+	if (Zdxsv::InputDefaultsMigrate(*s_base_settings_interface) && !s_run_setup_wizard)
+		SaveSettings();
 
 	// Layer secrets ini on top
 	const std::string secrets_path = Path::Combine(EmuFolders::Settings, "secrets.ini");
