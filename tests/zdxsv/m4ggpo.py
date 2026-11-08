@@ -75,7 +75,7 @@ def main():
         return 2
     for i in gc:
         prev = zrig.env(f"PCSX2_ENV_P{i}")  # keep a caller's per-client env (m4lat.py)
-        g = f"ZDXSV_GGPO=net=1,lobby=1,port={port + int(i) - 1}" + ("" if auto else f",delay={gdelay}") + \
+        g = f"ZDXSV_STUN_PORT=8201 ZDXSV_GGPO=net=1,lobby=1,port={port + int(i) - 1}" + ("" if auto else f",delay={gdelay}") + \
             (f",mindelay={gmin}" if gmin else "")
         os.environ[f"PCSX2_ENV_P{i}"] = f"{prev} {g}" if prev else g
     p2p, bad, noaddr = zrig.env("P2P", "v4"), zrig.env("BAD_SESSION"), zrig.env("NOADDR")
