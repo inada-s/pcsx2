@@ -82,7 +82,8 @@ namespace Zdxsv
 		};
 		GgpoOsdState s_osd;
 
-		constexpr ImVec4 TEXT(1.f, 1.f, 1.f, 1.f);
+		constexpr ImVec4 TEXT(0.75f, 0.75f, 0.75f, 1.f);
+		constexpr ImVec4 TEXT_DIM(0.75f, 0.75f, 0.75f, 0.7f);
 		constexpr ImVec4 TEXT_DISABLED(0.5f, 0.5f, 0.5f, 1.f);
 		constexpr ImVec4 SEPARATOR(0.43f, 0.43f, 0.5f, 0.5f);
 
@@ -111,7 +112,8 @@ namespace Zdxsv
 			return GgpoOsdHealth::Poor;
 		}
 
-		GgpoOsdHealth LossHealth(int loss) { return Grade(loss, 0, 2, 4, 7); }
+		// GGPO resends unacked inputs, so loss alone is minor; loss that hurts also grows the send queue
+		GgpoOsdHealth LossHealth(int loss) { return loss <= 0 ? GgpoOsdHealth::Excellent : loss <= 2 ? GgpoOsdHealth::Good : GgpoOsdHealth::Medium; }
 		GgpoOsdHealth QueueHealth(int excess) { return Grade(excess, 1, 2, 4, 7); }
 		// a stable RTT adds input delay but never looks as bad as a lossy or stalling link
 		GgpoOsdHealth StableLatencyHealth(int ping) { return ping <= 60 ? GgpoOsdHealth::Excellent : ping <= 180 ? GgpoOsdHealth::Good : GgpoOsdHealth::Medium; }
@@ -189,7 +191,6 @@ namespace Zdxsv
 			const GgpoOsdHealth pacing = PacingHealth(peer.frames_behind);
 			const GgpoOsdHealth observed = Worse(Worse(loss, queue), Worse(latency, pacing));
 
-			t.displayed = Worse(t.displayed, loss);
 			if (static_cast<int>(observed) > static_cast<int>(t.displayed))
 			{
 				if (t.pending_since == 0.0)
@@ -199,8 +200,7 @@ namespace Zdxsv
 				}
 				else
 					t.pending = Better(t.pending, observed);
-				const bool poor_only_from_pacing = pacing == GgpoOsdHealth::Poor && loss != GgpoOsdHealth::Poor &&
-				                                   queue != GgpoOsdHealth::Poor && latency != GgpoOsdHealth::Poor;
+				const bool poor_only_from_pacing = pacing == GgpoOsdHealth::Poor && queue != GgpoOsdHealth::Poor && latency != GgpoOsdHealth::Poor;
 				const double delay = t.pending == GgpoOsdHealth::Poor && poor_only_from_pacing ? 2.0 : 1.0;
 				if (now - t.pending_since >= delay)
 				{
@@ -262,7 +262,6 @@ namespace Zdxsv
 		{
 			ImDrawList* dl;
 			ImFont* regular;
-			float base; // unscaled font size of the name and heading rows
 			float fs; // the panel's font size (= line height)
 			float sx, sy;
 			float x, w; // content left, width
@@ -276,28 +275,10 @@ namespace Zdxsv
 			void Centered(const ImVec4& c, const char* s) const { Text(x + (w - TextW(s)) * 0.5f, c, s); }
 			void Next() { y += fs + sy; }
 
-			void Meter(float mx, float width, int segments, int filled, const ImVec4& fill) const
+			void Stat(float tx, const char* label, int value, const ImVec4& c) const
 			{
-				width = std::max(width, fs * 2.f);
-				const float gap = std::max(1.f, fs * 0.1f);
-				const float seg_w = (width - gap * (segments - 1)) / segments;
-				const float seg_h = std::max(3.f, fs * 0.5f);
-				const float my = y + (fs - seg_h) * 0.5f + 1.f;
-				ImVec4 empty = TEXT_DISABLED;
-				empty.w *= 0.4f;
-				for (int i = 0; i < segments; i++)
-				{
-					const float l = mx + i * (seg_w + gap);
-					dl->AddRectFilled(ImVec2(l, my), ImVec2(l + seg_w, my + seg_h), Col(i < filled ? fill : empty), seg_h * 0.2f);
-				}
-			}
-
-			void LabelMeter(const char* label, int segments, int filled, const ImVec4& fill)
-			{
-				Text(x, TEXT, label);
-				const float mx = x + TextW(label) + sx;
-				Meter(mx, x + w - mx, segments, filled, fill);
-				Next();
+				Text(tx, TEXT, label);
+				Text(tx + TextW(label), c, std::to_string(value).c_str());
 			}
 
 			void PacingMeter(float px, float width, int frames_behind) const
@@ -327,7 +308,7 @@ namespace Zdxsv
 				if (s.empty())
 					return;
 				ImFont* f = regular;
-				const float row_h = base * 1.1f * scale;
+				const float row_h = fs * 1.1f * scale;
 				float size = row_h;
 				const float tw = TextW(f, size, s.c_str());
 				if (tw > w && w > 0.f)
@@ -345,7 +326,10 @@ namespace Zdxsv
 				const float l = r - bars * bar_w - (bars - 1) * gap;
 				const float bottom = row_y + (row_h + size) * 0.5f;
 				const int lit = !p.connected ? 0 : h == GgpoOsdHealth::Poor ? 1 : h == GgpoOsdHealth::Fair ? 2 : h == GgpoOsdHealth::Medium ? 3 : 4;
-				const ImVec4 on = PingColor(p.connected ? std::max(p.ping, 1) : 999);
+				ImVec4 on = PingColor(p.connected ? std::max(p.ping, 1) : 999);
+				on.x *= 0.75f;
+				on.y *= 0.75f;
+				on.z *= 0.75f;
 				ImVec4 off = TEXT_DISABLED;
 				off.w *= 0.5f;
 				for (int i = 0; i < bars; i++)
@@ -360,7 +344,7 @@ namespace Zdxsv
 			void Heading(const GgpoOsdPeer& p, bool details, GgpoOsdHealth health)
 			{
 				const float h = 1.f + sy * 2.f;
-				float size = base * 0.85f;
+				float size = fs * 0.85f;
 				const std::string label = std::to_string(p.position + 1) + "P  " + p.id;
 				const float gap = size * 0.5f;
 				float line_r = x + w;
@@ -378,7 +362,7 @@ namespace Zdxsv
 					{
 						const float rs = size * 0.8f;
 						line_r -= TextW(regular, rs, "R");
-						Text(regular, rs, line_r, y + (h - rs) * 0.5f, ImVec4(1.f, 1.f, 1.f, 0.65f), "R");
+						Text(regular, rs, line_r, y + (h - rs) * 0.5f, TEXT_DIM, "R");
 						line_r -= gap * 0.5f;
 					}
 				}
@@ -396,7 +380,7 @@ namespace Zdxsv
 					dl->AddLine(ImVec2(x, line_y), ImVec2(label_x - gap, line_y), Col(SEPARATOR), thick);
 				if (label_x + label_w + gap < line_r)
 					dl->AddLine(ImVec2(label_x + label_w + gap, line_y), ImVec2(line_r, line_y), Col(SEPARATOR), thick);
-				Text(regular, size, label_x, y + (h - size) * 0.5f, ImVec4(1.f, 1.f, 1.f, 0.65f), label.c_str());
+				Text(regular, size, label_x, y + (h - size) * 0.5f, TEXT_DIM, label.c_str());
 				y += h + sy;
 			}
 
@@ -494,13 +478,13 @@ namespace Zdxsv
 		const float base = 17.f * scale, pad0 = 8.f * scale;
 		const int peers = static_cast<int>(panel.peers.size());
 		const float natural_sy = std::max(4.f * scale, base * 0.7f);
-		const float scalable = pad0 * 2.f + (3 + peers * (details ? 4 : 2)) * (base + natural_sy) + peers * (1.f + natural_sy * 3.f);
+		const float scalable = pad0 * 2.f + (2 + peers * (details ? 4 : 2)) * (base + natural_sy) + peers * (1.f + natural_sy * 3.f);
 		const float ps = std::clamp((max_h - title_h - title_gap) / scalable, 0.1f, 1.f);
 		const float width = 160.f * scale * ps;
 		const float pad = pad0 * ps;
 
 		ImFont* const regular = ImGuiManager::GetStandardFont();
-		GgpoOsdPen pen{ImGui::GetBackgroundDrawList(), regular, base, base * ps, 8.f * scale * ps, natural_sy * ps, left + pad, width - pad * 2.f,
+		GgpoOsdPen pen{ImGui::GetBackgroundDrawList(), regular, base * ps, 8.f * scale * ps, natural_sy * ps, left + pad, width - pad * 2.f,
 			top + title_h + title_gap + pad};
 
 		pen.dl->ChannelsSplit(2);
@@ -509,24 +493,24 @@ namespace Zdxsv
 		pen.Text(regular, pen.fs, left + (width - pen.TextW(regular, pen.fs, title)) * 0.5f, top + std::max(0.f, (title_h - pen.fs) * 0.5f) + 1.f,
 			ImVec4(0.925f, 0.941f, 1.f, 0.26f), title);
 
-		pen.Text(pen.x, TEXT, "Delay");
+		const float stat_right = pen.x + pen.w * 0.5f;
 		const ImVec4 delay_color = panel.delay >= 13 ? ImVec4(1.f, 0.15f, 0.12f, 1.f) : panel.delay >= 10 ? ImVec4(1.f, 0.5f, 0.f, 1.f) :
 		                           panel.delay >= 5                 ? ImVec4(1.f, 0.85f, 0.f, 1.f) : TEXT;
-		pen.Right(delay_color, (std::to_string(panel.delay) + "fr").c_str());
-		pen.Next();
-		pen.Text(pen.x, TEXT, ("Roll: " + std::to_string(panel.rollback_frames)).c_str());
-		pen.Right(TEXT, ("Wait: " + std::to_string(panel.sync_frames)).c_str());
-		pen.Next();
 		const int predicted = std::clamp(panel.predicted_frames, 0, 6);
 		const ImVec4 predicted_color = predicted == 4 ? ImVec4(1.f, 0.85f, 0.f, 1.f) : predicted == 5 ? ImVec4(1.f, 0.5f, 0.f, 1.f) :
-		                               predicted == 6 ? ImVec4(1.f, 0.15f, 0.12f, 1.f) : ImVec4(1.f, 1.f, 1.f, 0.75f);
-		pen.LabelMeter("P:", 6, predicted, predicted_color);
+		                               predicted == 6 ? ImVec4(1.f, 0.15f, 0.12f, 1.f) : TEXT_DIM;
+		pen.Stat(pen.x, "D: ", panel.delay, delay_color);
+		pen.Stat(stat_right, "P: ", predicted, predicted_color);
+		pen.Next();
+		pen.Stat(pen.x, "R: ", panel.rollback_frames, TEXT);
+		pen.Stat(stat_right, "W: ", panel.sync_frames, TEXT);
+		pen.Next();
 
 		for (const GgpoOsdPeer& p : panel.peers)
 		{
 			pen.Heading(p, details, health[std::clamp(p.position, 0, 3)]);
 			pen.Name(p.name);
-			pen.Name(p.pilot, 0.85f, ImVec4(1.f, 1.f, 1.f, 0.7f));
+			pen.Name(p.pilot, 0.85f, TEXT_DIM);
 			if (details)
 				pen.Diagnostics(p, s.flashes[std::clamp(p.position, 0, 3)], now);
 			else if (!p.connected)
