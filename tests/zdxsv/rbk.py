@@ -18,6 +18,8 @@ INI0="Section:Key=Value;..." (syncset): ini entries for peer 0 only; its ini bef
 and put back by the next run. SPEED0=X: peer 0 runs at speed X.
 LAT (one-way ms; set = a udprelay.py per peer pair), JITTER (ms, 0), LOSS (0..1, 0).
 MAXWAIT=n: FAIL if a peer's OSD `Wait` (frames stopped at GGPO's prediction limit) ends above n.
+MAXLAG=n: FAIL if a peer's OSD Lag level (`osd lag` lines: segments filled, 4 = Poor) is above n in the 2nd half of the
+battle (the 1st half holds the meter's start and its slow recovery).
 STALL=ms: suspend the peer at position 1 for ms every 5 s, 8 times from 40 s, so the others run ahead.
 Sync check: pwcheck compares each player's x, y, z and game RNG B (0x6d793c) on every frame (RNG A takes
 machine-local sound draws: reported, not judged; OWN: no effect).
@@ -273,6 +275,20 @@ def main(argv):
             print(f"p{p} prediction limit waits: {m[1] if m else 'none'}", flush=True)
             if not m or int(m[1]) > int(zrig.env("MAXWAIT")):
                 print("FAIL MAXWAIT", flush=True)
+                ok = 1
+    if zrig.env("MAXLAG"):
+        for p in peers:
+            stamp = r"^\[\s*([0-9.]+)\]"
+            marks = [(float(m[1]), int(m[2])) for x in lines(emulog(p), r"osd lag \dP \d")
+                     if (m := re.search(stamp + r".*osd lag \dP (\d)", x))]
+            end = [float(m[1]) for x in lines(emulog(p), r"net end msg of frame") if (m := re.search(stamp, x))]
+            worst = None
+            if marks and end:
+                half = (marks[0][0] + end[0]) / 2
+                worst = max([lv for t, lv in marks if t <= half][-1:] + [lv for t, lv in marks if half < t < end[0]])
+            print(f"p{p} OSD Lag in the 2nd half of the battle: max {worst}", flush=True)
+            if worst is None or worst > int(zrig.env("MAXLAG")):
+                print("FAIL MAXLAG", flush=True)
                 ok = 1
     print(f"rbk N={n} seed={seed or 'none'}: {round(time.time() - t0)} s, {'PASS' if ok == 0 else 'FAIL'}", flush=True)
     return ok
