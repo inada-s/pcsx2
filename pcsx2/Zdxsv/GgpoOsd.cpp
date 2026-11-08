@@ -317,19 +317,42 @@ namespace Zdxsv
 			}
 
 			// A name row, centered, shrunk to the width; its pitch stays one text row.
-			void Name(const std::string& s)
+			void Name(const std::string& s, float scale = 1.f, const ImVec4& c = TEXT)
 			{
+				if (s.empty())
+					return;
 				ImFont* f = regular;
-				const float row_h = base * 1.1f;
+				const float row_h = base * 1.1f * scale;
 				float size = row_h;
 				const float tw = TextW(f, size, s.c_str());
 				if (tw > w && w > 0.f)
 					size *= w / tw;
-				Text(f, size, x + (w - TextW(f, size, s.c_str())) * 0.5f, y + (row_h - size) * 0.5f, TEXT, s.c_str());
-				y += std::max(row_h, fs + sy);
+				Text(f, size, x + (w - TextW(f, size, s.c_str())) * 0.5f, y + (row_h - size) * 0.5f, c, s.c_str());
+				y += std::max(row_h, fs * scale + sy);
 			}
 
-			void Heading(const GgpoOsdPeer& p, bool details)
+			// Phone-style bars ending at r: color = ping, lit bars = the lag health. Returns the left edge.
+			float SignalBars(float r, float row_y, float row_h, float size, const GgpoOsdPeer& p, GgpoOsdHealth h) const
+			{
+				constexpr int bars = 4;
+				const float gap = std::max(1.f, size * 0.12f);
+				const float bar_w = std::max(2.f, size * 0.26f);
+				const float l = r - bars * bar_w - (bars - 1) * gap;
+				const float bottom = row_y + (row_h + size) * 0.5f;
+				const int lit = !p.connected ? 0 : h == GgpoOsdHealth::Poor ? 1 : h == GgpoOsdHealth::Fair ? 2 : h == GgpoOsdHealth::Medium ? 3 : 4;
+				const ImVec4 on = PingColor(p.connected ? std::max(p.ping, 1) : 999);
+				ImVec4 off = TEXT_DISABLED;
+				off.w *= 0.5f;
+				for (int i = 0; i < bars; i++)
+				{
+					const float bl = l + i * (bar_w + gap);
+					const float top = bottom - size * 1.1f * (i + 1) / bars;
+					dl->AddRectFilled(ImVec2(bl, top), ImVec2(bl + bar_w, bottom), Col(i < lit ? on : off), bar_w * 0.25f);
+				}
+				return l;
+			}
+
+			void Heading(const GgpoOsdPeer& p, bool details, GgpoOsdHealth health)
 			{
 				const float h = 1.f + sy * 2.f;
 				float size = base * 0.85f;
@@ -342,6 +365,17 @@ namespace Zdxsv
 					const float ping_x = x + w - TextW(regular, size, ping.c_str());
 					Text(regular, size, ping_x, y + (h - size) * 0.5f, PingColor(p.connected ? p.ping : 999), ping.c_str());
 					line_r = ping_x - gap;
+				}
+				else
+				{
+					line_r = SignalBars(x + w, y, h, size, p, health) - gap;
+					if (p.connected && p.relay)
+					{
+						const float rs = size * 0.8f;
+						line_r -= TextW(regular, rs, "R");
+						Text(regular, rs, line_r, y + (h - rs) * 0.5f, ImVec4(1.f, 1.f, 1.f, 0.65f), "R");
+						line_r -= gap * 0.5f;
+					}
 				}
 				const float label_room = std::max(1.f, line_r - x - gap * 2.f);
 				float label_w = TextW(regular, size, label.c_str());
@@ -405,7 +439,7 @@ namespace Zdxsv
 	} // namespace
 
 	// The network panel during a GGPO battle: left edge, between the game's top and bottom HUD.
-	// Hovering the mouse over it swaps the ping and lag rows for loss, send queue and frame pacing.
+	// Hovering the mouse over it swaps the signal bars for the ping and adds loss, send queue and frame pacing rows.
 	void GgpoOsdDraw()
 	{
 		GgpoOsdState& s = s_osd;
@@ -450,7 +484,7 @@ namespace Zdxsv
 		const float base = 17.f * scale, pad0 = 8.f * scale;
 		const int peers = static_cast<int>(panel.peers.size());
 		const float natural_sy = std::max(4.f * scale, base * 0.7f);
-		const float scalable = pad0 * 2.f + (3 + peers * 4) * (base + natural_sy) + peers * (1.f + natural_sy * 3.f);
+		const float scalable = pad0 * 2.f + (3 + peers * (details ? 4 : 2)) * (base + natural_sy) + peers * (1.f + natural_sy * 3.f);
 		const float ps = std::clamp((max_h - title_h - title_gap) / scalable, 0.1f, 1.f);
 		const float width = 160.f * scale * ps;
 		const float pad = pad0 * ps;
@@ -480,28 +514,12 @@ namespace Zdxsv
 
 		for (const GgpoOsdPeer& p : panel.peers)
 		{
-			pen.Heading(p, details);
+			pen.Heading(p, details, health[std::clamp(p.position, 0, 3)]);
 			pen.Name(p.name);
-			pen.Name(p.pilot);
+			pen.Name(p.pilot, 0.85f, ImVec4(1.f, 1.f, 1.f, 0.7f));
 			if (details)
-			{
 				pen.Diagnostics(p, s.flashes[std::clamp(p.position, 0, 3)], now);
-				continue;
-			}
-			pen.Text(pen.x, TEXT, "Ping");
-			if (p.connected && p.relay)
-			{
-				const float size = base * 0.85f;
-				pen.Text(regular, size, pen.x + pen.TextW("Ping") + pen.sx, pen.y + (pen.fs - size) * 0.5f, TEXT, "(Relay)");
-			}
-			pen.Right(PingColor(p.connected ? p.ping : 999), p.connected ? std::to_string(p.ping).c_str() : "--");
-			pen.Next();
-			if (p.connected)
-			{
-				const GgpoOsdHealth h = health[std::clamp(p.position, 0, 3)];
-				pen.LabelMeter("Lag", 5, h == GgpoOsdHealth::Poor ? 5 : static_cast<int>(h), HealthColor(h));
-			}
-			else
+			else if (!p.connected)
 			{
 				pen.Centered(PingColor(999), "Disconnected");
 				pen.Next();
