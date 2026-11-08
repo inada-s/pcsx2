@@ -91,6 +91,8 @@ def main():
         return 2
     gb = ",".join(f"{unreach}-{i}" for i in gc if i != unreach) if unreach else block
     cut = bad or unreach
+    if not cut and len(gc) == 4:
+        os.environ.setdefault("JOINS", "0")
     # a bad session's packets arrive and are dropped; an unreachable peer's never arrive
     cutk, dl, dq = ("unreachable", "0 dropped", r" 0 dropped") if unreach else ("bad session", "drops", r" [1-9][0-9]* dropped")
     if cut:
