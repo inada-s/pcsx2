@@ -173,6 +173,7 @@ set(pcsx2Sources
 	Zdxsv/ReplayRecord.cpp
 	Zdxsv/NoDev9.cpp
 	Zdxsv/SingleDrawList.cpp
+	Zdxsv/AllyHp.cpp
 	Zdxsv/SpectateSync.cpp
 	Zdxsv/SyncSettings.cpp
 	Zdxsv/GamePatches.cpp

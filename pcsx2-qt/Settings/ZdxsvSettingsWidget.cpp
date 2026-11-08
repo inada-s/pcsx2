@@ -55,6 +55,7 @@ ZdxsvSettingsWidget::ZdxsvSettingsWidget(SettingsWindow* settings_dialog, QWidge
 	SettingWidgetBinder::BindWidgetToIntSetting(sif, m_ui.zdxsvGgpoMinDelay, "DEV9/Eth", "ZdxsvGgpoMinDelay", 2);
 	SettingWidgetBinder::BindWidgetToIntSetting(sif, m_ui.zdxsvGgpoPort, "DEV9/Eth", "ZdxsvGgpoPort", 0);
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvNetOsd, "DEV9/Eth", "ZdxsvNetOsd", true);
+	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvAllyHp, "DEV9/Eth", "ZdxsvAllyHp", true);
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvUPnP, "DEV9/Eth", "ZdxsvUPnP", true);
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvLiveAutoNext, "DEV9/Eth", "ZdxsvLiveAutoNext", false);
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvReplaySkipMs, "DEV9/Eth", "ZdxsvReplaySkipMs", true);
@@ -81,6 +82,7 @@ ZdxsvSettingsWidget::ZdxsvSettingsWidget(SettingsWindow* settings_dialog, QWidge
 	MarkEnvOverride(m_ui.zdxsvGgpoMinDelay, "ZDXSV_GGPO", "mindelay=");
 	MarkEnvOverride(m_ui.zdxsvGgpoPort, "ZDXSV_GGPO", "port=");
 	MarkEnvOverride(m_ui.zdxsvNetOsd, "ZDXSV_GGPO", "osd=");
+	MarkEnvOverride(m_ui.zdxsvAllyHp, "ZDXSV_ALLY_HP");
 	MarkEnvOverride(m_ui.zdxsvLiveAutoNext, "ZDXSV_LIVE_NEXT");
 	MarkEnvOverride(m_ui.zdxsvReplaySkipMs, "ZDXSV_REPLAY_SKIP_MS");
 	MarkEnvOverride(m_ui.zdxsvReplayKeyDisplay, "ZDXSV_REPLAY_KEY_DISPLAY");
@@ -95,6 +97,8 @@ ZdxsvSettingsWidget::ZdxsvSettingsWidget(SettingsWindow* settings_dialog, QWidge
 		tr("UDP port for online battles. 0: picked at random. Forward it on your router if you cannot connect."));
 	dialog()->registerWidgetHelp(m_ui.zdxsvNetOsd, tr("Network Status"), tr("Checked"),
 		tr("Shows the connection status during online battles."));
+	dialog()->registerWidgetHelp(m_ui.zdxsvAllyHp, tr("Teammate HP"), tr("Checked"),
+		tr("In battle, your HP display shows your teammate's current HP where it shows your max HP."));
 	dialog()->registerWidgetHelp(m_ui.zdxsvUPnP, tr("UPnP"), tr("Checked"),
 		tr("When the battle port is closed, automatically changes the router's settings."));
 	dialog()->registerWidgetHelp(m_ui.zdxsvLiveAutoNext, tr("Live Auto-Next"), tr("Unchecked"),
