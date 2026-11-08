@@ -67,22 +67,21 @@ Lets the server tell emulators from real PS2s.
 |---|---|---|
 | `emulator`, `version`, `os`, `cpu` | always | what runs the game |
 | `pcsx2` | built from a `zdxsv-X.Y.Z` release tag or a commit after one | release version: `zdxsv-X.Y.Z` on the tag, `zdxsv-X.Y.(Z+1)-dev.N` N commits after it. The lobby refuses a login below its minimum client version (zdxsv master data); PCSX2 then shows an OSD message |
-| `machine_id` | Windows, macOS | 16 hex digits: XXH64 (seed 37) of the host id (Windows `MachineGuid`, the macOS serial number), never the raw id; the same on every install and portable folder of a PC. Not sent on Linux (as flycast) |
+| `machine_id` | Windows, macOS | 16 hex digits: XXH64 (seed 37) of the host id (Windows `MachineGuid`, the macOS serial number), never the raw id; the same on every install and portable folder of a PC. Not sent on Linux |
 | `udp=1` | lobby GGPO on | the client wants battle infos |
-| `udp_addr`, `udp_local` | lobby GGPO on | the GGPO port's public IPv4 address from the lobby's STUN (asked from that port on every lobby connection, as flycast's `NotifyWanPort`), and the local one |
+| `udp_addr`, `udp_local` | lobby GGPO on | the GGPO port's public IPv4 address from the lobby's STUN (asked from that port on every lobby connection), and the local one |
 | `udp_addr6` | lobby GGPO on, with a global IPv6 address | global IPv6 address |
 | `ggpo=P` | lobby GGPO on | GGPO UDP port |
 | `relay_server=1` | lobby GGPO on | the client can route GGPO through relay servers |
 | `nat=` | lobby GGPO on, after the connectivity test | result of the connectivity test |
 | `upnp_result=`, `upnp_local_ip=` | with `nat=`, when the port was not open and `ZdxsvUPnP` is on | UPnP mapping of the GGPO port: `Success` or the error; the LAN address the router maps to |
-| `<region>=ms` | after the HTTPS latency test | HTTPS round trip to that cloud region (gdxsv's keys) |
+| `<region>=ms` | after the HTTPS latency test | HTTPS round trip to that cloud region (the server's region keys) |
 
 "Lobby GGPO on" means `ZDXSV_GGPO` with `net=1,lobby=1` (the default).
 
 ### Battle info `0x9951`
 
-A `P2PMatching` protobuf message (zdxsv `pkg/proto/zdxsv.proto`). Field numbers
-follow gdxsv's `P2PMatching` where the meaning is the same; zdxsv's own fields
+A `P2PMatching` protobuf message (zdxsv `pkg/proto/zdxsv.proto`). zdxsv's own fields
 start at 40. The client decodes it with the codec in `Proto.h` and rejects a
 message with more than 8 users, 64 candidates or 4 relays, a string over 256
 bytes, or a `peer_id` outside `users`.
@@ -101,8 +100,7 @@ bytes, or a `peer_id` outside `users`.
 
 ### Match report `0x9952`
 
-How the battle ran: a `P2PMatchingReport` (field numbers as gdxsv's where the
-meaning is the same). The client collects `key=value` lines during the battle
+How the battle ran: a `P2PMatchingReport`. The client collects `key=value` lines during the battle
 and encodes them when it sends the report; the lobby logs the report as one
 `p2p matching report:` line of `field="value"`.
 
@@ -132,7 +130,7 @@ and encodes them when it sends the report; the lobby logs the report as one
    or a peer answered the ping test on no address, the battle connection is
    cut. Otherwise the battle runs over GGPO with the addresses and the input
    delay the ping test picked. A player without a GGPO port or address still
-   joins the ping test (as flycast): it is reached at the sources of its pings
+   joins the ping test: it is reached at the sources of its pings
    or through a relay; with `delay=` (no ping test) the battle is cut.
 
 No battle runs on the battle server.
@@ -140,10 +138,10 @@ No battle runs on the battle server.
 ## Ping test
 
 Runs on the GGPO UDP port for `ggpo_ping_ms`, from an IPv4 and an IPv6
-socket, with flycast's `UdpPingPong` packet. Packets with another session or
+socket, with a `UdpPingPong` packet. Packets with another session or
 position are dropped. A peer's ping or pong from a source that is not one of
 its candidates (its NAT mapping, or a peer listed without an address) adds
-that source as a candidate (as flycast; at most 4 per peer). Every ping is
+that source as a candidate (at most 4 per peer). Every ping is
 answered, and a pong counts for the candidate it names, whatever its source.
 A relay pong with the battle's relay token counts from any
 source (a multi-homed or NATed relay); up to 2 such sources per relay path
@@ -176,9 +174,9 @@ cutting player through a relay waits for its timeout.
 
 ## Relay servers
 
-As flycast with gdxsv's `relay`. The ping test also pings each relay server of
-the battle info (IPv4 and IPv6, gdxsv's relay ping) and shares the RTT and
-relay-RTT matrices with the peers (flycast's `PacketWithRelays`), so a peer
+The ping test also pings each relay server of
+the battle info (IPv4 and IPv6) and shares the RTT and
+relay-RTT matrices with the peers (`PacketWithRelays`), so a peer
 reached only through another peer still gets a relay path.
 
 A peer is reached through:
@@ -193,16 +191,16 @@ A relayed peer shows `(R)` on the OSD.
 
 Player addresses (own, peers, ping test candidates, the connectivity test's
 public address, the match report's
-`addr_<pos>`) are logged masked, as flycast's `mask_ip_address` but one `x` per part: `1.x.x.x:7001`,
+`addr_<pos>`) are logged masked, one `x` per part: `1.x.x.x:7001`,
 `[2001:db8:1:x::x]:7001`. Relay server addresses stay whole. The lobby
 messages carry them whole.
 
 ## P2P connectivity test
 
 On the first lobby connection the emulator tests the GGPO port against the
-lobby's STUN and its test socket at the STUN port + 1, as flycast's
-feasibility test: `open`, `cone NAT`, `symmetric NAT` or `unknown`. A closed
-port is also asked from Google's and Cloudflare's STUN, as flycast: the
+lobby's STUN and its test socket at the STUN port + 1:
+`open`, `cone NAT`, `symmetric NAT` or `unknown`. A closed
+port is also asked from Google's and Cloudflare's STUN: the
 server's two sockets share one IP, so a NAT that maps per destination IP
 looks like a cone to them; different mappings there = `symmetric NAT`. Shown on
 the OSD in words only (no address or port: streams), logged with the
@@ -215,17 +213,17 @@ When the test socket reaches the port and a udptest URL is set
 for its `Hello`. The test socket shares the lobby's IP, which an
 address-restricted NAT lets through; without the `Hello` the result is
 `cone NAT (open to the server only)` (`nat=cone`). A failed request keeps the
-server's result. flycast does the same check against gdxsv's function.
+server's result.
 
 When the result is not `open` and `ZdxsvUPnP` is on, the emulator asks the
 router (UPnP IGD, miniupnpc in `3rdparty/miniupnpc`) to forward the GGPO UDP
-port to this PC, as flycast's `EnableUPnP`, and runs the test again. The
+port to this PC and runs the test again. The
 retest's result replaces the first, unless only the retest got no answer.
 `upnp_result=` (`Success` or the error) and `upnp_local_ip=` go with `nat=`.
 The mapping has a 1-day lease and is removed when PCSX2 exits normally.
 
 The "UPnP Now" button on Settings → zdxsv maps the `ZdxsvGgpoPort` port at
-once (as flycast's button) and shows `opened` or the error next to it; with
+once and shows `opened` or the error next to it; with
 the port at 0 it asks for one, since the random port is picked only at game
 start. The same exit cleanup removes it. A router whose IGD
 reports no routable WAN address (`0.0.0.0`, as on a shared IPv4 behind
@@ -237,15 +235,15 @@ accepts it, for tests.
 ## HTTPS latency test
 
 When the game goes online, the emulator measures the HTTPS latency to the
-cloud regions, as flycast's ping test (gcping hosts,
+cloud regions (gcping hosts,
 `Zdxsv/HttpsLatency.cpp`): the fastest of 3 `HEAD /api/ping` on a warm
 connection per region. The best region goes to the log; every later platform
 info carries `<region>=ms`. Once per run.
 
 ## Network status OSD
 
-During a `net=1` battle the left edge shows flycast's `NETWORK STATS` panel
-(`drawNetworkStat`), between the game's top and bottom HUD, shrunk to fit:
+During a `net=1` battle the left edge shows the `NETWORK STATS` panel
+(`GgpoOsd.cpp`), between the game's top and bottom HUD, shrunk to fit:
 the input delay, rollback (`Roll`) and time sync (`Wait`) frames, a 6-segment
 predicted frames meter (`P:`), and per opponent the position and user id, name,
 pilot name, ping (`(Relay)` when relayed, `--` once disconnected) and a 5-segment
@@ -261,7 +259,7 @@ upstream's font URL, to `resources/fonts` in the user folder; if the download
 fails, a system Japanese font (Yu Gothic, Meiryo) is used instead.
 
 With the OSD off (`ZdxsvNetOsd`, `osd=0`) it shows only while an opponent is
-interrupted or disconnected, as flycast. A battle that ends on a disconnect
+interrupted or disconnected. A battle that ends on a disconnect
 keeps its last panel up 10 s (`osd held 10 s` in the log), so the player sees
 who left. The log line `osd frame` (every 600 frames) keeps its text form.
 

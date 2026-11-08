@@ -358,8 +358,15 @@ namespace Zdxsv
 		std::deque<std::pair<int, int>> seeks; // ZDXSV_REPLAY_SEEK
 		bool at_end = false; // paused after the last frame (no ZDXSV_REPLAY_EXIT)
 		int target = -1; // seeking: frames run unlimited up to this one
+		int seek_from = -1;
+		u64 seek_t0 = 0;
 		int hi = -1, tick_f = -1;
 		int run_load = -1; // running unlimited until this load has ended, -1 = none (skip MS selection = 1)
+		// Per game, the frames shown with skipping on: [the briefing's load end, the rematch screen's load end).
+		std::vector<std::pair<int, int>> spans;
+		std::vector<int> plays; // per span: the file's play start
+		bool step_pause = false; // pause again at the seek's target
+		int speed = 0; // -2..2
 		std::deque<std::pair<int, int>> round_at; // ZDXSV_REPLAY_ROUND_AT=frame:round,...
 		bool pov_ok[GGPO_MAX_PLAYERS] = {};
 	};
@@ -392,13 +399,23 @@ namespace Zdxsv
 	};
 	extern std::map<int, std::unique_ptr<PlayKey>> s_play_keys[GGPO_MAX_PLAYERS]; // by point of view (position)
 	extern std::atomic<int> s_play_req; // requested seek target, INT_MIN = none
-	extern LimiterModeType s_play_limiter;
 	extern bool s_play_skip_ms;
 	extern std::atomic<bool> s_keys_on; // replay key display
 	extern std::mutex s_battle_loads_mtx;
-	extern std::atomic<int> s_play_round_req; // requested round, 0 = briefing, INT_MIN = none
+	extern std::atomic<int> s_play_round_req; // requested round, 0 = briefing, INT_MIN = none (with spans: 1 = the first span)
 	void PlayKeyApply(const PlayKey& k);
 	int PlaySeek(int target, bool pov_switch = false);
+	// The span holding frame f, else the next one, else the last; -1 = no spans or skipping off.
+	int PlaySpanAt(int f);
+	int PlaySkipGap(int next);
+	bool PlayInBattle(int f);
+	void ReplayPadPoll();
+	void ReplayControlsReset();
+	void PlayHideAfterLoad();
+	int PlayFastEvery();
+	void PlaySlowWait();
+	// Not refused by ReplayRefuses.
+	bool ReplayLoadState(const char* path, Error* error);
 	void PlayRunBegin(int load);
 	void PlayRunEnd(const char* why, int f);
 
@@ -413,7 +430,8 @@ namespace Zdxsv
 	{
 		int frame = -1; // T
 		int delay = 0;
-		bool skip = false, start_held = false;
+		bool start_held = false;
+		int pause_in = 0;
 		std::unique_ptr<PlayKey> key; // the state before T
 		std::vector<std::vector<u8>> sent; // own sends before T
 		std::vector<int> sent_at;

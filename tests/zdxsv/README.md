@@ -145,7 +145,7 @@ Scripts are in `tests/zdxsv/` except `run.py` (repository root) and
 
 | Feature | Test | Control |
 |---|---|---|
-| Low-latency present | `latency.py -LowLatency 1`: press-to-present time on the main menu | `latency.py -LowLatency 0`, or `ZDXSV_GAME_CRC=0` (not the Z game): the time is longer |
+| Low-latency present | `latency.py`: press-to-present time on the main menu | `latency.py -LowLatency 0`, or `ZDXSV_GAME_CRC=0` (not the Z game): the time is longer |
 | Input latency measurement | it is the tool of the test above; `m4lat.py` uses it in a battle (`M4=m4ggpo.py`: over GGPO, frame pacing split by rollback) | none |
 | Input to picture by pixel color | `inputpic.py` (title main menu, 8 presses): every press has a change, prints the offsets; `inputpic.py "ZDXSV_SINGLE_DRAW_LIST=0"`: 2 vsyncs later | `inputpic.py "ZDXSV_INPUT_LATENCY=...,pixel=40:10"` (not on the cursor): exit 1 |
 
@@ -242,10 +242,12 @@ Scripts are in `tests/zdxsv/` except `run.py` (repository root) and
 | Second replay in one process | `replayui.ps1 -Tab Local -Row <code A> -Row2 <code B> -Wait 75 -Wait2 70` with `ZDXSV_REPLAY_TAKEOVER=2000:replay` (A is taken over, then B starts while A runs): after B's `replay <file>: recorded at` line the emulog logs `replay skip MS selection: briefing at frame` and `replay key` lines | a `PlayReset` that keeps the takeover state: B logs `replay ended first`, no briefing |
 | Live auto-next | `BATTLES=2 LIVE=2 LIVE_NEXT=1 PWTRACE=1 CLIENTS="1 3" EMU=1 GGPO=7101 GDELAY=auto m4z.py`: the spectator waits at the end of battle 1, moves on to battle 2; both streams close at the uplink's saved frame count, battle 2 player work + rng = the players' | `LIVE_NEXT=0`: the spectator exits after battle 1 (not run) |
 | Live auto-next skip | `livenext.py`: a spectator of a port with no lobby logs the skip and its cause, pauses and keeps waiting | a build without the skip logs `not a replay file` and does not pause |
-| Skip mobile suit selection | `rplay.py` with `SKIP_MS=1`: the logged briefing frame equals the one in the live trace | `SKIP_MS=0`: the screenshot at 25 s shows the selection screen |
+| Rounds only | no committed script. By hand: play a 3-game lobby `.pb` headless (`launch.py` instance 5 with `ZDXSV_REPLAY=<file> ZDXSV_REPLAY_EXIT=1 ZDXSV_REPLAY_TURBO=1 ZDXSV_REPLAY_SEEK=8000:12000,13000:12999`): emulog `rounds shown with skipping:` 3 spans, `outside the rounds, skipping to round` before rounds 1-3, the seek to 12000 done at the end of round 2, `past the last round`, `state check: ... 0 differ`. A file without play starts: `rplay.py` with `SKIP_MS=1`: the logged briefing frame equals the one in the live trace | `ZDXSV_REPLAY_SKIP_MS=0`: no skip lines, the selection and rematch screens play |
 | Round jump | `rplay.py` with `SKIP_MS=1 PCSX2_ENV=ZDXSV_REPLAY_ROUND_AT=1000:2,17000:1,6000:3`: every logged load end is 1 frame after a live trace `L` line leaving state 8 (same vsync), the rounds start at the predicted loads, player work equals live. Keys and bar: `WINDOW=1 KEYS="10:Shift+PageDown;40:bar:show,w600,bar:nextround"` | none |
 | Round mobile suits | `rplay.py` with `WINDOW=1 KEYS="20:bar:show,w600,bar:results,w1200"` on a file whose `round_data` has `used_ms`: emulog `replay bar: round MS R1 ...` names those mobile suits, the shown team first | none |
-| Takeover | `rplay.py` on a 2-player lobby battle `.pb` with `SKIP_MS=1 PCSX2_ENV="ZDXSV_REPLAY_TAKEOVER=6000:replay ZDXSV_REPLAY_TAKEOVER_RETRY=9000"`: the own position packed by the takeover (pad + kind-3 msgs, delay 2) plays to the end, retry goes back to 6000, player work + rng = the players' | `ZDXSV_REPLAY_TAKEOVER=6000:rand`: FAIL. Input matching panel with a real pad: not run |
+| Takeover | `rplay.py` on a 2-player lobby battle `.pb` with `SKIP_MS=1 PCSX2_ENV="ZDXSV_REPLAY_TAKEOVER=6000:replay ZDXSV_REPLAY_TAKEOVER_RETRY=9000"`: the own position packed by the takeover (pad + kind-3 msgs, delay 2) plays to the end, retry goes back to 6000, player work + rng = the players' | `ZDXSV_REPLAY_TAKEOVER=6000:rand`: FAIL. Countdown panel with a real pad: not run |
+| Frame step, playback speed, pad controls | no test. By hand: pause, pad Left / Right step one frame (emulog `seek requested`, paused again), Up / Down log `replay speed N %` | none |
+| Operations refused during a replay | no test. By hand: during a replay a state save or load hotkey logs `refused during a replay`, the OSD says so; seeks still load their keys | none |
 | Four-screen replay | `FOUR=1 rplay.py`: guest trace pwcheck + host `spread` lines <= 4 frames | `PCSX2_ENV=ZDXSV_REPLAY_SYNC=0`: the spread FAILs |
 
 ### ARM64 builds
@@ -262,7 +264,7 @@ Scripts are in `tests/zdxsv/` except `run.py` (repository root) and
 | Feature | Test | Control |
 |---|---|---|
 | Self-update from the GitHub releases of this fork | `updatecheck.py --exe <build at a zdxsv-X.Y.Z tag> --inis <data dir>/PCSX2/inis`: a local release list offers `zdxsv-999.0.0`, the startup check fetches it once and logs `Update needed.` | `--offer zdxsv-0.0.0`: `No update needed.` An untagged build fetches nothing |
-| Crash reports | none: needs a Sentry account. By hand: run with `ZDXSV_SENTRY_DSN=<dsn> ZDXSV_CRASH_REPORT_TEST=1`; PCSX2 crashes and the issue appears in Sentry | none |
+| Crash reports | none: needs a Sentry account. By hand: run with `ZDXSV_SENTRY_DSN=<dsn> ZDXSV_CRASH_REPORT_TEST=1`; PCSX2 crashes and the issue appears in Sentry with `PCSX2.ini` and `emulog-tail.txt` (the log's last lines) attached | none |
 | Release workflow | none | none |
 | Windows CI build | the workflow itself; it also runs the unit tests | none |
 | PINE opcodes `0x30` to `0x32` | no test of its own; the rig scripts drive the emulator through them (`pine.py`) | none |

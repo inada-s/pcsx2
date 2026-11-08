@@ -5,10 +5,8 @@
 
 #include "common/Pcsx2Defs.h"
 
-class QGridLayout;
 class QObject;
 class QWidget;
-class SettingsWindow;
 
 namespace Zdxsv
 {

@@ -256,7 +256,7 @@ void MTGS::PostVsyncStart(bool registers_written)
 	remainder[1] = GSIMR._u32;
 	(GSRegSIGBLID&)remainder[2] = GSSIGLBLID;
 	remainder[4] = static_cast<u32>(registers_written);
-	remainder[5] = (Zdxsv::g_ggpo_in_rollback || Zdxsv::g_fast_boot_hidden_frame) ? 1 : 0;
+	remainder[5] = (Zdxsv::g_ggpo_in_rollback || Zdxsv::g_fast_boot_hidden_frame || Zdxsv::g_replay_hidden_frame) ? 1 : 0;
 	s_packet_writepos = (s_packet_writepos + 2) & RingBufferMask;
 
 	SendDataPacket();

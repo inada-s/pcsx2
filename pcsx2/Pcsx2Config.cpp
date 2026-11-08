@@ -1744,7 +1744,6 @@ void Pcsx2Config::EmulationSpeedOptions::LoadSave(SettingsWrapper& wrap)
 	//SettingsWrapBitBool(SyncToHostRefreshRate);
 	SyncToHostRefreshRate = wrap.EntryBitBool("EmuCore/GS", "SyncToHostRefreshRate", SyncToHostRefreshRate, SyncToHostRefreshRate);
 	UseVSyncForTiming = wrap.EntryBitBool("EmuCore/GS", "UseVSyncForTiming", UseVSyncForTiming, UseVSyncForTiming);
-	LowLatencyPresent = wrap.EntryBitBool("EmuCore/GS", "ZdxsvLowLatencyPresent", LowLatencyPresent, LowLatencyPresent);
 }
 
 bool Pcsx2Config::EmulationSpeedOptions::operator==(const EmulationSpeedOptions& right) const

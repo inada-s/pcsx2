@@ -18,7 +18,7 @@ in [options.md](options.md); battles matched by the lobby are in
 ## GGPO library
 
 [GGPO](https://github.com/pond3r/ggpo) (MIT; notice in
-`bin/docs/ThirdPartyLicenses.html`), as in inada-s/flycast. Changes in this
+`bin/docs/ThirdPartyLicenses.html`). Changes in this
 fork:
 
 - `ggpo_get_last_confirmed_frame` added.
@@ -157,10 +157,10 @@ The game runs with its own input delay 0; GGPO adds the input delay.
 - Without the lobby, the peer at position p listens on UDP `port` + p.
   `relay=R` routes each pair through its own `udprelay.py` (latency, jitter,
   loss).
-- Each peer arms at its own first key message and waits up to 10 s (as
-  flycast) for all to be synchronized; then the session closes as
+- Each peer arms at its own first key message and waits up to 10 s
+  for all to be synchronized; then the session closes as
   `start timeout` (other start errors: `start failed`).
-- The sync handshake carries the battle code (as flycast; rbk: none). A
+- The sync handshake carries the battle code (rbk: none). A
   peer with another code is refused: the peer that gets the refusal closes
   as `session mismatch` and answers the other's requests for 1 s more; the
   other closes as `session mismatch` too, or as `start timeout` when GGPO
@@ -174,7 +174,7 @@ The game runs with its own input delay 0; GGPO adds the input delay.
   packets when they are due (every 1 ms), not at the next frame.
 - Time sync: when GGPO reports this peer ahead, it waits one frame
   (1/60 s, `ggpo_idle` while waiting) every 10 frames until the suggested
-  frames are used, as flycast. That frame's limiter period grows by the wait, so
+  frames are used. That frame's limiter period grows by the wait, so
   the peer really falls back. The count is `Sync N` on the network OSD and
   `sync N (max X ms)` in the `net sends` log line (X: the longest wait, without
   the time `ggpo_idle` spent running a rollback).
@@ -183,7 +183,7 @@ The game runs with its own input delay 0; GGPO adds the input delay.
   that sent the message is confirmed: a message sent in a predicted frame that
   a rollback undoes does not end the session.
 - At that confirmed end each peer disconnects itself from the others
-  (`ggpo_disconnect_player` on its own player, as flycast): the tail frames
+  (`ggpo_disconnect_player` on its own player): the tail frames
   no longer wait for a peer whose tail is shorter or that already closed, and
   a disconnect after the confirmed end is a `net battle end`, not
   `disconnected`. A peer can confirm the end, and leave, up to the input
@@ -224,7 +224,7 @@ Three mechanisms keep the peers on the same frame:
 
 ### Frame order and pacing (`net=1`)
 
-With `ZdxsvLowLatencyPresent` a battle frame ends: present, input poll and send,
+With low-latency present (always on) a battle frame ends: present, input poll and send,
 GGPO advance, rollback, wait at the prediction limit, limiter sleep, then the
 next frame runs. The input goes out before the rollback and the sleep: the peers
 get it that much earlier, and its age does not depend on the rollback's length.

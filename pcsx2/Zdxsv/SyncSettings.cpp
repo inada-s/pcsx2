@@ -43,6 +43,12 @@ namespace Zdxsv
 			return e && std::strcmp(e, "0") == 0;
 		}
 
+		bool LowLatencyPresentOn()
+		{
+			static const char* e = TestEnv("ZDXSV_LOW_LATENCY_PRESENT");
+			return !(e && std::strcmp(e, "0") == 0);
+		}
+
 		// The forced values into c; names of the changed groups go to `changed` (nullptr: not wanted).
 		void Force(Pcsx2Config& c, bool battle, std::string* changed)
 		{
@@ -130,6 +136,7 @@ namespace Zdxsv
 	{
 		if (!g_z_game || VMManager::GetState() == VMState::Shutdown)
 			return;
+		EmuConfig.EmulationSpeed.LowLatencyPresent = LowLatencyPresentOn();
 		Pcsx2Config copy = EmuConfig;
 		Force(copy, true, nullptr);
 		{

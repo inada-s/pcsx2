@@ -54,7 +54,8 @@ options: `docs/zdxsv/`.
 | `GgpoTrace.cpp` | Debug: `NET_TRACE` lines of the pad and the battle msgs' key slots |
 | `GgpoTest.cpp` | Local rollback test harness (synctest): state diffs of rerun frames, random pad input |
 | `ReplayRecord.cpp` | Replay recording, upload and live stream of a GGPO battle |
-| `ReplayPlay.cpp` | Replay playback: frame loop, seek keys, point of view, takeover, control bar and hotkeys |
+| `ReplayControls.cpp` | Replay controls: rounds shown (spans), host pad, frame step, speed, takeover requests and countdown, refused operations |
+| `ReplayPlay.cpp` | Replay playback: frame loop, seek keys, point of view, takeover, control bar state and hotkeys |
 | `ReplayLive.cpp` | Playback of a live stream; spectator sync of several viewers |
 | `ReplayList.cpp` | Replay window support: the replay picked for the next boot, local file info, lobby API and live URLs (UI: `pcsx2-qt/Tools/ZdxsvReplayDialog.cpp`) |
 | `ReplayLoad.cpp` | Replay files: parse, load, common start, start of playback, position switch, next battle |
@@ -66,7 +67,7 @@ options: `docs/zdxsv/`.
 | `LobbyPing.cpp` | GGPO ping test between the peers (direct and relay paths) and the cut connection's refusal |
 | `LobbyNet.h` | Platform sockets and address helpers shared by the `Lobby*.cpp` files only |
 | `Proto.h` | Minimal protobuf wire codec: the lobby's Ping / Pong, replay files |
-| `replay.proto` | Replay file schema (gdxsv's BattleLogFile + PCSX2 fields); documentation, not compiled |
+| `replay.proto` | Replay file schema (`BattleLogFile` + PCSX2 fields); documentation, not compiled |
 | `GamePatches.cpp` | The Z game's patches (widescreen), built in in place of pnach files (seam: `PatchHooks.h`) |
 | `OnlineLimits.cpp`, `OnlineLimits.h` | PCSX2 features limited while online (lobby or net battle): the switch, forced settings, PINE refusal, macro buttons, refused operations, breakpoints cleared (seams: `PineHooks.h`, `InputHooks.h`, `UiHooks.h`) |
 | `SyncSettings.cpp`, `SyncSettings.h` | Sync-relevant settings forced while the Z game runs (speedhacks during battles only), their fingerprint for the lobby (UI: `ZdxsvSettingsWidget::markSyncForced`) |
@@ -87,8 +88,7 @@ options: `docs/zdxsv/`.
 | `IntHooks.cpp` | EE interpreter and ARM64 EE recompiler: the hook calls of `RecHooks.cpp` but the probes |
 | `RecProbe.cpp` | Debug: EE recompiler probes and store watches (`ZDXSV_EE_PROBE`, `ZDXSV_EE_WATCH`) |
 | `Overlays.cpp` | On-screen replay keys and replay control bar |
-| `GgpoOsd.cpp` | GGPO network status panel (flycast `NETWORK STATS`) |
-| `pcsx2-qt/Zdxsv/QtEmulationSettings.cpp` | Low-latency present checkbox on Settings → Emulation (`QtHooks.h`, seam in `pcsx2-qt/Settings/EmulationSettingsWidget.cpp`) |
+| `GgpoOsd.cpp` | GGPO network status panel (`NETWORK STATS`) |
 | `pcsx2-qt/Zdxsv/QtOnlineLimits.cpp` | Closes the debugger window while online (`QtHooks.h`, seam in `pcsx2-qt/QtHost.cpp`) |
 | `pcsx2-qt/Zdxsv/QtSetupWizard.cpp` | First-run wizard: zdxsv texts, zdxsv sign-in page in place of RetroAchievements (`QtHooks.h`, seam in `pcsx2-qt/SetupWizardDialog.cpp`) |
 | `pcsx2-qt/Zdxsv/QtFonts.cpp` | Noto Sans JP download at UI start, for the panel's Japanese names (`QtHooks.h`, seam in `pcsx2-qt/Translations.cpp`) |

@@ -525,7 +525,7 @@ static __fi void VSyncStart(u64 sCycle)
 		// frame is emulated. Press -> present loses the limiter sleep. In a GGPO session the
 		// sleep and the poll come after the rollback (GgpoDeferThrottle).
 		ZdxsvPostVsyncStart();
-		if (!VMManager::Internal::IsExecutionInterrupted() && !Zdxsv::g_ggpo_in_rollback)
+		if (!VMManager::Internal::IsExecutionInterrupted() && !Zdxsv::g_ggpo_in_rollback && !Zdxsv::g_replay_fast_frame)
 		{
 			deferred = Zdxsv::GgpoDeferThrottle();
 			if (!deferred)
@@ -535,7 +535,7 @@ static __fi void VSyncStart(u64 sCycle)
 	else
 	{
 		// Don't bother throttling if we're going to pause.
-		if (!VMManager::Internal::IsExecutionInterrupted() && !Zdxsv::g_ggpo_in_rollback)
+		if (!VMManager::Internal::IsExecutionInterrupted() && !Zdxsv::g_ggpo_in_rollback && !Zdxsv::g_replay_fast_frame)
 			VMManager::Internal::Throttle();
 
 		ZdxsvPostVsyncStart(); // MUST be after framelimit; doing so before causes funk with frame times!

@@ -28396,16 +28396,6 @@ for High-Spec PC</source>
       <translation>オンライン対戦中に通信状態を表示します。</translation>
     </message>
     <message>
-      <location filename="../Zdxsv/QtEmulationSettings.cpp" line="72"/>
-      <source>Low-Latency Present</source>
-      <translation>低遅延表示</translation>
-    </message>
-    <message>
-      <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="73"/>
-      <source>Shows each frame sooner after your input. Downside: frame pacing can be less even.</source>
-      <translation>入力から画面までを短くします。デメリット: フレームの表示間隔が不揃いになることがあります。</translation>
-    </message>
-    <message>
       <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="74"/>
       <source>Live Auto-Next</source>
       <translation>ライブ自動切り替え</translation>
