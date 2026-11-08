@@ -268,6 +268,7 @@ namespace Zdxsv
 		bool sync = true; // sync=0: no state hashes (checksum 0)
 		std::string peer_host = "127.0.0.1";
 		bool osd = true;
+		bool frame_osd = false; // setting DEV9/Eth ZdxsvFrameOsd
 	};
 	extern GgpoOptions s_opt;
 	extern int s_lobby_port; // setting DEV9/Eth ZdxsvGgpoPort (0: a random port, saved); port= overrides it
@@ -514,6 +515,10 @@ namespace Zdxsv
 	int GgpoBudgetDelay(int rtt, int min_delay, float budget);
 	void GgpoBudgetFrame(bool sample, double rerun_ms, double wait_ms, double sleep_ms);
 	void GgpoBudgetSessionEnd(bool learn);
+
+	// GgpoFrameOsd.cpp
+	void GgpoFrameOsdSample(int frame);
+	void GgpoFrameOsdReset();
 
 	// Ggpo.cpp
 	constexpr int GGPO_PLAYERS = 2;

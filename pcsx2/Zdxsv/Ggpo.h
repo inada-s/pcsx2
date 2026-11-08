@@ -69,4 +69,6 @@ namespace Zdxsv
 	// false when no session runs or with osd=0 (unless a peer is interrupted or gone)
 	bool GgpoOsd(GgpoOsdPanel& panel);
 	void GgpoOsdDraw();
+	// Frame time panel, with setting DEV9/Eth ZdxsvFrameOsd (GgpoFrameOsd.cpp).
+	void GgpoFrameOsdDraw();
 } // namespace Zdxsv

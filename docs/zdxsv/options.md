@@ -60,6 +60,7 @@ page greys it out and its tooltip names the variable.
 | `[DEV9/Eth] ZdxsvLiveAutoNext` | `false` | feature | Live spectating: when a stream ends, watch the lobby's next live battle. `ZDXSV_LIVE_NEXT` overrides it. |
 | `[DEV9/Eth] ZdxsvUPnP` | `true` | feature | When the connectivity test finds the GGPO port not open, map it on the router with UPnP and test again (`lobby.md`). |
 | `[DEV9/Eth] ZdxsvNetOsd` | `true` | feature | Network status OSD in GGPO battles. Read when the game starts. `osd=` overrides it. Off: shown only while an opponent is interrupted or disconnected. |
+| `[DEV9/Eth] ZdxsvFrameOsd` | `false` | feature | Frame time OSD in GGPO battles and replays (docs/zdxsv/rollback.md). Read when the game starts. `ZDXSV_FRAME_OSD` overrides it. |
 | `[DEV9/Eth] ZdxsvAllyHp` | `true` | feature | In battle, the own HP display shows the teammate's HP in place of the own max HP. Applied when settings change. `ZDXSV_ALLY_HP` overrides it. |
 | `[DEV9/Eth] ZdxsvCrashReports` | `true` | feature | Send crash reports ([crash-reports.md](crash-reports.md)), in a build with a DSN. Settings → zdxsv. |
 | `[DEV9/Eth] ZdxsvReplaySkipMs` | `true` | feature | A replay plays its rounds only: it skips the mobile suit selections and the rematch screens (a file without round frames: the first mobile suit selection). `ZDXSV_REPLAY_SKIP_MS` overrides it. |
@@ -188,6 +189,7 @@ See [replay.md](replay.md).
 | `ZDXSV_REPLAY_BAR=1` / `=0` | off | diagnostic | Always show the replay control bar, or never (default: for 3 s after the mouse moves over the bottom quarter or a pad control). |
 | `ZDXSV_REPLAY_KEY_DISPLAY=1` / `=0` | the setting | feature | Start with the key display on or off, over `ZdxsvReplayKeyDisplay`. |
 | `ZDXSV_REPLAY_SKIP_MS=0` / `=1` | the setting | feature | Play everything / the rounds only, over `ZdxsvReplaySkipMs`. |
+| `ZDXSV_FRAME_OSD=0` / `=1` | the setting | feature | Frame time OSD off / on, over `ZdxsvFrameOsd`; on, every 600 frames a `frame osd` log line with the stage means. |
 | `ZDXSV_ALLY_HP=0` / `=1` | the setting | feature | Teammate HP on the HUD off / on, over `ZdxsvAllyHp`. |
 | `ZDXSV_REPLAY_KEY=n` | 600 | tuning | Interval of the seek keys in frames. 0 = none: no backward seek. |
 | `ZDXSV_REPLAY_TURBO=1` | off | test | Play turbo. |

@@ -160,6 +160,7 @@ set(pcsx2Sources
 	Zdxsv/GgpoSession.cpp
 	Zdxsv/GgpoBattle.cpp
 	Zdxsv/GgpoBudget.cpp
+	Zdxsv/GgpoFrameOsd.cpp
 	Zdxsv/GgpoGameState.cpp
 	Zdxsv/GgpoLobby.cpp
 	Zdxsv/GgpoRerunKeep.cpp

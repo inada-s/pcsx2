@@ -36,6 +36,7 @@ namespace Zdxsv
 			// a VM started in this process after one with other options (a replay after a lobby game)
 			s_opt = {};
 			s_opt.osd = Host::GetBoolSettingValue("DEV9/Eth", "ZdxsvNetOsd", true); // osd= overrides it
+			s_opt.frame_osd = BoolSetting("ZdxsvFrameOsd", false, "ZDXSV_FRAME_OSD");
 			s_opt.port = s_options.find("lobby=1") != std::string::npos ? s_lobby_port : 7001;
 			for (const std::string_view item : StringUtil::SplitString(s_options, ','))
 			{
@@ -349,6 +350,7 @@ namespace Zdxsv
 		s_diff_logged = 0;
 		g_rerun_vu1_ticks = g_rerun_spu2_ticks = 0;
 		s_stats = {};
+		GgpoFrameOsdReset();
 		Zdxsv::DeltaStateTimesReset();
 	}
 
@@ -477,6 +479,8 @@ namespace Zdxsv
 		s_stats.t_returned = Common::Timer::GetCurrentValue();
 		s_stats.ours_ms.Add(Common::Timer::ConvertValueToMilliseconds(s_stats.t_returned - t0));
 		GgpoBudgetFrame(framed && s_session, s_stats.rerun_ms.sum, s_stats.wait_ms.sum, s_stats.sleep_ms.sum);
+		if (s_opt.frame_osd)
+			GgpoFrameOsdSample(s_session_frames);
 	}
 
 	bool GgpoHoldsFrame()
