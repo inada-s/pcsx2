@@ -1,6 +1,6 @@
 # Replays
 
-A GGPO battle can be saved to a file and played back later, as in gdxsv.
+A GGPO battle can be saved to a file and played back later.
 Option names and defaults are in [options.md](options.md).
 
 ## Saving
@@ -14,14 +14,14 @@ battles save to the replay folder without it (settings `ZdxsvSaveReplay`,
 - Only frames GGPO confirmed are written, so every peer's file of one battle
   holds the same inputs.
 - The file is written when the session stops, also on a VM shutdown or reset.
-- A lobby battle's file is posted (multipart, as flycast) to the
-  lobby's upload API (zdxsv `/lbs/replay_upload`, as gdxsv lbs) at
+- A lobby battle's file is posted (multipart) to the
+  lobby's upload API (zdxsv `/lbs/replay_upload`) at
   `ZdxsvReplayUploadUrl` when `ZdxsvReplayUpload` is on (default).
 
 ## File format
 
 A protobuf `BattleLogFile`: [`pcsx2/Zdxsv/replay.proto`](../../pcsx2/Zdxsv/replay.proto).
-It keeps the field numbers of gdxsv's replay file and adds the PCSX2 fields.
+Its field numbers are the ones the replay server reads, plus the PCSX2 fields.
 The file holds no save state: the lobby's battle-start answers, the
 battle-socket state at frame 0, the synced inputs of every position, and
 the round results. Optional per-frame state hashes and the game RNGs at
@@ -36,11 +36,11 @@ desync.
 
 `ZDXSV_REPLAY=<file.pb>` plays a replay; `http(s)://` downloads a `.pb`, or
 the first battle of the lobby's public API
-`http://<lobby api>/lbs/replay?battle_code=<code>` (as gdxsv lbsapi). A download
+`http://<lobby api>/lbs/replay?battle_code=<code>`. A download
 that starts with the gzip magic (the lobby's bucket serves them gzip encoded) is
 decompressed first.
 
-Common start (as gdxsv's slot 99): playback loads a save state of the game
+Common start: playback loads a save state of the game
 at the post-entry point (logged in, before the lobby's battle start; any
 user's), from `ZdxsvReplayStateUrl` (downloaded once into the cache
 folder, one file per URL: a new state needs a new URL; a cached copy that
@@ -61,11 +61,11 @@ battle-socket emulation as a live battle, without GGPO.
 - A VM reset plays the replay again from the start.
 - A file that cannot be read or played (download failed, corrupted, an
   older format) or a common state that cannot be loaded: an error OSD
-  message (as flycast's); the game boots to its title screen.
+  message; the game boots to its title screen.
 
 ## Replay window
 
-Tools → zdxsv Replays, as flycast's replay lists:
+Tools → zdxsv Replays:
 
 - **Local**: the `.pb` files in the replay folder (date, battle code,
   players, rounds, length); Browse... plays any file.
@@ -159,13 +159,13 @@ D-pad. While taken over the pad plays the game.
   from the takeover frame and is not sent to the game; the end of the
   battle retries too. "Replay" goes back to the replay. Not while
   spectating live.
-- **Four-screen** (as gdxsv, Windows, files only): `ZDXSV_REPLAY_FOUR=1`
+- **Four-screen** (Windows, files only): `ZDXSV_REPLAY_FOUR=1`
   starts one more PCSX2 per other position, tiled 2x2, all held on the same
   frame; they follow this one's pause, speed and seeks and close with it.
 
 ## Live spectating
 
-A lobby GGPO battle is streamed to the lobby while it runs, as gdxsv does
+A lobby GGPO battle is streamed to the lobby while it runs
 (zdxsv `pkg/lobby/spectator.go`).
 
 - Uplink: the lobby marks one GGPO player per battle (`live_uplink=1` in the
@@ -192,19 +192,19 @@ A lobby GGPO battle is streamed to the lobby while it runs, as gdxsv does
   newest live battle). It starts from the common state and plays as a
   replay from the uplink's point of view, checking the state hashes as a
   replay file's.
-- Pacing (as flycast `gdxsv:LiveBufferFrames`): at the newest frame it waits
+- Pacing: at the newest frame it waits
   until 60 more frames are there; far behind it runs unthrottled to catch
   up. In between the frame limiter's period is trimmed by a few ms per frame
   to stay 60 frames behind without stalls. Nothing from the lobby for 30 s =
   stream lost.
-- The wait at the newest frame holds the frame (as flycast): the CPU does
+- The wait at the newest frame holds the frame: the CPU does
   not run, the VM loop does. Pause, shutdown and closing the window answer
   at once while waiting; the screen and the replay bar keep redrawing.
-- Auto-next (as flycast `gdxsv:LiveAutoNext`, setting `ZdxsvLiveAutoNext`):
+- Auto-next (setting `ZdxsvLiveAutoNext`):
   at the end of a stream the spectator asks the lobby for its newest live
   battle not watched yet, resets the VM and watches it from its start.
   A live stream that does not play (no battle, open failed, not a replay
-  stream) is skipped, as flycast: the spectator keeps waiting and does not
+  stream) is skipped: the spectator keeps waiting and does not
   count it as a move. While it waits (VM paused, the lobby asked every 5 s) an
   OSD shows the time waited, battles watched, battles skipped and the last
   skip's cause. Resuming the VM stops the wait.
