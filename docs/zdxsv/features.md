@@ -22,6 +22,8 @@ skips does not run on that path.
 | Patch loader (`PatchHooks.h`) | `GamePatches` | Z game patches built in |
 | PINE server (`PineHooks.h`) | `OnlineLimits` | PINE refused while online |
 | Pad macro buttons (`InputHooks.h`) | `OnlineLimits` | macro buttons off while online |
+| Qt emulation settings (`QtHooks.h`) | `pcsx2-qt/Zdxsv/QtEmulationSettings` | low-latency present checkbox |
+| Qt setup wizard (`QtHooks.h`) | `pcsx2-qt/Zdxsv/QtSetupWizard` | first-run wizard texts, zdxsv sign-in page |
 | Qt fonts | `pcsx2-qt/Zdxsv/QtFonts` | Noto Sans JP download before the OSD fonts load |
 | VMManager, GS, MTGS, hotkeys, Qt main window (`UiHooks.h`, `QtHooks.h`) | `OnlineLimits`, `pcsx2-qt/Zdxsv/QtOnlineLimits`, `ReplayControls` | operations refused while online or during a replay, debugger window closed |
 | Qt host start and exit (`CrashReportHooks.h`), log output (`Log::SetTapOutputLevel` in `common/Console`) | `pcsx2-qt/Zdxsv/CrashReports` | crash reports, the last log lines they carry |
@@ -59,6 +61,7 @@ this table says it is missing.
 - **PCSX2 features limited while online** (zdxsv lobby or net battle): PINE refused (`ZDXSV_PINE_ONLINE`); macro buttons (turbo included) not loaded; input recording, manual hardware renderer fixes, texture and draw data dumping off; `ZDXSV_SYNC_FORCE=0` turns the settings part off.
 - **Operations refused while online** (OSD "Not available while online."): state saves and loads, disc changes, memory card swaps and setting changes, GS dumps, video capture, the software renderer toggle, upscale hotkeys, GS settings that recreate the renderer or change the upscale (held until offline), resets and VM shutdowns (quitting the app still works; in a net battle it asks first); the debugger window closes and does not open; debugger breakpoints and memory checks are cleared when the game goes online.
 - **Settings page**: Settings → zdxsv.
+- **First-run wizard**: zdxsv texts; a question before leaving the controller page on the keyboard; a zdxsv sign-in page in place of RetroAchievements; always.
 - **Recommended-settings buttons**: Low, Mid, High on Settings → zdxsv.
 
 ## Input latency ([options.md](options.md))

@@ -90,6 +90,7 @@ options: `docs/zdxsv/`.
 | `Overlays.cpp` | On-screen replay keys and replay control bar |
 | `GgpoOsd.cpp` | GGPO network status panel (`NETWORK STATS`) |
 | `pcsx2-qt/Zdxsv/QtOnlineLimits.cpp` | Closes the debugger window while online (`QtHooks.h`, seam in `pcsx2-qt/QtHost.cpp`) |
+| `pcsx2-qt/Zdxsv/QtSetupWizard.cpp` | First-run wizard: zdxsv texts, zdxsv sign-in page in place of RetroAchievements (`QtHooks.h`, seam in `pcsx2-qt/SetupWizardDialog.cpp`) |
 | `pcsx2-qt/Zdxsv/QtFonts.cpp` | Noto Sans JP download at UI start, for the panel's Japanese names (`QtHooks.h`, seam in `pcsx2-qt/Translations.cpp`) |
 | `CpuHooks.h` | Hook header: recompilers, counters, MTGS, VMManager |
 | `InputHooks.h` | Hook header: pad code |

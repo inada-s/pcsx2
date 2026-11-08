@@ -23642,7 +23642,7 @@ Do you want to continue?</source>
     <message>
       <location filename="../SetupWizardDialog.ui" line="241"/>
       <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;PCSX2 requires a PS2 BIOS in order to run.&lt;/p&gt;&lt;p&gt;For legal reasons, you must obtain a BIOS &lt;strong&gt;from an actual PS2 unit that you own&lt;/strong&gt; (borrowing doesn&apos;t count).&lt;/p&gt;&lt;p&gt;Once dumped, this BIOS image should be placed in the bios folder within the data directory shown below, or you can instruct PCSX2 to scan an alternative directory.&lt;/p&gt;&lt;p&gt;A guide for dumping your BIOS can be found &lt;a href=&quot;https://pcsx2.net/docs/setup/bios/&quot;&gt;here&lt;/a&gt;.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-      <translation type="unfinished">&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;PCSX2 requires a PS2 BIOS in order to run.&lt;/p&gt;&lt;p&gt;For legal reasons, you must obtain a BIOS &lt;strong&gt;from an actual PS2 unit that you own&lt;/strong&gt; (borrowing doesn&apos;t count).&lt;/p&gt;&lt;p&gt;Once dumped, this BIOS image should be placed in the bios folder within the data directory shown below, or you can instruct PCSX2 to scan an alternative directory.&lt;/p&gt;&lt;p&gt;A guide for dumping your BIOS can be found &lt;a href=&quot;https://pcsx2.net/docs/setup/bios/&quot;&gt;here&lt;/a&gt;.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+      <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;PCSX2 を動かすには PS2 の BIOS が必要です。&lt;/p&gt;&lt;p&gt;法律上の理由から、BIOS は&lt;strong&gt;自分で持っている PS2 本体から&lt;/strong&gt;吸い出したものを使ってください (借りた本体は不可)。&lt;/p&gt;&lt;p&gt;吸い出した BIOS イメージは、下に表示されているデータディレクトリ内の bios フォルダに置くか、別のディレクトリを指定してください。&lt;/p&gt;&lt;p&gt;BIOS の吸い出し方は&lt;a href="https://pcsx2.net/docs/setup/bios/"&gt;こちら&lt;/a&gt;にあります。&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
       <location filename="../SetupWizardDialog.ui" line="262"/>
@@ -23771,7 +23771,7 @@ Do you want to continue?</source>
     <message>
       <location filename="../SetupWizardDialog.ui" line="478"/>
       <source>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;By default, PCSX2 will map your keyboard to the virtual PS2 controller.&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:704;&quot;&gt;To use an external controller, you must map it first. &lt;/span&gt;On this screen, you can automatically map any controller which is currently connected. If your controller is not currently connected, you can plug it in now.&lt;/p&gt;&lt;p&gt;To change controller bindings in more detail, or use multi-tap, open the Settings menu and choose Controllers once you have completed the Setup Wizard.&lt;/p&gt;&lt;p&gt;Guides for configuring controllers can be found &lt;a href=&quot;https://pcsx2.net/docs/post/controllers/&quot;&gt;&lt;span style=&quot;&quot;&gt;here&lt;/span&gt;&lt;/a&gt;.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</source>
-      <translation type="unfinished">&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;By default, PCSX2 will map your keyboard to the virtual PS2 controller.&lt;/p&gt;&lt;p&gt;&lt;span style=&quot; font-weight:704;&quot;&gt;To use an external controller, you must map it first. &lt;/span&gt;On this screen, you can automatically map any controller which is currently connected. If your controller is not currently connected, you can plug it in now.&lt;/p&gt;&lt;p&gt;To change controller bindings in more detail, or use multi-tap, open the Settings menu and choose Controllers once you have completed the Setup Wizard.&lt;/p&gt;&lt;p&gt;Guides for configuring controllers can be found &lt;a href=&quot;https://pcsx2.net/docs/post/controllers/&quot;&gt;&lt;span style=&quot;&quot;&gt;here&lt;/span&gt;&lt;/a&gt;.&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
+      <translation>&lt;html&gt;&lt;head/&gt;&lt;body&gt;&lt;p&gt;初期状態では、キーボードが PS2 コントローラーに割り当てられています。&lt;/p&gt;&lt;p&gt;&lt;span style=" font-weight:704;"&gt;外部のコントローラーを使うには、先に割り当てが必要です。&lt;/span&gt;この画面では、接続中のコントローラーを自動で割り当てられます。コントローラーをまだ接続していない場合は、今接続してください。&lt;/p&gt;&lt;p&gt;割り当てを細かく変えたり、マルチタップを使ったりするには、セットアップ完了後に 設定 メニューの コントローラー を開いてください。&lt;/p&gt;&lt;p&gt;コントローラーの設定方法は&lt;a href="https://pcsx2.net/docs/post/controllers/"&gt;こちら&lt;/a&gt;にあります。&lt;/p&gt;&lt;/body&gt;&lt;/html&gt;</translation>
     </message>
     <message>
       <location filename="../SetupWizardDialog.ui" line="491"/>
@@ -23811,12 +23811,12 @@ Do you want to continue?</source>
     <message>
       <location filename="../SetupWizardDialog.ui" line="926"/>
       <source>Create Desktop shortcut</source>
-      <translation type="unfinished">Create Desktop shortcut</translation>
+      <translation>デスクトップにショートカットを作成</translation>
     </message>
     <message>
       <location filename="../SetupWizardDialog.ui" line="933"/>
       <source>Add PCSX2 to the Application Menu</source>
-      <translation type="unfinished">Add PCSX2 to the Application Menu</translation>
+      <translation>アプリケーションメニューに PCSX2 を追加</translation>
     </message>
     <message>
       <location filename="../SetupWizardDialog.ui" line="962"/>
@@ -23906,7 +23906,7 @@ Scanning recursively takes more time, but will identify files in subdirectories.
     <message>
       <location filename="../SetupWizardDialog.cpp" line="448"/>
       <source>Add PCSX2 to the Start Menu</source>
-      <translation type="unfinished">Add PCSX2 to the Start Menu</translation>
+      <translation>スタートメニューに PCSX2 を追加</translation>
     </message>
     <message>
       <location filename="../SetupWizardDialog.cpp" line="470"/>
@@ -28142,6 +28142,63 @@ PCSX2 will be able to run once you&apos;ve placed your BIOS image inside the fol
       <translation>
         <numerusform>お気に入り %n 件</numerusform>
       </translation>
+    </message>
+  </context>
+  <context>
+    <name>ZdxsvSetupWizard</name>
+    <message>
+      <location filename="../Zdxsv/QtSetupWizard.cpp" line="1"/>
+      <source>Welcome to PCSX2 for zdxsv!</source>
+      <translation>PCSX2 for zdxsv へようこそ</translation>
+    </message>
+    <message>
+      <location filename="../Zdxsv/QtSetupWizard.cpp" line="1"/>
+      <source>&lt;p&gt;This PCSX2 plays Mobile Suit Gundam: Gundam vs. Zeta Gundam online on zdxsv. This wizard sets up the BIOS, the game, the controller and your zdxsv account.&lt;/p&gt;&lt;p&gt;At each start, PCSX2 checks github.com/inada-s/pcsx2 for a new release. To stop it, uncheck Enable Automatic Updates below.&lt;/p&gt;&lt;p&gt;Choose a language and a theme to begin.&lt;/p&gt;</source>
+      <translation>&lt;p&gt;この PCSX2 は、zdxsv で「機動戦士ガンダム ガンダムVS.Zガンダム」をオンラインで遊ぶためのものです。このウィザードで、BIOS、ゲーム、コントローラー、zdxsv アカウントを設定します。&lt;/p&gt;&lt;p&gt;PCSX2 は起動するたびに github.com/inada-s/pcsx2 で新しいリリースを確認します。確認しない場合は、下の「自動更新を有効化」のチェックを外してください。&lt;/p&gt;&lt;p&gt;はじめに言語とテーマを選んでください。&lt;/p&gt;</translation>
+    </message>
+    <message>
+      <location filename="../Zdxsv/QtSetupWizard.cpp" line="1"/>
+      <source>&lt;p&gt;Add the folder that holds the game&apos;s disc image (ISO, CHD and others), made from your own disc. PCSX2 lists the games it finds there.&lt;/p&gt;</source>
+      <translation>&lt;p&gt;ゲームのディスクイメージ (ISO、CHD など。自分のディスクから作ったもの) があるフォルダを追加してください。PCSX2 はそこで見つけたゲームを一覧に表示します。&lt;/p&gt;</translation>
+    </message>
+    <message>
+      <location filename="../Zdxsv/QtSetupWizard.cpp" line="1"/>
+      <source>zdxsv Account</source>
+      <translation>zdxsv アカウント</translation>
+    </message>
+    <message>
+      <location filename="../Zdxsv/QtSetupWizard.cpp" line="1"/>
+      <source>&lt;p&gt;Online play on zdxsv needs a sign-in with your Discord account. Sign in now, or later on Settings → zdxsv.&lt;/p&gt;</source>
+      <translation>&lt;p&gt;zdxsv でオンライン対戦するには、Discord アカウントでのサインインが必要です。今サインインするか、あとで 設定 → zdxsv からサインインしてください。&lt;/p&gt;</translation>
+    </message>
+    <message>
+      <location filename="../Zdxsv/QtSetupWizard.cpp" line="1"/>
+      <source>Setup Complete!</source>
+      <translation>設定が完了しました</translation>
+    </message>
+    <message>
+      <location filename="../Zdxsv/QtSetupWizard.cpp" line="1"/>
+      <source>&lt;p&gt;Start the game from the game list. The online settings are on Settings → zdxsv.&lt;/p&gt;&lt;p&gt;&lt;b&gt;Warning:&lt;/b&gt; Do not run untrusted programs in PCSX2. It is not a sandbox and cannot protect your computer from malicious software.&lt;/p&gt;</source>
+      <translation>&lt;p&gt;ゲーム一覧からゲームを起動してください。オンライン関連の設定は 設定 → zdxsv にあります。&lt;/p&gt;&lt;p&gt;&lt;b&gt;警告:&lt;/b&gt; 信頼できないプログラムを PCSX2 で実行しないでください。PCSX2 はサンドボックスではなく、悪意のあるソフトウェアからコンピューターを守れません。&lt;/p&gt;</translation>
+    </message>
+    <message>
+      <location filename="../Zdxsv/QtSetupWizard.cpp" line="1"/>
+      <source>&lt;p&gt;By default, the keyboard is mapped to the PS2 controller.&lt;/p&gt;&lt;p&gt;&lt;b&gt;To use a gamepad, connect it, press Automatic Mapping and choose your controller.&lt;/b&gt;&lt;/p&gt;&lt;p&gt;To change the bindings in detail, open Settings → Controllers after the setup.&lt;/p&gt;</source>
+      <translation>&lt;p&gt;初期状態では、キーボードが PS2 コントローラーに割り当てられています。&lt;/p&gt;&lt;p&gt;&lt;b&gt;ゲームパッドを使うには、接続してから「自動マッピング」を押し、自分のコントローラーを選んでください。&lt;/b&gt;&lt;/p&gt;&lt;p&gt;割り当てを細かく変えるには、セットアップ後に 設定 → コントローラー を開いてください。&lt;/p&gt;</translation>
+    </message>
+    <message>
+      <location filename="../Zdxsv/QtSetupWizard.cpp" line="1"/>
+      <source>Keyboard</source>
+      <translation>キーボード</translation>
+    </message>
+    <message>
+      <location filename="../Zdxsv/QtSetupWizard.cpp" line="1"/>
+      <source>Controller Port 1 is on the keyboard. To use a gamepad, press Automatic Mapping and choose your controller.
+
+Continue with the keyboard?</source>
+      <translation>コントローラー端子 1 はキーボードのままです。ゲームパッドを使うには「自動マッピング」を押して、自分のコントローラーを選んでください。
+
+キーボードのまま続けますか？</translation>
     </message>
   </context>
   <context>
