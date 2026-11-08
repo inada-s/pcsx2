@@ -247,7 +247,7 @@ During a `net=1` battle the left edge shows the `NETWORK STATS` panel
 the input delay, rollback (`Roll`) and time sync (`Wait`) frames, a 6-segment
 predicted frames meter (`P:`), and per opponent the position and user id, name,
 pilot name, ping (`(Relay)` when relayed, `--` once disconnected) and a 5-segment
-`Lag` meter (loss over 2 s, send queue over the ping, ping median, jitter and
+`Lag` meter (loss over 2 s, send queue over the ping plus 3 frames, ping median, jitter and
 spikes, frame pacing; worsens after 1 s, recovers one step per 2-3 s).
 With the mouse over the panel, the ping and `Lag` rows give way to the packet
 loss (`L: ↓ received ↑ sent`), send queue (`Q:`) and a frame pacing bar
