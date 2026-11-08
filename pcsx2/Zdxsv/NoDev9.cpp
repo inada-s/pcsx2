@@ -147,6 +147,9 @@ namespace Zdxsv
 			// After a lobby state load: the game still holds these slots open; the first call on one reconnects it.
 			bool adopt[kSlots] = {};
 			bool checked[kSlots] = {};
+			// A battle server connect the GGPO hook left to us: no socket, sends dropped, the poll fails, so the
+			// game gives up the battle and goes back to the lobby (a refused connect is retried forever).
+			bool dead[kSlots] = {};
 			// A zdxsv lobby connection: the server's bytes reach the game through it (platform info, battle info notice).
 			std::unique_ptr<LobbyFilter, LobbyFilterDeleter> lobby[kSlots];
 			sock_t none = INVALID_SOCKET;
@@ -266,6 +269,7 @@ namespace Zdxsv
 			s_state.lobby[id].reset();
 			s_state.checked[id] = false;
 			s_state.adopt[id] = false;
+			s_state.dead[id] = false;
 			s_state.peer[id] = 0;
 			s_state.peer_port[id] = 0;
 		}
@@ -292,7 +296,7 @@ namespace Zdxsv
 		s32 Connect(const u8* b)
 		{
 			s32 id = 0;
-			while (id < kSlots && (s_state.socks[id] != INVALID_SOCKET || s_state.adopt[id]))
+			while (id < kSlots && (s_state.socks[id] != INVALID_SOCKET || s_state.adopt[id] || s_state.dead[id]))
 				id++;
 			if (id == kSlots)
 				return -1;
@@ -303,6 +307,13 @@ namespace Zdxsv
 			if (ntohs(port) != kLobbyPort)
 			{
 				const u8* q = reinterpret_cast<const u8*>(&ip);
+				if (IsBattleServer(ip, ntohs(port)))
+				{
+					Console.WriteLn("Zdxsv: no DEV9: battle server %u.%u.%u.%u:%u not answered by GGPO: slot %d cut",
+						q[0], q[1], q[2], q[3], ntohs(port), id);
+					s_state.dead[id] = true;
+					return id;
+				}
 				Console.WriteLn("Zdxsv: no DEV9: connect to %u.%u.%u.%u:%u refused", q[0], q[1], q[2], q[3], ntohs(port));
 				return -1;
 			}
@@ -490,7 +501,12 @@ namespace Zdxsv
 		else if (fno == kFnoConnect)
 			res = Connect(b);
 		else if (fno == kFnoPoll)
-			Poll(b);
+		{
+			if (const int id = Slot(b); id >= 0 && s_state.dead[id])
+				res = -1;
+			else
+				Poll(b);
+		}
 		else if (fno == kFnoSend)
 			Send(b, len);
 		else if (fno == kFnoRecvLobby || fno == kFnoRecv)
