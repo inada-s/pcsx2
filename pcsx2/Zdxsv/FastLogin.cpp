@@ -194,8 +194,23 @@ namespace Zdxsv
 			return status;
 		}
 
-		// No answer or a server error: hold the game at DNAS (paused) and retry until the server answers
-		// or the player resumes. A refusal (4xx) is an answer.
+		// Called with s_fast.mutex held. The game's own DNAS fails and shows its error when no answer comes
+		// in time (soon under fast boot's unthrottled speed): it must not run while the request is out.
+		void Hold(const std::shared_ptr<std::atomic<bool>>& cancel)
+		{
+			s_fast.holding = true;
+			Host::RunOnCPUThread([cancel]() {
+				if (cancel->load())
+					return;
+				VMManager::SetPaused(true);
+				std::lock_guard lock(s_fast.mutex);
+				if (s_fast.cancel == cancel && s_fast.holding)
+					s_fast.hold_paused = true;
+			});
+		}
+
+		// The game is held at DNAS (paused) from the request until the answer. No answer or a server error:
+		// retry until the server answers or the player resumes. A refusal (4xx) is an answer.
 		void Request(std::string url, std::string form, std::shared_ptr<std::atomic<bool>> cancel)
 		{
 			std::optional<LoginResult> result;
@@ -213,17 +228,7 @@ namespace Zdxsv
 					if (s_fast.cancel != cancel)
 						return;
 					if (!s_fast.holding)
-					{
-						s_fast.holding = true;
-						Host::RunOnCPUThread([cancel]() {
-							if (cancel->load())
-								return;
-							VMManager::SetPaused(true);
-							std::lock_guard lock(s_fast.mutex);
-							if (s_fast.cancel == cancel && s_fast.holding)
-								s_fast.hold_paused = true;
-						});
-					}
+						Hold(cancel);
 				}
 				Console.WriteLn("Zdxsv: fast login: no answer from the login API (%d), game held, retry in %d s", status, wait);
 				Host::AddIconOSDMessage("ZdxsvLoginHold", ICON_FA_NETWORK_WIRED,
@@ -377,10 +382,10 @@ namespace Zdxsv
 			Console.WriteLn("Zdxsv: fast login: by token");
 			std::lock_guard lock(s_fast.mutex);
 			s_fast.answered = false;
-			s_fast.holding = false;
 			s_fast.hold_paused = false;
 			s_fast.result.reset();
 			s_fast.cancel = std::make_shared<std::atomic<bool>>(false);
+			Hold(s_fast.cancel);
 			std::thread(Request, Url(), std::move(form), s_fast.cancel).detach();
 			s_fast.step = FastLogin::Step::Pending;
 			return;
