@@ -19,5 +19,4 @@ namespace Zdxsv
 	bool QtOnlineExitAllows(QWidget* parent, bool ask);
 	void QtSetupWizardCustomize(QWidget* wizard);
 	bool QtSetupWizardControllerConfirm(QWidget* wizard);
-	void QtEmulationSettingsAdd(SettingsWindow* dialog, QGridLayout* checkboxes);
 } // namespace Zdxsv
