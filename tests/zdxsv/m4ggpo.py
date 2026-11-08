@@ -75,7 +75,7 @@ def main():
         return 2
     for i in gc:
         prev = zrig.env(f"PCSX2_ENV_P{i}")  # keep a caller's per-client env (m4lat.py)
-        g = f"ZDXSV_GGPO=net=1,lobby=1,port={port + int(i) - 1}" + ("" if auto else f",delay={gdelay}") + \
+        g = f"ZDXSV_STUN_PORT=8201 ZDXSV_GGPO=net=1,lobby=1,port={port + int(i) - 1}" + ("" if auto else f",delay={gdelay}") + \
             (f",mindelay={gmin}" if gmin else "")
         os.environ[f"PCSX2_ENV_P{i}"] = f"{prev} {g}" if prev else g
     p2p, bad, noaddr = zrig.env("P2P", "v4"), zrig.env("BAD_SESSION"), zrig.env("NOADDR")
@@ -91,6 +91,8 @@ def main():
         return 2
     gb = ",".join(f"{unreach}-{i}" for i in gc if i != unreach) if unreach else block
     cut = bad or unreach
+    if not cut and len(gc) == 4:
+        os.environ.setdefault("JOINS", "0")
     # a bad session's packets arrive and are dropped; an unreachable peer's never arrive
     cutk, dl, dq = ("unreachable", "0 dropped", r" 0 dropped") if unreach else ("bad session", "drops", r" [1-9][0-9]* dropped")
     if cut:
