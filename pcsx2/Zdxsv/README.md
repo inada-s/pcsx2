@@ -49,6 +49,7 @@ options: `docs/zdxsv/`.
 | `GgpoBattle.cpp` | The game's battle socket emulated over GGPO; built-in battle start of a rig run (`ZDXSV_RBK`); the load-step barriers and the lockstep step copy (CPU hooks) |
 | `GgpoLobby.cpp` | Arming a GGPO battle from the lobby: battle info, frame delay, the cut connection |
 | `GgpoBudget.cpp` | Rollback budget: frame slack histogram, the per-PC learned budget, the input delay formula |
+| `GgpoFrameOsd.cpp` | Frame time panel (`ZdxsvFrameOsd`): per-frame CPU thread stages, stacked graph, other threads per frame |
 | `GgpoGameState.cpp` | Game RAM reads for sync checks and replays: player work hash, RNG, tick state, round records |
 | `GgpoRerunKeep.cpp` | Rerun keep: EE RAM a rollback leaves at the predicted frame (bone matrix slots, saber trail objects), attached-part draws in skipped rerun frames |
 | `GgpoTrace.cpp` | Debug: `NET_TRACE` lines of the pad and the battle msgs' key slots |

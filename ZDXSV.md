@@ -64,6 +64,10 @@ In battle, your ARMOR display shows your teammate's current HP after the "/",
 where it shows your max HP. Turn it off with Settings → zdxsv → "Show teammate
 HP in place of max HP".
 
+Settings → zdxsv → "Frame time overlay" shows, during online battles and
+replays, where each frame's time goes (emulation, rollback, save/load, network
+wait, sleep) as a graph, and the GS thread, VU thread and GPU time per frame.
+
 ## First time in the game
 
 If your memory card is empty, the game makes the files it needs by itself:

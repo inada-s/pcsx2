@@ -131,6 +131,7 @@ Keys (`net=1`, `lobby=1`, `port=`, `delay=`, ...) are parts of `ZDXSV_GGPO`.
 - **Lobby network waits and ping test RTT**: bounded waits, candidates from packet sources, median RTT.
 - **Battle info and match report as protobuf**.
 - **Network status OSD**: `ZdxsvNetOsd`, `osd=0`.
+- **Frame time OSD** (off by default): `ZdxsvFrameOsd`.
 - **Teammate HP on the HUD** in the own max HP slot: `ZdxsvAllyHp`.
 - **Network OSD on disconnect**: held 10 s, shown while a peer is interrupted or gone.
 - **UDP sockets ignore ICMP port unreachable on Windows**.
