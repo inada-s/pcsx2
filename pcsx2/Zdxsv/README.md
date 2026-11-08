@@ -80,6 +80,7 @@ options: `docs/zdxsv/`.
 | `AuthTest.cpp` | Sign-in and sign-out at app start for the rigs (`ZDXSV_AUTH_SIGNIN_TEST`) |
 | `FastLogin.cpp`, `FastLogin.h` | Login through the login API at DNAS start, the browser's result written to guest RAM, jump to the lobby connect |
 | `SingleDrawList.cpp` | single draw list: game code patch that draws a frame's list in that frame |
+| `AllyHp.cpp` | Teammate HP on the HUD: the own max HP digits read the teammate's HP (setting `ZdxsvAllyHp`) |
 | `NoDev9.cpp` | Online without DEV9 (Z game with a server host), the net RPCs answered on the EE and TCP on a host socket |
 | `Upnp.cpp`, `Upnp.h` | UPnP mapping of the GGPO port on the router (`3rdparty/miniupnpc`), removed at exit |
 | `TlsTunnel.cpp` | TLS to the zdxsv server: the game's TCP connections go through a local tunnel, the server is checked by its public-key pins |

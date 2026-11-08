@@ -60,6 +60,10 @@ For a 16:9 picture, turn on Settings → Graphics → Display → "Apply Widescr
 Patches". This build has the game's widescreen patch built in and reads no
 patch or cheat files (pnach) for the game.
 
+In battle, your ARMOR display shows your teammate's current HP after the "/",
+where it shows your max HP. Turn it off with Settings → zdxsv → "Show teammate
+HP in place of max HP".
+
 ## First time in the game
 
 If your memory card is empty, the game makes the files it needs by itself:
