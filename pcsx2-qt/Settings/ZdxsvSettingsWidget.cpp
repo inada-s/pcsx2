@@ -58,6 +58,7 @@ ZdxsvSettingsWidget::ZdxsvSettingsWidget(SettingsWindow* settings_dialog, QWidge
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvAllyHp, "DEV9/Eth", "ZdxsvAllyHp", true);
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvUPnP, "DEV9/Eth", "ZdxsvUPnP", true);
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvLiveAutoNext, "DEV9/Eth", "ZdxsvLiveAutoNext", false);
+	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvWheelVolume, "UI", "ZdxsvWheelVolume", true);
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvReplaySkipMs, "DEV9/Eth", "ZdxsvReplaySkipMs", true);
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvReplayKeyDisplay, "DEV9/Eth", "ZdxsvReplayKeyDisplay", true);
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvSaveReplay, "DEV9/Eth", "ZdxsvSaveReplay", true);
@@ -103,6 +104,9 @@ ZdxsvSettingsWidget::ZdxsvSettingsWidget(SettingsWindow* settings_dialog, QWidge
 		tr("When the battle port is closed, automatically changes the router's settings."));
 	dialog()->registerWidgetHelp(m_ui.zdxsvLiveAutoNext, tr("Live Auto-Next"), tr("Unchecked"),
 		tr("When a live battle ends, watches the next one."));
+	dialog()->registerWidgetHelp(m_ui.zdxsvWheelVolume, tr("Wheel Volume"), tr("Checked"),
+		tr("Turning the mouse wheel over the game screen changes the volume in 5% steps and shows it on the screen. "
+		   "Off, or with the wheel bound to a controller input: the wheel works as in PCSX2."));
 	dialog()->registerWidgetHelp(m_ui.zdxsvReplaySkipMs, tr("Skip Mobile Suit Selection"), tr("Checked"),
 		tr("Replays skip the mobile suit selection."));
 	dialog()->registerWidgetHelp(m_ui.zdxsvReplayKeyDisplay, tr("Key Display"), tr("Unchecked"),

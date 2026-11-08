@@ -61,6 +61,7 @@ page greys it out and its tooltip names the variable.
 | `[DEV9/Eth] ZdxsvUPnP` | `true` | feature | When the connectivity test finds the GGPO port not open, map it on the router with UPnP and test again (`lobby.md`). |
 | `[DEV9/Eth] ZdxsvNetOsd` | `true` | feature | Network status OSD in GGPO battles. Read when the game starts. `osd=` overrides it. Off: shown only while an opponent is interrupted or disconnected. |
 | `[DEV9/Eth] ZdxsvAllyHp` | `true` | feature | In battle, the own HP display shows the teammate's HP in place of the own max HP. Applied when settings change. `ZDXSV_ALLY_HP` overrides it. |
+| `[UI] ZdxsvWheelVolume` | `true` | feature | The mouse wheel over the game screen changes the volume (5% a notch, not saved) with an OSD. Off: the wheel is input, as upstream. |
 | `[DEV9/Eth] ZdxsvCrashReports` | `true` | feature | Send crash reports ([crash-reports.md](crash-reports.md)), in a build with a DSN. Settings → zdxsv. |
 | `[DEV9/Eth] ZdxsvReplaySkipMs` | `true` | feature | A replay plays its rounds only: it skips the mobile suit selections and the rematch screens (a file without round frames: the first mobile suit selection). `ZDXSV_REPLAY_SKIP_MS` overrides it. |
 | `[DEV9/Eth] ZdxsvReplayKeyDisplay` | `true` | feature | Replays start with the key display on. `ZDXSV_REPLAY_KEY_DISPLAY` overrides it. |

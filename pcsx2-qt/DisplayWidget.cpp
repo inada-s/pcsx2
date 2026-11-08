@@ -5,6 +5,7 @@
 #include "MainWindow.h"
 #include "QtHost.h"
 #include "QtUtils.h"
+#include "Zdxsv/QtHooks.h"
 
 #include "pcsx2/ImGui/FullscreenUI.h"
 #include "pcsx2/ImGui/ImGuiManager.h"
@@ -374,6 +375,8 @@ bool DisplaySurface::event(QEvent* event)
 		case QEvent::Wheel:
 		{
 			const QPoint delta_angle(static_cast<QWheelEvent*>(event)->angleDelta());
+			if (Zdxsv::QtWheelVolumeTakes(delta_angle.y()))
+				return true;
 			const float dx = std::clamp(static_cast<float>(delta_angle.x()) / QtUtils::MOUSE_WHEEL_DELTA, -1.0f, 1.0f);
 			if (dx != 0.0f)
 				InputManager::UpdatePointerRelativeDelta(0, InputPointerAxis::WheelX, dx);

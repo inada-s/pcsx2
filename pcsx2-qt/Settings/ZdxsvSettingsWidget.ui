@@ -303,6 +303,22 @@ for High-Spec PC</string>
     </widget>
    </item>
    <item>
+    <widget class="QGroupBox" name="zdxsvGameWindowGroup">
+     <property name="title">
+      <string>Game Window</string>
+     </property>
+     <layout class="QVBoxLayout" name="zdxsvGameWindowLayout">
+      <item>
+       <widget class="QCheckBox" name="zdxsvWheelVolume">
+        <property name="text">
+         <string>Mouse wheel changes the volume</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
     <widget class="QGroupBox" name="zdxsvCrashReportsGroup">
      <property name="title">
       <string>Crash Reports</string>

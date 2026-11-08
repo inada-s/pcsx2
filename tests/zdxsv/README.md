@@ -252,6 +252,12 @@ Scripts are in `tests/zdxsv/` except `run.py` (repository root) and
 | Operations refused during a replay | no test. By hand: during a replay a state save or load hotkey logs `refused during a replay`, the OSD says so; seeks still load their keys | none |
 | Four-screen replay | `FOUR=1 rplay.py`: guest trace pwcheck + host `spread` lines <= 4 frames | `PCSX2_ENV=ZDXSV_REPLAY_SYNC=0`: the spread FAILs |
 
+### Game window
+
+| Feature | Test | Control |
+|---|---|---|
+| Mouse wheel volume | no test. By hand: wheel over the game screen, OSD `Volume: N%` steps by 5 and the status bar volume follows; setting off or the wheel bound: no change | none |
+
 ### ARM64 builds
 
 | Feature | Test | Control |
