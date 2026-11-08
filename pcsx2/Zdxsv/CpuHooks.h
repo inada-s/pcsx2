@@ -8,6 +8,8 @@
 
 #include "common/Pcsx2Defs.h"
 
+class SettingsInterface;
+
 namespace Zdxsv
 {
 	extern bool g_ggpo_enabled; // GGPO options (ZDXSV_GGPO, else on by default) or a replay
@@ -48,6 +50,12 @@ namespace Zdxsv
 	void SingleDrawListOnVsync();
 	// In GgpoOnVmShutdown.
 	void SingleDrawListReset();
+	// Z game, setting ZdxsvAllyHp: the HUD shows the teammate's HP where it shows the own max HP (AllyHp.cpp).
+	void AllyHpOnVmInitialize();
+	// In VMManager::LoadCoreSettings.
+	void AllyHpLoadSettings(SettingsInterface& si);
+	// In VSyncStart, the Z game.
+	void AllyHpOnVsync();
 	// Z game with a server host: online with or without DEV9, the net RPCs answered on the EE (NoDev9.cpp).
 	extern bool g_no_dev9;
 	void NoDev9OnVmInitialize();

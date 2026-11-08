@@ -640,6 +640,7 @@ namespace Zdxsv
 		const bool ext_off = ext && std::strcmp(ext, "0") == 0;
 		g_z_game = serial_match && crc == want && !ext_off;
 		SingleDrawListOnVmInitialize();
+		AllyHpOnVmInitialize();
 		NoDev9OnVmInitialize();
 		const bool lobby_default = g_z_game && !s_play_env;
 		if (!g_z_game) // any other game or build, or ZDXSV_EXTENSIONS=0: no GGPO, replay, hooks or platform info

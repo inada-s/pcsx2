@@ -662,6 +662,8 @@ void VMManager::LoadCoreSettings(SettingsInterface& si)
 	EnforceAchievementsChallengeModeSettings();
 	if (Zdxsv::g_z_game)
 		Zdxsv::SyncSettingsEnforce();
+	if (Zdxsv::g_z_game)
+		Zdxsv::AllyHpLoadSettings(si);
 
 	// Remove any user-specified hacks in the config (we don't want stale/conflicting values when it's globally disabled).
 	EmuConfig.GS.MaskUserHacks();

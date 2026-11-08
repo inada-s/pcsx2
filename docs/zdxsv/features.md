@@ -15,7 +15,7 @@ skips does not run on that path.
 |---|---|---|
 | EE recompilers and interpreter: hook calls before guest instructions | `RecHooks`, `IntHooks`, `GgpoBattle`, `NoDev9`, `FastLogin`, `FastBoot` | net RPC hook (battle sock over GGPO, online without DEV9), fast login, fast boot, load barriers, input feed of GGPO and replays |
 | DEV9 save state | `DeltaState` | DEV9 registers in full and delta states (GGPO, replays) |
-| Counters (vsync), VMManager | `Ggpo`, `Replay*`, `NoDev9`, `FastBoot`, `OnlineLimits` | GGPO frame loop, replay playback and its unthrottled fast frames, VM start / reset / shutdown cleanup, online switch of the limited features |
+| Counters (vsync), VMManager | `Ggpo`, `Replay*`, `NoDev9`, `FastBoot`, `OnlineLimits`, `AllyHp` | GGPO frame loop, teammate HP on the HUD, replay playback and its unthrottled fast frames, VM start / reset / shutdown cleanup, online switch of the limited features |
 | MTGS, GS, SPU2 | `DeltaFreeze`, `SingleDrawList`, `InputLatency`, `Overlays`, `FastBoot`, `ReplayPlay` | rerun frame skips, replay seek frames not drawn or heard, fast boot shows every 8th frame, single draw list, input latency, OSD |
 | Pad | `Ggpo`, `ReplayPlay` | inputs to and from GGPO and replays |
 | Hotkeys, ImGui, GS draw rect | `Overlays`, `ReplayPlay`, `GgpoOsd` | replay hotkeys, bar and key display on the game picture, refused pause and speed changes, network status panel |
@@ -131,6 +131,7 @@ Keys (`net=1`, `lobby=1`, `port=`, `delay=`, ...) are parts of `ZDXSV_GGPO`.
 - **Lobby network waits and ping test RTT**: bounded waits, candidates from packet sources, median RTT.
 - **Battle info and match report as protobuf**.
 - **Network status OSD**: `ZdxsvNetOsd`, `osd=0`.
+- **Teammate HP on the HUD** in the own max HP slot: `ZdxsvAllyHp`.
 - **Network OSD on disconnect**: held 10 s, shown while a peer is interrupted or gone.
 - **UDP sockets ignore ICMP port unreachable on Windows**.
 

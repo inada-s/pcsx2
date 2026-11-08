@@ -11,9 +11,10 @@ namespace Zdxsv
 	{
 		// Player work words left out of the hash: machine-local scratch and the own position's HUD gauge.
 		constexpr u32 PW_MASK[] = {0x274, 0x2b4, 0x1e64, 0x1e74, 0x1e84, 0x1e94, 0x214c};
-		// Bits left out of the hash: viewer-team, in-view and own-player-only fields, which differ in sync.
+		// Bits left out of the hash: viewer-team, in-view and own-player-only fields, which differ in sync
+		// (0x2146: the next player's ally HP for the HUD, AllyHp.cpp).
 		constexpr std::pair<u32, u32> PW_MASK_BITS[] = {{0x58, 0x100}, {0x68, 0x300}, {0x9c, 0x110000}, {0x2004, ~0u}, {0x2068, 1}, {0x2074, 0x101}, {0x2088, 0xff},
-			{0xcc, 0xffff}, {0x90, 0xffff0000}};
+			{0xcc, 0xffff}, {0x90, 0xffff0000}, {0x2144, 0xffff0000}};
 		// XXH3 of player p's work with the fields above masked (synctest hash=pw).
 		u64 PwHash(u32 p)
 		{

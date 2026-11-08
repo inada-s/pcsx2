@@ -193,6 +193,13 @@ for High-Spec PC</string>
        </widget>
       </item>
       <item>
+       <widget class="QCheckBox" name="zdxsvAllyHp">
+        <property name="text">
+         <string>Show teammate HP in place of max HP</string>
+        </property>
+       </widget>
+      </item>
+      <item>
        <widget class="QCheckBox" name="zdxsvUPnP">
         <property name="text">
          <string>Open the port with UPnP</string>
