@@ -8,8 +8,9 @@
 #   0.5), from the last `replay bar: layout` line in the instance's emulog. shot:out.png = winshot.ps1 (overlays).
 # -Check -Ini PCSX2.ini : only the binding check of -Seq against that ini, no process, nothing sent (rc 2 = unbound;
 #   rplay.py runs it on every KEYS step before launch).
+# -AnyKey : skip that check (keys typed on the USB keyboard, USB port 1 = hidkbd, need no pad binding).
 param([string]$Seq = "", [string]$Shot = "", [int]$ProcId = 0, [int]$HoldMs = 120, [int]$GapMs = 350,
-      [switch]$Check, [string]$Ini = "")
+      [switch]$Check, [string]$Ini = "", [switch]$AnyKey)
 Add-Type -AssemblyName System.Windows.Forms, System.Drawing
 Add-Type @"
 using System; using System.Runtime.InteropServices;
@@ -113,7 +114,7 @@ function Invoke-Mouse([string]$t) {
 }
 if ($Seq) {
   $names = foreach ($tok in $Seq.Split(',')) { $t = $tok.Trim(); if ($t -and $t -notmatch '^w\d+$|^(mv|ck|bar|shot):') { $t -replace '\*\d+$', '' } }
-  $un = @(Get-Unbound $names)
+  $un = if ($AnyKey) { @() } else { @(Get-Unbound $names) }
   if ($un.Count) { $un | ForEach-Object { "FAIL key not bound: $_" }; exit 2 }
 }
 if ($Check) { "keycheck ok: $Seq"; exit 0 }
