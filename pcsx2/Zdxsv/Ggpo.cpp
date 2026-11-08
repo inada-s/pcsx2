@@ -458,8 +458,9 @@ namespace Zdxsv
 
 	bool SpuOnOutput()
 	{
-		(g_ggpo_in_rollback ? s_stats.spu_dropped : s_stats.spu_played)++;
-		return g_ggpo_in_rollback;
+		const bool drop = g_ggpo_in_rollback || g_replay_silent_frame;
+		(drop ? s_stats.spu_dropped : s_stats.spu_played)++;
+		return drop;
 	}
 
 	void GgpoOnExecuteReturned()

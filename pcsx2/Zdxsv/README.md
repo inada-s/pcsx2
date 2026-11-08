@@ -54,7 +54,8 @@ options: `docs/zdxsv/`.
 | `GgpoTrace.cpp` | Debug: `NET_TRACE` lines of the pad and the battle msgs' key slots |
 | `GgpoTest.cpp` | Local rollback test harness (synctest): state diffs of rerun frames, random pad input |
 | `ReplayRecord.cpp` | Replay recording, upload and live stream of a GGPO battle |
-| `ReplayPlay.cpp` | Replay playback: frame loop, seek keys, point of view, takeover, control bar and hotkeys |
+| `ReplayControls.cpp` | Replay controls: rounds shown (spans), host pad, frame step, speed, takeover requests and countdown, refused operations |
+| `ReplayPlay.cpp` | Replay playback: frame loop, seek keys, point of view, takeover, control bar state and hotkeys |
 | `ReplayLive.cpp` | Playback of a live stream; spectator sync of several viewers |
 | `ReplayList.cpp` | Replay window support: the replay picked for the next boot, local file info, lobby API and live URLs (UI: `pcsx2-qt/Tools/ZdxsvReplayDialog.cpp`) |
 | `ReplayLoad.cpp` | Replay files: parse, load, common start, start of playback, position switch, next battle |

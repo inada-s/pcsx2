@@ -165,6 +165,7 @@ set(pcsx2Sources
 	Zdxsv/GgpoRerunKeep.cpp
 	Zdxsv/GgpoTest.cpp
 	Zdxsv/GgpoTrace.cpp
+	Zdxsv/ReplayControls.cpp
 	Zdxsv/ReplayLive.cpp
 	Zdxsv/ReplayLoad.cpp
 	Zdxsv/ReplayList.cpp

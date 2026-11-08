@@ -49,8 +49,14 @@ answers, menus turbo, with the chosen point of view as the own position.
 From GGPO frame 0 every frame gets the recorded inputs through the same
 battle-socket emulation as a live battle, without GGPO.
 
-- At the end the emulator pauses. A seek plays on; resuming without one
-  ends the replay.
+- At the end (with rounds only on: the end of the last round) a replay
+  started from the replay window with Return on goes back to it at once.
+  Otherwise the emulator pauses: a seek plays on, Play starts again from
+  the first round, resuming any other way ends the replay.
+- While a replay plays, state saves and loads and disc changes are refused
+  from every entry point (hotkeys, menus, Big Picture, PINE), with the OSD
+  "Not available during a replay."; the replay's own states (seek keys,
+  takeover) still load.
 - A replay of a `ZDXSV_RBK` battle needs the recording's `ZDXSV_EE_CLAMP`.
 - A VM reset plays the replay again from the start.
 - A file that cannot be read or played (download failed, corrupted, an
@@ -86,46 +92,73 @@ Tools → zdxsv Replays, as flycast's replay lists:
 
 ## Controls
 
-| Action | Hotkey (default) | Control bar |
-|---|---|---|
-| Seek back / forward 10 s | PageUp / PageDown | yes |
-| Seek to a frame | | timeline: click or drag, seeks on release |
-| Play or pause | | yes |
-| Switch point of view | Home | eye button |
-| Toggle key display | End | |
-| Previous / next round | Shift+PageUp / Shift+PageDown | step buttons around the round number (`R0` = the briefing) |
-| Take over / retry | "Take Over / Retry" | "Take over", "Retry", "Replay" |
+| Action | Pad (host pad 1) | Hotkey (default) | Control bar |
+|---|---|---|---|
+| Play or pause | Circle | | play / pause button |
+| Seek back / forward 1 s; paused: one frame | Left / Right (held 0.5 s: repeats) | | ◀ / ▶ |
+| Seek back / forward 10 s | | PageUp / PageDown | |
+| Seek to a frame | | | timeline: click or drag, seeks on release |
+| Speed down / up (33, 50, 100, 200, 300 %) | Down / Up | | ▼ / ▲ around the speed |
+| Toggle key display | | End | |
+| Previous / next round | | Shift+PageUp / Shift+PageDown | step buttons around the round number |
+| Take over / retry | (taken over: START retries) | "Take Over / Retry" | "Take over", "Retry", "Replay" |
 
-Hotkeys are under Settings > Hotkeys, group "Zdxsv Replay".
+Hotkeys are under Settings > Hotkeys, group "Zdxsv Replay". The pad's
+controls are read before the game; the left stick works as the
+D-pad. While taken over the pad plays the game.
 
+- **Rounds only** (as flycast `gdxsv:ReplaySkipMsSelection`, setting
+  `ZdxsvReplaySkipMs`): a round is shown from its briefing (the load end
+  before the file's play start) to the load of the rematch screen (the
+  load end after the game's first tick state 6 -> 7 after that play start).
+  Frames between rounds (the mobile suit selections, the rematch screens)
+  run unthrottled and are not drawn, and after the last round the replay
+  ends. A file without play starts skips the first mobile suit selection
+  only (from frame 0 to the briefing).
 - **Seek**: a key (full state + battle-socket state) is kept every
   `ZDXSV_REPLAY_KEY` played frames, per position. A seek loads the newest
-  key at or before the target and runs to it unthrottled. Forward seeks run
-  every frame. Key files are deleted on a VM shutdown or reset.
-- **Point of view**: one file plays every position. A switch loads that
-  position's newest key at or before the current frame; a position not
-  played yet first runs its own battle start from the common state.
-- **Control bar**: play or pause, seek -10 s and +10 s, time, timeline,
-  point of view, round steps, takeover. Shown while paused and for 3 s
-  after the mouse moves over the bottom quarter.
-- **Key display** (as flycast `gdxsv:ReplayKeyDisplay`): the last 14 input
-  changes of the shown position, each with the frames it was held.
-- **Skip mobile suit selection** (as flycast
-  `gdxsv:ReplaySkipMsSelection`): runs unthrottled from frame 0 to the
-  briefing. A seek or a switch ends it.
-- **Round jump**: a round starts when the game's tick state leaves the
-  battle load (load 0 = mobile suit selection, 1 = briefing, 1 + N =
-  round N). A jump to a round not reached yet runs unthrottled to it.
-  Previous round goes to the round before the one shown.
+  key at or before the target and runs to it unthrottled (the limiter mode
+  stays, so the vsync mode does not change); the frames it
+  runs are not drawn or heard but the last two, and the picture stays until
+  a drawn one is ready (no present of a frame not drawn, nor right after a
+  state load). Forward seeks run every frame. A seek stays
+  in the round shown (rounds only on). A seek or a round jump from a pause
+  pauses again at its target. Key files are deleted on a VM shutdown or
+  reset.
+- **Speed**: the emulator's speed stays 100 %. Above it, of
+  every 2 or 3 frames one is shown, heard and throttled and the others run
+  silent and unthrottled; below it, each frame is held one or two frame
+  times. Not while spectating live.
+- **Point of view**: one file plays every position; the point of view is
+  picked before the start (replay window, `ZDXSV_REPLAY_POV`). A position
+  not played yet runs its own battle start from the common state
+  (`ZDXSV_REPLAY_POV_AT`, tests).
+- **Control bar**: play or pause, speed, ◀ ▶, round steps, round results,
+  takeover, time in the round, frame, and a timeline of the round shown.
+  Shown for 3 s after the mouse moves over the bottom quarter or a pad
+  control changes.
+- **Key display** (as flycast `gdxsv:ReplayKeyDisplay`, on by default): the
+  last 14 input changes of the shown position, each with the frames it was
+  held; placed on the game picture (left edge, from y 130 of 480, 12 of 480
+  a line, shadowed text without a background), so it follows the window
+  size and the aspect ratio.
+- **Round jump**: with rounds only on, round N is the N-th shown round and a
+  jump goes to its briefing. Otherwise a round starts when the game's tick
+  state leaves the battle load (load 0 = mobile suit selection, 1 =
+  briefing, 1 + N = round N). A jump to a round not reached yet runs
+  unthrottled to it. Previous round goes to the round before the one shown.
 - **Round results**: the bar shows each round's W / L / D for the shown
   position's team; playback logs a round whose result differs from the file.
   Hovering them lists each round's mobile suits (the file's `used_ms`, else
   the ones at the round end): the shown team's, then the other team's.
-- **Takeover** (as gdxsv): the shown position plays from the current frame
-  with the host pad, input delay `mindelay`. Hold the replay's input shown
-  in the panel for 1 s, or press START to skip the matching. START while
-  taken over retries from the takeover frame and is not sent to the game;
-  "Replay" goes back to the replay. Not while spectating live.
+- **Takeover**: in a battle only, the shown position plays from
+  the current frame with the host pad, input delay `mindelay`. A 1 s
+  countdown (a filling circle) runs paused; the replay's input at the
+  frame is shown as a guide (matched green, missing yellow, extra white)
+  and the countdown does not wait for it. START while taken over retries
+  from the takeover frame and is not sent to the game; the end of the
+  battle retries too. "Replay" goes back to the replay. Not while
+  spectating live.
 - **Four-screen** (as gdxsv, Windows, files only): `ZDXSV_REPLAY_FOUR=1`
   starts one more PCSX2 per other position, tiled 2x2, all held on the same
   frame; they follow this one's pause, speed and seeks and close with it.

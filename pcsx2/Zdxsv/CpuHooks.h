@@ -16,6 +16,7 @@ namespace Zdxsv
 	extern u64 g_rerun_vu1_ticks; // Common::Timer ticks in VU1 microcode during rerun frames (microVU.cpp)
 	// this rerun frame starts no VU1 microprogram (vu1ExecMicro; Ggpo.cpp AdvanceFrame, ZDXSV_RERUN_VU1)
 	extern bool g_rerun_vu1_skip;
+	extern bool g_replay_fast_frame; // not throttled
 	// ZDXSV_VU1_OPTEST: once, at the first VU1 micro program start (VuOpTest.cpp)
 	void VuOpTest();
 	// ZDXSV_EE_OPTEST: in VSyncStart; at vsync 300 runs the COP1 op test as guest code, restores at its end (EeOpTest.cpp)

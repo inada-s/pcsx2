@@ -6,8 +6,8 @@ a lobby battle has none; unset = read from the `rbk env` lines of emulog-p*.txt 
 replay or its parent dir, a CLAMP differing from them FAILs before launch, CLAMP=none plays without one), PLAYERS (players compared, default 2), OWN (default 1: pwcheck --own),
 STATE (any state of the game to boot from; default rbk-p1), MAXS (default 300).
 WINDOW=1: windowed, 1x (no turbo). KEYS="secs:seq;..." (needs WINDOW=1): pcsx2ctl -Seq at secs after the
-replay started; binds the seek hotkeys (PageUp back / PageDown forward 10 s), TogglePause (Space), point of
-view (Home) and key display (End), round jump (Shift+PageUp / Shift+PageDown) in the instance ini. With PCSX2_ENV=ZDXSV_REPLAY_EXIT=0 the replay pauses at its end; Space then ends it (H lines written).
+replay started; binds the seek hotkeys (PageUp back / PageDown forward 10 s), TogglePause (Space), key
+display (End), round jump (Shift+PageUp / Shift+PageDown) in the instance ini. With PCSX2_ENV=ZDXSV_REPLAY_EXIT=0 the replay pauses at its end; Space then ends it (H lines written).
 POV=p: plays position p's point of view (ZDXSV_REPLAY_POV; default the recorder's): the lobby answers name it.
 SKIP_MS=1: skip MS selection (pcsx2's default; off here so KEYS seconds keep their frames).
 SKIP_MS=ini: no ZDXSV_REPLAY_SKIP_MS, the instance ini's ZdxsvReplaySkipMs decides.
@@ -32,7 +32,7 @@ import launch
 import zrig
 
 HOTKEYS = ("ZdxsvReplaySeekBack = Keyboard/PageUp", "ZdxsvReplaySeekForward = Keyboard/PageDown",
-           "TogglePause = Keyboard/Space", "ZdxsvReplayNextPov = Keyboard/Home", "ZdxsvReplayToggleKeys = Keyboard/End",
+           "TogglePause = Keyboard/Space", "ZdxsvReplayToggleKeys = Keyboard/End",
            "ZdxsvReplayPrevRound = Keyboard/Shift & Keyboard/PageUp",
            "ZdxsvReplayNextRound = Keyboard/Shift & Keyboard/PageDown")
 
@@ -134,7 +134,7 @@ def main(live):
                 text = re.sub(r"^(\[Hotkeys\][^\n]*\n)", lambda m: m.group(1) + b + nl, text, count=1, flags=re.M)
         with open(ini, "w", encoding="utf-8", errors="surrogateescape", newline="") as f:
             f.write(text)
-        if len(re.findall(r"^(ZdxsvReplaySeek|TogglePause |ZdxsvReplayNextPov |ZdxsvReplayToggleKeys )", text, re.M)) != 5:
+        if len(re.findall(r"^(ZdxsvReplaySeek|TogglePause |ZdxsvReplayToggleKeys )", text, re.M)) != 4:
             print(f"FAIL hotkeys not bound in {ini}")
             return 1
         # every step's keys against the ini before launch (else an unbound key is refused only at its send)

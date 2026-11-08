@@ -2064,6 +2064,8 @@ bool VMManager::LoadState(const char* filename, Error* error)
 {
 	if (Zdxsv::g_ggpo_active && Zdxsv::GgpoBattleRefuses(error))
 		return false;
+	if (Zdxsv::g_ggpo_active && Zdxsv::ReplayRefuses(error))
+		return false;
 	if (Zdxsv::g_online_limits && Zdxsv::OnlineRefuses(error))
 		return false;
 
@@ -2094,6 +2096,8 @@ bool VMManager::LoadState(const char* filename, Error* error)
 bool VMManager::LoadStateFromSlot(s32 slot, bool backup, Error* error)
 {
 	if (Zdxsv::g_ggpo_active && Zdxsv::GgpoBattleRefuses(error))
+		return false;
+	if (Zdxsv::g_ggpo_active && Zdxsv::ReplayRefuses(error))
 		return false;
 	if (Zdxsv::g_online_limits && Zdxsv::OnlineRefuses(error))
 		return false;
@@ -2144,6 +2148,8 @@ void VMManager::SaveState(
 {
 	if (Zdxsv::g_online_limits && Zdxsv::OnlineRefuses())
 		return;
+	if (Zdxsv::g_ggpo_active && Zdxsv::ReplayRefuses())
+		return;
 
 	if (MemcardBusy::IsBusy())
 	{
@@ -2158,6 +2164,8 @@ void VMManager::SaveState(
 void VMManager::SaveStateToSlot(s32 slot, bool zip_on_thread, std::function<void(const std::string&)> error_callback)
 {
 	if (Zdxsv::g_online_limits && Zdxsv::OnlineRefuses())
+		return;
+	if (Zdxsv::g_ggpo_active && Zdxsv::ReplayRefuses())
 		return;
 
 	const std::string filename(GetCurrentSaveStateFileName(slot));
@@ -2379,6 +2387,8 @@ void VMManager::FrameAdvance(u32 num_frames /*= 1*/)
 bool VMManager::ChangeDisc(CDVD_SourceType source, std::string path)
 {
 	if (Zdxsv::g_online_limits && Zdxsv::OnlineRefuses())
+		return false;
+	if (Zdxsv::g_ggpo_active && Zdxsv::ReplayRefuses())
 		return false;
 
 	const CDVD_SourceType old_type = CDVDsys_GetSourceType();
