@@ -49,6 +49,7 @@ options: `docs/zdxsv/`.
 | `GgpoBattle.cpp` | The game's battle socket emulated over GGPO; built-in battle start of a rig run (`ZDXSV_RBK`); the load-step barriers and the lockstep step copy (CPU hooks) |
 | `GgpoLobby.cpp` | Arming a GGPO battle from the lobby: battle info, frame delay, the cut connection |
 | `GgpoBudget.cpp` | Rollback budget: frame slack histogram, the per-PC learned budget, the input delay formula |
+| `GgpoFrameOsd.cpp` | Frame time panel (`ZdxsvFrameOsd`): per-frame CPU thread stages, stacked graph, other threads per frame |
 | `GgpoGameState.cpp` | Game RAM reads for sync checks and replays: player work hash, RNG, tick state, round records |
 | `GgpoRerunKeep.cpp` | Rerun keep: EE RAM a rollback leaves at the predicted frame (bone matrix slots, saber trail objects), attached-part draws in skipped rerun frames |
 | `GgpoTrace.cpp` | Debug: `NET_TRACE` lines of the pad and the battle msgs' key slots |
@@ -69,6 +70,7 @@ options: `docs/zdxsv/`.
 | `Proto.h` | Minimal protobuf wire codec: the lobby's Ping / Pong, replay files |
 | `replay.proto` | Replay file schema (`BattleLogFile` + PCSX2 fields); documentation, not compiled |
 | `GamePatches.cpp` | The Z game's patches (widescreen), built in in place of pnach files (seam: `PatchHooks.h`) |
+| `InputDefaults.cpp` | Default input settings: no upstream hotkeys, USB keyboard on port 1; one-time migration of older settings files (seam: `DefaultsHooks.h`) |
 | `OnlineLimits.cpp`, `OnlineLimits.h` | PCSX2 features limited while online (lobby or net battle): the switch, forced settings, PINE refusal, macro buttons, refused operations, breakpoints cleared (seams: `PineHooks.h`, `InputHooks.h`, `UiHooks.h`) |
 | `SyncSettings.cpp`, `SyncSettings.h` | Sync-relevant settings forced while the Z game runs (speedhacks during battles only), their fingerprint for the lobby (UI: `ZdxsvSettingsWidget::markSyncForced`) |
 | `LobbyConnection.cpp` | A TCP connection to the lobby (no-DEV9 host socket): platform info message, GGPO lobby setup, lobby filter |
@@ -93,8 +95,10 @@ options: `docs/zdxsv/`.
 | `pcsx2-qt/Zdxsv/QtOnlineLimits.cpp` | Closes the debugger window while online (`QtHooks.h`, seam in `pcsx2-qt/QtHost.cpp`) |
 | `pcsx2-qt/Zdxsv/QtSetupWizard.cpp` | First-run wizard: zdxsv texts, zdxsv sign-in page in place of RetroAchievements (`QtHooks.h`, seam in `pcsx2-qt/SetupWizardDialog.cpp`) |
 | `pcsx2-qt/Zdxsv/QtFonts.cpp` | Noto Sans JP download at UI start, for the panel's Japanese names (`QtHooks.h`, seam in `pcsx2-qt/Translations.cpp`) |
+| `pcsx2-qt/Zdxsv/QtWheelVolume.cpp` | Mouse wheel over the game screen changes the volume, OSD (`QtHooks.h`, seam in `pcsx2-qt/DisplayWidget.cpp`) |
 | `CpuHooks.h` | Hook header: recompilers, counters, MTGS, VMManager |
 | `InputHooks.h` | Hook header: pad code |
+| `DefaultsHooks.h` | Hook header: default settings, settings load |
 | `SaveStateHooks.h` | Hook header: save state code |
 | `LobbySocket.h` | The game's TCP connections on host sockets: lobby filter, TLS, HTTPS latency |
 | `MediaHooks.h` | Hook header: GS present, SPU2 output |

@@ -466,6 +466,7 @@
     <ClCompile Include="Zdxsv\GgpoSession.cpp" />
     <ClCompile Include="Zdxsv\GgpoBattle.cpp" />
     <ClCompile Include="Zdxsv\GgpoBudget.cpp" />
+    <ClCompile Include="Zdxsv\GgpoFrameOsd.cpp" />
     <ClCompile Include="Zdxsv\GgpoGameState.cpp" />
     <ClCompile Include="Zdxsv\GgpoLobby.cpp" />
     <ClCompile Include="Zdxsv\GgpoRerunKeep.cpp" />
@@ -483,6 +484,7 @@
     <ClCompile Include="Zdxsv\SpectateSync.cpp" />
     <ClCompile Include="Zdxsv\SyncSettings.cpp" />
     <ClCompile Include="Zdxsv\GamePatches.cpp" />
+    <ClCompile Include="Zdxsv\InputDefaults.cpp" />
     <ClCompile Include="Zdxsv\OnlineLimits.cpp" />
     <ClCompile Include="Zdxsv\IntHooks.cpp" />
     <ClCompile Include="Zdxsv\RecHooks.cpp" />
@@ -956,6 +958,7 @@
     <ClInclude Include="Zdxsv\RecHooks.h" />
     <ClInclude Include="Zdxsv\CpuHooks.h" />
     <ClInclude Include="Zdxsv\InputHooks.h" />
+    <ClInclude Include="Zdxsv\DefaultsHooks.h" />
     <ClInclude Include="Zdxsv\SaveStateHooks.h" />
     <ClInclude Include="Zdxsv\MediaHooks.h" />
     <ClInclude Include="Zdxsv\AuthHooks.h" />

@@ -77,7 +77,7 @@ namespace Zdxsv
 		                  !sync_missing.empty() ? "battle info incomplete (a player has no sync fingerprint)" :
 		                  s_lobby_unreachable ? "a peer did not answer the ping test" :
 		                  !s_lobby_session ? "no ggpo_session" :
-		                  (n < 2 || n > GGPO_MAX_PLAYERS) ? "player count" :
+		                  (n < 1 || n > GGPO_MAX_PLAYERS) ? "player count" :
 		                  (me < 0 || me >= n || me != s_lobby_me) ? "own position not in the battle info" :
 		                  (unlisted && s_opt.delay_set) ? "a peer has no GGPO address" :
 		                                              nullptr;

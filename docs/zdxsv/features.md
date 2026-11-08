@@ -25,9 +25,11 @@ skips does not run on that path.
 | Qt emulation settings (`QtHooks.h`) | `pcsx2-qt/Zdxsv/QtEmulationSettings` | low-latency present checkbox |
 | Qt setup wizard (`QtHooks.h`) | `pcsx2-qt/Zdxsv/QtSetupWizard` | first-run wizard texts, zdxsv sign-in page |
 | Qt fonts | `pcsx2-qt/Zdxsv/QtFonts` | Noto Sans JP download before the OSD fonts load |
+| Qt game window wheel (`QtHooks.h`, `DisplayWidget`) | `pcsx2-qt/Zdxsv/QtWheelVolume` | mouse wheel volume |
 | VMManager, GS, MTGS, hotkeys, Qt main window (`UiHooks.h`, `QtHooks.h`) | `OnlineLimits`, `pcsx2-qt/Zdxsv/QtOnlineLimits`, `ReplayControls` | operations refused while online or during a replay, debugger window closed |
 | Qt host start and exit (`CrashReportHooks.h`), log output (`Log::SetTapOutputLevel` in `common/Console`) | `pcsx2-qt/Zdxsv/CrashReports` | crash reports, the last log lines they carry |
 | Qt host start (`AuthHooks.h`) | `Zdxsv/AuthSignIn` | sign-in test trigger (`ZDXSV_AUTH_SIGNIN_TEST`) |
+| Default settings and settings load (`DefaultsHooks.h`: `VMManager::SetDefaultSettings`, Big Picture controller reset, Qt host start) | `InputDefaults` | no upstream hotkeys, USB keyboard on port 1 |
 
 ### Network paths
 
@@ -47,7 +49,7 @@ this table says it is missing.
 
 - **Switch for all online battle extensions**: `ZDXSV_EXTENSIONS=0`.
 - **Online without DEV9**: with the platform info, a TCP battle, a GGPO battle and TLS; every connection menu button connects with no network setting, also from a blank card; ネット終了 closes the lobby connection and returns to the main menu; on with a server host (`ZDXSV_SERVER_HOST`).
-- **Fast login**: DNAS and the login browser skipped; no answer or a server error from the login API holds the game at DNAS (VM paused, OSD, retry 2-30 s backoff) until it answers or the player resumes (then, like no token or a refused login, back to the network menu: no DNAS); `ZdxsvFastLogin`, `ZdxsvLoginApiUrl`.
+- **Fast login**: DNAS and the login browser skipped; the game waits at DNAS (VM paused) for the login API's answer; no answer or a server error keeps it held (OSD, retry 2-30 s backoff) until it answers or the player resumes (then, like no token or a refused login, back to the network menu: no DNAS); `ZdxsvFastLogin`, `ZdxsvLoginApiUrl`.
 - **Sign-in**: Settings → zdxsv → Account, or the fast login at DNAS with no token (VM paused), signs in through the server (Discord) and saves the token the fast login sends; `ZdxsvAuthUrl`. Signing in makes no zdxsv account: the first login, or one with an empty slot picked, makes it; Carry Over from PS2 links a PS2 account by its carry-over code. Account picks one of the Discord account's accounts (`ZdxsvAccount`); the server sets the limits.
 - **Fast boot**: boot to the lobby user_id selection with no input; `ZdxsvFastBoot`, `ZdxsvFastBootState`, `ZdxsvFastBootLobby` (on through ID 1 into the lobby).
 - **Platform info `0x9950` to the lobby**: `ZDXSV_PLATFORM_INFO`.
@@ -131,6 +133,7 @@ Keys (`net=1`, `lobby=1`, `port=`, `delay=`, ...) are parts of `ZDXSV_GGPO`.
 - **Lobby network waits and ping test RTT**: bounded waits, candidates from packet sources, median RTT.
 - **Battle info and match report as protobuf**.
 - **Network status OSD**: `ZdxsvNetOsd`, `osd=0`.
+- **Frame time OSD** (off by default): `ZdxsvFrameOsd`.
 - **Teammate HP on the HUD** in the own max HP slot: `ZdxsvAllyHp`.
 - **Network OSD on disconnect**: held 10 s, shown while a peer is interrupted or gone.
 - **UDP sockets ignore ICMP port unreachable on Windows**.
@@ -163,6 +166,11 @@ Keys (`net=1`, `lobby=1`, `port=`, `delay=`, ...) are parts of `ZDXSV_GGPO`.
 - **Round mobile suits**: hover the round results on the bar.
 - **Takeover**: bar "Take over" / "Retry" / "Replay", hotkey "Take Over / Retry".
 - **Four-screen replay**: `ZDXSV_REPLAY_FOUR=1`.
+
+## Game window
+
+- **Mouse wheel volume**: the wheel over the game screen changes the volume in 5% steps, OSD with the new volume; not while a menu takes the mouse or the wheel is bound to an input; `ZdxsvWheelVolume`.
+- **Keyboard and hotkeys**: the host keyboard is a USB keyboard on USB port 1 (in-game chat; Settings > Controllers > USB Port 1, None turns it off); no upstream PCSX2 hotkeys are bound by default, the zdxsv replay ones stay (bind any under Settings > Hotkeys). Settings files from before get both once on start (`[Zdxsv] InputDefaultsVersion`).
 
 ## ARM64 builds ([arm64.md](arm64.md))
 

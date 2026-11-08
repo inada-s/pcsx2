@@ -249,7 +249,7 @@ predicted frames meter (`P:`), and per opponent three rows: the position and
 user id with 4 signal bars, the name, the pilot name (smaller). The bars' color
 is the ping (cyan up to 30 ms, green 60, yellow 90, orange 120, red beyond); the
 lit bars are the lag health, 4 = good, 1 = poor (loss over 2 s, send queue over
-the ping, ping median, jitter and spikes, frame pacing; worsens after 1 s,
+the ping plus 3 frames, ping median, jitter and spikes, frame pacing; worsens after 1 s,
 recovers one step per 2-3 s). `R` before the bars: relayed. Once disconnected:
 bars unlit and a red `Disconnected` row.
 With the mouse over the panel, the bars give way to the ping in ms (`(R)` when

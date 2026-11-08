@@ -19,7 +19,7 @@ GAUGE, COUNT, TIME: the battle rule (戦力ゲージ, 連続対戦数, 作戦時
   (fake_lobby.py --rule-gauge/-count/-time). Default GAUGE=1 COUNT=1 TIME=90: one round, ended by the first
   shoot-down or 90 s (4 mashing clients rarely shoot anyone down); 0: the trace's value. MASHP="1" needs GAUGE=0.
 POST=<route>: driven on all 4 after mash (default none: every post-battle screen has a countdown).
-Checks: battlereg 4 users; `join success` (TCP) x4, no `join udp peer`, no `BattleInfo not found`;
+Checks: battlereg 4 users; `join success` (TCP) xJOINS (4; m4ggpo: 0, the EE answers for the battle server), no `join udp peer`, no `BattleInfo not found`;
   `BATTLE RESULT` x4 with the same total_frame and kills = deaths.
 NORESULT=1 (a battle that must fail): wait for 8 lobby conns (4 + each client's reconnect) instead;
   checks every `BATTLE RESULT` has battles=0, conn from x8.
@@ -96,9 +96,10 @@ def main():
         t.join()
     if not all(sp.values()):
         return 1
+    joins = int(zrig.env("JOINS", "4"))
     while time.time() - t1 < 15:
         try:
-            if grep_all("fake.log", "registered 4 users") and fb.count(fb.out("battle.log"), "join success") >= 4:
+            if grep_all("fake.log", "registered 4 users") and fb.count(fb.out("battle.log"), "join success") >= joins:
                 break
         except OSError:
             pass
@@ -107,7 +108,7 @@ def main():
         if not re.search(r"C->S|C<-S|S->C", l):
             print(l[:160], flush=True)
     check("battlereg 4", grep_all("fake.log", "registered 4 users") > 0)
-    check("join tcp x4", fb.count(fb.out("battle.log"), "join success") == 4)
+    check(f"join tcp x{joins}", fb.count(fb.out("battle.log"), "join success") == joins)
     check("no join udp", grep_all("battle.log", "join udp peer") == 0)
     check("no BattleInfo not found", grep_all("battle.log", "BattleInfo not found") == 0)
     if zrig.env("GO"):

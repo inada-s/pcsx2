@@ -60,9 +60,21 @@ For a 16:9 picture, turn on Settings → Graphics → Display → "Apply Widescr
 Patches". This build has the game's widescreen patch built in and reads no
 patch or cheat files (pnach) for the game.
 
+Turn the mouse wheel over the game screen to change the volume (5% a step); the
+new volume shows on the screen. Turn it off with Settings → zdxsv → "Mouse wheel
+changes the volume".
+
 In battle, your ARMOR display shows your teammate's current HP after the "/",
 where it shows your max HP. Turn it off with Settings → zdxsv → "Show teammate
 HP in place of max HP".
+
+Settings → zdxsv → "Frame time overlay" shows, during online battles and
+replays, where each frame's time goes (emulation, rollback, save/load, network
+wait, sleep) as a graph, and the GS thread, VU thread and GPU time per frame.
+
+The PC keyboard is also the game's USB keyboard, for chat. PCSX2's own hotkeys
+(F1-F9, Space, Tab, Escape, ...) are not bound; set any you want under
+Settings → Controllers → Hotkeys.
 
 ## First time in the game
 

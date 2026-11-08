@@ -235,6 +235,23 @@ During a battle the limiter does not pay a late frame back with shorter ones:
 the next frame waits a full period from the late one. The process runs at high
 priority (Windows) for the session.
 
+### Frame time OSD
+
+`ZdxsvFrameOsd` adds a panel on the right while a GGPO
+session or replay runs (`GgpoFrameOsd.cpp`):
+
+- Graph: the last 120 frames, one stacked bar each; the white line is one
+  frame (16.68 ms). A bar is the CPU thread's wall time from one frame loop
+  return to the next, split into: Emulate (guest run to vsync and the exit),
+  Rollback (rerun frames), Save/Load (delta state save, hash, load), Net wait
+  (waiting for a peer), Sleep (limiter sleep and input poll), Other (the rest:
+  GGPO, input).
+- Rows: the CPU thread mean and max over the graph, the stage means.
+- Other threads: GS thread, VU thread (MTVU only) and GPU time per frame, from
+  the performance metrics (updated about twice a second). They run beside the
+  CPU thread, so they are not part of its bars.
+- Off: nothing sampled or drawn.
+
 ### Rollback budget
 
 The lobby input delay is max(`mindelay`, ceil(RTT / 2 / 16 ms - budget)): the

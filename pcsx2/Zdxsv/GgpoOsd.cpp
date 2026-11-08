@@ -5,6 +5,7 @@
 #include "Zdxsv/UiHooks.h"
 
 #include "Config.h"
+#include "common/Console.h"
 #include "IconsFontAwesome.h"
 #include "ImGui/FullscreenUI.h"
 #include "ImGui/ImGuiManager.h"
@@ -75,6 +76,7 @@ namespace Zdxsv
 			std::array<GgpoOsdHealthTracker, 4> trackers;
 			std::array<std::string, 4> tracked_ids;
 			std::array<GgpoOsdLossFlash, 4> flashes;
+			std::array<int, 4> logged_health = {-1, -1, -1, -1};
 			bool bounds_valid = false;
 			ImVec2 bounds_min, bounds_max;
 		};
@@ -178,7 +180,10 @@ namespace Zdxsv
 			const int stable_ping = t.ping_sample_count >= 4 ? t.ping_median : peer.ping;
 			const GgpoOsdHealth latency = Worse(Worse(StableLatencyHealth(stable_ping), JitterHealth(t.ping_jitter)), SpikeHealth(spike));
 			constexpr double frame_ms = 1000.0 / 59.94;
-			const int expected_queue = peer.ping > 0 ? static_cast<int>(std::ceil(peer.ping / frame_ms)) : 0;
+			// Inputs pending on a healthy link: one per frame of the round trip, plus the input added this frame, the one
+			// the peer acked last (removed only by a later ack) and the frame the peer waits to send its ack with its input.
+			constexpr int queue_overhead = 3;
+			const int expected_queue = static_cast<int>(std::ceil(std::max(peer.ping, 0) / frame_ms)) + queue_overhead;
 			const GgpoOsdHealth loss = LossHealth(recent_loss);
 			const GgpoOsdHealth queue = QueueHealth(std::max(peer.send_queue - expected_queue, 0));
 			const GgpoOsdHealth pacing = PacingHealth(peer.frames_behind);
@@ -464,6 +469,11 @@ namespace Zdxsv
 			if (p.connected)
 			{
 				health[p.position] = UpdateHealth(s.trackers[p.position], p);
+				if (static_cast<int>(health[p.position]) != s.logged_health[p.position])
+				{
+					s.logged_health[p.position] = static_cast<int>(health[p.position]);
+					Console.WriteLn("ZdxsvGgpo: osd lag %dP %d", p.position + 1, s.logged_health[p.position]);
+				}
 				UpdateLossFlash(s.flashes[p.position], p, now);
 			}
 			else

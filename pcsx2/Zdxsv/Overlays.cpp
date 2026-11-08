@@ -564,6 +564,7 @@ namespace Zdxsv
 	{
 		DrawPingDiagram();
 		GgpoOsdDraw();
+		GgpoFrameOsdDraw();
 		DrawReplayKeys();
 		DrawReplayBar(scale, margin);
 		DrawTakeover(scale);
