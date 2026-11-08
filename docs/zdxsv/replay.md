@@ -107,7 +107,7 @@ Hotkeys are under Settings > Hotkeys, group "Zdxsv Replay". The pad's
 controls are read before the game; the left stick works as the
 D-pad. While taken over the pad plays the game.
 
-- **Rounds only** (as flycast `gdxsv:ReplaySkipMsSelection`, setting
+- **Rounds only** (setting
   `ZdxsvReplaySkipMs`): a round is shown from its briefing (the load end
   before the file's play start) to the load of the rematch screen (the
   load end after the game's first tick state 6 -> 7 after that play start).
@@ -137,7 +137,7 @@ D-pad. While taken over the pad plays the game.
   takeover, time in the round, frame, and a timeline of the round shown.
   Shown for 3 s after the mouse moves over the bottom quarter or a pad
   control changes.
-- **Key display** (as flycast `gdxsv:ReplayKeyDisplay`, on by default): the
+- **Key display** (on by default): the
   last 14 input changes of the shown position, each with the frames it was
   held; placed on the game picture (left edge, from y 130 of 480, 12 of 480
   a line, shadowed text without a background), so it follows the window
