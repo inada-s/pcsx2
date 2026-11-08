@@ -19,4 +19,6 @@ namespace Zdxsv
 	bool QtOnlineExitAllows(QWidget* parent, bool ask);
 	void QtSetupWizardCustomize(QWidget* wizard);
 	bool QtSetupWizardControllerConfirm(QWidget* wizard);
+	// UI thread. True: the wheel event changed the volume and is not passed on as input.
+	bool QtWheelVolumeTakes(int angle_delta_y);
 } // namespace Zdxsv

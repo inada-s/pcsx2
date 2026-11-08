@@ -25,6 +25,7 @@ skips does not run on that path.
 | Qt emulation settings (`QtHooks.h`) | `pcsx2-qt/Zdxsv/QtEmulationSettings` | low-latency present checkbox |
 | Qt setup wizard (`QtHooks.h`) | `pcsx2-qt/Zdxsv/QtSetupWizard` | first-run wizard texts, zdxsv sign-in page |
 | Qt fonts | `pcsx2-qt/Zdxsv/QtFonts` | Noto Sans JP download before the OSD fonts load |
+| Qt game window wheel (`QtHooks.h`, `DisplayWidget`) | `pcsx2-qt/Zdxsv/QtWheelVolume` | mouse wheel volume |
 | VMManager, GS, MTGS, hotkeys, Qt main window (`UiHooks.h`, `QtHooks.h`) | `OnlineLimits`, `pcsx2-qt/Zdxsv/QtOnlineLimits`, `ReplayControls` | operations refused while online or during a replay, debugger window closed |
 | Qt host start and exit (`CrashReportHooks.h`), log output (`Log::SetTapOutputLevel` in `common/Console`) | `pcsx2-qt/Zdxsv/CrashReports` | crash reports, the last log lines they carry |
 | Qt host start (`AuthHooks.h`) | `Zdxsv/AuthSignIn` | sign-in test trigger (`ZDXSV_AUTH_SIGNIN_TEST`) |
@@ -164,6 +165,10 @@ Keys (`net=1`, `lobby=1`, `port=`, `delay=`, ...) are parts of `ZDXSV_GGPO`.
 - **Round mobile suits**: hover the round results on the bar.
 - **Takeover**: bar "Take over" / "Retry" / "Replay", hotkey "Take Over / Retry".
 - **Four-screen replay**: `ZDXSV_REPLAY_FOUR=1`.
+
+## Game window
+
+- **Mouse wheel volume**: the wheel over the game screen changes the volume in 5% steps, OSD with the new volume; not while a menu takes the mouse or the wheel is bound to an input; `ZdxsvWheelVolume`.
 
 ## ARM64 builds ([arm64.md](arm64.md))
 
