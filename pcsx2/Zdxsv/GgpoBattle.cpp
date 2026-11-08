@@ -156,12 +156,29 @@ namespace Zdxsv
 			Zdxsv::LobbyNoteFrame(&*(s_rbk_rx.end() - 12 - body.size()), 12 + body.size());
 		}
 
-		// Answer body of lobby Q cmd (body q). Position p (1-based) of N plays the recorded 4-player
-		// position of its side: p <= ceil(N/2) side 1 (recorded 1, 2), else side 2 (recorded 3, 4).
+		// Position p (1-based) of N plays the recorded 4-player position of its side:
+		// p <= ceil(N/2) side 1 (recorded 1, 2), else side 2 (recorded 3, 4).
+		int RbkRecordedIndex(int p)
+		{
+			const int half = (s_rbk_n + 1) / 2;
+			return p <= half ? p - 1 : 2 + p - 1 - half;
+		}
+
+		// RBK_USERS' user ids, names and pilot name, UTF-8, for the network OSD.
+		std::vector<LobbyPlayer> RbkPlayers()
+		{
+			static constexpr const char* PILOT = "カミーユ・ビダン";
+			const LobbyPlayer recorded[4] = {{"J9SXNM", "あああ", PILOT}, {"UJB9AM", "いいい", PILOT}, {"8VQKPC", "ううう", PILOT}, {"Z57CN2", "えええ", PILOT}};
+			std::vector<LobbyPlayer> players;
+			for (int p = 1; p <= s_rbk_n; p++)
+				players.push_back(recorded[RbkRecordedIndex(p)]);
+			return players;
+		}
+
+		// Answer body of lobby Q cmd (body q).
 		std::vector<u8> RbkBody(u16 cmd, const u8* q, u32 qn)
 		{
 			const int p = qn ? q[0] : 0;
-			const int half = (s_rbk_n + 1) / 2;
 			// Common start: the file's answer to cmd (0x6913 / 0x6917: the one of position p, its body's first
 			// byte); the side 0x6912 stays the point of view
 			if (s_play_common && cmd >= 0x6911 && cmd <= 0x6917 && cmd != 0x6912)
@@ -180,7 +197,7 @@ namespace Zdxsv
 				{
 					if (p < 1 || p > s_rbk_n)
 						break;
-					std::vector<u8> b = Unhex((cmd == 0x6913 ? RBK_USERS : RBK_6917)[p <= half ? p - 1 : 2 + p - 1 - half]);
+					std::vector<u8> b = Unhex((cmd == 0x6913 ? RBK_USERS : RBK_6917)[RbkRecordedIndex(p)]);
 					b.front() = static_cast<u8>(p);
 					if (cmd == 0x6913)
 						b.back() = static_cast<u8>(p);
@@ -678,6 +695,8 @@ namespace Zdxsv
 			{
 				s_rb.net_rx.insert(s_rb.net_rx.end(), s_rbk_rx.begin(), s_rbk_rx.end());
 				s_rbk_rx.clear();
+				if (!s_play_env)
+					s_net_players = RbkPlayers();
 			}
 			if (s_bs.players)
 			{
