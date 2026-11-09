@@ -245,6 +245,7 @@ def main():
             e["ZDXSV_TLS"] = "0"
         # CENV="K=V ...": extra env for every emulator client (e.g. a battle timer ZDXSV_EE_CLAMP for a time-up)
         e.update(freshboot.assigns(E("CENV")))
+        e.update(freshboot.assigns(E(f"CENV{i}")))
         if i == E("SYNC_SALT"):
             e["ZDXSV_SYNC_SALT"] = "m4z"
         if i == E("DROP_SYNC"):
@@ -538,6 +539,18 @@ def main():
     ee = sum(1 for i in clients if c(el(i), "ZdxsvGgpo: battle server answered on the EE"))
     if ee:
         ok(f"battle server answered on the EE x{ee}, battle server unused", not c(battle, r"\[ROOM\]"))
+    # without DEV9 a client the EE does not answer (GGPO off) cannot reach the battle server: the game gives up
+    # the battle and opens its reconnect, which must end in the lobby again
+    lost = [i for i in clients if ee and c(el(i), "Zdxsv: no DEV9: the net RPCs")
+            and not c(el(i), "ZdxsvGgpo: battle server answered on the EE")]
+    if lost:
+        t0 = time.time()
+        while time.time() - t0 < 180 and not all(c(el(i), "ZdxsvOnline: online") >= 2 for i in lost):
+            time.sleep(5)
+        for i in lost:
+            ok(f"p{i} battle unreachable without DEV9, back online after the game's reconnect",
+               c(el(i), "ZdxsvOnline: online") >= 2)
+        return RC[0]
     ok(f"join udp peer x{nz}", c(battle, "join udp peer") == nz)
     ok(f"join tcp x{nc - nz - ee}", c(battle, "join success") == nc - nz - ee)
     every = [el(i) for i in clients]
