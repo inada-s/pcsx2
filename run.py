@@ -46,7 +46,7 @@ ROOT = Path(__file__).resolve().parent
 os.chdir(ROOT)
 
 N = int(os.getenv("N", 2))
-PCSX2 = Path(os.getenv("PCSX2", ROOT / "bin" / "pcsx2-qtx64-avx2.exe"))
+PCSX2 = Path(os.getenv("PCSX2", ROOT / "bin" / "pcsx2-qtx64-avx2-dev.exe"))
 # No defaults. Path() gives native separators: PCSX2 on Windows rejects ROM=G:/... as "does not exist".
 ROM = str(Path(os.environ["ROM"])) if os.getenv("ROM") else ""
 BIOS = Path(os.environ["BIOS"]) if os.getenv("BIOS") else None
@@ -321,7 +321,7 @@ def download_rbk_state():
 def check(mode: str):
     problems = []
     if not PCSX2.is_file():
-        problems.append(f"PCSX2 not found: {PCSX2} (build it with ./build-local.sh)")
+        problems.append(f"PCSX2 not found: {PCSX2} (build it with ./build-local.sh --config Devel)")
     if mode != "gui" and not ROM:
         problems.append("set ROM to the game's .iso")
     elif ROM and not Path(ROM).is_file():
