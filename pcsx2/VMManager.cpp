@@ -668,6 +668,8 @@ void VMManager::LoadCoreSettings(SettingsInterface& si)
 		Zdxsv::SyncSettingsEnforce();
 	if (Zdxsv::g_z_game)
 		Zdxsv::AllyHpLoadSettings(si);
+	if (Zdxsv::g_z_game)
+		Zdxsv::StickMessageLoadSettings(si);
 
 	// Remove any user-specified hacks in the config (we don't want stale/conflicting values when it's globally disabled).
 	EmuConfig.GS.MaskUserHacks();

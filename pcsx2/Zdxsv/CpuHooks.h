@@ -56,6 +56,12 @@ namespace Zdxsv
 	void AllyHpLoadSettings(SettingsInterface& si);
 	// In VSyncStart, the Z game.
 	void AllyHpOnVsync();
+	// Z game, setting ZdxsvStickMessageButton: that button held + D-pad or left stick = the right stick (StickMessage.cpp).
+	void StickMessageOnVmInitialize();
+	// In VMManager::LoadCoreSettings.
+	void StickMessageLoadSettings(SettingsInterface& si);
+	// In GgpoOnVmShutdown.
+	void StickMessageReset();
 	// Z game with a server host: online with or without DEV9, the net RPCs answered on the EE (NoDev9.cpp).
 	extern bool g_no_dev9;
 	void NoDev9OnVmInitialize();

@@ -554,6 +554,9 @@ void Pad::SetControllerState(u32 controller, u32 bind, float value)
 	if (controller >= NUM_CONTROLLER_PORTS)
 		return;
 
+	if (Zdxsv::g_stick_message && Zdxsv::StickMessageSetInput(controller, bind, value))
+		return;
+
 	if (Zdxsv::g_ggpo_active && Zdxsv::GgpoCaptureHostInput(controller, bind, value))
 		return;
 

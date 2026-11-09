@@ -68,6 +68,11 @@ In battle, your ARMOR display shows your teammate's current HP after the "/",
 where it shows your max HP. Turn it off with Settings → zdxsv → "Show teammate
 HP in place of max HP".
 
+Without a right stick, hold Start and press the D-pad (or tilt the left stick) to
+send the team messages of the right stick. Start and the D-pad still work as
+usual in the game. Pick another button, or Off, with Settings → zdxsv → "Team
+messages: D-pad while holding".
+
 Settings → zdxsv → "Frame time overlay" shows, during online battles and
 replays, where each frame's time goes (emulation, rollback, save/load, network
 wait, sleep) as a graph, and the GS thread, VU thread and GPU time per frame.

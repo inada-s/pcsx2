@@ -207,6 +207,27 @@ for High-Spec PC</string>
        </widget>
       </item>
       <item>
+       <layout class="QHBoxLayout" name="zdxsvStickMessageLayout">
+        <item>
+         <widget class="QLabel" name="zdxsvStickMessageLabel">
+          <property name="text">
+           <string>Team messages: D-pad while holding:</string>
+          </property>
+         </widget>
+        </item>
+        <item>
+         <widget class="QComboBox" name="zdxsvStickMessageButton"/>
+        </item>
+        <item>
+         <spacer name="zdxsvStickMessageSpacer">
+          <property name="orientation">
+           <enum>Qt::Orientation::Horizontal</enum>
+          </property>
+         </spacer>
+        </item>
+       </layout>
+      </item>
+      <item>
        <widget class="QCheckBox" name="zdxsvUPnP">
         <property name="text">
          <string>Open the port with UPnP</string>

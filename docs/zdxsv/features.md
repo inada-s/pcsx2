@@ -22,6 +22,7 @@ skips does not run on that path.
 | Patch loader (`PatchHooks.h`) | `GamePatches` | Z game patches built in, missing patches.zip quiet |
 | PINE server (`PineHooks.h`) | `OnlineLimits` | PINE refused while online |
 | Pad macro buttons (`InputHooks.h`) | `OnlineLimits` | macro buttons off while online |
+| Pad input (`InputHooks.h`: `Pad::SetControllerState`) | `StickMessage` | held button + D-pad or left stick tilts the right stick |
 | Qt emulation settings (`QtHooks.h`) | `pcsx2-qt/Zdxsv/QtEmulationSettings` | low-latency present checkbox |
 | Qt setup wizard (`QtHooks.h`) | `pcsx2-qt/Zdxsv/QtSetupWizard` | first-run wizard texts, zdxsv sign-in page |
 | Qt fonts | `pcsx2-qt/Zdxsv/QtFonts` | Noto Sans JP download before the OSD fonts load |
@@ -136,6 +137,7 @@ Keys (`net=1`, `lobby=1`, `port=`, `delay=`, ...) are parts of `ZDXSV_GGPO`.
 - **Network status OSD**: `ZdxsvNetOsd`, `osd=0`.
 - **Frame time OSD** (off by default): `ZdxsvFrameOsd`.
 - **Teammate HP on the HUD** in the own max HP slot: `ZdxsvAllyHp`.
+- **Team messages without a right stick**: a held button + D-pad or left stick also tilts the right stick, before GGPO and replays take the input: `ZdxsvStickMessageButton`.
 - **Network OSD on disconnect**: held 10 s, shown while a peer is interrupted or gone.
 - **UDP sockets ignore ICMP port unreachable on Windows**.
 
