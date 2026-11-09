@@ -804,9 +804,9 @@ namespace Zdxsv
 	namespace
 	{
 		// The game's button settings for pad port 0 (system data): u16[8], per assignable button
-		// (□ △ L1 × ○ R1 L2 R2) an index into PAD_ACTIONS, the game's action bits of the A word.
+		// (□ △ L1 × ○ R1 L2 R2) an index into PAD_ACTIONS, the game's action bits of the A word; the last = no action.
 		constexpr u32 PAD_BIND_SLOTS = 0x7ade6c;
-		constexpr u16 PAD_ACTIONS[8] = {0x0200, 0x0100, 0x0040, 0x0080, 0x0300, 0x0180, 0x0280, 0x0020};
+		constexpr u16 PAD_ACTIONS[9] = {0x0200, 0x0100, 0x0040, 0x0080, 0x0300, 0x0180, 0x0280, 0x0020, 0x0000};
 		constexpr u16 PAD_DEFAULT_SLOTS[8] = {0, 1, 7, 3, 2, 4, 6, 5};
 	} // namespace
 
