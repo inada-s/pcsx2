@@ -93,6 +93,7 @@ Keys (`net=1`, `lobby=1`, `port=`, `delay=`, ...) are parts of `ZDXSV_GGPO`.
 - **Faster rerun frames**: `ZDXSV_RERUN_*`.
 - **Single draw list**: always on, no setting; `ZDXSV_SINGLE_DRAW_LIST=0` turns it off.
 - **Battle start and MS select load barriers**: GGPO session.
+- **In-game button settings in GGPO battles**: each player's own input record takes its action bits from that player's button settings in guest RAM; GGPO session.
 - **GGPO synctest in a running game**: `ZDXSV_GGPO` without `net=1`.
 - **Rerun keep**: the bone matrix slots and beam saber trails are not rolled back during battle play, and parts attached to a player are drawn in every rerun frame; `ZDXSV_RERUN_KEEP`, `ZDXSV_RERUN_PARTS`.
 - **GGPO on by default for lobby battles**: `ZDXSV_EXTENSIONS=0` turns it off.
