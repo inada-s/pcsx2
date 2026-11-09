@@ -20,7 +20,13 @@ game never reaches the battle server: the connect to the battle server of a
 battle info that lists our position gets the server's greet, and each message
 the game sends before its first key message comes back once per other
 position, as the server's relay would send it. Without such a battle info the
-connect goes to the battle server.
+connect goes to the battle server. Without DEV9 (no TCP to the battle server)
+that connect, to the battle info's server or the address of the lobby's 0x6916
+answer, gets a stand-in: the server's greet and relay as above (the player
+count from the lobby's 0x6911 answer), then at the game's first key msg a cut
+connection: sends are dropped and its poll fails, so the game gives up the
+battle and goes back to the lobby. A refused connect, or a cut before the first
+key msg, the game retries without end and then shows its reconnect screen.
 
 ## TLS to the zdxsv server
 

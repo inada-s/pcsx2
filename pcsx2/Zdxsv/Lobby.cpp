@@ -181,6 +181,15 @@ namespace Zdxsv
 		return g_startAnswers;
 	}
 
+	int LobbyStartPlayers()
+	{
+		std::lock_guard lock(g_mtx);
+		for (const std::vector<uint8_t>& f : g_startAnswers)
+			if (f.size() > 12 && f[3] == 0x11 && f[12] >= 1 && f[12] <= 4)
+				return f[12];
+		return 0;
+	}
+
 	size_t LobbyFilter::Take(uint8_t* dst, size_t max)
 	{
 		const size_t n = std::min(max, ready.size());
@@ -724,7 +733,13 @@ namespace Zdxsv
 	bool IsBattleServer(uint32_t ip, uint16_t port)
 	{
 		std::lock_guard lock(g_mtx);
-		return ip == g_info.serverIP && port == g_info.serverPort;
+		if (ip == g_info.serverIP && port == g_info.serverPort)
+			return true;
+		// 0x6916: the battle server address the lobby gave the game (u16 4, ip, u16 2, port), also without a battle info
+		for (const std::vector<uint8_t>& f : g_startAnswers)
+			if (f.size() >= 22 && f[3] == 0x16 && f[12] == 0 && f[13] == 4 && f[18] == 0 && f[19] == 2)
+				return std::memcmp(&ip, &f[14], 4) == 0 && port == (f[20] << 8 | f[21]);
+		return false;
 	}
 
 } // namespace Zdxsv

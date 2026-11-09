@@ -49,7 +49,8 @@ EMU=1: the 4 clients are emulators instead (platform info, no zproxy by default;
   every client cuts the battle connection; no mash; waits for each cut to end + 2 lobby tcp conns per client;
   checks: cut + cut ended per client, no GGPO session, no result with frames.
   GGPO_CLIENTS without a client of CLIENTS (GGPO): that client has no GGPO port (ZDXSV_GGPO=0), so every
-  GGPO client cuts (`a peer has no GGPO address`); the same wait and checks as BAD_SESSION.
+  GGPO client cuts (`a peer has no GGPO address` or `no ggpo_session`); the same wait and checks as BAD_SESSION;
+  without DEV9 that client gets the battle server stand-in: cut at its first key msg, closed by the game.
   SYNC_SALT=K (GGPO): client K gets ZDXSV_SYNC_SALT=m4z (another sync fingerprint, as another build):
   the lobby gets two fingerprints, every client enters the battle, no battle starts (the lobby matches equal ones only).
   DROP_SYNC=K (GGPO): client K gets ZDXSV_DROP_SYNC=0 (position 0's sync missing from its battle info): only
@@ -539,7 +540,9 @@ def main():
     if ee:
         ok(f"battle server answered on the EE x{ee}, battle server unused", not c(battle, r"\[ROOM\]"))
     ok(f"join udp peer x{nz}", c(battle, "join udp peer") == nz)
-    ok(f"join tcp x{nc - nz - ee}", c(battle, "join success") == nc - nz - ee)
+    # no DEV9 and no GGPO battle: the battle server stand-in answers, the game never connects to it
+    si = [i for i in clients if c(el(i), "Zdxsv: no DEV9: battle server .* answered by a stand-in")]
+    ok(f"join tcp x{nc - nz - ee - len(si)}", c(battle, "join success") == nc - nz - ee - len(si))
     every = [el(i) for i in clients]
     if ext_off:
         for i in clients:
@@ -666,12 +669,18 @@ def main():
                    c(f, "ZdxsvGgpo: lobby battle connection cut: settings or build differ") and not c(f, "ZdxsvGgpo: net player"))
             else:
                 ok(f"p{i} connection cut (a peer has no GGPO port), no ggpo session",
-                   c(f, "ZdxsvGgpo: lobby battle connection cut: a peer has no GGPO address") and not c(f, "ZdxsvGgpo: net player"))
+                   c(f, "ZdxsvGgpo: lobby battle connection cut: (a peer has no GGPO address|no ggpo_session)")
+                   and not c(f, "ZdxsvGgpo: net player"))
             ok(f"p{i} game gave up the battle connection (cut ended)", c(f, "ZdxsvGgpo: lobby battle connection cut ended"))
             cl = cutlen(f)
             say(f"p{i} cut ended after {cl} vsyncs")
             if E("CUTMAX"):
                 ok(f"p{i} cut ended within {E('CUTMAX')} vsyncs", cl != "?" and int(cl) <= int(E("CUTMAX")))
+        for i in [i for i in clients if i not in gclients and c(el(i), "Zdxsv: no DEV9: the net RPCs are answered on the EE")]:
+            f = el(i)
+            ok(f"p{i} battle server stand-in cut at the first key msg, closed by the game, no connect refused",
+               i in si and c(f, "battle server stand-in on slot [0-9]: first key msg, connection cut")
+               and c(f, "battle server stand-in on slot [0-9] closed by the game") and not c(f, "Zdxsv: no DEV9: connect to .* refused"))
         if cut == "ping":
             bs = E("BAD_SESSION")
             ok(f"p{bs} used the bad session", c(el(bs), "badsession=1: ping test session"))

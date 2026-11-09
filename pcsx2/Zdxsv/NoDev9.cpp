@@ -133,6 +133,13 @@ namespace Zdxsv
 		constexpr u32 kRxMax = 0x3e0;
 		constexpr int kSlots = 4; // the socket id is connect's result; later calls pass it at +0x1c
 
+		enum : u8
+		{
+			kStandInOff,
+			kStandInAnswering,
+			kStandInCut,
+		};
+
 		struct State
 		{
 			bool on = false;
@@ -149,6 +156,9 @@ namespace Zdxsv
 			bool checked[kSlots] = {};
 			// A zdxsv lobby connection: the server's bytes reach the game through it (platform info, battle info notice).
 			std::unique_ptr<LobbyFilter, LobbyFilterDeleter> lobby[kSlots];
+			u8 stand_in[kSlots] = {}; // StandInCall
+			std::vector<u8> stand_in_rx[kSlots];
+			int stand_in_players = 2;
 			sock_t none = INVALID_SOCKET;
 		} s_state;
 
@@ -268,6 +278,8 @@ namespace Zdxsv
 			s_state.adopt[id] = false;
 			s_state.peer[id] = 0;
 			s_state.peer_port[id] = 0;
+			s_state.stand_in[id] = kStandInOff;
+			s_state.stand_in_rx[id].clear();
 		}
 
 		// Peeked: the first server bytes decide whether it is a zdxsv lobby; a lobby's bytes then all go through its filter.
@@ -292,7 +304,7 @@ namespace Zdxsv
 		s32 Connect(const u8* b)
 		{
 			s32 id = 0;
-			while (id < kSlots && (s_state.socks[id] != INVALID_SOCKET || s_state.adopt[id]))
+			while (id < kSlots && (s_state.socks[id] != INVALID_SOCKET || s_state.adopt[id] || s_state.stand_in[id]))
 				id++;
 			if (id == kSlots)
 				return -1;
@@ -303,6 +315,17 @@ namespace Zdxsv
 			if (ntohs(port) != kLobbyPort)
 			{
 				const u8* q = reinterpret_cast<const u8*>(&ip);
+				if (IsBattleServer(ip, ntohs(port)))
+				{
+					static constexpr u8 greet[12] = {0x28, 0x01, 0x10, 0x31, 0, 0, 0, 1, 0, 0xff, 0xff, 0xff};
+					const int n = LobbyStartPlayers();
+					s_state.stand_in_players = n > 0 ? n : 2;
+					s_state.stand_in[id] = kStandInAnswering;
+					s_state.stand_in_rx[id].assign(greet, greet + 12);
+					Console.WriteLn("Zdxsv: no DEV9: battle server %u.%u.%u.%u:%u answered by a stand-in on slot %d, %d players",
+						q[0], q[1], q[2], q[3], ntohs(port), id, s_state.stand_in_players);
+					return id;
+				}
 				Console.WriteLn("Zdxsv: no DEV9: connect to %u.%u.%u.%u:%u refused", q[0], q[1], q[2], q[3], ntohs(port));
 				return -1;
 			}
@@ -369,6 +392,79 @@ namespace Zdxsv
 				return static_cast<s32>(s_state.lobby[id]->Take(b + 0x20, std::min<u32>(len, kRxMax)));
 			const int n = recv(s, reinterpret_cast<char*>(b + 0x20), std::min<int>(len, kRxMax), 0);
 			return std::max(n, 0);
+		}
+
+		// A battle server connect no GGPO battle answers (no TCP to the battle server here). The game retries a
+		// refused connect, or one cut before its first key msg, forever, and then shows the reconnect screen. So
+		// it gets the server's greet and relay, and its first key msg cuts it, as LobbyArm cuts a GGPO battle:
+		// sends dropped, the poll fails, the game leaves the battle for the lobby.
+		bool StandInCall(u32 fno, u8* b, u16 len, s32& res)
+		{
+			const int id = Slot(b);
+			if (id < 0 || s_state.stand_in[id] == kStandInOff)
+				return false;
+			std::vector<u8>& rx = s_state.stand_in_rx[id];
+			const bool cut = s_state.stand_in[id] == kStandInCut;
+			u8* d = b + 0x20;
+			if (fno == kFnoPoll)
+			{
+				if (cut)
+				{
+					res = -1;
+					return true;
+				}
+				const u16 st = 4, z = 0, tx = 0x2000, n = static_cast<u16>(std::min<size_t>(rx.size(), 0x2000));
+				std::memcpy(b + 0x1e, &st, 2);
+				std::memcpy(b + 0x20, &z, 2);
+				std::memcpy(b + 0x22, &tx, 2);
+				std::memcpy(b + 0x24, &n, 2);
+			}
+			else if (fno == kFnoSend)
+			{
+				const s32 n = std::min<s32>(len, kRxMax);
+				if (cut || (n >= 12 && d[0] == 0x82)) // 0x82: the battle conn msg, no answer
+					return true;
+				for (s32 i = 0; i + 1 < n && d[i] >= 2 && i + d[i] <= n; i += d[i])
+					if ((d[i + 1] >> 4) == 2)
+					{
+						s_state.stand_in[id] = kStandInCut;
+						rx.clear();
+						Console.WriteLn("Zdxsv: no DEV9: battle server stand-in on slot %d: first key msg, connection cut", id);
+						return true;
+					}
+				for (s32 i = 0; i + 1 < n && d[i] >= 2 && i + d[i] <= n; i += d[i])
+					for (int q = 0; q < s_state.stand_in_players; q++)
+						if (q != (d[i + 1] & 0xf) && rx.size() + d[i] <= 0x2000)
+						{
+							const size_t at = rx.size();
+							rx.insert(rx.end(), d + i, d + i + d[i]);
+							rx[at + 1] = static_cast<u8>((d[i + 1] & 0xf0) | q);
+						}
+			}
+			else if (fno == kFnoRecvLobby || fno == kFnoRecv)
+			{
+				const size_t max = std::min<size_t>(len, kRxMax);
+				size_t n = 0;
+				if (fno == kFnoRecv) // whole McsMessages
+					while (n + 1 < rx.size() && rx[n] >= 2 && n + rx[n] <= std::min(rx.size(), max))
+						n += rx[n];
+				else
+					n = std::min(max, rx.size());
+				std::memcpy(d, rx.data(), n);
+				rx.erase(rx.begin(), rx.begin() + n);
+				res = static_cast<s32>(n);
+				const u16 r16 = static_cast<u16>(res);
+				std::memcpy(b + 0x1e, &r16, 2);
+			}
+			else if (fno == kFnoClose)
+			{
+				Console.WriteLn("Zdxsv: no DEV9: battle server stand-in on slot %d closed by the game", id);
+				s_state.stand_in[id] = kStandInOff;
+				rx.clear();
+			}
+			else
+				return false;
+			return true;
 		}
 
 		void Patch(u32 addr, u32 original, u32 patched)
@@ -485,7 +581,9 @@ namespace Zdxsv
 		u16 len;
 		std::memcpy(&len, b + 0x1e, 2);
 		s32 res = 0;
-		if (fno == kFnoLinkUp)
+		if (StandInCall(fno, b, len, res))
+			;
+		else if (fno == kFnoLinkUp)
 			res = s_state.link_calls++ == 0;
 		else if (fno == kFnoConnect)
 			res = Connect(b);

@@ -39,7 +39,7 @@ a server host (the default) the net RPCs never reach DEV9; zdxsv adds nothing to
 | Path | When | Network | Lobby features |
 |---|---|---|---|
 | DEV9 | an empty server host, or the extensions off | DEV9 adapter, as upstream | none |
-| No DEV9 | the Z game with a server host (default) | `NoDev9.cpp` answers the net RPCs on the EE; TCP on host sockets, only to port 8200 (the lobby); the battle server is answered by the GGPO hook, any other battle connect fails | fast login; the lobby connection filter: platform info, battle info, match report, outdated notice (read off the code; the platform info tested); GGPO battle (1v1), the GGPO hook answering the battle sock first; TLS (lobby); line checks while paused (the lobby socket read on the paused idle poll). |
+| No DEV9 | the Z game with a server host (default) | `NoDev9.cpp` answers the net RPCs on the EE; TCP on host sockets, only to port 8200 (the lobby); the battle server is answered by the GGPO hook, else by a stand-in that cuts the connection at the first key msg (the game goes back to the lobby) | fast login; the lobby connection filter: platform info, battle info, match report, outdated notice (read off the code; the platform info tested); GGPO battle (1v1), the GGPO hook answering the battle sock first; TLS (lobby); line checks while paused (the lobby socket read on the paused idle poll). |
 | Battle sock over GGPO | an armed GGPO battle, on either path | `GgpoBattle.cpp`: send, recv and poll answered from GGPO inputs | — |
 
 A lobby feature added on one path is added to the other in the same change, or

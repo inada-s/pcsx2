@@ -261,6 +261,8 @@ namespace Zdxsv
 	// 0x6910: a replay keeps them (replay.proto lobby_answers) to play the start again from a common state.
 	void LobbyNoteFrame(const uint8_t* frame, size_t size);
 	std::vector<std::vector<uint8_t>> LobbyStartAnswers();
+	// 0x6911: the player count of the battle being started; 0 = none seen.
+	int LobbyStartPlayers();
 
 	// STUN codec (the lobby's Ping / Pong messages), exposed for tests.
 	enum ProtoMessageType : uint32_t
