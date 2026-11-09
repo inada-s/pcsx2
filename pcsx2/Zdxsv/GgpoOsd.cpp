@@ -310,11 +310,43 @@ namespace Zdxsv
 				ImFont* f = regular;
 				const float row_h = fs * 1.1f * scale;
 				float size = row_h;
-				const float tw = TextW(f, size, s.c_str());
+				const float tw = NameText(f, size, 0.f, 0.f, nullptr, s);
 				if (tw > w && w > 0.f)
 					size *= w / tw;
-				Text(f, size, x + (w - TextW(f, size, s.c_str())) * 0.5f, y + (row_h - size) * 0.5f, c, s.c_str());
+				NameText(f, size, x + (w - NameText(f, size, 0.f, 0.f, nullptr, s)) * 0.5f, y + (row_h - size) * 0.5f, &c, s);
 				y += std::max(row_h, fs * scale + sy);
+			}
+
+			// The standard font takes U+FF21-FF3A (fullwidth A-Z) from the icon font, which draws them as keycaps:
+			// each is drawn as its ASCII letter in a fullwidth cell. Returns the width; draws only with a color.
+			float NameText(ImFont* f, float size, float tx, float ty, const ImVec4* c, const std::string& s) const
+			{
+				const float cell = TextW(f, size, "\xEF\xBD\x8D"); // U+FF4D, fullwidth m
+				float pos = 0.f;
+				size_t from = 0;
+				const auto run = [&](size_t to) {
+					if (to <= from)
+						return;
+					const std::string part = s.substr(from, to - from);
+					if (c)
+						Text(f, size, tx + pos, ty, *c, part.c_str());
+					pos += TextW(f, size, part.c_str());
+				};
+				for (size_t i = 0; i + 2 < s.size(); i++)
+				{
+					const u8 b2 = static_cast<u8>(s[i + 2]);
+					if (static_cast<u8>(s[i]) != 0xEF || static_cast<u8>(s[i + 1]) != 0xBC || b2 < 0xA1 || b2 > 0xBA)
+						continue;
+					run(i);
+					const char letter[2] = {static_cast<char>('A' + (b2 - 0xA1)), 0};
+					if (c)
+						Text(f, size, tx + pos + (cell - TextW(f, size, letter)) * 0.5f, ty, *c, letter);
+					pos += cell;
+					i += 2;
+					from = i + 1;
+				}
+				run(s.size());
+				return pos;
 			}
 
 			// Phone-style bars ending at r: color = ping, lit bars = the lag health. Returns the left edge.
