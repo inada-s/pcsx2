@@ -10,7 +10,7 @@ Exit 0 = all checks passed.
 Env: ZP (clients behind zproxy, default "1 3": one per side), ZPROXY (exe), SHOW ("1 2":
 windowed with GS snapshots), MAXS (s after mash to wait for results).
 GAUGE, COUNT, TIME: the lobby battle rule (戦力ゲージ, 連続対戦数, 作戦時間 s; menu values) as the stack's
-ZDXSV_LOBBY_BATTLE_*. Default GAUGE=1 COUNT=1 (one round, the first shoot-down ends it); `GAUGE=0 COUNT=0`:
+ZDXSV_LOBBY_BATTLE_*, or (server with m_rule) as an m_rule row for lobby 2 (1v1) in OUT/zdxsv.db. Default GAUGE=1 COUNT=1 (one round, the first shoot-down ends it); `GAUGE=0 COUNT=0`:
 the lobby's default rule (rematches picked by the mash).
 EMU=1: the 4 clients are emulators instead (platform info, no zproxy by default; no DEV9 refuses the battle server: battles need GGPO;
   ZDXSV_TLS=0 unless ZDXSV_TLS_TEST_PIN=1);
@@ -168,6 +168,24 @@ def pwcheck_ok(path, n):
         if f[0] == "rng:" and len(f) > 2:
             s += num(f[2])
     return cm > 0 and s == 0
+
+
+def lobby_rule(path, gauge, count, time_s):
+    # servers with m_rule ignore ZDXSV_LOBBY_BATTLE_* and have no built-in 1v1 lobby 2; 0 = the menu default
+    db = sqlite3.connect(path)
+    try:
+        if not db.execute("select 1 from sqlite_master where name='m_rule'").fetchone():
+            return False
+        db.execute("insert or replace into m_rule (id, battle_count, visible_team, battle_time, battle_gauge,"
+                   " reload_type, damage_level, awake_type, awake_inc_ratio, awake_dec_ratio)"
+                   " values ('m4z', ?, 0, ?, ?, 0, 3, 0, 100, 100)", (count, time_s or 180, gauge or 600))
+        for platform in ("emu", "console"):
+            db.execute("insert or replace into m_lobby_setting (platform, no, start, rule_id) values (?, 2, '1v1', 'm4z')",
+                       (platform,))
+        db.commit()
+        return True
+    finally:
+        db.close()
 
 
 def ggpo_ends(logs, nb):
@@ -370,6 +388,11 @@ def main():
         return 1
     for k, d in (("GAUGE", "1"), ("COUNT", "1"), ("TIME", "0")):
         os.environ["ZDXSV_LOBBY_BATTLE_" + k] = E(k, d)
+    with open(os.path.join(out, "migratedb.log"), "wb") as f:
+        subprocess.call([zbin, "migratedb"], env=dict(os.environ, ZDXSV_DB_NAME=os.path.join(out, "zdxsv.db")),
+                        stdout=f, stderr=subprocess.STDOUT)
+    if lobby_rule(os.path.join(out, "zdxsv.db"), int(E("GAUGE", "1")), int(E("COUNT", "1")), int(E("TIME", "0"))):
+        say("lobby 2 rule: m_lobby_setting 1v1 + m_rule m4z")
     if E("RELAY"):
         os.environ["ZDXSV_LOBBY_RELAY_ADDR"] = ":8203"
     relay_path = E("RELAY_PATH", "direct")
@@ -380,9 +403,6 @@ def main():
             say("FAIL UPLOAD needs GGPO")
             return 1
         os.environ.update(ZDXSV_LOBBY_API_ADDR="127.0.0.1:9881", ZDXSV_LOBBY_REPLAY_DIR=os.path.join(out, "upload"))
-        with open(os.path.join(out, "migratedb.log"), "wb") as f:  # replay_url column
-            subprocess.call([zbin, "migratedb"], env=dict(os.environ, ZDXSV_DB_NAME=os.path.join(out, "zdxsv.db")),
-                            stdout=f, stderr=subprocess.STDOUT)
     # -v=2: every lobby frame (entry check below, lobby_trace.py)
     start([zrig.PY, "-u", os.path.join(zrig.HERE, "stack.py"), ip], "stack.out",
           env=dict(os.environ, LOBBY_ARGS="-v=2", RUN=out))
