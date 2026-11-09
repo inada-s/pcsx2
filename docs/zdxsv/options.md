@@ -43,7 +43,7 @@ the recompiler hooks and the platform info are off, and `ZDXSV_GGPO` or
 
 | Option | Default | Use | Meaning |
 |---|---|---|---|
-| `ZDXSV_EXTENSIONS=0` | on | feature | Turns off every zdxsv online battle extension: the Z game runs as any other game (above): no GGPO, replays, recompiler hooks, platform info (so no connectivity test, UPnP or HTTPS latency test), low-latency present or enforced emulation settings. No item on the settings page. Logs `ZdxsvGgpo: off: ZDXSV_EXTENSIONS=0`. It does not change the DNS name of the zdxsv server or TLS to it. |
+| `ZDXSV_EXTENSIONS=0` | on | feature | Turns off every zdxsv online battle extension: the Z game runs as any other game (above): no GGPO, replays, recompiler hooks, platform info (so no connectivity test, UPnP or HTTPS latency test), low-latency present, enforced emulation settings or the quiet missing patches.zip. No item on the settings page. Logs `ZdxsvGgpo: off: ZDXSV_EXTENSIONS=0`. It does not change the DNS name of the zdxsv server or TLS to it. |
 
 ## Settings in PCSX2.ini
 

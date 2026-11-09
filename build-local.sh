@@ -20,7 +20,6 @@ RUN=0
 RUN_ONLY=0
 REBUILD=0
 REBUILD_DEPS=0
-SKIP_PATCHES=0
 GAME_ARGS=()
 
 usage() { sed -n '2,14p' "$0" | sed 's/^# \{0,1\}//'; exit "${1:-0}"; }
@@ -33,7 +32,6 @@ while [[ $# -gt 0 ]]; do
 		--run-only) RUN_ONLY=1; shift ;;
 		--rebuild) REBUILD=1; shift ;;
 		--rebuild-deps) REBUILD_DEPS=1; shift ;;
-		--skip-patches) SKIP_PATCHES=1; shift ;;
 		-h|--help) usage ;;
 		--) shift; GAME_ARGS=("$@"); break ;;
 		*) echo "Unknown option: $1" >&2; usage 1 ;;
@@ -126,13 +124,6 @@ if [[ $RUN_ONLY -eq 0 ]]; then
 		rm -rf deps-build
 	else
 		step "Dependencies up to date"
-	fi
-
-	# --- Game patches (bin/resources/patches.zip, git-ignored) ---
-	if [[ $SKIP_PATCHES -eq 0 && ! -f bin/resources/patches.zip ]]; then
-		step "Downloading patches.zip"
-		curl -fL -o bin/resources/patches.zip \
-			https://github.com/PCSX2/pcsx2_patches/releases/latest/download/patches.zip
 	fi
 
 	# --- Build ---

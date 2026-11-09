@@ -17,10 +17,6 @@ on:
         required: false
         type: string
         default: x86-64
-      patchesUrl:
-        required: false
-        type: string
-        default: https://github.com/PCSX2/pcsx2_patches/releases/latest/download
       fetchTags:
         required: false
         type: boolean
@@ -108,11 +104,6 @@ jobs:
         if: steps.cache-deps.outputs.cache-hit != 'true'
         run: |
           .github/workflows/scripts/macos/build-dependencies${{ case(inputs.arch == 'x86-64', '', '-universal') }}.sh "$HOME/deps"
-
-      - name: Download patches
-        run: |
-          cd bin/resources
-          aria2c -Z "${{ inputs.patchesUrl }}/patches.zip"
 
       # -- SETUP CCACHE - https://cristianadam.eu/20200113/speeding-up-c-plus-plus-github-actions-using-ccache/
       - name: Prepare ccache timestamp

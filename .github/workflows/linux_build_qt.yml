@@ -27,10 +27,6 @@ on:
         required: false
         type: boolean
         default: false
-      patchesUrl:
-        required: false
-        type: string
-        default: https://github.com/PCSX2/pcsx2_patches/releases/latest/download
       fetchTags:
         required: false
         type: boolean
@@ -122,11 +118,6 @@ jobs:
       - name: Build Dependencies
         if: steps.cache-deps.outputs.cache-hit != 'true'
         run: BUILD_FFMPEG=1 .github/workflows/scripts/linux/build-dependencies-qt.sh "$HOME/deps"
-
-      - name: Download patches
-        run: |
-          cd bin/resources
-          aria2c -Z "${{ inputs.patchesUrl }}/patches.zip"
 
       - name: Generate CMake
         env:

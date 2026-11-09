@@ -27,10 +27,6 @@ on:
         required: false
         type: boolean
         default: false
-      patchesUrl:
-        required: false
-        type: string
-        default: https://github.com/PCSX2/pcsx2_patches/releases/latest/download
       fetchTags:
         required: false
         type: boolean
@@ -81,11 +77,6 @@ jobs:
           PR_NUM: ${{ github.event.pull_request.number }}
           PR_SHA: ${{ github.event.pull_request.head.sha }}
         run: ./.github/workflows/scripts/common/name-artifacts.sh
-
-      - name: Download patches
-        run: |
-          cd bin/resources
-          wget "${{ inputs.patchesUrl }}/patches.zip"
 
       - name: Validate manifest
         run: |

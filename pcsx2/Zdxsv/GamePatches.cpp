@@ -6,6 +6,11 @@
 #include "Zdxsv/PatchHooks.h"
 #include "Zdxsv/CpuHooks.h"
 #include "Zdxsv/ReplayList.h"
+#include "Zdxsv/TestOptions.h"
+
+#include "common/FileSystem.h"
+
+#include <cstring>
 
 namespace Zdxsv
 {
@@ -27,5 +32,13 @@ patch=1,EE,208440B0,extended,443FE7FF
 	const char* PatchZGamePnach(u32 crc)
 	{
 		return g_z_game && crc == GAME_CRC ? PATCH_Z_GAME_PNACH : nullptr;
+	}
+
+	bool PatchesZipMissing(const char* path)
+	{
+		const char* ext = TestEnv("ZDXSV_EXTENSIONS");
+		if (ext && std::strcmp(ext, "0") == 0)
+			return false;
+		return !FileSystem::FileExists(path);
 	}
 } // namespace Zdxsv
