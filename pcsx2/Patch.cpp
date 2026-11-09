@@ -293,6 +293,8 @@ bool Patch::OpenPatchesZip()
 		return true;
 
 	const std::string filename = Path::Combine(EmuFolders::Resources, PATCHES_ZIP_NAME);
+	if (Zdxsv::PatchesZipMissing(filename.c_str()))
+		return false;
 
 	zip_error ze = {};
 	zip_source_t* zs = zip_source_file_create(filename.c_str(), 0, 0, &ze);

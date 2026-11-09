@@ -19,7 +19,7 @@ skips does not run on that path.
 | MTGS, GS, SPU2 | `DeltaFreeze`, `SingleDrawList`, `InputLatency`, `Overlays`, `FastBoot`, `ReplayPlay` | rerun frame skips, replay seek frames not drawn or heard, fast boot shows every 8th frame, single draw list, input latency, OSD |
 | Pad | `Ggpo`, `ReplayPlay` | inputs to and from GGPO and replays |
 | Hotkeys, ImGui, GS draw rect | `Overlays`, `ReplayPlay`, `GgpoOsd` | replay hotkeys, bar and key display on the game picture, refused pause and speed changes, network status panel |
-| Patch loader (`PatchHooks.h`) | `GamePatches` | Z game patches built in |
+| Patch loader (`PatchHooks.h`) | `GamePatches` | Z game patches built in, missing patches.zip quiet |
 | PINE server (`PineHooks.h`) | `OnlineLimits` | PINE refused while online |
 | Pad macro buttons (`InputHooks.h`) | `OnlineLimits` | macro buttons off while online |
 | Qt emulation settings (`QtHooks.h`) | `pcsx2-qt/Zdxsv/QtEmulationSettings` | low-latency present checkbox |
@@ -113,6 +113,7 @@ Keys (`net=1`, `lobby=1`, `port=`, `delay=`, ...) are parts of `ZDXSV_GGPO`.
 - **Connection diagram during the ping test**: lobby battle without `delay=`.
 - **Sync-safe settings forced while the Z game runs**: `ZDXSV_SYNC_FORCE=0` turns it off.
 - **Z game patches built in**: the widescreen patch (Graphics → Display → Apply Widescreen Patches); no pnach file (patches, cheats, patches.zip) is read for the Z game; `ZDXSV_EXTENSIONS=0` turns it off.
+- **No patches.zip, no warning**: releases ship no patches.zip; a missing one is skipped without the "Failed to open patches.zip" OSD (other games get no bundled patches); `ZDXSV_EXTENSIONS=0` turns it off.
 - **Sync fingerprint**: cuts a battle whose players' builds or settings differ.
 - **Match report: timesync, inputs, fps, loss**.
 - **Match report sent to the lobby**: `0x9952`.
