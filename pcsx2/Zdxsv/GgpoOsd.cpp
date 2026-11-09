@@ -85,7 +85,6 @@ namespace Zdxsv
 		constexpr ImVec4 TEXT(0.75f, 0.75f, 0.75f, 1.f);
 		constexpr ImVec4 TEXT_DIM(0.75f, 0.75f, 0.75f, 0.7f);
 		constexpr ImVec4 TEXT_DISABLED(0.5f, 0.5f, 0.5f, 1.f);
-		constexpr ImVec4 SEPARATOR(0.43f, 0.43f, 0.5f, 0.5f);
 
 		ImU32 Col(const ImVec4& c) { return ImGui::ColorConvertFloat4ToU32(c); }
 
@@ -257,6 +256,12 @@ namespace Zdxsv
 			update(peer.send_loss, f.previous_to, f.to_until, f.to_grade);
 		}
 
+		// The columns of the mouse-over view; the ping ends at the panel's right edge.
+		struct GgpoOsdColumns
+		{
+			float id_x, name_x, pilot_x, width;
+		};
+
 		// One panel draw: a pen over the draw list, rows advance y by the line height and the item spacing.
 		struct GgpoOsdPen
 		{
@@ -302,21 +307,6 @@ namespace Zdxsv
 				Text(regular, fs, slow_x, y, TEXT, "Slow");
 			}
 
-			// A name row, centered, shrunk to the width; its pitch stays one text row.
-			void Name(const std::string& s, float scale = 1.f, const ImVec4& c = TEXT)
-			{
-				if (s.empty())
-					return;
-				ImFont* f = regular;
-				const float row_h = fs * 1.1f * scale;
-				float size = row_h;
-				const float tw = NameText(f, size, 0.f, 0.f, nullptr, s);
-				if (tw > w && w > 0.f)
-					size *= w / tw;
-				NameText(f, size, x + (w - NameText(f, size, 0.f, 0.f, nullptr, s)) * 0.5f, y + (row_h - size) * 0.5f, &c, s);
-				y += std::max(row_h, fs * scale + sy);
-			}
-
 			// The standard font takes U+FF21-FF3A (fullwidth A-Z) from the icon font, which draws them as keycaps:
 			// each is drawn as its ASCII letter in a fullwidth cell. Returns the width; draws only with a color.
 			float NameText(ImFont* f, float size, float tx, float ty, const ImVec4* c, const std::string& s) const
@@ -353,9 +343,9 @@ namespace Zdxsv
 			float SignalBars(float r, float row_y, float row_h, float size, const GgpoOsdPeer& p, GgpoOsdHealth h) const
 			{
 				constexpr int bars = 4;
-				const float gap = std::max(1.f, size * 0.12f);
-				const float bar_w = std::max(2.f, size * 0.26f);
-				const float l = r - bars * bar_w - (bars - 1) * gap;
+				const float gap = BarGap(size);
+				const float bar_w = BarWidth(size);
+				const float l = r - BarsWidth(size);
 				const float bottom = row_y + (row_h + size) * 0.5f;
 				const int lit = !p.connected ? 0 : h == GgpoOsdHealth::Poor ? 1 : h == GgpoOsdHealth::Fair ? 2 : h == GgpoOsdHealth::Medium ? 3 : 4;
 				ImVec4 on = PingColor(p.connected ? std::max(p.ping, 1) : 999);
@@ -373,47 +363,104 @@ namespace Zdxsv
 				return l;
 			}
 
-			void Heading(const GgpoOsdPeer& p, bool details, GgpoOsdHealth health)
+			static float BarGap(float size) { return std::max(1.f, size * 0.12f); }
+			static float BarWidth(float size) { return std::max(2.f, size * 0.26f); }
+			static float BarsWidth(float size) { return 4.f * BarWidth(size) + 3.f * BarGap(size); }
+			static std::string PositionLabel(const GgpoOsdPeer& p) { return std::to_string(p.position + 1) + "P"; }
+			static std::string PingLabel(const GgpoOsdPeer& p) { return p.connected ? std::to_string(p.ping) + (p.relay ? "(R)" : "") : "--"; }
+
+			float SmallSize() const { return fs * 0.85f; }
+			float RelayGap() const { return SmallSize() * 0.25f; }
+
+			float TailWidth(const GgpoOsdPeer& p, bool details) const
 			{
-				const float h = 1.f + sy * 2.f;
-				float size = fs * 0.85f;
-				const std::string label = std::to_string(p.position + 1) + "P  " + p.id;
-				const float gap = size * 0.5f;
-				float line_r = x + w;
+				const float size = SmallSize();
 				if (details)
+					return TextW(regular, size, PingLabel(p).c_str());
+				const float relay = p.connected && p.relay ? TextW(regular, size * 0.8f, "R") + RelayGap() : 0.f;
+				return BarsWidth(size) + relay;
+			}
+
+			float Gap() const { return fs * 0.6f; }
+
+			float StatsWidth() const { return TextW("D: 99") + TextW("P: 9") + TextW("R: 9999") + TextW("W: 9999") + Gap() * 3.f; }
+
+			float SegmentWidth(const GgpoOsdPeer& p) const
+			{
+				const float small = SmallSize();
+				return TextW(regular, small, PositionLabel(p).c_str()) + TextW(regular, small, p.id.c_str()) +
+				       NameText(regular, fs, 0.f, 0.f, nullptr, p.name) + NameText(regular, small, 0.f, 0.f, nullptr, p.pilot) +
+				       TailWidth(p, false) + Gap() * 4.f;
+			}
+
+			float InlineWidth(const std::vector<GgpoOsdPeer>& peers) const
+			{
+				float total = StatsWidth();
+				for (const GgpoOsdPeer& p : peers)
+					total += SegmentWidth(p) + Gap() * 2.f;
+				return total;
+			}
+
+			// An opponent on the single row, after a separator; returns the segment's right edge.
+			float Segment(float left_x, const GgpoOsdPeer& p, GgpoOsdHealth health) const
+			{
+				const float gap = Gap(), small = SmallSize();
+				const float small_y = y + (fs - small) * 0.5f;
+				const float line_x = left_x + gap;
+				dl->AddLine(ImVec2(line_x, y + fs * 0.15f), ImVec2(line_x, y + fs * 0.85f), Col(TEXT_DISABLED), 1.f);
+				float tx = left_x + gap * 2.f;
+				const auto small_text = [&](const std::string& s) {
+					Text(regular, small, tx, small_y, TEXT_DIM, s.c_str());
+					tx += TextW(regular, small, s.c_str()) + gap;
+				};
+				small_text(PositionLabel(p));
+				small_text(p.id);
+				const ImVec4 name_color = p.connected ? TEXT : PingColor(999);
+				tx += NameText(regular, fs, tx, y, &name_color, p.name) + gap;
+				tx += NameText(regular, small, tx, small_y, &TEXT_DIM, p.pilot) + gap;
+				const float right = tx + TailWidth(p, false);
+				const float bars_l = SignalBars(right, y, fs, small, p, health);
+				if (p.connected && p.relay)
 				{
-					const std::string ping = p.connected ? std::to_string(p.ping) + (p.relay ? "(R)" : "") : "--";
-					const float ping_x = x + w - TextW(regular, size, ping.c_str());
-					Text(regular, size, ping_x, y + (h - size) * 0.5f, PingColor(p.connected ? p.ping : 999), ping.c_str());
-					line_r = ping_x - gap;
+					const float relay_size = small * 0.8f;
+					Text(regular, relay_size, bars_l - RelayGap() - TextW(regular, relay_size, "R"), y + (fs - relay_size) * 0.5f, TEXT_DIM, "R");
 				}
-				else
+				return right;
+			}
+
+			GgpoOsdColumns Measure(const std::vector<GgpoOsdPeer>& peers) const
+			{
+				const float small = SmallSize(), gap = Gap();
+				float position_w = 0.f, id_w = 0.f, name_w = 0.f, pilot_w = 0.f, tail_w = 0.f;
+				for (const GgpoOsdPeer& p : peers)
 				{
-					line_r = SignalBars(x + w, y, h, size, p, health) - gap;
-					if (p.connected && p.relay)
-					{
-						const float rs = size * 0.8f;
-						line_r -= TextW(regular, rs, "R");
-						Text(regular, rs, line_r, y + (h - rs) * 0.5f, TEXT_DIM, "R");
-						line_r -= gap * 0.5f;
-					}
+					position_w = std::max(position_w, TextW(regular, small, PositionLabel(p).c_str()));
+					id_w = std::max(id_w, TextW(regular, small, p.id.c_str()));
+					name_w = std::max(name_w, NameText(regular, fs, 0.f, 0.f, nullptr, p.name));
+					pilot_w = std::max(pilot_w, NameText(regular, small, 0.f, 0.f, nullptr, p.pilot));
+					tail_w = std::max(tail_w, TailWidth(p, true));
 				}
-				const float label_room = std::max(1.f, line_r - x - gap * 2.f);
-				float label_w = TextW(regular, size, label.c_str());
-				if (label_w > label_room)
-				{
-					size *= label_room / label_w;
-					label_w = TextW(regular, size, label.c_str());
-				}
-				const float label_x = x + (line_r - x - label_w) * 0.5f;
-				const float line_y = y + h * 0.5f;
-				const float thick = std::max(1.f, std::floor(ImGuiManager::GetGlobalScale()));
-				if (x < label_x - gap)
-					dl->AddLine(ImVec2(x, line_y), ImVec2(label_x - gap, line_y), Col(SEPARATOR), thick);
-				if (label_x + label_w + gap < line_r)
-					dl->AddLine(ImVec2(label_x + label_w + gap, line_y), ImVec2(line_r, line_y), Col(SEPARATOR), thick);
-				Text(regular, size, label_x, y + (h - size) * 0.5f, TEXT_DIM, label.c_str());
-				y += h + sy;
+				GgpoOsdColumns c;
+				c.id_x = x + position_w + gap;
+				c.name_x = c.id_x + id_w + gap;
+				c.pilot_x = c.name_x + name_w + gap;
+				c.width = std::max(c.pilot_x + pilot_w + gap + tail_w - x, (TextW("D: 99") + gap) * 4.f);
+				return c;
+			}
+
+			// A row of the mouse-over view: position, user id, name, pilot name, ping.
+			void Player(const GgpoOsdPeer& p, const GgpoOsdColumns& c)
+			{
+				const float small = SmallSize();
+				const float small_y = y + (fs - small) * 0.5f;
+				const ImVec4 name_color = p.connected ? TEXT : PingColor(999);
+				Text(regular, small, x, small_y, TEXT_DIM, PositionLabel(p).c_str());
+				Text(regular, small, c.id_x, small_y, TEXT_DIM, p.id.c_str());
+				NameText(regular, fs, c.name_x, y, &name_color, p.name);
+				NameText(regular, small, c.pilot_x, small_y, &TEXT_DIM, p.pilot);
+				const std::string ping = PingLabel(p);
+				Text(regular, small, x + w - TextW(regular, small, ping.c_str()), small_y, PingColor(p.connected ? p.ping : 999), ping.c_str());
+				Next();
 			}
 
 			void Diagnostics(const GgpoOsdPeer& p, const GgpoOsdLossFlash& f, double now)
@@ -459,8 +506,8 @@ namespace Zdxsv
 		};
 	} // namespace
 
-	// The network panel during a GGPO battle: left edge, between the game's top and bottom HUD.
-	// Hovering the mouse over it swaps the signal bars for the ping and adds loss, send queue and frame pacing rows.
+	// The network panel during a GGPO battle: bottom left, the frame counts and every opponent on one row.
+	// Hovering the mouse over it stacks the opponents with the ping, loss, send queue and frame pacing rows.
 	void GgpoOsdDraw()
 	{
 		GgpoOsdState& s = s_osd;
@@ -502,60 +549,67 @@ namespace Zdxsv
 
 		const float display_h = ImGuiManager::GetWindowHeight();
 		const float hud = display_h / 960.f;
-		const float scale = ImGuiManager::GetGlobalScale();
-		const float top = (192.f + 21.f) * hud;
-		const float max_h = display_h - (205.f + 21.f) * hud - top;
-		const float left = 30.f * hud;
-		const float title_h = 20.f * hud, title_gap = 4.f * hud;
-		const float base = 17.f * scale, pad0 = 8.f * scale;
-		const int peers = static_cast<int>(panel.peers.size());
-		const float natural_sy = std::max(4.f * scale, base * 0.7f);
-		const float scalable = pad0 * 2.f + (2 + peers * (details ? 4 : 2)) * (base + natural_sy) + peers * (1.f + natural_sy * 3.f);
-		const float ps = std::clamp((max_h - title_h - title_gap) / scalable, 0.1f, 1.f);
-		const float width = 160.f * scale * ps;
-		const float pad = pad0 * ps;
+		const float unit = std::max(hud, 6.f / 10.f); // follows the window height, down to a 6 px font
+		const float left = 3.f * hud;
+		const float bottom = display_h - 3.f * hud;
+		const float base = 10.f * unit, pad0 = 3.f * unit, row_gap0 = 1.f * unit;
+		const int rows = details ? 1 + static_cast<int>(panel.peers.size()) * 3 : 1;
+		const float natural_h = pad0 * 2.f + rows * base + (rows - 1) * row_gap0;
 
 		ImFont* const regular = ImGuiManager::GetStandardFont();
-		GgpoOsdPen pen{ImGui::GetBackgroundDrawList(), regular, base * ps, 8.f * scale * ps, natural_sy * ps, left + pad, width - pad * 2.f,
-			top + title_h + title_gap + pad};
+		const auto make_pen = [&](float ps) {
+			return GgpoOsdPen{ImGui::GetBackgroundDrawList(), regular, base * ps, 6.f * unit * ps, row_gap0 * ps, left + pad0 * ps, 0.f, 0.f};
+		};
+		// The mouse-over view is at least as wide as the row, so the mouse stays over the panel when it opens.
+		const auto content_width = [&](const GgpoOsdPen& p) {
+			return std::max(p.InlineWidth(panel.peers), details ? p.Measure(panel.peers).width : 0.f);
+		};
+		const float natural_w = content_width(make_pen(1.f)) + pad0 * 2.f;
+		const float ps = std::clamp(std::min((ImGuiManager::GetWindowWidth() * 0.9f) / natural_w, (display_h * 0.5f) / natural_h), 0.1f, 1.f);
+		const float pad = pad0 * ps;
+
+		GgpoOsdPen pen = make_pen(ps);
+		const GgpoOsdColumns columns = pen.Measure(panel.peers);
+		pen.w = content_width(pen);
+		const float width = pen.w + pad * 2.f;
+		const float top = bottom - natural_h * ps;
+		pen.y = top + pad;
 
 		pen.dl->ChannelsSplit(2);
 		pen.dl->ChannelsSetCurrent(1);
-		static constexpr const char* title = "NETWORK STATS";
-		pen.Text(regular, pen.fs, left + (width - pen.TextW(regular, pen.fs, title)) * 0.5f, top + std::max(0.f, (title_h - pen.fs) * 0.5f) + 1.f,
-			ImVec4(0.925f, 0.941f, 1.f, 0.26f), title);
 
-		const float stat_right = pen.x + pen.w * 0.5f;
 		const ImVec4 delay_color = panel.delay >= 13 ? ImVec4(1.f, 0.15f, 0.12f, 1.f) : panel.delay >= 10 ? ImVec4(1.f, 0.5f, 0.f, 1.f) :
 		                           panel.delay >= 5                 ? ImVec4(1.f, 0.85f, 0.f, 1.f) : TEXT;
 		const int predicted = std::clamp(panel.predicted_frames, 0, 6);
 		const ImVec4 predicted_color = predicted == 4 ? ImVec4(1.f, 0.85f, 0.f, 1.f) : predicted == 5 ? ImVec4(1.f, 0.5f, 0.f, 1.f) :
 		                               predicted == 6 ? ImVec4(1.f, 0.15f, 0.12f, 1.f) : TEXT_DIM;
-		pen.Stat(pen.x, "D: ", panel.delay, delay_color);
-		pen.Stat(stat_right, "P: ", predicted, predicted_color);
-		pen.Next();
-		pen.Stat(pen.x, "R: ", panel.rollback_frames, TEXT);
-		pen.Stat(stat_right, "W: ", panel.sync_frames, TEXT);
-		pen.Next();
-
-		for (const GgpoOsdPeer& p : panel.peers)
+		float tx = pen.x;
+		const auto stat = [&](const char* label, const char* widest, int value, const ImVec4& c) {
+			pen.Stat(tx, label, value, c);
+			tx += pen.TextW(widest) + pen.Gap();
+		};
+		stat("D: ", "D: 99", panel.delay, delay_color);
+		stat("P: ", "P: 9", predicted, predicted_color);
+		stat("R: ", "R: 9999", panel.rollback_frames, TEXT);
+		stat("W: ", "W: 9999", panel.sync_frames, TEXT);
+		if (details)
 		{
-			pen.Heading(p, details, health[std::clamp(p.position, 0, 3)]);
-			pen.Name(p.name);
-			pen.Name(p.pilot, 0.85f, TEXT_DIM);
-			if (details)
-				pen.Diagnostics(p, s.flashes[std::clamp(p.position, 0, 3)], now);
-			else if (!p.connected)
+			pen.Next();
+			for (const GgpoOsdPeer& p : panel.peers)
 			{
-				pen.Centered(PingColor(999), "Disconnected");
-				pen.Next();
+				pen.Player(p, columns);
+				pen.Diagnostics(p, s.flashes[std::clamp(p.position, 0, 3)], now);
 			}
 		}
+		else
+		{
+			float segment_x = pen.x + pen.StatsWidth();
+			for (const GgpoOsdPeer& p : panel.peers)
+				segment_x = pen.Segment(segment_x, p, health[std::clamp(p.position, 0, 3)]);
+		}
 
-		const float bottom = pen.y + pad;
 		pen.dl->ChannelsSetCurrent(0);
-		pen.dl->AddRectFilled(ImVec2(left, top), ImVec2(left + width, bottom), Col(ImVec4(0.122f, 0.122f, 0.122f, 0.055f)));
-		pen.dl->AddRectFilled(ImVec2(left, top), ImVec2(left + width, top + title_h), Col(ImVec4(0.122f, 0.122f, 0.122f, 0.16f)));
+		pen.dl->AddRectFilled(ImVec2(left, top), ImVec2(left + width, bottom), Col(ImVec4(0.122f, 0.122f, 0.122f, 0.2f)));
 		pen.dl->ChannelsMerge();
 		s.bounds_min = ImVec2(left, top);
 		s.bounds_max = ImVec2(left + width, bottom);
