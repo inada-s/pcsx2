@@ -585,7 +585,7 @@ def main():
     if not emu and not ext_off:
         ok(f"DEV9 path x{nc} (adapter DHCP), no platform info, TLS, bridge or no-DEV9",
            sum(1 for f in every if c(f, "DEV9: DHCP")) >= nc
-           and not any(c(f, "sent platform info|Zdxsv: TLS: on|bridge|Zdxsv: no DEV9: ") for f in every))
+           and not any(c(f, "sent platform info|Zdxsv: TLS: on|bridge|Zdxsv: no DEV9: the net RPCs") for f in every))
     if emu and E("ZDXSV_TLS_TEST_PIN") == "1":
         for i in clients:
             f = el(i)

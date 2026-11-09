@@ -112,11 +112,12 @@ namespace Zdxsv
 		}
 
 		// Taken before the NET file load, so it holds no player data and serves any memory card.
-		// The game has set up its network stack by then: a no-DEV9 state stalls with the adapter on, and back.
+		// The game has probed the network adapter by then: a state stalls on any other path (no DEV9, adapter on, adapter off).
 		std::string BootStatePath()
 		{
+			const char* path = g_no_dev9 ? "" : EmuConfig.DEV9.EthEnable ? "-eth" : "-noeth";
 			return Path::Combine(EmuFolders::Savestates,
-				fmt::format("{} zdxsv-fastboot{} {:08X}.p2s", VMManager::GetDiscSerial(), g_no_dev9 ? "" : "-dev9", g_SaveVersion));
+				fmt::format("{} zdxsv-fastboot{} {:08X}.p2s", VMManager::GetDiscSerial(), path, g_SaveVersion));
 		}
 
 		void SaveBootState(std::string path)
