@@ -486,6 +486,7 @@
     <ClCompile Include="Zdxsv\SyncSettings.cpp" />
     <ClCompile Include="Zdxsv\GamePatches.cpp" />
     <ClCompile Include="Zdxsv\InputDefaults.cpp" />
+    <ClCompile Include="Zdxsv\HostKeyboard.cpp" />
     <ClCompile Include="Zdxsv\OnlineLimits.cpp" />
     <ClCompile Include="Zdxsv\IntHooks.cpp" />
     <ClCompile Include="Zdxsv\RecHooks.cpp" />
@@ -960,6 +961,7 @@
     <ClInclude Include="Zdxsv\CpuHooks.h" />
     <ClInclude Include="Zdxsv\InputHooks.h" />
     <ClInclude Include="Zdxsv\DefaultsHooks.h" />
+    <ClInclude Include="Zdxsv\KeyboardHooks.h" />
     <ClInclude Include="Zdxsv\SaveStateHooks.h" />
     <ClInclude Include="Zdxsv\MediaHooks.h" />
     <ClInclude Include="Zdxsv\AuthHooks.h" />

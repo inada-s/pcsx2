@@ -31,6 +31,7 @@ skips does not run on that path.
 | Qt host start and exit (`CrashReportHooks.h`), log output (`Log::SetTapOutputLevel` in `common/Console`) | `pcsx2-qt/Zdxsv/CrashReports` | crash reports, the last log lines they carry |
 | Qt host start (`AuthHooks.h`) | `Zdxsv/AuthSignIn` | sign-in test trigger (`ZDXSV_AUTH_SIGNIN_TEST`) |
 | Default settings and settings load (`DefaultsHooks.h`: `VMManager::SetDefaultSettings`, Big Picture controller reset, Qt host start) | `InputDefaults` | no upstream hotkeys, USB keyboard on port 1 |
+| Host key events (`KeyboardHooks.h`: `DisplaySurface` key event dispatch in `pcsx2-qt/DisplayWidget`, `HIDKbdDevice::SetBindingValue` in `USB/usb-hid`) | `HostKeyboard` | the USB keyboard sends the physical key (scan code, Windows) |
 
 ### Network paths
 
@@ -174,7 +175,7 @@ Keys (`net=1`, `lobby=1`, `port=`, `delay=`, ...) are parts of `ZDXSV_GGPO`.
 ## Game window
 
 - **Mouse wheel volume**: the wheel over the game screen changes the volume in 5% steps, OSD with the new volume; not while a menu takes the mouse or the wheel is bound to an input; `ZdxsvWheelVolume`.
-- **Keyboard and hotkeys**: the host keyboard is a USB keyboard on USB port 1 (in-game chat; Settings > Controllers > USB Port 1, None turns it off); no upstream PCSX2 hotkeys are bound by default, the zdxsv replay ones stay (bind any under Settings > Hotkeys). Settings files from before get both once on start (`[Zdxsv] InputDefaultsVersion`).
+- **Keyboard and hotkeys**: the host keyboard is a USB keyboard on USB port 1 (in-game chat; Settings > Controllers > USB Port 1, None turns it off); on Windows it sends the physical key, so a Japanese keyboard types its own symbols (@ : ^ and the shifted ones) as a Japanese keyboard; no upstream PCSX2 hotkeys are bound by default, the zdxsv replay ones stay (bind any under Settings > Hotkeys). Settings files from before get both once on start (`[Zdxsv] InputDefaultsVersion`).
 
 ## ARM64 builds ([arm64.md](arm64.md))
 

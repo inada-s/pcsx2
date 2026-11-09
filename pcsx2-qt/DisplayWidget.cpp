@@ -6,6 +6,7 @@
 #include "QtHost.h"
 #include "QtUtils.h"
 #include "Zdxsv/QtHooks.h"
+#include "pcsx2/Zdxsv/KeyboardHooks.h"
 
 #include "pcsx2/ImGui/FullscreenUI.h"
 #include "pcsx2/ImGui/ImGuiManager.h"
@@ -270,8 +271,10 @@ void DisplaySurface::handleKeyInputEvent(QEvent* event)
 				m_keys_pressed_with_modifiers.push_back(key);
 			}
 
-			Host::RunOnCPUThread([key, pressed]() {
+			Host::RunOnCPUThread([key, pressed, scancode = key_event->nativeScanCode()]() {
+				Zdxsv::HostKeySetScancode(scancode);
 				InputManager::InvokeEvents(InputManager::MakeHostKeyboardKey(key), static_cast<float>(pressed));
+				Zdxsv::HostKeySetScancode(0);
 			});
 
 			return;
