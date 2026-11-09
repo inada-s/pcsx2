@@ -47,6 +47,7 @@ namespace Zdxsv
 		constexpr u32 kLobbyStep = kGp - 0x59f4; // in phase 0x17: 0 = browser load, 4 = browser closing, display restored
 		constexpr u8 kNetLoginBrowser = 0x27;
 		constexpr u8 kPhaseLoginBrowser = 0x17;
+		constexpr u8 kPhaseUserSelect = 3; // the user_id selection and the new user registration pages
 		constexpr u8 kStepBrowserLoad = 0;
 		constexpr u8 kStepParked = 7; // no step: the phase does nothing
 		constexpr u32 kLoaderQueue = kGp - 0x5dfc; // address of the file loader queue; its first byte is 1 while a load runs
@@ -279,18 +280,22 @@ namespace Zdxsv
 			return queue < Ps2MemSize::MainRam && eeMem->Main[queue] != 0;
 		}
 
-		void Apply(const LoginResult& r)
+		void PutResultArea(const LoginResult& r)
 		{
 			std::memset(&eeMem->Main[kResultBegin], 0, kResultEnd - kResultBegin);
-			const std::string lbs_id = r.lbs_info.substr(0, kLbsIdLen);
-			Put(kResultLbsId, lbs_id);
+			Put(kResultLbsId, r.lbs_info.substr(0, kLbsIdLen));
 			Put(kResultLoginKey, r.login_key);
 			Put(kResultSessionId, r.session_id);
 			Put(kResultLobbyAddr, r.lobby_addr);
 			Put(kResultLbsList, r.lbs_info);
 			Put(kResultStatus, "999");
+		}
+
+		void Apply(const LoginResult& r)
+		{
+			PutResultArea(r);
 			std::memset(&eeMem->Main[kSelectedLbsId], 0, 16);
-			Put(kSelectedLbsId, lbs_id);
+			Put(kSelectedLbsId, r.lbs_info.substr(0, kLbsIdLen));
 			eeMem->Main[kLbsCount] = 1;
 			eeMem->Main[kNetState] = 0x27;
 			eeMem->Main[kNetSub] = 0;
@@ -366,7 +371,18 @@ namespace Zdxsv
 		const bool browser = in_phase && (s_fast.in_browser ||
 			(s_fast.last_phase != kPhaseLoginBrowser && eeMem->Main[kLobbyStep] == kStepBrowserLoad));
 		s_fast.last_phase = phase;
-		const bool at_dnas = (eeMem->Main[kNetState] == 0x21 && eeMem->Main[kLobbyPhase] == 2) || browser;
+		// The game clears the result area for a newly made user; the lobby connect after a battle reads it.
+		if (s_fast.applied && eeMem->Main[kResultStatus] == 0 && eeMem->Main[kNetState] == kNetLoginBrowser &&
+			phase != kPhaseUserSelect && phase != kPhaseLoginBrowser)
+		{
+			std::lock_guard lock(s_fast.mutex);
+			if (s_fast.result)
+			{
+				PutResultArea(*s_fast.result);
+				Console.WriteLn("Zdxsv: fast login: result area cleared by the game, restored");
+			}
+		}
+		const bool at_dnas =(eeMem->Main[kNetState] == 0x21 && eeMem->Main[kLobbyPhase] == 2) || browser;
 		if (s_fast.step == FastLogin::Step::Done)
 		{
 			// Every DNAS start logs in again: after ネット終了 or a lost lobby the game comes back here.
