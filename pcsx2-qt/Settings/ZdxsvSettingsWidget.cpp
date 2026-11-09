@@ -33,6 +33,25 @@
 // ZdxsvAccount -1: an empty account slot, made at the first login (pcsx2/Zdxsv/FastLogin.cpp).
 static constexpr int kNewAccount = -1;
 
+// The values of ZdxsvStickMessageButton (pcsx2/Zdxsv/StickMessage.cpp).
+static const char* s_stick_message_values[] = {
+	"None", "Start", "Select", "L1", "L2", "R1", "R2", "L3", "R3", "Triangle", "Circle", "Cross", "Square", nullptr};
+static const char* s_stick_message_names[] = {
+	QT_TRANSLATE_NOOP("ZdxsvSettingsWidget", "Off"),
+	QT_TRANSLATE_NOOP("ZdxsvSettingsWidget", "Start"),
+	QT_TRANSLATE_NOOP("ZdxsvSettingsWidget", "Select"),
+	"L1",
+	"L2",
+	"R1",
+	"R2",
+	"L3",
+	"R3",
+	QT_TRANSLATE_NOOP("ZdxsvSettingsWidget", "Triangle"),
+	QT_TRANSLATE_NOOP("ZdxsvSettingsWidget", "Circle"),
+	QT_TRANSLATE_NOOP("ZdxsvSettingsWidget", "Cross"),
+	QT_TRANSLATE_NOOP("ZdxsvSettingsWidget", "Square"),
+	nullptr};
+
 // The environment wins over a setting (pcsx2/Zdxsv/Settings.h): a widget whose setting is overridden is disabled
 // and says by what.
 static void MarkEnvOverride(QWidget* widget, const char* env, const char* key = nullptr)
@@ -57,6 +76,8 @@ ZdxsvSettingsWidget::ZdxsvSettingsWidget(SettingsWindow* settings_dialog, QWidge
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvNetOsd, "DEV9/Eth", "ZdxsvNetOsd", true);
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvFrameOsd, "DEV9/Eth", "ZdxsvFrameOsd", false);
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvAllyHp, "DEV9/Eth", "ZdxsvAllyHp", true);
+	SettingWidgetBinder::BindWidgetToEnumSetting(sif, m_ui.zdxsvStickMessageButton, "DEV9/Eth", "ZdxsvStickMessageButton",
+		s_stick_message_names, s_stick_message_values, "Start", "ZdxsvSettingsWidget");
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvUPnP, "DEV9/Eth", "ZdxsvUPnP", true);
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvLiveAutoNext, "DEV9/Eth", "ZdxsvLiveAutoNext", false);
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvWheelVolume, "UI", "ZdxsvWheelVolume", true);
@@ -104,6 +125,9 @@ ZdxsvSettingsWidget::ZdxsvSettingsWidget(SettingsWindow* settings_dialog, QWidge
 		tr("Shows during online battles and replays where each frame's time goes: emulation, rollback, save/load, network wait, sleep; and the GS thread, VU thread and GPU time per frame."));
 	dialog()->registerWidgetHelp(m_ui.zdxsvAllyHp, tr("Teammate HP"), tr("Checked"),
 		tr("In battle, your HP display shows your teammate's current HP where it shows your max HP."));
+	dialog()->registerWidgetHelp(m_ui.zdxsvStickMessageButton, tr("Team Messages Without a Right Stick"), tr("Start"),
+		tr("While this button is held, the D-pad or the left stick also tilts the right stick, which sends the team "
+		   "messages. The button and the D-pad still work as usual in the game. Off: only the right stick sends them."));
 	dialog()->registerWidgetHelp(m_ui.zdxsvUPnP, tr("UPnP"), tr("Checked"),
 		tr("When the battle port is closed, automatically changes the router's settings."));
 	dialog()->registerWidgetHelp(m_ui.zdxsvLiveAutoNext, tr("Live Auto-Next"), tr("Unchecked"),

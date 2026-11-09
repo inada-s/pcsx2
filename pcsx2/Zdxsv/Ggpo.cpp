@@ -645,6 +645,7 @@ namespace Zdxsv
 		g_z_game = serial_match && crc == want && !ext_off;
 		SingleDrawListOnVmInitialize();
 		AllyHpOnVmInitialize();
+		StickMessageOnVmInitialize();
 		NoDev9OnVmInitialize();
 		const bool lobby_default = g_z_game && !s_play_env;
 		if (!g_z_game) // any other game or build, or ZDXSV_EXTENSIONS=0: no GGPO, replay, hooks or platform info
@@ -749,6 +750,7 @@ namespace Zdxsv
 		StopCutRefusal();
 		FastBootReset();
 		SingleDrawListReset();
+		StickMessageReset();
 		// A reset boots the same game again: it needs the net RPC answers from its first network menu on.
 		if (std::strcmp(what, "vm reset") == 0)
 			NoDev9OnVmInitialize();

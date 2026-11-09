@@ -175,6 +175,7 @@ set(pcsx2Sources
 	Zdxsv/NoDev9.cpp
 	Zdxsv/SingleDrawList.cpp
 	Zdxsv/AllyHp.cpp
+	Zdxsv/StickMessage.cpp
 	Zdxsv/SpectateSync.cpp
 	Zdxsv/SyncSettings.cpp
 	Zdxsv/GamePatches.cpp

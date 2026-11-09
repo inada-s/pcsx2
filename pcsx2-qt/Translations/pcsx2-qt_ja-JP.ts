@@ -26965,6 +26965,14 @@ Xbox 360 turntables require a 256x multiplier, most other turntables can use the
   <context>
     <name>Zdxsv</name>
     <message>
+      <source>Online Battle</source>
+      <translation>オンライン対戦</translation>
+    </message>
+    <message>
+      <source>You are in an online battle. Quit and leave the battle?</source>
+      <translation>オンライン対戦中です。終了して対戦から抜けますか?</translation>
+    </message>
+    <message>
       <location filename="../../pcsx2/Zdxsv/LobbyConnection.cpp" line="47" />
       <source>open</source>
       <translation>開放</translation>
@@ -28203,6 +28211,90 @@ Continue with the keyboard?</source>
   </context>
   <context>
     <name>ZdxsvSettingsWidget</name>
+    <message>
+      <source>Frame time overlay</source>
+      <translation>フレーム時間を表示</translation>
+    </message>
+    <message>
+      <source>Frame Time</source>
+      <translation>フレーム時間</translation>
+    </message>
+    <message>
+      <source>Shows during online battles and replays where each frame's time goes: emulation, rollback, save/load, network wait, sleep; and the GS thread, VU thread and GPU time per frame.</source>
+      <translation>オンライン対戦とリプレイ中に、1 フレームの時間の内訳（エミュレーション、ロールバック、セーブ/ロード、通信待ち、スリープ）と、1 フレームあたりの GS スレッド、VU スレッド、GPU の時間を表示します。</translation>
+    </message>
+    <message>
+      <source>Show teammate HP in place of max HP</source>
+      <translation>最大耐久力の代わりに僚機の耐久力を表示</translation>
+    </message>
+    <message>
+      <source>Teammate HP</source>
+      <translation>僚機の耐久力</translation>
+    </message>
+    <message>
+      <source>In battle, your HP display shows your teammate's current HP where it shows your max HP.</source>
+      <translation>対戦中、自分の耐久力表示の最大耐久力の位置に、僚機の現在の耐久力を表示します。</translation>
+    </message>
+    <message>
+      <source>Team messages: D-pad while holding:</source>
+      <translation>通信メッセージ: 押しながら方向キー:</translation>
+    </message>
+    <message>
+      <source>Team Messages Without a Right Stick</source>
+      <translation>右スティックなしで通信メッセージ</translation>
+    </message>
+    <message>
+      <source>While this button is held, the D-pad or the left stick also tilts the right stick, which sends the team messages. The button and the D-pad still work as usual in the game. Off: only the right stick sends them.</source>
+      <translation>このボタンを押している間、方向キーまたは左スティックで右スティックも同じ方向に倒れ、通信メッセージが送られます。ボタンと方向キーはゲームでもそのまま効きます。オフ: 右スティックでのみ送ります。</translation>
+    </message>
+    <message>
+      <source>Off</source>
+      <translation>オフ</translation>
+    </message>
+    <message>
+      <source>Start</source>
+      <translation>スタート</translation>
+    </message>
+    <message>
+      <source>Select</source>
+      <translation>セレクト</translation>
+    </message>
+    <message>
+      <source>Triangle</source>
+      <translation>△</translation>
+    </message>
+    <message>
+      <source>Circle</source>
+      <translation>○</translation>
+    </message>
+    <message>
+      <source>Cross</source>
+      <translation>×</translation>
+    </message>
+    <message>
+      <source>Square</source>
+      <translation>□</translation>
+    </message>
+    <message>
+      <source>Replays show the rounds only (skip mobile suit selection and rematch screens)</source>
+      <translation>リプレイは対戦部分のみ再生（機体選択と再戦画面をスキップ）</translation>
+    </message>
+    <message>
+      <source>Game Window</source>
+      <translation>ゲームウィンドウ</translation>
+    </message>
+    <message>
+      <source>Mouse wheel changes the volume</source>
+      <translation>マウスホイールで音量を変更</translation>
+    </message>
+    <message>
+      <source>Wheel Volume</source>
+      <translation>ホイールで音量</translation>
+    </message>
+    <message>
+      <source>Turning the mouse wheel over the game screen changes the volume in 5% steps and shows it on the screen. Off, or with the wheel bound to a controller input: the wheel works as in PCSX2.</source>
+      <translation>ゲーム画面の上でマウスホイールを回すと音量が 5% ずつ変わり、画面に表示されます。オフ、またはホイールをコントローラー入力に割り当てているときは、PCSX2 の通常の動作になります。</translation>
+    </message>
     <message>
       <source>Crash Reports</source>
       <translation>クラッシュレポート</translation>
