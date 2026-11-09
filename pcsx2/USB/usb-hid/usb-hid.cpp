@@ -31,6 +31,7 @@
 #include "USB/qemu-usb/USBinternal.h"
 #include "USB/qemu-usb/desc.h"
 #include "USB/usb-hid/usb-hid.h"
+#include "Zdxsv/KeyboardHooks.h"
 
 #include "IconsPromptFont.h"
 #include "common/Console.h"
@@ -807,11 +808,19 @@ namespace usb_hid
 	{
 		UsbHIDState* s = USB_CONTAINER_OF(dev, UsbHIDState, dev);
 
+		KeyValue kv;
+		if (const int number = Zdxsv::HostKeyNumber(); number != 0)
+		{
+			kv.type = KEY_VALUE_KIND_NUMBER;
+			kv.u.number = number;
+			s->QueueKeyboardState(kv, (value >= 0.5f));
+			return;
+		}
+
 		const auto it = s->keycode_mapping.find(bind);
 		if (it == s->keycode_mapping.end())
 			return;
 
-		KeyValue kv;
 		kv.type = KEY_VALUE_KIND_QCODE;
 		kv.u.qcode = it->second;
 		s->QueueKeyboardState(kv, (value >= 0.5f));

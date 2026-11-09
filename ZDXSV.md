@@ -77,7 +77,8 @@ Settings → zdxsv → "Frame time overlay" shows, during online battles and
 replays, where each frame's time goes (emulation, rollback, save/load, network
 wait, sleep) as a graph, and the GS thread, VU thread and GPU time per frame.
 
-The PC keyboard is also the game's USB keyboard, for chat. PCSX2's own hotkeys
+The PC keyboard is also the game's USB keyboard, for chat (a Japanese keyboard types as one
+on Windows). PCSX2's own hotkeys
 (F1-F9, Space, Tab, Escape, ...) are not bound; set any you want under
 Settings → Controllers → Hotkeys.
 
