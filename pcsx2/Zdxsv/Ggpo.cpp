@@ -21,10 +21,10 @@ namespace Zdxsv
 	namespace
 	{
 		constexpr const char* DEFAULT_OPTIONS = "net=1,lobby=1";
-		// ZDXSV_NET_TAIL=n: frames run after the end msg before the session stops (default 300).
+		// ZDXSV_NET_TAIL=n: frames run after the end msg before the session stops (default 60).
 		const int s_net_tail = [] {
 			const char* e = Zdxsv::TestEnv("ZDXSV_NET_TAIL");
-			return e ? std::atoi(e) : 300;
+			return e ? std::atoi(e) : 60;
 		}();
 		bool s_sync_trimmed = false; // g_frame_period_trim_us holds a time sync wait
 
