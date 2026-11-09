@@ -20,6 +20,7 @@ LAT (one-way ms; set = a udprelay.py per peer pair), JITTER (ms, 0), LOSS (0..1,
 MAXWAIT=n: FAIL if a peer's OSD `Wait` (frames stopped at GGPO's prediction limit) ends above n.
 MAXLAG=n: FAIL if a peer's OSD Lag level (`osd lag` lines: segments filled, 4 = Poor) is above n in the 2nd half of the
 battle (the 1st half holds the meter's start and its slow recovery).
+MAXLOSS=n: FAIL if a peer's `peer report` counts more than n GGPO packets lost (received or sent) to a peer.
 STALL=ms: suspend the peer at position 1 for ms every 5 s, 8 times from 40 s, so the others run ahead.
 Sync check: pwcheck compares each player's x, y, z and game RNG B (0x6d793c) on every frame (RNG A takes
 machine-local sound draws: reported, not judged; OWN: no effect).
@@ -289,6 +290,13 @@ def main(argv):
             print(f"p{p} OSD Lag in the 2nd half of the battle: max {worst}", flush=True)
             if worst is None or worst > int(zrig.env("MAXLAG")):
                 print("FAIL MAXLAG", flush=True)
+                ok = 1
+    if zrig.env("MAXLOSS"):
+        for p in peers:
+            counts = [int(c) for x in lines(emulog(p), "peer report") for pair in re.findall(r"loss_\d+=(\d+)/(\d+)", x) for c in pair]
+            print(f"p{p} GGPO packet loss (peer report): {counts or 'none'}", flush=True)
+            if not counts or max(counts) > int(zrig.env("MAXLOSS")):
+                print("FAIL MAXLOSS", flush=True)
                 ok = 1
     print(f"rbk N={n} seed={seed or 'none'}: {round(time.time() - t0)} s, {'PASS' if ok == 0 else 'FAIL'}", flush=True)
     return ok
