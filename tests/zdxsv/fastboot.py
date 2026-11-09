@@ -1,10 +1,11 @@
-"""Fast boot: three boottime.py runs with fast boot at its default (on) and no input. Run 1 starts without the boot
+"""Fast boot: four boottime.py runs with fast boot at its default (on) and no input. Run 1 starts without the boot
 state and must save it at the NET file load (within SAVELIMIT s); run 2 must load it and reach the user_id
 selection within LIMIT s of the VM start. Each run prints its time from the launch and the VM start.
-Run 3 (an unformatted card it writes) must log that fast boot stopped within 15 s.
+Run 3 (another card) must not load the state (it holds run 1's system data) and must save its own in its place.
+Run 4 (an unformatted card it writes) must log that fast boot stopped within 15 s.
   OUT=<dir> python tests/zdxsv/fastboot.py
-Env: LIMIT (s, default 5), SAVELIMIT (s, default 30), CARD (as boottime.py).
-Exit 0 = all runs pass. Logs: OUT/save, OUT/load, OUT/unformatted (boottime.py logs each).
+Env: LIMIT (s, default 5), SAVELIMIT (s, default 30), CARD (as boottime.py), OTHER_CARD (default the second of CARDS).
+Exit 0 = all runs pass. Logs: OUT/save, OUT/load, OUT/other, OUT/unformatted (boottime.py logs each).
 """
 import glob
 import os
@@ -33,8 +34,8 @@ def emulog(out, name, needle):
         return []
 
 
-def step(out, name, limit, line):
-    txt = boottime(out, name, LIMIT=limit)
+def step(out, name, limit, line, **env):
+    txt = boottime(out, name, LIMIT=limit, **env)
     for l in txt.splitlines():
         if "PASS" in l or "FAIL" in l:
             print(l, flush=True)
@@ -63,11 +64,20 @@ def main():
         return 1
     if not step(out, "load", zrig.env("LIMIT", "5"), "loading"):
         return 1
+    other = zrig.env("OTHER_CARD") or (os.environ["CARDS"].split() + [""])[1]
+    if not other:
+        print("FAIL: set OTHER_CARD (a card other than CARD)")
+        return 1
+    if not step(out, "other", zrig.env("SAVELIMIT", "30"), "saving", CARD=other):
+        return 1
+    if len(glob.glob(states)) != 1:
+        print(f"FAIL other: {len(glob.glob(states))} boot states, want 1")
+        return 1
     blank = os.path.join(run, "Mcd001-zdxsv-unformatted.ps2")
     with open(blank, "wb") as f:
         f.write(b"\xff" * 8650752)
     try:
-        boottime(out, "unformatted", CARD="zdxsv-unformatted", MAXS="15")
+        boottime(out, "unformatted", CARD="zdxsv-unformatted", MAXS="15", ZDXSV_FAST_LOGIN="0")
     finally:
         os.remove(blank)
     hit = emulog(out, "unformatted", "Zdxsv: fast boot: stopped, memory card error")
