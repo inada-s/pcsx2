@@ -801,22 +801,49 @@ namespace Zdxsv
 		return true;
 	}
 
-	// The game's input record (A, B) of a host pad: its button bind table (OR-linear; B bit 0 = game state, left 0).
-	// A stick counts as a direction at axis <= 0x40 / >= 0xc0: the left stick sets the D-pad's B bits, the right
-	// stick the same bits in A.
+	namespace
+	{
+		// The game's button settings for pad port 0 (system data): u16[8], per assignable button
+		// (□ △ L1 × ○ R1 L2 R2) an index into PAD_ACTIONS, the game's action bits of the A word.
+		constexpr u32 PAD_BIND_SLOTS = 0x7ade6c;
+		constexpr u16 PAD_ACTIONS[8] = {0x0200, 0x0100, 0x0040, 0x0080, 0x0300, 0x0180, 0x0280, 0x0020};
+		constexpr u16 PAD_DEFAULT_SLOTS[8] = {0, 1, 7, 3, 2, 4, 6, 5};
+	} // namespace
+
+	// The game's input record (A, B) of a host pad, A with the game's button settings (OR-linear; B bit 0 = game
+	// state, left 0). A stick counts as a direction at axis <= 0x40 / >= 0xc0: the left stick sets the D-pad's B
+	// bits, the right stick the same bits in A.
 	void ZdPadAB(const Input& in, u16& a, u16& b)
 	{
 		using I = PadDualshock2::Inputs;
-		static constexpr struct { I i; u16 a, b; } bind[] = {
-			{I::PAD_L3, 0, 0x0002}, {I::PAD_R2, 0x0180, 0x0004}, {I::PAD_L2, 0x0280, 0x0008},
-			{I::PAD_R1, 0x0300, 0x0010}, {I::PAD_CIRCLE, 0x0040, 0x0020}, {I::PAD_CROSS, 0x0080, 0x0040},
-			{I::PAD_L1, 0x0020, 0x0080}, {I::PAD_TRIANGLE, 0x0100, 0x0100}, {I::PAD_SQUARE, 0x0200, 0x0200},
-			{I::PAD_RIGHT, 0, 0x0400}, {I::PAD_LEFT, 0, 0x0800}, {I::PAD_DOWN, 0, 0x1000},
-			{I::PAD_UP, 0, 0x2000}, {I::PAD_SELECT, 0, 0x4000}, {I::PAD_START, 0x8000, 0x8000}};
+		static constexpr struct { I i; u16 a, b; s8 slot; } bind[] = {
+			{I::PAD_L3, 0, 0x0002, -1}, {I::PAD_R2, 0, 0x0004, 7}, {I::PAD_L2, 0, 0x0008, 6},
+			{I::PAD_R1, 0, 0x0010, 5}, {I::PAD_CIRCLE, 0, 0x0020, 4}, {I::PAD_CROSS, 0, 0x0040, 3},
+			{I::PAD_L1, 0, 0x0080, 2}, {I::PAD_TRIANGLE, 0, 0x0100, 1}, {I::PAD_SQUARE, 0, 0x0200, 0},
+			{I::PAD_RIGHT, 0, 0x0400, -1}, {I::PAD_LEFT, 0, 0x0800, -1}, {I::PAD_DOWN, 0, 0x1000, -1},
+			{I::PAD_UP, 0, 0x2000, -1}, {I::PAD_SELECT, 0, 0x4000, -1}, {I::PAD_START, 0x8000, 0x8000, -1}};
+		u16 slots[8];
+		std::memcpy(slots, PAD_DEFAULT_SLOTS, sizeof(slots));
+		if (eeMem)
+		{
+			u16 cfg[8];
+			std::memcpy(cfg, eeMem->Main + PAD_BIND_SLOTS, sizeof(cfg));
+			bool valid = true;
+			for (const u16 s : cfg)
+				valid &= s < std::size(PAD_ACTIONS);
+			if (valid)
+				std::memcpy(slots, cfg, sizeof(slots));
+		}
 		a = b = 0;
 		for (const auto& e : bind)
-			if ((in.buttons >> e.i) & 1)
-				a |= e.a, b |= e.b;
+		{
+			if (!((in.buttons >> e.i) & 1))
+				continue;
+			a |= e.a;
+			b |= e.b;
+			if (e.slot >= 0)
+				a |= PAD_ACTIONS[slots[e.slot]];
+		}
 		const auto dirs = [](u8 x, u8 y) {
 			return static_cast<u16>((x >= 0xc0 ? 0x0400 : 0) | (x <= 0x40 ? 0x0800 : 0) | (y >= 0xc0 ? 0x1000 : 0) | (y <= 0x40 ? 0x2000 : 0));
 		};
