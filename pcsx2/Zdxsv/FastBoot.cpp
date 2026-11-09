@@ -10,6 +10,7 @@
 #include "Host.h"
 #include "Memory.h"
 #include "SaveState.h"
+#include "SIO/Memcard/MemoryCardFile.h"
 #include "SIO/Pad/Pad.h"
 #include "VMManager.h"
 
@@ -18,10 +19,14 @@
 #include "common/Path.h"
 
 #include "fmt/format.h"
+#define XXH_INLINE_ALL 1
+#include "xxhash.h"
 
 #include <array>
 #include <deque>
+#include <optional>
 #include <string>
+#include <vector>
 
 namespace Zdxsv
 {
@@ -111,17 +116,39 @@ namespace Zdxsv
 			Pad::SetControllerState(0, b, down ? 1.0f : 0.0f);
 		}
 
-		// Taken before the NET file load, so it holds no player data and serves any memory card.
+		// Taken before the NET file load, so it holds no NET file data. The game has auto-loaded its system data from
+		// the card by then: a state serves only a card with the same contents.
 		// The game has probed the network adapter by then: a state stalls on any other path (no DEV9, adapter on, adapter off).
-		std::string BootStatePath()
+		std::string BootStatePrefix()
 		{
 			const char* path = g_no_dev9 ? "" : EmuConfig.DEV9.EthEnable ? "-eth" : "-noeth";
+			return fmt::format("{} zdxsv-fastboot{} ", VMManager::GetDiscSerial(), path);
+		}
+
+		// The file card's own checksum is written back only on a clean close: cards copied or killed mid-session share it.
+		u64 CardHash()
+		{
+			if (!EmuConfig.Mcd[0].Enabled)
+				return 0;
+			if (EmuConfig.Mcd[0].Type != MemoryCardType::File)
+				return FileMcd_GetCRC(0, 0);
+			const auto fp = FileSystem::OpenManagedSharedCFile(EmuConfig.FullpathToMcd(0).c_str(), "rb", FileSystem::FileShareMode::DenyNone);
+			const std::optional<std::vector<u8>> data = fp ? FileSystem::ReadBinaryFile(fp.get()) : std::nullopt;
+			return data ? XXH64(data->data(), data->size(), 0) : 0;
+		}
+
+		std::string BootStatePath()
+		{
 			return Path::Combine(EmuFolders::Savestates,
-				fmt::format("{} zdxsv-fastboot{} {:08X}.p2s", VMManager::GetDiscSerial(), path, g_SaveVersion));
+				fmt::format("{}{:08X} {:016X}.p2s", BootStatePrefix(), g_SaveVersion, CardHash()));
 		}
 
 		void SaveBootState(std::string path)
 		{
+			FileSystem::FindResultsArray old;
+			FileSystem::FindFiles(EmuFolders::Savestates.c_str(), (BootStatePrefix() + "*.p2s").c_str(), FILESYSTEM_FIND_FILES, &old);
+			for (const FILESYSTEM_FIND_DATA& f : old)
+				FileSystem::DeleteFilePath(f.FileName.c_str());
 			Console.WriteLn("Zdxsv: fast boot: saving %s at frame %u", path.c_str(), s_boot.frame);
 			Host::RunOnCPUThread([path = std::move(path)]() {
 				VMManager::SaveState(path.c_str(), true, false, [](const std::string& error) {
