@@ -61,8 +61,7 @@ Patches". This build has the game's widescreen patch built in and reads no
 patch or cheat files (pnach) for the game.
 
 Turn the mouse wheel over the game screen to change the volume (5% a step); the
-new volume shows on the screen. Turn it off with Settings → zdxsv → "Mouse wheel
-changes the volume".
+new volume shows on the screen.
 
 In battle, your ARMOR display shows your teammate's current HP after the "/",
 where it shows your max HP. Turn it off with Settings → zdxsv → "Show teammate

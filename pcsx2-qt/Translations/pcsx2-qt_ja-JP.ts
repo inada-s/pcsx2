@@ -28224,8 +28224,8 @@ Continue with the keyboard?</source>
       <translation>オンライン対戦とリプレイ中に、1 フレームの時間の内訳（エミュレーション、ロールバック、セーブ/ロード、通信待ち、スリープ）と、1 フレームあたりの GS スレッド、VU スレッド、GPU の時間を表示します。</translation>
     </message>
     <message>
-      <source>Show teammate HP in place of max HP</source>
-      <translation>最大耐久力の代わりに僚機の耐久力を表示</translation>
+      <source>Show teammate HP</source>
+      <translation>僚機の耐久力を表示</translation>
     </message>
     <message>
       <source>Teammate HP</source>
@@ -28236,8 +28236,8 @@ Continue with the keyboard?</source>
       <translation>対戦中、自分の耐久力表示の最大耐久力の位置に、僚機の現在の耐久力を表示します。</translation>
     </message>
     <message>
-      <source>Team messages: D-pad while holding:</source>
-      <translation>通信メッセージ: 押しながら方向キー:</translation>
+      <source>Team message button (with D-pad):</source>
+      <translation>通信メッセージの同時押しボタン:</translation>
     </message>
     <message>
       <source>Team Messages Without a Right Stick</source>
@@ -28276,8 +28276,8 @@ Continue with the keyboard?</source>
       <translation>□</translation>
     </message>
     <message>
-      <source>Replays show the rounds only (skip mobile suit selection and rematch screens)</source>
-      <translation>リプレイは対戦部分のみ再生（機体選択と再戦画面をスキップ）</translation>
+      <source>Rounds only in replays</source>
+      <translation>対戦部分のみ再生</translation>
     </message>
     <message>
       <source>Game Window</source>
@@ -28376,7 +28376,7 @@ for High-Spec PC</source>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.ui" line="138"/>
       <source>Live auto-next</source>
-      <translation>ライブ自動切り替え</translation>
+      <translation>自動で次の対戦を視聴</translation>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.ui" line="145"/>
@@ -28510,8 +28510,8 @@ for High-Spec PC</source>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="77"/>
-      <source>Replays skip the mobile suit selection.</source>
-      <translation>リプレイで機体選択を飛ばします。</translation>
+      <source>Replays skip the mobile suit selection and rematch screens.</source>
+      <translation>リプレイで機体選択と再戦画面をスキップします。</translation>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="78"/>

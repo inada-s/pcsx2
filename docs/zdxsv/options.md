@@ -63,7 +63,7 @@ page greys it out and its tooltip names the variable.
 | `[DEV9/Eth] ZdxsvFrameOsd` | `false` | feature | Frame time OSD in GGPO battles and replays (docs/zdxsv/rollback.md). Read when the game starts. `ZDXSV_FRAME_OSD` overrides it. |
 | `[DEV9/Eth] ZdxsvAllyHp` | `true` | feature | In battle, the own HP display shows the teammate's HP in place of the own max HP. Applied when settings change. `ZDXSV_ALLY_HP` overrides it. |
 | `[DEV9/Eth] ZdxsvStickMessageButton` | `Start` | feature | While this pad button is held, the D-pad and the left stick also tilt the right stick (the team messages); the real right stick still works. `None` (Off), `Start`, `Select`, `L1`, `L2`, `R1`, `R2`, `L3`, `R3`, `Triangle`, `Circle`, `Cross`, `Square`. The Z game only. Applied when settings change. |
-| `[UI] ZdxsvWheelVolume` | `true` | feature | The mouse wheel over the game screen changes the volume (5% a notch, not saved) with an OSD. Off: the wheel is input, as upstream. |
+| `[UI] ZdxsvWheelVolume` | `true` | feature | The mouse wheel over the game screen changes the volume (5% a notch, not saved) with an OSD. Off: the wheel is input, as upstream. Ini only. |
 | `[DEV9/Eth] ZdxsvCrashReports` | `true` | feature | Send crash reports ([crash-reports.md](crash-reports.md)), in a build with a DSN. Settings → zdxsv. |
 | `[DEV9/Eth] ZdxsvReplaySkipMs` | `true` | feature | A replay plays its rounds only: it skips the mobile suit selections and the rematch screens (a file without round frames: the first mobile suit selection). `ZDXSV_REPLAY_SKIP_MS` overrides it. |
 | `[DEV9/Eth] ZdxsvReplayKeyDisplay` | `true` | feature | Replays start with the key display on. `ZDXSV_REPLAY_KEY_DISPLAY` overrides it. |
