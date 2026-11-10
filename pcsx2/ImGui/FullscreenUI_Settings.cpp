@@ -11,6 +11,7 @@
 #include "INISettingsInterface.h"
 #include "ImGui/FullscreenUI_Internal.h"
 #include "Zdxsv/DefaultsHooks.h"
+#include "Zdxsv/UiHooks.h"
 #include "ImGui/ImGuiFullscreen.h"
 #include "ImGui/ImGuiManager.h"
 #include "Input/InputManager.h"
@@ -1662,6 +1663,9 @@ void FullscreenUI::SwitchToSettings()
 
 void FullscreenUI::SwitchToGameSettings(const std::string_view serial, u32 crc)
 {
+	if (Zdxsv::FeaturesLimited())
+		return;
+
 	s_game_settings_entry.reset();
 	s_game_settings_interface = std::make_unique<INISettingsInterface>(VMManager::GetGameSettingsPath(serial, crc));
 	s_game_settings_interface->Load();
@@ -2284,6 +2288,7 @@ void FullscreenUI::DrawInterfaceSettingsPage()
 	DrawToggleSetting(bsi, FSUI_ICONSTR(ICON_FA_POWER_OFF, "Confirm Shutdown"),
 		FSUI_CSTR("Determines whether a prompt will be displayed to confirm shutting down the emulator/game when the hotkey is pressed."),
 		"UI", "ConfirmShutdown", true);
+	if (!Zdxsv::FeaturesLimited())
 	DrawToggleSetting(bsi, FSUI_ICONSTR(ICON_FA_FLOPPY_DISK, "Save State On Shutdown"),
 		FSUI_CSTR("Automatically saves the emulator state when powering down or exiting. You can then resume directly from where you left "
 				  "off next time."),

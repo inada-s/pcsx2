@@ -59,6 +59,7 @@ page greys it out and its tooltip names the variable.
 | `[EmuCore/GS] VsyncEnable` | `true` | feature | Upstream VSync, on by default in this build (upstream: off); Settings → Emulation. |
 | `[DEV9/Eth] ZdxsvLiveAutoNext` | `false` | feature | Live spectating: when a stream ends, watch the lobby's next live battle. `ZDXSV_LIVE_NEXT` overrides it. |
 | `[DEV9/Eth] ZdxsvUPnP` | `true` | feature | When the connectivity test finds the GGPO port not open, map it on the router with UPnP and test again (`lobby.md`). |
+| `[DEV9/Eth] ZdxsvFeatureLimits` | `true` | feature | On: the upstream features zdxsv limits are off (`docs/zdxsv/features.md`, `FeatureLimits`). Off: as upstream. Ini only. |
 | `[DEV9/Eth] ZdxsvNetOsd` | `true` | feature | Network status OSD in GGPO battles. Read when the game starts. `osd=` overrides it. Off: shown only while an opponent is interrupted or disconnected. |
 | `[DEV9/Eth] ZdxsvFrameOsd` | `false` | feature | Frame time OSD in GGPO battles and replays (docs/zdxsv/rollback.md). Read when the game starts. `ZDXSV_FRAME_OSD` overrides it. |
 | `[DEV9/Eth] ZdxsvAllyHp` | `true` | feature | In battle, the own HP display shows the teammate's HP in place of the own max HP. Applied when settings change. `ZDXSV_ALLY_HP` overrides it. |

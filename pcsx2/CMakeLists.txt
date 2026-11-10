@@ -404,6 +404,7 @@ set(pcsx2DEV9Sources
 	Zdxsv/LobbyPing.cpp
 	Zdxsv/Upnp.cpp
 	Zdxsv/ServerHosts.cpp
+	Zdxsv/FeatureLimits.cpp
 	Zdxsv/FastBoot.cpp
 	Zdxsv/AuthSignIn.cpp
 	Zdxsv/AuthTest.cpp

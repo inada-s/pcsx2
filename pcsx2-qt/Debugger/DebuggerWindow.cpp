@@ -13,6 +13,7 @@
 #include "DebugTools/MipsStackWalk.h"
 #include "DebugTools/SymbolImporter.h"
 #include "QtHost.h"
+#include "pcsx2/Zdxsv/UiHooks.h"
 #include "MainWindow.h"
 #include "AnalysisOptionsDialog.h"
 
@@ -35,6 +36,8 @@ DebuggerWindow::DebuggerWindow(QWidget* parent)
 	connect(m_ui.actionAnalyse, &QAction::triggered, this, &DebuggerWindow::onAnalyse);
 	connect(m_ui.actionSettings, &QAction::triggered, this, &DebuggerWindow::onSettings);
 	connect(m_ui.actionGameSettings, &QAction::triggered, this, &DebuggerWindow::onGameSettings);
+	if (Zdxsv::FeaturesLimited())
+		m_ui.actionGameSettings->setVisible(false);
 	connect(m_ui.actionClose, &QAction::triggered, this, &DebuggerWindow::close);
 
 	connect(m_ui.actionOnTop, &QAction::triggered, this, [this](bool checked) {

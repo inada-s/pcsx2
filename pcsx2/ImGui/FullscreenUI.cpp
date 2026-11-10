@@ -1757,7 +1757,7 @@ void FullscreenUI::DrawPauseMenu(MainWindowType type)
 						s_current_main_window = MainWindowType::None;
 				}
 
-				if (ActiveButton(FSUI_ICONSTR(ICON_FA_WRENCH, "Game Properties"), false, can_save_state))
+				if (!Zdxsv::FeaturesLimited() && ActiveButton(FSUI_ICONSTR(ICON_FA_WRENCH, "Game Properties"), false, can_save_state))
 				{
 					SwitchToGameSettings();
 				}
@@ -1820,7 +1820,7 @@ void FullscreenUI::DrawPauseMenu(MainWindowType type)
 					RequestReset();
 				}
 
-				if (ActiveButton(FSUI_ICONSTR(ICON_FA_FLOPPY_DISK, "Exit And Save State"), false))
+				if (!Zdxsv::FeaturesLimited() && ActiveButton(FSUI_ICONSTR(ICON_FA_FLOPPY_DISK, "Exit And Save State"), false))
 					RequestShutdown(true);
 
 				if (ActiveButton(FSUI_ICONSTR(ICON_FA_POWER_OFF, "Exit Without Saving"), false))
@@ -3036,6 +3036,8 @@ void FullscreenUI::HandleGameListOptions(const GameList::Entry* entry)
 		{FSUI_ICONSTR(ICON_FA_FORWARD_FAST, "Fast Boot"), false},
 		{FSUI_ICONSTR(ICON_FA_COMPACT_DISC, "Full Boot"), false},
 	};
+	if (Zdxsv::FeaturesLimited())
+		options.erase(options.begin());
 
 	const time_t entry_played_time = GameList::GetCachedPlayedTimeForSerial(entry->serial);
 	if (entry_played_time)
@@ -3046,6 +3048,8 @@ void FullscreenUI::HandleGameListOptions(const GameList::Entry* entry)
 	OpenChoiceDialog(entry->GetTitle(s_prefer_english_titles).c_str(), false, std::move(options),
 		[has_resume_state, entry_path = entry->path, entry_serial = entry->serial, entry_title = entry->title, entry_played_time]
 		(s32 index, const std::string& title, bool checked) {
+			if (index >= 0 && Zdxsv::FeaturesLimited())
+				index++; // the removed first option
 			switch (index)
 			{
 				case 0: // Open Game Properties

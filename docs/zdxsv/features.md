@@ -27,6 +27,7 @@ skips does not run on that path.
 | Qt setup wizard (`QtHooks.h`) | `pcsx2-qt/Zdxsv/QtSetupWizard` | first-run wizard texts, zdxsv sign-in page |
 | Qt fonts | `pcsx2-qt/Zdxsv/QtFonts` | Noto Sans JP download before the OSD fonts load |
 | Qt game window wheel (`QtHooks.h`, `DisplayWidget`) | `pcsx2-qt/Zdxsv/QtWheelVolume` | mouse wheel volume |
+| VMManager shutdown, shutdown dialog, Big Picture menus, settings dialogs, game list menus, debugger (`UiHooks.h`) | `FeatureLimits` | no save state on shutdown, no game properties |
 | VMManager, GS, MTGS, hotkeys, Qt main window (`UiHooks.h`, `QtHooks.h`) | `OnlineLimits`, `pcsx2-qt/Zdxsv/QtOnlineLimits`, `ReplayControls` | operations refused while online or during a replay, debugger window closed |
 | Qt host start and exit (`CrashReportHooks.h`), log output (`Log::SetTapOutputLevel` in `common/Console`) | `pcsx2-qt/Zdxsv/CrashReports` | crash reports, the last log lines they carry |
 | Qt host start (`AuthHooks.h`) | `Zdxsv/AuthSignIn` | sign-in test trigger (`ZDXSV_AUTH_SIGNIN_TEST`) |
@@ -174,6 +175,8 @@ Keys (`net=1`, `lobby=1`, `port=`, `delay=`, ...) are parts of `ZDXSV_GGPO`.
 
 ## Game window
 
+- **No save state on shutdown** (changed default): closing the game saves no resume state and offers none; `ZdxsvFeatureLimits`.
+- **No game properties** (changed default): the per-game settings dialog is not offered, in the Qt menus, the game list and Big Picture, and settings already saved for a game are not read; `ZdxsvFeatureLimits`.
 - **Mouse wheel volume**: the wheel over the game screen changes the volume in 5% steps, OSD with the new volume; not while a menu takes the mouse or the wheel is bound to an input; `ZdxsvWheelVolume`.
 - **Keyboard and hotkeys**: the host keyboard is a USB keyboard on USB port 1 (in-game chat; Settings > Controllers > USB Port 1, None turns it off); on Windows it sends the physical key, so a Japanese keyboard types its own symbols (@ : ^ and the shifted ones) as a Japanese keyboard; no upstream PCSX2 hotkeys are bound by default, the zdxsv replay ones stay (bind any under Settings > Hotkeys). Settings files from before get both once on start (`[Zdxsv] InputDefaultsVersion`).
 
