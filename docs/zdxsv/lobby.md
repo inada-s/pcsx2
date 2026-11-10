@@ -242,21 +242,20 @@ info carries `<region>=ms`. Once per run.
 
 ## Network status OSD
 
-During a `net=1` battle the left edge shows the `NETWORK STATS` panel
-(`GgpoOsd.cpp`), between the game's top and bottom HUD, shrunk to fit:
-the input delay (`D:`), predicted (`P:`), rollback (`R:`) and time sync (`W:`)
-frames, and per opponent three rows: the position and
-user id with 4 signal bars, the name, the pilot name (smaller). The bars' color
+During a `net=1` battle the bottom left of the screen shows the network panel
+(`GgpoOsd.cpp`), one row that follows the window height: the input delay (`D:`),
+predicted (`P:`), rollback (`R:`) and time sync (`W:`) frames, then for each
+opponent the position, user id, name, pilot name and 4 signal bars. The bars' color
 is the ping (cyan up to 30 ms, green 60, yellow 90, orange 120, red beyond); the
 lit bars are the lag health, 4 = good, 1 = poor (send queue over the ping plus
 3 frames, ping median, jitter and spikes, frame pacing, and loss over 2 s, which
 alone lowers it to 3 bars at most; worsens after 1 s,
 recovers one step per 2-3 s). `R` before the bars: relayed. Once disconnected:
-bars unlit and a red `Disconnected` row.
-With the mouse over the panel, the bars give way to the ping in ms (`(R)` when
-relayed, `--` once disconnected), and the packet loss
+bars unlit and the name in red.
+With the mouse over the panel, the opponents stack one per row, the bars give way
+to the ping in ms (`(R)` when relayed, `--` once disconnected), and the packet loss
 (`L: ↓ received ↑ sent`), send queue (`Q:`) and a frame pacing bar
-(`You Slow` / `Peer Slow` past 5 frames) rows follow the names.
+(`You Slow` / `Peer Slow` past 5 frames) rows follow each opponent's row.
 
 The panel uses the standard OSD font and its fallback chain. Japanese names use
 Noto Sans JP, downloaded without asking at the first start that lacks it, from

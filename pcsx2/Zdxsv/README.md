@@ -93,7 +93,7 @@ options: `docs/zdxsv/`.
 | `IntHooks.cpp` | EE interpreter and ARM64 EE recompiler: the hook calls of `RecHooks.cpp` but the probes |
 | `RecProbe.cpp` | Debug: EE recompiler probes and store watches (`ZDXSV_EE_PROBE`, `ZDXSV_EE_WATCH`) |
 | `Overlays.cpp` | On-screen replay keys and replay control bar |
-| `GgpoOsd.cpp` | GGPO network status panel (`NETWORK STATS`) |
+| `GgpoOsd.cpp` | GGPO network status panel |
 | `pcsx2-qt/Zdxsv/QtOnlineLimits.cpp` | Closes the debugger window while online (`QtHooks.h`, seam in `pcsx2-qt/QtHost.cpp`) |
 | `pcsx2-qt/Zdxsv/QtSetupWizard.cpp` | First-run wizard: zdxsv texts, zdxsv sign-in page in place of RetroAchievements (`QtHooks.h`, seam in `pcsx2-qt/SetupWizardDialog.cpp`) |
 | `pcsx2-qt/Zdxsv/QtFonts.cpp` | Noto Sans JP download at UI start, for the panel's Japanese names (`QtHooks.h`, seam in `pcsx2-qt/Translations.cpp`) |
