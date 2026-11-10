@@ -82,8 +82,8 @@ namespace Zdxsv
 		};
 		GgpoOsdState s_osd;
 
-		constexpr ImVec4 TEXT(0.75f, 0.75f, 0.75f, 1.f);
-		constexpr ImVec4 TEXT_DIM(0.75f, 0.75f, 0.75f, 0.7f);
+		constexpr ImVec4 TEXT(0.92f, 0.92f, 0.92f, 1.f);
+		constexpr ImVec4 TEXT_DIM(0.92f, 0.92f, 0.92f, 0.8f);
 		constexpr ImVec4 TEXT_DISABLED(0.5f, 0.5f, 0.5f, 1.f);
 
 		ImU32 Col(const ImVec4& c) { return ImGui::ColorConvertFloat4ToU32(c); }
