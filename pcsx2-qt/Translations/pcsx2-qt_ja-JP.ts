@@ -26965,6 +26965,10 @@ Xbox 360 turntables require a 256x multiplier, most other turntables can use the
   <context>
     <name>Zdxsv</name>
     <message>
+      <source>Not available while online.</source>
+      <translation>オンライン中は使用できません。</translation>
+    </message>
+    <message>
       <source>Online Battle</source>
       <translation>オンライン対戦</translation>
     </message>
