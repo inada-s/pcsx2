@@ -78,6 +78,7 @@ options: `docs/zdxsv/`.
 | `HttpsLatency.cpp` | HTTPS latency test to the cloud regions, sent in the platform info |
 | `SpectateSync.cpp`, `SpectateSync.h` | Four-screen replay: one PCSX2 per position, kept on the same frame through shared memory |
 | `ServerHosts.cpp`, `ServerHosts.h` | Addresses the game's server hosts resolved to; whether that was the built-in server (public server) |
+| `FeatureLimits.cpp` | The setting that limits upstream features in zdxsv |
 | `FastBoot.cpp` | Boot at unlimited speed to the lobby user_id selection, pressing through the menus on the fixed network route; optionally on through ID 1 into the lobby |
 | `AuthSignIn.cpp`, `AuthSignIn.h` | Sign-in through the server in the browser (127.0.0.1 callback, PKCE), the token file, sign-out |
 | `AuthTest.cpp` | Sign-in and sign-out at app start for the rigs (`ZDXSV_AUTH_SIGNIN_TEST`) |

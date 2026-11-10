@@ -8,6 +8,7 @@
 #include "QtUtils.h"
 #include "SettingWidgetBinder.h"
 #include "SettingsWindow.h"
+#include "pcsx2/Zdxsv/UiHooks.h"
 
 AdvancedSettingsWidget::AdvancedSettingsWidget(SettingsWindow* settings_dialog, QWidget* parent)
 	: SettingsWidget(settings_dialog, parent)
@@ -62,6 +63,8 @@ AdvancedSettingsWidget::AdvancedSettingsWidget(SettingsWindow* settings_dialog, 
 
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.backupSaveStates, "EmuCore", "BackupSavestate", true);
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.saveStateOnShutdown, "EmuCore", "SaveStateOnShutdown", false);
+	if (Zdxsv::FeaturesLimited())
+		m_ui.saveStateOnShutdown->hide();
 
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.pineEnable, "EmuCore", "EnablePINE", false);
 	SettingWidgetBinder::BindWidgetToIntSetting(sif, m_ui.pineSlot, "EmuCore", "PINESlot", 28011);

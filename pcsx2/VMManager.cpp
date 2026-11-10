@@ -984,7 +984,7 @@ std::string VMManager::GetSerialForGameSettings()
 bool VMManager::UpdateGameSettingsLayer()
 {
 	std::unique_ptr<INISettingsInterface> new_interface;
-	if (s_disc_crc != 0)
+	if (s_disc_crc != 0 && !Zdxsv::FeaturesLimited())
 	{
 		std::string filename(GetGameSettingsPath(GetSerialForGameSettings(), s_disc_crc));
 		if (!FileSystem::FileExists(filename.c_str()))
@@ -1679,7 +1679,7 @@ void VMManager::Shutdown(bool save_resume_state)
 	MTGS::WaitGS();
 	Zdxsv::GgpoOnVmShutdown("vm shutdown");
 
-	if (!GSDumpReplayer::IsReplayingDump() && save_resume_state)
+	if (!GSDumpReplayer::IsReplayingDump() && save_resume_state && !Zdxsv::FeaturesLimited())
 	{
 		std::string resume_file_name(GetCurrentSaveStateFileName(-1));
 		if (!resume_file_name.empty())

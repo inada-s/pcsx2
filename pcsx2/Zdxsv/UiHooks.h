@@ -22,6 +22,9 @@ namespace Zdxsv
 	// a net battle or while the game is connected to the zdxsv lobby, where the menu opens by accident.
 	bool OnlinePauseMenuRefuses();
 
+	// True: the upstream features zdxsv limits are off ([DEV9/Eth] ZdxsvFeatureLimits).
+	bool FeaturesLimited();
+
 	extern bool g_online_limits;
 	// The reason goes to `error`, else to the OSD.
 	bool OnlineRefuses(Error* error = nullptr);

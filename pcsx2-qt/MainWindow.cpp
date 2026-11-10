@@ -537,6 +537,8 @@ void MainWindow::connectSignals()
 	connect(m_ui.actionViewGameGrid, &QAction::triggered, this, &MainWindow::onViewGameGridActionTriggered);
 	connect(m_ui.actionViewSystemDisplay, &QAction::triggered, this, &MainWindow::onViewSystemDisplayTriggered);
 	connect(m_ui.actionViewGameProperties, &QAction::triggered, this, &MainWindow::onViewGamePropertiesActionTriggered);
+	if (Zdxsv::FeaturesLimited())
+		m_ui.actionViewGameProperties->setVisible(false);
 	connect(m_ui.actionGitHubRepository, &QAction::triggered, this, &MainWindow::onGitHubRepositoryActionTriggered);
 	connect(m_ui.actionSupportForums, &QAction::triggered, this, &MainWindow::onSupportForumsActionTriggered);
 	connect(m_ui.actionWiki, &QAction::triggered, this, &MainWindow::onWikiActionTriggered);
@@ -1713,6 +1715,8 @@ bool MainWindow::requestShutdown(bool allow_confirm, bool allow_save_to_state, b
 		save_cb->setChecked(save_state);
 		save_cb->setEnabled(allow_save_to_state);
 		msgbox.setCheckBox(save_cb);
+		if (Zdxsv::FeaturesLimited())
+			save_cb->hide();
 		msgbox.addButton(QMessageBox::Yes);
 		msgbox.addButton(QMessageBox::No);
 		msgbox.setDefaultButton(QMessageBox::Yes);
@@ -1849,6 +1853,7 @@ void MainWindow::onGameListEntryContextMenuRequested(const QPoint& point)
 	if (entry.has_value())
 	{
 		QAction* action = menu.addAction(tr("Properties..."));
+		action->setVisible(!Zdxsv::FeaturesLimited());
 		action->setEnabled(!entry->serial.empty() || entry->type == GameList::EntryType::ELF);
 		if (action->isEnabled())
 		{

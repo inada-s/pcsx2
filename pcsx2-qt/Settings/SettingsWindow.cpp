@@ -10,6 +10,7 @@
 #include "Settings/BIOSSettingsWidget.h"
 #include "Settings/DEV9SettingsWidget.h"
 #include "Settings/ZdxsvSettingsWidget.h"
+#include "pcsx2/Zdxsv/UiHooks.h"
 #include "Settings/EmulationSettingsWidget.h"
 #include "Settings/FolderSettingsWidget.h"
 #include "Settings/GameCheatSettingsWidget.h"
@@ -669,6 +670,9 @@ void SettingsWindow::saveAndReloadGameSettings()
 
 void SettingsWindow::openGamePropertiesDialog(const GameList::Entry* game, const std::string_view title, std::string serial, u32 disc_crc, bool is_elf, const char* category)
 {
+	if (Zdxsv::FeaturesLimited())
+		return;
+
 	std::string filename = VMManager::GetGameSettingsPath(!is_elf ? serial : std::string_view(), disc_crc);
 
 	// check for an existing dialog with this filename
