@@ -178,7 +178,10 @@ def lobby_enters(lobby):
             lines = [l.decode("utf-8", "replace") for l in f]
     except OSError:
         return 0
-    return sum(1 for a, b in zip(lines, lines[1:]) if "C->S [Q] ID:0x6305" in a and b.startswith(f"00000000  {lobby} "))
+    # the body dump is on the next line, or on the same line after an escaped newline (JSON-quoted message)
+    body = f"00000000  {lobby} "
+    return sum(1 for a, b in zip(lines, lines[1:] + [""])
+               if "C->S [Q] ID:0x6305" in a and (b.startswith(body) or "\\n" + body in a))
 
 
 def entry2p_retry(i, route="map2p"):
