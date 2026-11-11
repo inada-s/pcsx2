@@ -136,7 +136,7 @@ Keys (`net=1`, `lobby=1`, `port=`, `delay=`, ...) are parts of `ZDXSV_GGPO`.
 - **`machine_id` in the platform info**: Windows, macOS.
 - **OSD message when the lobby refuses this PCSX2 as outdated**: notice `0x6003`.
 - **Lobby network waits and ping test RTT**: bounded waits, candidates from packet sources, median RTT.
-- **Battle info and match report as protobuf**.
+- **Battle info, match report and lobby STUN Ping/Pong as JSON**.
 - **Network status OSD**: `ZdxsvNetOsd`, `osd=0`.
 - **Frame time OSD** (off by default): `ZdxsvFrameOsd`.
 - **Teammate HP on the HUD** in the own max HP slot: `ZdxsvAllyHp`.

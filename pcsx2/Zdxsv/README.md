@@ -63,11 +63,11 @@ options: `docs/zdxsv/`.
 | `DeltaState.cpp`, `DeltaState.h` | Fast per-frame save and load of the VM for rollback (copy-on-write EE RAM pages) |
 | `DeltaFreeze.cpp`, `DeltaFreeze.h` | The non-EE-RAM part of a delta state: CPU, IOP, VU, SPU2, DEV9, pad; section timing and offset names for reports |
 | `Lobby.cpp`, `Lobby.h` | Lobby side of a GGPO battle: platform info, battle info and peers, STUN, UDP test, lobby frame filter |
-| `LobbyBattleInfo.cpp` | Lobby message bodies: parses the battle info notice, encodes the match report |
+| `LobbyBattleInfo.cpp` | Lobby message bodies (JSON): parses the battle info notice, encodes the match report |
 | `LobbyLive.cpp` | Live spectating over the lobby HTTP API (one streamed POST, one streamed GET per spectator): `LiveUp` streams a battle, `LiveDown` receives one |
 | `LobbyPing.cpp` | GGPO ping test between the peers (direct and relay paths) and the cut connection's refusal |
 | `LobbyNet.h` | Platform sockets and address helpers shared by the `Lobby*.cpp` files only |
-| `Proto.h` | Minimal protobuf wire codec: the lobby's Ping / Pong, replay files |
+| `Proto.h` | Minimal protobuf wire codec for replay files |
 | `replay.proto` | Replay file schema (`BattleLogFile` + PCSX2 fields); documentation, not compiled |
 | `GamePatches.cpp` | The Z game's patches (widescreen), built in in place of pnach files; a missing patches.zip is no warning (seam: `PatchHooks.h`) |
 | `InputDefaults.cpp` | Default input settings: no upstream hotkeys, USB keyboard on port 1; one-time migration of older settings files (seam: `DefaultsHooks.h`) |

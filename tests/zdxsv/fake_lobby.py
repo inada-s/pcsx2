@@ -20,7 +20,7 @@ With --trace (a `zdxsv -v=2 lobby` log of a real battle, lobby_trace.py):
   battle info (session, users, p2p_<user>=addr from the STUN answers below, ggpo_<user> with --ggpo;
   ggpo_session + ggpo_ping_ms as zdxsv (--bad-session K: client K's differs); --no-addr K: client K has no p2p_ / ggpo_ line; --ggpo-delay D: ggpo_ = a udprelay.py per pair, D ms one way,
   so the GGPO ping test and battle see 2*D ms rtt); --ggpo-block K-L[,K-L...]: no relay for those pairs, so they reach each other only through another peer (K-1,K-2,... with every other client: K reaches nobody); --relay ADDR: relay_0 for a `zdxsv relay` there, ggpo_session from --relay-session.
-- STUN on UDP --port+1 (zproxy Ping -> Pong{public_addr}). The emulator pings it right
+- STUN on UDP --port+1 (JSON Ping -> Pong with public_addr). The emulator pings it right
   before its adopted connection sends, so the k-th unbound ping address belongs to the k-th
   adopted connection (launch / drive the games one at a time).
 - Logs every frame; BattleResult answers (0x6138) are logged in full.
@@ -47,25 +47,6 @@ HDR = struct.Struct(">BBHHHI")
 Q, A, N, C = 0x01, 0x02, 0x10, 0xFF
 
 
-def pb_varint(v):
-    v &= (1 << 64) - 1
-    out = b""
-    while v >= 0x80:
-        out += bytes([v & 0x7F | 0x80])
-        v >>= 7
-    return out + bytes([v])
-
-
-def pb_int(field, v):
-    return pb_varint(field << 3) + pb_varint(v)
-
-
-def pb_bytes(field, b):
-    return pb_varint(field << 3 | 2) + pb_varint(len(b)) + b
-
-
-def pb_str(field, s):
-    return pb_bytes(field, s.encode())
 # question -> answer body, as zdxsv pkg/lobby/msg_lobby.go (empty lobby: no other users)
 ANSWERS = {
     0x6305: lambda b: b"",  # EnterLobby
@@ -236,25 +217,25 @@ class Battle:
         return relays
 
     def info(self, conn):
-        """A P2PMatching (zdxsv pkg/proto/zdxsv.proto), as zdxsv's battleInfoNotice."""
-        users, candidates = [], b""
+        """The battle info JSON, as zdxsv's battleInfoNotice."""
+        users, candidates = [], []
         ggpo = False
         for i, c in enumerate(self.order):
-            user = pb_str(1, c.user)
+            user = dict(user_id=c.user)
             if c is not conn and c.udp and not (self.args.no_addr and self.conns.index(c) + 1 == self.args.no_addr):
                 r = self.relays.get((conn, c))
                 port = int(c.udp.split(":")[1])
                 v4 = ("127.0.0.1" if r else c.udp.split(":")[0], port)
                 v6 = (self.args.v6, port)
                 for ip, p in {"v4": [v4], "v6": [v6], "dual": [v4, v6]}[self.args.p2p]:
-                    candidates += pb_bytes(10, pb_str(1, c.user) + pb_int(2, i) + pb_str(3, ip) + pb_int(4, p))
+                    candidates.append(dict(user_id=c.user, peer_id=i, ip=ip, port=p))
                 if self.ggpo_port(c):
-                    user += pb_int(40, r or self.ggpo_port(c))
+                    user["ggpo_port"] = r or self.ggpo_port(c)
                     ggpo = True
             users.append(user)
-        m = pb_str(1, self.code) + pb_int(4, self.order.index(conn))
-        m += b"".join(pb_bytes(9, u) for u in users) + candidates
-        tail = pb_str(40, conn.session) + pb_str(41, self.args.battle)
+        m = dict(battle_code=self.code, peer_id=self.order.index(conn), users=users)
+        if candidates:
+            m["candidates"] = candidates
         if ggpo:
             # as zdxsv: ggpo_session = FNV-1 32 of the battle code, ping test 7500 ms
             h = 2166136261
@@ -264,13 +245,13 @@ class Battle:
                 # the relay knows one session (zdxsv relay <id> <token>); zdxsv gives every battle its own
                 sid, token = self.args.relay_session.split(":")
                 h = int(sid)
-                for addr in self.args.relay.split(","):
-                    ip, port = addr.rsplit(":", 1)
-                    m += pb_bytes(11, pb_str(2, ip) + pb_int(3, int(port)) + pb_int(4, int(token, 16)))
+                m["relays"] = [dict(ip=ip, port=int(port), token=int(token, 16))
+                               for ip, port in (addr.rsplit(":", 1) for addr in self.args.relay.split(","))]
             if self.args.bad_session and self.conns.index(conn) + 1 == self.args.bad_session:
                 h ^= 0x5A5A5A5A  # negative test: this client's ping packets carry a foreign session
-            m += pb_int(2, h) + pb_int(6, 7500)
-        return m + tail
+            m.update(session_id=h, ping_test_duration=7500)
+        m.update(lobby_session_id=conn.session, battle_server=self.args.battle)
+        return json.dumps(m, ensure_ascii=False, separators=(",", ":")).encode()
 
 
 class Conn:
@@ -426,20 +407,24 @@ def line_check(c):
 
 
 def stun(port, battle):
-    """zproxy STUN: Packet{type=Ping(2), ping_data} -> Packet{type=Pong(3), pong_data{timestamp, public_addr}}."""
+    """The lobby STUN: {"type":"ping",...} -> {"type":"pong","timestamp","user_id":"SERVER","public_addr"}."""
     u = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     u.bind(("0.0.0.0", port))
     while True:
         data, src = u.recvfrom(2048)
-        if data[:2] != b"\x08\x02":
+        try:
+            ping = json.loads(data)
+        except ValueError:
             continue
-        a = ("%s:%d" % src).encode()
-        inner = b"\x08\x00\x1a" + bytes([len(a)]) + a
-        u.sendto(b"\x08\x03\x62" + bytes([len(inner)]) + inner, src)
+        if not isinstance(ping, dict) or ping.get("type") != "ping":
+            continue
+        a = "%s:%d" % src
+        pong = dict(type="pong", timestamp=ping.get("timestamp", 0), user_id="SERVER", public_addr=a)
+        u.sendto(json.dumps(pong, separators=(",", ":")).encode(), src)
         with lock:
-            if a.decode() not in battle.stun:
-                battle.stun.append(a.decode())
-                log("stun %s" % a.decode())
+            if a not in battle.stun:
+                battle.stun.append(a)
+                log("stun %s" % a)
 
 
 def login_api(port, db, lobby_addr):

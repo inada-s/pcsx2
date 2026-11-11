@@ -81,45 +81,46 @@ Lets the server tell emulators from real PS2s.
 
 ### Battle info `0x9951`
 
-A `P2PMatching` protobuf message (zdxsv `pkg/proto/zdxsv.proto`). zdxsv's own fields
-start at 40. The client decodes it with the codec in `Proto.h` and rejects a
-message with more than 8 users, 64 candidates or 4 relays, a string over 256
-bytes, or a `peer_id` outside `users`.
+A JSON object with snake_case keys. The client decodes it with rapidjson and
+rejects a message that is not valid JSON, has a known key of another type, more
+than 8 users, 64 candidates or 4 relays, a string over 256 bytes, or a `peer_id`
+outside `users`. Unknown keys are ignored. Fixture: `tests/zdxsv/testdata/wire/battle_info*.json`.
 
 | Field | Meaning |
 |---|---|
-| `battle_code` (1) | names the battle in the match report and the replay |
-| `session_id` (2) | id of the battle in the ping test packets (zdxsv: random per battle). 0: no GGPO. |
-| `peer_id` (4) | own index in `users` |
-| `ping_test_duration` (6) | length of the ping test in ms, at most 10000 |
-| `users` (9) | every player in battle order: `user_id`, `user_name`, `pilot_name` (OSD, replay), `team` (9, entry side 1 / 2: the ping test diagram rows), `ggpo_port` (40), `sync` (41, settings fingerprint) |
-| `candidates` (10) | UDP addresses of the other players: `user_id`, `peer_id`, `ip`, `port` |
-| `relays` (11) | relay servers: `ip`, `port`, `token`, `ip6`, `port6` (40) |
-| `spectator_uplink` (12) | this client streams the battle for live spectating ([replay.md](replay.md)) |
-| `lobby_session_id` (40), `battle_server` (41) | the lobby session and the battle server `ip:port` |
+| `battle_code` | names the battle in the match report and the replay |
+| `session_id` | id of the battle in the ping test packets (zdxsv: random per battle). 0: no GGPO. |
+| `peer_id` | own index in `users` |
+| `ping_test_duration` | length of the ping test in ms, at most 10000 |
+| `users` | every player in battle order: `user_id`, `user_name`, `pilot_name` (OSD, replay), `team` (entry side 1 / 2: the ping test diagram rows), `ggpo_port`, `sync` (settings fingerprint) |
+| `candidates` | UDP addresses of the other players: `user_id`, `peer_id`, `ip`, `port` |
+| `relays` | relay servers: `ip`, `port`, `token`, `ip6`, `port6` |
+| `spectator_uplink` | this client streams the battle for live spectating ([replay.md](replay.md)) |
+| `lobby_session_id`, `battle_server` | the lobby session and the battle server `ip:port` |
 
 ### Match report `0x9952`
 
-How the battle ran: a `P2PMatchingReport`. The client collects `key=value` lines during the battle
+How the battle ran, as a JSON object with snake_case keys (fixture with every field:
+`tests/zdxsv/testdata/wire/matching_report.json`). The client collects `key=value` lines during the battle
 and encodes them when it sends the report; the lobby logs the report as one
-`p2p matching report:` line of `field="value"`.
+line with the JSON as received.
 
 | Field | Sent | Meaning |
 |---|---|---|
-| `battle_code` (1), `user_id` (40) | always | from the battle info |
-| `result` (41) | always | `ggpo` or `cut`; a cut before the ping test adds `cut_reason` (42) |
-| `peer_id` (4), `player_count` (3) | always | own battle position and the player count |
-| `remote_peers` (31) | ping test ran | per peer: `peer_id`, `rtt_ms` (40, -1 = no answer), the picked `addr` (41) and `route` (7) |
-| `relay_count` (46), `ping_wait_ms` (48), `input_delay` (21), `min_delay` (49), `fixed_delay` (50) | ping test ran | relay server count, time waited for the test, GGPO input delay |
-| `rollback_budget` (56), `rollback_budget_used` (57) | ping test ran | learned and used rollback budget (frames, float) |
-| `ping_error` (47) | the ping test could not start | why, e.g. the GGPO port could not be bound |
-| `close_reason` (5), `frame_count` (6), `rollback_frames` (52), `mismatches` (53), `disconnected` (54) | GGPO battle | why the session ended and its counters |
-| `disconnected_peer_ids` (55) | GGPO battle | positions whose peer disconnected |
-| `round_data` (20) | GGPO battle with a replay recorded (saved, uploaded or live) | per round: `win_team` (1) and `used_ms` (2: per position, the MS id + 1); the lobby keeps each player's mobile suits for the replay search |
-| `remote_peers`: `ping_min_ms` (4), `ping_median_ms` (5), `ping_max_ms` (6) | GGPO battle | that peer's GGPO ping in ms, sampled once a second while connected; unset with no sample |
-| `remote_peers`: `recv_loss` (42), `send_loss` (43) | GGPO battle | GGPO packets from that peer never received, and to it that it reported lost; totals at the last once-a-second sample |
-| `total_timesync` (58), `input_block_count` (59) | GGPO battle | frames slept so a peer could catch up; frames that waited for a peer's input (GGPO prediction limit) |
-| `fps_history` (60) | GGPO battle, after 1 s | frames run in each second of the session (at most 3600 entries) |
+| `battle_code`, `user_id` | always | from the battle info |
+| `result` | always | `ggpo` or `cut`; a cut before the ping test adds `cut_reason` |
+| `peer_id`, `player_count` | always | own battle position and the player count |
+| `remote_peers` | ping test ran | per peer: `peer_id`, `rtt_ms` (-1 = no answer), the picked `addr` and `route` |
+| `relay_count`, `ping_wait_ms`, `input_delay`, `min_delay`, `fixed_delay` | ping test ran | relay server count, time waited for the test, GGPO input delay |
+| `rollback_budget`, `rollback_budget_used` | ping test ran | learned and used rollback budget (frames, float) |
+| `ping_error` | the ping test could not start | why, e.g. the GGPO port could not be bound |
+| `close_reason`, `frame_count`, `rollback_frames`, `mismatches`, `disconnected` | GGPO battle | why the session ended and its counters |
+| `disconnected_peer_ids` | GGPO battle | positions whose peer disconnected |
+| `round_data` | GGPO battle with a replay recorded (saved, uploaded or live) | per round: `win_team` and `used_ms` (per position, the MS id + 1); logged only |
+| `remote_peers`: `ping_min_ms`, `ping_median_ms`, `ping_max_ms` | GGPO battle | that peer's GGPO ping in ms, sampled once a second while connected; unset with no sample |
+| `remote_peers`: `recv_loss`, `send_loss` | GGPO battle | GGPO packets from that peer never received, and to it that it reported lost; totals at the last once-a-second sample |
+| `total_timesync`, `input_block_count` | GGPO battle | frames slept so a peer could catch up; frames that waited for a peer's input (GGPO prediction limit) |
+| `fps_history` | GGPO battle, after 1 s | frames run in each second of the session (at most 3600 entries) |
 | `answered` (45), `cut_sends` (51), `sync` (43), `sync_differ` (44) | cut | peers that answered, sends dropped during the cut, differing settings |
 
 ## How a lobby battle starts
@@ -196,6 +197,10 @@ public address, the match report's
 messages carry them whole.
 
 ## P2P connectivity test
+
+The lobby STUN speaks JSON over UDP: a Ping `{"type":"ping","timestamp","user_id"}` gets a Pong
+`{"type":"pong","timestamp","user_id","public_addr"}` with the address it came from (fixtures
+`tests/zdxsv/testdata/wire/ping.json`, `pong.json`).
 
 On the first lobby connection the emulator tests the GGPO port against the
 lobby's STUN and its test socket at the STUN port + 1:

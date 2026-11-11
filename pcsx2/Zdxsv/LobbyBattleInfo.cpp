@@ -1,12 +1,15 @@
 // SPDX-FileCopyrightText: 2026 zdxsv contributors
 // SPDX-License-Identifier: GPL-3.0+
 
-// Lobby message bodies: the battle info notice (ParseBattleInfo) and the match report (EncodeMatchingReport).
+// Lobby message bodies, as JSON: the battle info notice (ParseBattleInfo) and the match report (EncodeMatchingReport).
 
 #include "Zdxsv/Lobby.h"
 #include "Zdxsv/LobbyNet.h"
-#include "Zdxsv/Proto.h"
 #include "Zdxsv/TestOptions.h"
+
+#include "rapidjson/document.h"
+#include "rapidjson/stringbuffer.h"
+#include "rapidjson/writer.h"
 
 #include <algorithm>
 #include <cstdio>
@@ -19,28 +22,95 @@
 
 namespace Zdxsv
 {
-	static bool PbString(uint32_t wt, const uint8_t* b, size_t n, std::string& s)
+	namespace
 	{
-		if (wt != 2 || n > 256)
-			return false;
-		s.assign(reinterpret_cast<const char*>(b), n);
-		return true;
-	}
+		using Json = rapidjson::Value;
 
-	static bool PbInt(uint32_t wt, uint64_t v, int64_t& out)
-	{
-		out = static_cast<int64_t>(v);
-		return wt == 0;
-	}
+		// nullptr for a missing or null key
+		const Json* JsonField(const Json& o, const char* key)
+		{
+			const auto it = o.FindMember(key);
+			return it == o.MemberEnd() || it->value.IsNull() ? nullptr : &it->value;
+		}
 
-	// "ip" (IPv6 without brackets) and a port -> PeerAddr
-	static bool PbPeerAddr(const std::string& ip, int64_t port, PeerAddr& out)
-	{
-		if (port <= 0 || port > 0xFFFF)
-			return false;
-		const std::string host = ip.find(':') == std::string::npos ? ip : "[" + ip + "]";
-		return LobbyParsePeerAddr(host + ":" + std::to_string(port), out);
-	}
+		// A missing key leaves out unchanged; a value of another type fails.
+		bool JsonStr(const Json& o, const char* key, std::string& out)
+		{
+			const Json* v = JsonField(o, key);
+			if (!v)
+				return true;
+			if (!v->IsString() || v->GetStringLength() > 256)
+				return false;
+			out.assign(v->GetString(), v->GetStringLength());
+			return true;
+		}
+
+		bool JsonInt(const Json& o, const char* key, int64_t& out)
+		{
+			const Json* v = JsonField(o, key);
+			if (!v)
+				return true;
+			if (!v->IsInt64())
+				return false;
+			out = v->GetInt64();
+			return true;
+		}
+
+		bool JsonUint(const Json& o, const char* key, uint64_t& out)
+		{
+			const Json* v = JsonField(o, key);
+			if (!v)
+				return true;
+			if (!v->IsUint64())
+				return false;
+			out = v->GetUint64();
+			return true;
+		}
+
+		bool JsonBool(const Json& o, const char* key, bool& out)
+		{
+			const Json* v = JsonField(o, key);
+			if (!v)
+				return true;
+			if (!v->IsBool())
+				return false;
+			out = v->GetBool();
+			return true;
+		}
+
+		// f(element) for each element of the array key; more than max elements or a non-object fails.
+		template <typename F>
+		bool JsonObjects(const Json& o, const char* key, size_t max, F f)
+		{
+			const Json* v = JsonField(o, key);
+			if (!v)
+				return true;
+			if (!v->IsArray() || v->Size() > max)
+				return false;
+			for (const Json& e : v->GetArray())
+				if (!e.IsObject() || !f(e))
+					return false;
+			return true;
+		}
+
+		// "ip" (IPv6 without brackets) and a port -> PeerAddr
+		bool JsonPeerAddr(const std::string& ip, int64_t port, PeerAddr& out)
+		{
+			if (port <= 0 || port > 0xFFFF)
+				return false;
+			const std::string host = ip.find(':') == std::string::npos ? ip : "[" + ip + "]";
+			return LobbyParsePeerAddr(host + ":" + std::to_string(port), out);
+		}
+
+		std::vector<int64_t> SplitInts(const std::string& s, char sep)
+		{
+			std::vector<int64_t> out;
+			std::istringstream in(s);
+			for (std::string x; std::getline(in, x, sep);)
+				out.push_back(std::atoll(x.c_str()));
+			return out;
+		}
+	} // namespace
 
 	bool ParseBattleInfo(const std::string& body, BattleInfo& out)
 	{
@@ -62,72 +132,40 @@ namespace Zdxsv
 			int64_t port = 0, port6 = 0;
 			uint64_t token = 0;
 		};
+		rapidjson::Document doc;
+		doc.Parse(body.data(), body.size());
+		if (doc.HasParseError() || !doc.IsObject())
+			return false;
 		std::vector<User> users;
 		std::vector<Candidate> candidates;
 		std::vector<Relay> relays;
 		std::string battleServer;
-		int64_t peerId = -1, session = 0, pingMs = 0, uplink = 0;
+		int64_t peerId = -1, pingMs = 0;
+		uint64_t session = 0;
+		bool uplink = false;
 		BattleInfo info;
-		const uint8_t* p = reinterpret_cast<const uint8_t*>(body.data());
-		Pb::Reader r{p, p + body.size()};
-		const bool ok = r.Fields([&](uint32_t field, uint32_t wt, uint64_t v, const uint8_t* b, size_t n) {
-			Pb::Reader sub{b, b + n};
-			switch (field)
-			{
-				case 1: return PbString(wt, b, n, info.battleCode);
-				case 2: return PbInt(wt, v, session) && v <= 0xFFFFFFFFu;
-				case 4: return PbInt(wt, v, peerId);
-				case 6: return PbInt(wt, v, pingMs);
-				case 9:
-					if (wt != 2 || users.size() >= MAX_USERS)
-						return false;
-					users.emplace_back();
-					return sub.Fields([&u = users.back()](uint32_t f, uint32_t w, uint64_t x, const uint8_t* s, size_t len) {
-						switch (f)
-						{
-							case 1: return PbString(w, s, len, u.id);
-							case 2: return PbString(w, s, len, u.name);
-							case 3: return PbString(w, s, len, u.pilot);
-							case 9: return PbInt(w, x, u.team);
-							case 40: return PbInt(w, x, u.ggpo);
-							case 41: return PbString(w, s, len, u.sync);
-							default: return true;
-						}
-					});
-				case 10:
-					if (wt != 2 || candidates.size() >= MAX_CANDIDATES)
-						return false;
-					candidates.emplace_back();
-					return sub.Fields([&c = candidates.back()](uint32_t f, uint32_t w, uint64_t x, const uint8_t* s, size_t len) {
-						switch (f)
-						{
-							case 1: return PbString(w, s, len, c.userId);
-							case 3: return PbString(w, s, len, c.ip);
-							case 4: return PbInt(w, x, c.port);
-							default: return true;
-						}
-					});
-				case 11:
-					if (wt != 2 || relays.size() >= MAX_RELAYS)
-						return false;
-					relays.emplace_back();
-					return sub.Fields([&rl = relays.back()](uint32_t f, uint32_t w, uint64_t x, const uint8_t* s, size_t len) {
-						switch (f)
-						{
-							case 2: return PbString(w, s, len, rl.ip);
-							case 3: return PbInt(w, x, rl.port);
-							case 4: rl.token = x; return w == 0;
-							case 5: return PbString(w, s, len, rl.ip6);
-							case 40: return PbInt(w, x, rl.port6);
-							default: return true;
-						}
-					});
-				case 12: return PbInt(wt, v, uplink);
-				case 40: return PbString(wt, b, n, info.sessionId);
-				case 41: return PbString(wt, b, n, battleServer);
-				default: return true;
-			}
-		});
+		const bool ok =
+			JsonStr(doc, "battle_code", info.battleCode) && JsonUint(doc, "session_id", session) && session <= 0xFFFFFFFFu &&
+			JsonInt(doc, "peer_id", peerId) && JsonInt(doc, "ping_test_duration", pingMs) &&
+			JsonObjects(doc, "users", MAX_USERS,
+				[&](const Json& e) {
+					User& u = users.emplace_back();
+					return JsonStr(e, "user_id", u.id) && JsonStr(e, "user_name", u.name) && JsonStr(e, "pilot_name", u.pilot) &&
+						   JsonInt(e, "team", u.team) && JsonInt(e, "ggpo_port", u.ggpo) && JsonStr(e, "sync", u.sync);
+				}) &&
+			JsonObjects(doc, "candidates", MAX_CANDIDATES,
+				[&](const Json& e) {
+					Candidate& c = candidates.emplace_back();
+					return JsonStr(e, "user_id", c.userId) && JsonStr(e, "ip", c.ip) && JsonInt(e, "port", c.port);
+				}) &&
+			JsonObjects(doc, "relays", MAX_RELAYS,
+				[&](const Json& e) {
+					Relay& rl = relays.emplace_back();
+					return JsonStr(e, "ip", rl.ip) && JsonInt(e, "port", rl.port) && JsonUint(e, "token", rl.token) &&
+						   JsonStr(e, "ip6", rl.ip6) && JsonInt(e, "port6", rl.port6);
+				}) &&
+			JsonBool(doc, "spectator_uplink", uplink) && JsonStr(doc, "lobby_session_id", info.sessionId) &&
+			JsonStr(doc, "battle_server", battleServer);
 		if (!ok || peerId < 0 || peerId >= static_cast<int64_t>(users.size()) || info.sessionId.empty() ||
 			!LobbyParseAddr(battleServer, info.serverIP, info.serverPort))
 			return false;
@@ -156,7 +194,7 @@ namespace Zdxsv
 			for (const Candidate& c : candidates)
 			{
 				PeerAddr addr;
-				if (c.userId == u.id && u.id != info.userId && PbPeerAddr(c.ip, c.port, addr))
+				if (c.userId == u.id && u.id != info.userId && JsonPeerAddr(c.ip, c.port, addr))
 					peer.addrs.push_back(addr);
 			}
 			if (!peer.addrs.empty())
@@ -164,14 +202,14 @@ namespace Zdxsv
 		}
 		info.ggpoSession = static_cast<uint32_t>(session);
 		info.ggpoPingMs = static_cast<int>(std::clamp<int64_t>(pingMs, 0, MAX_PING_MS));
-		info.liveUplink = uplink != 0;
+		info.liveUplink = uplink;
 		// a malformed relay ends the list, so the indexes stay the lobby's
 		for (const Relay& rl : relays)
 		{
 			BattleInfo::Relay br;
 			br.token = rl.token;
-			if (!rl.token || !PbPeerAddr(rl.ip, rl.port, br.addr) ||
-				(!rl.ip6.empty() && !PbPeerAddr(rl.ip6, rl.port6 ? rl.port6 : rl.port, br.addr6)))
+			if (!rl.token || !JsonPeerAddr(rl.ip, rl.port, br.addr) ||
+				(!rl.ip6.empty() && !JsonPeerAddr(rl.ip6, rl.port6 ? rl.port6 : rl.port, br.addr6)))
 				break;
 			info.relays.push_back(br);
 		}
@@ -179,7 +217,7 @@ namespace Zdxsv
 		return true;
 	}
 
-	std::vector<uint8_t> EncodeMatchingReport(const std::string& lines)
+	std::string EncodeMatchingReport(const std::string& lines)
 	{
 		std::map<std::string, std::string> kv;
 		std::map<int, std::map<std::string, std::string>> peers; // rtt_ / addr_ / path_ / ping_ / loss_<position>
@@ -199,88 +237,111 @@ namespace Zdxsv
 			else
 				kv[k] = v;
 		}
+		enum Kind
+		{
+			STR,
+			INT,
+			BOOL,
+			NUM,
+		};
+		// report line key -> JSON key
 		static constexpr struct
 		{
+			const char* line;
 			const char* key;
-			uint32_t field;
-			bool string;
-		} FIELDS[] = {{"battle_code", 1, true}, {"players", 3, false}, {"position", 4, false}, {"close", 5, true},
-			{"frames", 6, false}, {"delay", 21, false}, {"user_id", 40, true}, {"result", 41, true}, {"reason", 42, true},
-			{"sync", 43, true}, {"sync_differ", 44, true}, {"answered", 45, false}, {"relays", 46, false},
-			{"ping_error", 47, true}, {"ping_wait_ms", 48, false}, {"min_delay", 49, false}, {"fixed_delay", 50, false},
-			{"cut_sends", 51, false}, {"rollback_frames", 52, false}, {"mismatches", 53, false}, {"disconnected", 54, false},
-			{"timesync", 58, false}, {"input_blocks", 59, false}};
-		std::vector<uint8_t> o;
+			Kind kind;
+		} FIELDS[] = {{"battle_code", "battle_code", STR}, {"players", "player_count", INT}, {"position", "peer_id", INT},
+			{"close", "close_reason", STR}, {"frames", "frame_count", INT}, {"delay", "input_delay", INT},
+			{"user_id", "user_id", STR}, {"result", "result", STR}, {"reason", "cut_reason", STR}, {"sync", "sync", STR},
+			{"sync_differ", "sync_differ", STR}, {"answered", "answered", INT}, {"relays", "relay_count", INT},
+			{"ping_error", "ping_error", STR}, {"ping_wait_ms", "ping_wait_ms", INT}, {"min_delay", "min_delay", INT},
+			{"fixed_delay", "fixed_delay", BOOL}, {"cut_sends", "cut_sends", INT}, {"rollback_frames", "rollback_frames", INT},
+			{"mismatches", "mismatches", INT}, {"disconnected", "disconnected", BOOL}, {"rollback_budget", "rollback_budget", NUM},
+			{"rollback_budget_used", "rollback_budget_used", NUM}, {"timesync", "total_timesync", INT},
+			{"input_blocks", "input_block_count", INT}};
+		rapidjson::StringBuffer sb;
+		rapidjson::Writer<rapidjson::StringBuffer> w(sb);
+		const auto str = [&w](const char* key, const std::string& v) {
+			w.Key(key);
+			w.String(v.c_str(), static_cast<rapidjson::SizeType>(v.size()));
+		};
+		const auto ints = [&w](const char* key, const std::vector<int64_t>& vs) {
+			w.Key(key);
+			w.StartArray();
+			for (const int64_t v : vs)
+				w.Int64(v);
+			w.EndArray();
+		};
+		w.StartObject();
 		for (const auto& f : FIELDS)
 		{
-			if (f.field == 40) // remote_peers (31) in field order
-				for (const auto& [pos, m] : peers)
-				{
-					std::vector<uint8_t> peer;
-					Pb::PutInt(peer, 1, pos);
-					int ping[3];
-					if (auto it = m.find("ping"); it != m.end() &&
-						std::sscanf(it->second.c_str(), "%d/%d/%d", &ping[0], &ping[1], &ping[2]) == 3 && ping[0] >= 0)
-						for (int i = 0; i < 3; i++)
-							Pb::PutInt(peer, 4 + i, ping[i]); // ping_min_ms, ping_median_ms, ping_max_ms
-					if (auto it = m.find("path"); it != m.end())
-						Pb::PutString(peer, 7, it->second);
-					if (auto it = m.find("rtt"); it != m.end())
-						Pb::PutInt(peer, 40, std::atoll(it->second.c_str()));
-					if (auto it = m.find("addr"); it != m.end())
-						Pb::PutString(peer, 41, it->second);
-					int loss[2];
-					if (auto it = m.find("loss"); it != m.end() && std::sscanf(it->second.c_str(), "%d/%d", &loss[0], &loss[1]) == 2)
-						for (int i = 0; i < 2; i++)
-							Pb::PutInt(peer, 42 + i, loss[i]); // recv_loss, send_loss
-					Pb::PutBytes(o, 31, peer.data(), peer.size());
-				}
-			const auto it = kv.find(f.key);
+			const auto it = kv.find(f.line);
 			if (it == kv.end())
 				continue;
-			if (f.string)
-				Pb::PutString(o, f.field, it->second);
-			else
-				Pb::PutInt(o, f.field, std::atoll(it->second.c_str()));
+			const char* v = it->second.c_str();
+			switch (f.kind)
+			{
+				case STR: str(f.key, it->second); break;
+				case INT: w.Key(f.key), w.Int64(std::atoll(v)); break;
+				case BOOL: w.Key(f.key), w.Bool(std::atoll(v) != 0); break;
+				case NUM: w.Key(f.key), w.Double(std::strtod(v, nullptr)); break;
+			}
+		}
+		if (!peers.empty())
+		{
+			w.Key("remote_peers");
+			w.StartArray();
+			for (const auto& [pos, m] : peers)
+			{
+				w.StartObject();
+				w.Key("peer_id");
+				w.Int(pos);
+				int ping[3];
+				if (auto it = m.find("ping"); it != m.end() &&
+					std::sscanf(it->second.c_str(), "%d/%d/%d", &ping[0], &ping[1], &ping[2]) == 3 && ping[0] >= 0)
+				{
+					w.Key("ping_min_ms"), w.Int(ping[0]);
+					w.Key("ping_median_ms"), w.Int(ping[1]);
+					w.Key("ping_max_ms"), w.Int(ping[2]);
+				}
+				if (auto it = m.find("path"); it != m.end())
+					str("route", it->second);
+				if (auto it = m.find("rtt"); it != m.end())
+					w.Key("rtt_ms"), w.Int64(std::atoll(it->second.c_str()));
+				if (auto it = m.find("addr"); it != m.end())
+					str("addr", it->second);
+				int loss[2];
+				if (auto it = m.find("loss"); it != m.end() && std::sscanf(it->second.c_str(), "%d/%d", &loss[0], &loss[1]) == 2)
+				{
+					w.Key("recv_loss"), w.Int(loss[0]);
+					w.Key("send_loss"), w.Int(loss[1]);
+				}
+				w.EndObject();
+			}
+			w.EndArray();
 		}
 		if (auto it = kv.find("rounds"); it != kv.end())
 		{
+			w.Key("round_data");
+			w.StartArray();
 			std::istringstream rs(it->second);
 			for (std::string r; std::getline(rs, r, ';');)
 			{
 				const size_t colon = r.find(':');
 				if (colon == std::string::npos)
 					continue;
-				std::vector<int64_t> ms;
-				std::istringstream ss(r.substr(colon + 1));
-				for (std::string m; std::getline(ss, m, ',');)
-					ms.push_back(std::atoll(m.c_str()));
-				std::vector<uint8_t> round;
-				Pb::PutInt(round, 1, std::atoll(r.c_str()));
-				Pb::PutPackedInts(round, 2, ms);
-				Pb::PutBytes(o, 20, round.data(), round.size()); // round_data
+				w.StartObject();
+				w.Key("win_team"), w.Int64(std::atoll(r.c_str()));
+				ints("used_ms", SplitInts(r.substr(colon + 1), ','));
+				w.EndObject();
 			}
+			w.EndArray();
 		}
 		if (auto it = kv.find("disconnected_positions"); it != kv.end() && !it->second.empty())
-		{
-			std::vector<int64_t> left;
-			std::istringstream ps(it->second);
-			for (std::string p; std::getline(ps, p, ',');)
-				left.push_back(std::atoll(p.c_str()));
-			Pb::PutPackedInts(o, 55, left); // disconnected_peer_ids
-		}
-		if (auto it = kv.find("rollback_budget"); it != kv.end())
-			Pb::PutFloat(o, 56, std::strtof(it->second.c_str(), nullptr));
-		if (auto it = kv.find("rollback_budget_used"); it != kv.end())
-			Pb::PutFloat(o, 57, std::strtof(it->second.c_str(), nullptr));
+			ints("disconnected_peer_ids", SplitInts(it->second, ','));
 		if (auto it = kv.find("fps_history"); it != kv.end() && !it->second.empty())
-		{
-			std::vector<int64_t> fps;
-			std::istringstream fs(it->second);
-			for (std::string f; std::getline(fs, f, ',');)
-				fps.push_back(std::atoll(f.c_str()));
-			Pb::PutPackedInts(o, 60, fps);
-		}
-		return o;
+			ints("fps_history", SplitInts(it->second, ','));
+		w.EndObject();
+		return std::string(sb.GetString(), sb.GetSize());
 	}
 } // namespace Zdxsv
