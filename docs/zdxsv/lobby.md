@@ -116,7 +116,7 @@ line with the JSON as received.
 | `ping_error` | the ping test could not start | why, e.g. the GGPO port could not be bound |
 | `close_reason`, `frame_count`, `rollback_frames`, `mismatches`, `disconnected` | GGPO battle | why the session ended and its counters |
 | `disconnected_peer_ids` | GGPO battle | positions whose peer disconnected |
-| `round_data` | GGPO battle with a replay recorded (saved, uploaded or live) | per round: `win_team` and `used_ms` (per position, the MS id + 1); the lobby keeps each player's mobile suits for the replay search |
+| `round_data` | GGPO battle with a replay recorded (saved, uploaded or live) | per round: `win_team` and `used_ms` (per position, the MS id + 1); logged only |
 | `remote_peers`: `ping_min_ms`, `ping_median_ms`, `ping_max_ms` | GGPO battle | that peer's GGPO ping in ms, sampled once a second while connected; unset with no sample |
 | `remote_peers`: `recv_loss`, `send_loss` | GGPO battle | GGPO packets from that peer never received, and to it that it reported lost; totals at the last once-a-second sample |
 | `total_timesync`, `input_block_count` | GGPO battle | frames slept so a peer could catch up; frames that waited for a peer's input (GGPO prediction limit) |

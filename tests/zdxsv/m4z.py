@@ -110,6 +110,7 @@ import time
 import freshboot
 import tokenlogin
 import launch
+import replay_check
 import zbincheck
 import zrig
 from freshboot import drive, entry2p_retry, speed_check
@@ -376,6 +377,18 @@ def main():
         rows = [r.get("round_data") for r in reports(lobby) if r.get("battle_code") == code]
         return (len(rows) == n and all(rows) and all(r == rows[0] for r in rows) and
                 all(d.get("win_team") in (-1, 1, 2) and len(d.get("used_ms") or []) == n for d in rows[0]))
+
+    def used_ms_ok(code, pb):
+        try:
+            rounds = replay_check.load(pb)[0]["used_ms"]
+            db = sqlite3.connect(os.path.join(out, "zdxsv.db"))
+            rows = db.execute("select pos, used_ms_list from battle_record where battle_code=?", (code,)).fetchall()
+            db.close()
+        except (OSError, sqlite3.Error):
+            return False
+        say(f"{code}: .pb used_ms {rounds}, db (pos, used_ms_list) {rows}")
+        return bool(rounds) and bool(rows) and all(
+            lst == ",".join(str(r[p - 1] if 0 < p <= len(r) else 0) for r in rounds) for p, lst in rows)
 
     def lobby_suspend(f):
         for p in zrig.pids_name("zdxsv"):
@@ -903,6 +916,8 @@ def main():
                            filecmp.cmp(pb, os.path.join(run, f"p{i}", "PCSX2", "replays", f"{code}.pb"), shallow=False))
                 ok(f"{code}: stored .pb = exactly one client's saved .pb", same == 1)
                 ok(f"{code}: {ngc} match reports, same round_data, {ngc} used_ms per round", round_data_ok(code, ngc))
+                ok(f"{code}: every db record's used_ms_list = the stored .pb's round_data used_ms at its pos",
+                   used_ms_ok(code, pb))
                 try:
                     db = sqlite3.connect(os.path.join(out, "zdxsv.db"))
                     urls = sorted(set(r[0] for r in db.execute("select replay_url from battle_record where battle_code=?", (code,))))

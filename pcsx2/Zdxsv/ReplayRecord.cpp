@@ -61,15 +61,21 @@ namespace Zdxsv
 			return pb;
 		}
 
+		// round_data used_ms of frame f: the MS id + 1 by position, 0 = unknown.
+		std::vector<int64_t> RoundMs(size_t f)
+		{
+			std::vector<int64_t> used_ms;
+			for (int p = 0; p < s_opt.players; p++)
+				used_ms.push_back(((s_replay_ms[f] >> (p * 8)) & 0xff) + 1);
+			return used_ms;
+		}
+
 		// The BattleLogFile round_data entry (field 18) for the round result between frames f - 1 and f.
 		std::vector<uint8_t> RoundEntry(size_t f, int win)
 		{
 			std::vector<uint8_t> round, entry;
 			Pb::PutInt(round, 1, win);
-			std::vector<int64_t> used_ms; // by position, 1-based
-			for (int p = 0; p < s_opt.players; p++)
-				used_ms.push_back(((s_replay_ms[f] >> (p * 8)) & 0xff) + 1);
-			Pb::PutPackedInts(round, 2, used_ms);
+			Pb::PutPackedInts(round, 2, RoundMs(f));
 			Pb::PutBytes(entry, 18, round.data(), round.size());
 			return entry;
 		}
@@ -129,18 +135,19 @@ namespace Zdxsv
 			return DnsUsedServerHost() ? Zdxsv::LobbyApiUrl() : std::string();
 		}
 
-		// Every player posts <battle_code>.pb (multipart field "file")
-		// to the uploader, which keeps the first one (409 for the others). Detached: a slow upload blocks neither
-		// the next battle nor the exit.
-		void ReplayUpload(const std::string& name, const std::vector<uint8_t>& pb)
+		// Every player posts <battle_code>.pb (multipart field "file") and its round_data used_ms (field "used_ms",
+		// JSON: one array per round) to the uploader, which keeps the first one (409 for the others). Detached: a slow
+		// upload blocks neither the next battle nor the exit.
+		void ReplayUpload(const std::string& name, const std::vector<uint8_t>& pb, const std::string& used_ms)
 		{
 			const std::string url = ReplayUploadUrl();
 			if (url.empty())
 				return;
 			const std::string boundary = fmt::format("zdxsv{:016x}", XXH64(pb.data(), pb.size(), 0));
-			std::string body = fmt::format("--{}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{}.pb\"\r\n"
+			std::string body = fmt::format("--{0}\r\nContent-Disposition: form-data; name=\"used_ms\"\r\n\r\n{1}\r\n"
+										   "--{0}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{2}.pb\"\r\n"
 										   "Content-Type: application/octet-stream\r\n\r\n",
-				boundary, name);
+				boundary, used_ms, name);
 			body.append(reinterpret_cast<const char*>(pb.data()), pb.size());
 			body += fmt::format("\r\n--{}--\r\n", boundary);
 			std::thread([url, body = std::move(body), type = "multipart/form-data; boundary=" + boundary]() mutable {
@@ -352,12 +359,17 @@ namespace Zdxsv
 		PutPackedInts(pb, 57, starts);
 		PutPackedInts(pb, 58, ends);
 		PutPackedInts(pb, 59, rounds);
+		std::string used_ms = "[";
 		for (size_t f = 1; f < std::min(frames, s_replay_records.size()); f++)
 		{
 			if (const int win = RoundResult(s_replay_records[f - 1], s_replay_records[f]))
 			{
 				const std::vector<uint8_t> entry = RoundEntry(f, win);
 				pb.insert(pb.end(), entry.begin(), entry.end());
+				used_ms += used_ms.size() > 1 ? ",[" : "[";
+				for (const int64_t ms : RoundMs(f))
+					used_ms += fmt::format("{}{}", used_ms.back() == '[' ? "" : ",", ms);
+				used_ms += "]";
 				Console.WriteLn("ZdxsvGgpo: replay round result: win_team %d at frame %zu, MS ids %08x", win, f - 1, s_replay_ms[f]);
 			}
 		}
@@ -370,7 +382,8 @@ namespace Zdxsv
 				Console.WriteLn("ZdxsvGgpo: replay saved %s frames=%zu, file=%zu bytes, %.1f ms", path.c_str(), frames,
 					pb.size(), timer.GetTimeMilliseconds());
 		}
+		used_ms += "]";
 		if (!code.empty())
-			ReplayUpload(name, pb);
+			ReplayUpload(name, pb, used_ms);
 	}
 } // namespace Zdxsv

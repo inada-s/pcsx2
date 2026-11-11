@@ -14,9 +14,12 @@ battles save to the replay folder without it (settings `ZdxsvSaveReplay`,
 - Only frames GGPO confirmed are written, so every peer's file of one battle
   holds the same inputs.
 - The file is written when the session stops, also on a VM shutdown or reset.
-- A lobby battle's file is posted (multipart) to the
+- A lobby battle's file is posted (multipart field `file`) to the
   lobby's upload API (zdxsv `/lbs/replay_upload`) at
-  `ZdxsvReplayUploadUrl` when `ZdxsvReplayUpload` is on (default).
+  `ZdxsvReplayUploadUrl` when `ZdxsvReplayUpload` is on (default),
+  with field `used_ms`: JSON, one array per round of the file's
+  `round_data` `used_ms` (e.g. `[[3,7,0,12],[3,9,0,12]]`), which the
+  lobby keeps for the replay search.
 
 ## File format
 
