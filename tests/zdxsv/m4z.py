@@ -416,10 +416,12 @@ def main():
                "--p2", str(int(ggpo) + 2), "--delay", lat, "--seconds", "3600", "--idle", "900", "--every", "10"],
               "udprelay.txt")
     time.sleep(6)
-    # lobby RPC on 127.0.0.1 = LAN test: the lobby matches the proxy by -userid, not by address
+    # lobby API on 127.0.0.1 = LAN test: the lobby matches the proxy by -userid, not by address
+    api = E("ZDXSV_LOBBY_API_ADDR") or "127.0.0.1:9881"
     for i in zp:
         start([zproxy, "-updatecheck=false", "-upnp=false", "-verbose", f"-userid={users[int(i) - 1]}",
-               f"-tcpport={8250 + int(i)}", f"-udpport={8250 + int(i)}", "-lobbyrpcaddr=127.0.0.1:8201"],
+               f"-tcpport={8250 + int(i)}", f"-udpport={8250 + int(i)}", f"-lobbyapi=http://{api}",
+               "-stunaddr=127.0.0.1:8201"],
               f"zproxy-p{i}.log")
     for i in "1234":
         try:
@@ -485,7 +487,7 @@ def main():
                c(f, "Pausing") and c(f, "Resuming") and c(f, r"answered the lobby line check \(paused\)") >= ps // 10 - 2)
         if E("PAUSE_ONLY"):
             return RC[0]
-    for l in g(lobby, "Register zproxy")[-nz:] if nz else []:
+    for l in g(lobby, "RegisterProxyRequest")[-nz:] if nz else []:
         say(l[:160])
 
     # entries close together: with one client per ~3 min (entry right after its login)
@@ -544,7 +546,8 @@ def main():
     ok("zproxy no UPnP", not any(c(z, "Router\\(s\\) found|UPnP") for z in zlogs))
     for i in zp:
         u, zl = users[int(i) - 1], os.path.join(out, f"zproxy-p{i}.log")
-        ok(f"p{i} zproxy registered + in battle", c(lobby, f"Register zproxy {u}") and c(lobby, f"zproxy user {u}"))
+        ok(f"p{i} zproxy registered + in battle", c(lobby, f'RegisterProxyRequest.*"UserID":"{u}"')
+           and c(lobby, f'zproxy user.*"user_id": "{u}"'))
         ok(f"p{i} PS2 -> zproxy -> UDP", c(zl, "PS2との接続に成功しました") and c(zl, "UDP通信を開始します")
            and not c(zl, "対戦サーバとの接続に失敗"))
     if E("SYNC_SALT"):
