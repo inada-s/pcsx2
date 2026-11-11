@@ -69,6 +69,7 @@ def main():
             text = f.read().replace("SetupWizardIncomplete = true", "SetupWizardIncomplete = false")
         with open(ini, "w", encoding="utf-8") as f:
             f.write(text)
+    zrig.ini_set(ini, "AutoUpdater", "CheckAtStartup", "false")
     token_file = os.path.join(data, "PCSX2", "inis", "zdxsv_auth_token.txt")
     log = os.path.join(data, "emulog.txt")
     for f in (token_file, log):

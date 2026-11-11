@@ -92,6 +92,8 @@ def _ini(path, slot, renderer, speed, eth):
     with open(path + ".new", "w", encoding="utf-8", errors="surrogateescape", newline="\n") as f:
         f.write("\n".join(out) + "\n")
     os.replace(path + ".new", path)
+    # Each startup check of a tagged build spends one of GitHub's 60 unauthenticated API calls per hour per IP.
+    zrig.ini_set(path, "AutoUpdater", "CheckAtStartup", "false")
 
 
 def _hide_window(pid):
