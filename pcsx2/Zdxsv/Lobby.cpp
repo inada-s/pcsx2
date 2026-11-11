@@ -2,9 +2,12 @@
 // SPDX-License-Identifier: GPL-3.0+
 
 #include "Zdxsv/Lobby.h"
-#include "Zdxsv/Proto.h"
 #include "Zdxsv/LobbyNet.h"
 #include "Zdxsv/TestOptions.h"
+
+#include "rapidjson/document.h"
+#include "rapidjson/stringbuffer.h"
+#include "rapidjson/writer.h"
 
 #include <array>
 #include <algorithm>
@@ -228,48 +231,51 @@ namespace Zdxsv
 		buf.erase(buf.begin(), buf.begin() + pos);
 	}
 
-	// ---- protobuf codec for zdxsv.proto (Zdxsv/Proto.h): Ping / Pong only (the lobby's STUN) ----
-	using namespace Pb;
-
-	std::vector<uint8_t> ProtoEncode(const ProtoPacket& pkt)
+	// ---- STUN Ping / Pong codec ----
+	std::string StunEncode(const StunPacket& pkt)
 	{
-		std::vector<uint8_t> o;
-		PutUint(o, 1, pkt.type);
-		if (pkt.type == ProtoPing || pkt.type == ProtoPong)
+		rapidjson::StringBuffer sb;
+		rapidjson::Writer<rapidjson::StringBuffer> w(sb);
+		w.StartObject();
+		w.Key("type");
+		w.String(pkt.type.c_str(), static_cast<rapidjson::SizeType>(pkt.type.size()));
+		w.Key("timestamp");
+		w.Int64(pkt.timestamp);
+		if (!pkt.userId.empty())
 		{
-			std::vector<uint8_t> m;
-			PutUint(m, 1, static_cast<uint64_t>(pkt.timestamp));
-			if (!pkt.pingUserId.empty())
-				PutString(m, 2, pkt.pingUserId);
-			if (pkt.type == ProtoPong && !pkt.publicAddr.empty())
-				PutString(m, 3, pkt.publicAddr);
-			PutBytes(o, pkt.type == ProtoPing ? 11 : 12, m.data(), m.size());
+			w.Key("user_id");
+			w.String(pkt.userId.c_str(), static_cast<rapidjson::SizeType>(pkt.userId.size()));
 		}
-		return o;
+		if (!pkt.publicAddr.empty())
+		{
+			w.Key("public_addr");
+			w.String(pkt.publicAddr.c_str(), static_cast<rapidjson::SizeType>(pkt.publicAddr.size()));
+		}
+		w.EndObject();
+		return std::string(sb.GetString(), sb.GetSize());
 	}
 
-	bool ProtoDecode(const uint8_t* data, size_t len, ProtoPacket& pkt)
+	bool StunDecode(const uint8_t* data, size_t len, StunPacket& pkt)
 	{
-		pkt = ProtoPacket{};
-		Reader r{data, data + len};
-		return r.Fields([&](uint32_t field, uint32_t wt, uint64_t v, const uint8_t* bytes, size_t n) {
-			if (wt == 0 && field == 1)
-				pkt.type = static_cast<uint32_t>(v);
-			else if (wt == 2 && (field == 11 || field == 12))
-			{
-				Reader m{bytes, bytes + n};
-				return m.Fields([&](uint32_t f, uint32_t w, uint64_t mv, const uint8_t* mb, size_t mn) {
-					if (w == 0 && f == 1)
-						pkt.timestamp = static_cast<int64_t>(mv);
-					else if (w == 2 && f == 2)
-						pkt.pingUserId.assign(reinterpret_cast<const char*>(mb), mn);
-					else if (w == 2 && f == 3)
-						pkt.publicAddr.assign(reinterpret_cast<const char*>(mb), mn);
-					return true;
-				});
-			}
+		pkt = StunPacket{};
+		rapidjson::Document doc;
+		doc.Parse(reinterpret_cast<const char*>(data), len);
+		if (doc.HasParseError() || !doc.IsObject())
+			return false;
+		const auto str = [&doc](const char* key, std::string& out) {
+			const auto it = doc.FindMember(key);
+			if (it == doc.MemberEnd() || !it->value.IsString())
+				return false;
+			out.assign(it->value.GetString(), it->value.GetStringLength());
 			return true;
-		});
+		};
+		if (!str("type", pkt.type))
+			return false;
+		str("user_id", pkt.userId);
+		str("public_addr", pkt.publicAddr);
+		if (const auto it = doc.FindMember("timestamp"); it != doc.MemberEnd() && it->value.IsInt64())
+			pkt.timestamp = it->value.GetInt64();
+		return true;
 	}
 
 	// ---- socket helpers, STUN ----
@@ -524,16 +530,16 @@ namespace Zdxsv
 		}
 		if (probe6 != INVALID_SOCKET)
 			closesocket(probe6);
-		// zproxy's STUN: Ping -> Pong{public_addr}. 3 tries, 200 ms each.
+		// the lobby STUN: Ping -> Pong{public_addr}. 3 tries, 200 ms each.
 		std::string pub;
 		int rtt = -1;
-		ProtoPacket ping;
-		ping.type = ProtoPing;
+		StunPacket ping;
+		ping.type = StunPing;
 		for (int i = 0; i < 3 && pub.empty(); i++)
 		{
 			ping.timestamp = NowNanos();
-			const std::vector<uint8_t> data = ProtoEncode(ping);
-			sendto(s, reinterpret_cast<const char*>(data.data()), static_cast<int>(data.size()), 0,
+			const std::string data = StunEncode(ping);
+			sendto(s, data.data(), static_cast<int>(data.size()), 0,
 				reinterpret_cast<const sockaddr*>(&stun), sizeof(stun));
 			const auto until = Clock::now() + std::chrono::milliseconds(200);
 			while (pub.empty() && Clock::now() < until)
@@ -545,8 +551,8 @@ namespace Zdxsv
 				sockaddr_in from{};
 				socklen_t fromLen = sizeof(from);
 				const int n = recvfrom(s, reinterpret_cast<char*>(buf), sizeof(buf), 0, reinterpret_cast<sockaddr*>(&from), &fromLen);
-				ProtoPacket pong;
-				if (n > 0 && LobbySameAddr(from, stun) && ProtoDecode(buf, n, pong) && pong.type == ProtoPong)
+				StunPacket pong;
+				if (n > 0 && LobbySameAddr(from, stun) && StunDecode(buf, n, pong) && pong.type == StunPong)
 				{
 					pub = pong.publicAddr;
 					rtt = static_cast<int>((NowNanos() - ping.timestamp) / 1000000);
@@ -588,14 +594,14 @@ namespace Zdxsv
 		bool open = false;
 		// sends ping to `to` (3 tries, 300 ms each) until `done`; Pongs from stun/test fill mapped/mappedTest/open
 		const auto ask = [&](const sockaddr_in& to, const std::string& userId, const std::function<bool()>& done) {
-			ProtoPacket ping;
-			ping.type = ProtoPing;
-			ping.pingUserId = userId;
+			StunPacket ping;
+			ping.type = StunPing;
+			ping.userId = userId;
 			for (int i = 0; i < 3 && !done() && !stopped(); i++)
 			{
 				ping.timestamp = NowNanos();
-				const std::vector<uint8_t> data = ProtoEncode(ping);
-				sendto(s, reinterpret_cast<const char*>(data.data()), static_cast<int>(data.size()), 0,
+				const std::string data = StunEncode(ping);
+				sendto(s, data.data(), static_cast<int>(data.size()), 0,
 					reinterpret_cast<const sockaddr*>(&to), sizeof(to));
 				const auto until = Clock::now() + std::chrono::milliseconds(300);
 				while (!done() && !stopped() && Clock::now() < until)
@@ -606,8 +612,8 @@ namespace Zdxsv
 					sockaddr_in from{};
 					socklen_t fromLen = sizeof(from);
 					const int n = recvfrom(s, reinterpret_cast<char*>(buf), sizeof(buf), 0, reinterpret_cast<sockaddr*>(&from), &fromLen);
-					ProtoPacket pong;
-					if (n <= 0 || !ProtoDecode(buf, n, pong) || pong.type != ProtoPong)
+					StunPacket pong;
+					if (n <= 0 || !StunDecode(buf, n, pong) || pong.type != StunPong)
 						continue;
 					if (LobbySameAddr(from, stun))
 						mapped = pong.publicAddr;

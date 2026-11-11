@@ -19,7 +19,8 @@ def main():
     # --allow-multiple-definition: common/Pcsx2Defs.h redefines __forceinline without inline, so the
     # MinGW headers' inline helpers are emitted in both objects
     if subprocess.call([zrig.env("CXX", "g++"), "-std=c++20", "-O1", "-w", "-I", "pcsx2", "-I", ".",
-                        "tests/zdxsv/lobbytest.cpp", "pcsx2/Zdxsv/Lobby.cpp", "-lws2_32",
+                        "-I", "3rdparty/rapidjson/include", "tests/zdxsv/lobbytest.cpp", "pcsx2/Zdxsv/Lobby.cpp",
+                        "pcsx2/Zdxsv/LobbyBattleInfo.cpp", "pcsx2/Zdxsv/LobbyPing.cpp", "-lws2_32",
                         "-Wl,--allow-multiple-definition", "-o", exe]):
         print("FAIL build")
         return 1

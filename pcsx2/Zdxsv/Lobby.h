@@ -166,12 +166,12 @@ namespace Zdxsv
 	// Log sink (pcsx2: Console). Default: none.
 	void LobbySetLogger(std::function<void(const std::string&)> log);
 
-	// Notice 0x9951: a P2PMatching (zdxsv pkg/proto/zdxsv.proto). False if malformed, over the
+	// Notice 0x9951: the battle info as JSON. False if malformed, over the
 	// limits (8 users, 64 candidates, 4 relays, 256-byte strings) or without its own user.
 	bool ParseBattleInfo(const std::string& body, BattleInfo& out);
 
-	// Message 0x9952: the report's "key=value" lines (TakeLobbyReport) as a P2PMatchingReport.
-	std::vector<uint8_t> EncodeMatchingReport(const std::string& lines);
+	// Message 0x9952: the report's "key=value" lines (TakeLobbyReport) as a JSON match report.
+	std::string EncodeMatchingReport(const std::string& lines);
 
 	// Keeps info (IsBattleServer) and passes it to the listener.
 	void SetBattleInfo(const BattleInfo& info);
@@ -262,22 +262,18 @@ namespace Zdxsv
 	void LobbyNoteFrame(const uint8_t* frame, size_t size);
 	std::vector<std::vector<uint8_t>> LobbyStartAnswers();
 
-	// STUN codec (the lobby's Ping / Pong messages), exposed for tests.
-	enum ProtoMessageType : uint32_t
+	// The lobby STUN's UDP Ping / Pong, as JSON (byte 0 is '{'), exposed for tests.
+	struct StunPacket
 	{
-		ProtoPing = 2,
-		ProtoPong = 3,
-	};
-
-	struct ProtoPacket
-	{
-		uint32_t type = 0;
-		// ProtoPing: timestamp + user_id; ProtoPong: + public_addr (STUN answer).
+		std::string type; // StunPing / StunPong
 		int64_t timestamp = 0;
-		std::string pingUserId;
-		std::string publicAddr;
+		std::string userId;
+		std::string publicAddr; // Pong: the Ping's source address as the STUN saw it
 	};
+	inline constexpr const char* StunPing = "ping";
+	inline constexpr const char* StunPong = "pong";
 
-	std::vector<uint8_t> ProtoEncode(const ProtoPacket& p);
-	bool ProtoDecode(const uint8_t* data, size_t len, ProtoPacket& p);
+	std::string StunEncode(const StunPacket& p);
+	// False if not a JSON object with a string type.
+	bool StunDecode(const uint8_t* data, size_t len, StunPacket& p);
 } // namespace Zdxsv
