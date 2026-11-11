@@ -10,8 +10,11 @@ Exit 0 = all checks passed.
 Env: ZP (clients behind zproxy, default "1 3": one per side), ZPROXY (exe), SHOW ("1 2":
 windowed with GS snapshots), MAXS (s after mash to wait for results).
 GAUGE, COUNT, TIME: the lobby battle rule (戦力ゲージ, 連続対戦数, 作戦時間 s; menu values) as the stack's
-ZDXSV_LOBBY_BATTLE_*, or (server with m_rule) as an m_rule row for lobby 2 (1v1) in OUT/zdxsv.db. Default GAUGE=1 COUNT=1 (one round, the first shoot-down ends it); `GAUGE=0 COUNT=0`:
-the lobby's default rule (rematches picked by the mash).
+ZDXSV_LOBBY_BATTLE_*, or (server with m_rule) as an m_rule row for lobby 2 in OUT/zdxsv.db, printed. Default GAUGE=1 COUNT=1 (one round, the first shoot-down ends it); `GAUGE=0 COUNT=0`:
+the lobby's default rule (rematches picked by the mash). Lobby 2's start follows CLIENTS: 4 clients 2v2,
+2 (or 1) 1v1. The game reports battle counts only from a 4-player battle (a 1v1 result: the code, all
+counts 0): a 4-client run checks 4 results
+with the battle_record's code per battle, a 2-client run checks each client's post-battle login instead.
 EMU=1: the 4 clients are emulators instead (platform info, no zproxy by default; no DEV9 refuses the battle server: battles need GGPO;
   ZDXSV_TLS=0 unless ZDXSV_TLS_TEST_PIN=1);
   GGPO=7101: with ZDXSV_GGPO net=1,lobby=1,port=GGPO+i-1 on GGPO_CLIENTS (default "1 2 3 4"; a lobby with
@@ -94,6 +97,7 @@ data on the card, after which `top` lands in an offline battle.
 """
 import atexit
 import filecmp
+import json
 import os
 import re
 import shutil
@@ -170,22 +174,52 @@ def pwcheck_ok(path, n):
     return cm > 0 and s == 0
 
 
-def lobby_rule(path, gauge, count, time_s):
-    # servers with m_rule ignore ZDXSV_LOBBY_BATTLE_* and have no built-in 1v1 lobby 2; 0 = the menu default
+def lobby_rule(path, start, gauge, count, time_s):
+    """Writes lobby 2's rule (both platforms) and returns it as read back, None if the server has no m_rule
+    (it then plays its built-in lobby 2 with ZDXSV_LOBBY_BATTLE_*). 0 = the menu default."""
     db = sqlite3.connect(path)
     try:
         if not db.execute("select 1 from sqlite_master where name='m_rule'").fetchone():
-            return False
+            return None
         db.execute("insert or replace into m_rule (id, battle_count, visible_team, battle_time, battle_gauge,"
                    " reload_type, damage_level, awake_type, awake_inc_ratio, awake_dec_ratio)"
                    " values ('m4z', ?, 0, ?, ?, 0, 3, 0, 100, 100)", (count, time_s or 180, gauge or 600))
         for platform in ("emu", "console"):
-            db.execute("insert or replace into m_lobby_setting (platform, no, start, rule_id) values (?, 2, '1v1', 'm4z')",
-                       (platform,))
+            db.execute("insert or replace into m_lobby_setting (platform, no, start, rule_id) values (?, 2, ?, 'm4z')",
+                       (platform, start))
         db.commit()
-        return True
+        return db.execute("select s.platform, s.start, r.battle_gauge, r.battle_count, r.battle_time from m_lobby_setting s"
+                          " join m_rule r on r.id = s.rule_id where s.no = 2 order by s.platform").fetchall()
     finally:
         db.close()
+
+
+def battle_results(lobby_log):
+    """(user_id, result dict) per battle result the lobby logged: `battle result` with the result as JSON, or the
+    `== BattleResult ==` block of older servers."""
+    out, blk = [], None
+    for l in rd(lobby_log):
+        m = re.search(r"\tbattle result\t(\{.*\})\s*$", l)
+        if m:
+            try:
+                f = json.loads(m[1])
+                out.append((f.get("user_id", ""), json.loads(f.get("result", "{}"))))
+            except ValueError:
+                pass
+            continue
+        if "== BattleResult ==" in l:
+            blk = ["", {}]
+            continue
+        if blk is None:
+            continue
+        if "==================" in l:
+            out.append(tuple(blk))
+            blk = None
+        elif " ID: " in l:
+            blk[0] = l.split()[-1]
+        else:
+            blk[1].update(re.findall(r'"(\w+)": "?([^",]*)"?', l))
+    return out
 
 
 def ggpo_ends(logs, nb):
@@ -287,6 +321,8 @@ def main():
 
     os.makedirs(out, exist_ok=True)
     shutil.copyfile(os.path.join(run, "zdxsv.db"), os.path.join(out, "zdxsv.db"))
+    with sqlite3.connect(os.path.join(out, "zdxsv.db")) as db:
+        old_codes = set(r[0] for r in db.execute("select battle_code from battle_record"))
     tokens = {}
     for i in clients if fl else ():
         tokens[i], err = tokenlogin.card_token(os.path.join(out, "zdxsv.db"),
@@ -391,8 +427,21 @@ def main():
     with open(os.path.join(out, "migratedb.log"), "wb") as f:
         subprocess.call([zbin, "migratedb"], env=dict(os.environ, ZDXSV_DB_NAME=os.path.join(out, "zdxsv.db")),
                         stdout=f, stderr=subprocess.STDOUT)
-    if lobby_rule(os.path.join(out, "zdxsv.db"), int(E("GAUGE", "1")), int(E("COUNT", "1")), int(E("TIME", "0"))):
-        say("lobby 2 rule: m_lobby_setting 1v1 + m_rule m4z")
+    # the game reports battle counts only from a 4-player battle: 4 clients play 2v2, 2 (or 1) play 1v1
+    if nc == 3:
+        say("FAIL CLIENTS: 4 (2v2), 2 or 1 (1v1)")
+        return 1
+    lobby_start = "2v2" if nc == 4 else "1v1"
+    rule = lobby_rule(os.path.join(out, "zdxsv.db"), lobby_start, int(E("GAUGE", "1")), int(E("COUNT", "1")), int(E("TIME", "0")))
+    if rule is None:
+        say(f"lobby 2 rule: the server's built-in (no m_rule), ZDXSV_LOBBY_BATTLE_* GAUGE={E('GAUGE', '1')}"
+            f" COUNT={E('COUNT', '1')} TIME={E('TIME', '0')}; {nc} clients need {lobby_start}")
+    else:
+        for p, s, gg, cn, tm in rule:
+            say(f"lobby 2 rule ({p}): start {s}, gauge {gg}, count {cn}, time {tm} s")
+        if any(r[1] != lobby_start for r in rule):
+            say(f"FAIL lobby 2 rule: start is not {lobby_start}")
+            return 1
     if E("RELAY"):
         os.environ["ZDXSV_LOBBY_RELAY_ADDR"] = ":8203"
     relay_path = E("RELAY_PATH", "direct")
@@ -433,7 +482,7 @@ def main():
         threading.Thread(target=live_thread, daemon=True).start()
 
     def logins():
-        return c(lobby, "== BattleResult ==")
+        return len(battle_results(lobby))
 
     cpid = {}
     for i in clients:
@@ -605,37 +654,30 @@ def main():
         for l in g(z, "P2P Mode Enabled"):
             say(l[:120])
 
-    # per result: user, total_frame, kills, deaths, win, lose; the lobby also logs a zero
-    # BattleResult at every login (empty battle_code): only results with a battle_code count. A 1v1 that
-    # times out (mash, no kill) reports battle_count/total_frame 0 (both sides, same code)
+    # the lobby asks for the battle result at every login (empty battle code before any battle); after a 1v1
+    # the result has the code but all counts 0: a pair run counts the post-battle logins and takes its codes
+    # from the db's battle_record
     rtxt = os.path.join(out, "results.txt")
 
+    def db_codes():
+        try:
+            db = sqlite3.connect(os.path.join(out, "zdxsv.db"))
+            rows = db.execute("select battle_code from battle_record group by battle_code order by min(created)").fetchall()
+            db.close()
+        except sqlite3.Error:
+            return []
+        return [r[0] for r in rows if r[0] not in old_codes]
+
     def results():
-        n, b, ids, codes, vals = 0, False, {}, {}, {}
-        for l in rd(lobby):
-            if "== BattleResult ==" in l:
-                n, b = n + 1, True
-                continue
-            if "==================" in l:
-                b = False
-            if not b:
-                continue
-            if "] ID:" in l and l.split():
-                ids[n] = l.split()[-1]
-            if re.search(r'"battle_code": "[0-9]', l):
-                codes[n] = re.sub(r'[",]', "", l).split()[-1]
-            if re.search(r'"(total_frame|kill_count|death_count|win_count|lose_count)"', l):
-                f = re.sub(r'[",]', "", l).split()
-                if len(f) >= 2:
-                    vals[n] = vals.get(n, "") + " " + f[-2] + f[-1]
+        keys = ("battle_count", "win_count", "lose_count", "kill_count", "death_count", "total_frame")
         with open(rtxt, "w", encoding="utf-8") as f:
-            for k in range(1, n + 1):
-                if codes.get(k):
-                    f.write(f"result {ids.get(k, '')} battle_code:{codes[k]}{vals.get(k, '')}\n")
+            for uid, r in battle_results(lobby):
+                if str(r.get("battle_code", "")).strip():
+                    f.write(f"result {uid} battle_code:{r['battle_code']}" + "".join(f" {k}:{r.get(k, '')}" for k in keys) + "\n")
 
     def report_code():
         m = re.search(r"battle_code:([0-9]*)", "\n".join(rd(rtxt)))
-        return m[1] if m else ""
+        return m[1] if m else next(iter(db_codes()), "")
 
     def nresults():
         return c(rtxt, "^result")
@@ -772,13 +814,12 @@ def main():
         while time.time() - t0 < int(E("MAXS", "2100")):
             time.sleep(5)
             results()
-            r = nresults()
+            r, want, what = (logins(), nc * (b + 1), "post-battle logins") if pair else (nresults(), nc * b, "results")
             secs = int(time.time() - t0)
             if r != last or secs % 30 < 5:
-                say(f"{secs} s: results {r}/{nc * b}")
+                say(f"{secs} s: {what} {r - (nc if pair else 0)}/{want - (nc if pair else 0)}")
             last = r
-            if r >= nc * b:
-                # the last BattleResult block can still be half-written to the lobby log
+            if r >= want:
                 time.sleep(2)
                 results()
                 break
@@ -786,18 +827,25 @@ def main():
         say(l)
     for l in [l for z in zlogs for l in g(z, "Error|失敗")][-4:]:
         say(l[:160])
-    ok(f"BattleResult x{nc * nb}", nresults() >= nc * nb)
-    # per battle code: nc results, one total_frame; nb codes
-    n, fr, kills, deaths = {}, set(), 0, 0
-    for l in rd(rtxt):
-        v = dict(x.split(":", 1) for x in l.split()[2:] if ":" in x)
-        cd = v.get("battle_code", "")
-        n[cd] = n.get(cd, 0) + 1
-        fr.add((cd, v.get("total_frame", "")))
-        kills += int(v.get("kill_count") or 0)
-        deaths += int(v.get("death_count") or 0)
-    ok(f"results agree ({nb} battle codes)",
-       len(n) == nb and len(fr) == nb and all(x >= nc for x in n.values()) and kills == deaths)
+    if pair:
+        say(f"1v1 results with a battle code: {nresults()} (counts not checked: 0 in a 1v1)")
+        ok(f"every client logged in after each battle (battle result answers x{nc * (nb + 1)})", logins() >= nc * (nb + 1))
+        ok(f"battle_record: {nb} battle codes", len(db_codes()) == nb)
+    else:
+        ok(f"battle results with a battle code x{nc * nb}", nresults() >= nc * nb)
+        ok("result battle codes = battle_record's",
+           sorted(set(re.findall(r"battle_code:([0-9]*)", "\n".join(rd(rtxt))))) == sorted(db_codes()))
+        # per battle code: nc results, one total_frame; nb codes
+        n, fr, kills, deaths = {}, set(), 0, 0
+        for l in rd(rtxt):
+            v = dict(x.split(":", 1) for x in l.split()[2:] if ":" in x)
+            cd = v.get("battle_code", "")
+            n[cd] = n.get(cd, 0) + 1
+            fr.add((cd, v.get("total_frame", "")))
+            kills += int(v.get("kill_count") or 0)
+            deaths += int(v.get("death_count") or 0)
+        ok(f"results agree ({nb} battle codes)",
+           len(n) == nb and len(fr) == nb and all(x >= nc for x in n.values()) and kills == deaths)
     tools = zrig.TOOLS
     if emu and ggpo:
         seen = set()
@@ -835,7 +883,7 @@ def main():
             for f in every:
                 for l in g(f, "replay upload"):
                     say(l[:200])
-            codes = sorted(set(re.findall(r"battle_code:([0-9]*)", "\n".join(rd(rtxt)))))
+            codes = sorted(db_codes())
             for code in codes:
                 pb = os.path.join(out, "upload", "replays", f"{code}.pb")
                 # each client's file is its own (position, frame 0 state): the first upload is kept
