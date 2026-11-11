@@ -144,6 +144,19 @@ def c(p, rx):
     return len(g(p, rx))
 
 
+def reports(p):
+    """The match reports (0x9952 JSON) the lobby log p carries: its `p2p matching report` lines' "report" field."""
+    out = []
+    for l in g(p, r"p2p matching report\s+\{"):
+        try:
+            r = json.loads(l[l.index("{"):]).get("report")
+        except ValueError:
+            continue
+        if isinstance(r, dict):
+            out.append(r)
+    return out
+
+
 def ts(l):
     try:
         return float(l[1:l.index("]")])
@@ -360,11 +373,9 @@ def main():
             procs.append(subprocess.Popen(args, env=env, stdin=subprocess.DEVNULL, stdout=f, stderr=subprocess.STDOUT))
 
     def round_data_ok(code, n):
-        rows = [" ".join(re.findall(r'round_data="[^"]*"', l)) + (" " if 'round_data="' in l else "")
-                for l in g(lobby, f'p2p matching report: battle_code="{code}"')]
-        return (sum(1 for r in rows if r) == n and len(set(rows)) == 1 and
-                bool(re.fullmatch(r'round_data="R(, R)* *" '.replace("R", r'win_team:(-1|1|2)( +used_ms:[0-9]+){%d} *' % n),
-                                  rows[0])))
+        rows = [r.get("round_data") for r in reports(lobby) if r.get("battle_code") == code]
+        return (len(rows) == n and all(rows) and all(r == rows[0] for r in rows) and
+                all(d.get("win_team") in (-1, 1, 2) and len(d.get("used_ms") or []) == n for d in rows[0]))
 
     def lobby_suspend(f):
         for p in zrig.pids_name("zdxsv"):
@@ -757,17 +768,17 @@ def main():
         # a 4-player cut reports total_frame 16200 (a 1v1 cut 0): frames do not tell a cut from a battle
         ok("no battle fought (no win, loss, kill or death)", not c(rtxt, "_count:[1-9]"))
         if E("REPORT"):
-            for l in g(lobby, "p2p matching report:"):
+            for l in g(lobby, "p2p matching report"):
                 say(l[:300])
-            ok("no match report without a battle code", not c(lobby, 'p2p matching report: battle_code=""'))
+            ok("no match report without a battle code", all(r.get("battle_code") for r in reports(lobby)))
             rc = report_code()
-            rs = g(lobby, f'p2p matching report: battle_code="{rc}"')
+            rs = [r for r in reports(lobby) if r.get("battle_code") == rc]
             ncut = 1 if cut == "drop" else ngc
             ok(f"match report x{ncut}: battle code {rc}, result cut, cut ended",
-               sum(1 for l in rs if 'result="cut"' in l and "cut_sends=" in l) == ncut)
+               sum(1 for r in rs if r.get("result") == "cut" and "cut_sends" in r) == ncut)
             if cut == "drop":
                 ok(f"match report x{ngc - 1}: battle code {rc}, result ggpo, closed on session mismatch",
-                   sum(1 for l in rs if 'result="ggpo"' in l and 'close_reason="session mismatch"' in l) == ngc - 1)
+                   sum(1 for r in rs if r.get("result") == "ggpo" and r.get("close_reason") == "session mismatch") == ngc - 1)
         return RC[0]
 
     def breakwait():
@@ -871,13 +882,13 @@ def main():
             say(f"ggpo end p{i} battle {k} end_msg {a} frames {f} mismatches {m}")
         ok(f"ggpo battle ends x{nb}: every recording past every peer's end msg, 0 mismatches", good)
         if E("REPORT"):
-            for l in g(lobby, "p2p matching report:"):
+            for l in g(lobby, "p2p matching report"):
                 say(l[:300])
-            ok("no match report without a battle code", not c(lobby, 'p2p matching report: battle_code=""'))
+            ok("no match report without a battle code", all(r.get("battle_code") for r in reports(lobby)))
             rc = report_code()
             ok(f"match report x{ngc}: battle code {rc}, result ggpo, net battle end, 0 mismatches",
-               sum(1 for l in g(lobby, f'p2p matching report: battle_code="{rc}"')
-                   if 'result="ggpo"' in l and 'close_reason="net battle end"' in l and 'mismatches="0"' in l) == ngc)
+               sum(1 for r in reports(lobby) if r.get("battle_code") == rc and r.get("result") == "ggpo" and
+                   r.get("close_reason") == "net battle end" and r.get("mismatches") == 0) == ngc)
         if E("UPLOAD"):
             time.sleep(10)  # uploads run detached after the battle end
             for f in every:
