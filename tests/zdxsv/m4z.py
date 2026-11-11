@@ -595,7 +595,7 @@ def main():
     ok("zproxy no UPnP", not any(c(z, "Router\\(s\\) found|UPnP") for z in zlogs))
     for i in zp:
         u, zl = users[int(i) - 1], os.path.join(out, f"zproxy-p{i}.log")
-        ok(f"p{i} zproxy registered + in battle", c(lobby, f'RegisterProxyRequest.*"UserID":"{u}"')
+        ok(f"p{i} zproxy registered + in battle", c(lobby, f'RegisterProxyRequest.*"(UserID|user_id)":"{u}"')
            and c(lobby, f'zproxy user.*"user_id": "{u}"'))
         ok(f"p{i} PS2 -> zproxy -> UDP", c(zl, "PS2との接続に成功しました") and c(zl, "UDP通信を開始します")
            and not c(zl, "対戦サーバとの接続に失敗"))
