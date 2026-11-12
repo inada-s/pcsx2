@@ -34,7 +34,7 @@ EMU=1: the 4 clients are emulators instead (platform info, no zproxy by default;
   ZDXSV_REPLAY=live:http://127.0.0.1:9881 (the lobby API, the newest live battle) with PW hashes
   (OUT/trace-live.txt). Checks: one client was the uplink, the spectator's stream closed at the uplink's saved
   .pb frame count, the lobby logged the close with that count; with PWTRACE=1 its player work + rng = the
-  players' (pwcheck).
+  players' (pwcheck). It gets CENV and CENV<N>, as the clients (their ZDXSV_EE_CLAMP: else it diverges).
   LIVE_AT=S (LIVE): the spectator starts S s after the uplink, a late join. Checks (one battle): the round
   results the uplink sent = the ones the spectator got from the stream, none differs from its own playback;
   with LIVE_AT the spectator had some at its open.
@@ -438,7 +438,8 @@ def main():
             log(f"live uplink after {int(time.time() - t1)} s: spectator p{n}")
             if E("LIVE_AT"):
                 time.sleep(float(E("LIVE_AT")))
-            env = dict(ZDXSV_REPLAY="live:http://127.0.0.1:9881", ZDXSV_LIVE_NEXT=E("LIVE_NEXT", "0"), ZDXSV_REPLAY_EXIT="1",
+            env = {**freshboot.assigns(E("CENV")), **freshboot.assigns(E(f"CENV{n}"))}
+            env.update(ZDXSV_REPLAY="live:http://127.0.0.1:9881", ZDXSV_LIVE_NEXT=E("LIVE_NEXT", "0"), ZDXSV_REPLAY_EXIT="1",
                        ZDXSV_PW_HASH="1", ZDXSV_NET_TRACE=os.path.join(out, "trace-live.txt"))
             pid = launch.launch(ns=(int(n),), headless=True, speed=E("LIVE_SPEED", "1"), extra_env=env, quiet=True,
                                 state=E("LIVE_STATE") or os.path.join(E("RBKSTATES"), "rbk-p1.p2s"))[int(n)]
