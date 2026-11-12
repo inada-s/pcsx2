@@ -85,6 +85,7 @@ EMU=1: the 4 clients are emulators instead (platform info, no zproxy by default;
   GGPO_LAT=D (CLIENTS="1 3", GGPO, GDELAY=auto; pcsx2 ZDXSV_GGPO advertise=): a udprelay.py (D ms one way) on
   127.0.0.1:7300/7301 between p1 and p3's GGPO ports; each announces only its relay socket, so the direct
   path is ~2D ms rtt. Checks: lobby delay = max(GMIN or 2, ceil(2D/32)), or GMIN/2 when RELAY_PATH is a relay.
+  GGPO_JITTER=ms, GGPO_LOSS=0..1 (with GGPO_LAT): udprelay.py --jitter/--loss on that path.
   With RELAY=1 RELAY_PATH="relay 0" the GGPO traffic skips udprelay.py (its count = ping test only).
   PAR (default 1): all clients boot at once with fast boot, each waits for `fast boot: login
   browser` in its emulog (PAR_WAIT s, default 120), then `login` on all at once. PAR=0: `top` + `login` per client.
@@ -488,7 +489,8 @@ def main():
             return 1
         # p1 sends to 7300 (p3's announced port) -> from 7301 to p3; p3 to 7301 (p1's) -> from 7300 to p1
         start([zrig.PY, "-u", os.path.join(zrig.TOOLS, "udprelay.py"), "--a", "7300", "--b", "7301", "--p1", ggpo,
-               "--p2", str(int(ggpo) + 2), "--delay", lat, "--seconds", "3600", "--idle", "900", "--every", "10"],
+               "--p2", str(int(ggpo) + 2), "--delay", lat, "--jitter", E("GGPO_JITTER", "0"), "--loss", E("GGPO_LOSS", "0"),
+               "--seconds", "3600", "--idle", "900", "--every", "10"],
               "udprelay.txt")
     time.sleep(6)
     # lobby API on 127.0.0.1 = LAN test: the lobby matches the proxy by -userid, not by address
