@@ -1086,7 +1086,7 @@ def main():
             say(f"{code}: uplink p{' '.join(up) or 'none'} saved frames {fr or 'none'}, spectator closed at {sf or 'none'}")
             ok(f"{code}: one client was the live uplink", len(up) == 1)
             ok(f"{code}: spectator stream closed at the uplink's saved frame count", bool(sf) and fr == sf)
-            ok(f"{code}: lobby ended the live upload at its end", c(lobby, f"live end {code} eof "))
+            ok(f"{code}: lobby ended the live upload at its end", c(lobby, rf'live end\s.*"battle_code": "{code}", "why": "eof"'))
         sc = [m[0] for l in ls for m in [re.search(r"replay state check: hashes [0-9]* checked, [0-9]* differ", l)] if m]
         sc = sc[-1] if sc else ""
         say(f"spectator {sc or 'no state check'}")
