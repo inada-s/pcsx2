@@ -25,7 +25,6 @@ namespace Zdxsv
 		{
 			std::vector<u8> rx;
 			std::vector<int64_t> hle;
-			std::vector<u8> ms_slots;
 		} s_replay_hle0;
 		std::vector<std::vector<u8>> s_replay_answers; // the battle start's lobby answers (Zdxsv::LobbyStartAnswers) at frame 0
 		// The battle's live uplink (battle info live_uplink=, the lobby API): fed the confirmed frames;
@@ -59,7 +58,6 @@ namespace Zdxsv
 			PutInt(pb, 47, sizeof(NetInput));
 			for (const std::vector<u8>& a : s_replay_answers)
 				PutBytes(pb, 51, a.data(), a.size());
-			PutBytes(pb, 60, s_replay_hle0.ms_slots.data(), s_replay_hle0.ms_slots.size());
 			return pb;
 		}
 
@@ -263,7 +261,6 @@ namespace Zdxsv
 		s_replay_hle0.rx.assign(s_rb.net_rx.begin(), s_rb.net_rx.end());
 		s_replay_hle0.hle = {s_rb.ps.n, s_rb.ps.rel, s_rb.ps.hold ? 1 : 0, s_rb.ps.go ? 1 : 0, s_rb.zds_seen[0], s_rb.zds_seen[1],
 			s_rb.zds_seen[2], s_rb.zds_seen[3], s_rb.zds_rel, s_rb.ms.n, s_rb.ms.rel, s_rb.ms.hold ? 1 : 0, s_rb.ms.go ? 1 : 0};
-		s_replay_hle0.ms_slots.assign(&eeMem->Main[MS_SLOTS], &eeMem->Main[MS_SLOTS + MS_SLOTS_N]);
 		s_replay_answers = Zdxsv::LobbyStartAnswers();
 		s_live.reset();
 		if (!to.empty())

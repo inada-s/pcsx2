@@ -28,7 +28,6 @@ namespace Zdxsv
 			std::vector<std::vector<u8>> answers; // lobby frames, 12-byte header + body
 			std::string_view hashes; // u32 per frame, "" = none (older files)
 			std::optional<u32> start_rng;
-			std::vector<u8> ms_slots;
 			std::vector<int64_t> load_frames, load_rngs;
 			std::vector<int64_t> play_starts, game_ends, round_ends;
 			std::vector<int> rounds; // round_data win_team
@@ -124,8 +123,6 @@ namespace Zdxsv
 						r.answers.emplace_back(b, b + n);
 					else if (field == 52)
 						r.hashes = bytes;
-					else if (field == 60 && n == MS_SLOTS_N)
-						r.ms_slots.assign(b, b + n);
 					else if (field == 54)
 						return Pb::ReadInts(wt, v, b, n, r.load_frames);
 					else if (field == 55)
@@ -304,7 +301,6 @@ namespace Zdxsv
 				s_play.rngs[0] = *r.start_rng;
 			for (size_t i = 0; i < r.load_frames.size() && i < r.load_rngs.size(); i++)
 				s_play.rngs[static_cast<int>(r.load_frames[i])] = static_cast<u32>(r.load_rngs[i]);
-			s_play.ms_slots = std::move(r.ms_slots);
 			s_play.cut.clear();
 			for (const int64_t e : r.game_ends)
 			{
@@ -630,8 +626,7 @@ namespace Zdxsv
 		const int me = s_battle.me;
 		PlayKey& k0 = *s_play_keys[me].at(0);
 		const bool hle_same = k0.rb.net_rx == s_rb.net_rx && k0.rb.ps == s_rb.ps && k0.rb.ms == s_rb.ms;
-		if (s_play.ms_slots.size() == MS_SLOTS_N)
-			std::memcpy(&eeMem->Main[MS_SLOTS], s_play.ms_slots.data(), MS_SLOTS_N);
+		MsSlotsClear();
 		Error error;
 		std::unique_ptr<ArchiveEntryList> list = SaveState_DownloadState(&error);
 		if (!list || !SaveState_ZipToDisk(std::move(list), nullptr, k0.path.c_str(), &error))

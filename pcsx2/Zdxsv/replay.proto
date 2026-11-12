@@ -65,7 +65,4 @@ message BattleLogFile {
   // Pairs: each earlier tick state 6 -> 7 after the same play start (a round end) and the frame the tick next enters 6.
   // The peers enter the round's load between them on different frames (RNG B is drawn there): state checks skip it.
   repeated int32 round_end_frames = 59;
-  // The game's MS asset slot cache at frame 0 (0x6f2b6c, 6 s8 MS ids, -1 = empty): the recorder's MS load history.
-  // Playback writes it into the common start; absent: the common state's cache is kept.
-  bytes ms_slots = 60;
 }
