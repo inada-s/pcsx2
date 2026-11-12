@@ -34,6 +34,11 @@ The battle-load step's frame is machine-local: when playback reaches it after
 the file's play-start release, it releases N frames later and draws RNG B
 N frames later. Those frames are logged as `own load late by N`, not as a
 desync.
+The game's MS asset slot cache (`ms_slots`) holds the MSes the recording
+machine loaded before the battle and sets a hashed player-work byte at each
+battle load. Playback writes it at frame 0 of the common start; a file
+without it keeps the common state's cache, and its state hashes can differ
+from a round start on although positions and RNGs match.
 
 ## Playing
 

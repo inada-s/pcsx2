@@ -106,6 +106,9 @@ namespace Zdxsv
 	extern std::map<int, std::array<u64, 5>> s_pw;
 	// Player position (3 floats in the player work) and the 2 game RNGs (u16), hashed by synctest hash=pos.
 	constexpr u32 PW_POS = 0x2a8, RNG_A = 0x6d7940, RNG_B = 0x6d793c;
+	// The MS asset slot cache: one s8 MS id per slot, -1 = empty. It holds the MSes this machine loaded before, and the
+	// battle load sets player work +0x10f (hashed) from it: replay.proto ms_slots.
+	constexpr u32 MS_SLOTS = 0x6f2b6c, MS_SLOTS_N = 6;
 	u32 ReplayStateHash();
 	u32 GameRng();
 	static constexpr u32 TICK_STATE = 0xc627b4; // u8 game phase; 8 = battle load
@@ -353,6 +356,7 @@ namespace Zdxsv
 		int rng_pos = -1;
 		std::vector<std::pair<int, int>> cut;
 		std::vector<u8> ps_rel; // per frame: the file's play-start barrier releases (PS::rel) before it
+		std::vector<u8> ms_slots; // MS_SLOTS at frame 0, empty = not in the file
 		int frames = 0;
 		int rearm_seek = -1; // a switch's common start: the frame to seek to from its key 0
 		bool booted_saved = false; // ZDXSV_REPLAY_STATE empty: the booted state is in the cache (PlayCommonState)

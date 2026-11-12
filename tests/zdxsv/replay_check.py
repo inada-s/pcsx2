@@ -18,7 +18,8 @@ import sys
 FIELDS = {3: "battle_code", 4: "version", 5: "game_disk", 11: "users", 18: "round_data", 20: "start_at", 21: "end_at", 24: "close",
           40: "players", 41: "position", 42: "delay", 43: "battle_info", 45: "rx0", 46: "hle0",
           47: "input_size", 48: "frames", 49: "inputs", 51: "lobby_answers", 52: "hashes", 53: "start_rng", 54: "load_frames",
-          55: "load_rngs", 57: "play_start_frames", 58: "game_end_frames", 59: "round_end_frames"}
+          55: "load_rngs", 57: "play_start_frames", 58: "game_end_frames", 59: "round_end_frames",
+          60: "ms_slots"}
 PACKED = ("hle0", "load_frames", "load_rngs", "play_start_frames", "game_end_frames", "round_end_frames")
 
 
