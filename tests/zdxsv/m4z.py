@@ -12,7 +12,7 @@ windowed with GS snapshots), MAXS (s after mash to wait for results).
 GAUGE, COUNT, TIME: the lobby battle rule (戦力ゲージ, 連続対戦数, 作戦時間 s; menu values) as the stack's
 ZDXSV_LOBBY_BATTLE_*, or (server with m_rule) as an m_rule row for lobby 2 in OUT/zdxsv.db, printed. Default GAUGE=1 COUNT=1 (one round, the first shoot-down ends it); `GAUGE=0 COUNT=0`:
 the lobby's default rule (rematches picked by the mash). Lobby 2's start follows CLIENTS: 4 clients 2v2,
-2 (or 1) 1v1. The game reports battle counts only from a 4-player battle (a 1v1 result: the code, all
+2 1v1, 1 solo (one entry starts the battle). The game reports battle counts only from a 4-player battle (a 1v1 result: the code, all
 counts 0): a 4-client run checks 4 results
 with the battle_record's code per battle, a 2-client run checks each client's post-battle login instead.
 EMU=1: the 4 clients are emulators instead (platform info, no zproxy by default; no DEV9 refuses the battle server: battles need GGPO;
@@ -274,7 +274,7 @@ def main():
     cards, users = os.environ["CARDS"].split(), os.environ["USERS"].split()
     clients = E("CLIENTS", "1 2 3 4").split()
     nc, nz = len(clients), len(zp)
-    pair = nc == 2
+    pair = nc <= 2
     gclients = (E("GGPO_CLIENTS") or " ".join(clients)).split()
     ngc = len(gclients)
     show = E("SHOW").split()
@@ -455,11 +455,11 @@ def main():
     with open(os.path.join(out, "migratedb.log"), "wb") as f:
         subprocess.call([zbin, "migratedb"], env=dict(os.environ, ZDXSV_DB_NAME=os.path.join(out, "zdxsv.db")),
                         stdout=f, stderr=subprocess.STDOUT)
-    # the game reports battle counts only from a 4-player battle: 4 clients play 2v2, 2 (or 1) play 1v1
+    # the game reports battle counts only from a 4-player battle: 4 clients play 2v2, 2 play 1v1, 1 solo
     if nc == 3:
-        say("FAIL CLIENTS: 4 (2v2), 2 or 1 (1v1)")
+        say("FAIL CLIENTS: 4 (2v2), 2 (1v1) or 1 (solo)")
         return 1
-    lobby_start = "2v2" if nc == 4 else "1v1"
+    lobby_start = "2v2" if nc == 4 else "solo" if nc == 1 else "1v1"
     rule = lobby_rule(os.path.join(out, "zdxsv.db"), lobby_start, int(E("GAUGE", "1")), int(E("COUNT", "1")), int(E("TIME", "0")))
     if rule is None:
         say(f"lobby 2 rule: the server's built-in (no m_rule), ZDXSV_LOBBY_BATTLE_* GAUGE={E('GAUGE', '1')}"
