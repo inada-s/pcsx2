@@ -511,6 +511,7 @@ namespace Zdxsv
 		}
 		if (!s_session)
 		{
+			MsSlotsClear();
 			if (const char* fail = GgpoStart())
 			{
 				GgpoStop(fail);

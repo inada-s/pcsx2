@@ -626,6 +626,7 @@ namespace Zdxsv
 		const int me = s_battle.me;
 		PlayKey& k0 = *s_play_keys[me].at(0);
 		const bool hle_same = k0.rb.net_rx == s_rb.net_rx && k0.rb.ps == s_rb.ps && k0.rb.ms == s_rb.ms;
+		MsSlotsClear();
 		Error error;
 		std::unique_ptr<ArchiveEntryList> list = SaveState_DownloadState(&error);
 		if (!list || !SaveState_ZipToDisk(std::move(list), nullptr, k0.path.c_str(), &error))

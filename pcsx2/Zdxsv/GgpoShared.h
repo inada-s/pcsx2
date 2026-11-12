@@ -106,6 +106,10 @@ namespace Zdxsv
 	extern std::map<int, std::array<u64, 5>> s_pw;
 	// Player position (3 floats in the player work) and the 2 game RNGs (u16), hashed by synctest hash=pos.
 	constexpr u32 PW_POS = 0x2a8, RNG_A = 0x6d7940, RNG_B = 0x6d793c;
+	// The MS asset slot cache: one s8 MS id per slot, -1 = empty. It holds the MSes this machine loaded before, and the
+	// battle load sets player work +0x10f (hashed) from it.
+	constexpr u32 MS_SLOTS = 0x6f2b6c, MS_SLOTS_N = 6;
+	void MsSlotsClear();
 	u32 ReplayStateHash();
 	u32 GameRng();
 	static constexpr u32 TICK_STATE = 0xc627b4; // u8 game phase; 8 = battle load

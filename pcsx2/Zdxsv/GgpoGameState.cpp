@@ -65,6 +65,12 @@ namespace Zdxsv
 		const u64 x = XXH3_64bits(h, sizeof(h));
 		return static_cast<u32>(x ^ (x >> 32));
 	}
+	// Emptied as the game's own full reset of it does: each battle load then loads every MS into the free slots in one
+	// order, whatever this machine loaded before.
+	void MsSlotsClear()
+	{
+		std::memset(&eeMem->Main[MS_SLOTS], 0xff, MS_SLOTS_N);
+	}
 	// u16 RNG A << 16 | u16 RNG B (replay.proto start_rng, load_rngs)
 	u32 GameRng()
 	{
