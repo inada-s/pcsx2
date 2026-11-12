@@ -1009,7 +1009,7 @@ def main():
                 ok(f"p{i} https latency: one run, its platform info has asia-northeast1",
                    c(f, "ZdxsvHttpsLatency: done") == 1 and any(re.search("asia-northeast1:[0-9]", l) for l in pl))
     if E("RELAY"):
-        ok("lobby relay started", c(lobby, "Start relay"))
+        ok("lobby relay started", c(lobby, "[Ss]tart relay"))
         for i in gclients:
             f = el(i)
             for l in g(f, "lobby path to|ZdxsvGgpo: relay server"):
