@@ -14,6 +14,7 @@ namespace Zdxsv
 {
 	extern bool g_ggpo_enabled; // GGPO options (ZDXSV_GGPO, else on by default) or a replay
 	extern bool g_ggpo_active; // a session runs
+	extern bool g_replay_child; // this process only plays a replay or live battle for its parent: no play time
 
 	// VMManager pause, frame advance, speed change and state load: true (refused) during a net battle, the
 	// reason in `error`, else an OSD notice. A paused or fast peer stalls every other peer of the battle.

@@ -103,7 +103,7 @@ def _hide_window(pid):
 
 
 def launch(ns=(1,), memcard=None, state=None, speed="1", renderer="-1", nogui=False, headless=False,
-           eth=False, lobby_state=False, extra_env=None, quiet=False, token=None):
+           eth=False, lobby_state=False, extra_env=None, quiet=False, token=None, extra_args=None):
     """Start instances NS; returns {i: pid}. Exits 1 on a bad probe, 75 when another rig holds the lock.
     TOKEN: written to inis/zdxsv_auth_token.txt (fast login); a new instance never takes p1's."""
     zrig.need("RUN", "ISO")
@@ -152,7 +152,7 @@ def launch(ns=(1,), memcard=None, state=None, speed="1", renderer="-1", nogui=Fa
             a.append("-nogui")
         if state:
             a += ["-statefile", os.path.abspath(state)]
-        a += ["--", os.path.normpath(os.environ["ISO"])]  # pcsx2 refuses a game path with / on Windows
+        a += (extra_args or []) + ["--", os.path.normpath(os.environ["ISO"])]  # pcsx2 refuses a game path with / on Windows
         p = subprocess.Popen(a, env=e, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                              stderr=subprocess.DEVNULL, start_new_session=not zrig.WIN)
         if headless and zrig.WIN:

@@ -19,6 +19,8 @@
 
 namespace Zdxsv
 {
+	bool g_replay_child = false;
+
 	namespace
 	{
 		std::mutex s_next_mutex;

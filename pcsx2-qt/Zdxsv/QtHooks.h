@@ -5,6 +5,7 @@
 
 #include "common/Pcsx2Defs.h"
 
+class INISettingsInterface;
 class QObject;
 class QWidget;
 
@@ -21,4 +22,12 @@ namespace Zdxsv
 	bool QtSetupWizardControllerConfirm(QWidget* wizard);
 	// UI thread. True: the wheel event changed the volume and is not passed on as input.
 	bool QtWheelVolumeTakes(int angle_delta_y);
+	// Command line `-zdxsvreplay <pov>:<parent pid>:<source>`: this process only plays that replay or live battle.
+	bool QtReplayChildParseArg(const char* arg);
+	bool QtReplayChild();
+	// After the settings load: overrides for the child, saves redirected to its own folder.
+	void QtReplayChildSettings(INISettingsInterface& si);
+	// After the main window exists: the child exits when its parent is gone.
+	void QtReplayChildWatchParent(QObject* parent);
+	bool QtReplayChildLaunch(QWidget* dialog_parent, const char* disc, const char* src, int pov);
 } // namespace Zdxsv
