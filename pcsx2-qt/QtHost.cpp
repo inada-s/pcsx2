@@ -1399,6 +1399,7 @@ bool QtHost::InitializeConfig()
 		if (!s_run_setup_wizard)
 			SaveSettings();
 	}
+	Zdxsv::QtReplayChildSettings(*s_base_settings_interface);
 	if (Zdxsv::InputDefaultsMigrate(*s_base_settings_interface) && !s_run_setup_wizard)
 		SaveSettings();
 
@@ -2267,6 +2268,12 @@ bool QtHost::ParseCommandLineOptions(const QStringList& args, std::shared_ptr<VM
 				VMManager::Internal::SetFileLogPath((++it)->toStdString());
 				continue;
 			}
+			else if (CHECK_ARG_PARAM(QStringLiteral("-zdxsvreplay")))
+			{
+				if (!Zdxsv::QtReplayChildParseArg((++it)->toUtf8().constData()))
+					return false;
+				continue;
+			}
 			else if (CHECK_ARG(QStringLiteral("-bios")))
 			{
 				AutoBoot(autoboot)->source_type = CDVD_SourceType::NoDisc;
@@ -2531,6 +2538,7 @@ int main(int argc, char* argv[])
 	g_main_window = new MainWindow();
 	g_main_window->initialize();
 	Zdxsv::QtOnlineLimitsWatch(g_main_window);
+	Zdxsv::QtReplayChildWatchParent(g_main_window);
 
 	// When running in batch mode, ensure game list is loaded, but don't scan for any new files.
 	if (!s_batch_mode)

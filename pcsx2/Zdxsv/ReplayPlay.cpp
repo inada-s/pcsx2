@@ -7,6 +7,7 @@
 #include "Zdxsv/MediaHooks.h"
 #include "Zdxsv/ReplayList.h"
 #include "Zdxsv/TestOptions.h"
+#include "Zdxsv/UiHooks.h"
 
 namespace Zdxsv
 {
@@ -600,7 +601,7 @@ namespace Zdxsv
 		s_bar_frame = -1;
 		s_battle.over = true; // the battle sock goes back to the IOP
 		PlayReport(what);
-		if (const char* e = TestEnv("ZDXSV_REPLAY_EXIT"); ReplayReturnArmed() || (e && e[0] == '1'))
+		if (const char* e = TestEnv("ZDXSV_REPLAY_EXIT"); g_replay_child || (e && e[0] == '1'))
 			Host::RunOnCPUThread([] { Host::RequestVMShutdown(false, false, false); });
 		else if (!s_play.at_end)
 			Host::RunOnCPUThread([] { VMManager::SetPaused(true); });

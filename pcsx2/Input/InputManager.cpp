@@ -9,6 +9,7 @@
 #include "USB/USB.h"
 #include "VMManager.h"
 #include "LayeredSettingsInterface.h"
+#include "Zdxsv/InputHooks.h"
 
 #include "common/Assertions.h"
 #include "common/Console.h"
@@ -1110,6 +1111,8 @@ bool InputManager::InvokeEvents(InputBindingKey key, float value, GenericInputBi
 {
 	if (DoEventHook(key, value))
 		return true;
+	if (Zdxsv::g_replay_child_unfocused && key.source_type != InputSourceType::Keyboard && key.source_type != InputSourceType::Pointer)
+		return false;
 
 	// If imgui ate the event, don't fire our handlers.
 	const bool skip_button_handlers = PreprocessEvent(key, value, generic_key, axis_neg_key, axis_pos_key);

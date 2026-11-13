@@ -10,6 +10,8 @@
 namespace Zdxsv
 {
 	extern bool g_ggpo_active; // a session runs
+	// A replay child whose window is not active: controller events are dropped, the parent's game keeps them.
+	extern bool g_replay_child_unfocused;
 
 	// In Pad::SetControllerState: true when the host input was taken (session running).
 	bool GgpoCaptureHostInput(u32 controller, u32 bind, float value);
