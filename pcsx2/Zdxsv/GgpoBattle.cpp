@@ -14,10 +14,9 @@ namespace Zdxsv
 {
 	namespace
 	{
-		// Z net RPC request header (EE RAM): sock s16, len s16, then data. Result length s16 at 0xc22c98.
-		constexpr u32 NET_REQ_SOCK = 0xc22c9c;
-		constexpr u32 NET_REQ_LEN = 0xc22c9e;
-		constexpr u32 NET_REQ_DATA = 0xc22ca0;
+		u32 NetReqSock() { return GgpoAddrs().net_res_len + 4; }
+		u32 NetReqLen() { return GgpoAddrs().net_res_len + 6; }
+		u32 NetReqData() { return GgpoAddrs().net_res_len + 8; }
 		// Own key table (from the game's sends): k per counter, frame it was sent, last record X.
 		u8 s_own_k[64];
 		u32 s_own_frame[64];
@@ -42,7 +41,6 @@ namespace Zdxsv
 			m[0] = static_cast<u8>(m.size());
 			return m;
 		}
-		constexpr u32 NET_NOWAIT = 0xc22c10; // s16: the wrapper takes the nowait RPC path if nonzero
 		constexpr u32 NET_RX_MAX = 0x384; // the battle recv's max
 
 		void NetSend(std::vector<u8> m)
@@ -233,7 +231,7 @@ namespace Zdxsv
 
 		bool NetAnswer(s32 result)
 		{
-			*reinterpret_cast<s32*>(eeMem->Main + NET_RES_LEN) = result;
+			*reinterpret_cast<s32*>(eeMem->Main + GgpoAddrs().net_res_len) = result;
 			cpuRegs.GPR.n.v0.SD[0] = result;
 			cpuRegs.pc = cpuRegs.GPR.n.ra.UL[0];
 			return true;
@@ -250,9 +248,9 @@ namespace Zdxsv
 			switch (fno)
 			{
 				case NET_FNO_POLL:
-					*reinterpret_cast<u16*>(ram + NET_REQ_LEN) = 4;
-					*reinterpret_cast<u16*>(ram + NET_REQ_DATA + 2) = 0x2000;
-					*reinterpret_cast<u16*>(ram + NET_REQ_DATA + 4) = static_cast<u16>(std::min<size_t>(rx.size(), NET_RX_MAX));
+					*reinterpret_cast<u16*>(ram + NetReqLen()) = 4;
+					*reinterpret_cast<u16*>(ram + NetReqData() + 2) = 0x2000;
+					*reinterpret_cast<u16*>(ram + NetReqData() + 4) = static_cast<u16>(std::min<size_t>(rx.size(), NET_RX_MAX));
 					return true;
 				case RBK_FNO_RECV_LOBBY: // header, then body
 				case NET_FNO_RECV:
@@ -292,8 +290,8 @@ namespace Zdxsv
 				}
 				case 4:
 				{
-					const u32 v = *reinterpret_cast<const u16*>(ram + NET_REQ_LEN) == 0x2001;
-					std::memcpy(ram + NET_REQ_DATA + 2, &v, 4);
+					const u32 v = *reinterpret_cast<const u16*>(ram + NetReqLen()) == 0x2001;
+					std::memcpy(ram + NetReqData() + 2, &v, 4);
 					result = 4;
 					return true;
 				}
@@ -354,7 +352,7 @@ namespace Zdxsv
 					if (!BattleServerCall(s_rbk_rx, s_rbk_me, s_rbk_n, fno, len, d, result))
 						return false;
 			}
-			*reinterpret_cast<s32*>(ram + NET_RES_LEN) = result;
+			*reinterpret_cast<s32*>(ram + GgpoAddrs().net_res_len) = result;
 			cpuRegs.GPR.n.v0.SD[0] = result;
 			cpuRegs.pc = cpuRegs.GPR.n.ra.UL[0];
 			return true;
@@ -375,11 +373,11 @@ namespace Zdxsv
 		s_game_gp = cpuRegs.GPR.n.gp.UL[0];
 		const u32 fno = cpuRegs.GPR.n.a0.UL[0];
 		const u8* ram = eeMem->Main;
-		const s16 sock = *reinterpret_cast<const s16*>(ram + NET_REQ_SOCK);
-		const s16 len = *reinterpret_cast<const s16*>(ram + NET_REQ_LEN);
+		const s16 sock = *reinterpret_cast<const s16*>(ram + NetReqSock());
+		const s16 len = *reinterpret_cast<const s16*>(ram + NetReqLen());
 		if (fno != NET_FNO_SEND || sock != NET_BATTLE_SOCK || len <= 0 || len > 0x3ca)
 			return;
-		const u8* d = ram + NET_REQ_DATA;
+		const u8* d = ram + NetReqData();
 		if (!s_net_trace)
 			return;
 		std::string hex;
@@ -412,19 +410,19 @@ namespace Zdxsv
 			s_own_x = s.x;
 	}
 
-	// EE rec hook at NET_RECV_RET_PC (fno 0x14 recv, after the wait RPC returned): s4 = sock,
+	// EE rec hook at net_recv_ret (fno 0x14 recv, after the wait RPC returned): s4 = sock,
 	// result length at 0xc22c98, data at 0xc22ca0. Logs R lines and checks that every remote key
 	// msg = BuildKeyMsg(its input fields + the local game's own k for that counter).
 	void OnNetRecv()
 	{
 		u8* ram = eeMem->Main;
 		const s32 sock = cpuRegs.GPR.n.s4.SL[0];
-		const s32 len = *reinterpret_cast<const s32*>(ram + NET_RES_LEN);
+		const s32 len = *reinterpret_cast<const s32*>(ram + GgpoAddrs().net_res_len);
 		if (sock == NET_BATTLE_SOCK && s_net_trace && (cpuRegs.GPR.n.v0.SL[0] < 0 || len < 0 || len > 0x3ca))
 			std::fprintf(s_net_trace, "%u E recv v0 %d len %d\n", g_FrameCount, cpuRegs.GPR.n.v0.SL[0], len);
 		if (sock != NET_BATTLE_SOCK || cpuRegs.GPR.n.v0.SL[0] < 0 || len < 0 || len > 0x3ca || !s_net_trace)
 			return;
-		u8* d = ram + NET_REQ_DATA;
+		u8* d = ram + NetReqData();
 		if (len == 0)
 			return;
 		std::string hex;
@@ -593,15 +591,15 @@ namespace Zdxsv
 			return false;
 		const u32 fno = cpuRegs.GPR.n.a0.UL[0];
 		u8* ram = eeMem->Main;
-		const s16 sock = *reinterpret_cast<const s16*>(ram + NET_REQ_SOCK);
-		const s16 len = *reinterpret_cast<const s16*>(ram + NET_REQ_LEN);
-		u8* d = ram + NET_REQ_DATA;
+		const s16 sock = *reinterpret_cast<const s16*>(ram + NetReqSock());
+		const s16 len = *reinterpret_cast<const s16*>(ram + NetReqLen());
+		u8* d = ram + NetReqData();
 		const bool key = fno == NET_FNO_SEND && sock == NET_BATTLE_SOCK && len > 0 && len <= 0x3ca && HasKeyMsg(d, len);
 		// lobby=1: the battle server is answered on the EE (BattleServerCall); the game never reaches it
 		if (s_opt.lobby && !s_play_env && !s_rbk && fno == NET_FNO_CONNECT && (!s_battle.armed || s_battle.over))
 		{
 			u32 ip;
-			std::memcpy(&ip, ram + NET_REQ_SOCK, 4);
+			std::memcpy(&ip, ram + NetReqSock(), 4);
 			int me, players;
 			if (IsBattleServer(ip, static_cast<u16>(d[0] << 8 | d[1])) && LobbyPendingBattle(me, players))
 			{
@@ -667,7 +665,7 @@ namespace Zdxsv
 					Console.WriteLn("ZdxsvGgpo: battle sock released at vsync %u: game RPC 0x%x", g_FrameCount, fno);
 					return false;
 				}
-				*reinterpret_cast<s32*>(ram + NET_RES_LEN) = result;
+				*reinterpret_cast<s32*>(ram + GgpoAddrs().net_res_len) = result;
 				cpuRegs.GPR.n.v0.SD[0] = result;
 				cpuRegs.pc = cpuRegs.GPR.n.ra.UL[0];
 				return true;
@@ -712,7 +710,7 @@ namespace Zdxsv
 				s_battle.me = me;
 			Console.WriteLn("ZdxsvGgpo: net armed at vsync %u, position %d", g_FrameCount, s_battle.me);
 		}
-		if (*reinterpret_cast<const s16*>(ram + NET_NOWAIT) != 0)
+		if (*reinterpret_cast<const s16*>(ram + GgpoAddrs().net_nowait) != 0)
 			s_ns.nowait++;
 		s32 result = 0;
 		if (fno == NET_FNO_SEND)
@@ -743,16 +741,16 @@ namespace Zdxsv
 		{
 			// As a real battle poll returns: state 4, 0x2000 send space, readable bytes
 			s_ns.polls++;
-			*reinterpret_cast<u16*>(ram + NET_REQ_LEN) = 4;
-			*reinterpret_cast<u16*>(ram + NET_REQ_DATA + 2) = 0x2000;
-			*reinterpret_cast<u16*>(ram + NET_REQ_DATA + 4) = static_cast<u16>(std::min<size_t>(s_rb.net_rx.size(), NET_RX_MAX));
+			*reinterpret_cast<u16*>(ram + NetReqLen()) = 4;
+			*reinterpret_cast<u16*>(ram + NetReqData() + 2) = 0x2000;
+			*reinterpret_cast<u16*>(ram + NetReqData() + 4) = static_cast<u16>(std::min<size_t>(s_rb.net_rx.size(), NET_RX_MAX));
 		}
 		else
 		{
 			s_ns.other++;
 			return false;
 		}
-		*reinterpret_cast<s32*>(ram + NET_RES_LEN) = result;
+		*reinterpret_cast<s32*>(ram + GgpoAddrs().net_res_len) = result;
 		cpuRegs.GPR.n.v0.SD[0] = result;
 		cpuRegs.pc = cpuRegs.GPR.n.ra.UL[0];
 		return true;
@@ -803,9 +801,8 @@ namespace Zdxsv
 
 	namespace
 	{
-		// The game's button settings for pad port 0 (system data): u16[8], per assignable button
+		// The game's button settings (pad_bind_slots): u16[8], per assignable button
 		// (□ △ L1 × ○ R1 L2 R2) an index into PAD_ACTIONS, the game's action bits of the A word; the last = no action.
-		constexpr u32 PAD_BIND_SLOTS = 0x7ade6c;
 		constexpr u16 PAD_ACTIONS[9] = {0x0200, 0x0100, 0x0040, 0x0080, 0x0300, 0x0180, 0x0280, 0x0020, 0x0000};
 		constexpr u16 PAD_DEFAULT_SLOTS[8] = {0, 1, 7, 3, 2, 4, 6, 5};
 	} // namespace
@@ -827,7 +824,7 @@ namespace Zdxsv
 		if (eeMem)
 		{
 			u16 cfg[8];
-			std::memcpy(cfg, eeMem->Main + PAD_BIND_SLOTS, sizeof(cfg));
+			std::memcpy(cfg, eeMem->Main + GgpoAddrs().pad_bind_slots, sizeof(cfg));
 			bool valid = true;
 			for (const u16 s : cfg)
 				valid &= s < std::size(PAD_ACTIONS);
@@ -876,16 +873,16 @@ namespace Zdxsv
 		return true;
 	}
 
-	// ps: rec hook at LOAD_STEP_PC (0x2b1d80, battle load step past its load-busy check), epilogue 0x2b1fa8.
+	// ps: rec hook at load_step.
 	bool OnLoadStep()
 	{
-		return BarrierHold(s_rb.ps, 'P', 0x2b1fa8);
+		return BarrierHold(s_rb.ps, 'P', GgpoPcs().load_step_end);
 	}
 
-	// ms: rec hook at MS_STEP_PC (0x2b8698, MS-select load step past its load-busy check), epilogue 0x2b8ab8.
+	// ms: rec hook at ms_step.
 	bool OnMsStep()
 	{
-		return s_ms_on && BarrierHold(s_rb.ms, 'M', 0x2b8ab8);
+		return s_ms_on && BarrierHold(s_rb.ms, 'M', GgpoPcs().ms_step_end);
 	}
 
 	// zd: rec hook at the lockstep step's ring read (0x312bf4, per active position: s0 = position,
@@ -914,6 +911,6 @@ namespace Zdxsv
 		std::memcpy(ram + e + 6, &nb, 2);
 		if (s_net_trace)
 			std::fprintf(s_net_trace, "%u Z%s %d %d %02x %04x %04x %04x %04x %02x %d\n", g_FrameCount, g_ggpo_in_rollback ? "r" : "",
-				s_battle.frame, p, ((e - 0xc61f40) / 8) & 63, na, nb, a, b, c, k);
+				s_battle.frame, p, ((e - GgpoAddrs().ring) / 8) & 63, na, nb, a, b, c, k);
 	}
 } // namespace Zdxsv

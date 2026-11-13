@@ -11,15 +11,15 @@ namespace Zdxsv
 	{
 		if (g_net_hook && pc == NetRpcPc())
 			return OnNetCall();
-		if (g_net_hook && g_z_game && pc == NET_RECV_RET_PC)
+		if (g_net_hook && g_z_game && pc == GgpoPcs().net_recv_ret)
 			OnNetRecv();
-		if (g_zd_hook && pc == STEP_COPY_PC)
+		if (g_zd_hook && pc == GgpoPcs().step_copy)
 			OnStepCopy();
-		if (g_ps_hook && (pc == LOAD_STEP_PC || pc == MS_STEP_PC))
-			return pc == LOAD_STEP_PC ? OnLoadStep() : OnMsStep();
-		if (g_ps_hook && (pc == DRAW_RUN_PC || pc == DRAW_RUN2_PC))
-			return pc == DRAW_RUN_PC ? OnDrawRun() : OnDrawRun2();
-		if (g_ps_hook && pc == OBJ_CALL_PC)
+		if (g_ps_hook && (pc == GgpoPcs().load_step || pc == GgpoPcs().ms_step))
+			return pc == GgpoPcs().load_step ? OnLoadStep() : OnMsStep();
+		if (g_ps_hook && (pc == GgpoPcs().draw_run || pc == GgpoPcs().draw_run2))
+			return pc == GgpoPcs().draw_run ? OnDrawRun() : OnDrawRun2();
+		if (g_ps_hook && pc == GgpoPcs().obj_call)
 			return OnObjCall();
 		return false;
 	}

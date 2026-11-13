@@ -19,7 +19,7 @@ namespace Zdxsv
 		u64 PwHash(u32 p)
 		{
 			std::array<u8, PW_SIZE> w;
-			std::memcpy(w.data(), &eeMem->Main[PW_BASE + PW_SIZE * p], PW_SIZE);
+			std::memcpy(w.data(), &eeMem->Main[GgpoAddrs().pw_base + PW_SIZE * p], PW_SIZE);
 			for (u32 o : PW_MASK)
 				std::memset(&w[o], 0, 4);
 			for (const auto& [o, bits] : PW_MASK_BITS)
@@ -35,14 +35,11 @@ namespace Zdxsv
 		{
 			std::array<u8, 4 * 12 + 4> b;
 			for (u32 p = 0; p < 4; p++)
-				std::memcpy(&b[12 * p], &eeMem->Main[PW_BASE + PW_SIZE * p + PW_POS], 12);
-			std::memcpy(&b[48], &eeMem->Main[RNG_A], 2);
-			std::memcpy(&b[50], &eeMem->Main[RNG_B], 2);
+				std::memcpy(&b[12 * p], &eeMem->Main[GgpoAddrs().pw_base + PW_SIZE * p + PW_POS], 12);
+			std::memcpy(&b[48], &eeMem->Main[GgpoAddrs().rng_a], 2);
+			std::memcpy(&b[50], &eeMem->Main[GgpoAddrs().rng_b], 2);
 			return b;
 		}
-		// Team result records, equal on all peers (team 1 = position 0's side): u8 wins at +0, u8 losses at +1. A round
-		// adds a win to the winner and a loss to the loser, a time-up a loss to both (a draw), in one frame.
-		static constexpr u32 TEAM_RECORD[2] = {0xc227f0, 0xc22804};
 	} // namespace
 
 	// ZDXSV_PW_HASH=1: per GGPO frame, each player's position hash and the game RNGs, written as
@@ -60,7 +57,7 @@ namespace Zdxsv
 		for (u32 p = 0; p < 4; p++)
 			h[p] = PwHash(p);
 		u16 b;
-		std::memcpy(&b, &eeMem->Main[RNG_B], 2);
+		std::memcpy(&b, &eeMem->Main[GgpoAddrs().rng_b], 2);
 		h[4] = b;
 		const u64 x = XXH3_64bits(h, sizeof(h));
 		return static_cast<u32>(x ^ (x >> 32));
@@ -69,21 +66,21 @@ namespace Zdxsv
 	// order, whatever this machine loaded before.
 	void MsSlotsClear()
 	{
-		std::memset(&eeMem->Main[MS_SLOTS], 0xff, MS_SLOTS_N);
+		std::memset(&eeMem->Main[GgpoAddrs().ms_slots], 0xff, MS_SLOTS_N);
 	}
 	// u16 RNG A << 16 | u16 RNG B (replay.proto start_rng, load_rngs)
 	u32 GameRng()
 	{
 		u16 a, b;
-		std::memcpy(&a, &eeMem->Main[RNG_A], 2);
-		std::memcpy(&b, &eeMem->Main[RNG_B], 2);
+		std::memcpy(&a, &eeMem->Main[GgpoAddrs().rng_a], 2);
+		std::memcpy(&b, &eeMem->Main[GgpoAddrs().rng_b], 2);
 		return (static_cast<u32>(a) << 16) | b;
 	}
 	u32 RoundRecord()
 	{
 		u32 v = 0;
 		for (int t = 0; t < 2; t++)
-			v |= static_cast<u32>(eeMem->Main[TEAM_RECORD[t]] | eeMem->Main[TEAM_RECORD[t] + 1] << 8) << (t * 16);
+			v |= static_cast<u32>(eeMem->Main[GgpoAddrs().team_record[t]] | eeMem->Main[GgpoAddrs().team_record[t] + 1] << 8) << (t * 16);
 		return v;
 	}
 	// u8 MS id per player work (= position; 0 = Gundam), set from the battle setup at each round start (0x2bc6d0)
@@ -92,7 +89,7 @@ namespace Zdxsv
 	{
 		u32 v = 0;
 		for (int p = 0; p < 4; p++)
-			v |= static_cast<u32>(eeMem->Main[PW_BASE + PW_SIZE * p + PW_MS_ID]) << (p * 8);
+			v |= static_cast<u32>(eeMem->Main[GgpoAddrs().pw_base + PW_SIZE * p + PW_MS_ID]) << (p * 8);
 		return v;
 	}
 	// The round ended between records a and b: the winning team 1 / 2, -1 = a draw (losses only); 0 = none
@@ -125,9 +122,9 @@ namespace Zdxsv
 			u64 hash;
 			if (s_opt.hash == Hash::Pw)
 			{
-				raw.assign(&eeMem->Main[PW_BASE], &eeMem->Main[PW_BASE + 4 * PW_SIZE]);
-				raw.insert(raw.end(), &eeMem->Main[RNG_A], &eeMem->Main[RNG_A + 2]);
-				raw.insert(raw.end(), &eeMem->Main[RNG_B], &eeMem->Main[RNG_B + 2]);
+				raw.assign(&eeMem->Main[GgpoAddrs().pw_base], &eeMem->Main[GgpoAddrs().pw_base + 4 * PW_SIZE]);
+				raw.insert(raw.end(), &eeMem->Main[GgpoAddrs().rng_a], &eeMem->Main[GgpoAddrs().rng_a + 2]);
+				raw.insert(raw.end(), &eeMem->Main[GgpoAddrs().rng_b], &eeMem->Main[GgpoAddrs().rng_b + 2]);
 				u64 h[5];
 				for (u32 p = 0; p < 4; p++)
 					h[p] = PwHash(p);

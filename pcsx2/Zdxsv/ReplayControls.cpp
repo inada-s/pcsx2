@@ -23,7 +23,7 @@ namespace Zdxsv
 		const int i = PlaySpanAt(f);
 		if (i < 0)
 			return true;
-		return f >= s_play.plays[i] && f < s_play.spans[i].second && eeMem->Main[TICK_STATE] == TICK_PLAY;
+		return f >= s_play.plays[i] && f < s_play.spans[i].second && eeMem->Main[GgpoAddrs().tick_state] == TICK_PLAY;
 	}
 
 	int PlaySkipGap(int next)

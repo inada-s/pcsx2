@@ -109,29 +109,34 @@ namespace Zdxsv
 	extern bool g_net_hook; // the recompiler emits the OnNetCall call at NET_RPC_PC
 	// At NET_RPC_PC: true = the RPC was answered here (v0 set, pc = ra), skip the wrapper.
 	bool OnNetCall();
-	// fno 0x14 recv (0x30ec70), return of its wait RPC.
-	constexpr u32 NET_RECV_RET_PC = 0x30ecf0;
+	// Battle hook PCs per game. SLPS-25305: static matches of the SLPS-25419 code, not run yet (needs proper testing).
+	struct GgpoHookPcs
+	{
+		u32 net_recv_ret; // fno 0x14 recv, return of its wait RPC
+		u32 step_copy; // lockstep step's ring read: a1 = ring entry, s0 = position
+		u32 load_step, load_step_end; // battle load step past its load-busy check; its epilogue
+		u32 ms_step, ms_step_end; // MS-select load step past its load-busy check; its epilogue
+		u32 draw_run, draw_run2; // render callback runners of the battle frame step, run after the frame logic
+		u32 obj_walk, obj_call; // object draw walker; its handler call (jalr, handler in v0)
+	};
+	constexpr GgpoHookPcs GGPO_PCS_Z = {0x30ecf0, 0x312bf4, 0x2b1d80, 0x2b1fa8, 0x2b8698, 0x2b8ab8, 0x20ff30, 0x20ff90, 0x2ac4e0, 0x2ac524};
+	constexpr GgpoHookPcs GGPO_PCS_AEUG = {0x2ec440, 0x2f0354, 0x281370, 0x2815c0, 0x286d38, 0x287118, 0x1eea70, 0x1eead0, 0x27c7a0, 0x27c7e4};
+	inline const GgpoHookPcs& GgpoPcs() { return g_aeug_game ? GGPO_PCS_AEUG : GGPO_PCS_Z; }
 	void OnNetRecv();
-	// zd=1: lockstep step's ring read (0x312bf4: a1 = ring entry, s0 = position) gets the GGPO input.
-	constexpr u32 STEP_COPY_PC = 0x312bf4;
+	// zd=1: at step_copy the ring entry gets the GGPO input.
 	extern bool g_zd_hook;
 	void OnStepCopy();
-	// Play start: battle load step past its load-busy check; true = held (v0 = 0, pc = epilogue).
-	constexpr u32 LOAD_STEP_PC = 0x2b1d80;
+	// Play start: at load_step; true = held (v0 = 0, pc = epilogue).
 	extern bool g_ps_hook;
 	bool OnLoadStep();
-	// MS-select load step past its load-busy check (same hold, under g_ps_hook).
-	constexpr u32 MS_STEP_PC = 0x2b8698;
+	// At ms_step (same hold, under g_ps_hook).
 	bool OnMsStep();
-	// Render callback runners of the battle frame step 0x2124f0 (it runs both after the frame logic).
-	// true = skipped in this rerun frame (pc = ra), see g_rerun_draw_skip.
-	constexpr u32 DRAW_RUN_PC = 0x20ff30, DRAW_RUN2_PC = 0x20ff90;
-	// OnDrawRun may run the object draw walker (OBJ_WALK_PC) alone instead; OnObjCall then skips its
-	// handler calls (jalr at OBJ_CALL_PC, handler in v0) but the ones RerunKeepDrawsHandler names.
+	// At draw_run / draw_run2: true = skipped in this rerun frame (pc = ra), see g_rerun_draw_skip.
+	// OnDrawRun may run the object draw walker (obj_walk) alone instead; OnObjCall then skips its
+	// handler calls but the ones RerunKeepDrawsHandler names.
 	extern bool g_rerun_draw_skip;
 	bool OnDrawRun();
 	bool OnDrawRun2();
-	constexpr u32 OBJ_WALK_PC = 0x2ac4e0, OBJ_CALL_PC = 0x2ac524;
 	bool OnObjCall();
 	int ProbeFrame(); // GGPO frame being run (EE probe lines)
 
@@ -146,10 +151,11 @@ namespace Zdxsv
 	// true = a hook answered and moved the pc: the instruction at pc does not run (IntHooks.cpp).
 	bool IntRunHooks(u32 pc);
 	// The pcs IntRunHooks acts on (the ARM64 EE recompiler calls it before these only).
-	constexpr bool IsIntHookPc(u32 pc)
+	inline bool IsIntHookPc(u32 pc)
 	{
-		return pc == NET_RPC_PC || pc == AEUG_NET_RPC_PC || pc == NET_RECV_RET_PC || pc == STEP_COPY_PC || pc == LOAD_STEP_PC ||
-			   pc == MS_STEP_PC || pc == DRAW_RUN_PC || pc == DRAW_RUN2_PC || pc == OBJ_CALL_PC;
+		const GgpoHookPcs& p = GgpoPcs();
+		return pc == NetRpcPc() || pc == p.net_recv_ret || pc == p.step_copy || pc == p.load_step || pc == p.ms_step ||
+			   pc == p.draw_run || pc == p.draw_run2 || pc == p.obj_call;
 	}
 
 	// ZDXSV_DELTA_TEST: synctest in a running game, see Zdxsv/DeltaState.cpp.

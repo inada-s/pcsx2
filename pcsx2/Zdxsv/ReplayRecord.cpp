@@ -285,7 +285,7 @@ namespace Zdxsv
 		s_replay_ms.resize(f);
 		s_replay_ms.push_back(MsIds());
 		s_replay_ticks.resize(f);
-		s_replay_ticks.push_back(eeMem->Main[TICK_STATE]);
+		s_replay_ticks.push_back(eeMem->Main[GgpoAddrs().tick_state]);
 		s_replay_ps.resize(f);
 		s_replay_ps.push_back(s_rb.ps.rel);
 		int confirmed = -1;

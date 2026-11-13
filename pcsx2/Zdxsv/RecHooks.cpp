@@ -26,35 +26,35 @@ namespace Zdxsv
 			xJMP(dispatcher);
 			run_wrapper.SetTarget();
 		}
-		if (g_net_hook && g_z_game && pc == NET_RECV_RET_PC)
+		if (g_net_hook && g_z_game && pc == GgpoPcs().net_recv_ret)
 		{
 			iFlushCall(FLUSH_EVERYTHING | FLUSH_PC);
 			xFastCall((void*)OnNetRecv);
 		}
-		if (g_zd_hook && pc == STEP_COPY_PC)
+		if (g_zd_hook && pc == GgpoPcs().step_copy)
 		{
 			iFlushCall(FLUSH_EVERYTHING | FLUSH_PC);
 			xFastCall((void*)OnStepCopy);
 		}
-		if (g_ps_hook && (pc == LOAD_STEP_PC || pc == MS_STEP_PC))
+		if (g_ps_hook && (pc == GgpoPcs().load_step || pc == GgpoPcs().ms_step))
 		{
 			iFlushCall(FLUSH_EVERYTHING | FLUSH_PC);
-			xFastCall(pc == LOAD_STEP_PC ? (void*)OnLoadStep : (void*)OnMsStep);
+			xFastCall(pc == GgpoPcs().load_step ? (void*)OnLoadStep : (void*)OnMsStep);
 			xTEST(al, al);
 			xForwardJZ32 run_step;
 			xJMP(dispatcher);
 			run_step.SetTarget();
 		}
-		if (g_ps_hook && (pc == DRAW_RUN_PC || pc == DRAW_RUN2_PC))
+		if (g_ps_hook && (pc == GgpoPcs().draw_run || pc == GgpoPcs().draw_run2))
 		{
 			iFlushCall(FLUSH_EVERYTHING | FLUSH_PC);
-			xFastCall(pc == DRAW_RUN_PC ? (void*)OnDrawRun : (void*)OnDrawRun2);
+			xFastCall(pc == GgpoPcs().draw_run ? (void*)OnDrawRun : (void*)OnDrawRun2);
 			xTEST(al, al);
 			xForwardJZ32 run_draw;
 			xJMP(dispatcher);
 			run_draw.SetTarget();
 		}
-		if (g_ps_hook && pc == OBJ_CALL_PC)
+		if (g_ps_hook && pc == GgpoPcs().obj_call)
 		{
 			iFlushCall(FLUSH_EVERYTHING | FLUSH_PC);
 			xFastCall((void*)OnObjCall);

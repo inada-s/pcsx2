@@ -102,17 +102,49 @@ namespace Zdxsv
 	extern bool s_rbk; // also set by a replay's common start (PlayLoad); back to ZDXSV_RBK at VM shutdown
 	extern const char* s_rand_env;
 	extern const bool s_pw_hash;
-	constexpr u32 PW_BASE = 0x8395d8, PW_SIZE = 0x2200;
+	// Battle guest data addresses per game; 0 = not mapped. SLPS-25305: static mappings of the SLPS-25419 code, not
+	// checked at run time (needs proper testing).
+	struct GgpoGameAddrs
+	{
+		u32 pw_base; // player work, PW_SIZE per position
+		u32 rng_a, rng_b; // the game RNGs (u16)
+		// The MS asset slot cache: one s8 MS id per slot, -1 = empty. It holds the MSes this machine loaded before,
+		// and the battle load sets player work +0x10f (hashed) from it.
+		u32 ms_slots;
+		u32 tick_state; // u8 game phase
+		u32 net_res_len; // net RPC result length (s32), followed by the request: sock s16, len s16, data
+		u32 net_nowait; // s16: the net RPC wrapper takes the nowait RPC path if nonzero
+		u32 pad_bind_slots; // button settings of pad port 0 (system data)
+		u32 pad_raw, pad_cur; // pad module raw input; pad module A cur, 16 B per position (the applied input)
+		u32 pad_game; // the battle's pad byte (overlay)
+		u32 lockstep; // u8 slots per key msg, then u8 lead (queued - executed counters), u8 lead cap
+		u32 ring; // lockstep input ring, 8 B entries
+		// Team result records, equal on all peers (team 1 = position 0's side): u8 wins at +0, u8 losses at +1. A round
+		// adds a win to the winner and a loss to the loser, a time-up a loss to both (a draw), in one frame.
+		u32 team_record[2];
+		u32 bone_slots;
+		u32 draw_list, draw_list_count_gp_offset; // render callbacks of draw_run: pointers; count at gp - offset
+		u32 part_handler;
+		u32 player_handlers[3];
+		u32 kept_types[2]; // object handlers whose work fields a rerun frame keeps (KEPT_TYPES)
+	};
+	constexpr GgpoGameAddrs GGPO_ADDRS_Z = {0x8395d8, 0x6d7940, 0x6d793c, 0x6f2b6c, 0xc627b4, 0xc22c98, 0xc22c10, 0x7ade6c,
+		0x6f2460, 0x6f2500, 0x117f4d9, 0xc62bdf, 0xc61f40, {0xc227f0, 0xc22804}, 0x8afda0, 0x6e8550, 0x5e20, 0x1f6520,
+		{0x1e4340, 0x1e43e0, 0x1e4450}, {0x167810, 0x167f50}};
+	// No second RNG (rng_b); part_handler and pad_game not found yet.
+	constexpr GgpoGameAddrs GGPO_ADDRS_AEUG = {0x7b6d98, 0x5b2fb0, 0, 0x5c916c, 0xb1f184, 0xae10d8, 0xae1070, 0x681acc,
+		0x5c4410, 0x5c44b0, 0, 0xb1f5ef, 0xb1e910, {0xae0ed0, 0xae0ee4}, 0x7770a0, 0x5c0f10, 0x5eb0, 0,
+		{0x1c9f00, 0x1c9fa0, 0x1ca010}, {0x15fb80, 0x1602b0}};
+	inline const GgpoGameAddrs& GgpoAddrs() { return g_aeug_game ? GGPO_ADDRS_AEUG : GGPO_ADDRS_Z; }
+	constexpr u32 PW_SIZE = 0x2200;
 	extern std::map<int, std::array<u64, 5>> s_pw;
-	// Player position (3 floats in the player work) and the 2 game RNGs (u16), hashed by synctest hash=pos.
-	constexpr u32 PW_POS = 0x2a8, RNG_A = 0x6d7940, RNG_B = 0x6d793c;
-	// The MS asset slot cache: one s8 MS id per slot, -1 = empty. It holds the MSes this machine loaded before, and the
-	// battle load sets player work +0x10f (hashed) from it.
-	constexpr u32 MS_SLOTS = 0x6f2b6c, MS_SLOTS_N = 6;
+	// Player position (3 floats in the player work), hashed by synctest hash=pos with the game RNGs.
+	constexpr u32 PW_POS = 0x2a8;
+	constexpr u32 MS_SLOTS_N = 6;
 	void MsSlotsClear();
 	u32 ReplayStateHash();
 	u32 GameRng();
-	static constexpr u32 TICK_STATE = 0xc627b4; // u8 game phase; 8 = battle load
+	// tick_state values
 	static constexpr u8 TICK_LOAD = 8, TICK_PLAY = 6, TICK_END = 7; // 7 = round or game end phase
 	u32 RoundRecord();
 	u32 MsIds();
@@ -339,7 +371,6 @@ namespace Zdxsv
 	bool ParseKeySlots(const u8* m, u32 n, std::vector<KeySlot>& out);
 	void TracePad();
 	void TraceInputs();
-	constexpr u32 NET_RES_LEN = 0xc22c98;
 	void NoteOwnSend(const KeySlot& s);
 	constexpr u32 NET_FNO_POLL = 0xf;
 	constexpr u32 NET_FNO_RECV = 0x14;

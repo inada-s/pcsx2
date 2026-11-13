@@ -13,7 +13,8 @@ namespace Zdxsv
 	{
 		// Per-player bone matrix slots (4 x 0x65d0), written only by the render callbacks. A draw reads
 		// the previous frame's slot, so rerun frames that skip the callbacks would leave a stale pose.
-		constexpr u32 BONE_SLOTS = 0x8afda0, BONE_SLOTS_END = BONE_SLOTS + 4 * 0x65d0;
+		u32 BoneSlots() { return GgpoAddrs().bone_slots; }
+		u32 BoneSlotsEnd() { return GgpoAddrs().bone_slots + 4 * 0x65d0; }
 
 		// Game object list: head pointer at gp - 0x5b80; each object holds its handler at +0xa8 and
 		// the next object at +0xac.
@@ -27,14 +28,17 @@ namespace Zdxsv
 			u32 handler;
 			std::array<std::pair<u32, u32>, 2> fields;
 		};
-		constexpr KeptObjectType KEPT_TYPES[] = {
-			{0x167810, {{{0x0, 0xa0}, {0x150, 0x1d0}}}}, // beam saber trail history
-			{0x167f50, {{{0xb0, 0x1f0}, {0x0, 0x0}}}}, // an effect type
-		};
+		std::array<KeptObjectType, 2> KeptTypes()
+		{
+			const u32* h = GgpoAddrs().kept_types;
+			return {{
+				{h[0], {{{0x0, 0xa0}, {0x150, 0x1d0}}}}, // beam saber trail history
+				{h[1], {{{0xb0, 0x1f0}, {0x0, 0x0}}}}, // an effect type
+			}};
+		}
 
-		// Player objects copy part of their work into their bone slot at the start of each draw. That
-		// part follows the rerun game state, so it is written again after the load and each rerun frame.
-		constexpr u32 PLAYER_HANDLERS[] = {0x1e4340, 0x1e43e0, 0x1e4450};
+		// Player objects (player_handlers) copy part of their work into their bone slot at the start of each draw.
+		// That part follows the rerun game state, so it is written again after the load and each rerun frame.
 		constexpr u32 PLAYER_SLOT_INDEX = 0x21d0, PLAYER_POSE = 0x20, PLAYER_ANGLES = 0x50, PLAYER_BLOCKS = 0x7c0;
 		constexpr u32 PLAYER_SIZE = 0x2200, PLAYER_BLOCK_SIZE = 0x40;
 		constexpr u32 SLOT_SIZE = 0x65d0, SLOT_POSE = 0x220, SLOT_ANGLES = 0x200, SLOT_BLOCKS = 0x240;
@@ -42,12 +46,10 @@ namespace Zdxsv
 		constexpr u32 SLOT_MAX_BLOCKS = (SLOT_MODEL - SLOT_BLOCKS - SLOT_BLOCK_OFFSET) / SLOT_BLOCK_STRIDE;
 		constexpr u32 ANGLE_UNIT = 0x38c90fda; // 2 pi / 65536
 
-		// Parts attached to a player draw their matrix into a bone block of the player's slot past the blocks
+		// Parts attached to a player (part_handler) draw their matrix into a bone block of the player's slot past the blocks
 		// RebuildPlayerSlot copies; the player's next draw reads it. Their draws also run in skipped rerun
 		// frames, through the object draw walker alone.
-		constexpr u32 PART_HANDLER = 0x1f6520;
-		// Render callbacks of DRAW_RUN_PC: count at gp - 0x5e20, pointers from 0x6e8550.
-		constexpr u32 DRAW_LIST_COUNT_GP_OFFSET = 0x5e20, DRAW_LIST = 0x6e8550, DRAW_LIST_MAX = 64;
+		constexpr u32 DRAW_LIST_MAX = 64;
 
 		// ZDXSV_RERUN_PARTS=0: no draws in skipped rerun frames.
 		const bool s_keep_parts = [] {
@@ -67,7 +69,7 @@ namespace Zdxsv
 			const char* e = TestEnv("ZDXSV_RERUN_KEEP");
 			if (!e)
 			{
-				c.ranges.emplace_back(BONE_SLOTS, BONE_SLOTS_END);
+				c.ranges.emplace_back(BoneSlots(), BoneSlotsEnd());
 				return c;
 			}
 			c.any_phase = true;
@@ -108,7 +110,7 @@ namespace Zdxsv
 
 		bool RerunKeepPhase()
 		{
-			return s_keep_config.any_phase || eeMem->Main[TICK_STATE] == TICK_PLAY;
+			return s_keep_config.any_phase || eeMem->Main[GgpoAddrs().tick_state] == TICK_PLAY;
 		}
 
 		u32 ReadU32(u32 addr)
@@ -138,7 +140,7 @@ namespace Zdxsv
 		void ForEachKeptObject(F&& fn)
 		{
 			ForEachObject([&fn](u32 obj, u32 handler) {
-				for (const KeptObjectType& type : KEPT_TYPES)
+				for (const KeptObjectType& type : KeptTypes())
 				{
 					if (handler == type.handler)
 						fn(obj, type);
@@ -160,7 +162,8 @@ namespace Zdxsv
 
 		bool IsPlayerHandler(u32 handler)
 		{
-			return std::find(std::begin(PLAYER_HANDLERS), std::end(PLAYER_HANDLERS), handler) != std::end(PLAYER_HANDLERS);
+			const u32* h = GgpoAddrs().player_handlers;
+			return std::find(h, h + 3, handler) != h + 3;
 		}
 
 		u32 PlayerSlot(u32 obj)
@@ -168,7 +171,7 @@ namespace Zdxsv
 			const s8 index = static_cast<s8>(eeMem->Main[obj + PLAYER_SLOT_INDEX]);
 			if (index < 0 || index >= 4 || obj + PLAYER_SIZE > Ps2MemSize::MainRam)
 				return 0;
-			return BONE_SLOTS + index * SLOT_SIZE;
+			return BoneSlots() + index * SLOT_SIZE;
 		}
 
 		u32 CopiedBlocks(u32 slot)
@@ -296,7 +299,7 @@ namespace Zdxsv
 			return;
 		s_keep.armed = false;
 		s_keep.rebuild_slots = std::any_of(s_keep_config.ranges.begin(), s_keep_config.ranges.end(),
-			[](const auto& r) { return r.first < BONE_SLOTS_END && BONE_SLOTS < r.second; });
+			[](const auto& r) { return r.first < BoneSlotsEnd() && BoneSlots() < r.second; });
 		if (s_keep.rebuild_slots)
 			SaveCopiedRanges();
 		size_t off = 0;
@@ -329,10 +332,10 @@ namespace Zdxsv
 	{
 		if (!s_keep_parts || !s_keep.rebuild_slots)
 			return false;
-		const u32 count = ReadU32((cpuRegs.GPR.n.gp.UL[0] - DRAW_LIST_COUNT_GP_OFFSET) & (Ps2MemSize::MainRam - 4));
+		const u32 count = ReadU32((cpuRegs.GPR.n.gp.UL[0] - GgpoAddrs().draw_list_count_gp_offset) & (Ps2MemSize::MainRam - 4));
 		for (u32 i = 0; i < std::min(count, DRAW_LIST_MAX); i++)
 		{
-			if (ReadU32(DRAW_LIST + i * 4) != OBJ_WALK_PC)
+			if (ReadU32(GgpoAddrs().draw_list + i * 4) != GgpoPcs().obj_walk)
 				continue;
 			if (!s_keep.parts_logged)
 			{
@@ -350,7 +353,7 @@ namespace Zdxsv
 		// The walker calls a handler only for an object not culled.
 		if (IsPlayerHandler(handler))
 			RebuildPlayerSlot(obj & (Ps2MemSize::MainRam - 1));
-		return handler == PART_HANDLER;
+		return handler == GgpoAddrs().part_handler;
 	}
 
 	bool OnDrawRun()
@@ -358,7 +361,7 @@ namespace Zdxsv
 		if (!g_rerun_draw_skip)
 			return false;
 		// ra stays: the walker returns to the runner's caller.
-		cpuRegs.pc = RerunKeepWalksObjects() ? OBJ_WALK_PC : cpuRegs.GPR.n.ra.UL[0];
+		cpuRegs.pc = RerunKeepWalksObjects() ? GgpoPcs().obj_walk : cpuRegs.GPR.n.ra.UL[0];
 		return true;
 	}
 
@@ -374,7 +377,7 @@ namespace Zdxsv
 	{
 		if (!g_rerun_draw_skip || RerunKeepDrawsHandler(cpuRegs.GPR.n.v0.UL[0], cpuRegs.GPR.n.s0.UL[0]))
 			return false;
-		cpuRegs.pc = OBJ_CALL_PC + 8;
+		cpuRegs.pc = GgpoPcs().obj_call + 8;
 		return true;
 	}
 } // namespace Zdxsv

@@ -218,7 +218,7 @@ namespace Zdxsv
 			}
 			return false;
 		}
-		*reinterpret_cast<s32*>(ram + NET_RES_LEN) = result;
+		*reinterpret_cast<s32*>(ram + GgpoAddrs().net_res_len) = result;
 		cpuRegs.GPR.n.v0.SD[0] = result;
 		cpuRegs.pc = cpuRegs.GPR.n.ra.UL[0];
 		return true;

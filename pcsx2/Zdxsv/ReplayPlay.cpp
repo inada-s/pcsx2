@@ -170,7 +170,7 @@ namespace Zdxsv
 
 		void PlayTrackLoads(int f)
 		{
-			const u8 st = eeMem->Main[TICK_STATE];
+			const u8 st = eeMem->Main[GgpoAddrs().tick_state];
 			if (f > s_play.hi)
 			{
 				if (f == s_play.tick_f + 1 && s_tick_st == TICK_LOAD && st != TICK_LOAD)
@@ -237,7 +237,7 @@ namespace Zdxsv
 
 		void PlayFrameTakeover(int f)
 		{
-			const u8 st = eeMem->Main[TICK_STATE];
+			const u8 st = eeMem->Main[GgpoAddrs().tick_state];
 			if (st == TICK_END && s_tick_st == TICK_PLAY && !s_to_test && s_to_req == TO_REQ_NONE)
 			{
 				Console.WriteLn("ZdxsvGgpo: replay takeover: the battle ended at frame %d, retrying", f);

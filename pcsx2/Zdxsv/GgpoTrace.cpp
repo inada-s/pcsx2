@@ -35,25 +35,22 @@ namespace Zdxsv
 	// active-low at +2) and the game's copy byte.
 	void TracePad()
 	{
-		constexpr u32 PAD_RAW = 0x6f2460;
-		constexpr u32 PAD_GAME = 0x117f4d9;
-		// `A vsync frame A0..A3`: pad module A cur per position (0x6f2500 + 16p, the applied input)
+		// `A vsync frame A0..A3`: pad module A cur per position (pad_cur + 16p)
 		if (s_net_trace && !g_ggpo_in_rollback)
 		{
 			static u16 last_a[4];
 			u16 a[4];
 			for (int p = 0; p < 4; p++)
-				std::memcpy(&a[p], eeMem->Main + 0x6f2500 + 16 * p, 2);
+				std::memcpy(&a[p], eeMem->Main + GgpoAddrs().pad_cur + 16 * p, 2);
 			if (std::memcmp(a, last_a, sizeof(a)) != 0)
 			{
 				std::memcpy(last_a, a, sizeof(a));
 				std::fprintf(s_net_trace, "%u A %d %04x %04x %04x %04x\n", g_FrameCount, s_battle.frame, a[0], a[1], a[2], a[3]);
 			}
-			// `L vsync frame lead maxlead slots state`: lockstep lead 0xc62be0 (queued - executed
-			// counters), its cap 0xc62be1, slots per key msg 0xc62bdf, tick state 0xc627b4, when changed
+			// `L vsync frame lead maxlead slots state`: the lockstep bytes and the tick state, when changed
 			static u8 last_l[4];
-			const u8* l = eeMem->Main + 0xc62bdf;
-			const u8 cl[4] = {l[1], l[2], l[0], eeMem->Main[0xc627b4]};
+			const u8* l = eeMem->Main + GgpoAddrs().lockstep;
+			const u8 cl[4] = {l[1], l[2], l[0], eeMem->Main[GgpoAddrs().tick_state]};
 			if (std::memcmp(cl, last_l, 4) != 0)
 			{
 				std::memcpy(last_l, cl, 4);
@@ -62,8 +59,8 @@ namespace Zdxsv
 		}
 		static u8 last[9];
 		u8 cur[9];
-		std::memcpy(cur, eeMem->Main + PAD_RAW, 8);
-		cur[8] = eeMem->Main[PAD_GAME];
+		std::memcpy(cur, eeMem->Main + GgpoAddrs().pad_raw, 8);
+		cur[8] = eeMem->Main[GgpoAddrs().pad_game];
 		if (!s_net_trace || g_ggpo_in_rollback || std::memcmp(cur, last, 9) == 0)
 			return;
 		std::memcpy(last, cur, 9);
