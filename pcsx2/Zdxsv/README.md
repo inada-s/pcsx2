@@ -98,7 +98,7 @@ options: `docs/zdxsv/`.
 | `pcsx2-qt/Zdxsv/QtOnlineLimits.cpp` | Closes the debugger window while online (`QtHooks.h`, seam in `pcsx2-qt/QtHost.cpp`) |
 | `pcsx2-qt/Zdxsv/QtSetupWizard.cpp` | First-run wizard: zdxsv texts, zdxsv sign-in page in place of RetroAchievements (`QtHooks.h`, seam in `pcsx2-qt/SetupWizardDialog.cpp`) |
 | `pcsx2-qt/Zdxsv/QtFonts.cpp` | Noto Sans JP download at UI start, for the panel's Japanese names (`QtHooks.h`, seam in `pcsx2-qt/Translations.cpp`) |
-| `pcsx2-qt/Zdxsv/QtReplayChild.cpp` | Replay child: launch from the replay window, its settings overrides, its exit with the parent (`QtHooks.h`, seams in `pcsx2-qt/QtHost.cpp`; play time `UiHooks.h`, `pcsx2/VMManager.cpp`) |
+| `pcsx2-qt/Zdxsv/QtReplayChild.cpp` | Replay child: launch from the replay window, its settings overrides, its exit with the parent (`QtHooks.h`, seams in `pcsx2-qt/QtHost.cpp`; play time `UiHooks.h`, `pcsx2/VMManager.cpp`; unfocused pads `InputHooks.h`, `pcsx2/Input/InputManager.cpp`) |
 | `pcsx2-qt/Zdxsv/QtWheelVolume.cpp` | Mouse wheel over the game screen changes the volume, OSD (`QtHooks.h`, seam in `pcsx2-qt/DisplayWidget.cpp`) |
 | `CpuHooks.h` | Hook header: recompilers, counters, MTGS, VMManager |
 | `InputHooks.h` | Hook header: pad code |

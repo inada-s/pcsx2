@@ -26,7 +26,7 @@ skips does not run on that path.
 | Qt emulation settings (`QtHooks.h`) | `pcsx2-qt/Zdxsv/QtEmulationSettings` | low-latency present checkbox |
 | Qt setup wizard (`QtHooks.h`) | `pcsx2-qt/Zdxsv/QtSetupWizard` | first-run wizard texts, zdxsv sign-in page |
 | Qt fonts | `pcsx2-qt/Zdxsv/QtFonts` | Noto Sans JP download before the OSD fonts load |
-| Replay child (`QtHooks.h`, `QtHost`; `UiHooks.h`, `VMManager` play time) | `pcsx2-qt/Zdxsv/QtReplayChild` | replays in a second process |
+| Replay child (`QtHooks.h`, `QtHost`; `UiHooks.h`, `VMManager` play time; `InputHooks.h`, `InputManager` unfocused pads) | `pcsx2-qt/Zdxsv/QtReplayChild` | replays in a second process |
 | Qt game window wheel (`QtHooks.h`, `DisplayWidget`) | `pcsx2-qt/Zdxsv/QtWheelVolume` | mouse wheel volume |
 | VMManager shutdown, shutdown dialog, Big Picture menus, settings dialogs, game list menus, debugger (`UiHooks.h`) | `FeatureLimits` | no save state on shutdown, no game properties |
 | VMManager, GS, MTGS, hotkeys, Qt main window (`UiHooks.h`, `QtHooks.h`) | `OnlineLimits`, `pcsx2-qt/Zdxsv/QtOnlineLimits`, `ReplayControls` | operations refused while online or during a replay, debugger window closed |

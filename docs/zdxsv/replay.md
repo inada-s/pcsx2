@@ -100,7 +100,9 @@ Tools → zdxsv Replays:
   `emulog.txt`), save states and memory card folder are
   `<data dir>/replay-child/`; memory cards, DEV9, fast boot and login,
   replay saving and upload, crash reports, achievements, Discord and the
-  update check are off; no play time is added. It exits when the replay
+  update check are off; no play time is added; controller input reaches it
+  only while its window is active (keyboard and mouse come with the focus).
+  It exits when the replay
   ends, when its window closes or within a second of its parent's exit.
   One at a time: Play again ends the running child first. It runs at
   below-normal priority (Windows).

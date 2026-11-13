@@ -8,6 +8,7 @@
 
 #include "pcsx2/Config.h"
 #include "pcsx2/INISettingsInterface.h"
+#include "pcsx2/Zdxsv/InputHooks.h"
 #include "pcsx2/Zdxsv/UiHooks.h"
 #include "pcsx2/Zdxsv/ReplayList.h"
 
@@ -19,6 +20,7 @@
 #include <QtCore/QPointer>
 #include <QtCore/QProcess>
 #include <QtCore/QTimer>
+#include <QtGui/QGuiApplication>
 #include <QtWidgets/QMessageBox>
 
 #include <cerrno>
@@ -127,6 +129,9 @@ namespace Zdxsv
 	{
 		if (!s_replay_child.child)
 			return;
+		g_replay_child_unfocused = qApp->applicationState() != Qt::ApplicationActive;
+		QObject::connect(qApp, &QGuiApplication::applicationStateChanged, parent,
+			[](Qt::ApplicationState state) { g_replay_child_unfocused = state != Qt::ApplicationActive; });
 		QTimer* timer = new QTimer(parent);
 		QObject::connect(timer, &QTimer::timeout, parent, [timer]() {
 			if (ProcessAlive(s_replay_child.parent_pid))

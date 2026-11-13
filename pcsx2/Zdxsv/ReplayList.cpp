@@ -20,6 +20,7 @@
 namespace Zdxsv
 {
 	bool g_replay_child = false;
+	bool g_replay_child_unfocused = false;
 
 	namespace
 	{
