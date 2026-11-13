@@ -90,14 +90,21 @@ Tools → zdxsv Replays:
 - Remote, Live and Favorites ask the lobby API of setting `ZdxsvLobbyApiUrl`
   (ini only, `options.md`).
 - **Point of view**: the recorder's or a position (`ZDXSV_REPLAY_POV`).
-- **Play** (or a double click) boots the game from the game list (it must
-  hold the Z game) with the pick; it applies to that boot only: the next
-  boot is a normal one. `ZDXSV_REPLAY` in the environment wins over it.
-- **Return** (setting `ZdxsvReplayReturn`): Play with the Z game running and
-  no lobby connection or net battle saves `replays/return.p2s` first. When
-  the replay ends (resumed at its end, or `ZDXSV_REPLAY_EXIT=1`) the VM shuts
-  down, the game boots again from that state (else a plain boot) and the
-  window opens again. Stopping the replay VM by hand does not return.
+- **Play** (or a double click) starts a second pcsx2 process, the replay
+  child, that boots the game from the game list (it must hold the Z game)
+  with the pick. The running game is left as it is (it can stay in the
+  lobby). Refused during a net battle.
+- **Replay child**: a game window only (`-nogui`), command line
+  `-zdxsvreplay <pov>:<parent pid>:<source>`. It reads the parent's settings
+  and saves nothing over them: its settings copy, cache, logs (its
+  `emulog.txt`), save states and memory card folder are
+  `<data dir>/replay-child/`; memory cards, DEV9, fast boot and login,
+  replay saving and upload, crash reports, achievements, Discord and the
+  update check are off; no play time is added; controller input reaches it
+  only while its window is active (keyboard and mouse come with the focus).
+  It exits when the replay does not start (the reason is in its log), when it
+  ends, when its window closes or within a second of its parent's exit.
+  One at a time: Play again ends the running child first.
 
 ## Controls
 

@@ -30,6 +30,9 @@ EMU=1: the 4 clients are emulators instead (platform info, no zproxy by default;
   client) plays ZDXSV_REPLAY=http://127.0.0.1:9881/lbs/replay?battle_code=<first code> (the lobby's public API
   -> replay_url -> the stored .pb). Checks: the replay_url it took = the stored url, played to its end; with
   PWTRACE=1 its player work + rng = the players' (pwcheck, OUT/trace-api.txt).
+  SIDE_CHILD=K (GGPO): once the lobby logs `live open`, a replay child of client K (-zdxsvreplay, its data dir
+  and pid) plays SIDE_FILE at normal speed from SIDE_STATE (default RBKSTATES/rbk-p1.p2s) with SIDE_ENV (as CENV,
+  e.g. the recording's ZDXSV_EE_CLAMP); side-child.txt. SIDE_FILE=live:http://127.0.0.1:9881: the newest live battle (uplink on), from `live upload`.
   LIVE=N (GGPO): once the lobby logs `live upload`, instance N (not a client) plays
   ZDXSV_REPLAY=live:http://127.0.0.1:9881 (the lobby API, the newest live battle) with PW hashes
   (OUT/trace-live.txt). Checks: one client was the uplink, the spectator's stream closed at the uplink's saved
@@ -329,7 +332,7 @@ def main():
             v = f"net=1,lobby=1,port={int(ggpo) + int(i) - 1}" + ("" if gdelay == "auto" else f",delay={gdelay}")
             v += f",mindelay={E('GMIN')}" if E("GMIN") else ""
             v += ",upload=http://127.0.0.1:9881/lbs/replay_upload" if E("UPLOAD") else ""
-            v += ",live=http://127.0.0.1:9881" if E("LIVE") else ""
+            v += ",live=http://127.0.0.1:9881" if E("LIVE") or E("SIDE_FILE").startswith("live:") else ""
             v += f",{E('GOPT')}" if E("GOPT") else ""
             v += ",badsession=1" if i == E("BAD_SESSION") else ""
             v += f",advertise={7300 + (i == '1')}" if E("GGPO_LAT") else ""
@@ -447,6 +450,26 @@ def main():
             if E("LIVE_STALL"):
                 live_stall(pid, log)
 
+    def side_child():
+        with open(os.path.join(out, "side-child.txt"), "w", encoding="utf-8") as f:
+            t1 = time.time()
+            while not c(lobby, "live upload" if E("SIDE_FILE").startswith("live:") else "live (open|upload)") and time.time() - t1 < 3600:
+                time.sleep(2)
+            k = E("SIDE_CHILD")
+            src = E("SIDE_FILE") if E("SIDE_FILE").startswith("live:") else os.path.abspath(E("SIDE_FILE"))
+            env = launch.pcsx2_env({**os.environ, **freshboot.assigns(E("CENV")), **freshboot.assigns(E(f"CENV{k}")),
+                                    **freshboot.assigns(E("SIDE_ENV")),
+                                    "ZDXSV_REPLAY_EXIT": "1", "ZDXSV_REPLAY_SKIP_MS": "0",
+                                    "ZDXSV_REPLAY_STATE": E("SIDE_STATE") or os.path.join(E("RBKSTATES"), "rbk-p1.p2s")})
+            a = [launch.exe_path(), "-datapath", os.path.join(run, f"p{k}"), "-batch", "-nogui",
+                 "-zdxsvreplay", f"-1:{cpid[k]}:{src}", "--", os.path.normpath(E("ISO"))]
+            p = subprocess.Popen(a, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                                 stderr=subprocess.DEVNULL)
+            f.write(f"battle streams after {int(time.time() - t1)} s: child of p{k} pid {p.pid}\n")
+            f.flush()
+            p.wait()
+            f.write(f"child exit {p.returncode} after {int(time.time() - t1)} s\n")
+
     # stack.py runs in the background: its binary check fails here, before any client
     if zbincheck.check(zbin):
         return 1
@@ -509,6 +532,8 @@ def main():
     if E("LIVE"):
         # the spectator joins once a battle streams (no battle code = the newest live battle)
         threading.Thread(target=live_thread, daemon=True).start()
+    if E("SIDE_CHILD"):
+        threading.Thread(target=side_child, daemon=True).start()
 
     def logins():
         return len(battle_results(lobby))

@@ -3580,6 +3580,8 @@ void VMManager::SaveSessionTime(const std::string& prev_serial)
 	// Don't save time when running dumps, just messes up your list.
 	if (GSDumpReplayer::IsReplayingDump())
 		return;
+	if (Zdxsv::g_replay_child)
+		return;
 
 	if (!prev_serial.empty())
 	{

@@ -17,6 +17,7 @@ public:
 	~INISettingsInterface() override;
 
 	const std::string& GetFileName() const { return m_filename; }
+	void SetFileName(std::string filename) { m_filename = std::move(filename); }
 	bool IsDirty() const { return m_dirty; }
 
 	bool Load();

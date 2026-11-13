@@ -21,6 +21,7 @@ BAD=1: FILE is not a playable replay: exit 0 if the player is told it did not st
 """
 import atexit
 import glob
+import hashlib
 import os
 import re
 import shutil
@@ -36,6 +37,21 @@ HOTKEYS = ("ZdxsvReplaySeekBack = Keyboard/PageUp", "ZdxsvReplaySeekForward = Ke
            "ZdxsvReplayPrevRound = Keyboard/Shift & Keyboard/PageUp",
            "ZdxsvReplayNextRound = Keyboard/Shift & Keyboard/PageDown",
            "ZdxsvReplayStepBack = Keyboard/Home", "ZdxsvReplayStepForward = Keyboard/Insert")
+
+
+def files_digest(root):
+    """{relative path: sha1} of the files under ROOT but the child's own folder."""
+    d = {}
+    for dp, dns, fns in os.walk(root):
+        dns[:] = [x for x in dns if os.path.join(dp, x) != os.path.join(root, "replay-child")]
+        for f in fns:
+            p = os.path.join(dp, f)
+            try:
+                with open(p, "rb") as fh:
+                    d[os.path.relpath(p, root)] = hashlib.sha1(fh.read()).hexdigest()
+            except OSError:
+                d[os.path.relpath(p, root)] = "unreadable"
+    return d
 
 
 def grep(path, rx):
@@ -79,8 +95,12 @@ def main(live):
     pov, keys_env, players = zrig.env("POV"), zrig.env("KEYS"), int(zrig.env("PLAYERS", "2"))
     port = zrig.env("API_PORT", "9891")
     os.makedirs(out, exist_ok=True)
-    logs = os.path.join(run, f"p{n}", "PCSX2", "logs")
+    child = zrig.env("CHILD") == "1"
+    data = os.path.join(run, f"p{n}", "PCSX2")
+    logs = os.path.join(data, "replay-child", "logs") if child else os.path.join(data, "logs")
     l = os.path.join(logs, "emulog.txt")
+    if child and os.path.exists(l):
+        os.remove(l)
     api = []
 
     def cleanup():
@@ -172,7 +192,14 @@ def main(live):
         k, sep, v = a.partition("=")
         if sep:
             e[k] = v
-    pid = launch.launch([n], state=state, headless=not window, extra_env=e, quiet=True)[int(n)]
+    if child:
+        del e["ZDXSV_REPLAY"]
+        e["ZDXSV_REPLAY_STATE"] = os.path.abspath(state)
+        args = ["-zdxsvreplay", f"{pov or -1}:{os.getpid()}:{play}"]
+        pid = launch.launch([n], headless=not window, extra_env=e, quiet=True, extra_args=args)[int(n)]
+        before = files_digest(data)
+    else:
+        pid = launch.launch([n], state=state, headless=not window, extra_env=e, quiet=True)[int(n)]
     print(f"p{n} pid {pid} slot {28010 + int(n)}", flush=True)
     # start check: the replay header line within 30 s, else stop
     for _ in range(30):
@@ -231,6 +258,15 @@ def main(live):
     if not grep(l, "ZdxsvGgpo: replay end"):
         print("FAIL no replay end")
         ok = 1
+    if child:
+        if zrig.count_name("pcsx2"):
+            print("FAIL the replay child did not exit")
+            ok = 1
+        after = files_digest(data)
+        changed = sorted(k for k in set(before) | set(after) if before.get(k) != after.get(k))
+        if changed:
+            print(f"FAIL the child changed the instance's files: {' '.join(changed[:10])}")
+            ok = 1
     # the game's own position at its arm (its first key msg) is the asked point of view
     if pov and not grep(l, rf"net armed at vsync [0-9]*, position {re.escape(pov)}\b"):
         print(f"FAIL the game did not arm as position {pov}")
