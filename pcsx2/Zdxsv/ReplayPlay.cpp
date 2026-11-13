@@ -571,11 +571,8 @@ namespace Zdxsv
 			const int n = f - s_play.seek_from;
 			Console.WriteLn("ZdxsvGgpo: replay seek done at frame %d, vsync %u: %d frames from key %d in %.1f ms, %.2f ms/frame",
 				f, g_FrameCount, n, s_play.seek_from, ms, n > 0 ? ms / n : 0.0);
-			if (std::exchange(s_play.step_pause, false))
-			{
-				PlayStepPaused(f);
+			if (std::exchange(s_play.step_pause, false) && PlayStepPaused(f))
 				VMManager::SetPaused(true);
-			}
 		}
 		const bool running = s_play.target >= 0 || s_play.run_load >= 0;
 		const int fast_every = PlayFastEvery();
@@ -746,10 +743,25 @@ namespace Zdxsv
 		s_play_step.resume = false;
 	}
 
-	void PlayStepPaused(int f)
+	std::atomic<int> s_play_step_queue{0};
+
+	bool PlayStepPaused(int f)
 	{
+		const Common::Timer::Value now = Common::Timer::GetCurrentValue();
 		Console.WriteLn("ZdxsvGgpo: replay step paused at frame %d, vsync %u: %.1f ms after the request", f, g_FrameCount,
-			Common::Timer::ConvertValueToMilliseconds(Common::Timer::GetCurrentValue() - s_play_step.t0));
+			Common::Timer::ConvertValueToMilliseconds(now - s_play_step.t0));
+		int q = s_play_step_queue.load();
+		while (q != 0 && !s_play_step_queue.compare_exchange_weak(q, q - (q > 0 ? 1 : -1)))
+			;
+		if (q == 0 || s_play.at_end)
+		{
+			s_play_step_queue = 0;
+			return true;
+		}
+		s_play_req = f + 1 + (q < 0 ? -2 : 0);
+		s_play.step_pause = true;
+		s_play_step.t0 = now;
+		return false;
 	}
 
 	bool ReplayStepHoldsAudio(bool paused)
