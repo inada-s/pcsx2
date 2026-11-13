@@ -421,6 +421,9 @@ namespace Zdxsv
 	// Resume from a pause for a step or a seek that pauses again (s_play.step_pause): the audio output stays paused.
 	void PlayStepResume();
 	void PlayStepPaused(int f);
+	void PlayStepRingSave(int f);
+	int PlayStepRingLoad(int target);
+	void PlayStepRingClear();
 	void PlaySlowWait();
 	// Not refused by ReplayRefuses.
 	bool ReplayLoadState(const char* path, Error* error);

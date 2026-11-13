@@ -124,7 +124,9 @@ D-pad. While taken over the pad plays the game.
   run unthrottled and are not drawn, and after the last round the replay
   ends. A file without play starts skips the first mobile suit selection
   only (from frame 0 to the briefing).
-- **Step** (paused): runs one frame (back: a seek to the frame before) and
+- **Step** (paused): runs one frame (back: a seek to the frame before; while
+  stepping, the last 60 frames are kept in memory, so it loads one of them
+  instead of a key) and
   pauses again. The audio output stays paused and the step's sound is dropped;
   play resumes it.
 - **Seek**: a key (full state + battle-socket state) is kept every

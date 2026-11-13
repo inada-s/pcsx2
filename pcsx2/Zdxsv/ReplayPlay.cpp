@@ -3,6 +3,7 @@
 
 // Replay playback: frame loop, seek keys, point of view, takeover, the control bar and its hotkeys.
 
+#include "Zdxsv/DeltaState.h"
 #include "Zdxsv/GgpoShared.h"
 #include "Zdxsv/MediaHooks.h"
 #include "Zdxsv/ReplayList.h"
@@ -387,6 +388,12 @@ namespace Zdxsv
 		bool loaded = false;
 		auto& keys = s_play_keys[s_battle.me];
 		auto it = keys.upper_bound(target);
+		if (const int l = (pov_switch || target >= next) ? -1 : PlayStepRingLoad(target); l >= 0)
+		{
+			from = l;
+			loaded = true;
+			it = keys.begin();
+		}
 		while (it != keys.begin())
 		{
 			--it;
@@ -399,6 +406,7 @@ namespace Zdxsv
 				continue;
 			Common::Timer timer;
 			Error error;
+			PlayStepRingClear();
 			if (!ReplayLoadState(k.path.c_str(), &error))
 			{
 				Console.Error("ZdxsvGgpo: replay seek: key %d load failed: %s", it->first, error.GetDescription().c_str());
@@ -575,6 +583,7 @@ namespace Zdxsv
 		if (!running)
 			PlaySlowWait();
 		PlayKeySave(f);
+		PlayStepRingSave(f);
 		s_battle.frame = f;
 		PlayBarPublish();
 		PlayKeysPublish(f);
@@ -601,6 +610,7 @@ namespace Zdxsv
 	{
 		g_ggpo_active = false;
 		g_replay_step_hold = false;
+		PlayStepRingClear();
 		PlayHideReset();
 		s_bar_frame = -1;
 		s_battle.over = true; // the battle sock goes back to the IOP
@@ -657,9 +667,13 @@ namespace Zdxsv
 
 	namespace
 	{
+		// within the 64 frames of FrameRings::net_seq_at, which a load leaves in place
+		constexpr int STEP_RING_FRAMES = 60;
+
 		struct
 		{
 			bool resume = false;
+			bool ring = false;
 			Common::Timer::Value t0 = 0;
 		} s_play_step;
 
@@ -676,6 +690,49 @@ namespace Zdxsv
 			PlayStepResume();
 		}
 	} // namespace
+
+	void PlayStepRingClear()
+	{
+		if (std::exchange(s_play_step.ring, false))
+			DeltaStateClear();
+	}
+
+	// While stepping, the last frames are kept as delta states, so a step back loads one instead of a key file.
+	// Their EE RAM tracking costs every frame: off outside steps.
+	void PlayStepRingSave(int f)
+	{
+		if (!g_replay_step_hold || (s_play.target >= 0 && f < s_play.target - STEP_RING_FRAMES))
+		{
+			PlayStepRingClear();
+			return;
+		}
+		if (DeltaStateGetState(f) || !DeltaStateSave(f))
+			return;
+		s_play_step.ring = true;
+		DeltaStateDiscardBefore(f - STEP_RING_FRAMES);
+	}
+
+	// The newest ring frame in (target - STEP_RING_FRAMES, target], loaded; -1 if none.
+	int PlayStepRingLoad(int target)
+	{
+		if (!s_play_step.ring || !g_replay_step_hold)
+			return -1;
+		for (int l = target; l > target - STEP_RING_FRAMES && l >= 0; l--)
+		{
+			if (!DeltaStateGetState(l))
+				continue;
+			Common::Timer timer;
+			if (!DeltaStateLoad(l))
+			{
+				PlayStepRingClear();
+				return -1;
+			}
+			s_rb = s_net_at[l & 127];
+			Console.WriteLn("ZdxsvGgpo: replay seek: step frame %d loaded (%.1f ms)", l, timer.GetTimeMilliseconds());
+			return l;
+		}
+		return -1;
+	}
 
 	void PlayStepResume()
 	{
