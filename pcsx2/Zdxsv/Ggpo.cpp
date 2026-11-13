@@ -260,6 +260,7 @@ namespace Zdxsv
 	// Set by GgpoOnVmInitialize before the CPU runs.
 	std::string s_options;
 	bool g_z_game = false;
+	bool g_aeug_game = false;
 	bool g_ggpo_active = false;
 	bool g_ggpo_in_rollback = false;
 	u64 g_rerun_vu1_ticks = 0;
@@ -644,6 +645,7 @@ namespace Zdxsv
 		const char* ext = TestEnv("ZDXSV_EXTENSIONS");
 		const bool ext_off = ext && std::strcmp(ext, "0") == 0;
 		g_z_game = serial_match && crc == want && !ext_off;
+		g_aeug_game = std::strcmp(serial, "SLPS-25305") == 0 && crc == 0x992356FE && !ext_off;
 		SingleDrawListOnVmInitialize();
 		AllyHpOnVmInitialize();
 		StickMessageOnVmInitialize();

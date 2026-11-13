@@ -32,13 +32,21 @@ namespace Zdxsv
 {
 	namespace
 	{
-		// Guest addresses of SLPS-25419 (g_z_game checks serial and CRC).
-		constexpr u32 kGp = 0x6dd770;
-		constexpr u32 kSceneBlock = kGp - 0x5ce4; // pointer; byte 0 = scene: 1 title, 2 main menu, 7 network mode
-		constexpr u32 kMainMenu = kGp - 0x5e1c; // pointer; +0x25c = cursor
+		// Guest addresses per game (g_z_game / g_aeug_game check serial and CRC).
+		struct FastBootGame
+		{
+			u32 scene_block; // pointer; byte 0 = scene: 1 title, 2 main menu, 7 network mode
+			u32 main_menu; // pointer; +0x25c = cursor
+			u8 menu_network; // cursor value of the network mode item
+			u32 net_state; // network menu state; +1 = its sub state, +2 = the sub state's step
+			u32 lobby_object; // pointer; +lobby_marker = network step, the next byte = its sub step
+			u32 lobby_marker;
+		};
+		constexpr FastBootGame kGvszGame = {0x6dd770 - 0x5ce4, 0x6dd770 - 0x5e1c, 7, 0xcd1360, 0x6dd770 - 0x5a1c, 0xa1f};
+		constexpr FastBootGame kAeugGame = {0x5b8e70 - 0x5d74, 0x5b8e70 - 0x5eac, 3, 0xb898c0, 0x5b8e70 - 0x5ad4, 0x6ff};
+		const FastBootGame& Game() { return g_z_game ? kGvszGame : kAeugGame; }
 		constexpr u32 kMainMenuCursor = 0x25c;
 		constexpr u8 kMenuNetwork = 7;
-		constexpr u32 kNetState = 0xcd1360; // network menu state; +1 = its sub state, +2 = the sub state's step
 		constexpr u32 kShownFrameInterval = 8;
 		constexpr u8 kNetFileLoad = 2;
 		// NET file load sub states: 0x14 and up are the card error dialogs (an unformatted card waits at 0x17), 100 = loaded.
@@ -51,9 +59,6 @@ namespace Zdxsv
 		constexpr u8 kNetSettingList = 6;
 		// The login browser without fast login. Fast login sets it too, then the game connects to the lobby.
 		constexpr u8 kNetLoginBrowser = 0x27;
-		constexpr u32 kLobbyObject = kGp - 0x5a1c; // pointer; +0xa1f = network step, +0xa20 = its sub step
-		constexpr u32 kLobbyMarker = 0xa1f;
-		constexpr u32 kLobbySub = 0xa20;
 		// Network steps: 4 user_id selection (sub 5 = ID picked, confirm bar), 7 ID confirmed (DecideUserID sent),
 		// then 8, 9, 0, 1, 2, 5 and 1 with sub 0 = in the lobby. Before the selection, 5 instead of 4: the account has no user_id.
 		constexpr u8 kStepUserId = 4;
@@ -184,14 +189,14 @@ namespace Zdxsv
 				s_boot.queue.push_back(Start);
 			else if (scene == 2)
 			{
-				const u32 menu = Pointer(kMainMenu);
+				const u32 menu = Pointer(Game().main_menu);
 				if (menu)
 				{
-					eeMem->Main[menu + kMainMenuCursor] = kMenuNetwork;
+					eeMem->Main[menu + kMainMenuCursor] = Game().menu_network;
 					s_boot.queue.push_back(Circle);
 				}
 			}
-			else if (scene == kMenuNetwork && (net == 1 || net == 2 || net == 4 || (net == 3 && eeMem->Main[kNetState + 1] == 2)))
+			else if (scene == kMenuNetwork && (net == 1 || net == 2 || net == 4 || (net == 3 && eeMem->Main[Game().net_state + 1] == 2)))
 				s_boot.queue.push_back(Circle);
 			else if (scene == kMenuNetwork && s_boot.frame >= s_boot.sequence_after && s_boot.frame - s_boot.net_entry > (net == kNetSettingList ? kNetconfSettleFrames : kMenuSettleFrames))
 			{
@@ -211,9 +216,9 @@ namespace Zdxsv
 				Set(static_cast<Button>(s_boot.held), false);
 				s_boot.held = -1;
 			}
-			const u32 lobby = Pointer(kLobbyObject);
-			const u8 step = lobby ? eeMem->Main[lobby + kLobbyMarker] : 0;
-			const u8 sub = lobby ? eeMem->Main[lobby + kLobbySub] : 0;
+			const u32 lobby = Pointer(Game().lobby_object);
+			const u8 step = lobby ? eeMem->Main[lobby + Game().lobby_marker] : 0;
+			const u8 sub = lobby ? eeMem->Main[lobby + Game().lobby_marker + 1] : 0;
 			if (step == kStepUserIdDecided)
 				s_boot.user_id_decided = true;
 			if (s_boot.user_id_decided && step == kStepLobby && sub == 0)
@@ -263,10 +268,10 @@ namespace Zdxsv
 		if (FastLoginWentBack())
 			return Finish("stopped, fast login went back to the network menu");
 
-		const u32 lobby = Pointer(kLobbyObject);
-		if (lobby && eeMem->Main[lobby + kLobbyMarker] == kStepNoUserId)
+		const u32 lobby = Pointer(Game().lobby_object);
+		if (lobby && eeMem->Main[lobby + Game().lobby_marker] == kStepNoUserId)
 			return Finish("no user_id on the account");
-		if (lobby && eeMem->Main[lobby + kLobbyMarker] == kStepUserId)
+		if (lobby && eeMem->Main[lobby + Game().lobby_marker] == kStepUserId)
 		{
 			if (!s_boot.to_lobby)
 				return Finish("user_id selection");
@@ -278,15 +283,15 @@ namespace Zdxsv
 			return;
 		}
 
-		const u32 scene_block = Pointer(kSceneBlock);
+		const u32 scene_block = Pointer(Game().scene_block);
 		const u8 scene = scene_block ? eeMem->Main[scene_block] : 0;
-		const int net = eeMem->Main[kNetState];
-		const u8 net_sub = eeMem->Main[kNetState + 1];
+		const int net = eeMem->Main[Game().net_state];
+		const u8 net_sub = eeMem->Main[Game().net_state + 1];
 		if (scene == kMenuNetwork && net == kNetFileLoad)
 		{
 			if (net_sub >= kNetFileErrorFirst && net_sub < kNetFileLoaded)
 				return Finish("stopped, memory card error");
-			if (net_sub == kNetFileSearch && eeMem->Main[kNetState + 2] == kNetFileNotFound)
+			if (net_sub == kNetFileSearch && eeMem->Main[Game().net_state + 2] == kNetFileNotFound)
 				return Finish("stopped, no NET file on the memory card");
 		}
 		if (net != s_boot.net_state)
@@ -296,8 +301,8 @@ namespace Zdxsv
 			s_boot.sequence_after = 0;
 			if (net == kNetTerms)
 			{
-				eeMem->Main[kNetState] = kNetSettingList;
-				eeMem->Main[kNetState + 1] = 0;
+				eeMem->Main[Game().net_state] = kNetSettingList;
+				eeMem->Main[Game().net_state + 1] = 0;
 			}
 		}
 		if (scene == kMenuNetwork && net == kNetLoginBrowser && !FastLoginApplied() && s_boot.frame - s_boot.net_entry > kMenuSettleFrames)
