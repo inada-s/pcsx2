@@ -32,7 +32,7 @@ EMU=1: the 4 clients are emulators instead (platform info, no zproxy by default;
   PWTRACE=1 its player work + rng = the players' (pwcheck, OUT/trace-api.txt).
   SIDE_CHILD=K (GGPO): once the lobby logs `live open`, a replay child of client K (-zdxsvreplay, its data dir
   and pid) plays SIDE_FILE at normal speed from SIDE_STATE (default RBKSTATES/rbk-p1.p2s) with SIDE_ENV (as CENV,
-  e.g. the recording's ZDXSV_EE_CLAMP); side-child.txt. SIDE_FILE=live:http://127.0.0.1:9881: the newest live battle, from `live upload`.
+  e.g. the recording's ZDXSV_EE_CLAMP); side-child.txt. SIDE_FILE=live:http://127.0.0.1:9881: the newest live battle (uplink on), from `live upload`.
   LIVE=N (GGPO): once the lobby logs `live upload`, instance N (not a client) plays
   ZDXSV_REPLAY=live:http://127.0.0.1:9881 (the lobby API, the newest live battle) with PW hashes
   (OUT/trace-live.txt). Checks: one client was the uplink, the spectator's stream closed at the uplink's saved
@@ -332,7 +332,7 @@ def main():
             v = f"net=1,lobby=1,port={int(ggpo) + int(i) - 1}" + ("" if gdelay == "auto" else f",delay={gdelay}")
             v += f",mindelay={E('GMIN')}" if E("GMIN") else ""
             v += ",upload=http://127.0.0.1:9881/lbs/replay_upload" if E("UPLOAD") else ""
-            v += ",live=http://127.0.0.1:9881" if E("LIVE") else ""
+            v += ",live=http://127.0.0.1:9881" if E("LIVE") or E("SIDE_FILE").startswith("live:") else ""
             v += f",{E('GOPT')}" if E("GOPT") else ""
             v += ",badsession=1" if i == E("BAD_SESSION") else ""
             v += f",advertise={7300 + (i == '1')}" if E("GGPO_LAT") else ""
