@@ -104,8 +104,7 @@ Tools → zdxsv Replays:
   only while its window is active (keyboard and mouse come with the focus).
   It exits when the replay
   ends, when its window closes or within a second of its parent's exit.
-  One at a time: Play again ends the running child first. It runs at
-  below-normal priority (Windows).
+  One at a time: Play again ends the running child first.
 
 ## Controls
 

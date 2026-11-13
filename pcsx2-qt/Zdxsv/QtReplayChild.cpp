@@ -169,13 +169,6 @@ namespace Zdxsv
 			p->deleteLater();
 			return false;
 		}
-#ifdef _WIN32
-		if (const HANDLE h = OpenProcess(PROCESS_SET_INFORMATION, FALSE, static_cast<DWORD>(p->processId())))
-		{
-			SetPriorityClass(h, BELOW_NORMAL_PRIORITY_CLASS);
-			CloseHandle(h);
-		}
-#endif
 		s_replay_child.running = p;
 		Console.WriteLn("Zdxsv: replay child %lld started", static_cast<long long>(p->processId()));
 		return true;
