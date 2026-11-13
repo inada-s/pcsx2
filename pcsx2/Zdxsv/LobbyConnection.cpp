@@ -253,11 +253,11 @@ namespace Zdxsv
 		const sock_t client = static_cast<sock_t>(socket);
 		if (len < 12 || data[0] != 0x18 || data[1] != 0x01 || data[2] != 0x61 || data[3] != 0x01)
 			return nullptr;
-		// Only the Z game talks to the zdxsv lobby: any other game's server that happens to open the same way
+		// Only the Z game and SLPS-25305 talk to the zdxsv lobby: any other game's server that happens to open the same way
 		// gets nothing (the platform info carries our addresses).
-		if (!g_z_game)
+		if (!g_z_game && !g_aeug_game)
 		{
-			Console.WriteLn("DEV9: TCP: zdxsv lobby question, but not the Z game: no platform info");
+			Console.WriteLn("DEV9: TCP: zdxsv lobby question, but not a zdxsv game: no platform info");
 			return nullptr;
 		}
 		// ZDXSV_PLATFORM_INFO=0: behave like a real PS2 (for testing the console side)
