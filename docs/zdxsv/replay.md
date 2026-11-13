@@ -102,7 +102,7 @@ Tools → zdxsv Replays:
   replay saving and upload, crash reports, achievements, Discord and the
   update check are off; no play time is added; controller input reaches it
   only while its window is active (keyboard and mouse come with the focus).
-  It exits when the replay
+  It exits when the replay does not start (the reason is in its log), when it
   ends, when its window closes or within a second of its parent's exit.
   One at a time: Play again ends the running child first.
 
