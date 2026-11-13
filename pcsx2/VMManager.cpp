@@ -2848,13 +2848,14 @@ void VMManager::IdlePollUpdate()
 	if (Zdxsv::g_no_dev9 && GetState() == VMState::Paused)
 		Zdxsv::NoDev9OnPausedIdle();
 
-	// a paused replay keeps redrawing (10 Hz poll) so its control bar sees the mouse and the Play click
+	// a paused replay keeps redrawing (idle poll) so its control bar sees the mouse and the Play click
 	int frame, frames, pov, target;
 	u32 povs;
 	if (GetState() == VMState::Paused && Zdxsv::ReplayBarInfo(frame, frames, pov, povs, target))
 	{
 		Zdxsv::ReplayTakeoverIdle();
-		MTGS::PresentCurrentFrame();
+		if (Zdxsv::ReplayIdlePresentDue())
+			MTGS::PresentCurrentFrame();
 	}
 }
 

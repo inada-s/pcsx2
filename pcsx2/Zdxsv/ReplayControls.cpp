@@ -50,6 +50,7 @@ namespace Zdxsv
 		{
 			u32 held = 0;
 			Common::Timer::Value seek_since = 0;
+			Common::Timer::Value idle_present = 0;
 		} s_pad;
 
 		enum : u32
@@ -61,6 +62,8 @@ namespace Zdxsv
 			PAD_PAUSE = 16
 		};
 		constexpr int PAD_SEEK_FRAMES = 60;
+		constexpr int MAX_STEP_QUEUE = 30;
+		constexpr double IDLE_PRESENT_MS = 33.0;
 		constexpr double PAD_REPEAT_MS = 500.0;
 
 		std::atomic<u32> s_pad_pokes{0};
@@ -91,7 +94,12 @@ namespace Zdxsv
 			return;
 		// a step (or a seek from a pause) still runs, unpaused, until it pauses at its target: not playing
 		if (s_play.step_pause)
+		{
+			if (const int q = s_play_step_queue.load(); std::abs(q + dir) <= MAX_STEP_QUEUE)
+				s_play_step_queue += dir;
 			return;
+		}
+		s_play_step_queue = 0;
 		if (VMManager::GetState() != VMState::Paused || s_play.at_end)
 		{
 			ReplaySeekBy(dir * PAD_SEEK_FRAMES);
@@ -238,6 +246,20 @@ namespace Zdxsv
 		target = s_to_target;
 		current = s_ctl.to_current;
 		countdown = s_ctl.to_left;
+		return true;
+	}
+
+	bool ReplayIdleFastPoll()
+	{
+		return s_play_env && g_ggpo_active;
+	}
+
+	bool ReplayIdlePresentDue()
+	{
+		const Common::Timer::Value now = Common::Timer::GetCurrentValue();
+		if (Common::Timer::ConvertValueToMilliseconds(now - s_pad.idle_present) < IDLE_PRESENT_MS)
+			return false;
+		s_pad.idle_present = now;
 		return true;
 	}
 

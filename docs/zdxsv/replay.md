@@ -135,7 +135,9 @@ D-pad. While taken over the pad plays the game.
   stepping, the last 60 frames are kept in memory, so it loads one of them
   instead of a key) and
   pauses again. The audio output stays paused and the step's sound is dropped;
-  play resumes it.
+  play resumes it. Steps pressed while a step runs are queued (up to 30) and
+  run one after another. While paused, input is polled every 8 ms and the
+  picture redrawn at most every 33 ms.
 - **Seek**: a key (full state + battle-socket state) is kept every
   `ZDXSV_REPLAY_KEY` played frames, per position. A seek loads the newest
   key at or before the target and runs to it unthrottled (the limiter mode
