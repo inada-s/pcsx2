@@ -31,7 +31,8 @@ EMU=1: the 4 clients are emulators instead (platform info, no zproxy by default;
   -> replay_url -> the stored .pb). Checks: the replay_url it took = the stored url, played to its end; with
   PWTRACE=1 its player work + rng = the players' (pwcheck, OUT/trace-api.txt).
   SIDE_CHILD=K (GGPO): once the lobby logs `live open`, a replay child of client K (-zdxsvreplay, its data dir
-  and pid) plays SIDE_FILE at normal speed from SIDE_STATE (default RBKSTATES/rbk-p1.p2s); side-child.txt.
+  and pid) plays SIDE_FILE at normal speed from SIDE_STATE (default RBKSTATES/rbk-p1.p2s) with SIDE_ENV (as CENV,
+  e.g. the recording's ZDXSV_EE_CLAMP); side-child.txt.
   LIVE=N (GGPO): once the lobby logs `live upload`, instance N (not a client) plays
   ZDXSV_REPLAY=live:http://127.0.0.1:9881 (the lobby API, the newest live battle) with PW hashes
   (OUT/trace-live.txt). Checks: one client was the uplink, the spectator's stream closed at the uplink's saved
@@ -456,6 +457,7 @@ def main():
                 time.sleep(2)
             k = E("SIDE_CHILD")
             env = launch.pcsx2_env({**os.environ, **freshboot.assigns(E("CENV")), **freshboot.assigns(E(f"CENV{k}")),
+                                    **freshboot.assigns(E("SIDE_ENV")),
                                     "ZDXSV_REPLAY_EXIT": "1", "ZDXSV_REPLAY_SKIP_MS": "0",
                                     "ZDXSV_REPLAY_STATE": E("SIDE_STATE") or os.path.join(E("RBKSTATES"), "rbk-p1.p2s")})
             a = [launch.exe_path(), "-datapath", os.path.join(run, f"p{k}"), "-batch", "-nogui",
