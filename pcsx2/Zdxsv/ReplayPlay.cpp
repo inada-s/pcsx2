@@ -330,6 +330,7 @@ namespace Zdxsv
 	std::atomic<int> s_play_round_req{INT_MIN}; // requested round, 0 = briefing, INT_MIN = none
 	bool g_replay_hidden_frame = false;
 	bool g_replay_silent_frame = false;
+	bool g_replay_step_hold = false;
 	bool g_replay_fast_frame = false;
 
 	namespace
@@ -562,7 +563,10 @@ namespace Zdxsv
 			Console.WriteLn("ZdxsvGgpo: replay seek done at frame %d, vsync %u: %d frames from key %d in %.1f ms, %.2f ms/frame",
 				f, g_FrameCount, n, s_play.seek_from, ms, n > 0 ? ms / n : 0.0);
 			if (std::exchange(s_play.step_pause, false))
+			{
+				PlayStepPaused(f);
 				VMManager::SetPaused(true);
+			}
 		}
 		const bool running = s_play.target >= 0 || s_play.run_load >= 0;
 		const int fast_every = PlayFastEvery();
@@ -596,6 +600,7 @@ namespace Zdxsv
 	void PlayStop(const char* what)
 	{
 		g_ggpo_active = false;
+		g_replay_step_hold = false;
 		PlayHideReset();
 		s_bar_frame = -1;
 		s_battle.over = true; // the battle sock goes back to the IOP
@@ -652,15 +657,47 @@ namespace Zdxsv
 
 	namespace
 	{
+		struct
+		{
+			bool resume = false;
+			Common::Timer::Value t0 = 0;
+		} s_play_step;
+
 		void PlayRunFromPause()
 		{
 			if (VMManager::GetState() != VMState::Paused)
 				return;
-			if (!s_play.at_end)
-				s_play.step_pause = true;
-			VMManager::SetPaused(false);
+			if (s_play.at_end)
+			{
+				VMManager::SetPaused(false);
+				return;
+			}
+			s_play.step_pause = true;
+			PlayStepResume();
 		}
 	} // namespace
+
+	void PlayStepResume()
+	{
+		g_replay_step_hold = true;
+		s_play_step.resume = true;
+		s_play_step.t0 = Common::Timer::GetCurrentValue();
+		VMManager::SetPaused(false);
+		s_play_step.resume = false;
+	}
+
+	void PlayStepPaused(int f)
+	{
+		Console.WriteLn("ZdxsvGgpo: replay step paused at frame %d, vsync %u: %.1f ms after the request", f, g_FrameCount,
+			Common::Timer::ConvertValueToMilliseconds(Common::Timer::GetCurrentValue() - s_play_step.t0));
+	}
+
+	bool ReplayStepHoldsAudio(bool paused)
+	{
+		if (!paused && !s_play_step.resume)
+			g_replay_step_hold = false;
+		return g_replay_step_hold;
+	}
 
 	void ReplaySeekBy(int frames)
 	{

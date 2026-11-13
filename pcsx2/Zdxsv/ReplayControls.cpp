@@ -99,7 +99,7 @@ namespace Zdxsv
 		}
 		s_play_req = s_battle.frame + 1 + (dir < 0 ? -2 : 0);
 		s_play.step_pause = true;
-		VMManager::SetPaused(false);
+		PlayStepResume();
 	}
 
 	u32 ReplayPadPokes()

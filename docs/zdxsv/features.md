@@ -28,7 +28,7 @@ skips does not run on that path.
 | Qt fonts | `pcsx2-qt/Zdxsv/QtFonts` | Noto Sans JP download before the OSD fonts load |
 | Qt game window wheel (`QtHooks.h`, `DisplayWidget`) | `pcsx2-qt/Zdxsv/QtWheelVolume` | mouse wheel volume |
 | VMManager shutdown, shutdown dialog, Big Picture menus, settings dialogs, game list menus, debugger (`UiHooks.h`) | `FeatureLimits` | no save state on shutdown, no game properties |
-| VMManager, GS, MTGS, hotkeys, Qt main window (`UiHooks.h`, `QtHooks.h`) | `OnlineLimits`, `pcsx2-qt/Zdxsv/QtOnlineLimits`, `ReplayControls` | operations refused while online or during a replay, debugger window closed |
+| VMManager, GS, MTGS, hotkeys, Qt main window (`UiHooks.h`, `QtHooks.h`) | `OnlineLimits`, `pcsx2-qt/Zdxsv/QtOnlineLimits`, `ReplayControls` | operations refused while online or during a replay, debugger window close, replay step hotkeys, audio output kept paused through a replay stepd |
 | Qt host start and exit (`CrashReportHooks.h`), log output (`Log::SetTapOutputLevel` in `common/Console`) | `pcsx2-qt/Zdxsv/CrashReports` | crash reports, the last log lines they carry |
 | Qt host start (`AuthHooks.h`) | `Zdxsv/AuthSignIn` | sign-in test trigger (`ZDXSV_AUTH_SIGNIN_TEST`) |
 | Default settings and settings load (`DefaultsHooks.h`: `VMManager::SetDefaultSettings`, Big Picture controller reset, Qt host start) | `InputDefaults` | no upstream hotkeys, USB keyboard on port 1 |

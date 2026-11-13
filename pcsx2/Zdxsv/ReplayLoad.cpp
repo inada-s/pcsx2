@@ -790,6 +790,7 @@ namespace Zdxsv
 		{
 			s_play.step_pause = false;
 			pause = true;
+			PlayStepPaused(next);
 		}
 		if (s_live_down)
 			LiveNext(next);

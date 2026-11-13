@@ -6,7 +6,7 @@ a lobby battle has none; unset = read from the `rbk env` lines of emulog-p*.txt 
 replay or its parent dir, a CLAMP differing from them FAILs before launch, CLAMP=none plays without one), PLAYERS (players compared, default 2), OWN (default 1: pwcheck --own),
 STATE (any state of the game to boot from; default rbk-p1), MAXS (default 300).
 WINDOW=1: windowed, 1x (no turbo). KEYS="secs:seq;..." (needs WINDOW=1): pcsx2ctl -Seq at secs after the
-replay started; binds the seek hotkeys (PageUp back / PageDown forward 10 s), TogglePause (Space), key
+replay started; binds the seek hotkeys (PageUp back / PageDown forward 10 s), step (Home back / Insert forward), TogglePause (Space), key
 display (End), round jump (Shift+PageUp / Shift+PageDown) in the instance ini. With PCSX2_ENV=ZDXSV_REPLAY_EXIT=0 the replay pauses at its end; Space then ends it (H lines written).
 POV=p: plays position p's point of view (ZDXSV_REPLAY_POV; default the recorder's): the lobby answers name it.
 SKIP_MS=1: skip MS selection (pcsx2's default; off here so KEYS seconds keep their frames).
@@ -34,7 +34,8 @@ import zrig
 HOTKEYS = ("ZdxsvReplaySeekBack = Keyboard/PageUp", "ZdxsvReplaySeekForward = Keyboard/PageDown",
            "TogglePause = Keyboard/Space", "ZdxsvReplayToggleKeys = Keyboard/End",
            "ZdxsvReplayPrevRound = Keyboard/Shift & Keyboard/PageUp",
-           "ZdxsvReplayNextRound = Keyboard/Shift & Keyboard/PageDown")
+           "ZdxsvReplayNextRound = Keyboard/Shift & Keyboard/PageDown",
+           "ZdxsvReplayStepBack = Keyboard/Home", "ZdxsvReplayStepForward = Keyboard/Insert")
 
 
 def grep(path, rx):

@@ -43,6 +43,8 @@ namespace Zdxsv
 	bool ReplayCanTakeOver();
 	// Playing: seek `dir` seconds; paused: a one-frame step.
 	void ReplayStep(int dir);
+	// VMManager::SetState: true = leave the SPU2 output paused (g_replay_step_hold).
+	bool ReplayStepHoldsAudio(bool paused);
 	void ReplaySpeedBy(int delta);
 	u32 ReplayPadPokes();
 	// Under g_ggpo_active (VMManager): state saves and loads and disc changes.

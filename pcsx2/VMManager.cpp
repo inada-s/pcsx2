@@ -291,7 +291,8 @@ void VMManager::SetState(VMState state)
 			ResetFrameLimiter();
 		}
 
-		SPU2::SetOutputPaused(paused);
+		if (!Zdxsv::ReplayStepHoldsAudio(paused))
+			SPU2::SetOutputPaused(paused);
 		Achievements::OnVMPaused(paused);
 
 		UpdateInhibitScreensaver(!paused && EmuConfig.InhibitScreensaver);
