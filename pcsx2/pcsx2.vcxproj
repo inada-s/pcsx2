@@ -478,6 +478,7 @@
     <ClCompile Include="Zdxsv\ReplayLoad.cpp" />
     <ClCompile Include="Zdxsv\ReplayList.cpp" />
     <ClCompile Include="Zdxsv\ReplayPlay.cpp" />
+    <ClCompile Include="Zdxsv\AudioTap.cpp" />
     <ClCompile Include="Zdxsv\ReplayRecord.cpp" />
     <ClCompile Include="Zdxsv\NoDev9.cpp" />
     <ClCompile Include="Zdxsv\SingleDrawList.cpp" />
