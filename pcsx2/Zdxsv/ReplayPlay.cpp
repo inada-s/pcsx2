@@ -712,12 +712,14 @@ namespace Zdxsv
 		DeltaStateDiscardBefore(f - STEP_RING_FRAMES);
 	}
 
-	// The newest ring frame in (target - STEP_RING_FRAMES, target], loaded; -1 if none.
+	// The newest ring frame in (target - STEP_RING_FRAMES, target - 1], loaded; -1 if none.
+	// Not target itself: a ring state has no GS memory, and the picture shown at a vsync was drawn in the
+	// frame before it, so at least 2 frames must run after the load to show the target's picture.
 	int PlayStepRingLoad(int target)
 	{
 		if (!s_play_step.ring || !g_replay_step_hold)
 			return -1;
-		for (int l = target; l > target - STEP_RING_FRAMES && l >= 0; l--)
+		for (int l = target - 1; l > target - STEP_RING_FRAMES && l >= 0; l--)
 		{
 			if (!DeltaStateGetState(l))
 				continue;
