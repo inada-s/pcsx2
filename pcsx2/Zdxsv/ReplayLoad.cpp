@@ -813,7 +813,7 @@ namespace Zdxsv
 			s_play.at_end = true;
 			PlayReport("done, auto-next"); // the next battle's VM reset drops this one's stats and pw hashes
 		}
-		else if (const char* e = TestEnv("ZDXSV_REPLAY_EXIT"); s_play.at_end || (e && e[0] == '1') || ReplayReturnArmed())
+		else if (const char* e = TestEnv("ZDXSV_REPLAY_EXIT"); s_play.at_end || (e && e[0] == '1') || g_replay_child)
 			PlayStop("end");
 		else
 		{

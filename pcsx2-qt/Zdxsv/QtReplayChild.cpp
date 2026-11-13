@@ -120,8 +120,6 @@ namespace Zdxsv
 		si.SetBoolValue("DEV9/Eth", "ZdxsvReplayUpload", false);
 		si.SetBoolValue("DEV9/Eth", "ZdxsvCrashReports", false);
 		SetNextReplay(s_replay_child.src, s_replay_child.pov);
-		// Armed with no state: the replay's end stops the VM, and -nogui exits with it.
-		SetReplayReturn({});
 		Console.WriteLn("Zdxsv: replay child of %lld, settings saved to %s", s_replay_child.parent_pid, si.GetFileName().c_str());
 	}
 
