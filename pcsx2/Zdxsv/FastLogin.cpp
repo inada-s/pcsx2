@@ -37,32 +37,39 @@ namespace Zdxsv
 {
 	namespace
 	{
-		// Guest addresses of SLPS-25419 (g_z_game checks serial and CRC).
-		constexpr u32 kGp = 0x6dd770;
-		constexpr u32 kNetState = 0xcd1360; // network menu machine: 3 = connection menu, 0x21 = DNAS, 0x27 = login browser
+		// Guest addresses per game (g_z_game / g_aeug_game check serial and CRC).
+		struct FastLoginGame
+		{
+			u32 net_state; // network menu machine: 3 = connection menu, 0x21 = DNAS, 0x27 = login browser; +1 = its sub state
+			u32 lobby_phase; // 2 = lobby connect, 0x17 = login browser; -4 = its sub, -8 = its step
+			u32 loader_queue; // address of the file loader queue; its first byte is 1 while a load runs
+			u32 lbs_count;
+			u32 result; // the browser's result area: zeroed, then only the fields the lobby connect reads
+			u32 selected_lbs_id;
+		};
+		constexpr FastLoginGame kGvszGame = {0xcd1360, 0x6dd770 - 0x59ec, 0x6dd770 - 0x5dfc, 0x6dd770 - 0x5cac, 0x900900, 0xc63560};
+		constexpr FastLoginGame kAeugGame = {0xb898c0, 0x5b8e70 - 0x5aa4, 0x5b8e70 - 0x5e8c, 0x5b8e70 - 0x5df4, 0x6e1570, 0xb1ff70};
+		const FastLoginGame& Game() { return g_z_game ? kGvszGame : kAeugGame; }
+		u32 NetState() { return Game().net_state; }
+		u32 NetSub() { return Game().net_state + 1; }
+		u32 LobbyPhase() { return Game().lobby_phase; }
+		u32 LobbySub() { return Game().lobby_phase - 4; }
+		u32 LobbyStep() { return Game().lobby_phase - 8; } // in phase 0x17: 0 = browser load, 4 = browser closing, display restored
 		constexpr u8 kNetConnectMenu = 3;
-		constexpr u32 kNetSub = 0xcd1361;
-		constexpr u32 kLobbyPhase = kGp - 0x59ec; // 2 = lobby connect, 0x17 = login browser
-		constexpr u32 kLobbySub = kGp - 0x59f0;
-		constexpr u32 kLobbyStep = kGp - 0x59f4; // in phase 0x17: 0 = browser load, 4 = browser closing, display restored
 		constexpr u8 kNetLoginBrowser = 0x27;
 		constexpr u8 kPhaseLoginBrowser = 0x17;
 		constexpr u8 kPhaseUserSelect = 3; // the user_id selection and the new user registration pages
 		constexpr u8 kStepBrowserLoad = 0;
 		constexpr u8 kStepParked = 7; // no step: the phase does nothing
-		constexpr u32 kLoaderQueue = kGp - 0x5dfc; // address of the file loader queue; its first byte is 1 while a load runs
 		constexpr u32 kParkedMaxFrames = 600;
-		constexpr u32 kLbsCount = kGp - 0x5cac;
-		// The browser's result area: zeroed, then only the fields the lobby connect reads.
-		constexpr u32 kResultBegin = 0x900900;
-		constexpr u32 kResultEnd = 0x904000;
-		constexpr u32 kResultLbsId = 0x900920;
-		constexpr u32 kResultLoginKey = 0x901440;
-		constexpr u32 kResultSessionId = 0x901451;
-		constexpr u32 kResultLobbyAddr = 0x90166f;
-		constexpr u32 kResultLbsList = 0x901a43; // "<lbs id>,<name>": the lobby address is looked up by this id
-		constexpr u32 kResultStatus = 0x903aac; // "999" = login accepted
-		constexpr u32 kSelectedLbsId = 0xc63560;
+		// Offsets in the result area; the same in both games.
+		constexpr u32 kResultSize = 0x3700;
+		constexpr u32 kResultLbsId = 0x20;
+		constexpr u32 kResultLoginKey = 0xb40;
+		constexpr u32 kResultSessionId = 0xb51;
+		constexpr u32 kResultLobbyAddr = 0xd6f;
+		constexpr u32 kResultLbsList = 0x1143; // "<lbs id>,<name>": the lobby address is looked up by this id
+		constexpr u32 kResultStatus = 0x31ac; // "999" = login accepted
 		constexpr size_t kLbsIdLen = 12;
 
 		struct LoginResult
@@ -276,32 +283,32 @@ namespace Zdxsv
 		bool LoaderBusy()
 		{
 			u32 queue;
-			std::memcpy(&queue, &eeMem->Main[kLoaderQueue], 4);
+			std::memcpy(&queue, &eeMem->Main[Game().loader_queue], 4);
 			return queue < Ps2MemSize::MainRam && eeMem->Main[queue] != 0;
 		}
 
 		void PutResultArea(const LoginResult& r)
 		{
-			std::memset(&eeMem->Main[kResultBegin], 0, kResultEnd - kResultBegin);
-			Put(kResultLbsId, r.lbs_info.substr(0, kLbsIdLen));
-			Put(kResultLoginKey, r.login_key);
-			Put(kResultSessionId, r.session_id);
-			Put(kResultLobbyAddr, r.lobby_addr);
-			Put(kResultLbsList, r.lbs_info);
-			Put(kResultStatus, "999");
+			std::memset(&eeMem->Main[Game().result], 0, kResultSize);
+			Put(Game().result + kResultLbsId, r.lbs_info.substr(0, kLbsIdLen));
+			Put(Game().result + kResultLoginKey, r.login_key);
+			Put(Game().result + kResultSessionId, r.session_id);
+			Put(Game().result + kResultLobbyAddr, r.lobby_addr);
+			Put(Game().result + kResultLbsList, r.lbs_info);
+			Put(Game().result + kResultStatus, "999");
 		}
 
 		void Apply(const LoginResult& r)
 		{
 			PutResultArea(r);
-			std::memset(&eeMem->Main[kSelectedLbsId], 0, 16);
-			Put(kSelectedLbsId, r.lbs_info.substr(0, kLbsIdLen));
-			eeMem->Main[kLbsCount] = 1;
-			eeMem->Main[kNetState] = 0x27;
-			eeMem->Main[kNetSub] = 0;
-			eeMem->Main[kLobbyStep] = 4;
-			eeMem->Main[kLobbySub] = 0;
-			eeMem->Main[kLobbyPhase] = 0x17;
+			std::memset(&eeMem->Main[Game().selected_lbs_id], 0, 16);
+			Put(Game().selected_lbs_id, r.lbs_info.substr(0, kLbsIdLen));
+			eeMem->Main[Game().lbs_count] = 1;
+			eeMem->Main[NetState()] = 0x27;
+			eeMem->Main[NetSub()] = 0;
+			eeMem->Main[LobbyStep()] = 4;
+			eeMem->Main[LobbySub()] = 0;
+			eeMem->Main[LobbyPhase()] = 0x17;
 		}
 
 		// Without a session the game must not run DNAS: it goes back to the connection menu, from where the
@@ -316,13 +323,13 @@ namespace Zdxsv
 			{
 				Console.WriteLn("Zdxsv: fast login: %s, the game stays in its login browser", why.c_str());
 				if (s_fast.parked)
-					eeMem->Main[kLobbyStep] = kStepBrowserLoad;
+					eeMem->Main[LobbyStep()] = kStepBrowserLoad;
 				s_fast.parked = false;
 				return;
 			}
 			Console.WriteLn("Zdxsv: fast login: %s, back to the network menu", why.c_str());
-			eeMem->Main[kNetSub] = 0;
-			eeMem->Main[kNetState] = kNetConnectMenu;
+			eeMem->Main[NetSub()] = 0;
+			eeMem->Main[NetState()] = kNetConnectMenu;
 			s_fast.went_back = true;
 		}
 		void StartSignIn()
@@ -366,13 +373,13 @@ namespace Zdxsv
 		// skipped that browser's page, so the browser has no server (it connects to 0.0.0.0:80) and never ends:
 		// a login there sends the game to the lobby as at DNAS. Apply enters the phase at step 4, the game's own
 		// browser at step 0.
-		const u8 phase = eeMem->Main[kLobbyPhase];
-		const bool in_phase = eeMem->Main[kNetState] == kNetLoginBrowser && phase == kPhaseLoginBrowser;
+		const u8 phase = eeMem->Main[LobbyPhase()];
+		const bool in_phase = eeMem->Main[NetState()] == kNetLoginBrowser && phase == kPhaseLoginBrowser;
 		const bool browser = in_phase && (s_fast.in_browser ||
-			(s_fast.last_phase != kPhaseLoginBrowser && eeMem->Main[kLobbyStep] == kStepBrowserLoad));
+			(s_fast.last_phase != kPhaseLoginBrowser && eeMem->Main[LobbyStep()] == kStepBrowserLoad));
 		s_fast.last_phase = phase;
 		// The game clears the result area for a newly made user; the lobby connect after a battle reads it.
-		if (s_fast.applied && eeMem->Main[kResultStatus] == 0 && eeMem->Main[kNetState] == kNetLoginBrowser &&
+		if (s_fast.applied && eeMem->Main[Game().result + kResultStatus] == 0 && eeMem->Main[NetState()] == kNetLoginBrowser &&
 			phase != kPhaseUserSelect && phase != kPhaseLoginBrowser)
 		{
 			std::lock_guard lock(s_fast.mutex);
@@ -382,7 +389,7 @@ namespace Zdxsv
 				Console.WriteLn("Zdxsv: fast login: result area cleared by the game, restored");
 			}
 		}
-		const bool at_dnas =(eeMem->Main[kNetState] == 0x21 && eeMem->Main[kLobbyPhase] == 2) || browser;
+		const bool at_dnas =(eeMem->Main[NetState()] == 0x21 && eeMem->Main[LobbyPhase()] == 2) || browser;
 		if (s_fast.step == FastLogin::Step::Done)
 		{
 			// Every DNAS start logs in again: after ネット終了 or a lost lobby the game comes back here.
@@ -421,7 +428,7 @@ namespace Zdxsv
 			s_fast.parked = token && browser;
 			s_fast.parked_frames = 0;
 			if (s_fast.parked)
-				eeMem->Main[kLobbyStep] = kStepParked;
+				eeMem->Main[LobbyStep()] = kStepParked;
 			if (!token)
 			{
 				if (browser)

@@ -504,7 +504,7 @@ static __fi void VSyncStart(u64 sCycle)
 		Zdxsv::InputLatencyOnFrameEnd();
 	if (Zdxsv::g_delta_state_test_enabled)
 		Zdxsv::DeltaStateOnVsync();
-	if (Zdxsv::g_z_game)
+	if (Zdxsv::g_z_game || Zdxsv::g_aeug_game)
 		Zdxsv::FastLoginOnVsync();
 	if (Zdxsv::g_z_game || Zdxsv::g_aeug_game)
 		Zdxsv::FastBootOnVsync();
