@@ -9,9 +9,9 @@ namespace Zdxsv
 {
 	bool IntRunHooks(u32 pc)
 	{
-		if (g_net_hook && pc == NET_RPC_PC)
+		if (g_net_hook && pc == NetRpcPc())
 			return OnNetCall();
-		if (g_net_hook && pc == NET_RECV_RET_PC)
+		if (g_net_hook && g_z_game && pc == NET_RECV_RET_PC)
 			OnNetRecv();
 		if (g_zd_hook && pc == STEP_COPY_PC)
 			OnStepCopy();

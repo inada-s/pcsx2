@@ -654,7 +654,8 @@ namespace Zdxsv
 		if (!g_z_game) // any other game or build, or ZDXSV_EXTENSIONS=0: no GGPO, replay, hooks or platform info
 		{
 			s_options.clear();
-			g_ggpo_enabled = s_net_env = g_net_hook = g_zd_hook = g_ps_hook = false;
+			g_ggpo_enabled = s_net_env = g_zd_hook = g_ps_hook = false;
+			g_net_hook = g_aeug_game && g_no_dev9;
 			if (ext_off)
 				Console.WriteLn("ZdxsvGgpo: off: ZDXSV_EXTENSIONS=0, all zdxsv extensions off");
 			else if (serial_match || (e && std::strcmp(e, "0") != 0) || s_play_env || s_net_trace)

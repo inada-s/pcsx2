@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 zdxsv contributors
 // SPDX-License-Identifier: GPL-3.0+
 
-// The Z game online with or without a DEV9 device. The game's net RPC wrapper is answered on the EE:
+// The Z game (and SLPS-25305) online with or without a DEV9 device. The game's net RPC wrapper is answered on the EE:
 // network setup from fixed replies, every name resolved to the zdxsv server, TCP on host sockets.
 // Experimental, needs proper testing: lobby, a 1v1 TCP battle and a 1v1 GGPO battle tested.
 
@@ -50,45 +50,50 @@ namespace Zdxsv
 {
 	namespace
 	{
-		// Wrapper RPC block: +0x18 result, +0x1c reply (setup), +0x1e length, +0x20 data.
-		constexpr u32 kRpc = 0xc22c80;
-		constexpr u32 kNetState = 0xcd1360; // u8, network menu state
+		// Guest addresses and patched words per game (g_z_game / g_aeug_game check serial and CRC).
+		struct NoDev9Game
+		{
+			// Wrapper RPC block: +0x18 result, +0x1c reply (setup), +0x1e length, +0x20 data.
+			u32 rpc;
+			u32 net_state; // u8, network menu state
+			// The boot search for module "dev9" fills this entry; without it the pick shows the device as unavailable.
+			u32 dev_entry;
+			u32 dev_entry_words[7];
+			// The pick's SMAP.IRX load (jal); SMAP needs dev9, and the pick never checks a load result.
+			u32 smap_load_pc, smap_load;
+			// The connection menu (broadband, dial-up, last connection). Its exit branches for broadband and dial-up
+			// (beq to their setup screens) are retargeted to the last connection exit: no setup screen is needed.
+			u32 menu_broadband_pc, menu_broadband, menu_broadband_to_last;
+			u32 menu_dial_up_pc, menu_dial_up, menu_dial_up_to_last;
+			// The setting list's last connection step (overlay code, loaded with the list) shows the setting read
+			// from the card and waits for a button before it connects.
+			// The setting is unused here, so the wait (beqz on the pad bit) is removed.
+			u32 last_setting_wait_pc;
+			// A card without a setting (new player): the last connection type is 0 (none) and the setting read
+			// fails. The type load is replaced by broadband (1); without it the game waits on that state forever.
+			u32 last_type_load_pc, last_type_load;
+			// The list's state: a failed read goes to the error state; the connect state uses no setting here.
+			u32 setting_list_state;
+			// Connect init's device; the list sets it after a successful read only. Null fails connect init.
+			u32 connect_device;
+		};
+		constexpr NoDev9Game kGvszGame = {0xc22c80, 0xcd1360, 0xc634e8, {1, 5, 1, 2, 0x21, 0x6af5b8, 0x6af5c0},
+			0x336bd4, 0x0c0cd8f4, 0x368ba4, 0x10430012, 0x1043001e, 0x368bb0, 0x10430003, 0x1043001b, 0x11801fc,
+			0x36adf4, 0x8022ec82, 0x6d81bc, 0x6d7e54};
+		constexpr NoDev9Game kAeugGame = {0xae10c0, 0xb898c0, 0xb1fef8, {1, 5, 1, 2, 0x21, 0x5929f8, 0x592a00},
+			0x3122a4, 0x0c0c46a8, 0x33fbc4, 0x10430010, 0x1043001a, 0x33fbd0, 0x10430003, 0x10430017, 0x108749c,
+			0x341cf4, 0x80225c7f, 0x5b3784, 0x5b8e70 - 0x59d4};
+		const NoDev9Game& Game() { return g_z_game ? kGvszGame : kAeugGame; }
 		constexpr u8 kNetPick = 5; // the network device pick
 		// The network setting list. Fast boot replaces state 5 with it in the same vsync, so the pick never runs.
 		constexpr u8 kNetSettingList = 6;
-		// The boot search for module "dev9" fills this entry; without it the pick shows the device as unavailable.
-		constexpr u32 kDevEntry = 0xc634e8;
-		constexpr u32 kDevEntryWords[] = {1, 5, 1, 2, 0x21, 0x6af5b8, 0x6af5c0};
-		// The pick's SMAP.IRX load (jal); SMAP needs dev9, and the pick never checks a load result.
-		constexpr u32 kSmapLoadPc = 0x336bd4;
-		constexpr u32 kSmapLoad = 0x0c0cd8f4;
-		// The connection menu (broadband, dial-up, last connection). Its exit branches for broadband and dial-up
-		// (beq to their setup screens) are retargeted to the last connection exit: no setup screen is needed.
 		constexpr u8 kNetConnectMenu = 3;
-		constexpr u32 kMenuBroadbandPc = 0x368ba4;
-		constexpr u32 kMenuBroadband = 0x10430012;
-		constexpr u32 kMenuDialUpPc = 0x368bb0;
-		constexpr u32 kMenuDialUp = 0x10430003;
-		constexpr u32 kMenuBroadbandToLast = 0x1043001e;
-		constexpr u32 kMenuDialUpToLast = 0x1043001b;
-		// The setting list's last connection step (overlay code, loaded with the list) shows the setting read from
-		// the card and waits for a button before it connects.
-		// The setting is unused here, so the wait (beqz on the pad bit) is removed.
-		constexpr u32 kLastSettingWaitPc = 0x11801fc;
 		constexpr u32 kLastSettingWait = 0x10400008;
-		// A card without a setting (new player): the last connection type is 0 (none) and the setting read fails.
-		// The type load is replaced by broadband (1); without it the game waits on that state forever.
 		constexpr u8 kNetLastType = 0x1a;
-		constexpr u32 kLastTypeLoadPc = 0x36adf4;
-		constexpr u32 kLastTypeLoad = 0x8022ec82;
 		constexpr u32 kLastTypeBroadband = 0x24020001;
-		// The list's state: a failed read goes to the error state; the connect state uses no setting here.
-		constexpr u32 kSettingListState = 0x6d81bc;
 		constexpr u32 kSettingReadFailed = 9;
 		constexpr u32 kSettingConnect = 7;
-		// Connect init's device; the list sets it after a successful read only. Null fails connect init.
 		constexpr u8 kNetConnectInit = 7;
-		constexpr u32 kConnectDevice = 0x6d7e54;
 #ifdef MSG_NOSIGNAL
 		constexpr int kSendFlags = MSG_NOSIGNAL;
 #else
@@ -383,7 +388,7 @@ namespace Zdxsv
 	void NoDev9OnVmInitialize()
 	{
 		NoDev9Reset();
-		if (!g_z_game)
+		if (!g_z_game && !g_aeug_game)
 			return;
 		if (!ServerHost()[0])
 		{
@@ -440,34 +445,34 @@ namespace Zdxsv
 
 	void NoDev9OnVsync()
 	{
-		const u8 net = memRead8(kNetState);
+		const u8 net = memRead8(Game().net_state);
 		const bool pick = net == kNetPick || net == kNetSettingList;
 		if (pick && s_state.last_net != net)
 		{
-			if (memRead32(kDevEntry) == 0xffffffff)
+			if (memRead32(Game().dev_entry) == 0xffffffff)
 			{
-				for (u32 i = 0; i < std::size(kDevEntryWords); i++)
-					memWrite32(kDevEntry + i * 4, kDevEntryWords[i]);
+				for (u32 i = 0; i < std::size(Game().dev_entry_words); i++)
+					memWrite32(Game().dev_entry + i * 4, Game().dev_entry_words[i]);
 				Console.WriteLn("Zdxsv: no DEV9: network device entry set");
 			}
 		}
 		if (pick)
-			Patch(kSmapLoadPc, kSmapLoad, 0);
+			Patch(Game().smap_load_pc, Game().smap_load, 0);
 		if (net == kNetConnectMenu)
 		{
-			Patch(kMenuBroadbandPc, kMenuBroadband, kMenuBroadbandToLast);
-			Patch(kMenuDialUpPc, kMenuDialUp, kMenuDialUpToLast);
+			Patch(Game().menu_broadband_pc, Game().menu_broadband, Game().menu_broadband_to_last);
+			Patch(Game().menu_dial_up_pc, Game().menu_dial_up, Game().menu_dial_up_to_last);
 		}
 		if (net == kNetLastType)
-			Patch(kLastTypeLoadPc, kLastTypeLoad, kLastTypeBroadband);
+			Patch(Game().last_type_load_pc, Game().last_type_load, kLastTypeBroadband);
 		if (net == kNetSettingList)
 		{
-			Patch(kLastSettingWaitPc, kLastSettingWait, 0);
-			if (memRead32(kSettingListState) == kSettingReadFailed)
-				memWrite32(kSettingListState, kSettingConnect);
+			Patch(Game().last_setting_wait_pc, kLastSettingWait, 0);
+			if (memRead32(Game().setting_list_state) == kSettingReadFailed)
+				memWrite32(Game().setting_list_state, kSettingConnect);
 		}
-		if (net == kNetConnectInit && memRead32(kConnectDevice) == 0)
-			memWrite32(kConnectDevice, kDevEntry);
+		if (net == kNetConnectInit && memRead32(Game().connect_device) == 0)
+			memWrite32(Game().connect_device, Game().dev_entry);
 		s_state.last_net = net;
 	}
 
@@ -481,7 +486,7 @@ namespace Zdxsv
 	bool NoDev9OnNetCall()
 	{
 		const u32 fno = cpuRegs.GPR.n.a0.UL[0];
-		u8* b = eeMem->Main + kRpc;
+		u8* b = eeMem->Main + Game().rpc;
 		u16 len;
 		std::memcpy(&len, b + 0x1e, 2);
 		s32 res = 0;

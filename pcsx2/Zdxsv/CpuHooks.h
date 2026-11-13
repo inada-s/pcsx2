@@ -30,7 +30,7 @@ namespace Zdxsv
 	extern s32 g_frame_period_trim_us;
 
 	extern bool g_z_game; // the disc is the Z game: serial SLPS-25419 and its ELF CRC (GgpoOnVmInitialize)
-	extern bool g_aeug_game; // the disc is SLPS-25305 (AEUG vs. Titans) with its ELF CRC: fast boot and fast login only (GgpoOnVmInitialize)
+	extern bool g_aeug_game; // the disc is SLPS-25305 (AEUG vs. Titans) with its ELF CRC: fast boot, fast login and no DEV9 only (GgpoOnVmInitialize)
 	// In VMManager::LoadCoreSettings, the Z game: settings that change emulation results to PCSX2's defaults, the
 	// speedhacks too in a battle; an OSD message names the overridden ones (SyncSettings.cpp)
 	void SyncSettingsEnforce();
@@ -104,6 +104,8 @@ namespace Zdxsv
 	// Z battle net HLE. The EE recompiler calls OnNetCall when the game enters its
 	// net RPC wrapper (NET_RPC_PC: fno in a0, request header + data at 0xc22c9c).
 	constexpr u32 NET_RPC_PC = 0x30e380;
+	constexpr u32 AEUG_NET_RPC_PC = 0x2ebad0; // SLPS-25305: no-DEV9 only
+	inline u32 NetRpcPc() { return g_aeug_game ? AEUG_NET_RPC_PC : NET_RPC_PC; }
 	extern bool g_net_hook; // the recompiler emits the OnNetCall call at NET_RPC_PC
 	// At NET_RPC_PC: true = the RPC was answered here (v0 set, pc = ra), skip the wrapper.
 	bool OnNetCall();
@@ -146,7 +148,7 @@ namespace Zdxsv
 	// The pcs IntRunHooks acts on (the ARM64 EE recompiler calls it before these only).
 	constexpr bool IsIntHookPc(u32 pc)
 	{
-		return pc == NET_RPC_PC || pc == NET_RECV_RET_PC || pc == STEP_COPY_PC || pc == LOAD_STEP_PC ||
+		return pc == NET_RPC_PC || pc == AEUG_NET_RPC_PC || pc == NET_RECV_RET_PC || pc == STEP_COPY_PC || pc == LOAD_STEP_PC ||
 			   pc == MS_STEP_PC || pc == DRAW_RUN_PC || pc == DRAW_RUN2_PC || pc == OBJ_CALL_PC;
 	}
 

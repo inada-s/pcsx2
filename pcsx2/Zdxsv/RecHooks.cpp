@@ -16,7 +16,7 @@ namespace Zdxsv
 	{
 		if (g_ee_probe)
 			RecEmitProbes(pc);
-		if (g_net_hook && pc == NET_RPC_PC)
+		if (g_net_hook && pc == NetRpcPc())
 		{
 			iFlushCall(FLUSH_EVERYTHING | FLUSH_PC);
 			xFastCall((void*)OnNetCall);
@@ -26,7 +26,7 @@ namespace Zdxsv
 			xJMP(dispatcher);
 			run_wrapper.SetTarget();
 		}
-		if (g_net_hook && pc == NET_RECV_RET_PC)
+		if (g_net_hook && g_z_game && pc == NET_RECV_RET_PC)
 		{
 			iFlushCall(FLUSH_EVERYTHING | FLUSH_PC);
 			xFastCall((void*)OnNetRecv);
