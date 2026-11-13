@@ -3,6 +3,7 @@
 
 // Replay playback: frame loop, seek keys, point of view, takeover, the control bar and its hotkeys.
 
+#include "Zdxsv/DeltaState.h"
 #include "Zdxsv/GgpoShared.h"
 #include "Zdxsv/MediaHooks.h"
 #include "Zdxsv/ReplayList.h"
@@ -331,6 +332,7 @@ namespace Zdxsv
 	std::atomic<int> s_play_round_req{INT_MIN}; // requested round, 0 = briefing, INT_MIN = none
 	bool g_replay_hidden_frame = false;
 	bool g_replay_silent_frame = false;
+	bool g_replay_step_hold = false;
 	bool g_replay_fast_frame = false;
 
 	namespace
@@ -387,6 +389,12 @@ namespace Zdxsv
 		bool loaded = false;
 		auto& keys = s_play_keys[s_battle.me];
 		auto it = keys.upper_bound(target);
+		if (const int l = (pov_switch || target >= next) ? -1 : PlayStepRingLoad(target); l >= 0)
+		{
+			from = l;
+			loaded = true;
+			it = keys.begin();
+		}
 		while (it != keys.begin())
 		{
 			--it;
@@ -399,6 +407,7 @@ namespace Zdxsv
 				continue;
 			Common::Timer timer;
 			Error error;
+			PlayStepRingClear();
 			if (!ReplayLoadState(k.path.c_str(), &error))
 			{
 				Console.Error("ZdxsvGgpo: replay seek: key %d load failed: %s", it->first, error.GetDescription().c_str());
@@ -562,7 +571,7 @@ namespace Zdxsv
 			const int n = f - s_play.seek_from;
 			Console.WriteLn("ZdxsvGgpo: replay seek done at frame %d, vsync %u: %d frames from key %d in %.1f ms, %.2f ms/frame",
 				f, g_FrameCount, n, s_play.seek_from, ms, n > 0 ? ms / n : 0.0);
-			if (std::exchange(s_play.step_pause, false))
+			if (std::exchange(s_play.step_pause, false) && PlayStepPaused(f))
 				VMManager::SetPaused(true);
 		}
 		const bool running = s_play.target >= 0 || s_play.run_load >= 0;
@@ -572,6 +581,7 @@ namespace Zdxsv
 		if (!running)
 			PlaySlowWait();
 		PlayKeySave(f);
+		PlayStepRingSave(f);
 		s_battle.frame = f;
 		PlayBarPublish();
 		PlayKeysPublish(f);
@@ -597,6 +607,8 @@ namespace Zdxsv
 	void PlayStop(const char* what)
 	{
 		g_ggpo_active = false;
+		g_replay_step_hold = false;
+		PlayStepRingClear();
 		PlayHideReset();
 		s_bar_frame = -1;
 		s_battle.over = true; // the battle sock goes back to the IOP
@@ -653,15 +665,111 @@ namespace Zdxsv
 
 	namespace
 	{
+		// within the 64 frames of FrameRings::net_seq_at, which a load leaves in place
+		constexpr int STEP_RING_FRAMES = 60;
+
+		struct
+		{
+			bool resume = false;
+			bool ring = false;
+			Common::Timer::Value t0 = 0;
+		} s_play_step;
+
 		void PlayRunFromPause()
 		{
 			if (VMManager::GetState() != VMState::Paused)
 				return;
-			if (!s_play.at_end)
-				s_play.step_pause = true;
-			VMManager::SetPaused(false);
+			if (s_play.at_end)
+			{
+				VMManager::SetPaused(false);
+				return;
+			}
+			s_play.step_pause = true;
+			PlayStepResume();
 		}
 	} // namespace
+
+	void PlayStepRingClear()
+	{
+		if (std::exchange(s_play_step.ring, false))
+			DeltaStateClear();
+	}
+
+	// While stepping, the last frames are kept as delta states, so a step back loads one instead of a key file.
+	// Their EE RAM tracking costs every frame: off outside steps.
+	void PlayStepRingSave(int f)
+	{
+		if (!g_replay_step_hold || (s_play.target >= 0 && f < s_play.target - STEP_RING_FRAMES))
+		{
+			PlayStepRingClear();
+			return;
+		}
+		if (DeltaStateGetState(f) || !DeltaStateSave(f))
+			return;
+		s_play_step.ring = true;
+		DeltaStateDiscardBefore(f - STEP_RING_FRAMES);
+	}
+
+	// The newest ring frame in (target - STEP_RING_FRAMES, target - 1], loaded; -1 if none.
+	// Not target itself: a ring state has no GS memory, and the picture shown at a vsync was drawn in the
+	// frame before it, so at least 2 frames must run after the load to show the target's picture.
+	int PlayStepRingLoad(int target)
+	{
+		if (!s_play_step.ring || !g_replay_step_hold)
+			return -1;
+		for (int l = target - 1; l > target - STEP_RING_FRAMES && l >= 0; l--)
+		{
+			if (!DeltaStateGetState(l))
+				continue;
+			Common::Timer timer;
+			if (!DeltaStateLoad(l))
+			{
+				PlayStepRingClear();
+				return -1;
+			}
+			s_rb = s_net_at[l & 127];
+			Console.WriteLn("ZdxsvGgpo: replay seek: step frame %d loaded (%.1f ms)", l, timer.GetTimeMilliseconds());
+			return l;
+		}
+		return -1;
+	}
+
+	void PlayStepResume()
+	{
+		g_replay_step_hold = true;
+		s_play_step.resume = true;
+		s_play_step.t0 = Common::Timer::GetCurrentValue();
+		VMManager::SetPaused(false);
+		s_play_step.resume = false;
+	}
+
+	std::atomic<int> s_play_step_queue{0};
+
+	bool PlayStepPaused(int f)
+	{
+		const Common::Timer::Value now = Common::Timer::GetCurrentValue();
+		Console.WriteLn("ZdxsvGgpo: replay step paused at frame %d, vsync %u: %.1f ms after the request", f, g_FrameCount,
+			Common::Timer::ConvertValueToMilliseconds(now - s_play_step.t0));
+		int q = s_play_step_queue.load();
+		while (q != 0 && !s_play_step_queue.compare_exchange_weak(q, q - (q > 0 ? 1 : -1)))
+			;
+		if (q == 0 || s_play.at_end)
+		{
+			s_play_step_queue = 0;
+			return true;
+		}
+		s_play_req = f + 1 + (q < 0 ? -2 : 0);
+		s_play.step_pause = true;
+		s_play_step.t0 = now;
+		return false;
+	}
+
+	bool ReplayStepHoldsAudio(bool paused)
+	{
+		if (!paused && !s_play_step.resume)
+			g_replay_step_hold = false;
+		return g_replay_step_hold;
+	}
 
 	void ReplaySeekBy(int frames)
 	{

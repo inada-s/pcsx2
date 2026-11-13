@@ -23,6 +23,9 @@ namespace Zdxsv
 	// EE thread: replay frames not presented / not heard.
 	extern bool g_replay_hidden_frame;
 	extern bool g_replay_silent_frame;
+	// A step from a pause runs: the SPU2 output stays paused and its samples are dropped (a one-frame burst into a paused
+	// stream plays as noise). Cleared by a resume that is not a step.
+	extern bool g_replay_step_hold;
 
 	// spu2Output while a session runs: counts the sample; true = drop it (a rerun frame), so a rollback
 	// does not play its frames' sound again.

@@ -792,7 +792,7 @@ namespace Zdxsv
 		if (s_play.step_pause && s_play.target < 0)
 		{
 			s_play.step_pause = false;
-			pause = true;
+			pause = PlayStepPaused(next);
 		}
 		if (s_live_down)
 			LiveNext(next);

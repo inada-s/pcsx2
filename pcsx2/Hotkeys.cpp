@@ -367,6 +367,16 @@ DEFINE_HOTKEY("ZdxsvReplaySeekForward", TRANSLATE_NOOP("Hotkeys", "Zdxsv Replay"
 		if (!pressed && VMManager::HasValidVM())
 			Zdxsv::ReplaySeekBy(600);
 	})
+DEFINE_HOTKEY("ZdxsvReplayStepBack", TRANSLATE_NOOP("Hotkeys", "Zdxsv Replay"), TRANSLATE_NOOP("Hotkeys", "Step Back (Paused) / Seek Back 1 s"),
+	[](s32 pressed) {
+		if (!pressed && VMManager::HasValidVM())
+			Zdxsv::ReplayStep(-1);
+	})
+DEFINE_HOTKEY("ZdxsvReplayStepForward", TRANSLATE_NOOP("Hotkeys", "Zdxsv Replay"), TRANSLATE_NOOP("Hotkeys", "Step Forward (Paused) / Seek Forward 1 s"),
+	[](s32 pressed) {
+		if (!pressed && VMManager::HasValidVM())
+			Zdxsv::ReplayStep(1);
+	})
 DEFINE_HOTKEY("ZdxsvReplayToggleKeys", TRANSLATE_NOOP("Hotkeys", "Zdxsv Replay"), TRANSLATE_NOOP("Hotkeys", "Toggle Key Display"),
 	[](s32 pressed) {
 		if (!pressed && VMManager::HasValidVM())

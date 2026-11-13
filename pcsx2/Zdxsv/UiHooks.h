@@ -44,6 +44,8 @@ namespace Zdxsv
 	bool ReplayCanTakeOver();
 	// Playing: seek `dir` seconds; paused: a one-frame step.
 	void ReplayStep(int dir);
+	// VMManager::SetState: true = leave the SPU2 output paused (g_replay_step_hold).
+	bool ReplayStepHoldsAudio(bool paused);
 	void ReplaySpeedBy(int delta);
 	u32 ReplayPadPokes();
 	// Under g_ggpo_active (VMManager): state saves and loads and disc changes.
@@ -65,6 +67,11 @@ namespace Zdxsv
 	bool ReplayTakeoverInfo(int& phase, u16& target, u16& current, float& countdown);
 	// Paused replay (VMManager idle, CPU thread): the host pad's replay controls and the takeover countdown.
 	void ReplayTakeoverIdle();
+	// The paused idle poll runs at the fullscreen UI rate: a step from the pad or the control bar waits for it.
+	bool ReplayIdleFastPoll();
+	// Idle presents slower than the display refresh: faster ones queue up on the GS thread, so the next step's
+	// picture is shown late and a state load waits for the queue.
+	bool ReplayIdlePresentDue();
 
 	// GGPO network status, replay keys and replay control bar (ImGuiManager::RenderOverlays). GS thread.
 	void DrawOverlays(float scale, float margin, float spacing);

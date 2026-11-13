@@ -57,6 +57,7 @@
 #include "pcsx2/Zdxsv/AuthHooks.h"
 #include "pcsx2/Zdxsv/CrashReportHooks.h"
 #include "pcsx2/Zdxsv/DefaultsHooks.h"
+#include "pcsx2/Zdxsv/UiHooks.h"
 #include "Zdxsv/QtHooks.h"
 
 #include <cmath>
@@ -474,7 +475,7 @@ void EmuThread::startBackgroundControllerPollTimer()
 		return;
 
 	m_background_controller_polling_timer->start(
-		FullscreenUI::IsInitialized() ? FULLSCREEN_UI_CONTROLLER_POLLING_INTERVAL : BACKGROUND_CONTROLLER_POLLING_INTERVAL);
+		(FullscreenUI::IsInitialized() || Zdxsv::ReplayIdleFastPoll()) ? FULLSCREEN_UI_CONTROLLER_POLLING_INTERVAL : BACKGROUND_CONTROLLER_POLLING_INTERVAL);
 }
 
 void EmuThread::stopBackgroundControllerPollTimer()

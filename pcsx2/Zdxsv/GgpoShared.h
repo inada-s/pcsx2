@@ -418,6 +418,14 @@ namespace Zdxsv
 	void ReplayControlsReset();
 	void PlayHideAfterLoad();
 	int PlayFastEvery();
+	// Resume from a pause for a step or a seek that pauses again (s_play.step_pause): the audio output stays paused.
+	void PlayStepResume();
+	// Logs the step time; false: a queued step has started instead of the pause.
+	bool PlayStepPaused(int f);
+	extern std::atomic<int> s_play_step_queue; // step presses made while a step ran, + forward / - back
+	void PlayStepRingSave(int f);
+	int PlayStepRingLoad(int target);
+	void PlayStepRingClear();
 	void PlaySlowWait();
 	// Not refused by ReplayRefuses.
 	bool ReplayLoadState(const char* path, Error* error);

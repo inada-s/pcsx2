@@ -111,7 +111,7 @@ Tools → zdxsv Replays:
 | Action | Pad (host pad 1) | Hotkey (default) | Control bar |
 |---|---|---|---|
 | Play or pause | Circle | | play / pause button |
-| Seek back / forward 1 s; paused: one frame | Left / Right (held 0.5 s: repeats) | | ◀ / ▶ |
+| Seek back / forward 1 s; paused: one frame | Left / Right (held 0.5 s: repeats) | "Step Back" / "Step Forward" (unbound) | ◀ / ▶ |
 | Seek back / forward 10 s | | PageUp / PageDown | |
 | Seek to a frame | | | timeline: click or drag, seeks on release |
 | Speed down / up (33, 50, 100, 200, 300 %) | Down / Up | | ▼ / ▲ around the speed |
@@ -131,6 +131,13 @@ D-pad. While taken over the pad plays the game.
   run unthrottled and are not drawn, and after the last round the replay
   ends. A file without play starts skips the first mobile suit selection
   only (from frame 0 to the briefing).
+- **Step** (paused): runs one frame (back: a seek to the frame before; while
+  stepping, the last 60 frames are kept in memory, so it loads one of them
+  instead of a key) and
+  pauses again. The audio output stays paused and the step's sound is dropped;
+  play resumes it. Steps pressed while a step runs are queued (up to 30) and
+  run one after another. While paused, input is polled every 8 ms and the
+  picture redrawn at most every 33 ms.
 - **Seek**: a key (full state + battle-socket state) is kept every
   `ZDXSV_REPLAY_KEY` played frames, per position. A seek loads the newest
   key at or before the target and runs to it unthrottled (the limiter mode
