@@ -19,7 +19,7 @@ class QTreeWidget;
 class QTreeWidgetItem;
 
 // Tools → zdxsv Replays: local .pb files, the lobby's uploaded replays
-// (/lbs/replay), its live battles (/lbs/live) and the remote replays kept as favorites. Play boots the Z game with the pick (Zdxsv::SetNextReplay).
+// (/lbs/replay), its live battles (/lbs/live) and the remote replays kept as favorites. Play starts a replay child process with the pick.
 class ZdxsvReplayDialog final : public QDialog
 {
 	Q_OBJECT
