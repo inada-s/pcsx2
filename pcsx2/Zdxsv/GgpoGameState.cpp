@@ -18,8 +18,8 @@ namespace Zdxsv
 		// XXH3 of player p's work with the fields above masked (synctest hash=pw).
 		u64 PwHash(u32 p)
 		{
-			std::array<u8, PW_SIZE> w;
-			std::memcpy(w.data(), &eeMem->Main[GgpoAddrs().pw_base + PW_SIZE * p], PW_SIZE);
+			std::array<u8, PW_SIZE_MAX> w;
+			std::memcpy(w.data(), &eeMem->Main[GgpoAddrs().pw_base + GgpoAddrs().pw_size * p], GgpoAddrs().pw_size);
 			for (u32 o : PW_MASK)
 				std::memset(&w[o], 0, 4);
 			for (const auto& [o, bits] : PW_MASK_BITS)
@@ -29,13 +29,13 @@ namespace Zdxsv
 				v &= ~bits;
 				std::memcpy(&w[o], &v, 4);
 			}
-			return XXH3_64bits(w.data(), PW_SIZE);
+			return XXH3_64bits(w.data(), GgpoAddrs().pw_size);
 		}
 		std::array<u8, 4 * 12 + 4> PosRng()
 		{
 			std::array<u8, 4 * 12 + 4> b;
 			for (u32 p = 0; p < 4; p++)
-				std::memcpy(&b[12 * p], &eeMem->Main[GgpoAddrs().pw_base + PW_SIZE * p + PW_POS], 12);
+				std::memcpy(&b[12 * p], &eeMem->Main[GgpoAddrs().pw_base + GgpoAddrs().pw_size * p + GgpoAddrs().pw_pos], 12);
 			std::memcpy(&b[48], &eeMem->Main[GgpoAddrs().rng_a], 2);
 			std::memcpy(&b[50], &eeMem->Main[GgpoAddrs().rng_b], 2);
 			return b;
@@ -84,12 +84,11 @@ namespace Zdxsv
 		return v;
 	}
 	// u8 MS id per player work (= position; 0 = Gundam), set from the battle setup at each round start (0x2bc6d0)
-	static constexpr u32 PW_MS_ID = 0x1f2a;
 	u32 MsIds()
 	{
 		u32 v = 0;
 		for (int p = 0; p < 4; p++)
-			v |= static_cast<u32>(eeMem->Main[GgpoAddrs().pw_base + PW_SIZE * p + PW_MS_ID]) << (p * 8);
+			v |= static_cast<u32>(eeMem->Main[GgpoAddrs().pw_base + GgpoAddrs().pw_size * p + GgpoAddrs().pw_ms_id]) << (p * 8);
 		return v;
 	}
 	// The round ended between records a and b: the winning team 1 / 2, -1 = a draw (losses only); 0 = none
@@ -105,7 +104,7 @@ namespace Zdxsv
 		}
 		return up <= 0 ? 0 : win ? win : -1;
 	}
-	// ZDXSV_PW_DUMP=file: every save appends (s32 frame, 4 * PW_SIZE bytes of player work); rollback
+	// ZDXSV_PW_DUMP=file: every save appends (s32 frame, 4 * GgpoAddrs().pw_size bytes of player work); rollback
 	// re-saves a frame, the last record wins (`tests/zdxsv/pwdiff.py` finds the fields behind H mismatches).
 	std::FILE* s_pw_dump = [] {
 		const char* p = Zdxsv::TestEnv("ZDXSV_PW_DUMP");
@@ -122,13 +121,13 @@ namespace Zdxsv
 			u64 hash;
 			if (s_opt.hash == Hash::Pw)
 			{
-				raw.assign(&eeMem->Main[GgpoAddrs().pw_base], &eeMem->Main[GgpoAddrs().pw_base + 4 * PW_SIZE]);
+				raw.assign(&eeMem->Main[GgpoAddrs().pw_base], &eeMem->Main[GgpoAddrs().pw_base + 4 * GgpoAddrs().pw_size]);
 				raw.insert(raw.end(), &eeMem->Main[GgpoAddrs().rng_a], &eeMem->Main[GgpoAddrs().rng_a + 2]);
 				raw.insert(raw.end(), &eeMem->Main[GgpoAddrs().rng_b], &eeMem->Main[GgpoAddrs().rng_b + 2]);
 				u64 h[5];
 				for (u32 p = 0; p < 4; p++)
 					h[p] = PwHash(p);
-				h[4] = XXH3_64bits(&raw[4 * PW_SIZE], 4);
+				h[4] = XXH3_64bits(&raw[4 * GgpoAddrs().pw_size], 4);
 				hash = XXH3_64bits(h, sizeof(h));
 			}
 			else

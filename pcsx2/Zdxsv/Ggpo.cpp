@@ -706,7 +706,7 @@ namespace Zdxsv
 		{
 			std::array<u64, 5>& h = s_pw[frame];
 			for (u32 p = 0; p < 4; p++)
-				h[p] = XXH3_64bits(&eeMem->Main[GgpoAddrs().pw_base + PW_SIZE * p + PW_POS], 12);
+				h[p] = XXH3_64bits(&eeMem->Main[GgpoAddrs().pw_base + GgpoAddrs().pw_size * p + GgpoAddrs().pw_pos], 12);
 			u16 a, b;
 			std::memcpy(&a, &eeMem->Main[GgpoAddrs().rng_a], 2);
 			std::memcpy(&b, &eeMem->Main[GgpoAddrs().rng_b], 2);
@@ -716,7 +716,7 @@ namespace Zdxsv
 		{
 			const s32 f = frame;
 			std::fwrite(&f, sizeof(f), 1, s_pw_dump);
-			std::fwrite(&eeMem->Main[GgpoAddrs().pw_base], PW_SIZE * 4, 1, s_pw_dump);
+			std::fwrite(&eeMem->Main[GgpoAddrs().pw_base], GgpoAddrs().pw_size * 4, 1, s_pw_dump);
 		}
 	}
 
