@@ -16,9 +16,9 @@ namespace Zdxsv
 		u32 BoneSlots() { return GgpoAddrs().bone_slots; }
 		u32 BoneSlotsEnd() { return GgpoAddrs().bone_slots + 4 * 0x65d0; }
 
-		// Game object list: head pointer at gp - 0x5b80; each object holds its handler at +0xa8 and
+		// Game object list (obj_list_gp_offset): each object holds its handler at +0xa8 and
 		// the next object at +0xac.
-		constexpr u32 OBJ_LIST_GP_OFFSET = 0x5b80, OBJ_HANDLER = 0xa8, OBJ_NEXT = 0xac;
+		constexpr u32 OBJ_HANDLER = 0xa8, OBJ_NEXT = 0xac;
 		constexpr u32 OBJ_MAX = 4096, OBJ_MIN_SIZE = 0x400;
 		// Object types whose fields here are advanced only by the render callbacks.
 		// An address is reused by other object types, so a field is kept only for an object with the
@@ -39,8 +39,8 @@ namespace Zdxsv
 
 		// Player objects (player_handlers) copy part of their work into their bone slot at the start of each draw.
 		// That part follows the rerun game state, so it is written again after the load and each rerun frame.
-		constexpr u32 PLAYER_SLOT_INDEX = 0x21d0, PLAYER_POSE = 0x20, PLAYER_ANGLES = 0x50, PLAYER_BLOCKS = 0x7c0;
-		constexpr u32 PLAYER_SIZE = 0x2200, PLAYER_BLOCK_SIZE = 0x40;
+		constexpr u32 PLAYER_POSE = 0x20, PLAYER_ANGLES = 0x50;
+		constexpr u32 PLAYER_BLOCK_SIZE = 0x40;
 		constexpr u32 SLOT_SIZE = 0x65d0, SLOT_POSE = 0x220, SLOT_ANGLES = 0x200, SLOT_BLOCKS = 0x240;
 		constexpr u32 SLOT_BLOCK_STRIDE = 0x240, SLOT_BLOCK_OFFSET = 0xc0, SLOT_MODEL = 0x65bc, MODEL_BLOCK_COUNT = 7;
 		constexpr u32 SLOT_MAX_BLOCKS = (SLOT_MODEL - SLOT_BLOCKS - SLOT_BLOCK_OFFSET) / SLOT_BLOCK_STRIDE;
@@ -124,7 +124,7 @@ namespace Zdxsv
 		void ForEachObject(F&& fn)
 		{
 			// gp is read now: the game keeps one gp, needs proper testing outside battle play.
-			const u32 head = (cpuRegs.GPR.n.gp.UL[0] - OBJ_LIST_GP_OFFSET) & (Ps2MemSize::MainRam - 4);
+			const u32 head = (cpuRegs.GPR.n.gp.UL[0] - GgpoAddrs().obj_list_gp_offset) & (Ps2MemSize::MainRam - 4);
 			u32 obj = ReadU32(head);
 			for (u32 i = 0; obj && i < OBJ_MAX; i++)
 			{
@@ -168,8 +168,8 @@ namespace Zdxsv
 
 		u32 PlayerSlot(u32 obj)
 		{
-			const s8 index = static_cast<s8>(eeMem->Main[obj + PLAYER_SLOT_INDEX]);
-			if (index < 0 || index >= 4 || obj + PLAYER_SIZE > Ps2MemSize::MainRam)
+			const s8 index = static_cast<s8>(eeMem->Main[obj + GgpoAddrs().player_slot_index]);
+			if (index < 0 || index >= 4 || obj + GgpoAddrs().pw_size > Ps2MemSize::MainRam)
 				return 0;
 			return BoneSlots() + index * SLOT_SIZE;
 		}
@@ -180,7 +180,7 @@ namespace Zdxsv
 			if (model + MODEL_BLOCK_COUNT >= Ps2MemSize::MainRam)
 				return 0;
 			return std::min<u32>({eeMem->Main[model + MODEL_BLOCK_COUNT], SLOT_MAX_BLOCKS,
-				(PLAYER_SIZE - PLAYER_BLOCKS) / PLAYER_BLOCK_SIZE});
+				(GgpoAddrs().pw_size - GgpoAddrs().player_blocks) / PLAYER_BLOCK_SIZE});
 		}
 
 		void RebuildPlayerSlot(u32 obj)
@@ -199,7 +199,7 @@ namespace Zdxsv
 			const u32 n = CopiedBlocks(slot);
 			for (u32 i = 0; i < n; i++)
 				std::memcpy(&eeMem->Main[slot + SLOT_BLOCKS + i * SLOT_BLOCK_STRIDE + SLOT_BLOCK_OFFSET],
-					&eeMem->Main[obj + PLAYER_BLOCKS + i * PLAYER_BLOCK_SIZE], PLAYER_BLOCK_SIZE);
+					&eeMem->Main[obj + GgpoAddrs().player_blocks + i * PLAYER_BLOCK_SIZE], PLAYER_BLOCK_SIZE);
 		}
 
 		// The next frame reads what the skipped draw would have copied.

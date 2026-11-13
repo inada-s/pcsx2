@@ -130,14 +130,16 @@ namespace Zdxsv
 		u32 pw_size; // player work bytes per position, at most PW_SIZE_MAX
 		u32 pw_pos; // player position (3 floats in the player work), hashed by synctest hash=pos with the game RNGs
 		u32 pw_ms_id; // u8 MS id in the player work
+		u32 obj_list_gp_offset; // game object list head pointer at gp - this
+		u32 player_slot_index, player_blocks; // player object: u8 bone slot index; bone blocks copied into the slot
 	};
 	constexpr GgpoGameAddrs GGPO_ADDRS_Z = {0x8395d8, 0x6d7940, 0x6d793c, 0x6f2b6c, 0xc627b4, 0xc22c98, 0xc22c10, 0x7ade6c,
 		0x6f2460, 0x6f2500, 0x117f4d9, 0xc62bdf, 0xc61f40, {0xc227f0, 0xc22804}, 0x8afda0, 0x6e8550, 0x5e20, 0x1f6520,
-		{0x1e4340, 0x1e43e0, 0x1e4450}, {0x167810, 0x167f50}, 0x2200, 0x2a8, 0x1f2a};
+		{0x1e4340, 0x1e43e0, 0x1e4450}, {0x167810, 0x167f50}, 0x2200, 0x2a8, 0x1f2a, 0x5b80, 0x21d0, 0x7c0};
 	// No second RNG (rng_b); part_handler and pad_game not found yet.
 	constexpr GgpoGameAddrs GGPO_ADDRS_AEUG = {0x7b6d98, 0x5b2fb0, 0, 0x5c916c, 0xb1f184, 0xae10d8, 0xae1070, 0x681ac8,
 		0x5c4410, 0x5c44b0, 0, 0xb1f5ef, 0xb1e910, {0xae0ed0, 0xae0ee4}, 0x7770a0, 0x5c0f10, 0x5eb0, 0,
-		{0x1c9f00, 0x1c9fa0, 0x1ca010}, {0x15fb80, 0x1602b0}, 0x2100, 0x268, 0x1e2a};
+		{0x1c9f00, 0x1c9fa0, 0x1ca010}, {0x15fb80, 0x1602b0}, 0x2100, 0x268, 0x1e2a, 0x5c50, 0x20d0, 0x6c0};
 	inline const GgpoGameAddrs& GgpoAddrs() { return g_aeug_game ? GGPO_ADDRS_AEUG : GGPO_ADDRS_Z; }
 	constexpr u32 PW_SIZE_MAX = 0x2200;
 	extern std::map<int, std::array<u64, 5>> s_pw;
