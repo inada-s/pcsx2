@@ -57,6 +57,7 @@ options: `docs/zdxsv/`.
 | `ReplayRecord.cpp` | Replay recording, upload and live stream of a GGPO battle |
 | `ReplayControls.cpp` | Replay controls: rounds shown (spans), host pad, frame step, speed, takeover requests and countdown, refused operations |
 | `ReplayPlay.cpp` | Replay playback: frame loop, seek keys, point of view, takeover, control bar state and hotkeys |
+| `AudioTap.cpp` | Diagnostic: audio device output to a WAV (`ZDXSV_AUDIO_WAV`, seam in `Host/AudioStream.cpp`) |
 | `ReplayLive.cpp` | Playback of a live stream; spectator sync of several viewers |
 | `ReplayList.cpp` | Replay window support: the replay picked for the next boot, local file info, lobby API and live URLs (UI: `pcsx2-qt/Tools/ZdxsvReplayDialog.cpp`) |
 | `ReplayLoad.cpp` | Replay files: parse, load, common start, start of playback, position switch, next battle |

@@ -12,6 +12,7 @@
 #include "common/Error.h"
 #include "common/Pcsx2Defs.h"
 #include "common/SettingsWrapper.h"
+#include "Zdxsv/MediaHooks.h"
 #include "common/SmallString.h"
 #include "common/Timer.h"
 
@@ -332,6 +333,9 @@ void AudioStream::ReadFrames(SampleType* samples, u32 num_frames)
 			samples[i] *= volume_mult;
 		}
 	}
+
+	if (Zdxsv::g_audio_tap)
+		Zdxsv::AudioTapWrite(samples, num_frames, m_output_channels, m_sample_rate);
 }
 
 void AudioStream::StereoSampleReaderImpl(SampleType* dest, const SampleType* src, u32 num_frames)

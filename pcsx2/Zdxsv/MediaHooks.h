@@ -3,7 +3,8 @@
 
 #pragma once
 
-// zdxsv hooks of the video and audio output: GSRenderer.cpp (GS thread), SPU2 spu2.cpp (CPU thread).
+// zdxsv hooks of the video and audio output: GSRenderer.cpp (GS thread), SPU2 spu2.cpp (CPU thread),
+// Host/AudioStream.cpp (audio device thread).
 // Only flags and declarations (AGENTS.md, Seams With Upstream Code).
 
 #include "common/Pcsx2Defs.h"
@@ -30,4 +31,8 @@ namespace Zdxsv
 	// spu2Output while a session runs: counts the sample; true = drop it (a rerun frame), so a rollback
 	// does not play its frames' sound again.
 	bool SpuOnOutput();
+
+	// Audio device thread (Host/AudioStream.cpp ReadFrames), diagnostic: the samples the device reads.
+	extern const bool g_audio_tap;
+	void AudioTapWrite(const float* samples, u32 num_frames, u32 channels, u32 rate);
 } // namespace Zdxsv
