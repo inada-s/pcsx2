@@ -5,24 +5,34 @@
 
 #include "Zdxsv/GgpoShared.h"
 
+#include <span>
+
 namespace Zdxsv
 {
 	namespace
 	{
 		// Player work words left out of the hash: machine-local scratch and the own position's HUD gauge.
-		constexpr u32 PW_MASK[] = {0x274, 0x2b4, 0x1e64, 0x1e74, 0x1e84, 0x1e94, 0x214c};
+		constexpr u32 PW_MASK_Z[] = {0x274, 0x2b4, 0x1e64, 0x1e74, 0x1e84, 0x1e94, 0x214c};
 		// Bits left out of the hash: viewer-team, in-view and own-player-only fields, which differ in sync
 		// (0x2146: the next player's ally HP for the HUD, AllyHp.cpp).
-		constexpr std::pair<u32, u32> PW_MASK_BITS[] = {{0x58, 0x100}, {0x68, 0x300}, {0x9c, 0x110000}, {0x2004, ~0u}, {0x2068, 1}, {0x2074, 0x101}, {0x2088, 0xff},
+		constexpr std::pair<u32, u32> PW_MASK_BITS_Z[] = {{0x58, 0x100}, {0x68, 0x300}, {0x9c, 0x110000}, {0x2004, ~0u}, {0x2068, 1}, {0x2074, 0x101}, {0x2088, 0xff},
 			{0xcc, 0xffff}, {0x90, 0xffff0000}, {0x2144, 0xffff0000}};
+		// The player work starts at the player object + 0x2a8, so its last 0x2a8 bytes are the next object's header.
+		// SLPS-25305: the same fields found by matching its code, not by a sync run.
+		constexpr u32 PW_MASK_AEUG[] = {0x234, 0x274, 0x1d64, 0x1d74, 0x1d84, 0x1d94, 0x203c};
+		constexpr std::pair<u32, u32> PW_MASK_BITS_AEUG[] = {{0x18, 0x100}, {0x28, 0x300}, {0x5c, 0x110000}, {0x1f04, ~0u}, {0x1f68, 1}, {0x1f74, 0x101},
+			{0x1f88, 0xff}, {0x8c, 0xffff}, {0x50, 0xffff0000}, {0x2044, 0xffff0000}};
 		// XXH3 of player p's work with the fields above masked (synctest hash=pw).
 		u64 PwHash(u32 p)
 		{
+			const std::span<const u32> mask = g_aeug_game ? std::span<const u32>(PW_MASK_AEUG) : std::span<const u32>(PW_MASK_Z);
+			const std::span<const std::pair<u32, u32>> mask_bits = g_aeug_game ? std::span<const std::pair<u32, u32>>(PW_MASK_BITS_AEUG) :
+				std::span<const std::pair<u32, u32>>(PW_MASK_BITS_Z);
 			std::array<u8, PW_SIZE_MAX> w;
 			std::memcpy(w.data(), &eeMem->Main[GgpoAddrs().pw_base + GgpoAddrs().pw_size * p], GgpoAddrs().pw_size);
-			for (u32 o : PW_MASK)
+			for (u32 o : mask)
 				std::memset(&w[o], 0, 4);
-			for (const auto& [o, bits] : PW_MASK_BITS)
+			for (const auto& [o, bits] : mask_bits)
 			{
 				u32 v;
 				std::memcpy(&v, &w[o], 4);
