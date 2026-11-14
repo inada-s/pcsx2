@@ -1119,9 +1119,15 @@ def main():
         ok("spectator checked the stream's state hashes, none differ",
            len(scf) >= 7 and scf[4].isdigit() and int(scf[4]) > 0 and scf[6] == "0")
         if nw == 1:
-            # the uplink's round results as sent, the spectator's as received (also ahead of its playback)
-            rup = "".join(re.search(r"win_team (-*[0-9]*)", l)[1] + " " for i in clients
-                          for l in g(el(i), "ZdxsvGgpo: live: round result win_team"))
+            # the uplink's round results as sent (BATTLES > 1: the watched battle's only), the spectator's as
+            # received (also ahead of its playback)
+            rup, wc = "", (codes or ["none"])[0]
+            for i in clients:
+                on = False
+                for l in rd(el(i)):
+                    on = (on or f"live: uplink {wc} to" in l) and f"live: uplink {wc} closed" not in l
+                    m = on and re.search(r"ZdxsvGgpo: live: round result win_team (-*[0-9]*)", l)
+                    rup += m[1] + " " if m else ""
             rsp = "".join(re.search(r"win_team (-*[0-9]*)", l)[1] + " " for l in g(f, "ZdxsvGgpo: live: round result [0-9]*: win_team"))
             say(f"round results: uplink [{rup}] spectator [{rsp}]")
             ok("spectator got the uplink's round results from the stream", bool(rup) and rup == rsp)
