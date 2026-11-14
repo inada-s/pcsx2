@@ -35,6 +35,7 @@ environment variables (test): set, they replace the build's value.
 | `ZDXSV_SENTRY_DSN` | empty | Where crash reports go. Empty: no crash reports and no setting. Release: the repository variable. |
 
 ## Game check
+
 Everything is on only for serial `SLPS-25419` with ELF CRC `435D8236`: the
 hooks patch fixed addresses of that build. `SLPS-25305` with ELF CRC
 `992356FE` gets fast boot, fast login, no DEV9 and platform info; GGPO only
