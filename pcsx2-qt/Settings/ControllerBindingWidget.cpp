@@ -378,7 +378,7 @@ ControllerMacroEditWidget::ControllerMacroEditWidget(ControllerMacroWidget* pare
 	{
 		for (const InputBindingInfo& bi : cinfo->bindings)
 		{
-			if (button == bi.name)
+			if (bi.name && button == bi.name)
 			{
 				m_binds.push_back(&bi);
 				break;

@@ -278,6 +278,12 @@ Scripts are in `tests/zdxsv/` except `run.py` (repository root) and
 | No game properties | no test. By hand: the System menu, the game list context menu and Big Picture have no game properties entry and a saved game settings ini is not loaded (emulog has no `Loading game settings from`); `ZdxsvFeatureLimits = false`: as upstream | none |
 | Mouse wheel volume | no test. By hand: wheel over the game screen, OSD `Volume: N%` steps by 5 and the status bar volume follows; setting off or the wheel bound: no change | none |
 
+### Upstream fixes
+
+| Fix | Test | Control |
+|---|---|---|
+| Pad macro lookup skips unnamed binding slots (NeGcon, Jogcon) | `padmacro.py` (no game): PCSX2 with NeGcon + `Macro1Binds = Start` is alive after 30 s, no `Invalid bind` in emulog | a build without the fix crashes at startup |
+
 ### ARM64 builds
 
 | Feature | Test | Control |
