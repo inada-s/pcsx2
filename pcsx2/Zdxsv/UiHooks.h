@@ -25,6 +25,8 @@ namespace Zdxsv
 
 	// True: the upstream features zdxsv limits are off ([DEV9/Eth] ZdxsvFeatureLimits).
 	bool FeaturesLimited();
+	// As FeaturesLimited, for a caller that holds Host::GetSettingsLock() (FeaturesLimited would lock it again).
+	bool FeaturesLimitedLocked();
 
 	extern bool g_online_limits;
 	// The reason goes to `error`, else to the OSD.

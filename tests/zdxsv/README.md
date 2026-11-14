@@ -283,6 +283,7 @@ Scripts are in `tests/zdxsv/` except `run.py` (repository root) and
 | Fix | Test | Control |
 |---|---|---|
 | Pad macro lookup skips unnamed binding slots (NeGcon, Jogcon) | `padmacro.py` (no game): PCSX2 with NeGcon + `Macro1Binds = Start` is alive after 30 s, no `Invalid bind` in emulog | a build without the fix crashes at startup |
+| Big Picture Settings (Interface page) reads the feature limits without locking the settings again | `fsuisettings.py` (no game, Windows): `-bigpicture`, keys to Settings and down the Interface page, alive 10 s after | a build without the fix exits 0xC0000409 when Settings opens |
 
 ### ARM64 builds
 
