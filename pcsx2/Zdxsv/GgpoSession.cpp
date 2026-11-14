@@ -29,11 +29,14 @@ namespace Zdxsv
 			const char* e = TestEnv("ZDXSV_RERUN_VU1");
 			return e && e[0] == '1';
 		}();
-		// ZDXSV_RERUN_EE_DRAW=1: render callbacks in every rerun frame.
-		const bool s_rerun_ee_draw = [] {
+		// ZDXSV_RERUN_EE_DRAW=1|0: render callbacks in every rerun frame or not; unset: per game.
+		const int s_rerun_ee_draw_env = [] {
 			const char* e = TestEnv("ZDXSV_RERUN_EE_DRAW");
-			return e && e[0] == '1';
+			return e ? (e[0] == '1' ? 1 : 0) : -1;
 		}();
+		// SLPS-25305: the CPU players' logic reads what the render callbacks change, so skipping them desyncs
+		// the CPU players after a rollback.
+		bool RerunEeDraw() { return s_rerun_ee_draw_env >= 0 ? s_rerun_ee_draw_env == 1 : g_aeug_game; }
 
 		void NetLoaded(int frame)
 		{
@@ -108,7 +111,7 @@ namespace Zdxsv
 			if (len != sizeof(int))
 				return false;
 			Common::Timer timer;
-			RerunKeepBeforeLoad(!s_rerun_ee_draw);
+			RerunKeepBeforeLoad(!RerunEeDraw());
 			const bool ok = Zdxsv::DeltaStateLoad(*reinterpret_cast<int*>(buffer));
 			RerunKeepAfterLoad();
 			s_run.reruns_left = s_run.top_frame - *reinterpret_cast<int*>(buffer);
@@ -146,7 +149,7 @@ namespace Zdxsv
 			--s_run.reruns_left;
 			const int tail = s_rerun_tail >= 0 ? s_rerun_tail : (g_single_draw_list ? 0 : 2);
 			g_rerun_vu1_skip = !s_rerun_vu1 && s_run.reruns_left >= tail - (g_single_draw_list ? 0 : 1);
-			g_rerun_draw_skip = !s_rerun_ee_draw && s_run.reruns_left >= tail;
+			g_rerun_draw_skip = !RerunEeDraw() && s_run.reruns_left >= tail;
 			const bool ok = GgpoRunFrame();
 			if (g_rerun_draw_skip)
 				RerunKeepAfterRerunFrame(s_run.reruns_left == 0);

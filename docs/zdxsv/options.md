@@ -165,7 +165,7 @@ turns GGPO off and leaves the other extensions on. Any other value turns it on. 
 | `ZDXSV_AUTH_URL=<url>` | unset | test | Overrides `ZdxsvAuthUrl`. |
 | `ZDXSV_AUTH_AT_DNAS=0` | unset (on) | test | `ZdxsvFastLogin` with no token skips the sign-in at DNAS (back to the network menu); the rigs set it unless set. |
 | `ZDXSV_AUTH_NO_BROWSER=1` | unset | test | Sign-in URLs are only logged (`Zdxsv: auth: open <url>`), no browser opens; the rigs set it, with `ZDXSV_AUTH_URL` = the local stack. |
-| `ZDXSV_RERUN_EE_DRAW=1` | off | control | The game's render callbacks run in every rerun frame. Default: not in rerun frames but the last two (see rollback.md). |
+| `ZDXSV_RERUN_EE_DRAW=1\|0` | SLPS-25305: 1; else 0 | control | `1`: the game's render callbacks run in every rerun frame, and nothing is kept (`ZDXSV_RERUN_KEEP`). `0`: not in rerun frames but the last two (see rollback.md). |
 | `ZDXSV_RERUN_KEEP=0` or `=lo-hi,...` | bone slots, saber trails | control | EE RAM a rollback does not roll back during play: `0` none; else these ranges (hex, end exclusive) and the saber trails. Off with `ZDXSV_RERUN_EE_DRAW=1`. See rollback.md. |
 | `ZDXSV_RERUN_PARTS=0` | on | control | With the bone slots kept: rerun frames that skip the render callbacks do not run the draws of parts attached to a player either (see rollback.md). |
 | `ZDXSV_ROLLBACK_BUDGET=1` | off | test | The lobby delay subtracts the learned `ZdxsvRollbackBudget` instead of 0. |

@@ -137,6 +137,12 @@ work agrees with them kept.
 `ZDXSV_RERUN_KEEP` turns it off or sets other ranges, kept in any game phase
 (tests); `ZDXSV_RERUN_EE_DRAW=1` turns it off.
 
+SLPS-25305 runs the render callbacks in every rerun frame (`ZDXSV_RERUN_EE_DRAW`),
+so it keeps nothing: skipping them desyncs its CPU players (positions 2 and 3,
+from ~80 frames after the play start) after rollbacks while the human players
+stay in sync; with them, all four players agree. What the CPU logic reads from
+the callbacks is not known yet (RNG A is a candidate: the game has no second RNG).
+
 ### Synctest
 
 `ZDXSV_GGPO` without `net=1`. Every `check` frames GGPO loads the state

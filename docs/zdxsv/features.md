@@ -98,7 +98,7 @@ Keys (`net=1`, `lobby=1`, `port=`, `delay=`, ...) are parts of `ZDXSV_GGPO`.
 - **Battle start and MS select load barriers**: GGPO session.
 - **In-game button settings in GGPO battles**: each player's own input record takes its action bits from that player's button settings in guest RAM; GGPO session.
 - **GGPO synctest in a running game**: `ZDXSV_GGPO` without `net=1`.
-- **Rerun keep**: the bone matrix slots and beam saber trails are not rolled back during battle play, and parts attached to a player are drawn in every rerun frame; `ZDXSV_RERUN_KEEP`, `ZDXSV_RERUN_PARTS`.
+- **Rerun keep**: the bone matrix slots and beam saber trails are not rolled back during battle play, and parts attached to a player are drawn in every rerun frame; `ZDXSV_RERUN_KEEP`, `ZDXSV_RERUN_PARTS`. SLPS-25305: none; its render callbacks run in every rerun frame (`ZDXSV_RERUN_EE_DRAW`).
 - **GGPO on by default for lobby battles**: `ZDXSV_EXTENSIONS=0` turns it off.
 - **Battle UDP port setting**: `ZdxsvGgpoPort`, `port=`.
 - **Minimum input delay setting**: `ZdxsvGgpoMinDelay`, `mindelay=`.
