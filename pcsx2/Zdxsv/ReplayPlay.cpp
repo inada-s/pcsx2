@@ -388,7 +388,10 @@ namespace Zdxsv
 		int from = next;
 		bool loaded = false;
 		auto& keys = s_play_keys[s_battle.me];
-		auto it = keys.upper_bound(target);
+		// A key load resets the GS, so it has no picture until frames run after it.
+		auto it = keys.upper_bound(target - SEEK_DRAWN_FRAMES);
+		if (it == keys.begin())
+			it = keys.upper_bound(target);
 		if (const int l = (pov_switch || target >= next) ? -1 : PlayStepRingLoad(target); l >= 0)
 		{
 			from = l;
