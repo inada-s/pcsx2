@@ -30,7 +30,7 @@ namespace Zdxsv
 	extern s32 g_frame_period_trim_us;
 
 	extern bool g_z_game; // the disc is the Z game: serial SLPS-25419 and its ELF CRC (GgpoOnVmInitialize)
-	extern bool g_aeug_game; // the disc is SLPS-25305 (AEUG vs. Titans) with its ELF CRC: fast boot, fast login and no DEV9 only (GgpoOnVmInitialize)
+	extern bool g_aeug_game; // the disc is SLPS-25305 (AEUG vs. Titans) with its ELF CRC (GgpoOnVmInitialize); GGPO only with ZDXSV_GGPO set
 	// In VMManager::LoadCoreSettings, the Z game: settings that change emulation results to PCSX2's defaults, the
 	// speedhacks too in a battle; an OSD message names the overridden ones (SyncSettings.cpp)
 	void SyncSettingsEnforce();

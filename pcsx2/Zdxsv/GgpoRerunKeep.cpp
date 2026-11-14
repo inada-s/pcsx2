@@ -353,7 +353,7 @@ namespace Zdxsv
 		// The walker calls a handler only for an object not culled.
 		if (IsPlayerHandler(handler))
 			RebuildPlayerSlot(obj & (Ps2MemSize::MainRam - 1));
-		return handler == GgpoAddrs().part_handler;
+		return GgpoAddrs().part_handler && handler == GgpoAddrs().part_handler;
 	}
 
 	bool OnDrawRun()

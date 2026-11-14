@@ -11,7 +11,7 @@ namespace Zdxsv
 	{
 		if (g_net_hook && pc == NetRpcPc())
 			return OnNetCall();
-		if (g_net_hook && g_z_game && pc == GgpoPcs().net_recv_ret)
+		if (g_net_hook && pc == GgpoPcs().net_recv_ret)
 			OnNetRecv();
 		if (g_zd_hook && pc == GgpoPcs().step_copy)
 			OnStepCopy();

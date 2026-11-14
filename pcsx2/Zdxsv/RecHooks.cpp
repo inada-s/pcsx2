@@ -26,7 +26,7 @@ namespace Zdxsv
 			xJMP(dispatcher);
 			run_wrapper.SetTarget();
 		}
-		if (g_net_hook && g_z_game && pc == GgpoPcs().net_recv_ret)
+		if (g_net_hook && pc == GgpoPcs().net_recv_ret)
 		{
 			iFlushCall(FLUSH_EVERYTHING | FLUSH_PC);
 			xFastCall((void*)OnNetRecv);
