@@ -41,7 +41,6 @@ hooks patch fixed addresses of that build. `SLPS-25305` with ELF CRC
 when `ZDXSV_GGPO` is set (its battle addresses are not verified yet). With any
 other disc GGPO, replays, the recompiler hooks and the platform info are off,
 and `ZDXSV_GGPO` or `ZDXSV_REPLAY` only log `ZdxsvGgpo: off: not the Z game`.
-`ZDXSV_REPLAY` only log `ZdxsvGgpo: off: not the Z game`.
 
 | Option | Default | Use | Meaning |
 |---|---|---|---|
