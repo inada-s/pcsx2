@@ -2,9 +2,9 @@
 # Build (and optionally run) PCSX2 locally on Windows from Git Bash,
 # mirroring the MSBuild path of the Windows CI. (AI-assisted)
 #
-#   ./build-local.sh                    # Release AVX2 build
+#   ./build-local.sh                    # Devel AVX2 build (asserts + dev features)
 #   ./build-local.sh --run              # build, then launch
-#   ./build-local.sh --config Devel     # Devel build (asserts + dev features)
+#   ./build-local.sh --config Release   # Release build (LTCG: slow link, high memory)
 #   ./build-local.sh --run-only         # launch the last build without building
 #   ./build-local.sh --rebuild          # clean rebuild of PCSX2 (deps are kept)
 #   ./build-local.sh --run -- -fastboot /c/games/foo.iso   # args after -- go to pcsx2-qt
@@ -14,7 +14,7 @@
 
 set -euo pipefail
 
-CONFIG=Release
+CONFIG=Devel
 SIMD=AVX2
 RUN=0
 RUN_ONLY=0
