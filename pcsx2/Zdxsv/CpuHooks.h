@@ -51,7 +51,7 @@ namespace Zdxsv
 	void SingleDrawListOnVsync();
 	// In GgpoOnVmShutdown.
 	void SingleDrawListReset();
-	// Z game, setting ZdxsvAllyHp: the HUD shows the teammate's HP where it shows the own max HP (AllyHp.cpp).
+	// Z game and SLPS-25305, setting ZdxsvAllyHp: the HUD shows the teammate's HP where it shows the own max HP (AllyHp.cpp).
 	void AllyHpOnVmInitialize();
 	// In VMManager::LoadCoreSettings.
 	void AllyHpLoadSettings(SettingsInterface& si);

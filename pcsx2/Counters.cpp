@@ -512,7 +512,7 @@ static __fi void VSyncStart(u64 sCycle)
 		Zdxsv::OnlineLimitsOnVsync();
 	if (Zdxsv::g_single_draw_list)
 		Zdxsv::SingleDrawListOnVsync();
-	if (Zdxsv::g_z_game)
+	if (Zdxsv::g_z_game || Zdxsv::g_aeug_game)
 		Zdxsv::AllyHpOnVsync();
 	if (Zdxsv::g_no_dev9)
 		Zdxsv::NoDev9OnVsync();
