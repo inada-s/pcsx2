@@ -134,7 +134,7 @@ namespace Zdxsv
 
 	void SyncSettingsEnforce()
 	{
-		if (!g_z_game || VMManager::GetState() == VMState::Shutdown)
+		if ((!g_z_game && !g_aeug_game) || VMManager::GetState() == VMState::Shutdown)
 			return;
 		EmuConfig.EmulationSpeed.LowLatencyPresent = LowLatencyPresentOn();
 		Pcsx2Config copy = EmuConfig;
@@ -169,7 +169,7 @@ namespace Zdxsv
 		if (battle == s_sync.battle)
 			return;
 		s_sync.battle = battle;
-		if (!g_z_game || ForceOff() || VMManager::GetState() == VMState::Shutdown)
+		if ((!g_z_game && !g_aeug_game) || ForceOff() || VMManager::GetState() == VMState::Shutdown)
 			return;
 		Console.WriteLn("ZdxsvSync: battle %s: settings reloaded", battle ? "start" : "end");
 		VMManager::ApplySettings();
@@ -182,7 +182,7 @@ namespace Zdxsv
 
 	bool SyncSettingsForced(bool battle_item)
 	{
-		return g_z_game && !ForceOff() && VMManager::GetState() != VMState::Shutdown && (!battle_item || s_sync.battle);
+		return (g_z_game || g_aeug_game) && !ForceOff() && VMManager::GetState() != VMState::Shutdown && (!battle_item || s_sync.battle);
 	}
 
 	std::string SyncFingerprint()

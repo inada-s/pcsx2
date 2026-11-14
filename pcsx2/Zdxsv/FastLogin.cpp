@@ -46,9 +46,10 @@ namespace Zdxsv
 			u32 lbs_count;
 			u32 result; // the browser's result area: zeroed, then only the fields the lobby connect reads
 			u32 selected_lbs_id;
+			const char* code; // the server's game code (/lbs/login form game)
 		};
-		constexpr FastLoginGame kGvszGame = {0xcd1360, 0x6dd770 - 0x59ec, 0x6dd770 - 0x5dfc, 0x6dd770 - 0x5cac, 0x900900, 0xc63560};
-		constexpr FastLoginGame kAeugGame = {0xb898c0, 0x5b8e70 - 0x5aa4, 0x5b8e70 - 0x5e8c, 0x5b8e70 - 0x5df4, 0x6e1570, 0xb1ff70};
+		constexpr FastLoginGame kGvszGame = {0xcd1360, 0x6dd770 - 0x59ec, 0x6dd770 - 0x5dfc, 0x6dd770 - 0x5cac, 0x900900, 0xc63560, "00000020"};
+		constexpr FastLoginGame kAeugGame = {0xb898c0, 0x5b8e70 - 0x5aa4, 0x5b8e70 - 0x5e8c, 0x5b8e70 - 0x5df4, 0x6e1570, 0xb1ff70, "00000004"};
 		const FastLoginGame& Game() { return g_z_game ? kGvszGame : kAeugGame; }
 		u32 NetState() { return Game().net_state; }
 		u32 NetSub() { return Game().net_state + 1; }
@@ -439,7 +440,7 @@ namespace Zdxsv
 					BackToNetMenu("not signed in");
 				return;
 			}
-			std::string form = "token=" + *token;
+			std::string form = "token=" + *token + "&game=" + Game().code;
 			if (const int account = Host::GetIntSettingValue("DEV9/Eth", "ZdxsvAccount", 0); account > 0)
 				form += "&account=" + std::to_string(account);
 			else if (account == kNewAccount)
