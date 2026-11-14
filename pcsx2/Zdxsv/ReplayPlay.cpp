@@ -736,6 +736,8 @@ namespace Zdxsv
 
 	void PlayStepResume()
 	{
+		// A pause at a frame leaves that frame's present queued for the next vsync, which comes before the seek.
+		g_replay_hidden_frame = true;
 		g_replay_step_hold = true;
 		s_play_step.resume = true;
 		s_play_step.t0 = Common::Timer::GetCurrentValue();
