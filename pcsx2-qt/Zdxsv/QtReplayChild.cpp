@@ -158,8 +158,14 @@ namespace Zdxsv
 		QObject::connect(p, &QProcess::finished, p, &QObject::deleteLater);
 		const QString arg = QStringLiteral("%1:%2:%3").arg(pov).arg(QCoreApplication::applicationPid()).arg(QString::fromUtf8(src));
 		p->setProgram(QCoreApplication::applicationFilePath());
-		p->setArguments({QStringLiteral("-nogui"), QStringLiteral("-datapath"), QString::fromStdString(EmuFolders::DataRoot),
-			QStringLiteral("-zdxsvreplay"), arg, QStringLiteral("--"), QString::fromUtf8(disc)});
+		// -datapath appends "PCSX2" to its argument, so the parent's own data path choice is passed on, not DataRoot.
+		QStringList args{QStringLiteral("-nogui")};
+		if (EmuConfig.IsPortableMode)
+			args << QStringLiteral("-portable");
+		else if (!EmuConfig.CustomDataPath.empty())
+			args << QStringLiteral("-datapath") << QString::fromStdString(EmuConfig.CustomDataPath);
+		args << QStringLiteral("-zdxsvreplay") << arg << QStringLiteral("--") << QString::fromUtf8(disc);
+		p->setArguments(args);
 		p->start();
 		if (!p->waitForStarted(5000))
 		{

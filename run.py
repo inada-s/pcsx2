@@ -321,7 +321,7 @@ def download_rbk_state():
 def check(mode: str):
     problems = []
     if not PCSX2.is_file():
-        problems.append(f"PCSX2 not found: {PCSX2} (build it with ./build-local.sh --config Devel)")
+        problems.append(f"PCSX2 not found: {PCSX2} (build it with ./build-local.sh)")
     if mode != "gui" and not ROM:
         problems.append("set ROM to the game's .iso")
     elif ROM and not Path(ROM).is_file():
