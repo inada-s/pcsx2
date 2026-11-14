@@ -3,6 +3,7 @@
 
 // Replay files: parse, load, common start, start of playback, switch of position, next battle.
 
+#include "Zdxsv/CpuHooks.h"
 #include "Zdxsv/GgpoShared.h"
 #include "Zdxsv/ReplayList.h"
 #include "Zdxsv/TestOptions.h"
@@ -364,12 +365,14 @@ namespace Zdxsv
 		}
 
 		// The hosted post-entry state of a common start: ZDXSV_REPLAY_STATE, else the setting
-		// DEV9/Eth ZdxsvReplayStateUrl (default: the hosted one); a URL is downloaded once into the cache (one file
+		// DEV9/Eth ZdxsvReplayStateUrl, SLPS-25305 ZdxsvAeugReplayStateUrl (default: the hosted one); a URL is downloaded once into the cache (one file
 		// per URL). Set empty = the booted state is used as it is.
 		bool PlayCommonState()
 		{
 			const char* env = TestEnv("ZDXSV_REPLAY_STATE");
-			const std::string src = env ? env : Host::GetStringSettingValue("DEV9/Eth", "ZdxsvReplayStateUrl", REPLAY_STATE_URL);
+			const std::string src = env ? env : g_aeug_game ?
+				Host::GetStringSettingValue("DEV9/Eth", "ZdxsvAeugReplayStateUrl", AEUG_REPLAY_STATE_URL) :
+				Host::GetStringSettingValue("DEV9/Eth", "ZdxsvReplayStateUrl", REPLAY_STATE_URL);
 			std::string path = src;
 			if (src.empty()) // the booted state, saved at the first start for a switch's start
 			{

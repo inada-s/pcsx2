@@ -50,7 +50,7 @@ and `ZDXSV_GGPO` or `ZDXSV_REPLAY` only log `ZdxsvGgpo: off: not the Z game`.
 
 ## Settings in PCSX2.ini
 
-All but `ZdxsvReplayUpload`, `ZdxsvReplayUploadUrl`, `ZdxsvUdpTestUrl`, `ZdxsvReplayStateUrl`, `ZdxsvLobbyApiUrl` (ini only) and `ZdxsvReplayFavorites` (set in the replay
+All but `ZdxsvReplayUpload`, `ZdxsvReplayUploadUrl`, `ZdxsvUdpTestUrl`, `ZdxsvReplayStateUrl`, `ZdxsvAeugReplayStateUrl`, `ZdxsvLobbyApiUrl` (ini only) and `ZdxsvReplayFavorites` (set in the replay
 window) are on the page Settings → zdxsv (global or per game). An environment variable named in a row overrides the setting; the
 page greys it out and its tooltip names the variable.
 
@@ -72,6 +72,7 @@ page greys it out and its tooltip names the variable.
 | `[DEV9/Eth] ZdxsvReplaySkipMs` | `true` | feature | A replay plays its rounds only: it skips the mobile suit selections and the rematch screens (a file without round frames: the first mobile suit selection). `ZDXSV_REPLAY_SKIP_MS` overrides it. |
 | `[DEV9/Eth] ZdxsvReplayKeyDisplay` | `true` | feature | Replays start with the key display on. `ZDXSV_REPLAY_KEY_DISPLAY` overrides it. |
 | `[DEV9/Eth] ZdxsvReplayStateUrl` | the hosted `rbk-p1.p2s` | feature | The post-entry state a replay or live battle starts from: URL (downloaded once into the cache folder) or file; empty = the booted state. `ZDXSV_REPLAY_STATE` overrides it. |
+| `[DEV9/Eth] ZdxsvAeugReplayStateUrl` | the hosted `aeug-p1.p2s` | feature | `ZdxsvReplayStateUrl` for SLPS-25305: its post-entry state (after the room's battle start request, before the lobby's battle start). |
 | `[DEV9/Eth] ZdxsvFastBoot` | `true` | feature | Z game and SLPS-25305, from boot: unlimited speed and automatic presses through the title, main menu and network menus (broadband, network setting 1 with the DEV9 adapter on; the terms screen skipped) to the lobby user_id selection (without fast login: to the login browser), then normal speed. Stops at once at the NET file load when the memory card is unformatted or has no NET file, at the lobby when the account has no user_id, and when fast login goes back to the network menu (the player connects again). Settings → zdxsv → Fast boot. Env `ZDXSV_FAST_BOOT=1/0` overrides. |
 | `[DEV9/Eth] ZdxsvFastBootState` | `true` | feature | With `ZdxsvFastBoot`: the first boot saves a state at the NET file load (`sstates/<serial> zdxsv-fastboot <state version> <memory card checksum>.p2s`; `zdxsv-fastboot-eth` on the DEV9 path with the adapter on, `zdxsv-fastboot-noeth` with it off, as each stalls on the others); later boots with the same memory card 1 contents load it and skip the title and main menu. The state holds the system data the game auto-loaded from the card, so another card, or one written since, boots in full and replaces the state. Delete the file to retake it. Env `ZDXSV_FAST_BOOT_STATE=1/0` overrides. |
 | `[DEV9/Eth] ZdxsvFastBootLobby` | `false` | test | With `ZdxsvFastBoot`: at the user_id selection, presses Circle (still at unlimited speed) until ID 1 is picked and confirmed, and ends in the lobby (戦場選択, emulog `Zdxsv: fast boot: lobby`); `gave up in the user_id selection` after 60 s. No settings UI. Env `ZDXSV_FAST_BOOT_LOBBY=1/0` overrides. |

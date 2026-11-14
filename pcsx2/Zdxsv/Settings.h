@@ -25,8 +25,9 @@
 
 namespace Zdxsv
 {
-	// default of ZdxsvReplayStateUrl: the post-entry state a replay starts from
+	// defaults of ZdxsvReplayStateUrl (SLPS-25419) / ZdxsvAeugReplayStateUrl (SLPS-25305): the post-entry state a replay starts from
 	inline constexpr const char* REPLAY_STATE_URL = "https://storage.googleapis.com/zdxsv/misc/rbk-p1.p2s";
+	inline constexpr const char* AEUG_REPLAY_STATE_URL = "https://storage.googleapis.com/zdxsv/misc/aeug-p1.p2s";
 	// default of ZdxsvUdpTestUrl: the udptest function (zdxsv infra/udptest)
 	inline constexpr const char* UDPTEST_URL = ZDXSV_UDPTEST_URL;
 
