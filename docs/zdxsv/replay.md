@@ -140,8 +140,10 @@ D-pad. While taken over the pad plays the game.
   picture redrawn at most every 33 ms.
 - **Seek**: a key (full state + battle-socket state) is kept every
   `ZDXSV_REPLAY_KEY` played frames, per position. A seek loads the newest
-  key at or before the target and runs to it unthrottled (the limiter mode
-  stays, so the vsync mode does not change); the frames it
+  key at least two frames before the target (a key load leaves no picture
+  until frames run after it; at the target only when no earlier key) and
+  runs to it unthrottled (the limiter mode stays, so the vsync mode does not
+  change); the frames it
   runs are not drawn or heard but the last two, and the picture stays until
   a drawn one is ready (no present of a frame not drawn, nor right after a
   state load). Forward seeks run every frame. A seek stays
