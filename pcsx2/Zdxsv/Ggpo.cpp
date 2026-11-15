@@ -182,7 +182,12 @@ namespace Zdxsv
 	bool GgpoSyncAndApply(bool rerun)
 	{
 		if (s_opt.net)
-			return NetSyncAndApply();
+		{
+			if (!NetSyncAndApply())
+				return false;
+			ServerPatchesFrame();
+			return true;
+		}
 		Input inputs[GGPO_PLAYERS] = {};
 		int disconnect_flags = 0;
 		const GGPOErrorCode rc = ggpo_synchronize_input(s_session, inputs, sizeof(inputs), &disconnect_flags);
@@ -194,6 +199,7 @@ namespace Zdxsv
 		if (rerun && s_opt.control_input)
 			inputs[0].buttons ^= static_cast<u16>(s_ggpo_rng() | 1);
 		ApplyInputs(inputs);
+		ServerPatchesFrame();
 		return true;
 	}
 
@@ -299,6 +305,7 @@ namespace Zdxsv
 	int s_min_delay = 2; // mindelay=, else setting DEV9/Eth ZdxsvGgpoMinDelay
 	// network status OSD: user id, name + pilot name per position (lobby battle info), lines of the last frame
 	std::vector<LobbyPlayer> s_lobby_players, s_net_players;
+	std::vector<GamePatch> s_lobby_patches, s_net_patches;
 
 	GGPOSession* s_session = nullptr;
 	bool s_frame_ended = false; // the CPU left Execute() at a vsync
@@ -517,6 +524,7 @@ namespace Zdxsv
 				GgpoStop(fail);
 				return;
 			}
+			ServerPatchesBegin(std::exchange(s_net_patches, {}));
 			if (s_opt.net)
 				ReplayBegin();
 			// The synctest saves frame 0 at the first synchronize_input.

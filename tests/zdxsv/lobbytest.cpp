@@ -526,6 +526,24 @@ int main()
 		Zdxsv::MergeRelayRtt(mine, lost3, 0, 3);
 		Check(mine[3][0] == 0 && mine[1][0] == 4, "relay rtt merge: sender's own row taken as is", mine[3][0]);
 	}
+	{
+		auto frame = [](uint8_t kind, uint8_t id_hi, uint8_t id_lo, const std::string& body) {
+			std::vector<uint8_t> f = {kind, 0xFF, id_hi, id_lo, static_cast<uint8_t>(body.size() >> 8),
+				static_cast<uint8_t>(body.size()), 0, 1, 0, 0xFF, 0xFF, 0xFF};
+			f.insert(f.end(), body.begin(), body.end());
+			return f;
+		};
+		const std::vector<uint8_t> chat = frame(0x18, 0x60, 0x03, "hello");
+		std::vector<uint8_t> in = frame(0x18, 0x99, 0x53, "{\"patches\":[]}");
+		for (const auto& f : {frame(0x18, 0x99, 0x7e, "{}"), chat, frame(0x18, 0x99, 0x7e, "{}"), frame(0x81, 0x99, 0x50, "x")})
+			in.insert(in.end(), f.begin(), f.end());
+		Zdxsv::LobbyFilter filter;
+		filter.Feed(in.data(), 5);
+		filter.Feed(in.data() + 5, in.size() - 5);
+		std::vector<uint8_t> out(filter.Ready());
+		filter.Take(out.data(), out.size());
+		Check(out == chat, "custom 0x99xx messages (known 9953, unknown 997e, 9950) dropped, a lobby notice passed", (long)out.size());
+	}
 	std::printf("%d failed\n", g_fails);
 	return g_fails ? 1 : 0;
 }

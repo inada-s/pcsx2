@@ -110,6 +110,12 @@ namespace Zdxsv
 	// battle load sets player work +0x10f (hashed) from it.
 	constexpr u32 MS_SLOTS = 0x6f2b6c, MS_SLOTS_N = 6;
 	void MsSlotsClear();
+
+	// Lobby game patches (ServerPatches.cpp): Begin checks each patch's game and originals and writes the matching
+	// ones, Frame rewrites the every-frame ones, End writes the originals back.
+	void ServerPatchesBegin(const std::vector<GamePatch>& patches);
+	void ServerPatchesFrame();
+	void ServerPatchesEnd();
 	u32 ReplayStateHash();
 	u32 GameRng();
 	static constexpr u32 TICK_STATE = 0xc627b4; // u8 game phase; 8 = battle load
@@ -278,6 +284,7 @@ namespace Zdxsv
 	extern int s_lobby_port; // setting DEV9/Eth ZdxsvGgpoPort (0: a random port, saved); port= overrides it
 	extern int s_min_delay; // mindelay=, else setting DEV9/Eth ZdxsvGgpoMinDelay
 	extern std::vector<LobbyPlayer> s_lobby_players, s_net_players;
+	extern std::vector<GamePatch> s_lobby_patches, s_net_patches; // the last battle info's; the armed battle's
 	extern std::mutex s_lobby_mtx;
 	extern std::vector<Zdxsv::PeerAddr> s_net_peers; // per position, picked when armed
 	extern std::vector<int> s_net_via; // per position: PingResult.via (0 direct, 1 peer relay, 2 relay server)

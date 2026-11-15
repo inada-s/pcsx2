@@ -34,7 +34,7 @@ namespace Zdxsv
 		int team = 0; // 1 / 2, 0 = unknown
 	};
 	void SetLobbyPeers(int me, std::vector<std::vector<Zdxsv::PeerAddr>> byPosition, u32 session, int pingMs, std::string ids,
-		std::vector<LobbyPlayer> players, std::vector<Zdxsv::BattleInfo::Relay> relays = {});
+		std::vector<LobbyPlayer> players, std::vector<Zdxsv::BattleInfo::Relay> relays = {}, std::vector<Zdxsv::GamePatch> patches = {});
 	// The last lobby battle's P2PMatchingReport body ("key=value" lines), then cleared; "" if none.
 	// Sent to the lobby (0x9952) after the next platform info.
 	std::string TakeLobbyReport();

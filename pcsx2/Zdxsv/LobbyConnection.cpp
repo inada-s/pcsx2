@@ -123,7 +123,7 @@ namespace Zdxsv
 					std::string ids = "battle_code=" + info.battleCode + "\nuser_id=" + info.userId + "\n";
 					if (info.liveUplink)
 						ids += "live_uplink=1\n";
-					SetLobbyPeers(me, std::move(byPosition), info.ggpoSession, info.ggpoPingMs, std::move(ids), std::move(players), info.relays);
+					SetLobbyPeers(me, std::move(byPosition), info.ggpoSession, info.ggpoPingMs, std::move(ids), std::move(players), info.relays, info.patches);
 				});
 			return port;
 		}

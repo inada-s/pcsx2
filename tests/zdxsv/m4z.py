@@ -22,6 +22,8 @@ EMU=1: the 4 clients are emulators instead (platform info, no zproxy by default;
   BATTLES=N (CLIENTS="1 3", 1v1): N battles in the same processes (EXIT from 作戦後部屋, Lobby 02 again);
   the result and GGPO checks then expect N battle codes and N GGPO battle ends per client.
   GOPT=opts (GGPO): appended to every ZDXSV_GGPO (e.g. GOPT=replay=0: saving off; live streams anyway).
+  PATCHES=file.json (GGPO, a server with m_patch): m_patch rows for emu lobby 2 (e.g. server_patches.json); checks each
+    GGPO client applied every patch once per battle and, at its end, every code held its change and got its original back.
   UPLOAD=1 (GGPO): replay upload. Clients post (ZDXSV_GGPO upload=) to the lobby's public api on
   127.0.0.1:9881 (/lbs/replay_upload, db migrated first), stored in OUT/upload (ZDXSV_LOBBY_REPLAY_DIR, served
   at /lbs/replays/). Checks per battle code: the stored .pb = one client's saved one,
@@ -208,6 +210,26 @@ def lobby_rule(path, start, gauge, count, time_s):
         db.commit()
         return db.execute("select s.platform, s.start, r.battle_gauge, r.battle_count, r.battle_time from m_lobby_setting s"
                           " join m_rule r on r.id = s.rule_id where s.no = 2 order by s.platform").fetchall()
+    finally:
+        db.close()
+
+
+def lobby_patches(path, patches_file):
+    """Seeds m_patch from a JSON list of {name, game, write_once, codes} and lists them on emu lobby 2.
+    Returns the names, None if the server has no m_patch."""
+    with open(patches_file, encoding="utf-8") as f:
+        patches = json.load(f)
+    db = sqlite3.connect(path)
+    try:
+        if not db.execute("select 1 from sqlite_master where name='m_patch'").fetchone():
+            return None
+        for p in patches:
+            db.execute("insert or replace into m_patch (platform, game, name, write_once, codes) values ('emu', ?, ?, ?, ?)",
+                       (p.get("game", ""), p["name"], 1 if p.get("write_once") else 0, p["codes"]))
+        names = [p["name"] for p in patches]
+        db.execute("update m_lobby_setting set patches = ? where platform = 'emu' and no = 2", (",".join(names),))
+        db.commit()
+        return names
     finally:
         db.close()
 
@@ -493,6 +515,13 @@ def main():
         if any(r[1] != lobby_start for r in rule):
             say(f"FAIL lobby 2 rule: start is not {lobby_start}")
             return 1
+    patch_names = []
+    if E("PATCHES"):
+        patch_names = lobby_patches(os.path.join(out, "zdxsv.db"), E("PATCHES"))
+        if not patch_names or rule is None:
+            say("FAIL PATCHES: the server has no m_patch or m_rule")
+            return 1
+        say(f"lobby 2 patches (emu): {','.join(patch_names)}")
     if E("RELAY"):
         os.environ["ZDXSV_LOBBY_RELAY_ADDR"] = ":8203"
     relay_path = E("RELAY_PATH", "direct")
@@ -924,6 +953,14 @@ def main():
         for i, k, a, f, m in ends:
             say(f"ggpo end p{i} battle {k} end_msg {a} frames {f} mismatches {m}")
         ok(f"ggpo battle ends x{nb}: every recording past every peer's end msg, 0 mismatches", good)
+        for i in gclients if patch_names else []:
+            for l in g(el(i), "ZdxsvPatch: "):
+                say(f"p{i} {l[:200]}")
+            for n in patch_names:
+                ok(f"p{i} patch {n} applied x{nb}", len(g(el(i), f"ZdxsvPatch: {re.escape(n)} applied")) == nb)
+            back = [re.search(r"codes (\d+), held changed (\d+), original back (\d+)", l) for l in g(el(i), "ZdxsvPatch: .* restored")]
+            ok(f"p{i} patches restored x{nb}, every code held its change and got its original back",
+               len(back) == nb and all(m and m[1] == m[2] == m[3] for m in back))
         if E("REPORT"):
             for l in g(lobby, "p2p matching report"):
                 say(l[:300])
