@@ -58,6 +58,7 @@ namespace Zdxsv
 			PutInt(pb, 47, sizeof(NetInput));
 			for (const std::vector<u8>& a : s_replay_answers)
 				PutBytes(pb, 51, a.data(), a.size());
+			ServerPatchesPut(pb, 60, s_battle_patches);
 			return pb;
 		}
 

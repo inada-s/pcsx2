@@ -217,6 +217,12 @@ namespace Zdxsv
 		return true;
 	}
 
+	bool GamePatchCodeOk(uint64_t size, uint64_t address, uint64_t original, uint64_t changed)
+	{
+		return (size == 8 || size == 16 || size == 32) && address <= 0xFFFFFFFFu && address % (size / 8) == 0 &&
+			   (original >> size) == 0 && (changed >> size) == 0;
+	}
+
 	bool ParseGamePatches(const std::string& body, std::vector<GamePatch>& out)
 	{
 		constexpr size_t MAX_PATCHES = 16, MAX_CODES = 256;
@@ -233,8 +239,7 @@ namespace Zdxsv
 					   if (!JsonUint(c, "size", size) || !JsonUint(c, "address", address) || !JsonUint(c, "original", original) ||
 						   !JsonUint(c, "changed", changed))
 						   return false;
-					   if ((size != 8 && size != 16 && size != 32) || address > 0xFFFFFFFFu || address % (size / 8) != 0 ||
-						   (original >> size) != 0 || (changed >> size) != 0)
+					   if (!GamePatchCodeOk(size, address, original, changed))
 						   return false;
 					   p.codes.push_back({static_cast<uint8_t>(size), static_cast<uint32_t>(address), static_cast<uint32_t>(original),
 						   static_cast<uint32_t>(changed)});

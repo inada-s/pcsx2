@@ -33,6 +33,7 @@ namespace Zdxsv
 			std::vector<int64_t> play_starts, game_ends, round_ends;
 			std::vector<int> rounds; // round_data win_team
 			std::vector<u32> round_ms; // round_data used_ms as MsIds packs them, 0xff = unknown
+			std::vector<GamePatch> patches;
 		};
 
 		// PlayState::spans from the file's frames. The load frames are the recorder's; this playback's may come a
@@ -134,6 +135,8 @@ namespace Zdxsv
 						return Pb::ReadInts(wt, v, b, n, r.game_ends);
 					else if (field == 59)
 						return Pb::ReadInts(wt, v, b, n, r.round_ends);
+					else if (field == 60)
+						return r.patches.size() < 16 && ServerPatchRead(b, n, r.patches.emplace_back());
 				}
 				return true;
 			});
@@ -324,6 +327,7 @@ namespace Zdxsv
 				s_play_loads.file_ms = r.round_ms;
 			}
 			s_play.rng_pos = static_cast<int>(me);
+			s_play.patches = std::move(r.patches);
 			s_opt.players = static_cast<int>(players);
 			// key 0 of each position: its state is saved at its common start's arm (PlayCommonStart); the HLE state
 			// here (the recorder's) is only compared there
@@ -630,6 +634,7 @@ namespace Zdxsv
 		PlayKey& k0 = *s_play_keys[me].at(0);
 		const bool hle_same = k0.rb.net_rx == s_rb.net_rx && k0.rb.ps == s_rb.ps && k0.rb.ms == s_rb.ms;
 		MsSlotsClear();
+		ServerPatchesBegin(s_play.patches);
 		Error error;
 		std::unique_ptr<ArchiveEntryList> list = SaveState_DownloadState(&error);
 		if (!list || !SaveState_ZipToDisk(std::move(list), nullptr, k0.path.c_str(), &error))
@@ -805,6 +810,7 @@ namespace Zdxsv
 			s_live_wait.reset(); // played on from the end: no move to another battle
 			SyncFrame(next);
 			PlayFrame(next);
+			ServerPatchesFrame();
 			if (pause)
 				VMManager::SetPaused(true);
 		}
