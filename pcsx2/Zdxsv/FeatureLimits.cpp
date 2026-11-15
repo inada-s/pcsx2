@@ -5,10 +5,23 @@
 
 #include "Host.h"
 
+#include "common/SettingsInterface.h"
+
 namespace Zdxsv
 {
+	namespace
+	{
+		constexpr const char* FEATURE_LIMITS_SECTION = "DEV9/Eth";
+		constexpr const char* FEATURE_LIMITS_KEY = "ZdxsvFeatureLimits";
+	} // namespace
+
 	bool FeaturesLimited()
 	{
-		return Host::GetBoolSettingValue("DEV9/Eth", "ZdxsvFeatureLimits", true);
+		return Host::GetBoolSettingValue(FEATURE_LIMITS_SECTION, FEATURE_LIMITS_KEY, true);
+	}
+
+	bool FeaturesLimitedLocked()
+	{
+		return Host::GetSettingsInterface()->GetBoolValue(FEATURE_LIMITS_SECTION, FEATURE_LIMITS_KEY, true);
 	}
 } // namespace Zdxsv
