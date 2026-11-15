@@ -340,7 +340,7 @@ namespace Zdxsv
 		const std::string machineId = MachineId();
 		if (!machineId.empty())
 			body += "machine_id=" + machineId + "\n";
-		// lobby=1: udp=1 asks the lobby for battle info (0x9951); relay_server=1: GGPO may go through its relay servers.
+		// lobby=1: udp=1 asks older lobbies for battle info (0x9951); relay_server=1: GGPO may go through its relay servers.
 		int ggpoPort;
 		LobbyFilter* filter = nullptr;
 		const std::string udpLines = OpenLobby(serverIp, ggpoPort, filter);
