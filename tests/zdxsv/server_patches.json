@@ -1,0 +1,4 @@
+[
+ {"name": "test-once", "game": "SLPS-25419", "write_once": true, "codes": "# shop spend 0x3bdcc0 lui at,0xce -> 0xcf (not run in battle)\n32,0x3bdcc0,0x3c0100ce,0x3c0100cf"},
+ {"name": "test-frame", "game": "SLPS-25419", "write_once": false, "codes": "32,0x3bdcc4,0x8c231ff4,0x8c231ff0"}
+]

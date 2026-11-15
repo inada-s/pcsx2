@@ -100,10 +100,17 @@ namespace Zdxsv
 		if (s_server_patches.applied.empty())
 			return;
 		EEMemoryInterface ee;
+		size_t codes = 0, held = 0, restored = 0;
 		for (const GamePatch& p : s_server_patches.applied)
 			for (const GamePatchCode& c : p.codes)
+			{
+				codes++;
+				held += ReadCode(ee, c) == c.changed;
 				WriteCode(ee, c, c.original);
-		Console.WriteLn("ZdxsvPatch: %zu patches restored", s_server_patches.applied.size());
+				restored += ReadCode(ee, c) == c.original;
+			}
+		Console.WriteLn("ZdxsvPatch: %zu patches restored, codes %zu, held changed %zu, original back %zu",
+			s_server_patches.applied.size(), codes, held, restored);
 		s_server_patches.applied.clear();
 	}
 } // namespace Zdxsv

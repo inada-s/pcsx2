@@ -271,6 +271,7 @@ namespace Zdxsv
 		std::vector<uint8_t> answers; // frames for the server
 		bool pleaseUpdate = false; // passed the lobby's notice 0x6003 refusing an outdated pcsx2
 		std::vector<GamePatch> patches; // the last notice 0x9953, for the next battle info
+		std::vector<bool> loggedUnknown = std::vector<bool>(256); // custom 0x99xx commands already logged as unknown
 	};
 
 	// A lobby connection is open while its filter lives.
