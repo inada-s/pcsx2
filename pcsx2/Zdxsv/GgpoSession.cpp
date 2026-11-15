@@ -278,6 +278,7 @@ namespace Zdxsv
 		if (s_session)
 			ggpo_close_session(s_session);
 		s_session = nullptr;
+		ServerPatchesEnd();
 		ggpo_set_log_function(nullptr);
 		g_ggpo_active = false;
 		if (!s_vm_closing)

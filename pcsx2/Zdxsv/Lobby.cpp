@@ -208,9 +208,21 @@ namespace Zdxsv
 			{
 				BattleInfo info;
 				if (ParseBattleInfo(std::string(reinterpret_cast<const char*>(f + header), total - header), info))
+				{
+					info.patches = std::exchange(patches, {});
 					SetBattleInfo(info);
+				}
 				else
 					LobbyLog("bad battle info notice");
+			}
+			else if (f[0] == 0x18 && f[1] == 0xFF && f[2] == 0x99 && f[3] == 0x53)
+			{
+				patches.clear();
+				if (!ParseGamePatches(std::string(reinterpret_cast<const char*>(f + header), total - header), patches))
+				{
+					patches.clear();
+					LobbyLog("bad game patch notice");
+				}
 			}
 			else if (answerLineChecks && f[0] == 0x18 && f[1] == 0x01 && f[2] == 0x60 && f[3] == 0x01)
 			{

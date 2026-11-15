@@ -191,6 +191,7 @@ namespace Zdxsv
 		s_opt.players = n;
 		s_net_peers = std::move(peers);
 		s_net_players = s_lobby_players;
+		s_net_patches = s_lobby_patches;
 		s_armed_gen = s_lobby_gen;
 		return true;
 	}
@@ -248,7 +249,7 @@ namespace Zdxsv
 	}
 
 	void SetLobbyPeers(int me, std::vector<std::vector<Zdxsv::PeerAddr>> byPosition, u32 session, int pingMs, std::string ids,
-		std::vector<LobbyPlayer> players, std::vector<Zdxsv::BattleInfo::Relay> relays)
+		std::vector<LobbyPlayer> players, std::vector<Zdxsv::BattleInfo::Relay> relays, std::vector<Zdxsv::GamePatch> patches)
 	{
 		std::lock_guard lock(s_lobby_mtx);
 		s_report_ids = std::move(ids);
@@ -265,6 +266,7 @@ namespace Zdxsv
 		s_lobby_session = session;
 		s_lobby_peers = std::move(byPosition);
 		s_lobby_relays = std::move(relays);
+		s_lobby_patches = std::move(patches);
 		std::vector<int> teams;
 		for (const LobbyPlayer& p : s_lobby_players)
 			teams.push_back(p.team);

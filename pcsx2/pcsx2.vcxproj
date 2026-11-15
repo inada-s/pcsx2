@@ -482,6 +482,7 @@
     <ClCompile Include="Zdxsv\ReplayRecord.cpp" />
     <ClCompile Include="Zdxsv\NoDev9.cpp" />
     <ClCompile Include="Zdxsv\SingleDrawList.cpp" />
+    <ClCompile Include="Zdxsv\ServerPatches.cpp" />
     <ClCompile Include="Zdxsv\AllyHp.cpp" />
     <ClCompile Include="Zdxsv\StickMessage.cpp" />
     <ClCompile Include="Zdxsv\SpectateSync.cpp" />

@@ -44,6 +44,19 @@ namespace Zdxsv
 	// Longest ping test a battle info can ask for.
 	constexpr int MAX_PING_MS = 10000;
 
+	// Notice 0x9953: game patches written in EE RAM during the next battle (the battle info that follows it).
+	struct GamePatchCode
+	{
+		uint8_t size = 0; // bits: 8, 16, 32
+		uint32_t address = 0, original = 0, changed = 0;
+	};
+	struct GamePatch
+	{
+		std::string name, game; // game: the disc serial, empty = any
+		bool writeOnce = false; // false: written every frame
+		std::vector<GamePatchCode> codes;
+	};
+
 	struct BattleInfo
 	{
 		std::string sessionId; // lobby_session_id
@@ -73,6 +86,7 @@ namespace Zdxsv
 		int ggpoPingMs = 0;
 		// spectator_uplink: this client streams the battle to live spectators (LiveUp)
 		bool liveUplink = false;
+		std::vector<GamePatch> patches; // the notice 0x9953 just before this battle info
 		// relays (at most 4): relay servers of the battle, in the lobby's order.
 		struct Relay
 		{
@@ -170,6 +184,10 @@ namespace Zdxsv
 	// limits (8 users, 64 candidates, 4 relays, 256-byte strings) or without its own user.
 	bool ParseBattleInfo(const std::string& body, BattleInfo& out);
 
+	// Notice 0x9953 as JSON. False if malformed or over the limits (16 patches, 256 codes each, 256-byte strings),
+	// a size not 8, 16 or 32, an unaligned address or a value wider than its size.
+	bool ParseGamePatches(const std::string& body, std::vector<GamePatch>& out);
+
 	// Message 0x9952: the report's "key=value" lines (TakeLobbyReport) as a JSON match report.
 	std::string EncodeMatchingReport(const std::string& lines);
 
@@ -252,6 +270,7 @@ namespace Zdxsv
 		std::vector<uint8_t> ready; // frames for the game
 		std::vector<uint8_t> answers; // frames for the server
 		bool pleaseUpdate = false; // passed the lobby's notice 0x6003 refusing an outdated pcsx2
+		std::vector<GamePatch> patches; // the last notice 0x9953, for the next battle info
 	};
 
 	// A lobby connection is open while its filter lives.

@@ -217,6 +217,36 @@ namespace Zdxsv
 		return true;
 	}
 
+	bool ParseGamePatches(const std::string& body, std::vector<GamePatch>& out)
+	{
+		constexpr size_t MAX_PATCHES = 16, MAX_CODES = 256;
+		rapidjson::Document doc;
+		doc.Parse(body.data(), body.size());
+		if (doc.HasParseError() || !doc.IsObject())
+			return false;
+		std::vector<GamePatch> patches;
+		const bool ok = JsonObjects(doc, "patches", MAX_PATCHES, [&](const Json& e) {
+			GamePatch& p = patches.emplace_back();
+			return JsonStr(e, "name", p.name) && JsonStr(e, "game", p.game) && JsonBool(e, "write_once", p.writeOnce) &&
+				   JsonObjects(e, "codes", MAX_CODES, [&](const Json& c) {
+					   uint64_t size = 0, address = 0, original = 0, changed = 0;
+					   if (!JsonUint(c, "size", size) || !JsonUint(c, "address", address) || !JsonUint(c, "original", original) ||
+						   !JsonUint(c, "changed", changed))
+						   return false;
+					   if ((size != 8 && size != 16 && size != 32) || address > 0xFFFFFFFFu || address % (size / 8) != 0 ||
+						   (original >> size) != 0 || (changed >> size) != 0)
+						   return false;
+					   p.codes.push_back({static_cast<uint8_t>(size), static_cast<uint32_t>(address), static_cast<uint32_t>(original),
+						   static_cast<uint32_t>(changed)});
+					   return true;
+				   });
+		});
+		if (!ok)
+			return false;
+		out = std::move(patches);
+		return true;
+	}
+
 	std::string EncodeMatchingReport(const std::string& lines)
 	{
 		std::map<std::string, std::string> kv;
