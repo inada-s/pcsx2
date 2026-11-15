@@ -1,0 +1,3 @@
+[
+ {"name": "test-hp-frame", "game": "SLPS-25419", "write_once": false, "codes": "# HP of player work 2 (0x83d730 + 0x1f2): 0 before the round, the game sets and lowers it in battle\n16,0x83d922,0x0000,0x7fff"}
+]
