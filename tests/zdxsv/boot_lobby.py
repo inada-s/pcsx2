@@ -53,6 +53,8 @@ def lobby(sock, addr):
                 raise ValueError("body %d bytes" % n)
             body = recv(sock, n)
             log("%s C->S cat %02x 0x%04X seq %d %s" % (addr[0], cat, cmd, seq, body.hex()[:64]))
+            if cmd == 0x9950:
+                log("%s platform info: %s" % (addr[0], body.decode("utf-8", "replace").replace("\n", " ")))
             if cat == A and cmd == 0x6101:
                 sock.sendall(frame(Q, 0x6103, 3))
             elif cat == Q and cmd == 0x61A0:

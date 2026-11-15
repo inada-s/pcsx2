@@ -11,12 +11,16 @@
 #include "Zdxsv/Upnp.h"
 
 #include "BuildVersion.h"
+#include "GS/GS.h"
+#include "GS/Renderers/Common/GSDevice.h"
 #include "Host.h"
 #include "IconsFontAwesome.h"
+#include "MTGS.h"
 #include "VMManager.h"
 
 #include "common/Console.h"
 #include "common/HTTPDownloader.h"
+#include "common/HostSys.h"
 #include "common/StringUtil.h"
 
 #include "fmt/format.h"
@@ -220,6 +224,42 @@ namespace Zdxsv
 			return lines + natLine;
 		}
 
+		std::string PlatformValue(std::string_view value)
+		{
+			std::string out;
+			for (const char c : value)
+				if (static_cast<unsigned char>(c) >= 0x20 && c != 0x7F && out.size() < 80)
+					out += c;
+			return std::string(StringUtil::StripWhitespace(out));
+		}
+
+		// The GS device lives on the GS thread; the caller (EE thread) waits for the read.
+		std::string HardwareLines()
+		{
+			std::string lines;
+			if (const std::string cpu = PlatformValue(GetCPUInfo().name); !cpu.empty())
+				lines += "cpu_name=" + cpu + "\ncpu_threads=" + std::to_string(GetCPUInfo().num_threads) + "\n";
+			if (!MTGS::IsOpen())
+				return lines;
+			std::string gpu, api, renderer;
+			MTGS::RunOnGSThread([&gpu, &api, &renderer]() {
+				renderer = Pcsx2Config::GSOptions::GetRendererName(GSConfig.Renderer);
+				if (g_gs_device)
+				{
+					gpu = g_gs_device->GetName();
+					api = GSDevice::RenderAPIToString(g_gs_device->GetRenderAPI());
+				}
+			});
+			MTGS::WaitGS(false);
+			if (const std::string v = PlatformValue(gpu); !v.empty())
+				lines += "gpu=" + v + "\n";
+			if (const std::string v = PlatformValue(api); !v.empty())
+				lines += "gpu_api=" + v + "\n";
+			if (const std::string v = PlatformValue(renderer); !v.empty())
+				lines += "renderer=" + v + "\n";
+			return lines;
+		}
+
 		// Release builds: their tag zdxsv-X.Y.Z. Builds N commits after one: zdxsv-X.Y.(Z+1)-dev.N, which sorts
 		// above X.Y.Z and below the next release. Empty without a zdxsv release tag (local and upstream builds).
 		std::string ClientVersion()
@@ -289,6 +329,7 @@ namespace Zdxsv
 #else
 		body += "cpu=unknown\n";
 #endif
+		body += HardwareLines();
 		const std::string machineId = MachineId();
 		if (!machineId.empty())
 			body += "machine_id=" + machineId + "\n";
