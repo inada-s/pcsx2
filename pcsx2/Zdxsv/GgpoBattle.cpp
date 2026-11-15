@@ -560,6 +560,13 @@ namespace Zdxsv
 				s_battle.zds_k3rel++;
 			s_rb.zds_rel++;
 		}
+		NetRelease(in);
+	}
+
+	// The load barriers' release by the synced inputs of frame s_battle.frame: every position counted the hold.
+	void NetRelease(const NetInput* in)
+	{
+		const int f = s_battle.frame;
 		const auto release = [&](PS& b, int k, char tag) {
 			if (!b.hold || b.go)
 				return;

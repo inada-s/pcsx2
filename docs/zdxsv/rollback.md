@@ -300,8 +300,8 @@ game RNG:
   machine makes, so `pwcheck.py` reports it without judging it. Not judged:
   frames before the play start (local load timing), and from each game end to
   the next play start (the peers enter the end phase on different frames).
-  A replay whose play start comes after its live battle's: those frames are
-  printed as `own load late`, not judged.
+  A replay whose own load step comes after the file's release: the file waits
+  for it (`docs/zdxsv/replay.md`).
 - `ZDXSV_PW_DUMP` writes the player work itself, to find the field behind a
   mismatch.
 - `ZDXSV_NET_TRACE` writes the battle socket traffic and the inputs per frame.

@@ -358,6 +358,7 @@ namespace Zdxsv
 	Input RandInput();
 	NetInput NetPack(const Input& pad, int frame);
 	void NetApply(const NetInput* in);
+	void NetRelease(const NetInput* in);
 	void NetReport();
 	// One file's play state; PlayReset clears it whole, so only state that starts fresh per file belongs here.
 	struct PlayState
@@ -368,6 +369,7 @@ namespace Zdxsv
 		int rng_pos = -1;
 		std::vector<std::pair<int, int>> cut;
 		std::vector<u8> ps_rel; // per frame: the file's play-start barrier releases (PS::rel) before it
+		std::vector<u8> ms_rel; // the same for the MS-select barrier
 		int frames = 0;
 		int rearm_seek = -1; // a switch's common start: the frame to seek to from its key 0
 		bool booted_saved = false; // ZDXSV_REPLAY_STATE empty: the booted state is in the cache (PlayCommonState)
@@ -474,6 +476,7 @@ namespace Zdxsv
 	void TakeoverStart();
 	void TakeoverOff(const char* why);
 	void PlayFrame(int f);
+	bool PlayLoadWait(int f);
 	void PlayReport(const char* what);
 	void PlayStop(const char* what);
 	extern std::atomic<int> s_play_pov_req; // requested position, -1 = none
