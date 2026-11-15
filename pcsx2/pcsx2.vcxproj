@@ -200,6 +200,7 @@
     <ClCompile Include="Zdxsv\LobbyConnection.cpp" />
     <ClCompile Include="Zdxsv\LobbyLive.cpp" />
     <ClCompile Include="Zdxsv\LobbyPing.cpp" />
+    <ClCompile Include="Zdxsv\LogTail.cpp" />
     <ClCompile Include="Zdxsv\Upnp.cpp" />
     <ClCompile Include="Zdxsv\ServerHosts.cpp" />
     <ClCompile Include="Zdxsv\FeatureLimits.cpp" />
@@ -698,6 +699,7 @@
     <ClInclude Include="Zdxsv\Proto.h" />
     <ClInclude Include="Zdxsv\LobbySocket.h" />
     <ClInclude Include="Zdxsv\LobbyNet.h" />
+    <ClInclude Include="Zdxsv\LogTail.h" />
     <ClInclude Include="DEV9\Sessions\UDP_Session\UDP_Common.h" />
     <ClInclude Include="DEV9\Sessions\UDP_Session\UDP_FixedPort.h" />
     <ClInclude Include="DEV9\Sessions\UDP_Session\UDP_BaseSession.h" />

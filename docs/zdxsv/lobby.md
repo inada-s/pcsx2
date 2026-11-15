@@ -123,6 +123,7 @@ line with the JSON as received.
 | `remote_peers`: `recv_loss`, `send_loss` | GGPO battle | GGPO packets from that peer never received, and to it that it reported lost; totals at the last once-a-second sample |
 | `total_timesync`, `input_block_count` | GGPO battle | frames slept so a peer could catch up; frames that waited for a peer's input (GGPO prediction limit) |
 | `fps_history` | GGPO battle, after 1 s | frames run in each second of the session (at most 3600 entries) |
+| `log_tail` | GGPO battle | the last log lines (info level and above, at most 100), newest kept; cut so the report stays within 32767 bytes, beyond which no report is sent |
 | `answered` (45), `cut_sends` (51), `sync` (43), `sync_differ` (44) | cut | peers that answered, sends dropped during the cut, differing settings |
 
 ## How a lobby battle starts

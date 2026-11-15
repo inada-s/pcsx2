@@ -124,6 +124,7 @@ Keys (`net=1`, `lobby=1`, `port=`, `delay=`, ...) are parts of `ZDXSV_GGPO`.
 - **Match report sent to the lobby**: `0x9952`.
 - **Match report: who left, ping**.
 - **Match report round data**: mobile suits per round.
+- **Match report log tail**: the last log lines of each GGPO battle.
 - **Relay servers**: battle info with `relay_<k>`.
 - **Lobby game patches**: a lobby with `m_lobby_setting.patches` (notice `0x9953`); GGPO battles only. The battle's replay and live stream carry them (`BattleLogFile.patches`); playback and spectating apply them the same way.
 - **Custom server messages kept from the game**: every lobby message `0x99xx`, known or not, is consumed by PCSX2; unknown ones are logged once.

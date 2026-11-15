@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0+
 
 #include "pcsx2/Zdxsv/CrashReportHooks.h"
+#include "pcsx2/Zdxsv/LogTail.h"
 #include "pcsx2/Zdxsv/TestOptions.h"
 
 #include "pcsx2/BuildVersion.h"
@@ -41,17 +42,9 @@ namespace Zdxsv
 		constexpr const char* CRASH_REPORTS_SECTION = "DEV9/Eth";
 		constexpr const char* CRASH_REPORTS_KEY = "ZdxsvCrashReports";
 
-		constexpr u32 LOG_TAIL_LINES = 100;
-		constexpr u32 LOG_TAIL_LINE_SIZE = 512;
-
 		struct CrashReportsState
 		{
 			bool running = false;
-			std::mutex log_mutex;
-			char log_lines[LOG_TAIL_LINES][LOG_TAIL_LINE_SIZE];
-			u32 log_lens[LOG_TAIL_LINES] = {};
-			u32 log_next = 0;
-			u32 log_count = 0;
 #ifdef _WIN32
 			std::wstring log_tail_path;
 #else
@@ -73,18 +66,6 @@ namespace Zdxsv
 		}
 
 #ifdef ZDXSV_HAS_SENTRY
-		void LogTap(LOGLEVEL, ConsoleColors, std::string_view message)
-		{
-			CrashReportsState& s = s_crash_reports;
-			std::lock_guard lock(s.log_mutex);
-			char* const line = s.log_lines[s.log_next];
-			const int n = std::snprintf(line, LOG_TAIL_LINE_SIZE, "[%10.4f] %.*s", Log::GetCurrentMessageTime(),
-				static_cast<int>(message.size()), message.data());
-			s.log_lens[s.log_next] = n < 0 ? 0 : std::min<u32>(static_cast<u32>(n), LOG_TAIL_LINE_SIZE - 1);
-			s.log_next = (s.log_next + 1) % LOG_TAIL_LINES;
-			s.log_count = std::min<u32>(s.log_count + 1, LOG_TAIL_LINES);
-		}
-
 		// Runs in the crashed process: no lock (the crashed thread may hold it), no allocation.
 		void WriteLogTail()
 		{
@@ -102,13 +83,13 @@ namespace Zdxsv
 				return;
 			const auto write = [out](const char* p, u32 n) { (void)!::write(out, p, n); };
 #endif
-			const u32 first = (s.log_next + LOG_TAIL_LINES - s.log_count) % LOG_TAIL_LINES;
-			for (u32 i = 0; i < s.log_count; i++)
-			{
-				const u32 slot = (first + i) % LOG_TAIL_LINES;
-				write(s.log_lines[slot], s.log_lens[slot]);
-				write("\n", 1);
-			}
+			LogTailVisitUnlocked(
+				[](void* ctx, const char* line, u32 len) {
+					const auto& w = *static_cast<const decltype(write)*>(ctx);
+					w(line, len);
+					w("\n", 1);
+				},
+				const_cast<void*>(static_cast<const void*>(&write)));
 #ifdef _WIN32
 			CloseHandle(out);
 #else
@@ -163,7 +144,6 @@ namespace Zdxsv
 
 			sentry_user_consent_give();
 			s_crash_reports.running = true;
-			Log::SetTapOutputLevel(LOGLEVEL_INFO, LogTap);
 			Console.WriteLn("Zdxsv: crash reports on");
 		}
 #endif
@@ -180,6 +160,7 @@ namespace Zdxsv
 
 	void CrashReportsStart()
 	{
+		LogTailStart();
 #ifdef ZDXSV_HAS_SENTRY
 		if (!CrashReportsAvailable())
 			return;
@@ -199,11 +180,11 @@ namespace Zdxsv
 
 	void CrashReportsStop()
 	{
+		LogTailStop();
 #ifdef ZDXSV_HAS_SENTRY
 		if (!s_crash_reports.running)
 			return;
 
-		Log::SetTapOutputLevel(LOGLEVEL_NONE, nullptr);
 		sentry_close();
 		s_crash_reports.running = false;
 #endif
