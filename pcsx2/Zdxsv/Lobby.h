@@ -189,7 +189,9 @@ namespace Zdxsv
 	bool ParseGamePatches(const std::string& body, std::vector<GamePatch>& out);
 	bool GamePatchCodeOk(uint64_t size, uint64_t address, uint64_t original, uint64_t changed);
 
-	// Message 0x9952: the report's "key=value" lines (TakeLobbyReport) as a JSON match report.
+	// Message 0x9952: the report's "key=value" lines (TakeLobbyReport) as a JSON match report. log_NNN lines become
+	// log_tail, cut from the oldest to keep the report under MATCHING_REPORT_MAX_BYTES; a larger report is not sent.
+	inline constexpr size_t MATCHING_REPORT_MAX_BYTES = 0x7FFF;
 	std::string EncodeMatchingReport(const std::string& lines);
 
 	// Keeps info (IsBattleServer) and passes it to the listener.

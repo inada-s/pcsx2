@@ -376,6 +376,41 @@ namespace Zdxsv
 			ints("disconnected_peer_ids", SplitInts(it->second, ','));
 		if (auto it = kv.find("fps_history"); it != kv.end() && !it->second.empty())
 			ints("fps_history", SplitInts(it->second, ','));
+		std::vector<std::string> log;
+		for (auto it = kv.lower_bound("log_"); it != kv.end() && it->first.starts_with("log_"); ++it)
+			log.push_back(it->second);
+		if (!log.empty())
+		{
+			// Newest lines first, while the report stays under the limit; one not valid UTF-8 keeps its ASCII.
+			size_t room = MATCHING_REPORT_MAX_BYTES - std::min(MATCHING_REPORT_MAX_BYTES, sb.GetSize() + 32);
+			size_t first = log.size();
+			while (first > 0)
+			{
+				std::string& line = log[first - 1];
+				rapidjson::StringBuffer one;
+				rapidjson::Writer<rapidjson::StringBuffer, rapidjson::UTF8<>, rapidjson::UTF8<>, rapidjson::CrtAllocator,
+					rapidjson::kWriteValidateEncodingFlag>
+					check(one);
+				if (!check.String(line.c_str(), static_cast<rapidjson::SizeType>(line.size())))
+				{
+					for (char& c : line)
+						if (static_cast<unsigned char>(c) >= 0x80)
+							c = '?';
+					one.Clear();
+					rapidjson::Writer<rapidjson::StringBuffer> ascii(one);
+					ascii.String(line.c_str(), static_cast<rapidjson::SizeType>(line.size()));
+				}
+				if (one.GetSize() + 1 > room)
+					break;
+				room -= one.GetSize() + 1;
+				first--;
+			}
+			w.Key("log_tail");
+			w.StartArray();
+			for (size_t i = first; i < log.size(); i++)
+				w.String(log[i].c_str(), static_cast<rapidjson::SizeType>(log[i].size()));
+			w.EndArray();
+		}
 		w.EndObject();
 		return std::string(sb.GetString(), sb.GetSize());
 	}

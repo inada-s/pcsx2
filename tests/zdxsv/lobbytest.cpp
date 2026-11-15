@@ -274,6 +274,18 @@ int main()
 		Zdxsv::EncodeMatchingReport("position=0\nrtt_1=30\ndisconnected=0\ndisconnected_positions=\nping_1=-1/-1/-1\nfps_history=\n");
 	Check(SameJson(sparse, "{\"peer_id\":0,\"disconnected\":false,\"remote_peers\":[{\"peer_id\":1,\"rtt_ms\":30}]}"),
 		"report: no ping sample and no disconnected position leave the fields unset", (int)sparse.size());
+	const std::string logged = Zdxsv::EncodeMatchingReport("position=0\nlog_000=first\nlog_001=a\xff" "b\nlog_002=last\n");
+	Check(SameJson(logged, "{\"peer_id\":0,\"log_tail\":[\"first\",\"a?b\",\"last\"]}"),
+		"report: log lines oldest first, invalid UTF-8 kept as ASCII", (int)logged.size());
+	{
+		std::string lines = "position=0\n";
+		for (int i = 0; i < 100; i++)
+			lines += "log_" + std::string(i < 10 ? "00" : "0") + std::to_string(i) + "=" + std::string(500, 'x') + std::to_string(i) + "\n";
+		const std::string big = Zdxsv::EncodeMatchingReport(lines);
+		Check(big.size() <= Zdxsv::MATCHING_REPORT_MAX_BYTES && big.find("x99\"]}") != std::string::npos &&
+				  big.find("x0\"") == std::string::npos,
+			"report: log tail cut from the oldest within the size limit", (int)big.size());
+	}
 
 	// STUN Ping / Pong: zdxsv's testdata/wire/ping.json and its answer pong.json
 	{

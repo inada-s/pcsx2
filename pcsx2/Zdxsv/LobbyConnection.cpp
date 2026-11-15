@@ -363,7 +363,7 @@ namespace Zdxsv
 		// The last lobby battle's report (0x9952, JSON).
 		const std::string report = ggpoPort > 0 ? TakeLobbyReport() : "";
 		const std::string encoded = EncodeMatchingReport(report);
-		if (!report.empty() && encoded.size() < 0x8000)
+		if (!report.empty() && encoded.size() <= MATCHING_REPORT_MAX_BYTES)
 		{
 			append(0x52, encoded);
 			Console.WriteLn("DEV9: TCP: zdxsv matching report: %s", ReportLogLine(report).c_str());

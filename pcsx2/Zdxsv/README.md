@@ -68,6 +68,7 @@ options: `docs/zdxsv/`.
 | `LobbyLive.cpp` | Live spectating over the lobby HTTP API (one streamed POST, one streamed GET per spectator): `LiveUp` streams a battle, `LiveDown` receives one |
 | `LobbyPing.cpp` | GGPO ping test between the peers (direct and relay paths) and the cut connection's refusal |
 | `LobbyNet.h` | Platform sockets and address helpers shared by the `Lobby*.cpp` files only |
+| `LogTail.cpp`, `LogTail.h` | The last 100 log lines in memory, for crash reports and the match report |
 | `Proto.h` | Minimal protobuf wire codec for replay files |
 | `replay.proto` | Replay file schema (`BattleLogFile` + PCSX2 fields); documentation, not compiled |
 | `GamePatches.cpp` | The Z game's patches (widescreen), built in in place of pnach files; a missing patches.zip is no warning (seam: `PatchHooks.h`) |

@@ -5,6 +5,7 @@
 // (local input, prediction limit wait, synchronized inputs, end of battle).
 
 #include "Zdxsv/GgpoShared.h"
+#include "Zdxsv/LogTail.h"
 #include "Zdxsv/SyncSettings.h"
 
 namespace Zdxsv
@@ -303,6 +304,16 @@ namespace Zdxsv
 				s_report += std::string("close=") + what + "\nframes=" + std::to_string(s_session_frames) +
 				            "\nrollback_frames=" + std::to_string(s_stats.rollback_frames) + "\nmismatches=" + std::to_string(s_stats.mismatches) +
 				            "\ndisconnected=" + (s_run.disconnected ? "1" : "0") + "\n" + peers;
+			if (!s_report.empty())
+			{
+				std::vector<std::string> lines = LogTailLines();
+				for (size_t i = 0; i < lines.size(); i++)
+				{
+					std::replace(lines[i].begin(), lines[i].end(), '\n', ' ');
+					std::replace(lines[i].begin(), lines[i].end(), '\r', ' ');
+					s_report += fmt::format("log_{:03}={}\n", i, lines[i]);
+				}
+			}
 		}
 		if (s_opt.net)
 		{
