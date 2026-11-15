@@ -347,15 +347,18 @@ namespace Zdxsv
 			rb.ms = {static_cast<u8>(h[9]), static_cast<u8>(h[10]), h[11] != 0, h[12] != 0};
 			// the recorder's releases as NetApply makes them: all positions' counts past rel (its own count implies
 			// its hold). A playback whose own load step comes later releases later.
-			s_play.ps_rel.resize(static_cast<size_t>(frames));
-			u8 rel = rb.ps.rel;
-			for (int f = 0; f < s_play.frames; f++)
-			{
-				s_play.ps_rel[f] = rel;
-				const NetInput* in = &s_play.inputs[static_cast<size_t>(f) * s_opt.players];
-				if (std::all_of(in, in + s_opt.players, [rel](const NetInput& i) { return static_cast<u8>(i.pad.unused[1] - rel - 1) < 127; }))
-					rel++;
-			}
+			const auto file_rel = [](std::vector<u8>& out, u8 rel, int k) {
+				out.resize(static_cast<size_t>(s_play.frames));
+				for (int f = 0; f < s_play.frames; f++)
+				{
+					out[f] = rel;
+					const NetInput* in = &s_play.inputs[static_cast<size_t>(f) * s_opt.players];
+					if (std::all_of(in, in + s_opt.players, [rel, k](const NetInput& i) { return static_cast<u8>(i.pad.unused[k] - rel - 1) < 127; }))
+						rel++;
+				}
+			};
+			file_rel(s_play.ps_rel, rb.ps.rel, 1);
+			file_rel(s_play.ms_rel, rb.ms.rel, 0);
 			Console.WriteLn("ZdxsvGgpo: replay %s: recorded at position %lld of %d, %lld frames, rx0 %zu bytes, "
 							"%zu lobby answers, state hashes %s, rngs %zu", path.c_str(), me, s_opt.players, frames,
 				rb.net_rx.size(), s_play_answers.size(), r.hashes.empty() ? "no" : "yes",
@@ -808,8 +811,11 @@ namespace Zdxsv
 		{
 			s_play.at_end = false;
 			s_live_wait.reset(); // played on from the end: no move to another battle
-			SyncFrame(next);
-			PlayFrame(next);
+			if (!PlayLoadWait(next))
+			{
+				SyncFrame(next);
+				PlayFrame(next);
+			}
 			ServerPatchesFrame();
 			if (pause)
 				VMManager::SetPaused(true);

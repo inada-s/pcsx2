@@ -21,7 +21,9 @@ namespace Zdxsv
 			int hashes = 0, hash_bad = 0, hash_first_bad = -1, rngs = 0, rng_bad = 0;
 			int hash_cut = 0;
 			int late = 0, late_loads = 0, late_max = 0, late_run = 0;
+			int wait = 0, wait_loads = 0, wait_max = 0, wait_run = 0;
 		} s_check;
+		constexpr int LOAD_WAIT_MAX = 600;
 		const int s_play_key_every = [] {
 			const char* e = TestEnv("ZDXSV_REPLAY_KEY");
 			return e ? std::atoi(e) : 600;
@@ -263,9 +265,8 @@ namespace Zdxsv
 		{
 			if (s_cycle_log > 0 && f % s_cycle_log == 0)
 				Console.WriteLn("ZdxsvGgpo: cycles at frame %d: ee %llu iop %llu", f, static_cast<unsigned long long>(cpuRegs.cycle), static_cast<unsigned long long>(psxRegs.cycle));
-			// own load late: the file released the play-start barrier, this machine reached the load step after it
-			// and releases later; the release's RNG B draw comes that much later (the load step's frame is
-			// machine-local). Counted apart, not a desync.
+			// own load late past PlayLoadWait's bound: the file released the play-start barrier, this machine
+			// reached the load step after it and releases later. Counted apart, not judged.
 			const bool late = f < static_cast<int>(s_play.ps_rel.size()) && static_cast<u8>(s_play.ps_rel[f] - s_rb.ps.rel - 1) < 127;
 			if (late)
 			{
@@ -597,13 +598,46 @@ namespace Zdxsv
 		NetApply(in);
 	}
 
+	// The file released a load barrier with frame f - 1's inputs, this machine's load step is not there yet: the
+	// load's length is machine-local (state the common start does not carry). With no other position to wait for
+	// (a 1-player battle) the game would take every later input that many frames late. So the file stays at f - 1,
+	// its barrier counts applied each frame, until the own hold is released. Needs proper testing with more players.
+	bool PlayLoadWait(int f)
+	{
+		const auto ahead = [f](const std::vector<u8>& file, const PS& b) {
+			return f < static_cast<int>(file.size()) && static_cast<u8>(file[f] - b.rel - 1) < 127;
+		};
+		const bool late = s_to_phase != TO_ON && f == s_battle.frame + 1 &&
+						  (ahead(s_play.ps_rel, s_rb.ps) || (s_ms_on && ahead(s_play.ms_rel, s_rb.ms)));
+		if (!late)
+		{
+			if (s_check.wait_run > 0 && s_check.wait_run <= LOAD_WAIT_MAX)
+				Console.WriteLn("ZdxsvGgpo: replay own load late by %d frames at frame %d: the file waited", s_check.wait_run, s_battle.frame);
+			s_check.wait_run = 0;
+			return false;
+		}
+		if (s_check.wait_run >= LOAD_WAIT_MAX)
+		{
+			if (s_check.wait_run++ == LOAD_WAIT_MAX)
+				Console.Warning("ZdxsvGgpo: replay own load step not reached in %d frames at frame %d: playing on", LOAD_WAIT_MAX, s_battle.frame);
+			return false;
+		}
+		if (s_check.wait_run++ == 0)
+			s_check.wait_loads++;
+		s_check.wait++;
+		s_check.wait_max = std::max(s_check.wait_max, s_check.wait_run);
+		NetRelease(&s_play.inputs[static_cast<size_t>(s_battle.frame) * s_opt.players]);
+		return true;
+	}
+
 	void PlayReport(const char* what)
 	{
 		Console.WriteLn("ZdxsvGgpo: replay %s at frame %d of %d, vsync %u", what, s_battle.frame, s_play.frames, g_FrameCount);
 		Console.WriteLn("ZdxsvGgpo: replay state check: hashes %d checked, %d differ (first at frame %d); rngs %d checked, %d differ; "
-						"%d frames after a round or game end not checked; own load late %d frames (%d loads, max %d), not checked",
+						"%d frames after a round or game end not checked; own load late %d frames (%d loads, max %d), not checked; "
+						"file waited for own loads %d frames (%d loads, max %d)",
 			s_check.hashes, s_check.hash_bad, s_check.hash_first_bad, s_check.rngs, s_check.rng_bad, s_check.hash_cut,
-			s_check.late, s_check.late_loads, s_check.late_max);
+			s_check.late, s_check.late_loads, s_check.late_max, s_check.wait, s_check.wait_loads, s_check.wait_max);
 		NetReport();
 	}
 

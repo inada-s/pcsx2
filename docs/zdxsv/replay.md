@@ -30,10 +30,15 @@ battle-socket state at frame 0, the synced inputs of every position, and
 the round results. Optional per-frame state hashes and the game RNGs at
 each load end let playback detect a desync; a file without them plays
 unchecked. `tests/zdxsv/replay_check.py` compares the files of one battle.
-The battle-load step's frame is machine-local: when playback reaches it after
-the file's play-start release, it releases N frames later and draws RNG B
-N frames later. Those frames are logged as `own load late by N`, not as a
-desync.
+The battle-load and MS-select load steps' frames are machine-local: the
+load's length depends on state the common start does not carry. When
+playback reaches a load step N frames after the file released its barrier,
+the file waits at that frame until the own hold is released, so the game
+takes the later inputs on the frames it took them live (logged as
+`own load late by N ... the file waited`). Without the wait a 1-player
+battle would play every later input N frames late. A wait is bounded at
+600 frames; past it playback plays on and those frames count as
+`own load late`, not judged.
 The game's MS asset slot cache holds the MSes a machine loaded before and
 sets a hashed player-work byte at each battle load. Every GGPO session and
 every common start empties it at frame 0 (the game reloads each battle MS),
