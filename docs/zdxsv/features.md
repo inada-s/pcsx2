@@ -137,6 +137,7 @@ Keys (`net=1`, `lobby=1`, `port=`, `delay=`, ...) are parts of `ZDXSV_GGPO`.
 - **"UPnP Now" button on Settings → zdxsv**.
 - **HTTPS latency test**: cloud regions; `ZDXSV_HTTPS_LATENCY=0` turns it off.
 - **`machine_id` in the platform info**: Windows, macOS.
+- **CPU, GPU and renderer in the platform info**.
 - **OSD message when the lobby refuses this PCSX2 as outdated**: notice `0x6003`.
 - **Lobby network waits and ping test RTT**: bounded waits, candidates from packet sources, median RTT.
 - **Battle info, match report and lobby STUN Ping/Pong as JSON**.
