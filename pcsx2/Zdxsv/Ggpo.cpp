@@ -207,7 +207,7 @@ namespace Zdxsv
 	static bool NextInputs()
 	{
 		if (s_opt.net) // the session start: no input yet, GGPO's frame delay fills the first frames
-			return NetSyncAndApply();
+			return GgpoSyncAndApply(false);
 		if (s_session_frames % 5 == 0)
 		{
 			for (Input& in : s_random)
@@ -615,7 +615,7 @@ namespace Zdxsv
 			ggpo_lock.unlock();
 			DeferredThrottle(false);
 			ggpo_lock.lock();
-			if (!ok || !NetSyncAndApply())
+			if (!ok || !GgpoSyncAndApply(false))
 				GgpoStop("failed");
 			return;
 		}
