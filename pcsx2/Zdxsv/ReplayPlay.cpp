@@ -615,6 +615,7 @@ namespace Zdxsv
 		PlayHideReset();
 		s_bar_frame = -1;
 		s_battle.over = true; // the battle sock goes back to the IOP
+		ServerPatchesEnd();
 		PlayReport(what);
 		if (const char* e = TestEnv("ZDXSV_REPLAY_EXIT"); g_replay_child || (e && e[0] == '1'))
 			Host::RunOnCPUThread([] { Host::RequestVMShutdown(false, false, false); });

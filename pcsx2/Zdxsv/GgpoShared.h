@@ -116,6 +116,9 @@ namespace Zdxsv
 	void ServerPatchesBegin(const std::vector<GamePatch>& patches);
 	void ServerPatchesFrame();
 	void ServerPatchesEnd();
+	// replay.proto BattleLogFile patches: Put writes one field per patch, Read takes one (false: malformed or out of range).
+	void ServerPatchesPut(std::vector<uint8_t>& pb, uint32_t field, const std::vector<GamePatch>& patches);
+	bool ServerPatchRead(const uint8_t* b, size_t n, GamePatch& out);
 	u32 ReplayStateHash();
 	u32 GameRng();
 	static constexpr u32 TICK_STATE = 0xc627b4; // u8 game phase; 8 = battle load
@@ -285,6 +288,7 @@ namespace Zdxsv
 	extern int s_min_delay; // mindelay=, else setting DEV9/Eth ZdxsvGgpoMinDelay
 	extern std::vector<LobbyPlayer> s_lobby_players, s_net_players;
 	extern std::vector<GamePatch> s_lobby_patches, s_net_patches; // the last battle info's; the armed battle's
+	extern std::vector<GamePatch> s_battle_patches; // the started battle's, for its replay header
 	extern std::mutex s_lobby_mtx;
 	extern std::vector<Zdxsv::PeerAddr> s_net_peers; // per position, picked when armed
 	extern std::vector<int> s_net_via; // per position: PingResult.via (0 direct, 1 peer relay, 2 relay server)
@@ -381,6 +385,7 @@ namespace Zdxsv
 		int speed = 0; // -2..2
 		std::deque<std::pair<int, int>> round_at; // ZDXSV_REPLAY_ROUND_AT=frame:round,...
 		bool pov_ok[GGPO_MAX_PLAYERS] = {};
+		std::vector<GamePatch> patches; // the file's, applied from each common start
 	};
 	extern PlayState s_play;
 	// Written on the CPU thread; the GS thread reads it under s_battle_loads_mtx.

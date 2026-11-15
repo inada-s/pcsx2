@@ -151,6 +151,18 @@ def c(p, rx):
     return len(g(p, rx))
 
 
+def patches_played(who, f, names, n=1):
+    """A replay or live player applied the stream's patches (PATCHES) n times and restored them, else none."""
+    if not names:
+        ok(f"{who}: no patch applied", c(f, "ZdxsvPatch: ") == 0)
+        return
+    for name in names:
+        ok(f"{who}: patch {name} applied x{n}", len(g(f, f"ZdxsvPatch: {re.escape(name)} applied")) == n)
+    back = [re.search(r"codes (\d+), held changed (\d+), original back (\d+)", l) for l in g(f, "ZdxsvPatch: .* restored")]
+    ok(f"{who}: patches restored x{n}, every code held its change and got its original back",
+       len(back) == n and all(m and m[1] == m[2] == m[3] for m in back))
+
+
 def reports(p):
     """The match reports (0x9952 JSON) the lobby log p carries: its `p2p matching report` lines' "report" field."""
     out = []
@@ -1024,6 +1036,7 @@ def main():
                 ok(f"{code}: API replay played to its end, instance exited",
                    bool(ends) and ends[0][1].isdigit() and ends[0][2].isdigit() and int(ends[0][1]) + 1 == int(ends[0][2])
                    and not zrig.alive(pid))
+                patches_played("API replay", f, patch_names)
                 if E("PWTRACE"):
                     pc = os.path.join(out, "pwcheck-api.txt")
                     with open(pc, "wb") as fo:
@@ -1155,6 +1168,7 @@ def main():
         scf = sc.split()
         ok("spectator checked the stream's state hashes, none differ",
            len(scf) >= 7 and scf[4].isdigit() and int(scf[4]) > 0 and scf[6] == "0")
+        patches_played("spectator", f, patch_names, nw)
         if nw == 1:
             # the uplink's round results as sent (BATTLES > 1: the watched battle's only), the spectator's as
             # received (also ahead of its playback)

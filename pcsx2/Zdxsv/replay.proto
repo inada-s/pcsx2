@@ -65,4 +65,20 @@ message BattleLogFile {
   // Pairs: each earlier tick state 6 -> 7 after the same play start (a round end) and the frame the tick next enters 6.
   // The peers enter the round's load between them on different frames (RNG B is drawn there): state checks skip it.
   repeated int32 round_end_frames = 59;
+  // The lobby's game patches for this battle (notice 0x9953), applied again at playback start (absent: none).
+  repeated GamePatch patches = 60;
+}
+
+message GamePatch {
+  string game_disk = 1;  // disc serial, "" = any
+  string name = 2;
+  bool write_once = 4;  // false: written every frame
+  repeated GamePatchCode codes = 10;
+}
+
+message GamePatchCode {
+  int32 size = 1;  // bits: 8, 16, 32
+  uint32 address = 2;
+  uint32 original = 3;
+  uint32 changed = 4;
 }

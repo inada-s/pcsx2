@@ -305,7 +305,7 @@ namespace Zdxsv
 	int s_min_delay = 2; // mindelay=, else setting DEV9/Eth ZdxsvGgpoMinDelay
 	// network status OSD: user id, name + pilot name per position (lobby battle info), lines of the last frame
 	std::vector<LobbyPlayer> s_lobby_players, s_net_players;
-	std::vector<GamePatch> s_lobby_patches, s_net_patches;
+	std::vector<GamePatch> s_lobby_patches, s_net_patches, s_battle_patches;
 
 	GGPOSession* s_session = nullptr;
 	bool s_frame_ended = false; // the CPU left Execute() at a vsync
@@ -524,7 +524,8 @@ namespace Zdxsv
 				GgpoStop(fail);
 				return;
 			}
-			ServerPatchesBegin(std::exchange(s_net_patches, {}));
+			s_battle_patches = std::exchange(s_net_patches, {});
+			ServerPatchesBegin(s_battle_patches);
 			if (s_opt.net)
 				ReplayBegin();
 			// The synctest saves frame 0 at the first synchronize_input.
