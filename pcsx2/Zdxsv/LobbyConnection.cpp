@@ -90,18 +90,25 @@ namespace Zdxsv
 		std::string ReportLogLine(const std::string& report)
 		{
 			std::string out;
-			size_t start = 0;
+			size_t start = 0, log_lines = 0;
 			while (start < report.size())
 			{
 				size_t end = report.find('\n', start);
 				if (end == std::string::npos)
 					end = report.size();
 				std::string line = report.substr(start, end - start);
+				start = end + 1;
+				if (line.starts_with("log_"))
+				{
+					log_lines++;
+					continue;
+				}
 				if (const size_t eq = line.find('='); line.starts_with("addr_") && eq != std::string::npos)
 					line = line.substr(0, eq + 1) + MaskIpAddress(line.substr(eq + 1));
 				out += (out.empty() ? "" : " ") + line;
-				start = end + 1;
 			}
+			if (log_lines > 0)
+				out += fmt::format(" log_tail={} lines", log_lines);
 			return out;
 		}
 
