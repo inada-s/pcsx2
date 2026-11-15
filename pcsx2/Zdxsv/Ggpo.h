@@ -38,6 +38,8 @@ namespace Zdxsv
 	// The last lobby battle's P2PMatchingReport body ("key=value" lines), then cleared; "" if none.
 	// Sent to the lobby (0x9952) after the next platform info.
 	std::string TakeLobbyReport();
+	// The game patches of the next battle on the battle server (SetRelayPatchesListener), empty for none.
+	void ServerPatchesForRelay(std::vector<Zdxsv::GamePatch> patches);
 	// Replay play (ZDXSV_REPLAY): start frames of the rounds played so far (control bar marks).
 	std::vector<int> ReplayRoundStarts();
 	// Replay play: per round, W / L / D (draw) for the shown position's team; the file's round_data, else the rounds played so far.

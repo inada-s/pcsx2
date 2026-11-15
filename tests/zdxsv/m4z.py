@@ -22,8 +22,9 @@ EMU=1: the 4 clients are emulators instead (platform info, no zproxy by default;
   BATTLES=N (CLIENTS="1 3", 1v1): N battles in the same processes (EXIT from 作戦後部屋, Lobby 02 again);
   the result and GGPO checks then expect N battle codes and N GGPO battle ends per client.
   GOPT=opts (GGPO): appended to every ZDXSV_GGPO (e.g. GOPT=replay=0: saving off; live streams anyway).
-  PATCHES=file.json (GGPO, a server with m_patch): m_patch rows for emu lobby 2 (e.g. server_patches.json); checks each
-    GGPO client applied every patch once per battle and, at its end, every code held its change and got its original back.
+  PATCHES=file.json (EMU, a server with m_patch): m_patch rows for emu lobby 2 (e.g. server_patches.json); checks each
+    GGPO client (without GGPO: each client, from its first key msg on the battle server) applied every patch once per
+    battle and, at its end, every code held its change and got its original back.
   UPLOAD=1 (GGPO): replay upload. Clients post (ZDXSV_GGPO upload=) to the lobby's public api on
   127.0.0.1:9881 (/lbs/replay_upload, db migrated first), stored in OUT/upload (ZDXSV_LOBBY_REPLAY_DIR, served
   at /lbs/replays/). Checks per battle code: the stored .pb = one client's saved one,
@@ -965,14 +966,18 @@ def main():
         for i, k, a, f, m in ends:
             say(f"ggpo end p{i} battle {k} end_msg {a} frames {f} mismatches {m}")
         ok(f"ggpo battle ends x{nb}: every recording past every peer's end msg, 0 mismatches", good)
-        for i in gclients if patch_names else []:
-            for l in g(el(i), "ZdxsvPatch: "):
-                say(f"p{i} {l[:200]}")
-            for n in patch_names:
-                ok(f"p{i} patch {n} applied x{nb}", len(g(el(i), f"ZdxsvPatch: {re.escape(n)} applied")) == nb)
-            back = [re.search(r"codes (\d+), held changed (\d+), original back (\d+)", l) for l in g(el(i), "ZdxsvPatch: .* restored")]
-            ok(f"p{i} patches restored x{nb}, every code held its change and got its original back",
-               len(back) == nb and all(m and m[1] == m[2] == m[3] for m in back))
+    for i in (gclients if ggpo else clients) if emu and patch_names else []:
+        for l in g(el(i), "ZdxsvPatch: "):
+            say(f"p{i} {l[:200]}")
+        if not ggpo:
+            ok(f"p{i} battle server battle patches from the first key msg x{nb}",
+               len(g(el(i), "ZdxsvPatch: battle server battle, first key msg")) == nb)
+        for n in patch_names:
+            ok(f"p{i} patch {n} applied x{nb}", len(g(el(i), f"ZdxsvPatch: {re.escape(n)} applied")) == nb)
+        back = [re.search(r"codes (\d+), held changed (\d+), original back (\d+)", l) for l in g(el(i), "ZdxsvPatch: .* restored")]
+        ok(f"p{i} patches restored x{nb}, every code held its change and got its original back",
+           len(back) == nb and all(m and m[1] == m[2] == m[3] for m in back))
+    if emu and ggpo:
         if E("REPORT"):
             for l in g(lobby, "p2p matching report"):
                 say(l[:300])

@@ -765,6 +765,15 @@ namespace Zdxsv
 		OnNetRpc();
 		if (GgpoNetCall())
 			return true;
+		if (!s_play_env && !s_rbk)
+		{
+			const u32 fno = cpuRegs.GPR.n.a0.UL[0];
+			const u8* ram = eeMem->Main;
+			const s16 sock = *reinterpret_cast<const s16*>(ram + NET_REQ_SOCK);
+			const s16 len = *reinterpret_cast<const s16*>(ram + NET_REQ_LEN);
+			const bool key = fno == NET_FNO_SEND && sock == NET_BATTLE_SOCK && len > 0 && len <= 0x3ca && HasKeyMsg(ram + NET_REQ_DATA, len);
+			ServerPatchesRelayOnNetCall(fno, sock, key);
+		}
 		return g_no_dev9 && NoDev9OnNetCall();
 	}
 

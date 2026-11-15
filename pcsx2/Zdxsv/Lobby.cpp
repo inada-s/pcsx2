@@ -32,6 +32,7 @@ namespace Zdxsv
 		std::function<void(const std::string&)> g_log;
 		BattleInfo g_info;
 		std::function<void(const BattleInfo&)> g_listener;
+		std::function<void(std::vector<GamePatch>)> g_relay_listener;
 		std::vector<std::vector<uint8_t>> g_startAnswers; // LobbyNoteFrame, under g_mtx
 
 		std::string AddrString(uint32_t ip, uint16_t port)
@@ -108,6 +109,12 @@ namespace Zdxsv
 	{
 		std::lock_guard lock(g_mtx);
 		g_listener = std::move(listener);
+	}
+
+	void SetRelayPatchesListener(std::function<void(std::vector<GamePatch>)> listener)
+	{
+		std::lock_guard lock(g_mtx);
+		g_relay_listener = std::move(listener);
 	}
 
 	int GgpoPeers(const BattleInfo& info, const std::string& ownPublicIP, std::vector<std::vector<PeerAddr>>& byPosition)
@@ -245,6 +252,16 @@ namespace Zdxsv
 				if (f[0] == 0x18 && f[1] == 0x10 && f[2] == 0x60 && f[3] == 0x03 &&
 					std::string_view(reinterpret_cast<const char*>(f + header), total - header).find(update) != std::string_view::npos)
 					pleaseUpdate = true;
+				if (f[2] == 0x69 && f[3] == 0x16)
+				{
+					std::function<void(std::vector<GamePatch>)> relay;
+					{
+						std::lock_guard lock(g_mtx);
+						relay = g_relay_listener;
+					}
+					if (relay)
+						relay(std::exchange(patches, {}));
+				}
 				LobbyNoteFrame(f, total);
 				out.insert(out.end(), f, f + total);
 			}

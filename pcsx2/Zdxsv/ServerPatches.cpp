@@ -8,6 +8,8 @@
 #include "Memory.h"
 #include "VMManager.h"
 
+#include <mutex>
+
 namespace Zdxsv
 {
 	namespace
@@ -17,6 +19,14 @@ namespace Zdxsv
 			std::vector<GamePatch> applied;
 		};
 		ServerPatchState s_server_patches;
+
+		struct RelayPatchState
+		{
+			std::mutex mtx;
+			std::vector<GamePatch> next; // under mtx: from the DEV9 thread
+			bool on = false;
+		};
+		RelayPatchState s_relay_patches;
 
 		u32 ReadCode(EEMemoryInterface& ee, const GamePatchCode& c)
 		{
@@ -112,6 +122,50 @@ namespace Zdxsv
 		Console.WriteLn("ZdxsvPatch: %zu patches restored, codes %zu, held changed %zu, original back %zu",
 			s_server_patches.applied.size(), codes, held, restored);
 		s_server_patches.applied.clear();
+	}
+
+	void ServerPatchesForRelay(std::vector<GamePatch> patches)
+	{
+		std::lock_guard lock(s_relay_patches.mtx);
+		s_relay_patches.next = std::move(patches);
+	}
+
+	void ServerPatchesRelayOnNetCall(u32 fno, s16 sock, bool key)
+	{
+		if (sock != NET_BATTLE_SOCK)
+			return;
+		if (key && !s_relay_patches.on)
+		{
+			std::vector<GamePatch> patches;
+			{
+				std::lock_guard lock(s_relay_patches.mtx);
+				patches = std::exchange(s_relay_patches.next, {});
+			}
+			if (patches.empty())
+				return;
+			Console.WriteLn("ZdxsvPatch: battle server battle, first key msg at vsync %u", g_FrameCount);
+			ServerPatchesBegin(patches);
+			s_relay_patches.on = true;
+		}
+		else if (fno == NET_FNO_CLOSE && s_relay_patches.on)
+		{
+			s_relay_patches.on = false;
+			ServerPatchesEnd();
+		}
+	}
+
+	void ServerPatchesRelayOnVsync()
+	{
+		if (s_relay_patches.on)
+			ServerPatchesFrame();
+	}
+
+	void ServerPatchesRelayReset()
+	{
+		if (std::exchange(s_relay_patches.on, false))
+			ServerPatchesEnd();
+		std::lock_guard lock(s_relay_patches.mtx);
+		s_relay_patches.next.clear();
 	}
 
 	void ServerPatchesPut(std::vector<uint8_t>& pb, uint32_t field, const std::vector<GamePatch>& patches)

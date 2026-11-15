@@ -282,6 +282,7 @@ namespace Zdxsv
 		int ggpoPort;
 		LobbyFilter* filter = nullptr;
 		OpenLobby(serverIp, ggpoPort, filter, false); // the lobby cannot know the port (no platform info): fake_lobby.py --ggpo
+		SetRelayPatchesListener([](std::vector<GamePatch> patches) { ServerPatchesForRelay(std::move(patches)); });
 		return filter;
 	}
 
@@ -339,6 +340,7 @@ namespace Zdxsv
 		const std::string udpLines = OpenLobby(serverIp, ggpoPort, filter);
 		if (!filter)
 			filter = new LobbyFilter();
+		SetRelayPatchesListener([](std::vector<GamePatch> patches) { ServerPatchesForRelay(std::move(patches)); });
 		const int advertise = GgpoLobbyAdvertisePort();
 		if (ggpoPort > 0 && advertise > 0)
 		{

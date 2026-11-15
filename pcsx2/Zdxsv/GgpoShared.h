@@ -116,6 +116,11 @@ namespace Zdxsv
 	void ServerPatchesBegin(const std::vector<GamePatch>& patches);
 	void ServerPatchesFrame();
 	void ServerPatchesEnd();
+	// A battle on the battle server (a battle sock RPC GGPO left to the IOP): Begin at its first key msg,
+	// End at the battle sock's close; Vsync runs Frame in between.
+	void ServerPatchesRelayOnNetCall(u32 fno, s16 sock, bool key);
+	void ServerPatchesRelayOnVsync();
+	void ServerPatchesRelayReset();
 	// replay.proto BattleLogFile patches: Put writes one field per patch, Read takes one (false: malformed or out of range).
 	void ServerPatchesPut(std::vector<uint8_t>& pb, uint32_t field, const std::vector<GamePatch>& patches);
 	bool ServerPatchRead(const uint8_t* b, size_t n, GamePatch& out);

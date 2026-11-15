@@ -363,6 +363,7 @@ namespace Zdxsv
 
 	void GgpoOnVsync()
 	{
+		ServerPatchesRelayOnVsync();
 		if (s_rbk && s_net_env && !s_battle.armed)
 			VMManager::SetLimiterMode(LimiterModeType::Turbo);
 		// Once: the rbk knobs as received; zdxsv/rbk.sh compares this line to what it meant to pass
@@ -689,7 +690,7 @@ namespace Zdxsv
 		}
 		g_ggpo_enabled = !s_options.empty() || s_play_env;
 		s_net_env = s_options.find("net=1") != std::string::npos || s_play_env;
-		g_net_hook = s_net_trace != nullptr || s_net_env || g_no_dev9;
+		g_net_hook = true; // trace, GGPO, no-DEV9, and the game patches of a battle on the battle server
 		g_zd_hook = s_net_env;
 		g_ps_hook = true;
 		if (!s_options.empty() || std::strcmp(serial, GAME_SERIAL) == 0)
@@ -755,6 +756,7 @@ namespace Zdxsv
 		if (std::strcmp(what, "vm shutdown") == 0)
 			g_mtvu_off = false; // the next VM decides again (a reset VM keeps it off)
 		SyncSettingsReset();
+		ServerPatchesRelayReset();
 		OnlineLimitsReset();
 		FastLoginReset();
 		StopCutRefusal();

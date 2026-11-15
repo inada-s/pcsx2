@@ -198,6 +198,10 @@ namespace Zdxsv
 	// Called by SetBattleInfo (DEV9 thread) with every battle info (pcsx2: GGPO lobby peers).
 	void SetBattleInfoListener(std::function<void(const BattleInfo&)> listener);
 
+	// Called by LobbyFilter (DEV9 thread) at each battle server address answer (0x6916) with the game patches
+	// no battle info took, empty for none: the patches of a battle on the battle server.
+	void SetRelayPatchesListener(std::function<void(std::vector<GamePatch>)> listener);
+
 	// GGPO address candidates of every player by battle position (own position empty); the first one is
 	// the default without a ping test. ownPublicIP "" = unknown. A player without a GGPO port or p2p
 	// address gets none (the ping test may still find a path). A player whose candidates carry its GGPO
