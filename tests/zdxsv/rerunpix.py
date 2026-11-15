@@ -48,12 +48,14 @@ def main(argv):
     zrig.need("OUT", "RUN")
     out = os.environ["OUT"]
     frames = int(zrig.env("FRAMES", "1200"))
+    start = deltatest.ARCADE_START
     shutil.rmtree(out, ignore_errors=True)
     os.makedirs(out)
     os.environ["ZDXSV_INPUT_LATENCY"] = f"count=0,pixel={GRID}"
     zrig.export(argv[0] if argv else "")
-    _, lines = deltatest.run(["-Var", "ZDXSV_GGPO", "-Spec", f"start=9000,frames={frames},check=2,mask=fcff",
-                              "-Route", "arcade", "-End", str(9100 + frames), "-Tag", "t", "-Out", out], show=False)
+    _, lines = deltatest.run(["-Var", "ZDXSV_GGPO", "-Spec", f"start={start},frames={frames},check=2,mask=fcff",
+                              "-Route", "arcade", "-End", str(start + 100 + frames), "-Tag", "t", "-Out", out,
+                              "-Speed", "2"], show=False)
     for l in lines:
         if "synctest start" in l or "MISMATCH" in l:
             print(l)

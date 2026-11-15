@@ -12,10 +12,16 @@ import time
 import zrig
 from launch import launch
 
-# from boot, 1P side, name あああ, default suits, battle by ~f8000
-ARCADE = ("f1500,Return,w3000,C,w6000,C,w5000,C,w5000,C,w5000,C,w5000,Return,w2000,C,w2000,Up,w500,Left,w800,"
-          "Down,w400,Down,w400,Down,w400,Down,w400,Left,w400,Left,w400,C,w5000,C,w5000,C,w5000,C,w5000,C,w6000,"
-          "C,w6000,C,w6000,C,w6000,C,w6000,C,w6000")
+# from boot to an arcade battle (1P side, default suits): Start and Circle in turn up to the name entry, which
+# needs its 決定 key (Start there types "!"), then again up to the briefing. Controls are live from ~f4620,
+# after 作戦開始.
+def _mash(first, end):
+    return ",".join(f"f{f},Return,f{f + 40},C" for f in range(first, end, 80))
+
+
+ARCADE = (_mash(300, 2000) + ",f2100,Up,w500,Left,w800,Down,w400,Down,w400,Down,w400,Down,w400,Left,w400,Left,w400,C,"
+          + _mash(2700, 3400))
+ARCADE_START = 4700
 
 
 def pine(*a, quiet_out=False):
@@ -39,7 +45,7 @@ def wait_snaps(quiet_s=5, max_s=300):
 def run(argv, show=True):
     """(rc, the ZdxsvDelta/ZdxsvGgpo log lines); the lines printed when SHOW."""
     o = {"-Spec": "start=1500,frames=3000,depth=8,every=20", "-Var": "ZDXSV_DELTA_TEST", "-Snaps": "",
-         "-End": "4600", "-Tag": "a", "-Out": "delta", "-Route": ""}
+         "-End": "4600", "-Tag": "a", "-Out": "delta", "-Route": "", "-Speed": "1"}
     for k, v in zip(argv[::2], argv[1::2] + [""] * (len(argv) % 2)):
         if k not in o:
             print(f"FAIL deltatest.py: unknown argument {k}")
@@ -50,7 +56,7 @@ def run(argv, show=True):
     out = o["-Out"]
     os.makedirs(out, exist_ok=True)
     zrig.kill_name("pcsx2")
-    launch([1], extra_env={o["-Var"]: o["-Spec"]}, quiet=True)
+    launch([1], extra_env={o["-Var"]: o["-Spec"]}, quiet=True, speed=o["-Speed"])
     if route:
         pine("seq", route)
     for f in o["-Snaps"].split():
