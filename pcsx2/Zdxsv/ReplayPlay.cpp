@@ -373,6 +373,7 @@ namespace Zdxsv
 		void PlayHide(bool undrawn, bool fast)
 		{
 			g_rerun_draw_skip = g_rerun_vu1_skip = undrawn && s_seek_draw_skip;
+			RerunKeepSeekFrame(g_rerun_draw_skip);
 			g_replay_silent_frame = undrawn || fast;
 			g_replay_fast_frame = undrawn || fast;
 			s_hide.drawn = undrawn ? 0 : std::min(s_hide.drawn + 1, SEEK_DRAWN_FRAMES);
@@ -382,6 +383,7 @@ namespace Zdxsv
 		void PlayHideReset()
 		{
 			g_rerun_draw_skip = g_rerun_vu1_skip = g_replay_silent_frame = g_replay_fast_frame = g_replay_hidden_frame = false;
+			RerunKeepSeekFrame(false);
 			s_hide = {};
 			s_hide.drawn = SEEK_DRAWN_FRAMES;
 		}
