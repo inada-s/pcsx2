@@ -306,6 +306,10 @@ namespace Zdxsv
 			s_play.frames = static_cast<int>(frames);
 			s_play.hashes.resize(r.hashes.size() == static_cast<u64>(frames) * sizeof(u32) ? static_cast<size_t>(frames) : 0);
 			std::memcpy(s_play.hashes.data(), r.hashes.data(), s_play.hashes.size() * sizeof(u32));
+			s_play.loads.clear();
+			for (const int64_t l : r.load_frames)
+				if (l > 0 && l < frames && (s_play.loads.empty() || l > s_play.loads.back()))
+					s_play.loads.push_back(static_cast<int>(l));
 			s_play.rngs.clear();
 			if (r.start_rng)
 				s_play.rngs[0] = *r.start_rng;
@@ -787,6 +791,11 @@ namespace Zdxsv
 			{
 				req = s_play_loads.battle[load];
 				Console.WriteLn("ZdxsvGgpo: replay round %d: starts at frame %d", load - 1, req);
+			}
+			else if (!s_play.round_states.empty() && load < static_cast<int>(s_play.loads.size()))
+			{
+				req = s_play.loads[load];
+				Console.WriteLn("ZdxsvGgpo: replay round %d: starts at the file's frame %d", load - 1, req);
 			}
 			else
 			{

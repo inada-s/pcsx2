@@ -405,6 +405,7 @@ namespace Zdxsv
 		std::map<int, RoundState> round_states; // the file's, by frame (a round jump writes one over the key of the first)
 		int jump_check = -1; // after a round jump to this frame: state hashes are not checked up to the next load end
 		std::set<int> select_starts; // the file's MS-select load ends (the first load end and the first after each span)
+		std::vector<int> loads; // the file's load ends, in order (as s_play_loads.battle)
 	};
 	extern PlayState s_play;
 	// Written on the CPU thread; the GS thread reads it under s_battle_loads_mtx.

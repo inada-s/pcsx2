@@ -177,6 +177,17 @@ D-pad. While taken over the pad plays the game.
   state leaves the battle load (load 0 = mobile suit selection, 1 =
   briefing, 1 + N = round N). A jump to a round not reached yet runs
   unthrottled to it. Previous round goes to the round before the one shown.
+- **Round states**: the recorder stores a round state (`round_states`) at
+  each load end: the game RAM ranges that carry a round into the next (RNG,
+  mobile suit cache and slot table, results block, per-player round record)
+  and the battle-socket state. A seek or round jump past the played frames
+  whose path holds a mobile-suit-selection load end with a state starts
+  from the first load end's key with that state written over it, instead of
+  running every frame from the start. State hashes are not checked up to the
+  next load end (the player work still holds the first round's values); the
+  first checked frame after it that differs drops the round states and the
+  keys after the jump and seeks again the usual way. A file without the field
+  seeks as before.
 - **Round results**: the bar shows each round's W / L / D for the shown
   position's team; playback logs a round whose result differs from the file.
   Hovering them lists each round's mobile suits (the file's `used_ms`, else
