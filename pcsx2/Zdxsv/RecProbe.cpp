@@ -215,7 +215,8 @@ namespace Zdxsv
 
 	} // namespace
 
-	// ZDXSV_EE_PROFILE: started by the first rerun frame, on the CPU thread.
+	// ZDXSV_EE_PROFILE: started by the first rerun frame, on the CPU thread. ZDXSV_EE_PROFILE_PLAYED samples the replay
+	// bench's played frames instead of rerun frames.
 	void EeProfileOnRerun()
 	{
 		static bool started = false;
@@ -227,22 +228,61 @@ namespace Zdxsv
 		const HANDLE th = OpenThread(THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT, FALSE, GetCurrentThreadId());
 		if (!th)
 			return;
-		std::thread([th, path = std::string(out) + "-" + std::to_string(GetCurrentProcessId()) + ".txt"] {
+		const bool played = TestEnv("ZDXSV_EE_PROFILE_PLAYED") != nullptr;
+		std::thread([th, played, path = std::string(out) + "-" + std::to_string(GetCurrentProcessId()) + ".txt"] {
+			auto active = [played] { return played ? g_bench_played : g_ggpo_in_rollback; };
 			auto in = [](uptr ip, const u8* a, const u8* b) { return ip >= reinterpret_cast<uptr>(a) && ip < reinterpret_cast<uptr>(b); };
 			std::map<std::string, u32> hist;
 			std::map<uptr, u32> native; // host pc outside recompiled code
 			std::map<std::pair<u32, uptr>, u32> native_at; // (EE pc, host pc) of the same samples
 			std::map<std::array<uptr, 3>, u32> chains; // host pc and its two callers
 			u32 n = 0;
+			u32 written = 0;
+			auto write = [&] {
+				written = n;
+				std::map<std::string, u32> fns;
+				for (const auto& [a, c] : native)
+				{
+					fns["fn " + HostSymbol(a)] += c;
+					fns["ln " + HostLine(a)] += c;
+				}
+				for (const auto& [k, c] : native_at)
+				{
+					char at[24];
+					std::snprintf(at, sizeof(at), "at %08x fn ", k.first);
+					fns[at + HostSymbol(k.second)] += c;
+				}
+				for (const auto& [k, c] : chains)
+				{
+					std::string s = "ch " + HostSymbol(k[0]);
+					for (size_t i = 1; i < k.size() && k[i]; i++)
+						s += " < " + HostSymbol(k[i]);
+					fns[s] += c;
+				}
+				std::vector<std::pair<std::string, u32>> v(hist.begin(), hist.end());
+				v.insert(v.end(), fns.begin(), fns.end());
+				std::sort(v.begin(), v.end(), [](const auto& a, const auto& b) { return a.second > b.second; });
+				if (FILE* f = std::fopen(path.c_str(), "w"))
+				{
+					std::fprintf(f, "samples %u\n", n);
+					for (const auto& [k, c] : v)
+						std::fprintf(f, "%u %s\n", c, k.c_str());
+					std::fclose(f);
+				}
+			};
+			u32 idle = 0;
 			for (;;)
 			{
 				std::this_thread::sleep_for(std::chrono::microseconds(200));
-				if (!g_ggpo_in_rollback || SuspendThread(th) == static_cast<DWORD>(-1))
+				idle = active() ? 0 : idle + 1;
+				if (idle == 2000 && n != written)
+					write();
+				if (!active() || SuspendThread(th) == static_cast<DWORD>(-1))
 					continue;
 				// No allocation while the thread is suspended: it may hold the heap lock.
 				CONTEXT c = {};
 				c.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER;
-				const bool ok = GetThreadContext(th, &c) && g_ggpo_in_rollback;
+				const bool ok = GetThreadContext(th, &c) && active();
 				const uptr ip = ok ? c.Rip : 0;
 				// Native callers by unwind data, up to recompiled code (no unwind data there).
 				std::array<uptr, 3> chain = {ip, 0, 0};
@@ -315,37 +355,8 @@ namespace Zdxsv
 					std::snprintf(key, sizeof(key), "ra %08x", ras[i]);
 					hist[key]++;
 				}
-				if (++n % 2000 != 0)
-					continue;
-				std::map<std::string, u32> fns;
-				for (const auto& [a, c] : native)
-				{
-					fns["fn " + HostSymbol(a)] += c;
-					fns["ln " + HostLine(a)] += c;
-				}
-				for (const auto& [k, c] : native_at)
-				{
-					char at[24];
-					std::snprintf(at, sizeof(at), "at %08x fn ", k.first);
-					fns[at + HostSymbol(k.second)] += c;
-				}
-				for (const auto& [k, c] : chains)
-				{
-					std::string s = "ch " + HostSymbol(k[0]);
-					for (size_t i = 1; i < k.size() && k[i]; i++)
-						s += " < " + HostSymbol(k[i]);
-					fns[s] += c;
-				}
-				std::vector<std::pair<std::string, u32>> v(hist.begin(), hist.end());
-				v.insert(v.end(), fns.begin(), fns.end());
-				std::sort(v.begin(), v.end(), [](const auto& a, const auto& b) { return a.second > b.second; });
-				if (FILE* f = std::fopen(path.c_str(), "w"))
-				{
-					std::fprintf(f, "samples %u\n", n);
-					for (const auto& [k, c] : v)
-						std::fprintf(f, "%u %s\n", c, k.c_str());
-					std::fclose(f);
-				}
+				if (++n % 2000 == 0)
+					write();
 			}
 		}).detach();
 	}

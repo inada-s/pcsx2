@@ -134,6 +134,7 @@ namespace Zdxsv
 
 	extern bool g_ee_probe; // ZDXSV_EE_PROBE or ZDXSV_EE_WATCH is set
 	void EeProfileOnRerun(); // each rerun frame, CPU thread: ZDXSV_EE_PROFILE (RecProbe.cpp)
+	extern bool g_bench_played; // ZDXSV_REPLAY_BENCH times a played frame (ReplayBench.cpp)
 	// EE recompiler, before each non-delay-slot instruction: any call to emit at pc.
 	inline bool RecHooksOn() { return g_ee_probe || g_net_hook || g_zd_hook || g_ps_hook; }
 	// Emits the probe and hook calls for pc; dispatcher = where a hook that answered leaves the block.
