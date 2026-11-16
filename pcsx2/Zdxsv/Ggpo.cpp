@@ -272,6 +272,7 @@ namespace Zdxsv
 	bool g_rerun_vu1_skip = false;
 	bool g_rerun_draw_skip = false;
 	u64 g_rerun_spu2_ticks = 0;
+	const bool g_rerun_split_time = Zdxsv::TestEnv("ZDXSV_RERUN_SPLIT") != nullptr;
 	bool g_gs_rerun_frame = false;
 	bool s_net_env = false; // net=1 in s_options, or a replay plays (GgpoOnVmInitialize)
 	// ZDXSV_RBK=i/N: until GGPO arms, every lobby / battle connect RPC is answered here (RbkCall).

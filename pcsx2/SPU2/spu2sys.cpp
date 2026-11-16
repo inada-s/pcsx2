@@ -344,7 +344,7 @@ __forceinline void TimeUpdate(u64 cClocks)
 		lClocks = cClocks - dClocks;
 	}
 
-	const u64 zdxsv_t0 = (Zdxsv::g_ggpo_in_rollback && dClocks >= TickInterval) ? Common::Timer::GetCurrentValue() : 0;
+	const u64 zdxsv_t0 = (Zdxsv::g_rerun_split_time && Zdxsv::g_ggpo_in_rollback && dClocks >= TickInterval) ? Common::Timer::GetCurrentValue() : 0;
 	ScopedGuard zdxsv_time([zdxsv_t0]() {
 		if (zdxsv_t0)
 			Zdxsv::g_rerun_spu2_ticks += Common::Timer::GetCurrentValue() - zdxsv_t0;

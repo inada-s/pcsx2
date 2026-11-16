@@ -16,6 +16,7 @@ namespace Zdxsv
 	extern bool g_ggpo_active; // a session runs
 	extern bool g_ggpo_in_rollback; // rerunning frames: no throttle
 	extern u64 g_rerun_vu1_ticks; // Common::Timer ticks in VU1 microcode during rerun frames (microVU.cpp)
+	extern const bool g_rerun_split_time; // ZDXSV_RERUN_SPLIT: the rerun ticks above are measured
 	// this rerun frame starts no VU1 microprogram (vu1ExecMicro; Ggpo.cpp AdvanceFrame, ZDXSV_RERUN_VU1)
 	extern bool g_rerun_vu1_skip;
 	extern bool g_replay_fast_frame; // not throttled
