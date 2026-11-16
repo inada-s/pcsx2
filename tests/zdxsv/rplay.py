@@ -4,7 +4,8 @@ PW hashes, then pwcheck compares them with the live battle's traces (rbk.py OUT/
 Env: N (instance, default 1), CLAMP (ZDXSV_EE_CLAMP of the recording: rbk.py's is in its emulog `rbk env`;
 a lobby battle has none; unset = read from the `rbk env` lines of emulog-p*.txt next to the live traces, the
 replay or its parent dir, a CLAMP differing from them FAILs before launch, CLAMP=none plays without one), PLAYERS (players compared, default 2), OWN (default 1: pwcheck --own),
-STATE (any state of the game to boot from; default rbk-p1), MAXS (default 300).
+STATE (any state of the game to boot from; default rbk-p1), MAXS (default 300; an `R5900 Exception` in the emulog
+or a replay load error FAILs at once instead).
 WINDOW=1: windowed, 1x (no turbo). KEYS="secs:seq;..." (needs WINDOW=1): pcsx2ctl -Seq at secs after the
 replay started; binds the seek hotkeys (PageUp back / PageDown forward 10 s), step (Home back / Insert forward), TogglePause (Space), key
 display (End), round jump (Shift+PageUp / Shift+PageDown) in the instance ini. With PCSX2_ENV=ZDXSV_REPLAY_EXIT=0 the replay pauses at its end; Space then ends it (H lines written).
@@ -225,7 +226,7 @@ def main(live):
     t1 = time.time()
     maxs = int(zrig.env("MAXS", "300"))
     badrx = (r"ZdxsvGgpo: replay( [^:]*)?: (state load failed|not a replay|bad header|not another position|cannot write)"
-             r"|ZdxsvGgpo: replay seek: key [0-9]* load failed")
+             r"|ZdxsvGgpo: replay seek: key [0-9]* load failed|R5900 Exception: ")
     while time.time() - t0 < maxs:
         time.sleep(1)
         if zrig.count_name("pcsx2") == 0:
