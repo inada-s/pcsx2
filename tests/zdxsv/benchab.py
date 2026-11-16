@@ -4,7 +4,7 @@ per part of the battle report, each side's mean and min-max over every client lo
 `differs` only when the two ranges do not overlap. Parts: rerun frame mean (wall), spu2 / vu1 ms per
 rerun frame, save / load ms mean, emulate mean.
   OUT=<dir> python tests/zdxsv/benchab.py "<A env>" "<B env>" [R=2]   (e.g. "" "ZDXSV_RERUN_REVERB=1")
-Env: as rbk.py; defaults TRACE=0 LAT=40 JITTER=8. PCSX2_ENV is kept, the side's env is appended.
+Env: as rbk.py; defaults TRACE=0 LAT=40 JITTER=8. PCSX2_ENV is kept, ZDXSV_RERUN_SPLIT=1 and the side's env are appended.
 Logs: $OUT/a1, b1, a2, .. (rbk.py OUT), summary $OUT/benchab.txt. A failed rbk.py run stops it (exit 1).
 """
 import glob
@@ -41,7 +41,7 @@ def main(argv):
     os.makedirs(out, exist_ok=True)
     for k, v in (("TRACE", "0"), ("LAT", "40"), ("JITTER", "8")):
         os.environ.setdefault(k, v)
-    base = zrig.env("PCSX2_ENV")
+    base = zrig.env("PCSX2_ENV") + " ZDXSV_RERUN_SPLIT=1"
     for r in range(1, int(reps) + 1):
         for s, e in (("a", a), ("b", b)):
             print(f"== {s}{r}: {e or '(no env)'}", flush=True)

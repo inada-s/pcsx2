@@ -386,7 +386,7 @@ void recMicroVU1::Execute(u32 cycles)
 			return;
 	}
 	VU1.VI[REG_TPC].UL <<= 3;
-	const u64 t0 = Zdxsv::g_ggpo_in_rollback ? Common::Timer::GetCurrentValue() : 0;
+	const u64 t0 = (Zdxsv::g_rerun_split_time && Zdxsv::g_ggpo_in_rollback) ? Common::Timer::GetCurrentValue() : 0;
 	((mVUrecCall)microVU1.startFunct)(VU1.VI[REG_TPC].UL, cycles);
 	if (t0)
 		Zdxsv::g_rerun_vu1_ticks += Common::Timer::GetCurrentValue() - t0;
