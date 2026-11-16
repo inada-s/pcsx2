@@ -23,7 +23,7 @@ namespace Zdxsv
 	void SpuLazyReset();
 
 	// Before anything outside the mixer reads or writes SPU2 state.
-	inline void SpuLazyWake()
+	static __fi void SpuLazyWake()
 	{
 		if (g_spu_lazy.mask[0] | g_spu_lazy.mask[1])
 			SpuLazyWakeAll();
@@ -38,7 +38,7 @@ namespace Zdxsv
 	}
 
 	// In the mixer, per stopped voice and tick: true = skip this voice's step.
-	inline bool SpuLazySkip(u32 core, u32 voice, u32 cycles)
+	static __fi bool SpuLazySkip(u32 core, u32 voice, u32 cycles)
 	{
 		if (g_spu_lazy.mask[core] & (1u << voice))
 		{
