@@ -420,12 +420,35 @@ static __forceinline StereoOut32 MixVoice(uint coreidx, uint voiceidx)
 	return voiceOut;
 }
 
+// Same steps as MixVoice for a stopped voice, which outputs silence.
+static __forceinline void StepStoppedVoice(uint coreidx, uint voiceidx)
+{
+	V_Core& thiscore(Cores[coreidx]);
+	V_Voice& vc(thiscore.Voices[voiceidx]);
+
+	vc.Volume.Update();
+	DecodeSamples(coreidx, voiceidx);
+	UpdatePitch(coreidx, voiceidx);
+	ConsumeSamples(thiscore, voiceidx);
+
+	if (voiceidx == 1)
+		spu2M_WriteFast(((0 == coreidx) ? 0x400 : 0xc00) + OutPos, 0);
+	else if (voiceidx == 3)
+		spu2M_WriteFast(((0 == coreidx) ? 0x600 : 0xe00) + OutPos, 0);
+}
+
 static __forceinline void MixCoreVoices(VoiceMixSet& dest, const uint coreidx)
 {
 	V_Core& thiscore(Cores[coreidx]);
 
 	for (uint voiceidx = 0; voiceidx < V_Core::NumVoices; ++voiceidx)
 	{
+		if (thiscore.Voices[voiceidx].ADSR.Phase == V_ADSR::PHASE_STOPPED)
+		{
+			StepStoppedVoice(coreidx, voiceidx);
+			continue;
+		}
+
 		StereoOut32 VVal(MixVoice(coreidx, voiceidx));
 
 		// Note: Results from MixVoice are ranged at 16 bits.
