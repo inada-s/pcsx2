@@ -190,10 +190,10 @@ D-pad. While taken over the pad plays the game.
   jumps. State hashes are not checked up to the
   next load end (the player work still holds the first round's values); the
   first checked frame after it that differs drops the round states and the
-  keys after the jump and seeks again the usual way. A round entered without
-  a mobile suit selection (its briefing is the first load end after the
-  round before) keeps state from that round that the first selection does
-  not have: it is reached by seeking. A file without the field,
+  keys after the jump and seeks again the usual way. A round's
+  mobile-suit-selection load end is the load end before its briefing; a
+  room that shows a rematch screen loads it before the selection, one that
+  plays a set number of games does not. A file without the field,
   or with a `log_file_version` before 20261116 (its round states lack part
   of that RAM: a later round can load another stage or pick another mobile
   suit), seeks as before.
