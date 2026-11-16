@@ -682,6 +682,7 @@ namespace Zdxsv
 			PlaySlowWait();
 		PlayKeySave(f);
 		PlayStepRingSave(f);
+		ReplayBenchSave(f);
 		s_battle.frame = f;
 		PlayBarPublish();
 		PlayKeysPublish(f);
@@ -758,6 +759,7 @@ namespace Zdxsv
 	void PlayReset()
 	{
 		SyncStop();
+		ReplayBenchReset();
 		s_sync_chase = false;
 		for (auto& keys : s_play_keys)
 		{

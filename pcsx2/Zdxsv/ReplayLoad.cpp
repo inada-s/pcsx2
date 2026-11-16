@@ -717,6 +717,7 @@ namespace Zdxsv
 				if (const size_t c = one.find(':'); c != std::string_view::npos)
 					s_play.round_at.emplace_back(StringUtil::FromChars<int>(one.substr(0, c)).value_or(-1),
 						StringUtil::FromChars<int>(one.substr(c + 1)).value_or(-1));
+		ReplayBenchStart();
 		if (const char* e = TestEnv("ZDXSV_REPLAY_SEEK"))
 			for (const std::string_view one : StringUtil::SplitString(e, ','))
 				if (const size_t c = one.find(':'); c != std::string_view::npos)
@@ -841,6 +842,7 @@ namespace Zdxsv
 			if (!PlayLoadWait(next))
 			{
 				SyncFrame(next);
+				ReplayBenchNext(next);
 				PlayFrame(next);
 			}
 			ServerPatchesFrame();
