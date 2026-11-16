@@ -9,6 +9,8 @@
 
 #include "common/Assertions.h"
 
+#include "Zdxsv/SpuHooks.h"
+
 // LOOP/END sets the ENDX bit and sets NAX to LSA, and the voice is muted if LOOP is not set
 // LOOP seems to only have any effect on the block with LOOP/END set, where it prevents muting the voice
 // (the documented requirement that every block in a loop has the LOOP bit set is nonsense according to tests)
@@ -437,6 +439,16 @@ static __forceinline void StepStoppedVoice(uint coreidx, uint voiceidx)
 		spu2M_WriteFast(((0 == coreidx) ? 0x600 : 0xe00) + OutPos, 0);
 }
 
+void spu2StepStoppedVoice(uint coreidx, uint voiceidx)
+{
+	StepStoppedVoice(coreidx, voiceidx);
+}
+
+void spu2UpdateBlockHeader(uint coreidx, uint voiceidx)
+{
+	UpdateBlockHeader(Cores[coreidx], voiceidx);
+}
+
 static __forceinline void MixCoreVoices(VoiceMixSet& dest, const uint coreidx)
 {
 	V_Core& thiscore(Cores[coreidx]);
@@ -445,6 +457,8 @@ static __forceinline void MixCoreVoices(VoiceMixSet& dest, const uint coreidx)
 	{
 		if (thiscore.Voices[voiceidx].ADSR.Phase == V_ADSR::PHASE_STOPPED)
 		{
+			if (Zdxsv::SpuLazySkip(coreidx, voiceidx, Cycles))
+				continue;
 			StepStoppedVoice(coreidx, voiceidx);
 			continue;
 		}

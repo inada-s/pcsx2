@@ -8,6 +8,7 @@
 #include "R3000A.h"
 #include "IopHw.h"
 #include "Config.h"
+#include "Zdxsv/SpuHooks.h"
 
 static constexpr int CYCLES_PER_WORD = 24;
 
@@ -153,6 +154,7 @@ void V_Core::StartADMAWrite(u16* pMem, u32 sz)
 	int size = sz;
 
 	TimeUpdate(psxRegs.cycle);
+	Zdxsv::SpuLazyWake();
 
 	if (SPU2::MsgAutoDMA())
 	{
@@ -215,6 +217,7 @@ void V_Core::PlainDMAWrite(u16* pMem, u32 size)
 	}
 
 	TimeUpdate(psxRegs.cycle);
+	Zdxsv::SpuLazyWake();
 
 	ReadSize = size;
 	IsDMARead = false;
@@ -442,6 +445,7 @@ void V_Core::FinishDMAread()
 void V_Core::DoDMAread(u16* pMem, u32 size)
 {
 	TimeUpdate(psxRegs.cycle);
+	Zdxsv::SpuLazyWake();
 
 	DMARPtr = pMem;
 	ActiveTSA = TSA & 0xfffff;

@@ -171,6 +171,7 @@ set(pcsx2Sources
 	Zdxsv/ReplayLoad.cpp
 	Zdxsv/ReplayList.cpp
 	Zdxsv/ReplayBench.cpp
+	Zdxsv/SpuLazyVoices.cpp
 	Zdxsv/ReplayPlay.cpp
 	Zdxsv/AudioTap.cpp
 	Zdxsv/ReplayRecord.cpp
@@ -273,6 +274,7 @@ set(pcsx2Headers
 	Zdxsv/SyncSettings.h
 	Zdxsv/OnlineLimits.h
 	Zdxsv/RecHooks.h
+	Zdxsv/SpuHooks.h
 	Zdxsv/CpuHooks.h
 	Zdxsv/InputHooks.h
 	Zdxsv/DefaultsHooks.h

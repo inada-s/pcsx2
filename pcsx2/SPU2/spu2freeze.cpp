@@ -8,6 +8,8 @@
 
 #include <cstring>
 
+#include "Zdxsv/SpuHooks.h"
+
 namespace SPU2Savestate
 {
 	// Arbitrary ID to identify SPU2 saves.
@@ -214,6 +216,7 @@ size_t SPU2DeltaVoicesSize()
 
 void SPU2DeltaSaveVoices(u8* out)
 {
+	Zdxsv::SpuLazyWake();
 	SPU2DeltaVoice* dv = reinterpret_cast<SPU2DeltaVoice*>(out);
 	for (int c = 0; c < 2; c++)
 	{
@@ -238,6 +241,7 @@ void SPU2DeltaSaveVoices(u8* out)
 
 void SPU2DeltaLoadVoices(const u8* in)
 {
+	Zdxsv::SpuLazyReset();
 	const SPU2DeltaVoice* dv = reinterpret_cast<const SPU2DeltaVoice*>(in);
 	for (int c = 0; c < 2; c++)
 	{

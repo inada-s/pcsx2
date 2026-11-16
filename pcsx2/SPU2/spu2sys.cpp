@@ -21,6 +21,7 @@
 #include "common/Console.h"
 #include "common/ScopedGuard.h"
 #include "common/Timer.h"
+#include "Zdxsv/SpuHooks.h"
 
 s16 spu2regs[0x010000 / sizeof(s16)];
 alignas(__pagesize) s16 _spu2mem[0x200000 / sizeof(s16)]; // zdxsv delta state protects its pages
@@ -41,6 +42,8 @@ s32 (*ReverbDownsample)(V_Core& core, bool right);
 
 // Function pointer for multi-isa mixer 
 void (*spu2Mix)();
+void (*spu2StepStoppedVoice)(uint coreidx, uint voiceidx);
+void (*spu2UpdateBlockHeader)(uint coreidx, uint voiceidx);
 
 static bool psxmode = false;
 
@@ -291,6 +294,7 @@ __forceinline void CheckDMAProgress(int cid)
 
 		if (((core.AutoDMACtrl & adma_cbit) != adma_cbit) && core.ReadSize)
 		{
+			Zdxsv::SpuLazyWake();
 			if (core.IsDMARead)
 				core.FinishDMAread();
 			else
