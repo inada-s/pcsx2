@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: GPL-3.0+
 
 // zdxsv lobby side of a GGPO battle (ZDXSV_GGPO lobby=1).
-// The lobby sends the custom notice 0x9951 (battle info) to emulators that
-// announce "udp=1" in their platform info. LobbyFilter strips it from the
+// The lobby sends the custom notice 0x9951 (battle info) to emulator players.
+// LobbyFilter strips it from the
 // game's stream and hands it to the listener (GGPO peers). The game itself
 // always talks TCP to the battle server (no zproxy UDP bridge).
 // Self-contained (sockets + std only) so it builds outside pcsx2 for tests.
