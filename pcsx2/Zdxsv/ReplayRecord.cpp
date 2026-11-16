@@ -332,6 +332,11 @@ namespace Zdxsv
 			LiveFeed(frames);
 			s_live->Close(what);
 		}
+		if (frames == 0)
+		{
+			Console.WriteLn("ZdxsvGgpo: replay: no confirmed frame (%s), not saved or uploaded", what);
+			return;
+		}
 		const std::string ids = ReplayIds();
 		const std::string code = IdValue(ids, "battle_code");
 		std::string name;
