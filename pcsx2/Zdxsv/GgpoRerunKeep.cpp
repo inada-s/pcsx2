@@ -44,8 +44,9 @@ namespace Zdxsv
 
 		// Parts attached to a player draw their matrix into a bone block of the player's slot past the blocks
 		// RebuildPlayerSlot copies; the player's next draw reads it. Their draws also run in skipped rerun
-		// frames, through the object draw walker alone.
-		constexpr u32 PART_HANDLER = 0x1f6520;
+		// and seek frames, through the object draw walker alone. 0x3ae340 also leaves the matrix in the player
+		// work (+0x20a8 from the work, 0x2350 from the object), which the next frame's logic reads.
+		constexpr u32 PART_HANDLERS[] = {0x1f6520, 0x3ae340};
 		// Render callbacks of DRAW_RUN_PC: count at gp - 0x5e20, pointers from 0x6e8550.
 		constexpr u32 DRAW_LIST_COUNT_GP_OFFSET = 0x5e20, DRAW_LIST = 0x6e8550, DRAW_LIST_MAX = 64;
 
@@ -103,6 +104,7 @@ namespace Zdxsv
 			bool logged = false;
 			bool parts_logged = false;
 			bool walked = false;
+			bool seek = false; // a replay seek frame that skips the draws
 		};
 		RerunKeep s_keep;
 
@@ -327,7 +329,7 @@ namespace Zdxsv
 
 	bool RerunKeepWalksObjects()
 	{
-		if (!s_keep_parts || !s_keep.rebuild_slots)
+		if (!s_keep_parts || !(s_keep.rebuild_slots || s_keep.seek))
 			return false;
 		const u32 count = ReadU32((cpuRegs.GPR.n.gp.UL[0] - DRAW_LIST_COUNT_GP_OFFSET) & (Ps2MemSize::MainRam - 4));
 		for (u32 i = 0; i < std::min(count, DRAW_LIST_MAX); i++)
@@ -350,7 +352,13 @@ namespace Zdxsv
 		// The walker calls a handler only for an object not culled.
 		if (IsPlayerHandler(handler))
 			RebuildPlayerSlot(obj & (Ps2MemSize::MainRam - 1));
-		return handler == PART_HANDLER;
+		return std::find(std::begin(PART_HANDLERS), std::end(PART_HANDLERS), handler) != std::end(PART_HANDLERS);
+	}
+
+	void RerunKeepSeekFrame(bool skipped)
+	{
+		s_keep.seek = skipped;
+		s_keep.walked = false;
 	}
 
 	bool OnDrawRun()

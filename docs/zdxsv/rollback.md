@@ -115,14 +115,18 @@ frame (see below), else for every player after each rerun frame. A player
 the walker culls (0x2ac630) is not drawn and its copy stays from an older
 frame, which the draw after the cull reads. Kept, or copied for culled
 players too, some pictures after a rollback differ from a full rerun.
-Parts attached to a player (handler 0x1f6520, e.g. object 0xb130d0 on the
-player at 0x839330) draw their matrix into a further block of the player's
-slot (0x2a25c0: slot+0x300 + 0x240 * desc[4]), which the player's next draw
-reads. That matrix is built in the part's draw and is in no game state, so
-rerun frames that skip the callbacks still run the object draw walker
-(0x2ac4e0, from the first callback runner) with only these handlers;
-`ZDXSV_RERUN_PARTS=0` skips them. Without them runs of pictures after
-rollbacks differ from a full rerun (up to ~4000 pixels).
+Parts attached to a player (handlers 0x1f6520 and 0x3ae340, e.g. object
+0xb130d0 on the player at 0x839330) draw their matrix into a further block of
+the player's slot (0x2a25c0: slot+0x300 + 0x240 * desc[4]), which the
+player's next draw reads. A 0x3ae340 part's draw (0x3ae240) also writes the
+matrix into the player work (+0x20a8, object +0x2350), over the copy the
+frame logic wrote, and the next frame's logic reads it. So rerun frames that
+skip the callbacks still run the object draw walker (0x2ac4e0, from the
+first callback runner) with only these handlers, and so do replay seek
+frames; `ZDXSV_RERUN_PARTS=0` skips them. Without them runs of pictures after
+rollbacks differ from a full rerun (up to ~4000 pixels), and the player work
+after a skipped frame holds the logic's matrix: a replay state hash differs
+from the frame after.
 Memory the game logic reads must not be kept: the object memory at
 0xafd800-0xafdfff and 0xb13000-0xb6afff holds game objects and effects, and
 an address is reused by another object type, so keeping it desyncs.
