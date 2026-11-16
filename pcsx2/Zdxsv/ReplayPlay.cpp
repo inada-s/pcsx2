@@ -447,6 +447,20 @@ namespace Zdxsv
 		return r;
 	}
 
+	// The first load end, if a round state past `from` would apply but its key is missing (a point of view not run
+	// to it yet); -1 otherwise.
+	int PlayRoundJumpFirst(int target, int from)
+	{
+		const auto& states = s_play.round_states;
+		if (states.empty() || from >= states.begin()->first)
+			return -1;
+		const int first = states.begin()->first;
+		auto st = states.upper_bound(target);
+		if (st == states.begin() || (--st)->first <= first || s_play_keys[s_battle.me].contains(first))
+			return -1;
+		return first;
+	}
+
 	// Returns the frame to run next. pov_switch: s_battle.me just changed, so a key of it is always loaded (the
 	// running state is the old point of view's).
 	int PlaySeek(int target, bool pov_switch)
@@ -492,10 +506,17 @@ namespace Zdxsv
 			Console.WriteLn("ZdxsvGgpo: replay seek: key %d loaded (%.1f ms)", from, timer.GetTimeMilliseconds());
 			break;
 		}
+		s_play.then = -1;
 		if (const int r = PlayRoundJump(target, from); r >= 0)
 		{
 			from = r;
 			loaded = true;
+		}
+		else if (const int first = PlayRoundJumpFirst(target, from); first >= 0)
+		{
+			Console.WriteLn("ZdxsvGgpo: replay seek: no key at the first load end %d, running there before the round jump", first);
+			s_play.then = target;
+			target = first;
 		}
 		if (from > target || (pov_switch && !loaded))
 		{
@@ -648,7 +669,9 @@ namespace Zdxsv
 			const int n = f - s_play.seek_from;
 			Console.WriteLn("ZdxsvGgpo: replay seek done at frame %d, vsync %u: %d frames from key %d in %.1f ms, %.2f ms/frame",
 				f, g_FrameCount, n, s_play.seek_from, ms, n > 0 ? ms / n : 0.0);
-			if (std::exchange(s_play.step_pause, false) && PlayStepPaused(f))
+			if (const int then = std::exchange(s_play.then, -1); then >= 0)
+				s_play_req = then;
+			else if (std::exchange(s_play.step_pause, false) && PlayStepPaused(f))
 				VMManager::SetPaused(true);
 		}
 		const bool running = s_play.target >= 0 || s_play.run_load >= 0;

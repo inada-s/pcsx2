@@ -391,6 +391,7 @@ namespace Zdxsv
 		bool at_end = false; // paused after the last frame (no ZDXSV_REPLAY_EXIT)
 		int target = -1; // seeking: frames run unlimited up to this one
 		int seek_from = -1;
+		int then = -1; // seeking to the first load end to save its key: the round jump's target after it
 		u64 seek_t0 = 0;
 		int hi = -1, tick_f = -1;
 		int run_load = -1; // running unlimited until this load has ended, -1 = none (skip MS selection = 1)
