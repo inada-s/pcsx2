@@ -14,6 +14,7 @@ battles save to the replay folder without it (settings `ZdxsvSaveReplay`,
 - Only frames GGPO confirmed are written, so every peer's file of one battle
   holds the same inputs.
 - The file is written when the session stops, also on a VM shutdown or reset.
+  A session that ends before GGPO confirmed frame 0 writes and posts nothing.
 - A lobby battle's file is posted (multipart field `file`) to the
   lobby's upload API (zdxsv `/lbs/replay_upload`) at
   `ZdxsvReplayUploadUrl` when `ZdxsvReplayUpload` is on (default),
