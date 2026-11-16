@@ -17,6 +17,7 @@ namespace Zdxsv
 		// starts passed (-> play_start_frames, game_end_frames), RoundRecord and MsIds (-> round_data)
 		std::vector<u32> s_replay_hashes, s_replay_rngs, s_replay_records, s_replay_ms;
 		std::vector<u8> s_replay_ticks, s_replay_ps;
+		std::map<int, RoundState> s_replay_round_states; // by frame: each battle load end (-> round_states)
 		s64 s_replay_start_at = 0; // unix seconds
 		int s_replay_confirmed = -1; // GGPO's last confirmed frame: the frames after it (predicted inputs) are not written
 		constexpr int REPLAY_FILE_VERSION = 20261009; // BattleLogFile.log_file_version of the files written here
@@ -256,6 +257,7 @@ namespace Zdxsv
 		s_replay_ms.clear();
 		s_replay_ticks.clear();
 		s_replay_ps.clear();
+		s_replay_round_states.clear();
 		s_replay_confirmed = -1;
 		// HLE state outside the save state at frame 0 (PlayLoad restores it): msgs waiting for the game's recv,
 		// play-start barrier, kind-3 barrier, MS-select barrier
@@ -289,6 +291,9 @@ namespace Zdxsv
 		s_replay_ticks.push_back(eeMem->Main[TICK_STATE]);
 		s_replay_ps.resize(f);
 		s_replay_ps.push_back(s_rb.ps.rel);
+		s_replay_round_states.erase(s_replay_round_states.lower_bound(f), s_replay_round_states.end());
+		if (f > 0 && s_replay_ticks[f - 1] == TICK_LOAD && s_replay_ticks[f] != TICK_LOAD)
+			s_replay_round_states.emplace(f, RoundStateTake(f));
 		int confirmed = -1;
 		if (s_session && ggpo_get_last_confirmed_frame(s_session, &confirmed) == GGPO_OK)
 			s_replay_confirmed = std::max(s_replay_confirmed, std::min(confirmed, s_battle.last_real));
@@ -360,6 +365,12 @@ namespace Zdxsv
 		PutPackedInts(pb, 57, starts);
 		PutPackedInts(pb, 58, ends);
 		PutPackedInts(pb, 59, rounds);
+		for (const auto& [f, s] : s_replay_round_states)
+			if (static_cast<size_t>(f) < frames)
+			{
+				const std::vector<uint8_t> m = RoundStatePb(s);
+				PutBytes(pb, 61, m.data(), m.size());
+			}
 		std::string used_ms = "[";
 		for (size_t f = 1; f < std::min(frames, s_replay_records.size()); f++)
 		{

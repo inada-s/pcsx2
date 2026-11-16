@@ -29,6 +29,7 @@ namespace Zdxsv
 			return e ? std::atoi(e) : 600;
 		}();
 		const bool s_play_key_nohle = TestEnv("ZDXSV_REPLAY_KEY_NOHLE") != nullptr;
+		const bool s_play_round_take = TestEnv("ZDXSV_REPLAY_ROUND_TAKE") != nullptr;
 		// ZDXSV_CYCLE_LOG=n: EE and IOP cycle counters every n played frames (exact timing check of a CPU core change).
 		const int s_cycle_log = [] {
 			const char* e = TestEnv("ZDXSV_CYCLE_LOG");
@@ -144,7 +145,9 @@ namespace Zdxsv
 
 		void PlayKeySave(int f)
 		{
-			if (s_play_key_every <= 0 || f % s_play_key_every != 0 || s_play_keys[s_battle.me].contains(f))
+			const auto first_load = s_play.rngs.upper_bound(0);
+			const bool first_state = (s_play_round_take || !s_play.round_states.empty()) && first_load != s_play.rngs.end() && f == first_load->first;
+			if (s_play_key_every <= 0 || (f % s_play_key_every != 0 && !first_state) || s_play_keys[s_battle.me].contains(f))
 				return;
 			Common::Timer timer;
 			std::unique_ptr<PlayKey> key = PlayKeyMake(f, fmt::format("zdxsv-replay-key-p{}-{}.p2s", s_battle.me, f));
@@ -280,7 +283,9 @@ namespace Zdxsv
 				Console.WriteLn("ZdxsvGgpo: replay own load late by %d frames: play start at frame %d, file %d", s_check.late_run, f - 1, f - 1 - s_check.late_run);
 				s_check.late_run = 0;
 			}
-			const bool cut = late || std::any_of(s_play.cut.begin(), s_play.cut.end(), [f](const auto& c) { return f >= c.first && f < c.second; });
+			const auto next_load = s_play.jump_check >= 0 ? s_play.rngs.upper_bound(s_play.jump_check) : s_play.rngs.end();
+			const bool jumped = s_play.jump_check >= 0 && f >= s_play.jump_check && (next_load == s_play.rngs.end() || f < next_load->first);
+			const bool cut = late || jumped || std::any_of(s_play.cut.begin(), s_play.cut.end(), [f](const auto& c) { return f >= c.first && f < c.second; });
 			const bool hashed = !late && f < static_cast<int>(s_play.hashes.size());
 			if (hashed && cut)
 				s_check.hash_cut++;
@@ -379,6 +384,53 @@ namespace Zdxsv
 		s_rings = k.rings;
 	}
 
+	// The file's round state nearest at or before target, if past `from`: written over the key of the first load end.
+	// Returns its frame, -1 if none was applied (nothing changed).
+	int PlayRoundJump(int target, int from)
+	{
+		const auto& states = s_play.round_states;
+		auto st = states.upper_bound(target);
+		if (states.empty() || st == states.begin() || (--st)->first <= from || st == states.begin())
+			return -1;
+		const auto key = s_play_keys[s_battle.me].find(states.begin()->first);
+		if (key == s_play_keys[s_battle.me].end())
+			return -1;
+		PlayKey& k = *key->second;
+		if (k.zip.joinable())
+			k.zip.join();
+		Common::Timer timer;
+		Error error;
+		PlayStepRingClear();
+		if (!k.ok || !ReplayLoadState(k.path.c_str(), &error) || (PlayKeyApply(k), !RoundStateApply(st->second, s_play.inputs)))
+		{
+			Console.Error("ZdxsvGgpo: replay round jump to %d failed: %s", st->first, error.GetDescription().c_str());
+			return -1;
+		}
+		const int r = st->first;
+		{
+			std::lock_guard lock(s_battle_loads_mtx);
+			for (const auto& [f, rng] : s_play.rngs)
+				if (f > s_play.hi && f < r)
+					s_play_loads.battle.push_back(f);
+			const size_t ended = std::count_if(s_play.cut.begin(), s_play.cut.end(), [r](const auto& c) { return c.first < r; });
+			for (size_t i = s_play_loads.results.size(); i < std::min(ended, s_play_loads.file_rounds.size()); i++)
+			{
+				s_play_loads.results.push_back(s_play_loads.file_rounds[i]);
+				s_play_loads.ms.push_back(i < s_play_loads.file_ms.size() ? s_play_loads.file_ms[i] : 0xffffffffu);
+			}
+		}
+		if (s_play.hi < r - 1)
+		{
+			s_play.hi = r - 1;
+			s_play.tick_f = r - 1;
+			s_tick_st = TICK_LOAD;
+			s_round_rec = RoundRecord();
+		}
+		s_play.jump_check = r;
+		Console.WriteLn("ZdxsvGgpo: replay round jump: key %d + round state %d (%.1f ms)", key->first, r, timer.GetTimeMilliseconds());
+		return r;
+	}
+
 	// Returns the frame to run next. pov_switch: s_battle.me just changed, so a key of it is always loaded (the
 	// running state is the old point of view's).
 	int PlaySeek(int target, bool pov_switch)
@@ -423,6 +475,11 @@ namespace Zdxsv
 			loaded = true;
 			Console.WriteLn("ZdxsvGgpo: replay seek: key %d loaded (%.1f ms)", from, timer.GetTimeMilliseconds());
 			break;
+		}
+		if (const int r = PlayRoundJump(target, from); r >= 0)
+		{
+			from = r;
+			loaded = true;
 		}
 		if (from > target || (pov_switch && !loaded))
 		{
@@ -595,6 +652,8 @@ namespace Zdxsv
 		std::memcpy(ab, &in[s_battle.me].pad, sizeof(ab));
 		s_rings.zd_pad[f & 127] = PadFromB(ab[1]);
 		PlayCheckState(f);
+		if (s_play_round_take && f > 0 && s_play.rngs.contains(f) && !s_play.round_states.contains(f))
+			s_play.round_states.emplace(f, RoundStateTake(f));
 		NetApply(in);
 	}
 

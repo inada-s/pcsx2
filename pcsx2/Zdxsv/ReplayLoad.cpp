@@ -34,6 +34,7 @@ namespace Zdxsv
 			std::vector<int> rounds; // round_data win_team
 			std::vector<u32> round_ms; // round_data used_ms as MsIds packs them, 0xff = unknown
 			std::vector<GamePatch> patches;
+			std::vector<RoundState> round_states;
 		};
 
 		// PlayState::spans from the file's frames. The load frames are the recorder's; this playback's may come a
@@ -137,6 +138,11 @@ namespace Zdxsv
 						return Pb::ReadInts(wt, v, b, n, r.round_ends);
 					else if (field == 60)
 						return r.patches.size() < 16 && ServerPatchRead(b, n, r.patches.emplace_back());
+					else if (field == 61 && wt == 2 && r.round_states.size() < 256)
+					{
+						if (RoundState s; RoundStateRead(b, n, s))
+							r.round_states.push_back(std::move(s));
+					}
 				}
 				return true;
 			});
@@ -305,6 +311,10 @@ namespace Zdxsv
 				s_play.rngs[0] = *r.start_rng;
 			for (size_t i = 0; i < r.load_frames.size() && i < r.load_rngs.size(); i++)
 				s_play.rngs[static_cast<int>(r.load_frames[i])] = static_cast<u32>(r.load_rngs[i]);
+			s_play.round_states.clear();
+			for (RoundState& s : r.round_states)
+				if (s.frame < frames)
+					s_play.round_states.insert_or_assign(s.frame, std::move(s));
 			s_play.cut.clear();
 			for (const int64_t e : r.game_ends)
 			{
