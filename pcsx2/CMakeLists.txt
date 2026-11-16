@@ -170,6 +170,7 @@ set(pcsx2Sources
 	Zdxsv/ReplayLive.cpp
 	Zdxsv/ReplayLoad.cpp
 	Zdxsv/ReplayList.cpp
+	Zdxsv/ReplayBench.cpp
 	Zdxsv/ReplayPlay.cpp
 	Zdxsv/AudioTap.cpp
 	Zdxsv/ReplayRecord.cpp

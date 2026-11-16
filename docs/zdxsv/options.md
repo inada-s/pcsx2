@@ -201,6 +201,7 @@ See [replay.md](replay.md).
 | `ZDXSV_LIVE_NEXT=N` | the setting | test | Live auto-next for N more battles (0 = off), over `ZdxsvLiveAutoNext`. |
 | `ZDXSV_LIVE_PACING=0` | on | test | Live: no speed trim, only the wait for 60 frames at the newest one (control). |
 | `ZDXSV_REPLAY_SEEK=at:to[,at:to...]` | off | test | Seek to frame `to` when frame `at` is reached. |
+| `ZDXSV_REPLAY_BENCH=at:depth:reps` | off | diagnostic | Replay benchmark of the rollback cycle: from frame `at`, every frame saved as a delta state; after each `depth` (1-60) played frames the first is loaded and the frames rerun as rollback reruns, `reps` times. Logs `replay bench` lines: wall ms of a played frame, a rerun frame, a save and a load (mean, median, p10, p90, max). |
 | `ZDXSV_REPLAY_POV_AT=frame:P[,...]` | off | test | Switch to position P when that frame is reached. |
 | `ZDXSV_REPLAY_ROUND_AT=frame:N[,...]` | off | test | Jump to round N (0 = the briefing) when that frame is reached. |
 | `ZDXSV_REPLAY_TAKEOVER=frame[:src]` | off | test | Take over at that frame with no input matching. No src: the host pad plays; `replay` = the file's own input `delay` frames ahead (the replay must play unchanged); `rand` = random buttons (a control: differs from the replay soon after the frame). |

@@ -459,6 +459,10 @@ namespace Zdxsv
 	void PlayStepRingSave(int f);
 	int PlayStepRingLoad(int target);
 	void PlayStepRingClear();
+	void ReplayBenchStart();
+	void ReplayBenchSave(int f);
+	void ReplayBenchNext(int next);
+	void ReplayBenchReset();
 	void PlaySlowWait();
 	// Not refused by ReplayRefuses.
 	bool ReplayLoadState(const char* path, Error* error);
