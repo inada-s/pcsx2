@@ -336,9 +336,12 @@ namespace Zdxsv
 					})))
 					s_play.select_starts.insert(static_cast<int>(l));
 			s_play.round_states.clear();
-			for (RoundState& s : r.round_states)
-				if (s_play.select_starts.contains(s.frame))
-					s_play.round_states.insert_or_assign(s.frame, std::move(s));
+			if (r.version < REPLAY_ROUND_STATE_VERSION)
+				Console.WriteLn("ZdxsvGgpo: replay: file version %lld, round states not used", r.version);
+			else
+				for (RoundState& s : r.round_states)
+					if (s_play.select_starts.contains(s.frame))
+						s_play.round_states.insert_or_assign(s.frame, std::move(s));
 			std::string spans;
 			for (const auto& [b, e] : s_play.spans)
 				spans += fmt::format(" {}-{}", b, e);

@@ -173,6 +173,10 @@ namespace Zdxsv
 		std::vector<u8> ee;
 		RollbackState rb;
 	};
+	// BattleLogFile.log_file_version of the files written here
+	constexpr int REPLAY_FILE_VERSION = 20261116;
+	// Files before it hold round states without all the RAM a round jump needs: they play without round jumps.
+	constexpr int REPLAY_ROUND_STATE_VERSION = 20261116;
 	RoundState RoundStateTake(int f);
 	std::vector<uint8_t> RoundStatePb(const RoundState& s);
 	bool RoundStateRead(const uint8_t* b, size_t n, RoundState& out);
