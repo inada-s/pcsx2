@@ -336,7 +336,9 @@ namespace Zdxsv
 					})))
 					s_play.select_starts.insert(static_cast<int>(l));
 			s_play.round_states.clear();
-			if (r.version < REPLAY_ROUND_STATE_VERSION)
+			// Before 20261116 round states lack the MS-select menu state and part of the MS slot table, which the file
+			// cannot rebuild: those rounds are reached by seeking.
+			if (r.version < 20261116)
 				Console.WriteLn("ZdxsvGgpo: replay: file version %lld, round states not used", r.version);
 			else
 				for (RoundState& s : r.round_states)
