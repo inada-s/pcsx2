@@ -14,6 +14,7 @@
 #include "Zdxsv/MediaHooks.h"
 
 #include "common/Error.h"
+#include "Zdxsv/SpuHooks.h"
 
 const StereoOut32 StereoOut32::Empty(0, 0);
 
@@ -52,6 +53,7 @@ u32 SPU2::GetConsoleSampleRate()
 void SPU2readDMA4Mem(u16* pMem, u32 size) // size now in 16bit units
 {
 	TimeUpdate(psxRegs.cycle);
+	Zdxsv::SpuLazyWake();
 
 	SPU2::FileLog("[%10d] SPU2 readDMA4Mem size %x\n", Cycles, size << 1);
 	Cores[0].DoDMAread(pMem, size);
@@ -60,6 +62,7 @@ void SPU2readDMA4Mem(u16* pMem, u32 size) // size now in 16bit units
 void SPU2writeDMA4Mem(u16* pMem, u32 size) // size now in 16bit units
 {
 	TimeUpdate(psxRegs.cycle);
+	Zdxsv::SpuLazyWake();
 
 	SPU2::FileLog("[%10d] SPU2 writeDMA4Mem size %x at address %x\n", Cycles, size << 1, Cores[0].TSA);
 
@@ -87,6 +90,7 @@ void SPU2interruptDMA7()
 void SPU2readDMA7Mem(u16* pMem, u32 size)
 {
 	TimeUpdate(psxRegs.cycle);
+	Zdxsv::SpuLazyWake();
 
 	SPU2::FileLog("[%10d] SPU2 readDMA7Mem size %x\n", Cycles, size << 1);
 	Cores[1].DoDMAread(pMem, size);
@@ -95,6 +99,7 @@ void SPU2readDMA7Mem(u16* pMem, u32 size)
 void SPU2writeDMA7Mem(u16* pMem, u32 size)
 {
 	TimeUpdate(psxRegs.cycle);
+	Zdxsv::SpuLazyWake();
 
 	SPU2::FileLog("[%10d] SPU2 writeDMA7Mem size %x at address %x\n", Cycles, size << 1, Cores[1].TSA);
 
@@ -229,6 +234,9 @@ bool SPU2::IsAudioCaptureActive()
 void SPU2::InternalReset(bool psxmode)
 {
 	spu2Mix = MULTI_ISA_SELECT(spu2Mix);
+	spu2StepStoppedVoice = MULTI_ISA_SELECT(spu2StepStoppedVoice);
+	spu2UpdateBlockHeader = MULTI_ISA_SELECT(spu2UpdateBlockHeader);
+	Zdxsv::SpuLazyReset();
 	ReverbDownsample = MULTI_ISA_SELECT(ReverbDownsample);
 	ReverbUpsample = MULTI_ISA_SELECT(ReverbUpsample);
 
@@ -414,6 +422,7 @@ u16 SPU2read(u32 rmem)
 	else
 	{
 		TimeUpdate(psxRegs.cycle);
+		Zdxsv::SpuLazyWake();
 
 		if (rmem >> 16 == 0x1f80)
 		{
@@ -445,6 +454,7 @@ void SPU2write(u32 rmem, u16 value)
 	// incorrect pitches and loop lengths.
 
 	TimeUpdate(psxRegs.cycle);
+	Zdxsv::SpuLazyWake();
 
 	if (rmem >> 16 == 0x1f80)
 		Cores[0].WriteRegPS1(rmem, value);
@@ -473,6 +483,7 @@ s32 SPU2freeze(FreezeAction mode, freezeData* data)
 	}
 
 	pxAssume(mode == FreezeAction::Load || mode == FreezeAction::Save);
+	Zdxsv::SpuLazyOnFreeze(mode == FreezeAction::Load);
 
 	if (data->data == nullptr)
 	{

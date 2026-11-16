@@ -18,6 +18,7 @@ skips does not run on that path.
 | Counters (vsync), VMManager | `Ggpo`, `Replay*`, `NoDev9`, `FastBoot`, `OnlineLimits`, `AllyHp` | GGPO frame loop, teammate HP on the HUD, replay playback and its unthrottled fast frames, VM start / reset / shutdown cleanup, online switch of the limited features |
 | MTGS, GS, SPU2 | `DeltaFreeze`, `SingleDrawList`, `InputLatency`, `Overlays`, `FastBoot`, `ReplayPlay` | rerun frame skips, replay seek frames not drawn or heard, fast boot shows every 8th frame, single draw list, input latency, OSD |
 | Pad | `Ggpo`, `ReplayPlay` | inputs to and from GGPO and replays |
+| SPU2 mixer, register and DMA access, freeze (`SpuHooks.h`) | `SpuLazyVoices` | stopped voices stepped lazily (faster frames, same emulated state) |
 | Hotkeys, ImGui, GS draw rect | `Overlays`, `ReplayPlay`, `GgpoOsd` | replay hotkeys, bar and key display on the game picture, refused pause and speed changes, network status panel |
 | Patch loader (`PatchHooks.h`) | `GamePatches` | Z game patches built in, missing patches.zip quiet |
 | PINE server (`PineHooks.h`) | `OnlineLimits` | PINE refused while online |

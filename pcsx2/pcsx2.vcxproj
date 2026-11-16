@@ -479,6 +479,7 @@
     <ClCompile Include="Zdxsv\ReplayLoad.cpp" />
     <ClCompile Include="Zdxsv\ReplayList.cpp" />
     <ClCompile Include="Zdxsv\ReplayBench.cpp" />
+    <ClCompile Include="Zdxsv\SpuLazyVoices.cpp" />
     <ClCompile Include="Zdxsv\ReplayPlay.cpp" />
     <ClCompile Include="Zdxsv\AudioTap.cpp" />
     <ClCompile Include="Zdxsv\ReplayRecord.cpp" />
@@ -965,6 +966,7 @@
     <ClInclude Include="Zdxsv\OnlineLimits.h" />
     <ClInclude Include="Zdxsv\PineHooks.h" />
     <ClInclude Include="Zdxsv\RecHooks.h" />
+    <ClInclude Include="Zdxsv\SpuHooks.h" />
     <ClInclude Include="Zdxsv\CpuHooks.h" />
     <ClInclude Include="Zdxsv\InputHooks.h" />
     <ClInclude Include="Zdxsv\DefaultsHooks.h" />
