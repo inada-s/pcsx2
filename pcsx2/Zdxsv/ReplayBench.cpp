@@ -14,11 +14,14 @@
 #include "common/Timer.h"
 
 #include <algorithm>
+#include <utility>
 #include <cstdio>
 #include <vector>
 
 namespace Zdxsv
 {
+	bool g_bench_played = false;
+
 	namespace
 	{
 		struct ReplayBenchState
@@ -57,10 +60,12 @@ namespace Zdxsv
 			ReplayBenchPart("load", s_bench.load);
 			DeltaStateClear();
 			s_bench = {};
+			g_bench_played = false;
 		}
 
 		void ReplayBenchRollback(int next)
 		{
+			EeProfileOnRerun();
 			Common::Timer timer;
 			RerunKeepBeforeLoad(true);
 			const bool ok = DeltaStateLoad(s_bench.from);
@@ -101,6 +106,7 @@ namespace Zdxsv
 	void ReplayBenchStart()
 	{
 		s_bench = {};
+		g_bench_played = false;
 		const char* e = TestEnv("ZDXSV_REPLAY_BENCH");
 		if (!e || std::sscanf(e, "%d:%d:%d", &s_bench.at, &s_bench.depth, &s_bench.reps) != 3 || s_bench.at < 1 ||
 			s_bench.depth < 1 || s_bench.depth > 60 || s_bench.reps < 1)
@@ -117,7 +123,10 @@ namespace Zdxsv
 		if (s_bench.at < 0 || f < s_bench.at || DeltaStateGetState(f))
 			return;
 		Common::Timer timer;
-		if (!DeltaStateSave(f))
+		const bool played = std::exchange(g_bench_played, false);
+		const bool saved = DeltaStateSave(f);
+		g_bench_played = played;
+		if (!saved)
 		{
 			ReplayBenchEnd("save failed");
 			return;
@@ -135,7 +144,7 @@ namespace Zdxsv
 		const Common::Timer::Value now = Common::Timer::GetCurrentValue();
 		if (s_bench.timing)
 			s_bench.played.push_back(Common::Timer::ConvertValueToMilliseconds(now - s_bench.t_frame) - s_bench.inner_ms);
-		s_bench.timing = false;
+		s_bench.timing = g_bench_played = false;
 		if (next < s_bench.at)
 			return;
 		if (next == s_bench.from + s_bench.depth)
@@ -146,7 +155,7 @@ namespace Zdxsv
 			ReplayBenchEnd("done");
 		if (s_bench.at < 0)
 			return;
-		s_bench.timing = true;
+		s_bench.timing = g_bench_played = true;
 		s_bench.inner_ms = 0;
 		s_bench.t_frame = Common::Timer::GetCurrentValue();
 	}
@@ -156,5 +165,6 @@ namespace Zdxsv
 		if (s_bench.at >= 0)
 			DeltaStateClear();
 		s_bench = {};
+		g_bench_played = false;
 	}
 } // namespace Zdxsv
