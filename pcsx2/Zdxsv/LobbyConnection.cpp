@@ -340,7 +340,6 @@ namespace Zdxsv
 		const std::string machineId = MachineId();
 		if (!machineId.empty())
 			body += "machine_id=" + machineId + "\n";
-		// lobby=1: udp=1 asks older lobbies for battle info (0x9951); relay_server=1: GGPO may go through its relay servers.
 		int ggpoPort;
 		LobbyFilter* filter = nullptr;
 		const std::string udpLines = OpenLobby(serverIp, ggpoPort, filter);
@@ -350,11 +349,11 @@ namespace Zdxsv
 		if (ggpoPort > 0 && advertise > 0)
 		{
 			const std::string port = std::to_string(advertise);
-			body += "udp=1\nudp_addr=127.0.0.1:" + port + "\nggpo=" + port + "\nrelay_server=1\n";
+			body += "udp_addr=127.0.0.1:" + port + "\nggpo=" + port + "\n";
 			Console.WriteLn("DEV9: TCP: zdxsv advertise=%d: platform info announces 127.0.0.1:%d only", advertise, advertise);
 		}
 		else if (ggpoPort > 0)
-			body += "udp=1\n" + udpLines + "ggpo=" + std::to_string(ggpoPort) + "\nrelay_server=1\n";
+			body += udpLines + "ggpo=" + std::to_string(ggpoPort) + "\n";
 		// From the first lobby connection after the test ended (a reconnect follows every battle).
 		HttpsLatencyStart();
 		body += HttpsLatencyLines();

@@ -56,7 +56,7 @@ Three custom messages; the game never sees them. Each body is a list of
 | Command | Direction | Name | When |
 |---|---|---|---|
 | `0x9950` | emulator to lobby | platform info | on the first key question of the lobby |
-| `0x9951` | lobby to emulator | battle info | when the lobby matched a battle, to every emulator player (older lobbies: only to clients that sent `udp=1`) |
+| `0x9951` | lobby to emulator | battle info | when the lobby matched a battle, to every emulator player |
 | `0x9952` | emulator to lobby | match report | on the next lobby connection after a battle, right after the platform info |
 
 ### Platform info `0x9950`
@@ -70,11 +70,9 @@ Lets the server tell emulators from real PS2s.
 | `gpu`, `gpu_api`, `renderer` | while the GS runs | graphics adapter name, the graphics API in use, the renderer setting (`Auto` when automatic) |
 | `pcsx2` | built from a `zdxsv-X.Y.Z` release tag or a commit after one | release version: `zdxsv-X.Y.Z` on the tag, `zdxsv-X.Y.(Z+1)-dev.N` N commits after it. The lobby refuses a login below its minimum client version (zdxsv master data); PCSX2 then shows an OSD message |
 | `machine_id` | Windows, macOS | 16 hex digits: XXH64 (seed 37) of the host id (Windows `MachineGuid`, the macOS serial number), never the raw id; the same on every install and portable folder of a PC. Not sent on Linux |
-| `udp=1` | lobby GGPO on | older lobbies send battle infos only to clients with it |
 | `udp_addr`, `udp_local` | lobby GGPO on | the GGPO port's public IPv4 address from the lobby's STUN (asked from that port on every lobby connection), and the local one |
 | `udp_addr6` | lobby GGPO on, with a global IPv6 address | global IPv6 address |
-| `ggpo=P` | lobby GGPO on | GGPO UDP port |
-| `relay_server=1` | lobby GGPO on | the client can route GGPO through relay servers |
+| `ggpo=P` | lobby GGPO on | GGPO UDP port; the lobby offers relay servers only when every player sent it |
 | `nat=` | lobby GGPO on, after the connectivity test | result of the connectivity test |
 | `upnp_result=`, `upnp_local_ip=` | with `nat=`, when the port was not open and `ZdxsvUPnP` is on | UPnP mapping of the GGPO port: `Success` or the error; the LAN address the router maps to |
 | `<region>=ms` | after the HTTPS latency test | HTTPS round trip to that cloud region (the server's region keys) |
