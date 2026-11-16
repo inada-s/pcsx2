@@ -94,8 +94,9 @@ namespace Zdxsv
 			for (int i = 0; i < (mem_sp ? 128 : 48); i++)
 				std::fprintf(f, "%02x", p[i]);
 			// g = GGPO frame (NET_TRACE H / PW dump numbering), rb = rerun by a rollback.
-			std::fprintf(f, " g=%d rb=%d s0=%x s1=%x sp=%x\n", ProbeFrame(), g_ggpo_in_rollback ? 1 : 0,
-				r.s0.UL[0], r.s1.UL[0], r.sp.UL[0]);
+			std::fprintf(f, " g=%d rb=%d s0=%x s1=%x s2=%x s3=%x s4=%x s5=%x s6=%x s7=%x at=%x v1=%x sp=%x\n", ProbeFrame(),
+				g_ggpo_in_rollback ? 1 : 0, r.s0.UL[0], r.s1.UL[0], r.s2.UL[0], r.s3.UL[0], r.s4.UL[0], r.s5.UL[0], r.s6.UL[0],
+				r.s7.UL[0], r.at.UL[0], r.v1.UL[0], r.sp.UL[0]);
 			std::fflush(f); // the rig kills pcsx2: rare hits must not stay buffered
 		}
 
