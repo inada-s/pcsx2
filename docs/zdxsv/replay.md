@@ -180,7 +180,8 @@ D-pad. While taken over the pad plays the game.
 - **Round states**: the recorder stores a round state (`round_states`) at
   each load end: the game RAM ranges that carry a round into the next (RNG,
   mobile suit cache and slot tables, results block, mobile-suit-selection
-  menu state, per-player round record) and the battle-socket state. A seek or round jump past the played frames
+  menu state, round count, team result records, per-player round record)
+  and the battle-socket state. A seek or round jump past the played frames
   whose path holds a mobile-suit-selection load end with a state starts
   from the first load end's key with that state written over it, instead of
   running every frame from the start. Without that key (a point of view
@@ -188,7 +189,10 @@ D-pad. While taken over the pad plays the game.
   jumps. State hashes are not checked up to the
   next load end (the player work still holds the first round's values); the
   first checked frame after it that differs drops the round states and the
-  keys after the jump and seeks again the usual way. A file without the field,
+  keys after the jump and seeks again the usual way. A round entered without
+  a mobile suit selection (its briefing is the first load end after the
+  round before) keeps state from that round that the first selection does
+  not have: it is reached by seeking. A file without the field,
   or with a `log_file_version` before 20261116 (its round states lack part
   of that RAM: a later round can load another stage or pick another mobile
   suit), seeks as before.
