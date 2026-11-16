@@ -9,20 +9,19 @@ namespace Zdxsv
 {
 	namespace
 	{
-		constexpr u32 PW_BASE = 0x839330; // player work, one per position
-		constexpr u32 PW_SIZE = 0x2200;
+		constexpr u32 PW_ROUND = 0x1f28; // per player work: MS id, team, round number
 		// EE RAM the game carries from one round to the next: RNG B, the MS cache, the MS slot table, the battle block
 		// before the player work, the per-position previous-MS table, and per player work its MS id, team and round.
 		constexpr std::pair<u32, u32> ROUND_STATE_EE[] = {
-			{0x6d793c, 4},
+			{RNG_B, 4},
 			{0x6f2b6c, 6},
 			{0x6f3010, 0x20},
-			{0x838fb0, PW_BASE - 0x838fb0},
+			{0x838fb0, PW_BASE - PW_POS - 0x838fb0},
 			{0xba4703, 0x15},
-			{PW_BASE + 0x21d0, 8},
-			{PW_BASE + PW_SIZE + 0x21d0, 8},
-			{PW_BASE + PW_SIZE * 2 + 0x21d0, 8},
-			{PW_BASE + PW_SIZE * 3 + 0x21d0, 8},
+			{PW_BASE + PW_ROUND, 8},
+			{PW_BASE + PW_SIZE + PW_ROUND, 8},
+			{PW_BASE + PW_SIZE * 2 + PW_ROUND, 8},
+			{PW_BASE + PW_SIZE * 3 + PW_ROUND, 8},
 		};
 
 		constexpr size_t RoundStateEeSize()

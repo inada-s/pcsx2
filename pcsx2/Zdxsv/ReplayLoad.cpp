@@ -311,10 +311,6 @@ namespace Zdxsv
 				s_play.rngs[0] = *r.start_rng;
 			for (size_t i = 0; i < r.load_frames.size() && i < r.load_rngs.size(); i++)
 				s_play.rngs[static_cast<int>(r.load_frames[i])] = static_cast<u32>(r.load_rngs[i]);
-			s_play.round_states.clear();
-			for (RoundState& s : r.round_states)
-				if (s.frame < frames)
-					s_play.round_states.insert_or_assign(s.frame, std::move(s));
 			s_play.cut.clear();
 			for (const int64_t e : r.game_ends)
 			{
@@ -327,6 +323,18 @@ namespace Zdxsv
 			for (size_t i = 0; i + 1 < r.round_ends.size(); i += 2)
 				s_play.cut.emplace_back(static_cast<int>(r.round_ends[i]), static_cast<int>(r.round_ends[i + 1]));
 			s_play.spans = PlaySpans(r.load_frames, r.play_starts, r.game_ends, r.round_ends, frames, s_play.plays);
+			// The jump base is the first load end (MS select): only the MS-select load ends, the first after each span, take a round state.
+			s_play.select_starts.clear();
+			for (const int64_t l : r.load_frames)
+				if (l > 0 && l < frames && (s_play.select_starts.empty() || std::any_of(s_play.spans.begin(), s_play.spans.end(), [&r, l](const auto& s) {
+						const auto next = std::upper_bound(r.load_frames.begin(), r.load_frames.end(), static_cast<int64_t>(s.second));
+						return next != r.load_frames.end() && *next == l;
+					})))
+					s_play.select_starts.insert(static_cast<int>(l));
+			s_play.round_states.clear();
+			for (RoundState& s : r.round_states)
+				if (s_play.select_starts.contains(s.frame))
+					s_play.round_states.insert_or_assign(s.frame, std::move(s));
 			std::string spans;
 			for (const auto& [b, e] : s_play.spans)
 				spans += fmt::format(" {}-{}", b, e);

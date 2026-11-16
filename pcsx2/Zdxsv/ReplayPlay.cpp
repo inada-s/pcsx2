@@ -30,6 +30,7 @@ namespace Zdxsv
 		}();
 		const bool s_play_key_nohle = TestEnv("ZDXSV_REPLAY_KEY_NOHLE") != nullptr;
 		const bool s_play_round_take = TestEnv("ZDXSV_REPLAY_ROUND_TAKE") != nullptr;
+		const bool s_play_round_bad = TestEnv("ZDXSV_REPLAY_ROUND_BAD") != nullptr;
 		// ZDXSV_CYCLE_LOG=n: EE and IOP cycle counters every n played frames (exact timing check of a CPU core change).
 		const int s_cycle_log = [] {
 			const char* e = TestEnv("ZDXSV_CYCLE_LOG");
@@ -266,6 +267,7 @@ namespace Zdxsv
 		// The file's state hash and RNGs of frame f against the emulated state (a desync check; nothing changes).
 		void PlayCheckState(int f)
 		{
+			const int bad0 = s_check.hash_bad + s_check.rng_bad;
 			if (s_cycle_log > 0 && f % s_cycle_log == 0)
 				Console.WriteLn("ZdxsvGgpo: cycles at frame %d: ee %llu iop %llu", f, static_cast<unsigned long long>(cpuRegs.cycle), static_cast<unsigned long long>(psxRegs.cycle));
 			// own load late past PlayLoadWait's bound: the file released the play-start barrier, this machine
@@ -309,6 +311,18 @@ namespace Zdxsv
 				if (bad)
 					s_check.rng_bad++;
 				Console.WriteLn("ZdxsvGgpo: replay rng at frame %d: file %08x, here %08x%s", f, it->second, rng, bad ? " DIFFERS" : "");
+			}
+			if (s_play.jump_check >= 0 && !jumped && !cut && f > s_play.jump_check)
+			{
+				if (s_check.hash_bad + s_check.rng_bad > bad0)
+				{
+					Console.Error("ZdxsvGgpo: replay round jump from %d: state differs at frame %d, seeking again without round states", s_play.jump_check, f);
+					s_play.round_states.clear();
+					auto& keys = s_play_keys[s_battle.me];
+					keys.erase(keys.upper_bound(s_play.jump_check), keys.end());
+					s_play_req = s_play.target >= 0 ? s_play.target : f;
+				}
+				s_play.jump_check = -1;
 			}
 		}
 	} // namespace
@@ -426,6 +440,8 @@ namespace Zdxsv
 			s_tick_st = TICK_LOAD;
 			s_round_rec = RoundRecord();
 		}
+		if (s_play_round_bad)
+			eeMem->Main[RNG_B] ^= 1;
 		s_play.jump_check = r;
 		Console.WriteLn("ZdxsvGgpo: replay round jump: key %d + round state %d (%.1f ms)", key->first, r, timer.GetTimeMilliseconds());
 		return r;
@@ -652,7 +668,7 @@ namespace Zdxsv
 		std::memcpy(ab, &in[s_battle.me].pad, sizeof(ab));
 		s_rings.zd_pad[f & 127] = PadFromB(ab[1]);
 		PlayCheckState(f);
-		if (s_play_round_take && f > 0 && s_play.rngs.contains(f) && !s_play.round_states.contains(f))
+		if (s_play_round_take && s_play.select_starts.contains(f) && !s_play.round_states.contains(f))
 			s_play.round_states.emplace(f, RoundStateTake(f));
 		NetApply(in);
 	}
