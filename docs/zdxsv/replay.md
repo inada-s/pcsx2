@@ -183,7 +183,9 @@ D-pad. While taken over the pad plays the game.
   and the battle-socket state. A seek or round jump past the played frames
   whose path holds a mobile-suit-selection load end with a state starts
   from the first load end's key with that state written over it, instead of
-  running every frame from the start. State hashes are not checked up to the
+  running every frame from the start. Without that key (a point of view
+  switched to after a jump), the seek runs to the first load end first, then
+  jumps. State hashes are not checked up to the
   next load end (the player work still holds the first round's values); the
   first checked frame after it that differs drops the round states and the
   keys after the jump and seeks again the usual way. A file without the field
