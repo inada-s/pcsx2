@@ -34,6 +34,7 @@ namespace Zdxsv
 			std::vector<int> rounds; // round_data win_team
 			std::vector<u32> round_ms; // round_data used_ms as MsIds packs them, 0xff = unknown
 			std::vector<GamePatch> patches;
+			std::vector<RoundState> round_states;
 		};
 
 		// PlayState::spans from the file's frames. The load frames are the recorder's; this playback's may come a
@@ -137,6 +138,11 @@ namespace Zdxsv
 						return Pb::ReadInts(wt, v, b, n, r.round_ends);
 					else if (field == 60)
 						return r.patches.size() < 16 && ServerPatchRead(b, n, r.patches.emplace_back());
+					else if (field == 61 && wt == 2 && r.round_states.size() < 256)
+					{
+						if (RoundState s; RoundStateRead(b, n, s))
+							r.round_states.push_back(std::move(s));
+					}
 				}
 				return true;
 			});
@@ -300,6 +306,10 @@ namespace Zdxsv
 			s_play.frames = static_cast<int>(frames);
 			s_play.hashes.resize(r.hashes.size() == static_cast<u64>(frames) * sizeof(u32) ? static_cast<size_t>(frames) : 0);
 			std::memcpy(s_play.hashes.data(), r.hashes.data(), s_play.hashes.size() * sizeof(u32));
+			s_play.loads.clear();
+			for (const int64_t l : r.load_frames)
+				if (l > 0 && l < frames && (s_play.loads.empty() || l > s_play.loads.back()))
+					s_play.loads.push_back(static_cast<int>(l));
 			s_play.rngs.clear();
 			if (r.start_rng)
 				s_play.rngs[0] = *r.start_rng;
@@ -317,6 +327,18 @@ namespace Zdxsv
 			for (size_t i = 0; i + 1 < r.round_ends.size(); i += 2)
 				s_play.cut.emplace_back(static_cast<int>(r.round_ends[i]), static_cast<int>(r.round_ends[i + 1]));
 			s_play.spans = PlaySpans(r.load_frames, r.play_starts, r.game_ends, r.round_ends, frames, s_play.plays);
+			// The jump base is the first load end (MS select): only the MS-select load ends, the first after each span, take a round state.
+			s_play.select_starts.clear();
+			for (const int64_t l : r.load_frames)
+				if (l > 0 && l < frames && (s_play.select_starts.empty() || std::any_of(s_play.spans.begin(), s_play.spans.end(), [&r, l](const auto& s) {
+						const auto next = std::upper_bound(r.load_frames.begin(), r.load_frames.end(), static_cast<int64_t>(s.second));
+						return next != r.load_frames.end() && *next == l;
+					})))
+					s_play.select_starts.insert(static_cast<int>(l));
+			s_play.round_states.clear();
+			for (RoundState& s : r.round_states)
+				if (s_play.select_starts.contains(s.frame))
+					s_play.round_states.insert_or_assign(s.frame, std::move(s));
 			std::string spans;
 			for (const auto& [b, e] : s_play.spans)
 				spans += fmt::format(" {}-{}", b, e);
@@ -769,6 +791,11 @@ namespace Zdxsv
 			{
 				req = s_play_loads.battle[load];
 				Console.WriteLn("ZdxsvGgpo: replay round %d: starts at frame %d", load - 1, req);
+			}
+			else if (!s_play.round_states.empty() && load < static_cast<int>(s_play.loads.size()))
+			{
+				req = s_play.loads[load];
+				Console.WriteLn("ZdxsvGgpo: replay round %d: starts at the file's frame %d", load - 1, req);
 			}
 			else
 			{

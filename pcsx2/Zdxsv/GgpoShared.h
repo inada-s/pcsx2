@@ -164,6 +164,20 @@ namespace Zdxsv
 		u8 net_seq_at[64][GGPO_MAX_PLAYERS] = {}; // per frame & 63: each player's synced seq
 	};
 	extern FrameRings s_rings;
+	// The state at a battle load end that a later load end's state needs beyond the first one's (replay.proto
+	// round_states): EE RAM ranges (concatenated in a fixed order) and the HLE state. The rings and the kind-3
+	// bodies are rebuilt from the inputs before it.
+	struct RoundState
+	{
+		int frame = -1;
+		std::vector<u8> ee;
+		RollbackState rb;
+	};
+	RoundState RoundStateTake(int f);
+	std::vector<uint8_t> RoundStatePb(const RoundState& s);
+	bool RoundStateRead(const uint8_t* b, size_t n, RoundState& out);
+	// The file's inputs before s.frame rebuild the rings and kind-3 bodies; false: s does not fit (nothing written).
+	bool RoundStateApply(const RoundState& s, const std::vector<NetInput>& inputs);
 	// The battle socket's HLE state of the current battle.
 	struct BattleNet
 	{
@@ -388,6 +402,10 @@ namespace Zdxsv
 		std::deque<std::pair<int, int>> round_at; // ZDXSV_REPLAY_ROUND_AT=frame:round,...
 		bool pov_ok[GGPO_MAX_PLAYERS] = {};
 		std::vector<GamePatch> patches; // the file's, applied from each common start
+		std::map<int, RoundState> round_states; // the file's, by frame (a round jump writes one over the key of the first)
+		int jump_check = -1; // after a round jump to this frame: state hashes are not checked up to the next load end
+		std::set<int> select_starts; // the file's MS-select load ends (the first load end and the first after each span)
+		std::vector<int> loads; // the file's load ends, in order (as s_play_loads.battle)
 	};
 	extern PlayState s_play;
 	// Written on the CPU thread; the GS thread reads it under s_battle_loads_mtx.

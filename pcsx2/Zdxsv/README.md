@@ -55,6 +55,7 @@ options: `docs/zdxsv/`.
 | `GgpoTrace.cpp` | Debug: `NET_TRACE` lines of the pad and the battle msgs' key slots |
 | `GgpoTest.cpp` | Local rollback test harness (synctest): state diffs of rerun frames, random pad input |
 | `ReplayRecord.cpp` | Replay recording, upload and live stream of a GGPO battle |
+| `ReplayRoundState.cpp` | Replay round states: the state at a battle load end that a round jump writes over the first one |
 | `ReplayControls.cpp` | Replay controls: rounds shown (spans), host pad, frame step, speed, takeover requests and countdown, refused operations |
 | `ReplayPlay.cpp` | Replay playback: frame loop, seek keys, point of view, takeover, control bar state and hotkeys |
 | `AudioTap.cpp` | Diagnostic: audio device output to a WAV (`ZDXSV_AUDIO_WAV`, seam in `Host/AudioStream.cpp`) |
