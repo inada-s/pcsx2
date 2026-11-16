@@ -327,19 +327,19 @@ namespace Zdxsv
 			for (size_t i = 0; i + 1 < r.round_ends.size(); i += 2)
 				s_play.cut.emplace_back(static_cast<int>(r.round_ends[i]), static_cast<int>(r.round_ends[i + 1]));
 			s_play.spans = PlaySpans(r.load_frames, r.play_starts, r.game_ends, r.round_ends, frames, s_play.plays);
-			// The jump base is the first load end (MS select): only the MS-select load ends, the first after each span, take a round state.
-			// A round entered without an MS select (the first load end after a span is the next one's start) keeps state from the
-			// round before that the first MS select does not have: it is reached by seeking.
+			// The jump base is the first load end (MS select). Only the MS-select load ends take a round state: the load end
+			// before each span's start (its briefing). A rematch screen, when the room shows one, loads before it.
 			s_play.select_starts.clear();
-			const auto span_start = [](int64_t l) {
-				return std::any_of(s_play.spans.begin(), s_play.spans.end(), [l](const auto& s) { return s.first == l; });
-			};
 			for (const int64_t l : r.load_frames)
-				if (l > 0 && l < frames && (s_play.select_starts.empty() || (!span_start(l) && std::any_of(s_play.spans.begin(), s_play.spans.end(), [&r, l](const auto& s) {
-						const auto next = std::upper_bound(r.load_frames.begin(), r.load_frames.end(), static_cast<int64_t>(s.second));
-						return next != r.load_frames.end() && *next == l;
-					}))))
+				if (l > 0 && l < frames)
+				{
 					s_play.select_starts.insert(static_cast<int>(l));
+					break;
+				}
+			for (const auto& span : s_play.spans)
+				if (auto it = std::lower_bound(r.load_frames.begin(), r.load_frames.end(), static_cast<int64_t>(span.first));
+					it != r.load_frames.begin() && *--it > 0 && *it < frames)
+					s_play.select_starts.insert(static_cast<int>(*it));
 			s_play.round_states.clear();
 			// Before 20261116 round states lack the MS-select menu state and part of the MS slot table, which the file
 			// cannot rebuild: those rounds are reached by seeking.
