@@ -10,14 +10,28 @@ namespace Zdxsv
 	namespace
 	{
 		constexpr u32 PW_ROUND = 0x1f28; // per player work: MS id, team, round number
+		// MS-select menu state (cursor, entry count, selected MS) of the select work at 0x117f424: a cursor left from
+		// round 1 on the random entry makes the pick draw RNG B
+		constexpr u32 MS_SELECT_WORK = 0x117f480;
+		// slot of each MS id (0xff = none) in the two blocks the game clears with MS_SLOTS (13 bytes at 0x6f3000, 0x37
+		// at 0x6f3010); a battle load reads it by the MS id
+		constexpr u32 MS_SLOT_OF = 0x6f3000, MS_SLOT_OF_N = 0x47;
+		// rounds started in this game (+1 at each MS select's end)
+		constexpr u32 ROUND_COUNT = 0xba473a;
+		// four 0x14-byte result records (the two team records first: wins, losses, ...)
+		constexpr u32 RESULT_RECORDS = 0xc227f0, RESULT_RECORDS_N = 0x50;
 		// EE RAM the game carries from one round to the next: RNG B, the MS cache, the MS slot table, the battle block
-		// before the player work, the per-position previous-MS table, and per player work its MS id, team and round.
+		// before the player work, the per-position previous-MS table, the MS-select menu state, the round count, the
+		// result records, and per player work its MS id, team and round.
 		constexpr std::pair<u32, u32> ROUND_STATE_EE[] = {
 			{RNG_B, 4},
-			{0x6f2b6c, 6},
-			{0x6f3010, 0x20},
+			{MS_SLOTS, MS_SLOTS_N},
+			{MS_SLOT_OF, MS_SLOT_OF_N},
 			{0x838fb0, PW_BASE - PW_POS - 0x838fb0},
-			{0xba4703, 0x15},
+			{0xba4703, 0x16},
+			{MS_SELECT_WORK, 8},
+			{ROUND_COUNT, 1},
+			{RESULT_RECORDS, RESULT_RECORDS_N},
 			{PW_BASE + PW_ROUND, 8},
 			{PW_BASE + PW_SIZE + PW_ROUND, 8},
 			{PW_BASE + PW_SIZE * 2 + PW_ROUND, 8},
