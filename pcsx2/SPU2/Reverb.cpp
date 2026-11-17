@@ -56,7 +56,21 @@ __forceinline s32 V_Core::RevbGetIndexer(s32 offset)
 	u32 start = EffectsStartA & 0x3f'ffff;
 	u32 end = (EffectsEndA & 0x3f'ffff) | 0xffff;
 
-	u32 x = ((Cycles >> 1) + offset) % ((end - start) + 1);
+	// Exact remainder for any 32-bit dividend (Lemire's fastmod); the divisor only changes with the effects area.
+	static u32 s_div = 0;
+	static u64 s_mul = 0;
+	const u32 div = (end - start) + 1;
+	if (div != s_div)
+	{
+		s_div = div;
+		s_mul = ~0ull / div + 1;
+	}
+	const u64 low = s_mul * static_cast<u32>((Cycles >> 1) + offset);
+#if defined(_MSC_VER) && !defined(__clang__)
+	u32 x = static_cast<u32>(__umulh(low, div));
+#else
+	u32 x = static_cast<u32>((static_cast<unsigned __int128>(low) * div) >> 64);
+#endif
 
 	x += start;
 
