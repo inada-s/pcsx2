@@ -332,6 +332,8 @@ namespace Zdxsv
 	// nullptr, or the close reason
 	const char* GgpoStart()
 	{
+		// Protecting all RAM takes tens of ms: done here, the net peers' start wait hides it.
+		Zdxsv::DeltaStateArm();
 		ggpo_set_log_function(OnLog);
 		GGPOSessionCallbacks cb{};
 		cb.begin_game = BeginGame;

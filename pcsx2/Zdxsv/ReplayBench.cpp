@@ -120,6 +120,8 @@ namespace Zdxsv
 
 	void ReplayBenchSave(int f)
 	{
+		if (f == s_bench.at - 1)
+			DeltaStateArm();
 		if (s_bench.at < 0 || f < s_bench.at || DeltaStateGetState(f))
 			return;
 		Common::Timer timer;
