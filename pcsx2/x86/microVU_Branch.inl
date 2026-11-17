@@ -320,31 +320,11 @@ void normJumpCompile(mV, microFlagCycles& mFC, bool isEvilJump)
 		xJMP(mVU.exitFunct);
 	}
 
-	// A jump cache hit is resolved here; only a miss calls mVUcompileJIT.
-	// rax, r9-r11 are caller-saved, so nothing lives in them at this call site.
-	static_assert(doJumpCaching && !doJumpAsSameProgram && sizeof(microJumpCache) == 16 && sizeof(microProgramQuick) == 16);
-	xMOV(ptr32[&mVU.regs().start_pc], arg1regd);
-	xMOV(eax, arg1regd);
-	xSHR(eax, 3);
-	xSHL(rax, 4);
-	xMOV(r10, ptr64[arg2reg + static_cast<sptr>(offsetof(microBlock, jumpCache))]);
-	xMOV(r11, ptr64[r10 + rax + static_cast<sptr>(offsetof(microJumpCache, prog))]);
-	xTEST(r11, r11);
-	xForwardJump8 jcEmpty(Jcc_Zero);
-	xLoadFarAddr(r9, &mVU.prog.quick[0].prog);
-	xCMP(r11, ptr64[r9 + rax]);
-	xForwardJump8 jcStale(Jcc_NotEqual);
-	xMOV(rax, ptr64[r10 + rax + static_cast<sptr>(offsetof(microJumpCache, x86ptrStart))]);
-	xForwardJump32 jcHit;
-	jcEmpty.SetTarget();
-	jcStale.SetTarget();
-
 	if (!mVU.index)
 		xFastCall((void*)(void (*)())mVUcompileJIT<0>, arg1reg, arg2reg); //(u32 startPC, uptr pState)
 	else
 		xFastCall((void*)(void (*)())mVUcompileJIT<1>, arg1reg, arg2reg);
 
-	jcHit.SetTarget();
 	mVUrestoreRegs(mVU);
 	xJMP(gprT1q); // Jump to rec-code address
 }
