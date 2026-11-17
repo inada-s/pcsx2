@@ -241,7 +241,8 @@ A lobby GGPO battle is streamed to the lobby while it runs
 - Spectator: `ZDXSV_REPLAY=live:<API URL>[#battle code]` (no code = the
   newest live battle). It starts from the common state and plays as a
   replay from the uplink's point of view, checking the state hashes as a
-  replay file's.
+  replay file's. The file's barrier releases follow the frames received, so
+  an own load step later than the uplink's waits as in a file.
 - Pacing: at the newest frame it waits
   until 60 more frames are there; far behind it runs unthrottled to catch
   up. In between the frame limiter's period is trimmed by a few ms per frame
