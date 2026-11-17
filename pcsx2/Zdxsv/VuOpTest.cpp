@@ -131,16 +131,15 @@ namespace
 	}
 } // namespace
 
+bool Zdxsv::g_vu_op_test = [] {
+	const char* env = Zdxsv::TestEnv("ZDXSV_VU1_OPTEST");
+	return env && *env;
+}();
+
 void Zdxsv::VuOpTest()
 {
-	static bool done = false;
-	if (done)
-		return;
-	done = true;
-	const char* env = TestEnv("ZDXSV_VU1_OPTEST");
-	if (!env || !*env)
-		return;
-	std::string path = env;
+	g_vu_op_test = false;
+	std::string path = TestEnv("ZDXSV_VU1_OPTEST");
 	u32 count = 2048;
 	if (const size_t comma = path.find(','); comma != std::string::npos)
 	{

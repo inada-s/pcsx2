@@ -14,6 +14,7 @@
 #include "SaveState.h"
 #include "StateWrapper.h"
 #include "VUmicro.h"
+#include "Zdxsv/CpuHooks.h"
 #include "Zdxsv/SaveStateHooks.h"
 
 #include "common/Error.h"
@@ -176,13 +177,17 @@ static bool DeltaFreezeAll(SaveStateBase& s, Error* error)
 	s_delta_calls[io]++;
 	size_t section = 0;
 	const char* current = "internals";
-	Common::Timer::Value t = Common::Timer::GetCurrentValue();
+	const bool timed = Zdxsv::g_rerun_split_time;
+	Common::Timer::Value t = timed ? Common::Timer::GetCurrentValue() : 0;
 	auto mark = [&](const char* name) {
-		const Common::Timer::Value now = Common::Timer::GetCurrentValue();
-		if (section >= s_delta_ms[io].size())
-			s_delta_ms[io].emplace_back(current, 0.0);
-		s_delta_ms[io][section++].second += Common::Timer::ConvertValueToMilliseconds(now - t);
-		t = now;
+		if (timed)
+		{
+			const Common::Timer::Value now = Common::Timer::GetCurrentValue();
+			if (section >= s_delta_ms[io].size())
+				s_delta_ms[io].emplace_back(current, 0.0);
+			s_delta_ms[io][section++].second += Common::Timer::ConvertValueToMilliseconds(now - t);
+			t = now;
+		}
 		current = name;
 		if (s.IsSaving() && name)
 			s_delta_marks.emplace_back(name, s.GetCurrentPos());
