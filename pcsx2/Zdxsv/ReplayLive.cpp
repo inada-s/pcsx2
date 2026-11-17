@@ -33,6 +33,22 @@ namespace Zdxsv
 		}
 
 		size_t s_live_round_bytes = 0; // of s_live_play.got.rounds already in s_play_loads.file_rounds
+		struct LivePlanSeen
+		{
+			std::vector<u8> plan; // the stream's plan PlayLivePlan last took
+			size_t states = 0, frames = 0; // bytes of the stream's round states, frames
+		} s_live_plan_seen;
+
+		// The stream's plan and round states (ahead of playback) as the file's; the last span's end follows the frames.
+		void LivePlan()
+		{
+			const LiveStreams& g = s_live_play.got;
+			const bool states = g.states.size() != s_live_plan_seen.states;
+			if (!states && g.plan == s_live_plan_seen.plan && static_cast<size_t>(s_play.frames) == s_live_plan_seen.frames)
+				return;
+			s_live_plan_seen = {g.plan, g.states.size(), static_cast<size_t>(s_play.frames)};
+			PlayLivePlan(g.plan, g.states, states);
+		}
 
 		// BattleLogFile round_data entries -> win_team per round
 		std::optional<std::vector<int>> LiveWins(const std::vector<u8>& r)
@@ -105,6 +121,7 @@ namespace Zdxsv
 				s_play.frames += static_cast<int>(n);
 				PlayFileRels(0, 0);
 			}
+			LivePlan();
 			if (s_live_play.got.closed && s_live_play.close.empty())
 				s_live_play.close = s_live_play.got.close.empty() ? "end" : s_live_play.got.close;
 			if (!ok && s_live_play.close.empty())
@@ -282,6 +299,9 @@ namespace Zdxsv
 		s_live_play.got.inputs.erase(s_live_play.got.inputs.begin(), s_live_play.got.inputs.begin() + frames * fb);
 		pb.insert(pb.end(), s_live_play.got.rounds.begin(), s_live_play.got.rounds.end());
 		s_live_round_bytes = s_live_play.got.rounds.size();
+		pb.insert(pb.end(), s_live_play.got.plan.begin(), s_live_play.got.plan.end());
+		pb.insert(pb.end(), s_live_play.got.states.begin(), s_live_play.got.states.end());
+		s_live_plan_seen = {s_live_play.got.plan, s_live_play.got.states.size(), frames};
 		if (const std::optional<std::vector<int>> wins = LiveWins(s_live_play.got.rounds))
 			LogLiveWins(*wins, 0);
 		const std::string code = s_live_down->Code();

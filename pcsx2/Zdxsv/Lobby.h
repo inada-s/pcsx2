@@ -107,6 +107,8 @@ namespace Zdxsv
 		std::vector<uint8_t> header; // a replay BattleLogFile without inputs
 		std::vector<uint8_t> inputs; // frames x frameBytes
 		std::vector<uint8_t> rounds; // the round results so far: BattleLogFile round_data entries (field 18)
+		std::vector<uint8_t> plan; // the newest load and game structure: BattleLogFile fields 54, 55, 57-59
+		std::vector<uint8_t> states; // the round states so far: BattleLogFile round_states entries (field 61)
 		int frameBytes = 0;
 		bool closed = false;
 		std::string close;
@@ -120,6 +122,8 @@ namespace Zdxsv
 		~LiveUp(); // the upload ends without the close
 		void AddFrames(const void* data, size_t frames); // the next confirmed frames, in order
 		void AddRound(const std::vector<uint8_t>& entry); // a BattleLogFile round_data entry (field 18), once confirmed
+		void SetPlan(const std::vector<uint8_t>& fields); // BattleLogFile fields 54, 55, 57-59 of the confirmed frames
+		void AddRoundState(const std::vector<uint8_t>& entry); // a BattleLogFile round_states entry (field 61), once confirmed
 		size_t Frames();
 		void Close(const std::string& reason);
 		bool Done(); // the upload ended
@@ -145,7 +149,8 @@ namespace Zdxsv
 		// in timeoutMs.
 		static std::string Newest(const std::string& api, const std::vector<std::string>& skip, int timeoutMs);
 		// Moves the frames received since the last call into s.inputs (with the header on the first call),
-		// copies the round results to s.rounds, sets s.closed / s.close; false = nothing from the lobby for stallMs.
+		// copies the round results, plan and round states, sets s.closed / s.close; false = nothing from the lobby for
+		// stallMs.
 		bool Take(LiveStreams& s, int stallMs);
 	private:
 		LiveDown();

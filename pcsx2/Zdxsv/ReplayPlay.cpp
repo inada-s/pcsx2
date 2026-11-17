@@ -318,6 +318,7 @@ namespace Zdxsv
 				{
 					Console.Error("ZdxsvGgpo: replay round jump from %d: state differs at frame %d, seeking again without round states", s_play.jump_check, f);
 					s_play.round_states.clear();
+					s_play.states_off = true;
 					auto& keys = s_play_keys[s_battle.me];
 					keys.erase(keys.upper_bound(s_play.jump_check), keys.end());
 					s_play_req = s_play.target >= 0 ? s_play.target : f;
