@@ -43,7 +43,20 @@ _vifT void vifTransferLoop(u32* &data) {
 			}
 		}
 
-		ret = vifCmdHandler[idx][vifX.cmd & 0x7f](vifX.pass, data);
+		// NOP can be most of the codes in a packet: same steps as vifCode_Nop, without the indirect call.
+		if ((vifX.cmd & 0x7f) == 0 && vifX.pass == 0)
+		{
+			vifX.cmd = 0;
+			vifExecQueue(idx);
+			if (pSize > 1 && ((data[1] >> 24) & 0x7f) == 0x6 && (data[1] & 0x1))
+			{
+				vifX.vifstalled.enabled = VifStallEnable(vifXch);
+				vifX.vifstalled.value = VIF_TIMING_BREAK;
+			}
+			ret = 1;
+		}
+		else
+			ret = vifCmdHandler[idx][vifX.cmd & 0x7f](vifX.pass, data);
 		data   += ret;
 		pSize  -= ret;
 		if (vifX.vifstalled.enabled)
