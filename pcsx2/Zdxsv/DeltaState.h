@@ -17,6 +17,8 @@ namespace Zdxsv
 {
 	// Frames must be saved in increasing order (after a DeltaStateLoad(f), the next save is > f).
 	bool DeltaStateSave(int frame);
+	// Before the first save: protects all RAM now, so that save re-protects only the pages written since.
+	void DeltaStateArm();
 	// frame must be saved; saved frames after it are dropped.
 	bool DeltaStateLoad(int frame);
 	// Drops the saved frames before frame, except the newest.

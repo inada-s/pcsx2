@@ -61,6 +61,7 @@ namespace Zdxsv
 		std::vector<std::unique_ptr<u8[]>> s_page_pool;
 		std::vector<std::vector<u8>> s_buffer_pool;
 		bool s_break_ee = false, s_break_host = false;
+		bool s_armed = false;
 		int s_save_calls = 0;
 
 		struct Times
@@ -337,6 +338,16 @@ namespace Zdxsv
 			s_times.hot_pages += s_hot.size();
 			s_times.watch_ms += watch.GetTimeMilliseconds();
 		}
+		else if (std::exchange(s_armed, false))
+		{
+			std::vector<u32> pages;
+			pages.reserve(s_open.size());
+			for (const SavedPage& p : s_open)
+				pages.push_back(p.page);
+			ReleaseDelta(s_open);
+			SaveState_DeltaSetPagedRam(true);
+			WatchPages(pages);
+		}
 		else
 		{
 			// Never with DeltaStateDiscardBefore keeping the newest frame (a load of this frame would restore them).
@@ -479,8 +490,20 @@ namespace Zdxsv
 		}
 	}
 
+	void DeltaStateArm()
+	{
+		if (s_armed || !s_states.empty())
+			return;
+		ReleaseDelta(s_open);
+		mmap_DeltaSetHook(&OnWrite);
+		mmap_DeltaSetFaultHook(&OnHostFault);
+		WatchAll();
+		s_armed = true;
+	}
+
 	void DeltaStateClear()
 	{
+		s_armed = false;
 		mmap_DeltaSetHook(nullptr);
 		mmap_DeltaSetFaultHook(nullptr);
 		UnwatchHost();

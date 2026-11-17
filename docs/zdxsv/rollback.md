@@ -37,6 +37,9 @@ keeps its copy for the next interval and adds nothing to the saved delta. A rest
 the words that differ; a restored SPU2 RAM page drops the decoded sample cache
 of the blocks that differ.
 
+The GGPO session protects all RAM when it starts, before the net peers'
+start wait; the first save then protects again only the pages written since.
+
 Supporting changes in the core:
 
 - Saved scratch fields are skipped when two states are compared.
