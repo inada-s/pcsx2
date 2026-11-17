@@ -59,6 +59,12 @@ namespace Zdxsv
 			s_bar_hi = span >= 0 ? s_play.spans[span].second : s_play.frames;
 			s_bar_round = span;
 			s_bar_rounds = static_cast<int>(s_play.spans.size());
+			if (PlayLiveNextRound(s_play.target >= 0 ? s_play.target : s_battle.frame))
+			{
+				s_bar_lo = s_play.spans.back().second;
+				s_bar_hi = s_play.frames;
+				s_bar_round = s_bar_rounds++;
+			}
 			s_bar_battle = !s_live_down && PlayInBattle(s_battle.frame);
 			s_bar_frame = s_battle.frame;
 		}
@@ -149,6 +155,10 @@ namespace Zdxsv
 			const auto first_load = s_play.rngs.upper_bound(0);
 			const bool first_state = (s_play_round_take || !s_play.round_states.empty()) && first_load != s_play.rngs.end() && f == first_load->first;
 			if (s_play_key_every <= 0 || (f % s_play_key_every != 0 && !first_state) || s_play_keys[s_battle.me].contains(f))
+				return;
+			// after a round jump, up to the next load end the player work still holds the first round's values: a key there
+			// would bring them back without the jump's unchecked frames
+			if (s_play.jump_check >= 0 && f > s_play.jump_check)
 				return;
 			Common::Timer timer;
 			std::unique_ptr<PlayKey> key = PlayKeyMake(f, fmt::format("zdxsv-replay-key-p{}-{}.p2s", s_battle.me, f));
@@ -1004,7 +1014,9 @@ namespace Zdxsv
 		int round = s_play_round_req.load();
 		const int f = s_play.target >= 0 ? s_play.target : s_battle.frame;
 		const int span = PlaySpanAt(f);
-		if (round == INT_MIN && span >= 0)
+		if (round == INT_MIN && PlayLiveNextRound(f))
+			round = static_cast<int>(s_play.spans.size()) + 1;
+		else if (round == INT_MIN && span >= 0)
 			round = span + 1;
 		else if (round == INT_MIN)
 		{
@@ -1012,7 +1024,9 @@ namespace Zdxsv
 			for (size_t k = 2; k < s_play_loads.battle.size() && s_play_loads.battle[k] <= f; k++)
 				round++;
 		}
-		s_play_round_req = span >= 0 ? std::clamp(round + delta, 1, static_cast<int>(s_play.spans.size())) : std::max(0, round + delta);
+		// an open live stream: one past the last shown round = the round not started yet (the newest frames)
+		const int last = static_cast<int>(s_play.spans.size()) + (s_live_down && s_live_play.close.empty() ? 1 : 0);
+		s_play_round_req = span >= 0 ? std::clamp(round + delta, 1, last) : std::max(0, round + delta);
 		Console.WriteLn("ZdxsvGgpo: replay round requested: %d", s_play_round_req.load());
 		PlayRunFromPause();
 	}

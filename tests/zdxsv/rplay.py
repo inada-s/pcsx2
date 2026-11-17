@@ -8,7 +8,7 @@ STATE (any state of the game to boot from; default rbk-p1), MAXS (default 300; a
 or a replay load error FAILs at once instead).
 WINDOW=1: windowed, 1x (no turbo). KEYS="secs:seq;..." (needs WINDOW=1): pcsx2ctl -Seq at secs after the
 replay started; binds the seek hotkeys (PageUp back / PageDown forward 10 s), step (Home back / Insert forward), TogglePause (Space), key
-display (End), round jump (Shift+PageUp / Shift+PageDown) in the instance ini. With PCSX2_ENV=ZDXSV_REPLAY_EXIT=0 the replay pauses at its end; Space then ends it (H lines written).
+display (End), round jump (Shift+PageUp / Shift+PageDown) in the instance ini. The VM closes at the replay's end (H lines written).
 POV=p: plays position p's point of view (ZDXSV_REPLAY_POV; default the recorder's): the lobby answers name it.
 SKIP_MS=1: skip MS selection (pcsx2's default; off here so KEYS seconds keep their frames).
 SKIP_MS=ini: no ZDXSV_REPLAY_SKIP_MS, the instance ini's ZdxsvReplaySkipMs decides.

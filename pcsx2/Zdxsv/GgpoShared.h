@@ -448,6 +448,8 @@ namespace Zdxsv
 	int PlaySeek(int target, bool pov_switch = false);
 	// The span holding frame f, else the next one, else the last; -1 = no spans or skipping off.
 	int PlaySpanAt(int f);
+	// Spectating live past the last shown round (between rounds): the next round, not started yet, is shown.
+	bool PlayLiveNextRound(int f);
 	int PlaySkipGap(int next);
 	bool PlayInBattle(int f);
 	void ReplayPadPoll();
@@ -520,6 +522,7 @@ namespace Zdxsv
 		Zdxsv::LiveStreams got; // inputs not in s_play.inputs yet (part of a frame)
 		std::string close; // "" = running
 		bool catchup = false, close_logged = false;
+		bool behind = false; // a seek or round jump of the viewer: no catch-up until playback is at the newest frames again
 		int waits = 0;
 		int hold_want = -1; // the frame count the hold at the newest frame waits for, -1 = none
 		double wait_ms = 0;
@@ -551,7 +554,7 @@ namespace Zdxsv
 	// Returned, before PlayNext: true = hold the frame, the newest one is played and the stream is open; until
 	// LIVE_BUFFER more frames, the stream's close or a seek.
 	bool LiveHold();
-	void LiveNext(int next);
+	int LiveNext(int next); // the frame to run next
 	extern bool s_sync_chase; // s_play_req is a chase, not a host seek for the guests
 	void SyncStop();
 	void SyncStart(int me);

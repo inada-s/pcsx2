@@ -16,6 +16,8 @@ namespace Zdxsv
 		// Live: at the newest frame, wait until LIVE_BUFFER more are there or the stream is closed. More than
 		// LIVE_BUFFER + LIVE_CATCHUP frames behind, run unlimited until LIVE_BUFFER + LIVE_EDGE.
 		constexpr int LIVE_BUFFER = 60, LIVE_CATCHUP = 270, LIVE_EDGE = 60, LIVE_STALL_MS = 30000, LIVE_OPEN_MS = 15000;
+		// More than LIVE_SEEK frames behind (a late join): a seek to LIVE_BUFFER before the newest frame, not shown.
+		constexpr int LIVE_SEEK = 1800;
 		LimiterModeType s_live_limiter = LimiterModeType::Nominal;
 		std::vector<std::string> s_live_seen; // battle codes watched, oldest first, kept across the resets
 		int s_live_next_left = [] {
@@ -156,8 +158,8 @@ namespace Zdxsv
 			}
 			const bool idle = s_pace.call.GetTimeSeconds() > PACE_IDLE_S; // paused, or a long wait at the edge
 			s_pace.call.Reset();
-			if (s_pace_off || s_live_play.catchup || s_play.run_load >= 0 || s_play.target >= 0 || s_to_phase != TO_OFF ||
-				!s_live_play.close.empty())
+			if (s_pace_off || s_live_play.catchup || s_live_play.behind || s_play.run_load >= 0 || s_play.target >= 0 ||
+				s_to_phase != TO_OFF || !s_live_play.close.empty())
 			{
 				LivePaceReset();
 				return;
@@ -407,15 +409,23 @@ namespace Zdxsv
 		return false;
 	}
 
-	// PlayNext, before frame next: the received frames taken in, catch-up.
-	void LiveNext(int next)
+	// PlayNext, before frame next: the received frames taken in, catch-up. Returns the frame to run next.
+	int LiveNext(int next)
 	{
 		LiveTake();
 		if (!s_live_play.close.empty() && next >= s_play.frames && !std::exchange(s_live_play.close_logged, true))
 			Console.WriteLn("ZdxsvGgpo: live: stream closed (%s) at frame %d, %d waits %.0f ms", s_live_play.close.c_str(), s_play.frames,
 				s_live_play.waits, s_live_play.wait_ms);
 		const int ahead = s_play.frames - next;
-		if (!s_live_play.catchup && ahead > LIVE_BUFFER + LIVE_CATCHUP && s_play.run_load < 0 && s_play.target < 0)
+		if (s_live_play.behind && ahead <= LIVE_BUFFER + LIVE_EDGE)
+			s_live_play.behind = false;
+		if (!s_live_play.behind && ahead > LIVE_SEEK && s_play.run_load < 0 && s_play.target < 0)
+		{
+			LiveCatchupEnd(next);
+			Console.WriteLn("ZdxsvGgpo: live: %d frames behind at frame %d: seeking to frame %d", ahead, next, s_play.frames - LIVE_BUFFER);
+			next = PlaySeek(s_play.frames - LIVE_BUFFER);
+		}
+		else if (!s_live_play.catchup && !s_live_play.behind && ahead > LIVE_BUFFER + LIVE_CATCHUP && s_play.run_load < 0 && s_play.target < 0)
 		{
 			s_live_play.catchup = true;
 			s_live_limiter = VMManager::GetLimiterMode();
@@ -425,6 +435,7 @@ namespace Zdxsv
 		else if (s_live_play.catchup && ahead <= LIVE_BUFFER + LIVE_EDGE)
 			LiveCatchupEnd(next);
 		LivePace(next);
+		return next;
 	}
 	bool s_sync_chase = false; // s_play_req is a chase, not a host seek for the guests
 

@@ -819,7 +819,13 @@ namespace Zdxsv
 		if (const int span = PlaySpanAt(s_play.target >= 0 ? s_play.target : s_battle.frame); span >= 0)
 		{
 			const auto& spans = s_play.spans;
-			if (round != INT_MIN)
+			if (round != INT_MIN && round > static_cast<int>(spans.size()) && s_live_down && s_live_play.close.empty())
+			{
+				// the round has not started yet (its span comes with its play start): the newest frames
+				req = s_play.frames - 1;
+				Console.WriteLn("ZdxsvGgpo: replay round %d: not started yet, to the newest frame %d", round, req);
+			}
+			else if (round != INT_MIN)
 			{
 				const int i = std::clamp(round, 1, static_cast<int>(spans.size())) - 1;
 				req = spans[i].first;
@@ -827,6 +833,8 @@ namespace Zdxsv
 			}
 			else if (req == 0)
 				req = spans[0].first;
+			else if (req != INT_MIN && PlayLiveNextRound(s_play.target >= 0 ? s_play.target : s_battle.frame))
+				req = std::clamp(req, spans.back().second, s_play.frames - 1);
 			else if (req != INT_MIN)
 				req = std::clamp(req, spans[span].first, spans[span].second - 1);
 		}
@@ -855,6 +863,7 @@ namespace Zdxsv
 		{
 			PlayRunEnd("cancelled by a seek", s_battle.frame);
 			LiveCatchupEnd(s_battle.frame);
+			s_live_play.behind = s_live_down != nullptr;
 		}
 		if (req == 0 && s_play_loads.battle.size() > 1)
 			req = s_play_loads.battle[1]; // from the start = from the briefing
@@ -876,7 +885,7 @@ namespace Zdxsv
 			pause = PlayStepPaused(next);
 		}
 		if (s_live_down)
-			LiveNext(next);
+			next = LiveNext(next);
 		if (next >= s_play.frames)
 			PlayRunEnd("replay ended first", s_battle.frame);
 		const char* exit_env = TestEnv("ZDXSV_REPLAY_EXIT");
@@ -899,14 +908,13 @@ namespace Zdxsv
 			s_play.at_end = true;
 			PlayReport("done, auto-next"); // the next battle's VM reset drops this one's stats and pw hashes
 		}
-		else if (const char* e = TestEnv("ZDXSV_REPLAY_EXIT"); s_play.at_end || (e && e[0] == '1') || g_replay_child)
-			PlayStop("end");
 		else
 		{
-			// a seek requested while paused here plays on; resuming without one stops the replay
-			s_play.at_end = true;
-			Console.WriteLn("ZdxsvGgpo: replay at its end (frame %d of %d, vsync %u), paused", s_battle.frame, s_play.frames, g_FrameCount);
-			VMManager::SetPaused(true); // now: a queued pause lets one more frame run, which ends the replay
+			// played to its end: the VM closes (a replay picked in the replay list: the list is behind it)
+			const bool exits = (exit_env && exit_env[0] == '1') || g_replay_child; // PlayStop requests the shutdown itself
+			PlayStop("end");
+			if (!exits)
+				Host::RunOnCPUThread([] { Host::RequestVMShutdown(false, false, false); });
 		}
 	}
 } // namespace Zdxsv

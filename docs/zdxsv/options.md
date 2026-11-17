@@ -196,7 +196,7 @@ See [replay.md](replay.md).
 | `ZDXSV_ALLY_HP=0` / `=1` | the setting | feature | Teammate HP on the HUD off / on, over `ZdxsvAllyHp`. |
 | `ZDXSV_REPLAY_KEY=n` | 600 | tuning | Interval of the seek keys in frames. 0 = none: no backward seek. |
 | `ZDXSV_REPLAY_TURBO=1` | off | test | Play turbo. |
-| `ZDXSV_REPLAY_EXIT=1` | off | test | Exit at the end instead of pausing. |
+| `ZDXSV_REPLAY_EXIT=1` | off | test | Exit at the end (the VM closes at the end anyway). |
 | `ZDXSV_CYCLE_LOG=n` | off | test | Log `ZdxsvGgpo: cycles at frame f: ee .. iop ..` every n played frames. Two builds that differ in the CPU core must log the same values; the state hash does not catch an EE cycle shift. |
 | `ZDXSV_EVENT_LOG=file[,lines[,from]]` | off | test | Replay playback: from the common state load, write one line per EE (`E`) and IOP (`I`) event test, `ee <cycle> <pc> iop <cycle> <pc>`, up to `lines` (2000000). Two builds that differ in the CPU core: `diff` the files, the first differing line is where the timing first splits. With `from` (rerun with the line number less a few), after `from` event lines also one `B ee <cycle> <pc>` line per EE recompiler (x86 and ARM64) block entry; `lines` counts these too. |
 | `ZDXSV_LIVE_NEXT=N` | the setting | test | Live auto-next for N more battles (0 = off), over `ZdxsvLiveAutoNext`. |
