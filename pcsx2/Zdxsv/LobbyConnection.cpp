@@ -375,28 +375,10 @@ namespace Zdxsv
 			Console.WriteLn("DEV9: TCP: zdxsv matching report: %s", ReportLogLine(report).c_str());
 		}
 
-		size_t sent = 0;
-		while (sent < msg.size())
+		if (!SendAll(static_cast<uptr>(client), msg.data(), msg.size()))
 		{
-			const int ret = send(client, reinterpret_cast<const char*>(&msg[sent]), static_cast<int>(msg.size() - sent), 0);
-			if (ret == SOCKET_ERROR)
-			{
-#ifdef _WIN32
-				const int err = WSAGetLastError();
-				if (err == WSAEWOULDBLOCK)
-#else
-				const int err = errno;
-				if (err == EWOULDBLOCK)
-#endif
-					std::this_thread::yield();
-				else
-				{
-					Console.Error("DEV9: TCP: zdxsv platform info send error: %d", err);
-					return filter;
-				}
-			}
-			else
-				sent += ret;
+			Console.Error("DEV9: TCP: zdxsv platform info send failed or stalled");
+			return filter;
 		}
 		Console.WriteLn("DEV9: TCP: zdxsv lobby detected, sent platform info (%zu bytes, machine_id %s)", msg.size(),
 			machineId.empty() ? "none" : machineId.c_str());

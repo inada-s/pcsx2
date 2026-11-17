@@ -153,6 +153,8 @@ namespace Zdxsv
 		} s_state;
 
 		constexpr int kResolveWaitMs = 5000;
+		// A server that stops reading: give up on the send instead of holding the emulation thread.
+		constexpr int kSendTimeoutMs = 5000;
 
 		void ResolveServer(std::shared_ptr<std::atomic<u32>> out)
 		{
@@ -348,14 +350,11 @@ namespace Zdxsv
 		void Send(const u8* b, u16 len)
 		{
 			const sock_t s = Sock(b);
-			for (int o = 0; s != INVALID_SOCKET && o < len;)
-			{
-				const int n = send(s, reinterpret_cast<const char*>(b + 0x20 + o), len - o, kSendFlags);
-				if (n > 0)
-					o += n;
-				else if (!WouldBlock())
-					break;
-			}
+			if (s == INVALID_SOCKET || SendAll(static_cast<uptr>(s), b + 0x20, len))
+				return;
+			const int id = Slot(b);
+			Console.Error("Zdxsv: no DEV9: slot %d send failed or stalled, closed", id);
+			CloseSlot(id);
 		}
 
 		s32 Recv(u8* b, u16 len)
@@ -377,6 +376,35 @@ namespace Zdxsv
 				memWrite32(addr, patched);
 		}
 	} // namespace
+
+	bool SendAll(uptr socket, const u8* data, size_t len)
+	{
+		const sock_t s = static_cast<sock_t>(socket);
+		const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(kSendTimeoutMs);
+		for (size_t o = 0; o < len;)
+		{
+			const int n = send(s, reinterpret_cast<const char*>(data + o), static_cast<int>(len - o), kSendFlags);
+			if (n > 0)
+			{
+				o += static_cast<size_t>(n);
+				continue;
+			}
+			if (!WouldBlock())
+				return false;
+			const auto left = std::chrono::duration_cast<std::chrono::microseconds>(deadline - std::chrono::steady_clock::now());
+			if (left.count() <= 0)
+				return false;
+			fd_set w;
+			FD_ZERO(&w);
+			FD_SET(s, &w);
+			timeval tv = {};
+			tv.tv_sec = static_cast<decltype(tv.tv_sec)>(left.count() / 1000000);
+			tv.tv_usec = static_cast<decltype(tv.tv_usec)>(left.count() % 1000000);
+			if (select(static_cast<int>(s) + 1, nullptr, &w, nullptr, &tv) < 0)
+				return false;
+		}
+		return true;
+	}
 
 	bool g_no_dev9 = false;
 
