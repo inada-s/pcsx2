@@ -154,13 +154,16 @@ namespace Zdxsv
 		}
 
 		// Every player posts <battle_code>.pb (multipart field "file") and its round_data used_ms (field "used_ms",
-		// JSON: one array per round) to the uploader, which keeps the first one (409 for the others). Detached: a slow
-		// upload blocks neither the next battle nor the exit.
-		void ReplayUpload(const std::string& name, const std::vector<uint8_t>& pb, const std::string& used_ms)
+		// JSON: one array per round) to the uploader, which keeps the first one (409 for the others). The query names the
+		// battle and its ggpo_session (the uploader refuses an upload without them). Detached: a slow upload blocks
+		// neither the next battle nor the exit.
+		void ReplayUpload(const std::string& name, u32 session, const std::vector<uint8_t>& pb, const std::string& used_ms)
 		{
-			const std::string url = ReplayUploadUrl();
+			std::string url = ReplayUploadUrl();
 			if (url.empty())
 				return;
+			url += fmt::format("{}battle_code={}&session_id={}", url.find('?') == std::string::npos ? '?' : '&', name,
+				static_cast<int32_t>(session));
 			const std::string boundary = fmt::format("zdxsv{:016x}", XXH64(pb.data(), pb.size(), 0));
 			std::string body = fmt::format("--{0}\r\nContent-Disposition: form-data; name=\"used_ms\"\r\n\r\n{1}\r\n"
 										   "--{0}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{2}.pb\"\r\n"
@@ -428,6 +431,13 @@ namespace Zdxsv
 		}
 		used_ms += "]";
 		if (!code.empty())
-			ReplayUpload(name, pb, used_ms);
+		{
+			u32 session;
+			{
+				std::lock_guard lock(s_lobby_mtx);
+				session = s_lobby_session;
+			}
+			ReplayUpload(name, session, pb, used_ms);
+		}
 	}
 } // namespace Zdxsv

@@ -16,7 +16,8 @@ battles save to the replay folder without it (settings `ZdxsvSaveReplay`,
 - The file is written when the session stops, also on a VM shutdown or reset.
   A session that ends before GGPO confirmed frame 0 writes and posts nothing.
 - A lobby battle's file is posted (multipart field `file`) to the
-  lobby's upload API (zdxsv `/lbs/replay_upload`) at
+  lobby's upload API (zdxsv `/lbs/replay_upload?battle_code=&session_id=`,
+  the battle's `ggpo_session`; the lobby refuses an upload without them) at
   `ZdxsvReplayUploadUrl` when `ZdxsvReplayUpload` is on (default),
   with field `used_ms`: JSON, one array per round of the file's
   `round_data` `used_ms` (e.g. `[[3,7,0,12],[3,9,0,12]]`), which the
