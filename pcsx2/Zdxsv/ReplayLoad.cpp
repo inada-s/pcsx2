@@ -377,20 +377,9 @@ namespace Zdxsv
 				rb.zds_seen[p] = h[4 + p];
 			rb.zds_rel = h[8];
 			rb.ms = {static_cast<u8>(h[9]), static_cast<u8>(h[10]), h[11] != 0, h[12] != 0};
-			// the recorder's releases as NetApply makes them: all positions' counts past rel (its own count implies
-			// its hold). A playback whose own load step comes later releases later.
-			const auto file_rel = [](std::vector<u8>& out, u8 rel, int k) {
-				out.resize(static_cast<size_t>(s_play.frames));
-				for (int f = 0; f < s_play.frames; f++)
-				{
-					out[f] = rel;
-					const NetInput* in = &s_play.inputs[static_cast<size_t>(f) * s_opt.players];
-					if (std::all_of(in, in + s_opt.players, [rel, k](const NetInput& i) { return static_cast<u8>(i.pad.unused[k] - rel - 1) < 127; }))
-						rel++;
-				}
-			};
-			file_rel(s_play.ps_rel, rb.ps.rel, 1);
-			file_rel(s_play.ms_rel, rb.ms.rel, 0);
+			s_play.ps_rel.clear();
+			s_play.ms_rel.clear();
+			PlayFileRels(rb.ps.rel, rb.ms.rel);
 			Console.WriteLn("ZdxsvGgpo: replay %s: recorded at position %lld of %d, %lld frames, rx0 %zu bytes, "
 							"%zu lobby answers, state hashes %s, rngs %zu", path.c_str(), me, s_opt.players, frames,
 				rb.net_rx.size(), s_play_answers.size(), r.hashes.empty() ? "no" : "yes",
@@ -594,6 +583,31 @@ namespace Zdxsv
 				Host::RunOnCPUThread([] { Host::RequestVMShutdown(false, false, false); });
 		}
 	} // namespace
+
+	// The recorder's barrier releases (s_play.ps_rel, ms_rel) as NetApply makes them: all positions' counts past rel (its
+	// own count implies its hold). A playback whose own load step comes later releases later. Extended to s_play.frames:
+	// a live stream grows; ps0 and ms0 (the releases at frame 0) start empty ones.
+	void PlayFileRels(u8 ps0, u8 ms0)
+	{
+		const auto extend = [](std::vector<u8>& out, u8 rel, int k) {
+			const auto passed = [k](int f, u8 r) {
+				const NetInput* in = &s_play.inputs[static_cast<size_t>(f) * s_opt.players];
+				return std::all_of(in, in + s_opt.players, [r, k](const NetInput& i) { return static_cast<u8>(i.pad.unused[k] - r - 1) < 127; });
+			};
+			int f = static_cast<int>(out.size());
+			if (f > 0)
+				rel = static_cast<u8>(out[f - 1] + (passed(f - 1, out[f - 1]) ? 1 : 0));
+			out.resize(static_cast<size_t>(std::max(s_play.frames, f)));
+			for (; f < s_play.frames; f++)
+			{
+				out[f] = rel;
+				if (passed(f, rel))
+					rel++;
+			}
+		};
+		extend(s_play.ps_rel, ps0, 1);
+		extend(s_play.ms_rel, ms0, 0);
+	}
 
 
 	// CPU thread, queued at the first vsync.
