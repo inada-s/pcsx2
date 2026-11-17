@@ -18,6 +18,11 @@ namespace Zdxsv
 		return static_cast<int>(s_play.spans.size()) - 1;
 	}
 
+	bool PlayLiveNextRound(int f)
+	{
+		return s_live_down && s_live_play.close.empty() && PlaySpanAt(f) >= 0 && f >= s_play.spans.back().second;
+	}
+
 	bool PlayInBattle(int f)
 	{
 		const int i = PlaySpanAt(f);

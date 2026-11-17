@@ -64,10 +64,10 @@ answers, menus turbo, with the chosen point of view as the own position.
 From GGPO frame 0 every frame gets the recorded inputs through the same
 battle-socket emulation as a live battle, without GGPO.
 
-- At the end (with rounds only on: the end of the last round) a replay
-  started from the replay window with Return on goes back to it at once.
-  Otherwise the emulator pauses: a seek plays on, Play starts again from
-  the first round, resuming any other way ends the replay.
+- At the end (with rounds only on: the end of the last round; live: the
+  end of the stream) the VM closes, so a replay started from the replay
+  window goes back to it. A live battle with auto-next on waits for the
+  next battle instead.
 - While a replay plays, state saves and loads and disc changes are refused
   from every entry point (hotkeys, menus, Big Picture, PINE), with the OSD
   "Not available during a replay."; the replay's own states (seek keys,
@@ -178,6 +178,8 @@ D-pad. While taken over the pad plays the game.
   state leaves the battle load (load 0 = mobile suit selection, 1 =
   briefing, 1 + N = round N). A jump to a round not reached yet runs
   unthrottled to it. Previous round goes to the round before the one shown.
+  Spectating live, next round from the last shown one goes to the newest
+  frames (that round has not started yet).
 - **Round states**: the recorder stores a round state (`round_states`) at
   each load end: the game RAM ranges that carry a round into the next (RNG,
   mobile suit cache and slot tables, results block, mobile-suit-selection
@@ -254,9 +256,12 @@ A lobby GGPO battle is streamed to the lobby while it runs
   play). A stream without them (an older uplink) plays without rounds only
   and round states.
 - Pacing: at the newest frame it waits
-  until 60 more frames are there; far behind it runs unthrottled to catch
-  up. In between the frame limiter's period is trimmed by a few ms per frame
-  to stay 60 frames behind without stalls. Nothing from the lobby for 30 s =
+  until 60 more frames are there. More than 1800 frames behind (a late
+  join) it seeks, not shown, to 60 frames before the newest; more than 330
+  behind it runs shown and unthrottled to catch up. After the viewer's own
+  seek or round jump it plays at speed until it is near the newest frames
+  again. In between the frame limiter's period is trimmed by a few ms per
+  frame to stay 60 frames behind without stalls. Nothing from the lobby for 30 s =
   stream lost.
 - The wait at the newest frame holds the frame: the CPU does
   not run, the VM loop does. Pause, shutdown and closing the window answer
