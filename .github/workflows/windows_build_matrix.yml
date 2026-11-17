@@ -28,3 +28,12 @@ jobs:
       configuration: CMake
       buildSystem: cmake
       cmakeFlags: -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl
+
+  lint_vs_proj_files:
+    name: Lint VS Project Files
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+      - name: Check CMake, vcxproj and filters agree
+        run: python3 .github/workflows/scripts/common/check-vs-projects.py

@@ -2448,4 +2448,283 @@
       <Filter>System\Ps2\GS</Filter>
     </Natvis>
   </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Zdxsv">
+      <UniqueIdentifier>{6b0c3e2a-5d1f-4c8e-9a77-2f4e8d1b3c90}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Zdxsv\Lobby.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\LobbyBattleInfo.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\LobbyConnection.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\LobbyLive.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\LobbyPing.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\LogTail.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\Upnp.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\ServerHosts.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\FeatureLimits.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\FastBoot.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\AuthSignIn.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\AuthTest.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\FastLogin.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\HttpsLatency.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\TlsTunnel.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\InputLatency.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\VuOpTest.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\EeOpTest.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\DeltaState.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\Overlays.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\DeltaFreeze.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\Ggpo.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\GgpoOsd.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\GgpoNetStatus.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\GgpoSession.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\GgpoBattle.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\GgpoBudget.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\GgpoFrameOsd.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\GgpoGameState.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\GgpoLobby.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\GgpoRerunKeep.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\GgpoTest.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\GgpoTrace.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\ReplayControls.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\ReplayLive.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\ReplayLoad.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\ReplayList.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\ReplayBench.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\SpuLazyVoices.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\ReplayPlay.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\AudioTap.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\ReplayRecord.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\ReplayRoundState.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\NoDev9.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\SingleDrawList.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\ServerPatches.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\AllyHp.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\StickMessage.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\SpectateSync.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\SyncSettings.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\GamePatches.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\InputDefaults.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\HostKeyboard.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\OnlineLimits.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\IntHooks.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\RecHooks.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\RecProbe.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Zdxsv\Lobby.h">
+      <Filter>Zdxsv</Filter>
+    </ClInclude>
+    <ClInclude Include="Zdxsv\Proto.h">
+      <Filter>Zdxsv</Filter>
+    </ClInclude>
+    <ClInclude Include="Zdxsv\LobbySocket.h">
+      <Filter>Zdxsv</Filter>
+    </ClInclude>
+    <ClInclude Include="Zdxsv\LobbyNet.h">
+      <Filter>Zdxsv</Filter>
+    </ClInclude>
+    <ClInclude Include="Zdxsv\LogTail.h">
+      <Filter>Zdxsv</Filter>
+    </ClInclude>
+    <ClInclude Include="Zdxsv\InputLatency.h">
+      <Filter>Zdxsv</Filter>
+    </ClInclude>
+    <ClInclude Include="Zdxsv\DeltaState.h">
+      <Filter>Zdxsv</Filter>
+    </ClInclude>
+    <ClInclude Include="Zdxsv\DeltaFreeze.h">
+      <Filter>Zdxsv</Filter>
+    </ClInclude>
+    <ClInclude Include="Zdxsv\Ggpo.h">
+      <Filter>Zdxsv</Filter>
+    </ClInclude>
+    <ClInclude Include="Zdxsv\GgpoShared.h">
+      <Filter>Zdxsv</Filter>
+    </ClInclude>
+    <ClInclude Include="Zdxsv\ReplayList.h">
+      <Filter>Zdxsv</Filter>
+    </ClInclude>
+    <ClInclude Include="Zdxsv\SpectateSync.h">
+      <Filter>Zdxsv</Filter>
+    </ClInclude>
+    <ClInclude Include="Zdxsv\SyncSettings.h">
+      <Filter>Zdxsv</Filter>
+    </ClInclude>
+    <ClInclude Include="Zdxsv\PatchHooks.h">
+      <Filter>Zdxsv</Filter>
+    </ClInclude>
+    <ClInclude Include="Zdxsv\OnlineLimits.h">
+      <Filter>Zdxsv</Filter>
+    </ClInclude>
+    <ClInclude Include="Zdxsv\PineHooks.h">
+      <Filter>Zdxsv</Filter>
+    </ClInclude>
+    <ClInclude Include="Zdxsv\RecHooks.h">
+      <Filter>Zdxsv</Filter>
+    </ClInclude>
+    <ClInclude Include="Zdxsv\SpuHooks.h">
+      <Filter>Zdxsv</Filter>
+    </ClInclude>
+    <ClInclude Include="Zdxsv\CpuHooks.h">
+      <Filter>Zdxsv</Filter>
+    </ClInclude>
+    <ClInclude Include="Zdxsv\InputHooks.h">
+      <Filter>Zdxsv</Filter>
+    </ClInclude>
+    <ClInclude Include="Zdxsv\DefaultsHooks.h">
+      <Filter>Zdxsv</Filter>
+    </ClInclude>
+    <ClInclude Include="Zdxsv\KeyboardHooks.h">
+      <Filter>Zdxsv</Filter>
+    </ClInclude>
+    <ClInclude Include="Zdxsv\SaveStateHooks.h">
+      <Filter>Zdxsv</Filter>
+    </ClInclude>
+    <ClInclude Include="Zdxsv\MediaHooks.h">
+      <Filter>Zdxsv</Filter>
+    </ClInclude>
+    <ClInclude Include="Zdxsv\AuthHooks.h">
+      <Filter>Zdxsv</Filter>
+    </ClInclude>
+    <ClInclude Include="Zdxsv\AuthSignIn.h">
+      <Filter>Zdxsv</Filter>
+    </ClInclude>
+    <ClInclude Include="Zdxsv\CrashReportHooks.h">
+      <Filter>Zdxsv</Filter>
+    </ClInclude>
+    <ClInclude Include="Zdxsv\UiHooks.h">
+      <Filter>Zdxsv</Filter>
+    </ClInclude>
+    <ClInclude Include="Zdxsv\Settings.h">
+      <Filter>Zdxsv</Filter>
+    </ClInclude>
+    <ClInclude Include="Zdxsv\FastLogin.h">
+      <Filter>Zdxsv</Filter>
+    </ClInclude>
+    <ClInclude Include="Zdxsv\ServerHosts.h">
+      <Filter>Zdxsv</Filter>
+    </ClInclude>
+    <ClInclude Include="Zdxsv\TestOptions.h">
+      <Filter>Zdxsv</Filter>
+    </ClInclude>
+    <ClInclude Include="Zdxsv\Upnp.h">
+      <Filter>Zdxsv</Filter>
+    </ClInclude>
+  </ItemGroup>
 </Project>

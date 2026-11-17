@@ -295,6 +295,7 @@
     <ClInclude Include="SettingWidgetBinder.h" />
     <QtMoc Include="QtHost.h" />
     <ClInclude Include="PrecompiledHeader.h" />
+    <ClInclude Include="Zdxsv\QtHooks.h" />
     <QtMoc Include="AboutDialog.h" />
     <QtMoc Include="AutoUpdaterDialog.h" />
     <QtMoc Include="CoverDownloadDialog.h" />
