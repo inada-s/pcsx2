@@ -148,7 +148,7 @@ namespace Zdxsv
 			});
 		}
 		// The file's load and game structure as PlayState (s_play.rngs[0] stays), and with `states` its round states.
-		void PlayPlanApply(ReplayFile& r, s64 frames, bool states)
+		void PlayRoundFramesApply(ReplayFile& r, s64 frames, bool states)
 		{
 			s_play.loads.clear();
 			for (const int64_t l : r.load_frames)
@@ -359,7 +359,7 @@ namespace Zdxsv
 			// cannot rebuild: those rounds are reached by seeking.
 			if (r.version < 20261116)
 				Console.WriteLn("ZdxsvGgpo: replay: file version %lld, round states not used", r.version);
-			PlayPlanApply(r, frames, true);
+			PlayRoundFramesApply(r, frames, true);
 			std::string spans;
 			for (const auto& [b, e] : s_play.spans)
 				spans += fmt::format(" {}-{}", b, e);
@@ -620,14 +620,14 @@ namespace Zdxsv
 		extend(s_play.ms_rel, ms0, 0);
 	}
 
-	void PlayLivePlan(const std::vector<u8>& plan, const std::vector<u8>& states, bool with_states)
+	void PlayLiveRoundFrames(const std::vector<u8>& round_frames, const std::vector<u8>& states, bool with_states)
 	{
-		std::vector<u8> all = plan;
+		std::vector<u8> all = round_frames;
 		if (with_states)
 			all.insert(all.end(), states.begin(), states.end());
 		ReplayFile r;
 		if (s_play.frames > 0 && ReplayParse(std::string_view(reinterpret_cast<const char*>(all.data()), all.size()), r))
-			PlayPlanApply(r, s_play.frames, with_states);
+			PlayRoundFramesApply(r, s_play.frames, with_states);
 	}
 
 

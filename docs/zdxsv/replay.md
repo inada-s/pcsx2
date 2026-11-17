@@ -236,10 +236,10 @@ A lobby GGPO battle is streamed to the lobby while it runs
 - Live stream: `ZLV1`, then records: u8 type, u32 LE payload length, payload.
   Types: 0 keep-alive (empty), 1 header (a `BattleLogFile` without inputs),
   2 inputs (u32 LE `frame_bytes`, then frames, in order), 3 round (one
-  `round_data` entry), 4 end (the close reason, UTF-8), 5 plan (the
-  `BattleLogFile` load, play start, game end and round end fields of the
-  frames sent so far; it replaces the one before), 6 round state (one
-  `round_states` entry). The uplink sends a plan when a tick state or play
+  `round_data` entry), 4 end (the close reason, UTF-8), 5 round frames
+  (the `BattleLogFile` load, play start, game end and round end fields of
+  the frames sent so far; it replaces the one before), 6 round state (one
+  `round_states` entry). The uplink sends round frames when a tick state or play
   start changed in the frames it sends, and each round state once its frame
   is sent. Others are skipped.
   A stream that ends without an end record: stream lost.
@@ -247,8 +247,8 @@ A lobby GGPO battle is streamed to the lobby while it runs
   newest live battle). It starts from the common state and plays as a
   replay from the uplink's point of view, checking the state hashes as a
   replay file's. The file's barrier releases follow the frames received, so
-  an own load step later than the uplink's waits as in a file. The plan and
-  round states make rounds only, seeks and round jumps work as in a file.
+  an own load step later than the uplink's waits as in a file. The round frames
+  and round states make rounds only, seeks and round jumps work as in a file.
   A round's span comes with its play start, so while the stream is open
   playback goes on past the last shown round (the screens between rounds
   play). A stream without them (an older uplink) plays without rounds only

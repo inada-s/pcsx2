@@ -542,8 +542,8 @@ namespace Zdxsv
 	extern std::unique_ptr<LiveWait> s_live_wait;
 	extern std::string s_live_next_url; // the battle auto-next moved on to, "" = ZDXSV_REPLAY
 	std::optional<std::vector<u8>> LiveOpen(const std::string& url);
-	// A live stream's plan (and with `states` its round states) as the file's: spans, MS-select starts, round states.
-	void PlayLivePlan(const std::vector<u8>& plan, const std::vector<u8>& states, bool with_states);
+	// A live stream's round frames (and with `states` its round states) as the file's: spans, MS-select starts, round states.
+	void PlayLiveRoundFrames(const std::vector<u8>& round_frames, const std::vector<u8>& states, bool with_states);
 	void PlayFileRels(u8 ps0, u8 ms0);
 	bool LiveAutoNext(bool skip = false);
 	void LiveCatchupEnd(int f);
