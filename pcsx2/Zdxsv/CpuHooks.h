@@ -21,6 +21,7 @@ namespace Zdxsv
 	extern bool g_rerun_vu1_skip;
 	extern bool g_replay_fast_frame; // not throttled
 	// ZDXSV_VU1_OPTEST: once, at the first VU1 micro program start (VuOpTest.cpp)
+	extern bool g_vu_op_test;
 	void VuOpTest();
 	// ZDXSV_EE_OPTEST: in VSyncStart; at vsync 300 runs the COP1 op test as guest code, restores at its end (EeOpTest.cpp)
 	void EeOpTestOnVsync();
