@@ -128,6 +128,9 @@ the agent's context.
 - Reset zdxsv state, threads, sockets and sessions on VM shutdown and reset.
 - Player-facing choices: settings. Environment variables: tests and
   diagnostics only, read in one place, listed in `docs/zdxsv/options.md`.
+- An environment variable that lifts what online play forces or refuses
+  (sync settings, PINE, ...) is mixed into the sync fingerprint: such a
+  client battles only clients that set it too.
 - Outside data (packets, lobby values, replay and state files) is untrusted:
   check sizes, counts and ranges; bound every wait.
 - No host pointers or per-process values in save states or replays.

@@ -14,6 +14,8 @@ namespace Zdxsv
 	bool OnlineNow();
 	bool OnlineBattleNow();
 	void OnlineAllowReset();
+	// any thread
+	bool OnlinePineAllowed();
 	// The state the settings were last applied with; OnlineNow can be ahead of it.
 	bool OnlineLimitsActive();
 	void OnlineLimitsForce(Pcsx2Config& c, std::string* changed);

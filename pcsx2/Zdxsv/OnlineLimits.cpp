@@ -81,6 +81,11 @@ namespace Zdxsv
 		}
 	} // namespace
 
+	bool OnlinePineAllowed()
+	{
+		return PineExempt();
+	}
+
 	void OnlineLimitsOnVsync()
 	{
 		if (g_ggpo_in_rollback)

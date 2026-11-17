@@ -60,6 +60,7 @@ EMU=1: the 4 clients are emulators instead (platform info, no zproxy by default;
   GGPO client cuts (`a peer has no GGPO address`); the same wait and checks as BAD_SESSION.
   SYNC_SALT=K (GGPO): client K gets ZDXSV_SYNC_SALT=m4z (another sync fingerprint, as another build):
   the lobby gets two fingerprints, every client enters the battle, no battle starts (the lobby matches equal ones only).
+  SYNC_ENV="K=V ..." with SYNC_SALT: client SYNC_SALT gets this env instead of the salt.
   DROP_SYNC=K (GGPO): client K gets ZDXSV_DROP_SYNC=0 (position 0's sync missing from its battle info): only
   client K cuts, the others start GGPO; checks: K refuses their GGPO session, each other client closes on
   `another session` within 3 s of `net armed` (not the 10 s start timeout), every client back in the lobby;
@@ -354,7 +355,7 @@ def main():
         e.update(freshboot.assigns(E("CENV")))
         e.update(freshboot.assigns(E(f"CENV{i}")))
         if i == E("SYNC_SALT"):
-            e["ZDXSV_SYNC_SALT"] = "m4z"
+            e.update(freshboot.assigns(E("SYNC_ENV")) or {"ZDXSV_SYNC_SALT": "m4z"})
         if i == E("DROP_SYNC"):
             e["ZDXSV_DROP_SYNC"] = "0"
         if i == E("BREAK"):
@@ -699,7 +700,7 @@ def main():
            and not c(zl, "対戦サーバとの接続に失敗"))
     if E("SYNC_SALT"):
         # the lobby starts a battle only among equal sync fingerprints
-        fps = {m[1] for l in g(lobby, "platform emu map") for m in [re.search(r" sync:([0-9a-f]+)", l)] if m}
+        fps = {m[1] for l in g(lobby, "platform") for m in [re.search(r'\bsync(?::|":")([0-9a-f]+)', l)] if m}
         say(f"sync fingerprints at the lobby: {' '.join(sorted(fps))}")
         ok(f"lobby got {nc} different sync fingerprints", len(fps) == nc)
         ok(f"every client entered the lobby battle (x{nc})", c(lobby, r"C->S \[Q\] ID:0x640E") >= nc)

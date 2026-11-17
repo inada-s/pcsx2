@@ -296,6 +296,9 @@ itself, runs turbo until the battle, and exits when the session ends.
   settings (not the BIOS), sent in the platform info and logged as
   `ZdxsvSync: fingerprint <hex>`. A lobby battle whose players' fingerprints
   differ is cut, and the players return to the lobby.
+  `ZDXSV_SYNC_FORCE=0` hashes the settings as applied; it and
+  `ZDXSV_PINE_ONLINE=1` are mixed in, so such a client battles only clients
+  that set them too.
 
 ## Sync checks
 

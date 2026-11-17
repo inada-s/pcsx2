@@ -23,6 +23,7 @@
 
 #include <cstring>
 #include <mutex>
+#include <utility>
 
 namespace Zdxsv
 {
@@ -116,6 +117,10 @@ namespace Zdxsv
 			// ZDXSV_SYNC_SALT=s (test): mixed in, as another build would be
 			if (static const char* salt = TestEnv("ZDXSV_SYNC_SALT"); salt)
 				add(salt, std::strlen(salt));
+			// a client whose test options lift what online play enforces battles only such clients
+			for (const auto& [name, on] : {std::pair{"sync_force_off", ForceOff()}, std::pair{"pine_online", OnlinePineAllowed()}})
+				if (on)
+					add(name, std::strlen(name));
 			add32(c.Cpu.Recompiler.bitset);
 			for (const FPControlRegister& r : {c.Cpu.FPUFPCR, c.Cpu.FPUDivFPCR, c.Cpu.VU0FPCR, c.Cpu.VU1FPCR})
 				add32(static_cast<u32>(r.GetRoundMode()) | (r.GetDenormalsAreZero() ? 0x10 : 0) | (r.GetFlushToZero() ? 0x20 : 0));
@@ -138,7 +143,8 @@ namespace Zdxsv
 			return;
 		EmuConfig.EmulationSpeed.LowLatencyPresent = LowLatencyPresentOn();
 		Pcsx2Config copy = EmuConfig;
-		Force(copy, true, nullptr);
+		if (!ForceOff())
+			Force(copy, true, nullptr);
 		{
 			std::string fp = Fingerprint(copy);
 			std::lock_guard lock(s_sync.mtx);
