@@ -513,7 +513,7 @@ namespace Zdxsv
 		}
 	}
 
-	void DeltaStateArm()
+	void DeltaStateArm(size_t states)
 	{
 		if (s_armed || !s_states.empty())
 			return;
@@ -522,6 +522,16 @@ namespace Zdxsv
 		mmap_DeltaSetFaultHook(&OnHostFault);
 		WatchAll();
 		s_armed = true;
+		std::vector<u8> sized;
+		SaveState_DeltaSetPagedRam(true);
+		const bool ok = SaveState_DeltaSave(sized);
+		SaveState_DeltaSetPagedRam(false);
+		if (ok)
+		{
+			sized.resize(sized.capacity());
+			while (s_buffer_pool.size() < states)
+				s_buffer_pool.push_back(sized);
+		}
 	}
 
 	void DeltaStateClear()
