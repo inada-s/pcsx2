@@ -510,8 +510,6 @@ namespace Zdxsv
 		{
 			const u32 ip = ServerIp();
 			res = ip ? 1 : 0;
-			if (ip)
-				ServerAddressAdd(ip);
 			std::memcpy(b + 0x20, &ip, 4);
 		}
 		else
