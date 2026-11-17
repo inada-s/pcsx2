@@ -36,6 +36,10 @@ on:
         required: false
         type: boolean
         default: false
+      package:
+        required: false
+        type: boolean
+        default: true
       stableBuild:
         required: false
         type: boolean
@@ -155,6 +159,7 @@ jobs:
 
       # zdxsv: the artifact is the player zip. portable.txt keeps its settings apart from any other PCSX2.
       - name: Add zdxsv distribution files
+        if: inputs.package
         shell: bash
         run: |
           touch bin/portable.txt
@@ -164,6 +169,7 @@ jobs:
       # zdxsv: release packages. The .7z is what the auto updater downloads (files at the top
       # level, updater.exe included); the .zip is the same files for a first install.
       - name: Package zdxsv release files
+        if: inputs.package
         shell: bash
         run: |
           mkdir -p zdxsv-release
@@ -176,12 +182,14 @@ jobs:
           7z l zdxsv-release/pcsx2-zdxsv-windows-x64.7z | tr -d '\r' | grep -E " (pcsx2-qt(x64)?|updater)\.exe$| portable\.txt$| ZDXSV(\.ja)?\.md$"
 
       - name: Upload zdxsv release files
+        if: inputs.package
         uses: actions/upload-artifact@v7
         with:
           name: zdxsv-release-windows-x64
           path: zdxsv-release
 
       - name: Upload artifact
+        if: inputs.package
         uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.artifact-metadata.outputs.artifact-name }}
@@ -196,11 +204,13 @@ jobs:
             !./bin/**/*.lib
 
       - name: Install the Breakpad Symbol Generator
+        if: inputs.package
         uses: baptiste0928/cargo-install@f204293d9709061b7bc1756fec3ec4e2cd57dec0
         with:
           crate: dump_syms
 
       - name: Generate Breakpad Symbols # Also flatten pdbs to a 'symbols' directory for upload-artifact
+        if: inputs.package
         shell: pwsh
         run: |
           mkdir -Force symbols
@@ -214,6 +224,7 @@ jobs:
           }
 
       - name: Upload artifact - with symbols
+        if: inputs.package
         uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.artifact-metadata.outputs.artifact-name }}-symbols

@@ -20,11 +20,15 @@
 
 ## CI
 
-- One Windows build (CMake + clang-cl) runs on pushes to and pull requests
-  into `zdxsv-master` and `ai/zdxsv`. It also runs the unit tests. A draft
-  pull request is not built; the build starts when it is marked ready for
-  review.
-- The Linux and macOS workflows only run by hand (`workflow_dispatch`).
+- On pushes to and pull requests into `zdxsv-master` and `ai/zdxsv` (not on
+  a draft pull request; the builds start when it is marked ready for review):
+  - Windows CMake + clang-cl, the release configuration; runs the unit tests
+    and makes the player zip.
+  - Windows MSBuild `Devel AVX2` (MSVC), the `build-local.sh` default (rig
+    builds: MSBuild `Release`); compile only.
+  - macOS arm64 (`macos_build_arm64.yml`); builds and runs the unit tests,
+    no artifact.
+- The Linux and macOS x86_64 workflows only run by hand (`workflow_dispatch`).
 
 ## Local build and run
 

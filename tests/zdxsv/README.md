@@ -312,7 +312,7 @@ Scripts are in `tests/zdxsv/` except `run.py` (repository root) and
 | Self-update from the GitHub releases of this fork | `updatecheck.py --exe <build at a zdxsv-X.Y.Z tag> --inis <data dir>/PCSX2/inis`: a local release list offers `zdxsv-999.0.0`, the startup check fetches it once and logs `Update needed.` | `--offer zdxsv-0.0.0`: `No update needed.` An untagged build fetches nothing |
 | Crash reports | none: needs a Sentry account. By hand: run with `ZDXSV_SENTRY_DSN=<dsn> ZDXSV_CRASH_REPORT_TEST=1`; PCSX2 crashes and the issue appears in Sentry with `PCSX2.ini` and `emulog-tail.txt` (the log's last lines) attached | none |
 | Release workflow | none | none |
-| Windows CI build | the workflow itself; it also runs the unit tests | none |
+| CI builds | the workflows themselves; the CMake and arm64 builds also run the unit tests | none |
 | PINE opcodes `0x30` to `0x32` | no test of its own; the rig scripts drive the emulator through them (`pine.py`) | none |
 | Fake lobby log lines from concurrent connections | `lograce.py`: 4 threads log 3000 `0x6138` and `BATTLE RESULT` lines each through `fake_lobby.log`, none lost or glued | `fake_lobby.log` as an unlocked `print()`: lines glued and lost, FAIL |
 | EE probe, watch and rerun profile | `probelint.py`: refuses a bad or stale probe list | none |
