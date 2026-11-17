@@ -6,6 +6,7 @@
 // blocks where the next PC is already compiled, so events land at other cycles.
 
 #include "Zdxsv/DeltaState.h"
+#include "Zdxsv/CpuHooks.h"
 #include "Zdxsv/DeltaFreeze.h"
 #include "Zdxsv/TestOptions.h"
 
@@ -62,6 +63,20 @@ namespace Zdxsv
 		std::vector<std::vector<u8>> s_buffer_pool;
 		bool s_break_ee = false, s_break_host = false;
 		int s_save_calls = 0;
+
+		// The Times sums are report-only: the clock is read only with ZDXSV_RERUN_SPLIT.
+		class SplitTimer
+		{
+		public:
+			double GetTimeMilliseconds() const
+			{
+				return g_rerun_split_time ? Common::Timer::ConvertValueToMilliseconds(Common::Timer::GetCurrentValue() - m_start) : 0.0;
+			}
+			void Reset() { m_start = g_rerun_split_time ? Common::Timer::GetCurrentValue() : 0; }
+
+		private:
+			Common::Timer::Value m_start = g_rerun_split_time ? Common::Timer::GetCurrentValue() : 0;
+		};
 
 		struct Times
 		{
@@ -314,7 +329,7 @@ namespace Zdxsv
 
 	bool DeltaStateSave(int frame)
 	{
-		Common::Timer total;
+		SplitTimer total;
 		ScopedGuard add_total([&total]() { s_times.total_ms += total.GetTimeMilliseconds(); });
 		s_save_calls++;
 		s_times.saves++;
@@ -326,7 +341,7 @@ namespace Zdxsv
 				Console.Error("ZdxsvDelta: save of frame %d after %d", frame, last);
 				return false;
 			}
-			Common::Timer watch;
+			SplitTimer watch;
 			Delta next;
 			std::vector<u32> snapshot;
 			std::vector<u32> pages = UpdateHot(next, snapshot);
@@ -353,7 +368,7 @@ namespace Zdxsv
 			buffer = std::move(s_buffer_pool.back());
 			s_buffer_pool.pop_back();
 		}
-		Common::Timer state;
+		SplitTimer state;
 		if (!SaveState_DeltaSave(buffer))
 			return false;
 		s_times.state_ms += state.GetTimeMilliseconds();
@@ -371,7 +386,7 @@ namespace Zdxsv
 		}
 
 		// Oldest first, each page once: it gets its data from the earliest delta at or after frame.
-		Common::Timer timer;
+		SplitTimer timer;
 		s_load_calls++;
 		s_times.loads++;
 		std::vector<u32> touched;
