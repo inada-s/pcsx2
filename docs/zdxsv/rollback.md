@@ -32,7 +32,8 @@ A save copies only the EE, IOP and SPU2 RAM pages written since the last save,
 found with host page write protection, plus the rest of the state. A page once
 written becomes hot: it stays writable and is compared and copied at every
 save and load, until 32 saves in a row find it unchanged (a protect and fault
-cost far more than a page copy). A hot page unchanged since the last save
+cost far more than a page copy); at most 64 pages go cold per save, the rest
+stay hot to a later save. A hot page unchanged since the last save
 keeps its copy for the next interval and adds nothing to the saved delta. A restored IOP RAM page clears the recompiled IOP code over
 the words that differ; a restored SPU2 RAM page drops the decoded sample cache
 of the blocks that differ.

@@ -93,6 +93,9 @@ namespace Zdxsv
 		// every save and load instead, which saves the protect calls (one per fastmem alias, ~17 us a
 		// page) and the fault. Unchanged for COLD_AFTER intervals: watched again.
 		constexpr u8 HOT_AFTER = 1, COLD_AFTER = 32;
+		// Each fastmem alias is its own view, so cooling pages cannot share a protect call: at most
+		// COOL_MAX cool per save, the rest stay hot to the next one, so a burst does not stall a frame.
+		constexpr u32 COOL_MAX = 64;
 
 		// One page index space: EE RAM, IOP RAM, SPU2 RAM. vtlb watches the EE pages; the IOP and
 		// SPU2 pages (one host view each, written on the CPU thread only) are watched here.
@@ -273,6 +276,7 @@ namespace Zdxsv
 		{
 			std::vector<u32> watch;
 			watch.reserve(s_open.size());
+			u32 cooled = 0;
 			for (SavedPage& p : s_open)
 			{
 				const u32 page = p.page;
@@ -283,16 +287,20 @@ namespace Zdxsv
 						s_run[page] = 0;
 						snapshot.push_back(page);
 					}
-					else if (++s_run[page] >= COLD_AFTER)
+					else if (s_run[page] + 1 < COLD_AFTER || cooled == COOL_MAX)
 					{
+						s_run[page] = static_cast<u8>(std::min<int>(s_run[page] + 1, COLD_AFTER));
+						next.push_back(std::move(p));
+					}
+					else
+					{
+						cooled++;
 						s_is_hot[page] = false;
 						s_run[page] = 0;
 						s_hot.erase(std::find(s_hot.begin(), s_hot.end(), page));
 						watch.push_back(page);
 						s_page_pool.push_back(std::move(p.data));
 					}
-					else
-						next.push_back(std::move(p));
 					continue;
 				}
 				s_run[page] = (s_last_write[page] == s_save_calls - 1) ? static_cast<u8>(std::min(s_run[page] + 1, 255)) : 1;
