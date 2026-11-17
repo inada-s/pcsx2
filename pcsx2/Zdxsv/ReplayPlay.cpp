@@ -428,7 +428,9 @@ namespace Zdxsv
 			for (const auto& [f, rng] : s_play.rngs)
 				if (f > s_play.hi && f < r)
 					s_play_loads.battle.push_back(f);
-			const size_t ended = std::count_if(s_play.cut.begin(), s_play.cut.end(), [r](const auto& c) { return c.first < r; });
+			// r is an MS-select load end: every round shown before it has ended (the cut also holds the rematch and MS-select
+			// screens, so it is not counted)
+			const size_t ended = std::count_if(s_play.spans.begin(), s_play.spans.end(), [r](const auto& s) { return s.first < r; });
 			for (size_t i = s_play_loads.results.size(); i < std::min(ended, s_play_loads.file_rounds.size()); i++)
 			{
 				s_play_loads.results.push_back(s_play_loads.file_rounds[i]);
