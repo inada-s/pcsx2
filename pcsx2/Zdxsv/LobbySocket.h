@@ -33,6 +33,10 @@ namespace Zdxsv
 	// answered on socket, so a long pause does not drop the player.
 	void LobbyFeed(LobbyFilter& filter, uptr socket, const u8* data, int len);
 
+	// Zdxsv/NoDev9.cpp. All of data on a non-blocking socket; false on an error or when the socket
+	// stays unwritable for a few seconds in total.
+	bool SendAll(uptr socket, const u8* data, size_t len);
+
 	// Zdxsv/TlsTunnel.cpp. Before connect, endpoint is its sockaddr_in. A connection to a zdxsv
 	// server port is redirected to a local tunnel that carries it through TLS to the server's TLS port.
 	void TlsOnConnect(void* endpoint);
