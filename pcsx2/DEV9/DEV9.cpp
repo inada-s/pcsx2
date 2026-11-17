@@ -1151,6 +1151,11 @@ namespace
 		constexpr int fifo_size = SPD_DBUF_AVAIL_MAX * 512;
 		if (d.rxbdi >= bd_count || d.txbdi >= bd_count)
 			return false;
+		// The EEPROM is indexed only in EEPROM_TDATA; bit 0xFF is the read's skip marker.
+		if (d.eeprom_state > EEPROM_TDATA || (d.eeprom_bit >= 16 && d.eeprom_bit != 0xFF))
+			return false;
+		if (d.eeprom_state == EEPROM_TDATA && d.eeprom_address >= sizeof(eeprom) / sizeof(*d.eeprom))
+			return false;
 		if (d.rxfifo_wr_ptr >= sizeof(d.rxfifo) || d.txfifo_rd_ptr >= sizeof(d.txfifo))
 			return false;
 		if (d.fifo_bytes_read < 0 || d.fifo_bytes_write < d.fifo_bytes_read ||
