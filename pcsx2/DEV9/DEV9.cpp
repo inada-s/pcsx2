@@ -466,7 +466,7 @@ u16 SpeedRead(u32 addr, int width)
 			{
 				if (dev9.eeprom_command == 2) // read
 				{
-					if (dev9.eeprom_bit != 0xFF)
+					if (dev9.eeprom_bit != 0xFF && dev9.eeprom_address < sizeof(eeprom) / sizeof(u16))
 						hard = ((dev9.eeprom[dev9.eeprom_address] << dev9.eeprom_bit) & 0x8000) >> 11;
 					dev9.eeprom_bit++;
 					if (dev9.eeprom_bit == 16)
@@ -612,9 +612,10 @@ void SpeedWrite(u32 addr, u16 value, int width)
 				{
 					if (dev9.eeprom_command == 1) // write
 					{
-						dev9.eeprom[dev9.eeprom_address] =
-							(dev9.eeprom[dev9.eeprom_address] & (63 ^ (1 << dev9.eeprom_bit))) |
-							((value >> dev9.eeprom_bit) & (0x8000 >> dev9.eeprom_bit));
+						if (dev9.eeprom_address < sizeof(eeprom) / sizeof(u16))
+							dev9.eeprom[dev9.eeprom_address] =
+								(dev9.eeprom[dev9.eeprom_address] & (63 ^ (1 << dev9.eeprom_bit))) |
+								((value >> dev9.eeprom_bit) & (0x8000 >> dev9.eeprom_bit));
 						dev9.eeprom_bit++;
 						if (dev9.eeprom_bit == 16)
 						{
