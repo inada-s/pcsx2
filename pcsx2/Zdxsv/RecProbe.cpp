@@ -21,6 +21,7 @@
 #include "R3000A.h"
 #include "R5900.h"
 #include "R5900OpcodeTables.h"
+#include "VU.h"
 #include "x86/iR5900.h"
 
 #include "common/Timer.h"
@@ -309,6 +310,8 @@ namespace Zdxsv
 				}
 				const u32 pc = cpuRegs.pc;
 				const u32 sp = cpuRegs.GPR.n.sp.UL[0];
+				// While microVU1 runs, TPC holds the byte address it was entered at.
+				const u32 vu1_entry = VU1.VI[REG_TPC].UL;
 				const bool ee = ok && in(ip, SysMemory::GetEERec(), SysMemory::GetEERecEnd());
 				const u32 block = ee ? recEeBlockPc(ip) : 0;
 				// Return addresses on the EE stack: words in sp..sp+8 KB whose call site (word - 8) is a
@@ -331,7 +334,12 @@ namespace Zdxsv
 				if (ee)
 					std::snprintf(key, sizeof(key), "ee %08x", block);
 				else if (in(ip, SysMemory::GetVU1Rec(), SysMemory::GetVU1RecEnd()))
-					std::snprintf(key, sizeof(key), "vu1");
+				{
+					std::snprintf(key, sizeof(key), "vu1 entry %04x", vu1_entry);
+					hist[key]++;
+					std::snprintf(key, sizeof(key), "vu1 entry %04x code +%06zx", vu1_entry,
+						(ip - reinterpret_cast<uptr>(SysMemory::GetVU1Rec())) & ~static_cast<uptr>(0xff));
+				}
 				else if (in(ip, SysMemory::GetVU0Rec(), SysMemory::GetVU0RecEnd()))
 					std::snprintf(key, sizeof(key), "vu0");
 				else if (in(ip, SysMemory::GetIOPRec(), SysMemory::GetIOPRecEnd()))
