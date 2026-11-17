@@ -147,6 +147,50 @@ namespace Zdxsv
 				return true;
 			});
 		}
+		// The file's load and game structure as PlayState (s_play.rngs[0] stays), and with `states` its round states.
+		void PlayRoundFramesApply(ReplayFile& r, s64 frames, bool states)
+		{
+			s_play.loads.clear();
+			for (const int64_t l : r.load_frames)
+				if (l > 0 && l < frames && (s_play.loads.empty() || l > s_play.loads.back()))
+					s_play.loads.push_back(static_cast<int>(l));
+			std::erase_if(s_play.rngs, [](const auto& e) { return e.first != 0; });
+			for (size_t i = 0; i < r.load_frames.size() && i < r.load_rngs.size(); i++)
+				s_play.rngs[static_cast<int>(r.load_frames[i])] = static_cast<u32>(r.load_rngs[i]);
+			s_play.cut.clear();
+			for (const int64_t e : r.game_ends)
+			{
+				int64_t to = frames;
+				for (const int64_t s : r.play_starts)
+					if (s > e)
+						to = std::min(to, s);
+				s_play.cut.emplace_back(static_cast<int>(e), static_cast<int>(to));
+			}
+			for (size_t i = 0; i + 1 < r.round_ends.size(); i += 2)
+				s_play.cut.emplace_back(static_cast<int>(r.round_ends[i]), static_cast<int>(r.round_ends[i + 1]));
+			s_play.spans = PlaySpans(r.load_frames, r.play_starts, r.game_ends, r.round_ends, frames, s_play.plays);
+			// The jump base is the first load end (MS select). Only the MS-select load ends take a round state: the load end
+			// before each span's start (its briefing). A rematch screen, when the room shows one, loads before it.
+			s_play.select_starts.clear();
+			for (const int64_t l : r.load_frames)
+				if (l > 0 && l < frames)
+				{
+					s_play.select_starts.insert(static_cast<int>(l));
+					break;
+				}
+			for (const auto& span : s_play.spans)
+				if (auto it = std::lower_bound(r.load_frames.begin(), r.load_frames.end(), static_cast<int64_t>(span.first));
+					it != r.load_frames.begin() && *--it > 0 && *it < frames)
+					s_play.select_starts.insert(static_cast<int>(*it));
+			if (!states)
+				return;
+			s_play.round_states.clear();
+			if (s_play.version >= 20261116 && !s_play.states_off)
+				for (RoundState& s : r.round_states)
+					if (s_play.select_starts.contains(s.frame))
+						s_play.round_states.insert_or_assign(s.frame, std::move(s));
+		}
+
 
 		// The lobby stores replays gzip encoded with Cache-Control: no-transform, so its bucket serves them compressed
 		// whatever the request's Accept-Encoding, and the HTTP clients do not decode them.
@@ -306,49 +350,16 @@ namespace Zdxsv
 			s_play.frames = static_cast<int>(frames);
 			s_play.hashes.resize(r.hashes.size() == static_cast<u64>(frames) * sizeof(u32) ? static_cast<size_t>(frames) : 0);
 			std::memcpy(s_play.hashes.data(), r.hashes.data(), s_play.hashes.size() * sizeof(u32));
-			s_play.loads.clear();
-			for (const int64_t l : r.load_frames)
-				if (l > 0 && l < frames && (s_play.loads.empty() || l > s_play.loads.back()))
-					s_play.loads.push_back(static_cast<int>(l));
 			s_play.rngs.clear();
 			if (r.start_rng)
 				s_play.rngs[0] = *r.start_rng;
-			for (size_t i = 0; i < r.load_frames.size() && i < r.load_rngs.size(); i++)
-				s_play.rngs[static_cast<int>(r.load_frames[i])] = static_cast<u32>(r.load_rngs[i]);
-			s_play.cut.clear();
-			for (const int64_t e : r.game_ends)
-			{
-				int64_t to = frames;
-				for (const int64_t s : r.play_starts)
-					if (s > e)
-						to = std::min(to, s);
-				s_play.cut.emplace_back(static_cast<int>(e), static_cast<int>(to));
-			}
-			for (size_t i = 0; i + 1 < r.round_ends.size(); i += 2)
-				s_play.cut.emplace_back(static_cast<int>(r.round_ends[i]), static_cast<int>(r.round_ends[i + 1]));
-			s_play.spans = PlaySpans(r.load_frames, r.play_starts, r.game_ends, r.round_ends, frames, s_play.plays);
-			// The jump base is the first load end (MS select). Only the MS-select load ends take a round state: the load end
-			// before each span's start (its briefing). A rematch screen, when the room shows one, loads before it.
-			s_play.select_starts.clear();
-			for (const int64_t l : r.load_frames)
-				if (l > 0 && l < frames)
-				{
-					s_play.select_starts.insert(static_cast<int>(l));
-					break;
-				}
-			for (const auto& span : s_play.spans)
-				if (auto it = std::lower_bound(r.load_frames.begin(), r.load_frames.end(), static_cast<int64_t>(span.first));
-					it != r.load_frames.begin() && *--it > 0 && *it < frames)
-					s_play.select_starts.insert(static_cast<int>(*it));
-			s_play.round_states.clear();
+			s_play.version = r.version;
+			s_play.states_off = false;
 			// Before 20261116 round states lack the MS-select menu state and part of the MS slot table, which the file
 			// cannot rebuild: those rounds are reached by seeking.
 			if (r.version < 20261116)
 				Console.WriteLn("ZdxsvGgpo: replay: file version %lld, round states not used", r.version);
-			else
-				for (RoundState& s : r.round_states)
-					if (s_play.select_starts.contains(s.frame))
-						s_play.round_states.insert_or_assign(s.frame, std::move(s));
+			PlayRoundFramesApply(r, frames, true);
 			std::string spans;
 			for (const auto& [b, e] : s_play.spans)
 				spans += fmt::format(" {}-{}", b, e);
@@ -607,6 +618,16 @@ namespace Zdxsv
 		};
 		extend(s_play.ps_rel, ps0, 1);
 		extend(s_play.ms_rel, ms0, 0);
+	}
+
+	void PlayLiveRoundFrames(const std::vector<u8>& round_frames, const std::vector<u8>& states, bool with_states)
+	{
+		std::vector<u8> all = round_frames;
+		if (with_states)
+			all.insert(all.end(), states.begin(), states.end());
+		ReplayFile r;
+		if (s_play.frames > 0 && ReplayParse(std::string_view(reinterpret_cast<const char*>(all.data()), all.size()), r))
+			PlayRoundFramesApply(r, s_play.frames, with_states);
 	}
 
 

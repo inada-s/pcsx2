@@ -34,6 +34,9 @@ namespace Zdxsv
 		const auto [begin, end] = s_play.spans[i];
 		if (next >= end)
 		{
+			// an open live stream: the next round's span comes with its play start
+			if (s_live_down && s_live_play.close.empty())
+				return next;
 			if (next < s_play.frames)
 				Console.WriteLn("ZdxsvGgpo: replay: past the last round at frame %d, the end", next);
 			return s_play.frames;

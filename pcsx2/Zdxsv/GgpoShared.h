@@ -405,8 +405,10 @@ namespace Zdxsv
 		bool pov_ok[GGPO_MAX_PLAYERS] = {};
 		std::vector<GamePatch> patches; // the file's, applied from each common start
 		std::map<int, RoundState> round_states; // the file's, by frame (a round jump writes one over the key of the first)
+		s64 version = 0; // the file's log_file_version
+		bool states_off = false; // a round jump differed: no more round states
 		int jump_check = -1; // after a round jump to this frame: state hashes are not checked up to the next load end
-		std::set<int> select_starts; // the file's MS-select load ends (the first load end and the first after each span)
+		std::set<int> select_starts; // the file's MS-select load ends (the first load end and the one before each span)
 		std::vector<int> loads; // the file's load ends, in order (as s_play_loads.battle)
 	};
 	extern PlayState s_play;
@@ -540,6 +542,8 @@ namespace Zdxsv
 	extern std::unique_ptr<LiveWait> s_live_wait;
 	extern std::string s_live_next_url; // the battle auto-next moved on to, "" = ZDXSV_REPLAY
 	std::optional<std::vector<u8>> LiveOpen(const std::string& url);
+	// A live stream's round frames (and with `states` its round states) as the file's: spans, MS-select starts, round states.
+	void PlayLiveRoundFrames(const std::vector<u8>& round_frames, const std::vector<u8>& states, bool with_states);
 	void PlayFileRels(u8 ps0, u8 ms0);
 	bool LiveAutoNext(bool skip = false);
 	void LiveCatchupEnd(int f);

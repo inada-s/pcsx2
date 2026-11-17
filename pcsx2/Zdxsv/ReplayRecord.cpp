@@ -82,7 +82,10 @@ namespace Zdxsv
 			return entry;
 		}
 
-		// The confirmed frames not yet given to the live uplink.
+		std::vector<uint8_t> RoundFramesFields(size_t frames);
+
+		// The confirmed frames not yet given to the live uplink, then the round frames when a tick state or play start changed in
+		// them and their round states.
 		void LiveFeed(size_t frames)
 		{
 			if (!s_live)
@@ -99,6 +102,19 @@ namespace Zdxsv
 				std::memcpy(&records[at + in_bytes], &s_replay_hashes[f], sizeof(u32));
 			}
 			s_live->AddFrames(records.data(), frames - have);
+			bool changed = false;
+			for (size_t f = std::max<size_t>(have, 1); f < std::min({frames, s_replay_ticks.size(), s_replay_ps.size()}); f++)
+				changed |= s_replay_ticks[f] != s_replay_ticks[f - 1] || s_replay_ps[f] != s_replay_ps[f - 1];
+			if (changed)
+				s_live->SetRoundFrames(RoundFramesFields(frames));
+			for (auto it = s_replay_round_states.lower_bound(static_cast<int>(have)); it != s_replay_round_states.end() &&
+				static_cast<size_t>(it->first) < frames; ++it)
+			{
+				const std::vector<uint8_t> m = RoundStatePb(it->second);
+				std::vector<uint8_t> entry;
+				Pb::PutBytes(entry, 61, m.data(), m.size());
+				s_live->AddRoundState(entry);
+			}
 			for (size_t f = std::max<size_t>(have, 1); f < std::min(frames, s_replay_records.size()); f++)
 			{
 				if (const int win = RoundResult(s_replay_records[f - 1], s_replay_records[f]))
@@ -206,6 +222,31 @@ namespace Zdxsv
 			}
 			if (end >= 0)
 				ends.push_back(end);
+		}
+
+		// replay.proto load_frames, load_rngs, play_start_frames, game_end_frames, round_end_frames of the first `frames` frames
+		std::vector<uint8_t> RoundFramesFields(size_t frames)
+		{
+			using namespace Pb;
+			frames = std::min({frames, s_replay_ticks.size(), s_replay_rngs.size()});
+			std::vector<int64_t> load_frames, load_rngs;
+			for (size_t f = 1; f < frames; f++)
+			{
+				if (s_replay_ticks[f - 1] == TICK_LOAD && s_replay_ticks[f] != TICK_LOAD)
+				{
+					load_frames.push_back(static_cast<int64_t>(f));
+					load_rngs.push_back(s_replay_rngs[f]);
+				}
+			}
+			std::vector<uint8_t> pb;
+			PutPackedInts(pb, 54, load_frames);
+			PutPackedInts(pb, 55, load_rngs);
+			std::vector<int64_t> starts, ends, rounds;
+			ReplayGameEnds(frames, starts, ends, rounds);
+			PutPackedInts(pb, 57, starts);
+			PutPackedInts(pb, 58, ends);
+			PutPackedInts(pb, 59, rounds);
+			return pb;
 		}
 	} // namespace
 
@@ -354,22 +395,8 @@ namespace Zdxsv
 		PutBytes(pb, 52, s_replay_hashes.data(), frames * sizeof(u32));
 		if (frames > 0)
 			PutUint(pb, 53, s_replay_rngs[0]);
-		std::vector<int64_t> load_frames, load_rngs;
-		for (size_t f = 1; f < frames; f++)
-		{
-			if (s_replay_ticks[f - 1] == TICK_LOAD && s_replay_ticks[f] != TICK_LOAD)
-			{
-				load_frames.push_back(static_cast<int64_t>(f));
-				load_rngs.push_back(s_replay_rngs[f]);
-			}
-		}
-		PutPackedInts(pb, 54, load_frames);
-		PutPackedInts(pb, 55, load_rngs);
-		std::vector<int64_t> starts, ends, rounds;
-		ReplayGameEnds(frames, starts, ends, rounds);
-		PutPackedInts(pb, 57, starts);
-		PutPackedInts(pb, 58, ends);
-		PutPackedInts(pb, 59, rounds);
+		const std::vector<uint8_t> round_frames = RoundFramesFields(frames);
+		pb.insert(pb.end(), round_frames.begin(), round_frames.end());
 		for (const auto& [f, s] : s_replay_round_states)
 			if (static_cast<size_t>(f) < frames)
 			{

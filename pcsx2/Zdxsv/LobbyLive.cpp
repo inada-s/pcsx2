@@ -49,6 +49,8 @@ namespace Zdxsv
 			REC_INPUTS = 2,
 			REC_ROUND = 3,
 			REC_END = 4,
+			REC_ROUND_FRAMES = 5, // the load, play start, game end and round end frames so far: replaces the one before
+			REC_ROUND_STATE = 6,
 		};
 
 		void PutU32(std::string& out, uint32_t v)
@@ -365,7 +367,7 @@ namespace Zdxsv
 			std::mutex mtx;
 			struct Item
 			{
-				bool round = false;
+				uint8_t type = REC_INPUTS;
 				std::vector<uint8_t> data;
 			};
 			std::vector<Item> queue;
@@ -402,9 +404,9 @@ namespace Zdxsv
 					}
 					for (const Item& it : items)
 					{
-						if (it.round)
+						if (it.type != REC_INPUTS)
 						{
-							PutRecord(out, REC_ROUND, it.data.data(), it.data.size());
+							PutRecord(out, it.type, it.data.data(), it.data.size());
 							continue;
 						}
 						std::string rec;
@@ -456,7 +458,7 @@ namespace Zdxsv
 		std::lock_guard lock(s.mtx);
 		if (s.closing)
 			return;
-		if (s.queue.empty() || s.queue.back().round)
+		if (s.queue.empty() || s.queue.back().type != REC_INPUTS)
 			s.queue.emplace_back();
 		s.queue.back().data.insert(s.queue.back().data.end(), p, p + frames * s.frameBytes);
 		s.frames += frames;
@@ -467,7 +469,23 @@ namespace Zdxsv
 		Impl::State& s = *m->s;
 		std::lock_guard lock(s.mtx);
 		if (!s.closing)
-			s.queue.push_back({true, entry});
+			s.queue.push_back({REC_ROUND, entry});
+	}
+
+	void LiveUp::SetRoundFrames(const std::vector<uint8_t>& fields)
+	{
+		Impl::State& s = *m->s;
+		std::lock_guard lock(s.mtx);
+		if (!s.closing)
+			s.queue.push_back({REC_ROUND_FRAMES, fields});
+	}
+
+	void LiveUp::AddRoundState(const std::vector<uint8_t>& entry)
+	{
+		Impl::State& s = *m->s;
+		std::lock_guard lock(s.mtx);
+		if (!s.closing)
+			s.queue.push_back({REC_ROUND_STATE, entry});
 	}
 
 	size_t LiveUp::Frames()
@@ -548,6 +566,12 @@ namespace Zdxsv
 						}
 						case REC_ROUND:
 							got.rounds.insert(got.rounds.end(), u, u + len);
+							break;
+						case REC_ROUND_FRAMES:
+							got.round_frames.assign(u, u + len);
+							break;
+						case REC_ROUND_STATE:
+							got.states.insert(got.states.end(), u, u + len);
 							break;
 						case REC_END:
 							got.closed = true;
@@ -674,6 +698,8 @@ namespace Zdxsv
 		s.inputs.insert(s.inputs.end(), g.inputs.begin(), g.inputs.end());
 		g.inputs.clear();
 		s.rounds = g.rounds;
+		s.round_frames = g.round_frames;
+		s.states = g.states;
 		s.frameBytes = g.frameBytes;
 		s.closed = g.closed;
 		s.close = g.close;
