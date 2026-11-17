@@ -83,7 +83,8 @@ the agent's context.
 - New fork files start with `// SPDX-FileCopyrightText: 2026 zdxsv contributors`
   and `// SPDX-License-Identifier: GPL-3.0+`. Upstream files keep the PCSX2 Dev
   Team header.
-- Keep `pcsx2/CMakeLists.txt` and `pcsx2/pcsx2.vcxproj` (+ `.filters`) in sync.
+- Keep `pcsx2/CMakeLists.txt` and `pcsx2/pcsx2.vcxproj` (+ `.filters`) in sync, likewise
+  `pcsx2-qt`; CI checks zdxsv files (`.github/workflows/scripts/common/check-vs-projects.py`).
 
 ### Naming
 

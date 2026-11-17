@@ -190,7 +190,6 @@
       <Filter>Settings</Filter>
     </ClCompile>
     <ClCompile Include="Translations.cpp" />
-    <ClCompile Include="Zdxsv\CrashReports.cpp" />
     <ClCompile Include="SetupWizardDialog.cpp" />
     <ClCompile Include="Debugger\DebuggerSettingsManager.cpp">
       <Filter>Debugger</Filter>
@@ -818,5 +817,43 @@
     <QtTs Include="Translations\pcsx2-qt_en.ts">
       <Filter>Translations</Filter>
     </QtTs>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Zdxsv">
+      <UniqueIdentifier>{c4a1f7d2-8e3b-4b6a-9d05-7e2c1a9f4b38}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Zdxsv\CrashReports.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\QtFonts.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\QtOnlineLimits.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\QtReplayChild.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\QtWheelVolume.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Zdxsv\QtSetupWizard.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
+    <ClCompile Include="Tools\ZdxsvReplayDialog.cpp">
+      <Filter>Tools</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Zdxsv\QtHooks.h">
+      <Filter>Zdxsv</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <QtMoc Include="Tools\ZdxsvReplayDialog.h">
+      <Filter>Tools</Filter>
+    </QtMoc>
   </ItemGroup>
 </Project>
