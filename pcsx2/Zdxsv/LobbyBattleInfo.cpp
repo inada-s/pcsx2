@@ -219,7 +219,8 @@ namespace Zdxsv
 
 	bool GamePatchCodeOk(uint64_t size, uint64_t address, uint64_t original, uint64_t changed)
 	{
-		return (size == 8 || size == 16 || size == 32) && address <= 0xFFFFFFFFu && address % (size / 8) == 0 &&
+		constexpr uint64_t EE_MAIN_RAM_SIZE = 0x2000000;
+		return (size == 8 || size == 16 || size == 32) && address < EE_MAIN_RAM_SIZE && address % (size / 8) == 0 &&
 			   (original >> size) == 0 && (changed >> size) == 0;
 	}
 

@@ -1,9 +1,11 @@
 // SPDX-FileCopyrightText: 2026 zdxsv contributors
 // SPDX-License-Identifier: GPL-3.0+
 
-// Game patches from the lobby (notice 0x9953), written in EE RAM while a battle runs.
+// Game patches from the lobby (notice 0x9953), written in EE RAM while a battle runs. Only the patches built in here
+// are written: the lobby and replays select one by an equal copy.
 
 #include "Zdxsv/GgpoShared.h"
+#include "Zdxsv/TestOptions.h"
 
 #include "Memory.h"
 #include "VMManager.h"
@@ -17,6 +19,40 @@ namespace Zdxsv
 			std::vector<GamePatch> applied;
 		};
 		ServerPatchState s_server_patches;
+
+		const std::vector<GamePatch>& BuiltinPatches()
+		{
+			static const std::vector<GamePatch> patches = {
+				// Rematch limit 5: the limit compare (slti 10 -> 5) and a jal replaced by a branch back.
+				{"rematch_max5", "SLPS-25419", false, {{32, 0x307ff0, 0x2842000a, 0x28420005}, {32, 0x308044, 0x0c0dccc4, 0x1000ffe7}}},
+			};
+			return patches;
+		}
+
+		bool SamePatch(const GamePatch& a, const GamePatch& b)
+		{
+			if (a.name != b.name || a.game != b.game || a.writeOnce != b.writeOnce || a.codes.size() != b.codes.size())
+				return false;
+			for (size_t i = 0; i < a.codes.size(); i++)
+			{
+				const GamePatchCode& x = a.codes[i];
+				const GamePatchCode& y = b.codes[i];
+				if (x.size != y.size || x.address != y.address || x.original != y.original || x.changed != y.changed)
+					return false;
+			}
+			return true;
+		}
+
+		bool PatchAllowed(const GamePatch& p)
+		{
+			static const bool any = TestEnv("ZDXSV_PATCHES_ANY") != nullptr;
+			if (any)
+				return true;
+			for (const GamePatch& b : BuiltinPatches())
+				if (SamePatch(p, b))
+					return true;
+			return false;
+		}
 
 		u32 ReadCode(EEMemoryInterface& ee, const GamePatchCode& c)
 		{
@@ -58,6 +94,11 @@ namespace Zdxsv
 		const std::string serial = VMManager::GetDiscSerial();
 		for (const GamePatch& p : patches)
 		{
+			if (!PatchAllowed(p))
+			{
+				Console.WriteLn("ZdxsvPatch: %s skipped: not built in", p.name.c_str());
+				continue;
+			}
 			if (!p.game.empty() && p.game != serial)
 			{
 				Console.WriteLn("ZdxsvPatch: %s skipped: for %s, running %s", p.name.c_str(), p.game.c_str(), serial.c_str());

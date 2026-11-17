@@ -111,8 +111,8 @@ namespace Zdxsv
 	constexpr u32 MS_SLOTS = 0x6f2b6c, MS_SLOTS_N = 6;
 	void MsSlotsClear();
 
-	// Lobby game patches (ServerPatches.cpp): Begin checks each patch's game and originals and writes the matching
-	// ones, Frame rewrites the every-frame ones, End writes the originals back.
+	// Lobby game patches (ServerPatches.cpp): Begin checks each patch against the built-in ones, its game and originals
+	// and writes the matching ones, Frame rewrites the every-frame ones, End writes the originals back.
 	void ServerPatchesBegin(const std::vector<GamePatch>& patches);
 	void ServerPatchesFrame();
 	void ServerPatchesEnd();

@@ -190,7 +190,7 @@ namespace Zdxsv
 	bool ParseBattleInfo(const std::string& body, BattleInfo& out);
 
 	// Notice 0x9953 as JSON. False if malformed or over the limits (16 patches, 256 codes each, 256-byte strings),
-	// a size not 8, 16 or 32, an unaligned address or a value wider than its size.
+	// a size not 8, 16 or 32, an address outside EE main RAM or unaligned, or a value wider than its size.
 	bool ParseGamePatches(const std::string& body, std::vector<GamePatch>& out);
 	bool GamePatchCodeOk(uint64_t size, uint64_t address, uint64_t original, uint64_t changed);
 
