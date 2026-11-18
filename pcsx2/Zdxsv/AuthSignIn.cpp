@@ -215,7 +215,7 @@ namespace Zdxsv
 
 	void AuthOpenBrowser(const std::string& url)
 	{
-		Console.WriteLn("Zdxsv: auth: open %s", url.c_str());
+		Console.WriteLn("Zdxsv: auth: open %s", url.substr(0, url.find('?')).c_str());
 		if (!TestEnv("ZDXSV_AUTH_NO_BROWSER"))
 			Host::OpenURL(url);
 	}

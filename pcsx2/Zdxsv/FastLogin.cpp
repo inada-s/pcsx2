@@ -482,7 +482,9 @@ namespace Zdxsv
 		s_fast.parked = false;
 		s_fast.in_browser = false;
 		s_fast.applied = true;
-		Console.WriteLn("Zdxsv: fast login: session %s, lobby %s", s_fast.result->session_id.c_str(), s_fast.result->lobby_addr.c_str());
+		std::string session = s_fast.result->session_id;
+		std::fill(session.begin(), session.size() > 2 ? session.end() - 2 : session.end(), '*');
+		Console.WriteLn("Zdxsv: fast login: session %s, lobby %s", session.c_str(), s_fast.result->lobby_addr.c_str());
 	}
 
 	bool FastLoginApplied()

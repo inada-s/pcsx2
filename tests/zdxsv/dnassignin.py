@@ -75,7 +75,7 @@ def after(out):
                            (hashlib.sha256(tok.encode()).hexdigest(),)).fetchall()
     finally:
         c.close()
-    ok = paused and by_token and bool(m) and m.group(1) == session and stored == [(key,)]
+    ok = paused and by_token and bool(m) and m.group(1) == zrig.masked_session(session) and stored == [(key,)]
     print(f"{'PASS' if ok else 'FAIL'}: paused sign-in {paused}, by token {by_token}, emulog session "
           f"{m.group(1) if m else None}, account session {session}, token file account "
           f"{stored[0][0] if stored else None}")

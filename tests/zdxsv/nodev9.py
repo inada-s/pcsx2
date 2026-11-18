@@ -48,7 +48,7 @@ def main():
         (f"no DEV9 on, names resolve to {nodev9}",
          any(re.search(r"Zdxsv: no DEV9: .*names resolve to " + re.escape(nodev9), l) for l in lines)),
         (f"fast login session, lobby {ip}",
-         any(re.search(r"Zdxsv: fast login: session [0-9]*, lobby " + re.escape(ip) + ":", l) for l in lines)),
+         any(re.search(r"Zdxsv: fast login: session [0-9*]*, lobby " + re.escape(ip) + ":", l) for l in lines)),
         ("DNAS: no POST", os.path.isfile(dnas) and b"POST" not in open(dnas, "rb").read()),
         ("no connect refused", not any("connect to" in l and "refused" in l for l in lines)),
         ("pcsx2: TCP only to the lobby and the login API", samples[0] >= 3 and not remote),
