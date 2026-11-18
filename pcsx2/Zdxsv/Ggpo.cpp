@@ -255,7 +255,7 @@ namespace Zdxsv
 	int s_play_picked_pov = -1;
 	bool s_play_listed = false;
 	// Common start: the replay has no start state (or ZDXSV_REPLAY_COMMON=1). The booted state (any post-entry
-	// state, tests/zdxsv/rbkprep.sh) plays the battle start with the file's lobby answers through RbkCall up to the
+	// state, tests/zdxsv/rbkprep.py) plays the battle start with the file's lobby answers through RbkCall up to the
 	// arm, which is GGPO frame 0 (PlayCommonStart).
 	bool s_play_common = false;
 	bool g_ggpo_enabled = false; // GgpoOnVmInitialize
@@ -367,7 +367,7 @@ namespace Zdxsv
 	{
 		if (s_rbk && s_net_env && !s_battle.armed)
 			VMManager::SetLimiterMode(LimiterModeType::Turbo);
-		// Once: the rbk knobs as received; zdxsv/rbk.sh compares this line to what it meant to pass
+		// Once: the rbk knobs as received; tests/zdxsv/rbk.py compares this line to what it meant to pass
 		static bool rbk_env_logged = false;
 		if (s_rbk && !s_play_env && !rbk_env_logged)
 		{

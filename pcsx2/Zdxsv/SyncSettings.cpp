@@ -36,7 +36,7 @@ namespace Zdxsv
 		};
 		SyncState s_sync;
 
-		// ZDXSV_SYNC_FORCE=0 (test): nothing forced, for the controls of tests/zdxsv/syncset.sh
+		// ZDXSV_SYNC_FORCE=0 (test): nothing forced, for the controls of tests/zdxsv/syncset.py
 		bool ForceOff()
 		{
 			static const char* e = TestEnv("ZDXSV_SYNC_FORCE");
