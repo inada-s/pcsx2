@@ -155,10 +155,22 @@ def kill(*pids):
                 pass
 
 
+def _slash(path):
+    return path.replace("\\", "/").rstrip("/").lower()
+
+
+def rig_pcsx2(cmd):
+    """A pcsx2 the rig started: its -datapath is under $RUN. A pcsx2 someone else runs on the machine is not."""
+    run_dir = env("RUN")
+    m = re.search(r'-datapath\s+("[^"]+"|\S+)', cmd or "")
+    return bool(run_dir and m and (_slash(m[1].strip('"')) + "/").startswith(_slash(os.path.abspath(run_dir)) + "/"))
+
+
 def pids_name(*names):
-    """Pids whose executable name starts with one of NAMES (any case), never this process."""
+    """Pids whose executable name starts with one of NAMES (any case), never this process; pcsx2: only rig_pcsx2."""
     low = [n.lower() for n in names]
-    return [p for p, _, n, _ in _procs() if p != os.getpid() and any(n.lower().startswith(x) for x in low)]
+    return [p for p, _, n, cmd in _procs() if p != os.getpid() and any(n.lower().startswith(x) for x in low)
+            and (not n.lower().startswith("pcsx2") or rig_pcsx2(cmd))]
 
 
 def kill_name(*names):
@@ -327,7 +339,7 @@ def ctl_check(ini, seq, stdout=None):
 
 
 # --- rig lock ---
-# One pcsx2/zdxsv rig at a time: rigs share fixed ports (7001.., 8200.., 28010..) and kill pcsx2*/zdxsv*
+# One pcsx2/zdxsv rig at a time: rigs share fixed ports (7001.., 8200.., 28010..) and kill $RUN pcsx2s and zdxsv*
 # at start, so a 2nd rig wrecks the 1st. $RUN/rig.lock = "<owner pid> <time> <what>". A nested rig
 # (RIG_OWNER exported by the outer one) and a process under the owner pass.
 
