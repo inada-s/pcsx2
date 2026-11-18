@@ -237,6 +237,9 @@ namespace Zdxsv
 		// LowLatencyPresent: present, rollback, then sleep and poll input (GgpoDeferThrottle). A corrected frame
 		// shows one frame later.
 		bool throttle_deferred = false;
+		// GGPO ignores the load callback's result and reruns from whatever state is loaded.
+		bool load_failed = false;
+		Common::Timer::Value barrier_since = 0; // net: wall time a load barrier started holding, 0 = none
 	};
 
 	struct SessionStats
@@ -374,6 +377,8 @@ namespace Zdxsv
 	NetInput NetPack(const Input& pad, int frame);
 	void NetApply(const NetInput* in);
 	void NetRelease(const NetInput* in);
+	extern const int s_net_barrier_ms;
+	bool NetBarrierTimedOut();
 	void NetReport();
 	// One file's play state; PlayReset clears it whole, so only state that starts fresh per file belongs here.
 	struct PlayState

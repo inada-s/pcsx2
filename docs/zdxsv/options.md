@@ -169,6 +169,7 @@ turns GGPO off and leaves the other extensions on. Any other value turns it on. 
 | `ZDXSV_ROLLBACK_BUDGET=1` | off | test | The lobby delay subtracts the learned `ZdxsvRollbackBudget` instead of 0. |
 | `ZDXSV_NET_TAIL=n` | 60 | tuning | Frames run after the battle end message is confirmed, before the session stops. |
 | `ZDXSV_NET_DISCONNECT_MS=ms` | 10000 | tuning | GGPO disconnect timeout. |
+| `ZDXSV_NET_BARRIER_MS=ms` | 60000 | test | A load barrier held longer than this ends the net battle as a connection failure (`ZdxsvGgpo: load barrier held over`). |
 | `GGPO_NETWORK_DELAY=ms` | 0 | test | GGPO holds each sent packet ms * (2/3 .. 1) before sending it ([rollback.md](rollback.md)). |
 | `ZDXSV_NET_SESSION=s` | battle code | test | GGPO session code sent in the sync handshake instead of the battle code; a peer with another code is refused (`session mismatch`). |
 | `ZDXSV_SYNC_FORCE=0` | forced | control | Sync-relevant settings are not forced (`Zdxsv/SyncSettings.cpp`); the log names those that would have been (`ZdxsvSync: ZDXSV_SYNC_FORCE=0, not forced:`). The fingerprint is sent anyway. |

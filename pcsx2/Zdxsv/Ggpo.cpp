@@ -555,6 +555,18 @@ namespace Zdxsv
 			GgpoStop("failed");
 			return;
 		}
+		if (s_run.load_failed)
+		{
+			Console.Error("ZdxsvGgpo: state load failed");
+			GgpoStop("failed");
+			return;
+		}
+		if (s_opt.net && NetBarrierTimedOut())
+		{
+			Console.Error("ZdxsvGgpo: load barrier held over %d ms", s_net_barrier_ms);
+			GgpoStop("failed");
+			return;
+		}
 		s_session_frames++;
 		NetEndCheck();
 		if (s_opt.net && s_battle.end >= 0 && ++s_battle.end > s_net_tail)
