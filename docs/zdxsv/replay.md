@@ -13,7 +13,8 @@ battles save to the replay folder without it (settings `ZdxsvSaveReplay`,
 - The file name is `<battle_code>.pb`, else `rbk-<start time>-p<position>.pb`.
 - Only frames GGPO confirmed are written, so every peer's file of one battle
   holds the same inputs.
-- The file is written when the session stops, also on a VM shutdown or reset.
+- The file is written when the session stops, also on a VM shutdown or reset,
+  to `<name>.pb.part` first, then renamed over `<name>.pb`.
   A session that ends before GGPO confirmed frame 0 writes and posts nothing.
 - A lobby battle's file is posted (multipart field `file`) to the
   lobby's upload API (zdxsv `/lbs/replay_upload?battle_code=&session_id=`,
