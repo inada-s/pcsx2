@@ -140,3 +140,11 @@ You can also check by hand from the Help menu (Check for Updates).
 If the game shows "PLEASE UPDATE PCSX2" when you connect (PCSX2 also shows "The lobby refused this PCSX2
 as outdated"), the server no longer accepts your
 version: update as above, then connect again.
+
+## License and source code
+
+PCSX2 for zdxsv is free software under the GNU General Public License, version 3 or later
+(`docs/GPL.html`). Its source code is at https://github.com/inada-s/pcsx2 (branch `zdxsv-master`);
+the source of each release is under its tag `zdxsv-X.Y.Z` on https://github.com/inada-s/pcsx2/releases.
+It includes third-party software (GGPO, Mbed TLS, MiniUPnPc, Sentry Native, Crashpad and others)
+under their own licenses: see `docs/ThirdPartyLicenses.html`.
