@@ -16,6 +16,7 @@
 #include "vtlb.h"
 #include "arm64/AsmHelpers.h"
 #include "Zdxsv/CpuHooks.h"
+#include "Zdxsv/TestOptions.h"
 
 #include "common/Console.h"
 
@@ -68,7 +69,7 @@ static void recReserve()
 	s_rom_blocks = alloc(Ps2MemSize::Rom);
 	s_rom1_blocks = alloc(Ps2MemSize::Rom1);
 	s_rom2_blocks = alloc(Ps2MemSize::Rom2);
-	const char* native = std::getenv("PCSX2_ARM64_EE_NATIVE");
+	const char* native = Zdxsv::TestEnv("PCSX2_ARM64_EE_NATIVE");
 	s_native = !native || std::strcmp(native, "0") != 0;
 	Console.WriteLn("ARM64 EE rec: reserved, native ops %s", s_native ? "on" : "off");
 
@@ -1043,7 +1044,7 @@ static void EmitTimeoutLoop(u32 reg, u32 endpc, const a64::Register& rregs, cons
 // PCSX2_EE_JIT_MAP=<file>: host address of each compiled instruction (pc, name, code word), to
 // attribute `sample` addresses in block code.
 static FILE* const s_ee_map = [] {
-	const char* path = std::getenv("PCSX2_EE_JIT_MAP");
+	const char* path = Zdxsv::TestEnv("PCSX2_EE_JIT_MAP");
 	return path ? std::fopen(path, "w") : nullptr;
 }();
 static BlockFn Compile(u32 startpc, BlockFn* entry)

@@ -6,6 +6,7 @@
 
 #include "arm64/AsmHelpers.h"
 #include "R5900OpcodeTables.h"
+#include "Zdxsv/TestOptions.h"
 
 #include <algorithm>
 #include <cstdio>
@@ -446,7 +447,7 @@ static constexpr u32 VU1_JIT_MAX_STEP_CODE = 1024;
 // PCSX2_VU1_JIT: 0 = interpreter only, check = see _vu1TraceCheck, unset = traces.
 enum class VU1JitMode { Off, On, Check };
 static const VU1JitMode s_vu1_jit_mode = [] {
-	const char* env = std::getenv("PCSX2_VU1_JIT");
+	const char* env = Zdxsv::TestEnv("PCSX2_VU1_JIT");
 	if (env && std::strcmp(env, "0") == 0)
 		return VU1JitMode::Off;
 	if (env && std::strcmp(env, "check") == 0)
@@ -456,7 +457,7 @@ static const VU1JitMode s_vu1_jit_mode = [] {
 // PCSX2_VU1_JIT_MAP=<file>: start address of each emitted section, what it does and the handler
 // it calls, to attribute `sample` addresses in JIT code.
 static FILE* const s_vu1_jit_map = [] {
-	const char* path = std::getenv("PCSX2_VU1_JIT_MAP");
+	const char* path = Zdxsv::TestEnv("PCSX2_VU1_JIT_MAP");
 	return path ? std::fopen(path, "w") : nullptr;
 }();
 static void _vu1JitMark(const char* what, const void* fn = nullptr)
