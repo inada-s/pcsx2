@@ -703,6 +703,10 @@ namespace Zdxsv
 		s_battle.end = -1;
 		s_battle.last_real = INT_MAX;
 		s_battle.zd_steps = s_battle.zd_changed = s_battle.zds_echo = s_battle.zds_skip = s_battle.zds_k3rel = 0;
+		std::fill(std::begin(s_battle.zd_last), std::end(s_battle.zd_last), -1);
+		s_battle.zd_repeats = s_battle.zd_gaps = 0;
+		s_battle.zd_gap_min = INT_MAX;
+		s_battle.zd_gap_max = 0;
 		for (auto& k3 : s_battle.zds_k3)
 			k3.clear();
 		s_opt.net = true;

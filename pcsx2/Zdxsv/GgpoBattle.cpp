@@ -939,6 +939,19 @@ namespace Zdxsv
 		const u16 na = ab[0];
 		const u16 nb = static_cast<u16>((ab[1] & ~1u) | (b & 1u));
 		s_battle.zd_steps++;
+		if (!g_ggpo_in_rollback)
+		{
+			int& last = s_battle.zd_last[p];
+			if (k == last)
+				s_battle.zd_repeats++;
+			else if (last >= 0 && k > last + 1)
+			{
+				s_battle.zd_gaps++;
+				s_battle.zd_gap_min = std::min(s_battle.zd_gap_min, k - last - 1);
+				s_battle.zd_gap_max = std::max(s_battle.zd_gap_max, k - last - 1);
+			}
+			last = k;
+		}
 		if (a != na || b != nb)
 			s_battle.zd_changed++;
 		std::memcpy(ram + e + 2, &na, 2);
