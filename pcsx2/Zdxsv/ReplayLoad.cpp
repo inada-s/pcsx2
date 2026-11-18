@@ -9,6 +9,7 @@
 #include "Zdxsv/UiHooks.h"
 #include "IconsFontAwesome.h"
 
+#include "mbedtls/sha256.h"
 #include "rapidjson/document.h"
 
 #include <zlib.h>
@@ -426,9 +427,20 @@ namespace Zdxsv
 				}
 			}
 			const bool http = src.starts_with("http://") || src.starts_with("https://");
-			const auto download = [&src, &path]() {
+			const std::string_view want = src == REPLAY_STATE_URL ? REPLAY_STATE_SHA256 : "";
+			const auto pinned = [&want, &src](const std::vector<u8>& data) {
+				if (want.empty())
+					return true;
+				std::array<unsigned char, 32> sum;
+				mbedtls_sha256(data.data(), data.size(), sum.data(), 0);
+				if (StringUtil::EncodeHex(sum.data(), static_cast<int>(sum.size())) == want)
+					return true;
+				Console.Error("ZdxsvGgpo: replay: common state %s: SHA-256 mismatch", src.c_str());
+				return false;
+			};
+			const auto download = [&src, &path, &pinned]() {
 				const std::optional<std::vector<u8>> got = HttpGet(src);
-				if (!got || !FileSystem::WriteBinaryFile(path.c_str(), got->data(), got->size()))
+				if (!got || !pinned(*got) || !FileSystem::WriteBinaryFile(path.c_str(), got->data(), got->size()))
 				{
 					Console.Error("ZdxsvGgpo: replay: common state %s: download to %s failed", src.c_str(), path.c_str());
 					return false;
@@ -448,7 +460,15 @@ namespace Zdxsv
 				}
 			}
 			Error error;
-			bool loaded = ReplayLoadState(path.c_str(), &error);
+			bool loaded = fresh || want.empty();
+			if (!loaded)
+			{
+				const std::optional<std::vector<u8>> cached = FileSystem::ReadBinaryFile(path.c_str());
+				loaded = cached && pinned(*cached);
+				if (!loaded)
+					error.SetStringView("not the pinned file");
+			}
+			loaded = loaded && ReplayLoadState(path.c_str(), &error);
 			// a broken cached copy (a cut download, a bad disk) is downloaded again, once per URL per run: a start
 			// that fails is tried again soon, and a bad file on the server would be downloaded at each try
 			static std::string refetched;
