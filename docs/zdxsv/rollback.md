@@ -69,7 +69,11 @@ inputs of the next frame. Host pad input goes through GGPO.
 Rerun frames are not throttled, presented or heard: a rollback of N frames
 shows and plays the live frame once. SPU2 reverb is not computed in rerun
 frames (unless an SPU2 IRQ address lies in the reverb work area): it only
-feeds their dropped sound. The game builds a frame's draw list in its render
+feeds their dropped sound and the reverb work area in SPU2 RAM, so after a
+rollback a peer's SPU2 RAM and reverb buffers differ from its peers'. No
+comparison between peers includes them: the online desync check and the replay
+state hashes cover the players' work and the game RNG (`ZDXSV_GGPO` `hash=full`,
+a local synctest, does include them). The game builds a frame's draw list in its render
 callbacks, VU1 draws it in the next frame, and that picture is shown one
 vblank later. The present comes before the rollback, so the first present
 after it shows what VU1 drew in the last rerun frame, from the list of the

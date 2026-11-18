@@ -66,7 +66,7 @@ options: `docs/zdxsv/`.
 | `ReplayLoad.cpp` | Replay files: parse, load, common start, start of playback, position switch, next battle |
 | `DeltaState.cpp`, `DeltaState.h` | Fast per-frame save and load of the VM for rollback (copy-on-write EE RAM pages) |
 | `DeltaFreeze.cpp`, `DeltaFreeze.h` | The non-EE-RAM part of a delta state: CPU, IOP, VU, SPU2, DEV9, pad; section timing and offset names for reports |
-| `SpuLazyVoices.cpp` | SPU2 mixer: stopped voices skip their per-tick steps until their decode could reach the next block, caught up before any other SPU2 access (seam: `SpuHooks.h`) |
+| `SpuLazyVoices.cpp` | SPU2 mixer: stopped voices skip their per-tick steps until their decode could reach the next block, caught up before any other SPU2 access; reverb skipped in rerun frames (seam: `SpuHooks.h`) |
 | `Lobby.cpp`, `Lobby.h` | Lobby side of a GGPO battle: platform info, battle info and peers, STUN, UDP test, lobby frame filter |
 | `LobbyBattleInfo.cpp` | Lobby message bodies (JSON): parses the battle info notice, encodes the match report |
 | `LobbyLive.cpp` | Live spectating over the lobby HTTP API (one streamed POST, one streamed GET per spectator): `LiveUp` streams a battle, `LiveDown` receives one |
