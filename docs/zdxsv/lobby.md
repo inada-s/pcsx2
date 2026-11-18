@@ -284,4 +284,4 @@ A save state does not hold the network adapter, as upstream, except:
   to its server on first use.
 
 The adapter state holds no host pointer. A load checks its buffer and
-descriptor indices and fails on a damaged state.
+descriptor indices and its EEPROM position, and fails on a damaged state.
