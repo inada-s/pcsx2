@@ -49,7 +49,11 @@ namespace Zdxsv
 			if (!states && g.round_frames == s_live_round_frames_seen.round_frames && static_cast<size_t>(s_play.frames) == s_live_round_frames_seen.frames)
 				return;
 			s_live_round_frames_seen = {g.round_frames, g.states.size(), static_cast<size_t>(s_play.frames)};
+			const std::set<int> starts = s_play.select_starts;
 			PlayLiveRoundFrames(g.round_frames, g.states, states);
+			// A state can arrive before the round frames that make its frame a select start.
+			if (!states && !g.states.empty() && s_play.select_starts != starts)
+				PlayLiveRoundFrames(g.round_frames, g.states, true);
 		}
 
 		// BattleLogFile round_data entries -> win_team per round
