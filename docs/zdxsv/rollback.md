@@ -17,14 +17,11 @@ in [options.md](options.md); battles matched by the lobby are in
 
 ## GGPO library
 
-[GGPO](https://github.com/pond3r/ggpo) (MIT; notice in
-`bin/docs/ThirdPartyLicenses.html`). Changes in this
-fork:
-
-- `ggpo_get_last_confirmed_frame` added.
-- On Windows the UDP sockets ignore ICMP port unreachable
-  (`SIO_UDP_CONNRESET` off): a send to a peer that is not running does not
-  fail the next receive.
+`3rdparty/ggpo`: [GGPO](https://github.com/pond3r/ggpo) (MIT; notice in
+`bin/docs/ThirdPartyLicenses.html`) as extended by the inada-s/flycast fork:
+a network thread, relay forwarding, IPv4 and IPv6 sockets, 4 players with
+32-byte inputs and more. Its source and every change made here:
+[3rdparty/ggpo/README.md](../../3rdparty/ggpo/README.md).
 
 ## Delta save states
 
@@ -85,7 +82,7 @@ the last frame's VU1 it lacks all VU1 geometry, without the callbacks of the
 frame before it repeats the picture shown before the rollback. Those callbacks also draw from
 RNG A (u16 0x6d7940, ~40 draws a battle frame), so after such a rollback
 RNG A differs from a run without one. RNG A is already peer-local (sound
-picks draw from it) and the players and RNG B stay in sync (rbk N=2 and N=4).
+picks draw from it) and the players and RNG B stay in sync.
 
 The single draw list (`SingleDrawList.cpp`, always on) removes the frame between the list and VU1. The
 game keeps two draw-list slots chosen by a per-frame flag (u32 0x7ae1c0); its
@@ -99,8 +96,7 @@ no rerun frame runs the render callbacks or VU1: GS memory is not rolled back,
 so the first present after a rollback shows the frame drawn before it (the
 predicted one), never an older picture. The framebuffer
 swap (DISPFB between FBP 0x000 and 0x08c every vsync) is unchanged. The players
-and RNG B stay in sync in N=4 battles and between peers with and without it.
-Not checked yet: replays.
+and RNG B stay in sync, also between peers with and without it.
 
 Rerun keep: the render callbacks also update state that a later draw reads.
 The per-player bone matrix slots (4 x 0x65d0 bytes from 0x8afda0, written
@@ -276,9 +272,8 @@ budget is the part of the one-way latency left to rollbacks.
   depth that fits. A histogram in steps of 0.05 frames gives the median.
 - After a net battle of at least 1800 frames the learned budget moves halfway
   to clamp(median - 1, 0, 1.5) and is saved (`ZdxsvRollbackBudget`).
-- The delay uses 0 for now, so it is ceil(RTT / 32 ms) as before: rollbacks
-  still cost too much on PS2, and a deeper rollback would
-  drop frames. The budget gets used once reruns are cheaper; the switch is
+- The delay uses a budget of 0, so it is ceil(RTT / 32 ms): rollbacks cost
+  too much on PS2, and a deeper rollback would drop frames. The switch is
   `kBudgetUsed` in `GgpoBudget.cpp` (`ZDXSV_ROLLBACK_BUDGET=1` for tests).
 - The lobby log line `lobby delay` and the match report (`rollback_budget`,
   `rollback_budget_used`) carry the learned and the used budget.
