@@ -23,6 +23,7 @@ def main():
     if len(a) != len(b) or not ops or len(a) != size:
         sys.exit(f"sizes {len(a)} / {len(b)}, expected {size} for {len(ops)} ops")
     o = 0
+    total = 0
     for op, n in ops:
         ins, outs = COP2 if op.startswith("V") else COP1
         ni, rec = len(ins), len(ins) + len(outs)
@@ -40,6 +41,9 @@ def main():
             print("  " + " ".join(f"{ins[j]}={ra[j]:08x}" for j in range(ni)))
             print("    a " + " ".join(f"{outs[j]}={ra[ni + j]:08x}" for j in range(len(outs))))
             print("    b " + " ".join(f"{outs[j]}={rb[ni + j]:08x}" for j in range(len(outs))))
+        total += len(diff)
+    if total:
+        sys.exit(f"FAIL {total} cases differ")
 
 
 main()
