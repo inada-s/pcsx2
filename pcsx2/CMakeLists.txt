@@ -465,6 +465,7 @@ set(pcsx2DEV9Headers
 	Zdxsv/Lobby.h
 	Zdxsv/Proto.h
 	Zdxsv/LobbySocket.h
+	Zdxsv/LobbyFrame.h
 	Zdxsv/LobbyNet.h
 	Zdxsv/LogTail.h
 	DEV9/Sessions/UDP_Session/UDP_Common.h

@@ -702,6 +702,7 @@
     <ClInclude Include="Zdxsv\Lobby.h" />
     <ClInclude Include="Zdxsv\Proto.h" />
     <ClInclude Include="Zdxsv\LobbySocket.h" />
+    <ClInclude Include="Zdxsv\LobbyFrame.h" />
     <ClInclude Include="Zdxsv\LobbyNet.h" />
     <ClInclude Include="Zdxsv\LogTail.h" />
     <ClInclude Include="DEV9\Sessions\UDP_Session\UDP_Common.h" />
