@@ -77,6 +77,8 @@ static BlockFn* Entry(u32 pc, bool alloc)
 		if (!alloc)
 			return nullptr;
 		page = static_cast<BlockFn*>(std::calloc(PAGE_ENTRIES, sizeof(BlockFn)));
+		if (!page)
+			pxFailRel("Failed to allocate ARM64 IOP block page");
 		s_pages.push_back(phys >> 16);
 	}
 	return &page[(phys & 0xffff) >> 2];
