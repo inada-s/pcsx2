@@ -312,7 +312,7 @@ Scripts are in `tests/zdxsv/` except `run.py` (repository root) and
 | Feature | Test | Control |
 |---|---|---|
 | Self-update from the GitHub releases of this fork | `updatecheck.py --exe <build at a zdxsv-X.Y.Z tag> --inis <data dir>/PCSX2/inis`: a local release list offers `zdxsv-999.0.0`, the startup check fetches it once and logs `Update needed.` | `--offer zdxsv-0.0.0`: `No update needed.` An untagged build fetches nothing |
-| Crash reports | none (needs a build with the SDK). By hand: run with `ZDXSV_SENTRY_DSN=<dsn> ZDXSV_CRASH_REPORT_TEST=1`, the DSN a Sentry project or `http://k@127.0.0.1:<port>/1` with an HTTP server there that saves each POST (gzip body); the report carries `PCSX2.ini` without `[Folders]`, `[GameList]`, `[Achievements]` and absolute path values, and `emulog-tail.txt` (the log's last lines). Setup wizard: "Send Crash Reports" under Enable Automatic Updates, writes `ZdxsvCrashReports` | attaching `inis/PCSX2.ini` itself sends those sections |
+| Crash reports | `crashrep.py <exe> <out dir>` (a build with the SDK, `crashpad_handler` next to the exe): crashes against a local DSN; the upload carries `PCSX2.ini` without `[Folders]`, `[GameList]`, `[Achievements]` and absolute path values, and `emulog-tail.txt` (the log's last lines). Setup wizard: "Send Crash Reports" under Enable Automatic Updates, writes `ZdxsvCrashReports` | attaching `inis/PCSX2.ini` itself sends those sections |
 | Release workflow | none | none |
 | Windows CI build | the workflow itself; it also runs the unit tests | none |
 | PINE opcodes `0x30` to `0x32` | no test of its own; the rig scripts drive the emulator through them (`pine.py`) | none |
