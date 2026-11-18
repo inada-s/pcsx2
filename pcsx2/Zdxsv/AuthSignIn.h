@@ -25,6 +25,9 @@ namespace Zdxsv
 	// Blocking: revokes the token on the server and deletes the file (the file goes even if the server is unreachable).
 	std::string AuthSignOut();
 
+	// The server answered 401 to this token (unknown, revoked or expired): deletes the file if it still holds it.
+	void AuthTokenRefused(const std::string& token);
+
 	struct AuthAccountList
 	{
 		// Per account, numbered from 1: the names of its users, and whether it was carried over from a PS2.

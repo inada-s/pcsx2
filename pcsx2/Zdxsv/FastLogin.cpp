@@ -89,6 +89,7 @@ namespace Zdxsv
 			bool holding = false;
 			bool hold_paused = false;
 			bool answered = false;
+			std::string token;
 			s32 status = 0;
 			bool applied = false;
 			bool went_back = false;
@@ -420,6 +421,7 @@ namespace Zdxsv
 			s_fast.answered = false;
 			s_fast.hold_paused = false;
 			s_fast.result.reset();
+			s_fast.token = *token;
 			s_fast.cancel = std::make_shared<std::atomic<bool>>(false);
 			Hold(s_fast.cancel);
 			std::thread(Request, Url(), std::move(form), s_fast.cancel).detach();
@@ -453,6 +455,13 @@ namespace Zdxsv
 		if (!at_dnas)
 		{
 			Console.WriteLn("Zdxsv: fast login: the game left DNAS before the answer");
+			return;
+		}
+		if (!s_fast.result && s_fast.status == 401)
+		{
+			AuthTokenRefused(s_fast.token);
+			BackToNetMenu("the Discord sign-in has expired or was revoked",
+				"Sign in again in Settings > zdxsv, then connect again.");
 			return;
 		}
 		if (!s_fast.result && s_fast.status == 409)
