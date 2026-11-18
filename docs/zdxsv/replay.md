@@ -201,7 +201,7 @@ D-pad. While taken over the pad plays the game.
   plays a set number of games does not. A file without the field,
   or with a `log_file_version` before 20261116 (its round states lack part
   of that RAM: a later round can load another stage or pick another mobile
-  suit), seeks as before.
+  suit), seeks without round states.
 - **Round results**: the bar shows each round's W / L / D for the shown
   position's team; playback logs a round whose result differs from the file.
   Hovering them lists each round's mobile suits (the file's `used_ms`, else
@@ -223,7 +223,7 @@ D-pad. While taken over the pad plays the game.
 A lobby GGPO battle is streamed to the lobby while it runs
 (zdxsv `pkg/lobby/spectator.go`).
 
-- Uplink: the lobby marks one GGPO player per battle (`live_uplink=1` in the
+- Uplink: the lobby marks one GGPO player per battle (`spectator_uplink` in the
   battle info). That client streams the replay header, every confirmed
   frame and the close to the lobby, whether saving or upload is on or not.
   A frame is the inputs plus the frame's u32 state hash (`frame_bytes` =
@@ -256,7 +256,7 @@ A lobby GGPO battle is streamed to the lobby while it runs
   and round states make rounds only, seeks and round jumps work as in a file.
   A round's span comes with its play start, so while the stream is open
   playback goes on past the last shown round (the screens between rounds
-  play). A stream without them (an older uplink) plays without rounds only
+  play). A stream without them plays without rounds only
   and round states.
 - Pacing: at the newest frame it waits
   until 60 more frames are there. More than 1800 frames behind (a late

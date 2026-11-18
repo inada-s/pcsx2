@@ -49,14 +49,25 @@ wrapped when its port is in the table below, whatever its address.
 
 ## Messages added to the lobby connection
 
-Three custom messages; the game never sees them. Each body is a list of
-`key=value` lines.
+Four custom messages; the game never sees them. The platform info body is a
+list of `key=value` lines; the others are JSON objects.
 
 | Command | Direction | Name | When |
 |---|---|---|---|
 | `0x9950` | emulator to lobby | platform info | on the first key question of the lobby |
 | `0x9951` | lobby to emulator | battle info | when the lobby matched a battle, to every emulator player |
 | `0x9952` | emulator to lobby | match report | on the next lobby connection after a battle, right after the platform info |
+| `0x9953` | lobby to emulator | game patches | just before a battle info, in a lobby with patches; applied in that battle only |
+
+The game's own notice `0x6003` still reaches the game; one whose text has
+`PLEASE UPDATE PCSX2` (the lobby refusing an outdated client) also shows an OSD message.
+
+### Game patches `0x9953`
+
+Codes written in EE RAM during the next GGPO battle. The client rejects a
+message that is not valid JSON or is over the limits: 16 patches, 256 codes
+each, strings over 256 bytes, a size other than 8, 16 or 32 bits, an unaligned
+address or a value wider than its size.
 
 ### Platform info `0x9950`
 
@@ -138,7 +149,7 @@ No battle runs on the battle server.
 
 ## Ping test
 
-Runs on the GGPO UDP port for `ggpo_ping_ms`, from an IPv4 and an IPv6
+Runs on the GGPO UDP port for `ping_test_duration`, from an IPv4 and an IPv6
 socket, with a `UdpPingPong` packet. Packets with another session or
 position are dropped. A peer's ping or pong from a source that is not one of
 its candidates (its NAT mapping, or a peer listed without an address) adds
@@ -233,8 +244,7 @@ the port at 0 it asks for one, since the random port is picked only at game
 start. The same exit cleanup removes it. A router whose IGD
 reports no routable WAN address (`0.0.0.0`, as on a shared IPv4 behind
 MAP-E) counts as no gateway (`error 2`): such a router accepts mappings but
-opens nothing (measured on a ZTE F2886Q from an outside host: 0 packets
-through a mapped port, 184 through a punched one). `ZDXSV_UPNP_ANY_IGD=1`
+opens nothing to the outside. `ZDXSV_UPNP_ANY_IGD=1`
 accepts it, for tests.
 
 ## HTTPS latency test

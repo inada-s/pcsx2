@@ -1564,7 +1564,7 @@ void mmap_DeltaWatchPage(u32 page)
 }
 
 // Protects each run of adjacent addresses with one call. Only within one allocation: each fastmem
-// alias is its own mapped view, and a protect across views fails (pages left writable, #31).
+// alias is its own mapped view, and a protect across views fails (pages left writable).
 static void mmap_DeltaProtectRuns(std::vector<uptr>& addrs, PageProtectionMode mode)
 {
 	std::sort(addrs.begin(), addrs.end());

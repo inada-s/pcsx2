@@ -62,7 +62,7 @@ options: `docs/zdxsv/`.
 | `ReplayPlay.cpp` | Replay playback: frame loop, seek keys, point of view, takeover, control bar state and hotkeys |
 | `AudioTap.cpp` | Diagnostic: audio device output to a WAV (`ZDXSV_AUDIO_WAV`, seam in `Host/AudioStream.cpp`) |
 | `ReplayLive.cpp` | Playback of a live stream; spectator sync of several viewers |
-| `ReplayList.cpp` | Replay window support: the replay picked for the next boot, local file info, lobby API and live URLs (UI: `pcsx2-qt/Tools/ZdxsvReplayDialog.cpp`) |
+| `ReplayList.cpp`, `ReplayList.h` | Replay window support: the replay picked for the next boot, local file info, lobby API and live URLs (UI: `pcsx2-qt/Tools/ZdxsvReplayDialog.cpp`) |
 | `ReplayLoad.cpp` | Replay files: parse, load, common start, start of playback, position switch, next battle |
 | `DeltaState.cpp`, `DeltaState.h` | Fast per-frame save and load of the VM for rollback (copy-on-write EE RAM pages) |
 | `DeltaFreeze.cpp`, `DeltaFreeze.h` | The non-EE-RAM part of a delta state: CPU, IOP, VU, SPU2, DEV9, pad; section timing and offset names for reports |
@@ -100,6 +100,8 @@ options: `docs/zdxsv/`.
 | `RecHooks.cpp`, `RecHooks.h` | EE recompiler: emits the hook calls (net RPC, recv, step copy, load step) before an instruction |
 | `IntHooks.cpp` | EE interpreter and ARM64 EE recompiler: the hook calls of `RecHooks.cpp` but the probes |
 | `RecProbe.cpp` | Debug: EE recompiler probes and store watches (`ZDXSV_EE_PROBE`, `ZDXSV_EE_WATCH`) |
+| `EeOpTest.cpp` | Test: EE COP1 and COP2 macro ops on generated inputs through the EE core in use, results to a file (`ZDXSV_EE_OPTEST`) |
+| `VuOpTest.cpp` | Test: VU1 ops on generated inputs through the VU1 core in use, results to a file (`ZDXSV_VU1_OPTEST`) |
 | `Overlays.cpp` | On-screen replay keys and replay control bar |
 | `GgpoOsd.cpp` | GGPO network status panel |
 | `pcsx2-qt/Zdxsv/QtOnlineLimits.cpp` | Closes the debugger window while online (`QtHooks.h`, seam in `pcsx2-qt/QtHost.cpp`) |
@@ -107,6 +109,7 @@ options: `docs/zdxsv/`.
 | `pcsx2-qt/Zdxsv/QtFonts.cpp` | Noto Sans JP download at UI start, for the panel's Japanese names (`QtHooks.h`, seam in `pcsx2-qt/Translations.cpp`) |
 | `pcsx2-qt/Zdxsv/QtReplayChild.cpp` | Replay child: launch from the replay window, its settings overrides, its exit with the parent (`QtHooks.h`, seams in `pcsx2-qt/QtHost.cpp`; play time `UiHooks.h`, `pcsx2/VMManager.cpp`; unfocused pads `InputHooks.h`, `pcsx2/Input/InputManager.cpp`) |
 | `pcsx2-qt/Zdxsv/QtWheelVolume.cpp` | Mouse wheel over the game screen changes the volume, OSD (`QtHooks.h`, seam in `pcsx2-qt/DisplayWidget.cpp`) |
+| `pcsx2-qt/Zdxsv/CrashReports.cpp` | Crash reports: Sentry setup at Qt host start, the setting, the wizard page ([crash-reports.md](../../docs/zdxsv/crash-reports.md)) |
 | `CpuHooks.h` | Hook header: recompilers, counters, MTGS, VMManager |
 | `InputHooks.h` | Hook header: pad code |
 | `DefaultsHooks.h` | Hook header: default settings, settings load |
