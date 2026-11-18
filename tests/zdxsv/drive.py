@@ -96,7 +96,7 @@ ROUTES = {
     # Dialogs time out (~30 s) to their default (いいえ / はい), so late presses still end in the room.
     "after": "Right,w300,C,w40000,C,w60000,Down,w300,C,w40000",
 }
-# No DEV9 (launch.sh default, localnet.sh): every connection menu button goes to the terms (net 3 -> 5), then
+# No DEV9 (launch.py default, localnet.ps1): every connection menu button goes to the terms (net 3 -> 5), then
 # connects with no setup screens and no setting list (5 -> 6, 7 -> 0x21 on their own). The connection
 # menu and the terms drop input in their first second: Key~lstate! presses until one is taken.
 if launch.server_host():
