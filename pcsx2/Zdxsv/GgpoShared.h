@@ -591,6 +591,7 @@ namespace Zdxsv
 	void PlayNext();
 	void RbkReset();
 	bool LobbyArm(int me);
+	void LobbyReset();
 	bool LobbyCutCall(u32 fno, s16 sock, s16 len);
 	float GgpoBudgetLearned();
 	float GgpoBudgetUsed();

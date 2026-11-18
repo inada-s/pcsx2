@@ -279,4 +279,27 @@ namespace Zdxsv
 		std::lock_guard lock(s_lobby_mtx);
 		return std::exchange(s_report, {});
 	}
+
+	// The report of a battle already played is kept: the next lobby login sends it.
+	void LobbyReset()
+	{
+		std::lock_guard lock(s_lobby_mtx);
+		if (s_lobby_info && s_lobby_gen != s_armed_gen)
+			Console.WriteLn("ZdxsvGgpo: battle info dropped before its battle started (position %d)", s_lobby_me);
+		s_lobby_info = s_lobby_logged = s_lobby_unreachable = false;
+		s_lobby_me = -1;
+		s_lobby_peers.clear();
+		s_lobby_relays.clear();
+		s_lobby_players.clear();
+		s_lobby_patches.clear();
+		s_lobby_session = 0;
+		s_report_ids.clear();
+		s_net_peers.clear();
+		s_net_via.clear();
+		s_net_servers.clear();
+		s_net_players.clear();
+		s_net_patches.clear();
+		s_armed_gen = s_lobby_gen;
+		StopPingTest();
+	}
 } // namespace Zdxsv

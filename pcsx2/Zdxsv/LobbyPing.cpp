@@ -642,6 +642,13 @@ namespace Zdxsv
 		g_refusal.reset();
 	}
 
+	void StopPingTest()
+	{
+		if (g_ping)
+			g_ping->stop = true;
+		FinishPingTest();
+	}
+
 	void StartCutRefusal(int me, uint16_t port, int durationMs)
 	{
 		g_refusal.reset();

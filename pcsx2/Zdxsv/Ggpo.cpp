@@ -783,7 +783,10 @@ namespace Zdxsv
 			NoDev9Reset();
 		s_rbk = RbkFromEnv();
 		if (!g_ggpo_enabled)
+		{
+			LobbyReset();
 			return;
+		}
 		size_t keys = 0;
 		for (const auto& k : s_play_keys)
 			keys += k.size();
@@ -802,6 +805,7 @@ namespace Zdxsv
 		}
 		Zdxsv::DeltaStateClear();
 		NetReset();
+		LobbyReset();
 		RbkReset();
 		g_ggpo_in_rollback = false;
 		s_frame_hold = s_frame_ended = false;
