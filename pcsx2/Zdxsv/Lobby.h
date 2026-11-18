@@ -244,6 +244,8 @@ namespace Zdxsv
 	// start timeout. Direct paths only: a peer reaching us through a relay is not answered.
 	void StartCutRefusal(int me, uint16_t port, int durationMs);
 	void StopCutRefusal();
+	// Ends the running ping test, its results dropped.
+	void StopPingTest();
 	// The running ping test, for the connection diagram (any thread): ms since its start, its length, the
 	// player count, the rtt matrix ([i][j]: i's rtt to j in ms, 255 max, 0 = unknown) and the teams by position
 	// (StartPingTest teams). False when none runs.
