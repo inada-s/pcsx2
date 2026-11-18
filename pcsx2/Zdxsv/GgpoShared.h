@@ -587,6 +587,7 @@ namespace Zdxsv
 	void PlayReset();
 	void PlayKeysPrune(); // deletes the cache folder's seek keys a killed or crashed replay left
 	void PlayLoad();
+	void PlayFetchStop(); // cancels and joins the replay downloads
 	bool PlayCommonArm(int pov, int seek = -1);
 	void PlayCommonStart();
 	void PlayBegin(int me);
