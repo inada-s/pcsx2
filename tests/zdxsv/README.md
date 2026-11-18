@@ -11,20 +11,32 @@ Each script's usage and knobs are in its header comment.
   snapshots only). OS differences live in `zrig.py`. Key and mouse input (`PAUSE`, `KEYS`): `zrig.ctl` -> `pcsx2ctl.ps1` on Windows,
   `pcsx2ctl.js` (osascript, CGEvent) on macOS; the macOS shell running the rig needs Accessibility
   (rc 4 without it). Other window control (`replayui`, `settingsui`, `winshot`) is Windows only.
-- A PCSX2 build of this repository (`bin/pcsx2-qtx64.exe`, or `PCSX2_EXE`):
-  `build-local.sh` or MSBuild. Every build reads the test options.
-- The game image (`ISO`). It is not part of this repository.
-- The lobby tests (`m4*.py`, `stack.py`, `rbkprep.py`) need a zdxsv checkout
-  with its binaries built in `$ZDXSV_DIR/bin` (`zdxsv.exe`, `zproxy.exe`) and Go to
-  build `battlereg/`.
-- The lobby trace (`TRACE`, an `EMU=1 m4z.py` OUT) and the rbk start states
-  (`RBKSTATES`, made by `rbkprep.py`) are made on the machine; they are not
-  part of this repository.
-- Instance settings of the rig clients: merge `pcsx2.ini.part` into each
-  `$RUN/pN/PCSX2/inis/PCSX2.ini` (`@IP@` = `IP`).
 - The DEV9 adapter is off in every rig: `launch.py` writes `EthEnable` at each
   launch. Only clients that play as a PS2 (`m4z.py` without `EMU`, or
   `EXT_OFF`) get it on (`launch.py -Eth`).
+
+Steps, in order (`rigcheck.py` checks their results and names the step of each missing one;
+settings in `local.env`, see Settings):
+
+1. A PCSX2 build of this repository (`bin/pcsx2-qtx64.exe`, or `PCSX2_EXE`):
+   `build-local.sh` or MSBuild. Every build reads the test options.
+2. The game image (`ISO`). It is not part of this repository.
+3. `RUN` and its first instance: start the build with `-datapath $RUN/p1`, finish the setup
+   wizard with a BIOS dump of your console (`$RUN/p1/PCSX2/bios`), quit. Merge `pcsx2.ini.part`
+   into `$RUN/p1/PCSX2/inis/PCSX2.ini` (`@IP@` = `IP`). `launch.py` makes p2..p4 from p1.
+   Enough for the tests without a server (`rbk.py` aside: step 7).
+4. Lobby tests (`m4*.py`, `stack.py`, `rbkprep.py`, the sign-in and fast login rigs): a zdxsv
+   checkout (`ZDXSV_DIR`) built into `$ZDXSV_DIR/bin`: `CGO_ENABLED=1 go build -o bin/zdxsv[.exe] ./zdxsv`
+   (sqlite needs cgo), `zproxy` from its own module `zproxy/` (`go build -o ../bin/zproxy[.exe] .`);
+   Go also builds `battlereg/`. `IP` = this machine's LAN IPv4 address. An empty lobby database:
+   `ZDXSV_DB_NAME=zdxsv.db $ZDXSV_DIR/bin/zdxsv initdb` in `$RUN`.
+5. Registered memory cards, one per client: a new formatted card from PCSX2 (Settings → Memory
+   Cards) saved as `$RUN/Mcd001-<blank>.ps2`; per client
+   `CARD=<blank> ROUTE=fresh,register,newlogin MAXS=280 LIMIT=300 SAVE_CARD=$RUN/Mcd001-<name>.ps2 OUT=<dir> boottime.py`,
+   then copy `<dir>/zdxsv.db` over `$RUN/zdxsv.db` (it now holds that account). `CARDS` = the
+   names, `USERS` = their `user_id`s (`select user_id from user` in `$RUN/zdxsv.db`), same order.
+6. `TRACE`: the OUT dir of one `EMU=1 m4z.py` run with these `CARDS`.
+7. `RBKSTATES`: the OUT dir of `rbkprep.py` (needs `TRACE`).
 
 ## Settings
 
