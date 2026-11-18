@@ -18,6 +18,9 @@ namespace Zdxsv
 {
 	namespace
 	{
+		// Far above a real battle: tens of loads, rounds and lobby answers; 128 input bytes a frame.
+		constexpr size_t REPLAY_MAX_LIST = 4096;
+		constexpr size_t REPLAY_MAX_BYTES = 256u << 20;
 
 		// A replay file (Zdxsv/replay.proto) as PlayLoadFile uses it.
 		struct ReplayFile
@@ -72,26 +75,18 @@ namespace Zdxsv
 			Pb::Reader rd{reinterpret_cast<const uint8_t*>(all.data()), reinterpret_cast<const uint8_t*>(all.data() + all.size())};
 			return rd.Fields([&r](uint32_t field, uint32_t wt, uint64_t v, const uint8_t* b, size_t n) {
 				const std::string_view bytes(reinterpret_cast<const char*>(b), n);
+				std::vector<int64_t>* ints = field == 46 ? &r.hle0 : field == 54 ? &r.load_frames : field == 55 ? &r.load_rngs :
+											 field == 57 ? &r.play_starts : field == 58 ? &r.game_ends : field == 59 ? &r.round_ends : nullptr;
+				if (ints && (wt == 0 || wt == 2))
+					return Pb::ReadInts(wt, v, b, n, *ints, REPLAY_MAX_LIST);
 				if (wt == 0)
 				{
 					s64* num = field == 4 ? &r.version : field == 40 ? &r.players : field == 41 ? &r.me : field == 47 ? &r.input_size :
 							   field == 48 ? &r.frames : nullptr;
 					if (num)
 						*num = static_cast<s64>(v);
-					else if (field == 46)
-						r.hle0.push_back(static_cast<int64_t>(v));
 					else if (field == 53)
 						r.start_rng = static_cast<u32>(v);
-					else if (field == 54)
-						r.load_frames.push_back(static_cast<int64_t>(v));
-					else if (field == 55)
-						r.load_rngs.push_back(static_cast<int64_t>(v));
-					else if (field == 57)
-						r.play_starts.push_back(static_cast<int64_t>(v));
-					else if (field == 58)
-						r.game_ends.push_back(static_cast<int64_t>(v));
-					else if (field == 59)
-						r.round_ends.push_back(static_cast<int64_t>(v));
 				}
 				else if (wt == 2)
 				{
@@ -99,6 +94,8 @@ namespace Zdxsv
 						r.code = bytes;
 					else if (field == 18)
 					{
+						if (r.rounds.size() >= REPLAY_MAX_LIST)
+							return false;
 						int win = 0;
 						std::vector<int64_t> used;
 						Pb::Reader round{b, b + n};
@@ -106,7 +103,7 @@ namespace Zdxsv
 								if (f == 1 && w == 0)
 									win = static_cast<int32_t>(x);
 								else if (f == 2)
-									return Pb::ReadInts(w, x, rb, rn, used);
+									return Pb::ReadInts(w, x, rb, rn, used, REPLAY_MAX_LIST);
 								return true;
 							}))
 							return false;
@@ -119,24 +116,16 @@ namespace Zdxsv
 					}
 					else if (field == 45)
 						r.rx0.assign(b, b + n);
-					else if (field == 46)
-						return Pb::ReadInts(wt, v, b, n, r.hle0);
 					else if (field == 49)
 						r.inputs = bytes;
 					else if (field == 51 && n >= 12)
+					{
+						if (r.answers.size() >= REPLAY_MAX_LIST)
+							return false;
 						r.answers.emplace_back(b, b + n);
+					}
 					else if (field == 52)
 						r.hashes = bytes;
-					else if (field == 54)
-						return Pb::ReadInts(wt, v, b, n, r.load_frames);
-					else if (field == 55)
-						return Pb::ReadInts(wt, v, b, n, r.load_rngs);
-					else if (field == 57)
-						return Pb::ReadInts(wt, v, b, n, r.play_starts);
-					else if (field == 58)
-						return Pb::ReadInts(wt, v, b, n, r.game_ends);
-					else if (field == 59)
-						return Pb::ReadInts(wt, v, b, n, r.round_ends);
 					else if (field == 60)
 						return r.patches.size() < 16 && ServerPatchRead(b, n, r.patches.emplace_back());
 					else if (field == 61 && wt == 2 && r.round_states.size() < 256)
@@ -204,15 +193,20 @@ namespace Zdxsv
 			z.avail_in = static_cast<uInt>(in.size());
 			std::vector<u8> out;
 			int rc = Z_OK;
-			while (rc == Z_OK)
+			while (rc == Z_OK && out.size() < REPLAY_MAX_BYTES)
 			{
-				out.resize(out.size() + std::max<size_t>(in.size() * 4, 1 << 16));
+				out.resize(std::min(out.size() + std::max<size_t>(in.size() * 4, 1 << 16), REPLAY_MAX_BYTES));
 				z.next_out = out.data() + z.total_out;
 				z.avail_out = static_cast<uInt>(out.size() - z.total_out);
 				rc = inflate(&z, Z_NO_FLUSH);
 			}
 			out.resize(z.total_out);
 			inflateEnd(&z);
+			if (rc == Z_OK)
+			{
+				Console.Error("ZdxsvGgpo: replay %s: gzip data over %zu MiB", url.c_str(), REPLAY_MAX_BYTES >> 20);
+				return std::nullopt;
+			}
 			if (rc != Z_STREAM_END)
 			{
 				Console.Error("ZdxsvGgpo: replay %s: bad gzip data (zlib %d)", url.c_str(), rc);
@@ -304,11 +298,18 @@ namespace Zdxsv
 				Console.Error("ZdxsvGgpo: replay %s: one file plays every position, a 2nd one is not used", path.c_str());
 				return -1;
 			}
+			const std::string native = Path::ToNativePath(path); // '/' fails on Windows
+			FILESYSTEM_STAT_DATA st;
+			if (!live && !http && FileSystem::StatFile(native.c_str(), &st) && st.Size > static_cast<s64>(REPLAY_MAX_BYTES))
+			{
+				Console.Error("ZdxsvGgpo: replay %s: over %zu MiB", path.c_str(), REPLAY_MAX_BYTES >> 20);
+				return -1;
+			}
 			const std::optional<std::vector<u8>> file =
-				live ? LiveOpen(path) : http ? HttpOpen(path) : FileSystem::ReadBinaryFile(Path::ToNativePath(path).c_str()); // '/' fails on Windows
+				live ? LiveOpen(path) : http ? HttpOpen(path) : FileSystem::ReadBinaryFile(native.c_str());
 			const std::string_view all = file ? std::string_view(reinterpret_cast<const char*>(file->data()), file->size()) : std::string_view();
 			ReplayFile r;
-			if (all.empty() || !ReplayParse(all, r) || r.version <= 0)
+			if (all.empty() || all.size() > REPLAY_MAX_BYTES || !ReplayParse(all, r) || r.version <= 0)
 			{
 				Console.Error("ZdxsvGgpo: replay %s: not a replay file", path.c_str());
 				return -1;
