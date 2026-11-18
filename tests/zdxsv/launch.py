@@ -102,6 +102,16 @@ def _hide_window(pid):
             f"[void][W.U]::ShowWindow((Get-Process -Id {pid}).MainWindowHandle, 0)")
 
 
+def exe_build(exe):
+    """The git describe (zdxsv-X.Y.Z[-N-gHASH]) the exe was built from, "unknown" when it holds none."""
+    try:
+        with open(exe, "rb") as f:
+            found = set(re.findall(rb"zdxsv-\d+\.\d+\.\d+(?:-\d+-g[0-9a-f]+)?(?:-dirty)?", f.read()))
+    except OSError:
+        return "unknown"
+    return " ".join(sorted(s.decode() for s in found)) or "unknown"
+
+
 def launch(ns=(1,), memcard=None, state=None, speed="1", renderer="-1", nogui=False, headless=False,
            eth=False, lobby_state=False, extra_env=None, quiet=False, token=None, extra_args=None):
     """Start instances NS; returns {i: pid}. Exits 1 on a bad probe, 75 when another rig holds the lock.
@@ -127,6 +137,8 @@ def launch(ns=(1,), memcard=None, state=None, speed="1", renderer="-1", nogui=Fa
         sys.exit(1)
     if not zrig.lock_check():
         sys.exit(75)
+    if not quiet:
+        print(f"build {exe_build(exe)} {exe}", flush=True)
     pids = {}
     for i in ns:
         i = int(i)
