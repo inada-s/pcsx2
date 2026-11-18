@@ -308,7 +308,7 @@ namespace Zdxsv
 			if (!s_report.empty())
 				s_report += std::string("close=") + what + "\nframes=" + std::to_string(s_session_frames) +
 				            "\nrollback_frames=" + std::to_string(s_stats.rollback_frames) + "\nmismatches=" + std::to_string(s_stats.mismatches) +
-				            "\ndisconnected=" + (s_run.disconnected ? "1" : "0") + "\n" + peers;
+				            "\ndisconnected=" + (s_run.disconnected ? "1" : "0") + "\n" + DesyncReportLines() + peers;
 			if (!s_report.empty())
 			{
 				std::vector<std::string> lines = LogTailLines();

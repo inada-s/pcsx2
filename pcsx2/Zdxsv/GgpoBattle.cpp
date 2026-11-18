@@ -515,6 +515,8 @@ namespace Zdxsv
 			std::memset(in.data, 0, sizeof(in.data));
 			std::memcpy(in.data, data.data(), data.size());
 		}
+		if (in.seq != s_battle.local.seq || std::memcmp(&in.pad, &s_battle.local.pad, sizeof(in.pad)) != 0)
+			DesyncClaim(in);
 		s_battle.local = in;
 		return in;
 	}
@@ -523,6 +525,8 @@ namespace Zdxsv
 	void NetApply(const NetInput* in)
 	{
 		const int f = s_battle.frame;
+		DesyncSample(f);
+		DesyncCheck(in, f);
 		ReplayLog(f, in);
 		ApplyPad(0, s_rings.zd_pad[f & 127]);
 		for (int p = 0; p < s_opt.players; p++)

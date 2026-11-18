@@ -293,7 +293,7 @@ namespace Zdxsv
 			{"fixed_delay", "fixed_delay", BOOL}, {"cut_sends", "cut_sends", INT}, {"rollback_frames", "rollback_frames", INT},
 			{"mismatches", "mismatches", INT}, {"disconnected", "disconnected", BOOL}, {"rollback_budget", "rollback_budget", NUM},
 			{"rollback_budget_used", "rollback_budget_used", NUM}, {"timesync", "total_timesync", INT},
-			{"input_blocks", "input_block_count", INT}};
+			{"input_blocks", "input_block_count", INT}, {"desync_checks", "desync_checks", INT}, {"desync_frame", "desync_frame", INT}};
 		rapidjson::StringBuffer sb;
 		rapidjson::Writer<rapidjson::StringBuffer> w(sb);
 		const auto str = [&w](const char* key, const std::string& v) {

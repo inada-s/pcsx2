@@ -968,6 +968,9 @@ def main():
         for i, k, a, f, m in ends:
             say(f"ggpo end p{i} battle {k} end_msg {a} frames {f} mismatches {m}")
         ok(f"ggpo battle ends x{nb}: every recording past every peer's end msg, 0 mismatches", good)
+        dz = [re.search(r"desync checks ([0-9]+) mismatches ([0-9]+)", l) for i in gclients for l in g(el(i), "ZdxsvGgpo: desync checks")]
+        ok("desync checks on every peer, 0 mismatches",
+           len(dz) >= len(gclients) and all(m and int(m[1]) > 0 and m[2] == "0" for m in dz))
         for i in gclients if patch_names else []:
             for l in g(el(i), "ZdxsvPatch: "):
                 say(f"p{i} {l[:200]}")

@@ -161,6 +161,7 @@ set(pcsx2Sources
 	Zdxsv/GgpoBattle.cpp
 	Zdxsv/GgpoBudget.cpp
 	Zdxsv/GgpoFrameOsd.cpp
+	Zdxsv/GgpoDesync.cpp
 	Zdxsv/GgpoGameState.cpp
 	Zdxsv/GgpoLobby.cpp
 	Zdxsv/GgpoRerunKeep.cpp

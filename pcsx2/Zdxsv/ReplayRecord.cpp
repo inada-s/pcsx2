@@ -396,6 +396,9 @@ namespace Zdxsv
 		PutInt(pb, 48, static_cast<int64_t>(frames));
 		PutBytes(pb, 49, s_replay_inputs.data(), frames * s_opt.players * sizeof(NetInput));
 		PutBytes(pb, 52, s_replay_hashes.data(), frames * sizeof(u32));
+		for (int p = 0; p < s_opt.players; p++)
+			if (s_desync.first[p] >= 0)
+				PutInt(pb, 62, p), PutInt(pb, 62, s_desync.first[p]);
 		if (frames > 0)
 			PutUint(pb, 53, s_replay_rngs[0]);
 		const std::vector<uint8_t> round_frames = RoundFramesFields(frames);

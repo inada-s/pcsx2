@@ -69,6 +69,9 @@ message BattleLogFile {
   repeated GamePatch patches = 60;
   // Per battle load end (frame, as load_frames), the state a round jump writes over the replay key of the first one.
   repeated RoundState round_states = 61;
+  // Suspected desyncs seen by the recorder, pairs: a peer's position, the first sampled frame whose state hash it sent
+  // differed from the recorder's (GgpoDesync.cpp). The battle went on.
+  repeated int32 suspected_desyncs = 62;
 }
 
 message GamePatch {
