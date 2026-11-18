@@ -17,4 +17,7 @@ namespace Zdxsv
 
 	// Turning off stops uploads at once. Turning on takes effect now if reports started, else at the next start.
 	void CrashReportsSetEnabled(bool enabled);
+
+	// Refreshes the settings copy a crash report carries.
+	void CrashReportsSettingsSaved();
 } // namespace Zdxsv

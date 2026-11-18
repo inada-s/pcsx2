@@ -1463,6 +1463,7 @@ void QtHost::SaveSettings()
 		if (!s_base_settings_interface->Save(&error))
 			Console.ErrorFmt("Failed to save settings: {}", error.GetDescription());
 	}
+	Zdxsv::CrashReportsSettingsSaved();
 
 	if (s_settings_save_timer)
 	{

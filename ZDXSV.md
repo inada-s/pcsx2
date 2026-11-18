@@ -121,7 +121,12 @@ states are not available during a replay.
 
 ## Crash reports
 
-When PCSX2 crashes, it sends a crash report to the zdxsv developers.
+When PCSX2 crashes, it sends a crash report to the zdxsv developers. It holds a memory dump
+of PCSX2 (which can hold game session data), the last 100 log lines, the settings file
+`PCSX2.ini` without the `[Folders]`, `[GameList]` and `[Achievements]` sections and without
+any setting whose value is a full path, the PCSX2 version, your operating system and a
+random installation ID. The crash report service also sees your IP address.
+The first-run setup asks with the "Send Crash Reports" checkbox (checked by default).
 To send nothing, turn this off in Settings → zdxsv.
 
 ## Updates
