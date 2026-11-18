@@ -29,9 +29,11 @@
 
 #include <atomic>
 #include <bit>
+#include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -292,13 +294,25 @@ namespace Zdxsv
 		return filter;
 	}
 
+	namespace
+	{
+		// a lobby connection opens with the key pair question (0x6101), a 12-byte message
+		constexpr u8 kLobbyOpening[4] = {0x18, 0x01, 0x61, 0x01};
+		constexpr int kLobbyOpeningLen = 12;
+	} // namespace
+
+	bool LobbyFirstDataPending(const u8* data, int len)
+	{
+		return len < kLobbyOpeningLen && std::memcmp(data, kLobbyOpening, std::min(len, 4)) == 0;
+	}
+
 	// On a connection the lobby opens with the key pair question (0x6101), send the platform info
 	// (custom command 0x9950, "key=value" lines) before the game answers, so the lobby can tell
 	// emulator players apart. The game never sees it.
 	LobbyFilter* LobbyOnFirstData(uptr socket, u32 serverIp, const u8* data, int len)
 	{
 		const sock_t client = static_cast<sock_t>(socket);
-		if (len < 12 || data[0] != 0x18 || data[1] != 0x01 || data[2] != 0x61 || data[3] != 0x01)
+		if (len < kLobbyOpeningLen || std::memcmp(data, kLobbyOpening, 4) != 0)
 			return nullptr;
 		// Only the Z game talks to the zdxsv lobby: any other game's server that happens to open the same way
 		// gets nothing (the platform info carries our addresses).

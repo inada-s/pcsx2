@@ -147,6 +147,7 @@ namespace Zdxsv
 			// After a lobby state load: the game still holds these slots open; the first call on one reconnects it.
 			bool adopt[kSlots] = {};
 			bool checked[kSlots] = {};
+			std::chrono::steady_clock::time_point pending_since[kSlots] = {};
 			// A zdxsv lobby connection: the server's bytes reach the game through it (platform info, battle info notice).
 			std::unique_ptr<LobbyFilter, LobbyFilterDeleter> lobby[kSlots];
 			sock_t none = INVALID_SOCKET;
@@ -155,6 +156,8 @@ namespace Zdxsv
 		constexpr int kResolveWaitMs = 5000;
 		// A server that stops reading: give up on the send instead of holding the emulation thread.
 		constexpr int kSendTimeoutMs = 5000;
+		// A lobby's opening split over segments arrives within a round trip; a server that never completes it is plain TCP.
+		constexpr int kFirstDataWaitMs = 3000;
 
 		void ResolveServer(std::shared_ptr<std::atomic<u32>> out)
 		{
@@ -267,13 +270,15 @@ namespace Zdxsv
 			CloseSock(s_state.socks[id]);
 			s_state.lobby[id].reset();
 			s_state.checked[id] = false;
+			s_state.pending_since[id] = {};
 			s_state.adopt[id] = false;
 			s_state.peer[id] = 0;
 			s_state.peer_port[id] = 0;
 		}
 
 		// Peeked: the first server bytes decide whether it is a zdxsv lobby; a lobby's bytes then all go through its filter.
-		void PumpLobby(int id)
+		// False while undecided: the game gets nothing yet.
+		bool PumpLobby(int id)
 		{
 			const sock_t s = s_state.socks[id];
 			u8 buf[0x2000];
@@ -281,14 +286,20 @@ namespace Zdxsv
 			{
 				const int n = recv(s, reinterpret_cast<char*>(buf), sizeof(buf), MSG_PEEK);
 				if (n <= 0)
-					return;
+					return false;
+				const auto now = std::chrono::steady_clock::now();
+				if (s_state.pending_since[id] == std::chrono::steady_clock::time_point{})
+					s_state.pending_since[id] = now;
+				if (LobbyFirstDataPending(buf, n) && now - s_state.pending_since[id] < std::chrono::milliseconds(kFirstDataWaitMs))
+					return false;
 				s_state.checked[id] = true;
 				s_state.lobby[id].reset(LobbyOnFirstData(static_cast<uptr>(s), s_state.peer[id], buf, n));
 			}
 			if (!s_state.lobby[id])
-				return;
+				return true;
 			for (int n; (n = recv(s, reinterpret_cast<char*>(buf), sizeof(buf), 0)) > 0;)
 				LobbyFeed(*s_state.lobby[id], static_cast<uptr>(s), buf, n);
+			return true;
 		}
 
 		s32 Connect(const u8* b)
@@ -326,8 +337,7 @@ namespace Zdxsv
 				timeval tv = {};
 				st = select(static_cast<int>(s) + 1, nullptr, &w, nullptr, &tv) > 0 ? 4 : 2;
 				const int id = Slot(b);
-				if (st == 4)
-					PumpLobby(id);
+				const bool decided = st == 4 && PumpLobby(id);
 				if (st == 4 && s_state.lobby[id])
 					rx = static_cast<u16>(std::min<size_t>(s_state.lobby[id]->Ready(), 0x2000));
 #ifdef _WIN32
@@ -337,7 +347,7 @@ namespace Zdxsv
 				int n = 0;
 				const int r = ioctl(s, FIONREAD, &n);
 #endif
-				if (st == 4 && r == 0 && !s_state.lobby[id])
+				if (decided && r == 0 && !s_state.lobby[id])
 					rx = static_cast<u16>(std::min<u32>(static_cast<u32>(n), 0x2000));
 			}
 			const u16 z = 0, tx = 0x2000;
@@ -363,7 +373,8 @@ namespace Zdxsv
 			if (s == INVALID_SOCKET)
 				return 0;
 			const int id = Slot(b);
-			PumpLobby(id);
+			if (!PumpLobby(id))
+				return 0;
 			if (s_state.lobby[id])
 				return static_cast<s32>(s_state.lobby[id]->Take(b + 0x20, std::min<u32>(len, kRxMax)));
 			const int n = recv(s, reinterpret_cast<char*>(b + 0x20), std::min<int>(len, kRxMax), 0);
