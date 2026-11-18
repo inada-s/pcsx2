@@ -107,10 +107,15 @@ namespace Zdxsv
 		bool __cdecl LoadGameState(unsigned char* buffer, int len)
 		{
 			if (len != sizeof(int))
+			{
+				s_run.load_failed = true;
 				return false;
+			}
 			Common::Timer timer;
 			RerunKeepBeforeLoad(!s_rerun_ee_draw);
 			const bool ok = Zdxsv::DeltaStateLoad(*reinterpret_cast<int*>(buffer));
+			if (!ok)
+				s_run.load_failed = true;
 			RerunKeepAfterLoad();
 			s_run.reruns_left = s_run.top_frame - *reinterpret_cast<int*>(buffer);
 			if (s_opt.net)

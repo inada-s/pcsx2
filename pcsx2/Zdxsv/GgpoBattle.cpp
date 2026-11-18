@@ -583,6 +583,26 @@ namespace Zdxsv
 			release(s_rb.ms, 0, 'M');
 	}
 
+	// A peer that keeps sending inputs but never counts its hold keeps GGPO's disconnect timer from firing.
+	const int s_net_barrier_ms = [] {
+		const char* e = Zdxsv::TestEnv("ZDXSV_NET_BARRIER_MS");
+		return e ? std::max(1, std::atoi(e)) : 60000;
+	}();
+
+	bool NetBarrierTimedOut()
+	{
+		const auto held = [](const PS& b) { return b.hold && !b.go; };
+		if (!held(s_rb.ps) && !(s_ms_on && held(s_rb.ms)))
+		{
+			s_run.barrier_since = 0;
+			return false;
+		}
+		const Common::Timer::Value now = Common::Timer::GetCurrentValue();
+		if (!s_run.barrier_since)
+			s_run.barrier_since = now;
+		return Common::Timer::ConvertValueToMilliseconds(now - s_run.barrier_since) > s_net_barrier_ms;
+	}
+
 	// A reset VM (live auto-next) starts its battle from the lobby phase again.
 	void RbkReset()
 	{

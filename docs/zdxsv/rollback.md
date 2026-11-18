@@ -225,7 +225,12 @@ Three mechanisms keep the peers on the same frame:
   time; the barrier holds the game until every peer is ready.
 - **MS-select barrier**: the same for the load before MS select, which draws
   the game RNG. A peer without it never reports ready; the others wait at MS
-  select. Replays without it (`hle0` of 9 values) play without it.
+  select until the barrier limit. Replays without it (`hle0` of 9 values) play
+  without it.
+- A barrier held past its limit (`ZDXSV_NET_BARRIER_MS`) ends the battle as a
+  connection failure: a peer that sends inputs but never reports ready keeps
+  GGPO's disconnect timer from firing. A rollback whose state load fails ends
+  it the same way: GGPO would rerun from the unloaded state.
 - **Round handshake lag** (`ZDXSV_K3_LAG`): a round-handshake message goes
   into the input a fixed number of GGPO frames after the game sent it, more
   than GGPO's prediction window, so it does not depend on network timing.

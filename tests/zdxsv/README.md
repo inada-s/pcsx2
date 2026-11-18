@@ -169,6 +169,7 @@ Scripts are in `tests/zdxsv/` except `run.py` (repository root) and
 | Feature | Test | Control |
 |---|---|---|
 | GGPO library | unit: `GGPO.*` in `tests/ctest/core/ggpo_tests.cpp` | `GGPO.SyncTestCatchesStateOutsideSave` |
+| Load barrier time limit; failed rollback state load ends the session | `ENV0=ZDXSV_NET_BARRIER_MS=1 LAT=40 rbk.py 2 1`: position 0 logs `load barrier held over 1 ms` and closes `failed` (rbk FAIL). State load failure: no test (no knob makes a load fail) | `LAT=40 rbk.py 2 1`: PASS, neither line |
 | GGPO pings answered on the network thread | `TRACE=0 rbk.py 2 1` x2: logged OSD pings 0-1 ms | a build that answers quality reports from the frame loop (`ggpo_idle`): pings 3-15 ms |
 | GGPO test send delay flushed on the network thread | `GGPO_NETWORK_DELAY=30 TRACE=0 rbk.py 2 1` x2: p1 `peer report` `ping_1` max below 56 ms | a build that sends delayed packets only from the frame loop: max 63-66 ms |
 | GGPO time sync spread over frames | `STALL=400 LAT=100 rbk.py 2 1`: peer 1 suspended 400 ms 8 times; peer 0 logs `sync N (max X ms)` with N >= 2, X < 25. `TURBO= STALL=400 rbk.py 2 1`: also OSD `P` at most 3 at the end | a build that sleeps all suggested frames at once: X about 33 (2 frames). A build whose waits the frame limiter takes back: `P` about 5 |
