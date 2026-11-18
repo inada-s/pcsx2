@@ -17,6 +17,11 @@
 - A tag with a suffix, such as `zdxsv-0.0.1-rc1`, becomes a prerelease. The
   updater skips prereleases.
 - The release zip holds `portable.txt`, `ZDXSV.md` and `ZDXSV.ja.md`.
+- Each release also has `SHA256SUMS.txt` and a GitHub build provenance
+  attestation for both files: `gh attestation verify <file> -R inada-s/pcsx2`.
+- A release that already exists for the tag (e.g. made on the web) is kept and
+  gets the files; a file of the same name already attached fails the release
+  job (delete that asset, then re-run the job).
 
 ## CI
 
