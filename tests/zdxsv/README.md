@@ -45,6 +45,7 @@ fails with exit 2 and names it.
 | `CARDS` | `m4z.py` | memory card names of p1..p4, space separated |
 | `USERS` | `m4z.py` | zdxsv.db user ids of those cards, same order |
 | `DZ` | `stack.py` | zdxsv binary for login + dnas (default the lobby's) |
+| `ZDXSV_DNAS_DATA_DIR` | `stack.py` | DNASrep checkout for the DNAS server (default `$ZDXSV_DIR/dnasrep`, cloned with git at the commit in `$ZDXSV_DIR/scripts/dnasrep.sh` when that script exists) |
 | `ZDXSV_PY` | all | python with Pillow (default `python`) |
 | `GOEXE` | `m4.py`, `zbincheck.py` | go (default `go`) |
 

@@ -2,11 +2,13 @@
 Usage: python tests/zdxsv/stack.py [IP]   (IP = address pcsx2 peers dial; default first non-loopback)
 Logs + db: $RUN. Runs in the foreground; Ctrl-C / kill stops all.
 Env: ZDXSV_DIR (checkout), ZBIN (another build, e.g. a control), LOBBY_ARGS (-v=2: every message), BATTLE_ARGS (the same for the battle server),
-DZ (exe for `dnas`, default ZBIN), DNAS (a standalone DNAS server instead), ZDXSV_LOBBY_API_ADDR.
+DZ (exe for `dnas`, default ZBIN), DNAS (a standalone DNAS server instead), ZDXSV_LOBBY_API_ADDR,
+ZDXSV_DNAS_DATA_DIR (default $ZDXSV_DIR/dnasrep, fetched with git when the checkout has scripts/dnasrep.sh).
 A ZBIN with no `lobby` command runs as one `zdxsv all` (no DNS on :53, no battle RPC on 3080;
 DZ and DNAS ignored) into all.log, hard-linked as lobby.log, battle.log, login.log and dnas.log.
 """
 import os
+import re
 import subprocess
 import sys
 import time
@@ -19,6 +21,32 @@ def has_lobby_cmd(z, env):
     """The usage line of an unknown command lists the commands."""
     r = zrig.run([z, "stack-py-usage"], env=env)
     return " lobby," in r.stdout + r.stderr
+
+
+def dnas_data(e):
+    """A zdxsv with scripts/dnasrep.sh needs ZDXSV_DNAS_DATA_DIR: fetch the commit it names into $ZDXSV_DIR/dnasrep."""
+    script = os.path.join(e["ZDXSV_DIR"], "scripts", "dnasrep.sh")
+    if e.get("ZDXSV_DNAS_DATA_DIR") or not os.path.isfile(script):
+        return True
+    with open(script, encoding="utf-8") as f:
+        text = f.read()
+    url = re.search(r"git clone -q (\S+)", text)
+    commit = re.search(r"^commit=([0-9a-f]{40})$", text, re.M)
+    if not (url and commit):
+        print(f"FAIL stack: no DNASrep url or commit in {script}; set ZDXSV_DNAS_DATA_DIR", flush=True)
+        return False
+    d = os.path.join(e["ZDXSV_DIR"], "dnasrep")
+    if not os.path.isdir(os.path.join(d, ".git")):
+        r = zrig.run(["git", "clone", "-q", url.group(1), d])
+        if r.returncode:
+            print(f"FAIL stack: git clone {url.group(1)}: {r.stderr.strip()}", flush=True)
+            return False
+    r = zrig.run(["git", "-C", d, "-c", "advice.detachedHead=false", "checkout", "-q", commit.group(1)])
+    if r.returncode:
+        print(f"FAIL stack: DNASrep checkout {commit.group(1)}: {r.stderr.strip()}", flush=True)
+        return False
+    e["ZDXSV_DNAS_DATA_DIR"] = d
+    return True
 
 
 def main(argv):
@@ -38,7 +66,7 @@ def main(argv):
         "ZDXSV_LOBBY_API_ADDR": e.get("ZDXSV_LOBBY_API_ADDR") or "127.0.0.1:9881",
     })
     z = e.get("ZBIN") or os.path.join(e["ZDXSV_DIR"], "bin", "zdxsv" + zrig.EXE)
-    if zbincheck.check(z):
+    if zbincheck.check(z) or not dnas_data(e):
         return 1
     split = has_lobby_cmd(z, e)
     if not split and (e.get("DNAS") or e.get("DZ")):
