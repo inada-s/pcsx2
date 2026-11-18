@@ -83,7 +83,7 @@ options: `docs/zdxsv/`.
 | `LobbyConnection.cpp` | A TCP connection to the lobby (no-DEV9 host socket): platform info message, GGPO lobby setup, lobby filter |
 | `HttpsLatency.cpp` | HTTPS latency test to the cloud regions, sent in the platform info |
 | `SpectateSync.cpp`, `SpectateSync.h` | Four-screen replay: one PCSX2 per position, kept on the same frame through shared memory |
-| `ServerHosts.cpp`, `ServerHosts.h` | Addresses the game's server hosts resolved to; whether that was the built-in server (public server) |
+| `ServerHosts.cpp`, `ServerHosts.h` | Whether the game's server hosts resolved to the built-in server (public server) |
 | `FeatureLimits.cpp` | The setting that limits upstream features in zdxsv |
 | `FastBoot.cpp` | Boot at unlimited speed to the lobby user_id selection, pressing through the menus on the fixed network route; optionally on through ID 1 into the lobby |
 | `AuthSignIn.cpp`, `AuthSignIn.h` | Sign-in through the server in the browser (127.0.0.1 callback, PKCE), the token file, sign-out |

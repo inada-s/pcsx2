@@ -2,7 +2,6 @@
 // SPDX-License-Identifier: GPL-3.0+
 
 #include "Zdxsv/LobbySocket.h"
-#include "Zdxsv/ServerHosts.h"
 #include "Zdxsv/TestOptions.h"
 
 #include "Host.h"
@@ -23,7 +22,6 @@
 
 #include <algorithm>
 #include <array>
-#include <bit>
 #include <cstring>
 #include <memory>
 #include <mutex>
@@ -377,10 +375,9 @@ namespace Zdxsv
 	void TlsOnConnect(void* endpoint)
 	{
 		sockaddr_in* addr = static_cast<sockaddr_in*>(endpoint);
-		const u32 ip = std::bit_cast<u32>(addr->sin_addr);
 		const u16 port = ntohs(addr->sin_port);
 		const TlsPort* tls_port = FindPort(port);
-		if (!tls_port || !Options().enabled || !IsServerAddress(ip))
+		if (!tls_port || !Options().enabled)
 			return;
 
 		static std::once_flag psa_once;
