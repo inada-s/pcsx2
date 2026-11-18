@@ -2,8 +2,10 @@
 (-Route arcade: offline battle from ~f8000), snapshots at -Snaps "f1 f2..", log lines out.
   deltatest.py -Spec S -Var V -Snaps "F.." -End F -Tag T -Out DIR -Route R
 ZDXSV_DELTA_TEST: exit 1 on `result FAIL` (pass 2+ differed), 3 when no result line was logged.
+ZDXSV_GGPO: exit 1 when the `done` line counts mismatches, 3 when it is missing or ran fewer than SPEC frames=.
 """
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -64,6 +66,8 @@ def run(argv, show=True):
     zrig.kill_name("pcsx2")
     with open(log, "rb") as f:
         lines = [l.decode("utf-8", "replace").rstrip("\r\n") for l in f if b"ZdxsvDelta" in l or b"ZdxsvGgpo" in l]
+    if show:
+        print(f"build {zrig.build_of(log)}")
     for l in lines if show else ():
         print(l)
     if o["-Var"] == "ZDXSV_DELTA_TEST":
@@ -71,6 +75,13 @@ def run(argv, show=True):
             return 1, lines
         if not any("ZdxsvDelta: result" in l for l in lines):
             return 3, lines
+    elif o["-Var"] == "ZDXSV_GGPO":
+        done = [m for m in (re.search(r"ZdxsvGgpo: done frames (\d+) .* mismatches (\d+) ", l) for l in lines) if m]
+        want = re.search(r"(?:^|,)frames=(\d+)", o["-Spec"])
+        if not done or (want and int(done[-1][1]) < int(want[1])):
+            return 3, lines
+        if int(done[-1][2]):
+            return 1, lines
     return 0, lines
 
 
