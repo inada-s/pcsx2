@@ -539,8 +539,7 @@ namespace Zdxsv
 	{
 		if (!mmap_DeltaHooked() || size == 0)
 			return;
-		// A kernel write (a file read straight into guest memory) to a watched page fails instead of
-		// faulting: write each page once from here so the fault handler records and unwatches it.
+		// Each page is written once from here, so the fault handlers record and unwatch it before the read.
 		const uptr begin = reinterpret_cast<uptr>(data);
 		for (uptr addr = begin; addr < begin + size; addr = (addr & ~static_cast<uptr>(PAGE_BYTES - 1)) + PAGE_BYTES)
 		{
