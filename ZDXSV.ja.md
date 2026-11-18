@@ -135,3 +135,11 @@ PCSX2 が新しいバージョンをダウンロードし、終了してファ�
 ヘルプメニューの「更新を確認...」(Check for Updates...) から手動でも確認できます。
 接続時にゲーム画面に「PLEASE UPDATE PCSX2」と表示された場合 (PCSX2 にも「この PCSX2 は古いためロビーに接続できません」と表示されます)、そのバージョンはサーバに受け付けられません。
 上の手順で更新してから接続し直してください。
+
+## ライセンスとソースコード
+
+PCSX2 for zdxsv は GNU General Public License バージョン 3 以降のフリーソフトウェアです（`docs/GPL.html`）。
+ソースコードは https://github.com/inada-s/pcsx2 （ブランチ `zdxsv-master`）にあります。
+各リリースのソースは https://github.com/inada-s/pcsx2/releases のタグ `zdxsv-X.Y.Z` です。
+サードパーティのソフトウェア（GGPO、Mbed TLS、MiniUPnPc、Sentry Native、Crashpad など）を含み、
+それぞれのライセンスに従います。`docs/ThirdPartyLicenses.html` を参照してください。
