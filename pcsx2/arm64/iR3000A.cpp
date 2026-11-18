@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2002-2026 PCSX2 Dev Team
+// SPDX-FileCopyrightText: 2026 zdxsv contributors
 // SPDX-License-Identifier: GPL-3.0+
 
 // ARM64 IOP recompiler with the timing of the x86 IOP recompiler (x86/iR3000A.cpp), so that ARM64 and x86
