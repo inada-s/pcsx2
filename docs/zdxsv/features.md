@@ -201,7 +201,7 @@ Keys (`net=1`, `lobby=1`, `port=`, `delay=`, ...) are parts of `ZDXSV_GGPO`.
 - **Self-update from the GitHub releases of this fork**: release builds; `ZDXSV_UPDATE_URL`.
 - **Crash reports** ([crash-reports.md](crash-reports.md)): `ZdxsvCrashReports`, on by default in a build with `ZDXSV_SENTRY_DSN`.
 - **Release workflow**: a `zdxsv-X.Y.Z` tag.
-- **Windows CI build**: every push and PR.
+- **CI builds**: Windows CMake + clang-cl and MSBuild, macOS arm64; every push and ready PR.
 - **PINE opcodes `0x30` to `0x32`**: pad input, screenshot, frame count.
 - **EE probe, watch and rerun profile**: `ZDXSV_EE_PROBE`, `ZDXSV_EE_WATCH`, `ZDXSV_EE_PROFILE`.
 - **`run.py`**: several local instances side by side.

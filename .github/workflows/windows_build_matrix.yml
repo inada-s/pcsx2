@@ -1,8 +1,8 @@
 name: 🖥️ Windows Builds
 
-# zdxsv fork: one Windows build only, the configuration upstream releases with
-# (release_cut_new.yml: CMake + clang-cl). The other upstream variants (MSVC/clang
-# SSE4/AVX2 msbuild, CMake MSVC) are dropped to keep CI short.
+# zdxsv fork: two Windows builds. CMake + clang-cl is the configuration releases
+# use (zdxsv_release.yml); MSBuild Devel AVX2 (MSVC) is the build-local.sh default,
+# the compiler rig builds use. The other upstream variants are dropped to keep CI short.
 # Runs on pushes to zdxsv-master / ai/zdxsv and on PRs into any branch, so a
 # stacked PR is built too and its check stays on the commit when it is retargeted.
 # A draft PR is not built: the build starts when the PR is marked ready for review.
@@ -18,6 +18,17 @@ on:
   workflow_dispatch:
 
 jobs:
+  build_qt_msbuild:
+    name: "MSBuild"
+    if: (github.repository != 'PCSX2/pcsx2' || github.event_name == 'pull_request') && !(github.event_name == 'pull_request' && github.event.pull_request.draft)
+    uses: ./.github/workflows/windows_build_qt.yml
+    with:
+      jobName: "MSVC Devel AVX2"
+      artifactPrefixName: "PCSX2-windows-Qt-x64-msbuild-devel"
+      configuration: Devel AVX2
+      buildSystem: msbuild
+      package: false
+
   build_qt_cmake_clang:
     name: "CMake"
     if: (github.repository != 'PCSX2/pcsx2' || github.event_name == 'pull_request') && !(github.event_name == 'pull_request' && github.event.pull_request.draft)

@@ -322,7 +322,7 @@ if(sentry_FOUND)
 		"ZDXSV_HAS_SENTRY;ZDXSV_SENTRY_DSN=\"${ZDXSV_SENTRY_DSN}\"")
 	if(APPLE)
 		add_custom_command(TARGET pcsx2-qt POST_BUILD COMMAND "${CMAKE_COMMAND}" -E copy_if_different
-			"$<TARGET_FILE:sentry_crashpad::handler>" "$<TARGET_FILE_DIR:pcsx2-qt>/crashpad_handler")
+			"$<TARGET_FILE:sentry_crashpad::crashpad_handler>" "$<TARGET_FILE_DIR:pcsx2-qt>/crashpad_handler")
 	endif()
 endif()
 
