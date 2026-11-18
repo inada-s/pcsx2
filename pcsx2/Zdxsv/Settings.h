@@ -27,6 +27,8 @@ namespace Zdxsv
 {
 	// default of ZdxsvReplayStateUrl: the post-entry state a replay starts from
 	inline constexpr const char* REPLAY_STATE_URL = "https://storage.googleapis.com/zdxsv/misc/rbk-p1.p2s";
+	// SHA-256 of the file at REPLAY_STATE_URL: a new file there needs a new client
+	inline constexpr const char* REPLAY_STATE_SHA256 = "bd6db1b5ed73e3f8321161601a89846ea5fce125b3cf194e6cf938ef30f72fdb";
 	// default of ZdxsvUdpTestUrl: the udptest function (zdxsv infra/udptest)
 	inline constexpr const char* UDPTEST_URL = ZDXSV_UDPTEST_URL;
 
