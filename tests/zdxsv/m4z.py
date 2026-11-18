@@ -803,7 +803,7 @@ def main():
         while time.time() - t0 < int(E("MAXS", "300")):
             time.sleep(15)
             e = sum(1 for i in gclients if c(el(i), "ZdxsvGgpo: lobby battle connection cut ended|ZdxsvGgpo: session mismatch frames"))
-            n = c(lobby, "A new tcp connection open")
+            n = c(lobby, "new tcp connection open")
             say(f"{int(time.time() - t0)} s: cut ended {e}/{ngc}, lobby tcp conns {n}/{2 * nc}")
             if e >= ngc and n >= 2 * nc:
                 break
@@ -851,7 +851,7 @@ def main():
         if cut == "ping":
             bs = E("BAD_SESSION")
             ok(f"p{bs} used the bad session", c(el(bs), "badsession=1: ping test session"))
-        ok(f"every client back in the lobby (tcp conns x{2 * nc})", c(lobby, "A new tcp connection open") >= 2 * nc)
+        ok(f"every client back in the lobby (tcp conns x{2 * nc})", c(lobby, "new tcp connection open") >= 2 * nc)
         # a 4-player cut reports total_frame 16200 (a 1v1 cut 0): frames do not tell a cut from a battle
         ok("no battle fought (no win, loss, kill or death)", not c(rtxt, "_count:[1-9]"))
         if E("REPORT"):
@@ -872,7 +872,7 @@ def main():
         t0 = time.time()
         while time.time() - t0 < int(E("MAXS", "300")):
             time.sleep(10)
-            n = c(lobby, "A new tcp connection open")
+            n = c(lobby, "new tcp connection open")
             say(f"{int(time.time() - t0)} s: lobby tcp conns {n}/{2 * nc - 1}")
             if n >= 2 * nc - 1:
                 break
@@ -888,7 +888,7 @@ def main():
                 if d and "Creating New TCP Connection to" in l:
                     say(f"p{i} TCP connect to {l.split()[-1]} {ts(l) - d:.1f} s after the disconnect")
                     break
-        ok(f"the other clients back in the lobby (tcp conns x{2 * nc - 1})", c(lobby, "A new tcp connection open") >= 2 * nc - 1)
+        ok(f"the other clients back in the lobby (tcp conns x{2 * nc - 1})", c(lobby, "new tcp connection open") >= 2 * nc - 1)
 
     nb = int(E("BATTLES", "1"))
     for b in range(1, nb + 1):
