@@ -617,7 +617,6 @@ namespace Zdxsv
 	bool GgpoRunFrame();
 
 	// GgpoSession.cpp
-	extern std::recursive_mutex s_ggpo_mtx;
 	void GgpoStop(const char* what);
 	const char* GgpoStart();
 	void NetEndCheck();

@@ -510,7 +510,6 @@ namespace Zdxsv
 
 	static void Returned()
 	{
-		std::unique_lock ggpo_lock(s_ggpo_mtx);
 		if (s_play_env)
 		{
 			s_frame_hold = !s_play_common && LiveHold();
@@ -626,9 +625,7 @@ namespace Zdxsv
 		if (s_opt.net)
 		{
 			const bool ok = NetWaitPredictionLimit();
-			ggpo_lock.unlock();
 			DeferredThrottle(false);
-			ggpo_lock.lock();
 			if (!ok || !GgpoSyncAndApply(false))
 				GgpoStop("failed");
 			return;
