@@ -13,6 +13,7 @@
 #include "SPU2/spu2.h"
 #include "SaveState.h"
 #include "StateWrapper.h"
+#include "USB/USB.h"
 #include "VUmicro.h"
 #include "Zdxsv/CpuHooks.h"
 #include "Zdxsv/SaveStateHooks.h"
@@ -250,6 +251,12 @@ static bool DeltaFreezeAll(SaveStateBase& s, Error* error)
 	// Frames received since the loaded save are received again (Zdxsv::DeltaStateLoad).
 	mark("DEV9");
 	if (Zdxsv::SaveStateDev9Enabled() && !DeltaFreezeWrapper(s, &DEV9DeltaDoState))
+		return false;
+
+	// The OHCI controller writes its frame number into IOP RAM each USB frame and runs on its
+	// own cycle counters: left out, each rerun frame's IOP RAM differs from the run it repeats.
+	mark("USB");
+	if (!DeltaFreezeWrapper(s, &USB::DoState))
 		return false;
 
 	mark("Pad");
