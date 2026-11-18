@@ -54,7 +54,8 @@ on, while positions and RNGs match.
 the first battle of the lobby's public API
 `http://<lobby api>/lbs/replay?battle_code=<code>`. A download
 that starts with the gzip magic (the lobby's bucket serves them gzip encoded) is
-decompressed first.
+decompressed first. A file over 256 MiB (decompressed) or with a repeated field
+over 4096 values is not played; a live stream stops past 256 MiB of records.
 
 Common start: playback loads a save state of the game
 at the post-entry point (logged in, before the lobby's battle start; any
