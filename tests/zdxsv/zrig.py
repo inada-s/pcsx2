@@ -57,6 +57,12 @@ def log_lines(path, *needles):
     return [l for l in lines if any(re.search(n, l) for n in needles)]
 
 
+def build_of(emulog):
+    """The PCSX2 version (git describe) an emulog was written by, "unknown" when it has none."""
+    m = log_lines(emulog, r"\] PCSX2 \S")
+    return m[0].split("] PCSX2 ", 1)[1].strip() if m else "unknown"
+
+
 def need(*names):
     for n in names:
         if not os.environ.get(n):
