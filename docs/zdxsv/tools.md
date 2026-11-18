@@ -29,6 +29,8 @@
   - macOS arm64 (`macos_build_arm64.yml`); builds and runs the unit tests,
     no artifact.
 - The Linux and macOS x86_64 workflows only run by hand (`workflow_dispatch`).
+- These builds get a read-only token. The upstream `pull_request_target` workflows
+  (`check_pr_commits.yml`, `windows_deps_dispatch.yml`) run only in `PCSX2/pcsx2`.
 
 ## Local build and run
 

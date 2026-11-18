@@ -10,6 +10,7 @@ on:
 jobs:
   check-commit-message:
     name: Check Commit Message
+    if: github.repository == 'PCSX2/pcsx2'
     runs-on: ubuntu-latest
     steps:
       - name: Check for a commit prefix 
