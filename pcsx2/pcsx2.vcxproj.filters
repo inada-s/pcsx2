@@ -2538,6 +2538,9 @@
     <ClCompile Include="Zdxsv\GgpoFrameOsd.cpp">
       <Filter>Zdxsv</Filter>
     </ClCompile>
+    <ClCompile Include="Zdxsv\GgpoDesync.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
     <ClCompile Include="Zdxsv\GgpoGameState.cpp">
       <Filter>Zdxsv</Filter>
     </ClCompile>

@@ -313,3 +313,20 @@ game RNG:
 - `ZDXSV_PW_DUMP` writes the player work itself, to find the field behind a
   mismatch.
 - `ZDXSV_NET_TRACE` writes the battle socket traffic and the inputs per frame.
+
+### Online desync check
+
+Every online battle checks itself (`GgpoDesync.cpp`):
+
+- Every 16th frame, each peer samples the replay state hash (`state_hashes` in
+  `replay.proto`) at the frame start. A sample is final once every input before
+  it is confirmed.
+- The last 4 bytes of `NetInput.data` (when the msgs leave them free) carry the
+  newest final sample: a tag for its frame and 24 bits of its hash. A peer
+  writes them only into an input that changes anyway, so they cause no extra
+  prediction misses.
+- Each peer compares every peer's sample with its own, once per peer and sample.
+  A mismatch logs `suspected desync with position N at frame F`; the battle
+  goes on. The session end logs `desync checks N mismatches M`; the match
+  report carries `desync_checks` and `desync_frame` (the first differing sample,
+  -1 = none); the replay carries `suspected_desyncs`.

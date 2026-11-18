@@ -266,6 +266,7 @@ are not shown, so they are no samples: their time (state load + reruns) is the
 | `ZDXSV_NET_TRACE=file` | diagnostic | Per-frame trace of the battle socket and the inputs; a `B <battle_code>` line at each GGPO session start and replay load. Read by `tools/zdxsv/zdcheck.py`, `tools/zdxsv/recvcheck.py`, `tools/zdxsv/pwcheck.py`. |
 | `ZDXSV_PW_HASH=1` | diagnostic | Per frame, a hash of each player's x, y, z and the 2 game RNG words, written to the net trace (`H` lines). |
 | `ZDXSV_PW_DUMP=file` | diagnostic | Work RAM of the players for every saved frame. Read by `pwdiff.py`. |
+| `ZDXSV_DESYNC_TEST=1` | control | This peer alters its sampled state hashes: every desync check of the battle reports a mismatch. |
 | `ZDXSV_RAM_DUMP=dir,start,step,count` | diagnostic | EE RAM (32 MB) to `dir/<frame>.bin`. Read by `tools/zdxsv/ramcount.py`, `tools/zdxsv/ramvals.py`. |
 | `ZDXSV_AUDIO_WAV=file` | diagnostic | The samples the audio device reads, after the volume, to a 32-bit float WAV; `file.gaps.txt` lists each read more than 50 ms after the previous one (output frame, gap in ms): a resume of the output. Read by `tools/zdxsv/wavclicks.py`. |
 | `ZDXSV_SNAP=dir,n[,from[,to]]` | diagnostic | GS screenshot `dir/v<vsync>.png` every n vsyncs, from vsync `from` up to (not including) `to`. Only shown frames: a request in a rollback goes to the next present. Needs a renderer; not in headless runs. |

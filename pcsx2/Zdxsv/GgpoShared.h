@@ -94,9 +94,27 @@ namespace Zdxsv
 		Input pad; // that player's pad 0
 		u8 seq; // +1 per input with new msgs; unchanged input = nothing new (GGPO predicts this)
 		u8 len;
-		u8 data[22];
+		u8 data[22]; // msgs in [0, len); with len <= DESYNC_TRAILER_AT, the desync trailer at DESYNC_TRAILER_AT
 	};
 	static_assert(sizeof(NetInput) == 32);
+	// Desync trailer (GgpoDesync.cpp): u8 tag (sampled frame / DESYNC_PERIOD % 255 + 1, 0 = none), low 24 bits of that
+	// frame's ReplayStateHash, LE.
+	constexpr int DESYNC_PERIOD = 16;
+	constexpr u8 DESYNC_TRAILER_AT = sizeof(NetInput::data) - 4;
+	struct DesyncState
+	{
+		int frame[64] = {}; // sampled frame + 1 (0 = none) per (frame / DESYNC_PERIOD) & 63
+		u32 hash[64] = {};
+		int checked[GGPO_MAX_PLAYERS] = {-1, -1, -1, -1}; // per position: the last sample compared
+		int first[GGPO_MAX_PLAYERS] = {-1, -1, -1, -1}; // per position: the first sample that differed, -1 = none
+		u32 checks = 0, mismatches = 0;
+	};
+	extern DesyncState s_desync;
+	void DesyncSample(int f);
+	void DesyncClaim(NetInput& in);
+	void DesyncCheck(const NetInput* in, int f);
+	void DesyncReport();
+	std::string DesyncReportLines();
 	extern bool s_net_env; // net=1 in s_options, or a replay plays (GgpoOnVmInitialize)
 	extern int s_rbk_me, s_rbk_n;
 	extern bool s_rbk; // also set by a replay's common start (PlayLoad); back to ZDXSV_RBK at VM shutdown

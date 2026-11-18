@@ -90,6 +90,7 @@ Keys (`net=1`, `lobby=1`, `port=`, `delay=`, ...) are parts of `ZDXSV_GGPO`.
 - **GGPO library**: `3rdparty/ggpo`.
 - **GGPO pings answered on the network thread**: `net=1`.
 - **GGPO time sync spread over frames**: `net=1`.
+- **Online desync check**: `net=1`; peers exchange sampled state hashes in the input, a mismatch is logged and reported, the battle goes on. See [rollback.md](rollback.md).
 - **Relay forwarding while GGPO is held**: `net=1`.
 - **GGPO session check**: battle code in the sync handshake; `ZDXSV_NET_SESSION`.
 - **Rollback budget in the lobby delay**: lobby battle without `delay=`.
