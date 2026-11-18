@@ -59,7 +59,7 @@ decompressed first.
 Common start: playback loads a save state of the game
 at the post-entry point (logged in, before the lobby's battle start; any
 user's), from `ZdxsvReplayStateUrl` (downloaded once into the cache
-folder, one file per URL: a new state needs a new URL; a cached copy that
+folder, one file per URL: a new state needs a new URL; the default URL's file must match a SHA-256 built into the client, at download and at each load from the cache; a cached copy that
 does not load is downloaded again once). The game then plays the battle start from the recorded lobby
 answers, menus turbo, with the chosen point of view as the own position.
 From GGPO frame 0 every frame gets the recorded inputs through the same
