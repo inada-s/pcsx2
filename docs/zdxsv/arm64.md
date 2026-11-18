@@ -35,10 +35,10 @@ with the x86 recompiler's timing, so both hosts count the same EE cycles.
 - Events (counters, interrupts, IOP and VU runs) are tested only once the cycle
   target is reached (the EE interpreter tests them at every branch).
 - LB..LW test events after an EE counter read (0x10000000-0x10001fff) only at
-  a block-constant address.
+  a block-constant address, never in a delay slot (the branch tests them).
 - A FlushCache SYSCALL with a constant v1 adds 5650 cycles instead of the call.
 - MFC0 Count, MFPC, MTC0 Status/Count, MTPS/MTPC commit the block's cycles
-  first, as `iCOP0.cpp`.
+  first, as `iCOP0.cpp`, also in a delay slot.
 - Timeout loop skip (`recSkipTimeoutLoop`), only in a block that branches to its
   own start.
 - Wait loops as x86 (`s_nBlockFF`, `Speedhacks.WaitLoop`): a block branching to

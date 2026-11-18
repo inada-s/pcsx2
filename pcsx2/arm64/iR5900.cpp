@@ -958,7 +958,7 @@ static void EmitBranch(u32 code, u32 pc, u32 pending, bool cycles_in_mem, const 
 	if (likely)
 		armAsm->Cbz(wtaken, &not_taken);
 
-	// The delay slot, as execI. A native op does not read the branch flag or the pc, and both are
+	// The delay slot, as an op of the block body. A native op does not read the branch flag or the pc, and both are
 	// stored again after it. EmitNative emits nothing for an op it leaves to the handler.
 	const u32 dcode = memRead32(pc + 4);
 	const OPCODE& dop = GetInstruction(dcode);
@@ -974,7 +974,10 @@ static void EmitBranch(u32 code, u32 pc, u32 pending, bool cycles_in_mem, const 
 		armAsm->Str(a64::w9, a64::MemOperand(rregs, off_branch));
 		armAsm->Mov(a64::w9, pc + 8);
 		armAsm->Str(a64::w9, a64::MemOperand(rregs, offsetof(cpuRegisters, pc)));
-		armEmitCall(reinterpret_cast<const void*>(dop.interpret));
+		if (CommitsBeforeOp(dcode))
+			armEmitCall(reinterpret_cast<const void*>(&intUpdateCPUCycles));
+		void (*handler)() = LoadHandler(dcode);
+		armEmitCall(reinterpret_cast<const void*>(handler ? handler : dop.interpret));
 		armAsm->Ldr(a64::w9, a64::MemOperand(rregs, off_branch));
 		armAsm->Cbz(a64::w9, &exit_commit);
 	}
