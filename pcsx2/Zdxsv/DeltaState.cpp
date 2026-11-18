@@ -8,6 +8,7 @@
 #include "Zdxsv/DeltaState.h"
 #include "Zdxsv/CpuHooks.h"
 #include "Zdxsv/DeltaFreeze.h"
+#include "Zdxsv/SaveStateHooks.h"
 #include "Zdxsv/TestOptions.h"
 
 #include "IopMem.h"
@@ -531,6 +532,20 @@ namespace Zdxsv
 			sized.resize(sized.capacity());
 			while (s_buffer_pool.size() < states)
 				s_buffer_pool.push_back(sized);
+		}
+	}
+
+	void DeltaStateHostWrite(void* data, size_t size)
+	{
+		if (!mmap_DeltaHooked() || size == 0)
+			return;
+		// A kernel write (a file read straight into guest memory) to a watched page fails instead of
+		// faulting: write each page once from here so the fault handler records and unwatches it.
+		const uptr begin = reinterpret_cast<uptr>(data);
+		for (uptr addr = begin; addr < begin + size; addr = (addr & ~static_cast<uptr>(PAGE_BYTES - 1)) + PAGE_BYTES)
+		{
+			volatile u8* p = reinterpret_cast<u8*>(addr);
+			*p = *p;
 		}
 	}
 

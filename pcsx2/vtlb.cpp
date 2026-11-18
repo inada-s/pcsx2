@@ -1616,6 +1616,11 @@ void mmap_DeltaSetFaultHook(mmap_DeltaFaultHook hook)
 	s_delta_fault_hook = hook;
 }
 
+bool mmap_DeltaHooked()
+{
+	return s_delta_hook != nullptr;
+}
+
 PageFaultHandler::HandlerResult PageFaultHandler::HandlePageFault(void* exception_pc, void* fault_address, bool is_write)
 {
 	pxAssert(eeMem);
@@ -1657,11 +1662,7 @@ PageFaultHandler::HandlerResult PageFaultHandler::HandlePageFault(void* exceptio
 			return HandlerResult::ExecuteNextHandler;
 
 		if (m_PageProtectInfo[offset >> __pageshift].Mode != ProtMode_Write)
-		{
-			// zdxsv delta state watch (or a page another fault just unwatched).
-			mmap_DeltaHit(offset >> __pageshift);
-			return HandlerResult::ContinueExecution;
-		}
+			return mmap_DeltaHit(offset >> __pageshift) ? HandlerResult::ContinueExecution : HandlerResult::ExecuteNextHandler;
 		mmap_DeltaHit(offset >> __pageshift);
 		mmap_ClearCpuBlock(offset);
 		return HandlerResult::ContinueExecution;

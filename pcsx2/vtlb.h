@@ -248,6 +248,7 @@ extern void mmap_DeltaRestorePage(u32 page, const u8* data);
 // true = handled, execution continues. nullptr: off.
 using mmap_DeltaFaultHook = bool (*)(uptr addr);
 extern void mmap_DeltaSetFaultHook(mmap_DeltaFaultHook hook);
+extern bool mmap_DeltaHooked();
 
 // --------------------------------------------------------------------------------------
 //  Goemon game fix

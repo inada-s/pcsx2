@@ -30,4 +30,7 @@ namespace Zdxsv
 	// No-DEV9 slots (NoDev9.cpp) in full states, on the no-DEV9 path whenever the DEV9 state is kept.
 	bool SaveStateNoDev9Enabled();
 	bool NoDev9DoState(StateWrapper& sw);
+
+	// Before data is read from a file straight into emulated memory (DeltaState.cpp).
+	void DeltaStateHostWrite(void* data, size_t size);
 } // namespace Zdxsv
