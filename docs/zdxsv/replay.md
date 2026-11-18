@@ -42,7 +42,9 @@ battle would play every later input N frames late. A wait is bounded at
 600 frames; past it playback plays on and those frames count as
 `own load late`, not judged.
 The game's MS asset slot cache holds the MSes a machine loaded before and
-sets a hashed player-work byte at each battle load. Every GGPO session and
+sets a player-work byte (the slot) at each battle load. The state hash
+leaves that byte out from `log_file_version` 20261118; an older file
+hashed it, and playback of such a file hashes it too. Every GGPO session and
 every common start empties it at frame 0 (the game reloads each battle MS),
 so recorder and playback start from the same cache. A file recorded by a
 build that did not empty it can differ in state hashes from a round start
@@ -190,7 +192,10 @@ D-pad. While taken over the pad plays the game.
   and the battle-socket state. A seek or round jump past the played frames
   whose path holds a mobile-suit-selection load end with a state starts
   from the first load end's key with that state written over it, instead of
-  running every frame from the start. Without that key (a point of view
+  running every frame from the start. The jump empties the mobile suit
+  cache, so the battle load reloads every mobile suit's assets and sounds
+  (the key holds another round's); the slots it picks can differ from the
+  recording's. Without that key (a point of view
   switched to after a jump), the seek runs to the first load end first, then
   jumps. State hashes are not checked up to the
   next load end (the player work still holds the first round's values); the

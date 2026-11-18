@@ -122,6 +122,8 @@ namespace Zdxsv
 			std::memcpy(eeMem->Main + a, s.ee.data() + at, len);
 			at += len;
 		}
+		// the key holds another round's MS assets (sounds too): the battle load reloads every MS
+		MsSlotsClear();
 		s_rb = s.rb;
 		s_rings = {};
 		for (int p = 0; p < players; p++)

@@ -304,7 +304,7 @@ namespace Zdxsv
 			else if (hashed)
 			{
 				s_check.hashes++;
-				if (const u32 h = ReplayStateHash(); h != s_play.hashes[f])
+				if (const u32 h = ReplayStateHash(s_play.version < 20261118); h != s_play.hashes[f])
 				{
 					if (s_check.hash_bad++ < 10)
 						Console.Warning("ZdxsvGgpo: replay state hash differs at frame %d: file %08x, here %08x", f, s_play.hashes[f], h);
