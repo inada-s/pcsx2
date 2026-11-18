@@ -90,6 +90,7 @@ options: `docs/zdxsv/`.
 | `AuthSignIn.cpp`, `AuthSignIn.h` | Sign-in through the server in the browser (127.0.0.1 callback, PKCE), the token file, sign-out |
 | `AuthTest.cpp` | Sign-in and sign-out at app start for the rigs (`ZDXSV_AUTH_SIGNIN_TEST`) |
 | `FastLogin.cpp`, `FastLogin.h` | Login through the login API at DNAS start, the browser's result written to guest RAM, jump to the lobby connect |
+| `GameAddresses.h` | Guest addresses and network menu states of the game that more than one file reads |
 | `SingleDrawList.cpp` | single draw list: game code patch that draws a frame's list in that frame |
 | `AllyHp.cpp` | Teammate HP on the HUD: the own max HP digits read the teammate's HP (setting `ZdxsvAllyHp`) |
 | `StickMessage.cpp` | Team messages without a right stick: a held button + D-pad or left stick also tilts the right stick (setting `ZdxsvStickMessageButton`) |

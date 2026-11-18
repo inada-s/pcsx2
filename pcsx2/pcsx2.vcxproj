@@ -980,6 +980,7 @@
     <ClInclude Include="Zdxsv\UiHooks.h" />
     <ClInclude Include="Zdxsv\Settings.h" />
     <ClInclude Include="Zdxsv\FastLogin.h" />
+    <ClInclude Include="Zdxsv\GameAddresses.h" />
     <ClInclude Include="Zdxsv\ServerHosts.h" />
     <ClInclude Include="Zdxsv\TestOptions.h" />
     <ClInclude Include="Zdxsv\Upnp.h" />

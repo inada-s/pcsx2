@@ -290,6 +290,7 @@ set(pcsx2Headers
 	Zdxsv/UiHooks.h
 	Zdxsv/Settings.h
 	Zdxsv/FastLogin.h
+	Zdxsv/GameAddresses.h
 	Zdxsv/ServerHosts.h
 	Zdxsv/TestOptions.h
 	Zdxsv/Upnp.h

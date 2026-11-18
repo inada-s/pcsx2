@@ -5,6 +5,7 @@
 // network setup from fixed replies, every name resolved to the zdxsv server, TCP on host sockets.
 // Experimental, needs proper testing: lobby, a 1v1 TCP battle and a 1v1 GGPO battle tested.
 
+#include "Zdxsv/GameAddresses.h"
 #include "Zdxsv/CpuHooks.h"
 #include "Zdxsv/LobbySocket.h"
 #include "Zdxsv/Lobby.h"
@@ -52,19 +53,16 @@ namespace Zdxsv
 	{
 		// Wrapper RPC block: +0x18 result, +0x1c reply (setup), +0x1e length, +0x20 data.
 		constexpr u32 kRpc = 0xc22c80;
-		constexpr u32 kNetState = 0xcd1360; // u8, network menu state
-		constexpr u8 kNetPick = 5; // the network device pick
-		// The network setting list. Fast boot replaces state 5 with it in the same vsync, so the pick never runs.
-		constexpr u8 kNetSettingList = 6;
+		// The network device pick. Fast boot replaces it with GameNetSettingList in the same vsync, so the pick never runs.
+		constexpr u8 kNetPick = 5;
 		// The boot search for module "dev9" fills this entry; without it the pick shows the device as unavailable.
 		constexpr u32 kDevEntry = 0xc634e8;
 		constexpr u32 kDevEntryWords[] = {1, 5, 1, 2, 0x21, 0x6af5b8, 0x6af5c0};
 		// The pick's SMAP.IRX load (jal); SMAP needs dev9, and the pick never checks a load result.
 		constexpr u32 kSmapLoadPc = 0x336bd4;
 		constexpr u32 kSmapLoad = 0x0c0cd8f4;
-		// The connection menu (broadband, dial-up, last connection). Its exit branches for broadband and dial-up
-		// (beq to their setup screens) are retargeted to the last connection exit: no setup screen is needed.
-		constexpr u8 kNetConnectMenu = 3;
+		// The connection menu's exit branches for broadband and dial-up (beq to their setup screens) are retargeted
+		// to the last connection exit: no setup screen is needed.
 		constexpr u32 kMenuBroadbandPc = 0x368ba4;
 		constexpr u32 kMenuBroadband = 0x10430012;
 		constexpr u32 kMenuDialUpPc = 0x368bb0;
@@ -468,8 +466,8 @@ namespace Zdxsv
 
 	void NoDev9OnVsync()
 	{
-		const u8 net = memRead8(kNetState);
-		const bool pick = net == kNetPick || net == kNetSettingList;
+		const u8 net = memRead8(GAME_NET_STATE);
+		const bool pick = net == kNetPick || net == GameNetSettingList;
 		if (pick && s_state.last_net != net)
 		{
 			if (memRead32(kDevEntry) == 0xffffffff)
@@ -481,14 +479,14 @@ namespace Zdxsv
 		}
 		if (pick)
 			Patch(kSmapLoadPc, kSmapLoad, 0);
-		if (net == kNetConnectMenu)
+		if (net == GameNetConnectMenu)
 		{
 			Patch(kMenuBroadbandPc, kMenuBroadband, kMenuBroadbandToLast);
 			Patch(kMenuDialUpPc, kMenuDialUp, kMenuDialUpToLast);
 		}
 		if (net == kNetLastType)
 			Patch(kLastTypeLoadPc, kLastTypeLoad, kLastTypeBroadband);
-		if (net == kNetSettingList)
+		if (net == GameNetSettingList)
 		{
 			Patch(kLastSettingWaitPc, kLastSettingWait, 0);
 			if (memRead32(kSettingListState) == kSettingReadFailed)
