@@ -428,6 +428,8 @@ namespace Zdxsv
 				const int status = HttpPost(url, next, error);
 				LobbyLog("live: uplink " + code + (ended && status == 204 ? " closed: " : " gave up on the close: ") + std::to_string(sent) +
 					", HTTP " + std::to_string(status) + (error.empty() ? "" : " (" + error + ")"));
+				std::lock_guard lock(mtx);
+				queue = {};
 				done = true;
 			}
 		};
@@ -456,19 +458,19 @@ namespace Zdxsv
 		Impl::State& s = *m->s;
 		const auto* p = static_cast<const uint8_t*>(data);
 		std::lock_guard lock(s.mtx);
-		if (s.closing)
+		s.frames += frames;
+		if (s.closing || s.done)
 			return;
 		if (s.queue.empty() || s.queue.back().type != REC_INPUTS)
 			s.queue.emplace_back();
 		s.queue.back().data.insert(s.queue.back().data.end(), p, p + frames * s.frameBytes);
-		s.frames += frames;
 	}
 
 	void LiveUp::AddRound(const std::vector<uint8_t>& entry)
 	{
 		Impl::State& s = *m->s;
 		std::lock_guard lock(s.mtx);
-		if (!s.closing)
+		if (!s.closing && !s.done)
 			s.queue.push_back({REC_ROUND, entry});
 	}
 
@@ -476,7 +478,7 @@ namespace Zdxsv
 	{
 		Impl::State& s = *m->s;
 		std::lock_guard lock(s.mtx);
-		if (!s.closing)
+		if (!s.closing && !s.done)
 			s.queue.push_back({REC_ROUND_FRAMES, fields});
 	}
 
@@ -484,7 +486,7 @@ namespace Zdxsv
 	{
 		Impl::State& s = *m->s;
 		std::lock_guard lock(s.mtx);
-		if (!s.closing)
+		if (!s.closing && !s.done)
 			s.queue.push_back({REC_ROUND_STATE, entry});
 	}
 
