@@ -5,12 +5,17 @@
 
 #include "QtHost.h"
 
+#include "SettingWidgetBinder.h"
+
 #include "pcsx2/Host.h"
 #include "pcsx2/Zdxsv/AuthSignIn.h"
+#include "pcsx2/Zdxsv/CrashReportHooks.h"
 
 #include <QtCore/QCoreApplication>
 #include <QtCore/QPointer>
 #include <QtWidgets/QBoxLayout>
+#include <QtWidgets/QCheckBox>
+#include <QtWidgets/QFormLayout>
 #include <QtWidgets/QLabel>
 #include <QtWidgets/QMessageBox>
 #include <QtWidgets/QPushButton>
@@ -127,12 +132,31 @@ namespace Zdxsv
 
 	void QtSetupWizardCustomize(QWidget* wizard)
 	{
+		const bool crash_reports = CrashReportsAvailable();
 		SetText(wizard, "IntroLabel",
 			Heading(Tr("Welcome to PCSX2 for zdxsv!")) +
 				Tr("<p>This PCSX2 plays Mobile Suit Gundam: Gundam vs. Zeta Gundam online on zdxsv. This wizard sets up the "
 				   "BIOS, the game, the controller and your zdxsv account.</p><p>At each start, PCSX2 checks "
-				   "github.com/inada-s/pcsx2 for a new release. To stop it, uncheck Enable Automatic Updates below.</p>"
-				   "<p>Choose a language and a theme to begin.</p>"));
+				   "github.com/inada-s/pcsx2 for a new release. To stop it, uncheck Enable Automatic Updates below.</p>") +
+				(crash_reports ?
+						Tr("<p>When PCSX2 crashes, it sends a crash report to the zdxsv developers: a memory dump, the last "
+						   "log lines and the settings without folder paths. To stop it, uncheck Send Crash Reports "
+						   "below.</p>") :
+						QString()) +
+				Tr("<p>Choose a language and a theme to begin.</p>"));
+		QCheckBox* auto_update = wizard->findChild<QCheckBox*>(QStringLiteral("autoUpdateEnabled"));
+		QFormLayout* form = wizard->findChild<QFormLayout*>(QStringLiteral("languageLayout"));
+		if (crash_reports && auto_update && form)
+		{
+			QCheckBox* box = new QCheckBox(Tr("Send Crash Reports"), auto_update->parentWidget());
+			SettingWidgetBinder::BindWidgetToBoolSetting(nullptr, box, "DEV9/Eth", "ZdxsvCrashReports", true);
+			QObject::connect(box, &QCheckBox::checkStateChanged,
+				[](Qt::CheckState state) { CrashReportsSetEnabled(state == Qt::Checked); });
+			int row = -1;
+			QFormLayout::ItemRole role;
+			form->getWidgetPosition(auto_update, &row, &role);
+			form->insertRow(row < 0 ? -1 : row + 1, box);
+		}
 		SetText(wizard, "dumpsIntro",
 			Tr("<p>Add the folder that holds the game's disc image (ISO, CHD and others), made from your own disc. "
 			   "PCSX2 lists the games it finds there.</p>"));

@@ -7,7 +7,7 @@ no setting, no upload.
 
 ## Switch
 
-`ZdxsvCrashReports` (Settings → zdxsv) is on by default and is not asked about. Off: the SDK does not
+`ZdxsvCrashReports` (Settings → zdxsv, and a "Send Crash Reports" checkbox on the first page of the setup wizard) is on by default. Off: the SDK does not
 start, so upstream's crash handler stays in place and nothing leaves the machine.
 
 Turning the setting off stops uploads at once. Turning it on takes effect at the next start,
@@ -17,8 +17,10 @@ because the SDK must start before the page fault handler is installed.
 
 A minidump (the stacks and the memory they point to, which can hold game session data), the
 release (`pcsx2-zdxsv@<git rev>`), the environment, the operating system and a random installation
-ID (the event's user ID, kept in the database folder `sentry` in the data directory). The settings file `PCSX2.ini` as it is at the crash, attached
-(its folder paths can hold the user name; sign-in tokens are kept in other files). The last 100 log lines (info level and above), kept in memory
+ID (the event's user ID, kept in the database folder `sentry` in the data directory). A copy of the settings file `PCSX2.ini`, attached
+from the database folder: written when crash reports start and each time the settings are saved, without the sections
+`[Folders]`, `[GameList]` and `[Achievements]` and without any line whose value is an absolute path
+(sign-in tokens are kept in other files). The last 100 log lines (info level and above), kept in memory
 whatever the log settings and written at the crash as `emulog-tail.txt` in the database folder;
 not on macOS, where crashpad runs no in-process crash callback. Sentry also gets
 the sender's IP address and derives a location from it. Sessions, tracing, the rest of the log and per-game
