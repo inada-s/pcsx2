@@ -635,6 +635,7 @@ namespace Zdxsv
 	void PlayLoad()
 	{
 		int me = -1;
+		PlayKeysPrune();
 		const std::string paths = s_live_next_url.empty() ? s_play_env : s_live_next_url; // the split's views point into it
 		for (const std::string_view path : StringUtil::SplitString(paths, ';'))
 			if (const int p = PlayLoadFile(std::string(path)); me < 0)
@@ -720,7 +721,10 @@ namespace Zdxsv
 		// PlayBegin loads that state as PlayLoad does
 		s_battle.started = false;
 		g_ggpo_active = false;
-		Host::RunOnCPUThread([me] { PlayBegin(me); });
+		Host::RunOnCPUThread([me, gen = s_play_gen] {
+			if (gen == s_play_gen)
+				PlayBegin(me);
+		});
 	}
 
 	void PlayBegin(int me)

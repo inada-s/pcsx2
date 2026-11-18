@@ -583,7 +583,9 @@ namespace Zdxsv
 	void SyncStart(int me);
 	void SyncFollow(int next);
 	void SyncFrame(int next);
+	extern u32 s_play_gen; // bumped by PlayReset: a call queued before it compares it and drops out
 	void PlayReset();
+	void PlayKeysPrune(); // deletes the cache folder's seek keys a killed or crashed replay left
 	void PlayLoad();
 	bool PlayCommonArm(int pov, int seek = -1);
 	void PlayCommonStart();

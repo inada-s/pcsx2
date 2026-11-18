@@ -146,7 +146,9 @@ D-pad. While taken over the pad plays the game.
   run one after another. While paused, input is polled every 8 ms and the
   picture redrawn at most every 33 ms.
 - **Seek**: a key (full state + battle-socket state) is kept every
-  `ZDXSV_REPLAY_KEY` played frames, per position. A seek loads the newest
+  `ZDXSV_REPLAY_KEY` played frames, per position, as `zdxsv-replay-*.p2s`
+  in the cache folder; the VM's close or reset deletes them, and a replay's
+  load deletes any a killed process left (also half-written ones). A seek loads the newest
   key at least two frames before the target (a key load leaves no picture
   until frames run after it; at the target only when no earlier key) and
   runs to it unthrottled (the limiter mode stays, so the vsync mode does not

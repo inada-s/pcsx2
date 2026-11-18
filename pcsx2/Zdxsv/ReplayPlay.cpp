@@ -771,8 +771,19 @@ namespace Zdxsv
 			Host::RunOnCPUThread([] { VMManager::SetPaused(true); });
 	}
 
+	u32 s_play_gen = 0;
+
+	void PlayKeysPrune()
+	{
+		FileSystem::FindResultsArray old;
+		FileSystem::FindFiles(EmuFolders::Cache.c_str(), "zdxsv-replay-*.p2s*", FILESYSTEM_FIND_FILES, &old);
+		for (const FILESYSTEM_FIND_DATA& f : old)
+			FileSystem::DeleteFilePath(f.FileName.c_str());
+	}
+
 	void PlayReset()
 	{
+		s_play_gen++;
 		SyncStop();
 		ReplayBenchReset();
 		s_sync_chase = false;
