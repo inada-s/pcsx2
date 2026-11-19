@@ -37,8 +37,8 @@ namespace Zdxsv
 			s_opt = {};
 			s_opt.osd = Host::GetBoolSettingValue("DEV9/Eth", "ZdxsvNetOsd", true); // osd= overrides it
 			s_opt.frame_osd = BoolSetting("ZdxsvFrameOsd", false, "ZDXSV_FRAME_OSD");
-			s_opt.port = s_options.find("lobby=1") != std::string::npos ? s_lobby_port : 7001;
-			for (const std::string_view item : StringUtil::SplitString(s_options, ','))
+			s_opt.port = s_config.options.find("lobby=1") != std::string::npos ? s_config.lobby_port : 7001;
+			for (const std::string_view item : StringUtil::SplitString(s_config.options, ','))
 			{
 				const size_t eq = item.find('=');
 				if (eq == std::string_view::npos)
@@ -75,7 +75,7 @@ namespace Zdxsv
 					s_opt.delay_set = true;
 				}
 				else if (key == "mindelay")
-					s_min_delay = n;
+					s_config.min_delay = n;
 				else if (key == "sync")
 					s_opt.sync = (n != 0);
 				else if (key == "net")
@@ -259,7 +259,6 @@ namespace Zdxsv
 	bool g_limiter_no_catch_up = false;
 	// The ZDXSV_GGPO options of this VM: the variable, else DEFAULT_OPTIONS for the Z game, else empty = off.
 	// Set by GgpoOnVmInitialize before the CPU runs.
-	std::string s_options;
 	bool g_z_game = false;
 	bool g_ggpo_active = false;
 	bool g_ggpo_in_rollback = false;
@@ -269,7 +268,6 @@ namespace Zdxsv
 	u64 g_rerun_spu2_ticks = 0;
 	const bool g_rerun_split_time = Zdxsv::TestEnv("ZDXSV_RERUN_SPLIT") != nullptr;
 	bool g_gs_rerun_frame = false;
-	bool s_net_env = false; // net=1 in s_options, or a replay plays (GgpoOnVmInitialize)
 	// ZDXSV_RBK=i/N: until GGPO arms, every lobby / battle connect RPC is answered here (RbkCall).
 	RbkRole RbkFromEnv()
 	{
@@ -295,8 +293,7 @@ namespace Zdxsv
 	SessionStats s_stats;
 	GGPOPlayerHandle s_handles[GGPO_MAX_PLAYERS] = {};
 	GgpoOptions s_opt;
-	int s_lobby_port = 7001;
-	int s_min_delay = 2; // mindelay=, else setting DEV9/Eth ZdxsvGgpoMinDelay
+	GgpoConfig s_config;
 	std::vector<GamePatch> s_battle_patches;
 
 	GGPOSession* s_session = nullptr;
@@ -361,7 +358,7 @@ namespace Zdxsv
 
 	void GgpoOnVsync()
 	{
-		if (s_rbk.on && s_net_env && !s_battle.armed)
+		if (s_rbk.on && s_config.net && !s_battle.armed)
 			VMManager::SetLimiterMode(LimiterModeType::Turbo);
 		// Once: the rbk knobs as received; tests/zdxsv/rbk.py compares this line to what it meant to pass
 		static bool rbk_env_logged = false;
@@ -668,8 +665,8 @@ namespace Zdxsv
 		const bool lobby_default = g_z_game && !s_play_src.path;
 		if (!g_z_game) // any other game or build, or ZDXSV_EXTENSIONS=0: no GGPO, replay, hooks or platform info
 		{
-			s_options.clear();
-			g_ggpo_enabled = s_net_env = g_net_hook = g_zd_hook = g_ps_hook = false;
+			s_config.options.clear();
+			g_ggpo_enabled = s_config.net = g_net_hook = g_zd_hook = g_ps_hook = false;
 			if (ext_off)
 				Console.WriteLn("ZdxsvGgpo: off: ZDXSV_EXTENSIONS=0, all zdxsv extensions off");
 			else if (serial_match || (e && std::strcmp(e, "0") != 0) || s_play_src.path || s_net_trace)
@@ -678,30 +675,30 @@ namespace Zdxsv
 		}
 		SyncSettingsEnforce(); // LoadSettings ran before the game was known
 		if (e && std::strcmp(e, "0") == 0) // off (rigs without GGPO)
-			s_options.clear();
+			s_config.options.clear();
 		else
-			s_options = e ? e : lobby_default ? DEFAULT_OPTIONS : "";
+			s_config.options = e ? e : lobby_default ? DEFAULT_OPTIONS : "";
 		// mindelay= overrides it
-		s_min_delay = std::clamp(Host::GetIntSettingValue("DEV9/Eth", "ZdxsvGgpoMinDelay", 2), 2, 6);
-		if (s_options.find("lobby=1") != std::string::npos)
+		s_config.min_delay = std::clamp(Host::GetIntSettingValue("DEV9/Eth", "ZdxsvGgpoMinDelay", 2), 2, 6);
+		if (s_config.options.find("lobby=1") != std::string::npos)
 		{
-			s_lobby_port = Host::GetIntSettingValue("DEV9/Eth", "ZdxsvGgpoPort", 0);
-			if (s_lobby_port <= 0 || s_lobby_port > 0xFFFF)
+			s_config.lobby_port = Host::GetIntSettingValue("DEV9/Eth", "ZdxsvGgpoPort", 0);
+			if (s_config.lobby_port <= 0 || s_config.lobby_port > 0xFFFF)
 			{
 				std::random_device rd;
-				s_lobby_port = std::uniform_int_distribution<int>(29700, 29800)(rd);
-				Host::SetBaseIntSettingValue("DEV9/Eth", "ZdxsvGgpoPort", s_lobby_port);
+				s_config.lobby_port = std::uniform_int_distribution<int>(29700, 29800)(rd);
+				Host::SetBaseIntSettingValue("DEV9/Eth", "ZdxsvGgpoPort", s_config.lobby_port);
 				Host::CommitBaseSettingChanges();
-				Console.WriteLn("ZdxsvGgpo: battle port %d picked and saved", s_lobby_port);
+				Console.WriteLn("ZdxsvGgpo: battle port %d picked and saved", s_config.lobby_port);
 			}
 		}
-		g_ggpo_enabled = !s_options.empty() || s_play_src.path;
-		s_net_env = s_options.find("net=1") != std::string::npos || s_play_src.path;
-		g_net_hook = s_net_trace != nullptr || s_net_env || g_no_dev9;
-		g_zd_hook = s_net_env;
+		g_ggpo_enabled = !s_config.options.empty() || s_play_src.path;
+		s_config.net = s_config.options.find("net=1") != std::string::npos || s_play_src.path;
+		g_net_hook = s_net_trace != nullptr || s_config.net || g_no_dev9;
+		g_zd_hook = s_config.net;
 		g_ps_hook = true;
-		if (!s_options.empty() || std::strcmp(serial, GAME_SERIAL) == 0)
-			Console.WriteLn("ZdxsvGgpo: options '%s' (serial %s)", s_options.c_str(), serial);
+		if (!s_config.options.empty() || std::strcmp(serial, GAME_SERIAL) == 0)
+			Console.WriteLn("ZdxsvGgpo: options '%s' (serial %s)", s_config.options.c_str(), serial);
 		// Delta saves and loads, replay keys: VU1 memory is copied while the MTVU thread may still run on it.
 		// The settings were loaded before this; VMManager::LoadCoreSettings keeps it off on later reloads.
 		g_mtvu_off = g_ggpo_enabled || g_delta_state_test_enabled;

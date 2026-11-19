@@ -625,7 +625,7 @@ namespace Zdxsv
 	// net mode: the battle sock's RPCs. Returns true when answered (v0 = result, pc = ra).
 	static bool GgpoNetCall()
 	{
-		if (!s_net_env)
+		if (!s_config.net)
 			return false;
 		const u32 fno = cpuRegs.GPR.n.a0.UL[0];
 		u8* ram = eeMem->Main;

@@ -81,7 +81,15 @@ namespace Zdxsv
 	extern PlaySource s_play_src;
 	extern bool s_play_common;
 	extern s32 g_frame_period_trim_us;
-	extern std::string s_options;
+	// read at VM start (GgpoOnVmInitialize)
+	struct GgpoConfig
+	{
+		std::string options;
+		bool net = false; // net=1 in options, or a replay plays
+		int lobby_port = 7001; // setting DEV9/Eth ZdxsvGgpoPort (0: a random port, saved); port= overrides it
+		int min_delay = 2; // mindelay=, else setting DEV9/Eth ZdxsvGgpoMinDelay
+	};
+	extern GgpoConfig s_config;
 	extern bool g_ggpo_active;
 	extern bool g_ggpo_in_rollback;
 	constexpr u32 BUTTONS = 16; // PadDualshock2::Inputs PAD_UP .. PAD_R3
@@ -122,7 +130,6 @@ namespace Zdxsv
 	void DesyncCheck(const NetInput* in, int f);
 	void DesyncReport();
 	std::string DesyncReportLines();
-	extern bool s_net_env; // net=1 in s_options, or a replay plays (GgpoOnVmInitialize)
 	// ZDXSV_RBK=i/N; also set by a replay's common start (PlayLoad); back to ZDXSV_RBK at VM shutdown
 	struct RbkRole
 	{
@@ -336,8 +343,6 @@ namespace Zdxsv
 		bool frame_osd = false; // setting DEV9/Eth ZdxsvFrameOsd
 	};
 	extern GgpoOptions s_opt;
-	extern int s_lobby_port; // setting DEV9/Eth ZdxsvGgpoPort (0: a random port, saved); port= overrides it
-	extern int s_min_delay; // mindelay=, else setting DEV9/Eth ZdxsvGgpoMinDelay
 	// lobby=1: the last battle info (SetLobbyPeers, CPU thread), guarded by s_lobby_mtx
 	struct LobbyBattle
 	{

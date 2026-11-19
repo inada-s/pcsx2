@@ -165,11 +165,11 @@ namespace Zdxsv
 				return false;
 			}
 			const float learned = GgpoBudgetLearned(), used = GgpoBudgetUsed();
-			s_opt.delay = GgpoBudgetDelay(rtt, s_min_delay, used);
+			s_opt.delay = GgpoBudgetDelay(rtt, s_config.min_delay, used);
 			Console.WriteLn("ZdxsvGgpo: lobby delay %d: slowest peer rtt %d ms (%d of %d peers measured), min %d, rollback budget %.2f (learned %.2f), waited %.1f s for the ping test",
-				s_opt.delay, rtt, up, n - 1, s_min_delay, used, learned, wait.GetTimeSeconds());
+				s_opt.delay, rtt, up, n - 1, s_config.min_delay, used, learned, wait.GetTimeSeconds());
 			report("ggpo");
-			s_report += "delay=" + std::to_string(s_opt.delay) + "\nmin_delay=" + std::to_string(s_min_delay) + "\nrollback_budget=" +
+			s_report += "delay=" + std::to_string(s_opt.delay) + "\nmin_delay=" + std::to_string(s_config.min_delay) + "\nrollback_budget=" +
 			            fmt::format("{:.2f}", learned) + "\nrollback_budget_used=" + fmt::format("{:.2f}", used) + "\n" + rtts;
 		}
 		else
@@ -218,11 +218,11 @@ namespace Zdxsv
 
 	int GgpoLobbyPort()
 	{
-		// s_options only changes in GgpoOnVmInitialize, before the CPU thread calls this
-		if (s_options.find("net=1") == std::string::npos || s_options.find("lobby=1") == std::string::npos)
+		// s_config.options only changes in GgpoOnVmInitialize, before the CPU thread calls this
+		if (s_config.options.find("net=1") == std::string::npos || s_config.options.find("lobby=1") == std::string::npos)
 			return 0;
-		int p = s_lobby_port;
-		for (const std::string_view item : StringUtil::SplitString(s_options, ','))
+		int p = s_config.lobby_port;
+		for (const std::string_view item : StringUtil::SplitString(s_config.options, ','))
 			if (item.starts_with("port="))
 				p = StringUtil::FromChars<int>(item.substr(5)).value_or(0);
 		return (p > 0 && p <= 0xFFFF) ? p : 0;
@@ -233,7 +233,7 @@ namespace Zdxsv
 		if (GgpoLobbyPort() <= 0)
 			return 0;
 		int p = 0;
-		for (const std::string_view item : StringUtil::SplitString(s_options, ','))
+		for (const std::string_view item : StringUtil::SplitString(s_config.options, ','))
 			if (item.starts_with("advertise="))
 				p = StringUtil::FromChars<int>(item.substr(10)).value_or(0);
 		return (p > 0 && p <= 0xFFFF) ? p : 0;
