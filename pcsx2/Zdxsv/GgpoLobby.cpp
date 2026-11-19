@@ -25,7 +25,6 @@ namespace Zdxsv
 	std::mutex s_lobby_mtx;
 	LobbyBattle s_lobby;
 	ArmedBattle s_net;
-	std::string s_report_ids; // battle info lines naming the battle (SetLobbyPeers)
 	std::string s_report; // P2PMatchingReport of the last lobby battle (TakeLobbyReport)
 
 	// lobby=1: a battle info came after the one the last GGPO battle armed with
@@ -74,7 +73,7 @@ namespace Zdxsv
 		                  (unlisted && s_opt.delay_set) ? "a peer has no GGPO address" :
 		                                              nullptr;
 		auto report = [&](const char* result) {
-			s_report = s_report_ids + "result=" + result + "\nposition=" + std::to_string(me) + "\nplayers=" + std::to_string(n) + "\n";
+			s_report = s_lobby.ids + "result=" + result + "\nposition=" + std::to_string(me) + "\nplayers=" + std::to_string(n) + "\n";
 		};
 		if (why)
 		{
@@ -244,7 +243,7 @@ namespace Zdxsv
 		std::vector<LobbyPlayer> players, std::vector<Zdxsv::BattleInfo::Relay> relays, std::vector<Zdxsv::GamePatch> patches)
 	{
 		std::lock_guard lock(s_lobby_mtx);
-		s_report_ids = std::move(ids);
+		s_lobby.ids = std::move(ids);
 		s_lobby.players = std::move(players);
 		s_lobby.received = true;
 		s_lobby.gen++;
@@ -285,7 +284,7 @@ namespace Zdxsv
 		s_lobby.players.clear();
 		s_lobby.patches.clear();
 		s_lobby.session = 0;
-		s_report_ids.clear();
+		s_lobby.ids.clear();
 		s_net.peers.clear();
 		s_net.via.clear();
 		s_net.servers.clear();
