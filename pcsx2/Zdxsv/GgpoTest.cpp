@@ -52,7 +52,7 @@ namespace Zdxsv
 			if (!any || i > last + 8)
 			{
 				Console.WriteLn("ZdxsvGgpo: DIFF frame %d state offset %zu = %s: %02x -> %02x", frame, i,
-					SaveState_DeltaDescribe(first.state, i).c_str(), first.state[i], state[i]);
+					DeltaFreezeDescribe(first.state, i).c_str(), first.state[i], state[i]);
 				// Words around it, first run / rerun (pointers name the code that wrote them).
 				const size_t w0 = (i & ~size_t{3}) >= 16 ? (i & ~size_t{3}) - 16 : 0;
 				std::string a, b;

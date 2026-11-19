@@ -151,7 +151,7 @@ namespace Zdxsv
 		Console.WriteLn("ZdxsvGgpo: %s rerun frame split: vu1 ms %.2f, spu2 ms %.3f, ee Mcycles %.3f", what,
 			Common::Timer::ConvertValueToMilliseconds(g_rerun_vu1_ticks) / std::max(s_stats.rollback_frames, 1),
 			Common::Timer::ConvertValueToMilliseconds(g_rerun_spu2_ticks) / std::max(s_stats.rollback_frames, 1), s_stats.rerun_mcycles.Mean());
-		Console.WriteLn("ZdxsvGgpo: %s delta %s | %s", what, Zdxsv::DeltaStateTimes().c_str(), SaveState_DeltaTimes().c_str());
+		Console.WriteLn("ZdxsvGgpo: %s delta %s | %s", what, Zdxsv::DeltaStateTimes().c_str(), DeltaFreezeTimes().c_str());
 		Console.WriteLn("ZdxsvGgpo: %s output: presented frames %d | audio samples played %lld dropped (rerun) %lld",
 			what, g_perfmon.GetFrame() - s_stats.gs_frame0, static_cast<long long>(s_stats.spu_played), static_cast<long long>(s_stats.spu_dropped));
 	}
