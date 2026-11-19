@@ -19,9 +19,13 @@ namespace Zdxsv
 		constexpr u32 NET_REQ_LEN = 0xc22c9e;
 		constexpr u32 NET_REQ_DATA = 0xc22ca0;
 		// Own key table (from the game's sends): k per counter, frame it was sent, last record X.
-		u8 s_own_k[64];
-		u32 s_own_frame[64];
-		int s_own_x = -1;
+		struct OwnKeys
+		{
+			u8 k[64] = {};
+			u32 frame[64] = {};
+			int x = -1;
+		};
+		OwnKeys s_own;
 		struct RecvStats
 		{
 			u32 msgs, keymsgs, slots, recs, unknown, kbad, xbad, rebuilt_bad;
@@ -406,10 +410,10 @@ namespace Zdxsv
 
 	void NoteOwnSend(const KeySlot& s)
 	{
-		s_own_k[s.c] = s.k;
-		s_own_frame[s.c] = g_FrameCount;
+		s_own.k[s.c] = s.k;
+		s_own.frame[s.c] = g_FrameCount;
 		if (s.rec)
-			s_own_x = s.x;
+			s_own.x = s.x;
 	}
 
 	// EE rec hook at NET_RECV_RET_PC (fno 0x14 recv, after the wait RPC returned): s4 = sock,
@@ -448,22 +452,22 @@ namespace Zdxsv
 				s_rs.slots++;
 				s_rs.recs += s.rec;
 				// local k for c must be from a send within the last 32 frames (the counter wraps at 64)
-				const bool known = s_own_frame[s.c] != 0 && g_FrameCount - s_own_frame[s.c] < 32;
+				const bool known = s_own.frame[s.c] != 0 && g_FrameCount - s_own.frame[s.c] < 32;
 				char flag = ' ';
 				if (!known)
 					s_rs.unknown++, flag = '?';
-				else if (s_own_k[s.c] != s.k)
+				else if (s_own.k[s.c] != s.k)
 					s_rs.kbad++, flag = '!';
-				if (s.rec && s.x != s_own_x)
+				if (s.rec && s.x != s_own.x)
 					s_rs.xbad++, flag = flag == ' ' ? 'x' : flag;
 				if (s.rec)
 					std::fprintf(s_net_trace, " %02x:%02x:%02x:%04x/%04x%c", s.c, s.k, s.x, s.a, s.b, flag);
 				else
 					std::fprintf(s_net_trace, " %02x:%02x%c", s.c, s.k, flag);
 				if (known)
-					s.k = s_own_k[s.c];
-				if (s.rec && s_own_x >= 0)
-					s.x = static_cast<u8>(s_own_x);
+					s.k = s_own.k[s.c];
+				if (s.rec && s_own.x >= 0)
+					s.x = static_cast<u8>(s_own.x);
 			}
 			const std::vector<u8> m = BuildKeyMsg(d[i + 1] & 0xf, slots);
 			if (m.size() != d[i] || std::memcmp(m.data(), d + i, m.size()) != 0)
