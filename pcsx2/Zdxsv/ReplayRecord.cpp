@@ -20,7 +20,7 @@ namespace Zdxsv
 		std::map<int, RoundState> s_replay_round_states; // by frame: each battle load end (-> round_states)
 		s64 s_replay_start_at = 0; // unix seconds
 		int s_replay_confirmed = -1; // GGPO's last confirmed frame: the frames after it (predicted inputs) are not written
-		constexpr int REPLAY_FILE_VERSION = 20261116; // BattleLogFile.log_file_version of the files written here
+		constexpr int REPLAY_FILE_VERSION = 20261118; // BattleLogFile.log_file_version of the files written here
 		// HLE state outside the save state at frame 0 (ReplayBegin; replay.proto net_rx0, hle0)
 		struct ReplayHle0
 		{
