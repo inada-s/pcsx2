@@ -89,10 +89,10 @@ namespace Zdxsv
 		};
 		Times s_times;
 
-		// Hot pages: written in HOT_AFTER save intervals in a row. They stay writable and are copied at
+		// Hot pages: written in a save interval. They stay writable and are copied at
 		// every save and load instead, which saves the protect calls (one per fastmem alias, ~17 us a
 		// page) and the fault. Unchanged for COLD_AFTER intervals: watched again.
-		constexpr u8 HOT_AFTER = 1, COLD_AFTER = 32;
+		constexpr u8 COLD_AFTER = 32;
 		// Each fastmem alias is its own view, so cooling pages cannot share a protect call: at most
 		// COOL_MAX cool per save, the rest stay hot to the next one, so a burst does not stall a frame.
 		constexpr u32 COOL_MAX = 64;
@@ -121,8 +121,7 @@ namespace Zdxsv
 		}
 
 		bool s_is_hot[ALL_PAGES] = {};
-		u8 s_run[ALL_PAGES] = {}; // cold: save intervals in a row with a write; hot: without a change
-		int s_last_write[ALL_PAGES] = {}; // cold: s_save_calls of the last interval with a write
+		u8 s_run[ALL_PAGES] = {}; // hot pages: save intervals in a row without a change
 		std::vector<u32> s_hot;
 		u32 s_restored[ALL_PAGES] = {}; // s_load_calls of the load that restored the page
 		u32 s_reused[ALL_PAGES] = {}; // s_load_calls of the load whose s_open took the page's restored buffer
@@ -303,17 +302,10 @@ namespace Zdxsv
 					}
 					continue;
 				}
-				s_run[page] = (s_last_write[page] == s_save_calls - 1) ? static_cast<u8>(std::min(s_run[page] + 1, 255)) : 1;
-				s_last_write[page] = s_save_calls;
-				if (s_run[page] >= HOT_AFTER)
-				{
-					s_is_hot[page] = true;
-					s_run[page] = 0;
-					s_hot.push_back(page);
-					snapshot.push_back(page);
-				}
-				else
-					watch.push_back(page);
+				s_is_hot[page] = true;
+				s_run[page] = 0;
+				s_hot.push_back(page);
+				snapshot.push_back(page);
 			}
 			s_open.erase(std::remove_if(s_open.begin(), s_open.end(), [](const SavedPage& p) { return !p.data; }), s_open.end());
 			return watch;
