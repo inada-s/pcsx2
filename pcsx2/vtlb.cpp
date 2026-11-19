@@ -1661,10 +1661,13 @@ PageFaultHandler::HandlerResult PageFaultHandler::HandlePageFault(void* exceptio
 		if (offset >= Ps2MemSize::ExposedRam)
 			return HandlerResult::ExecuteNextHandler;
 
-		if (m_PageProtectInfo[offset >> __pageshift].Mode != ProtMode_Write)
-			return mmap_DeltaHit(offset >> __pageshift) ? HandlerResult::ContinueExecution : HandlerResult::ExecuteNextHandler;
-		mmap_DeltaHit(offset >> __pageshift);
-		mmap_ClearCpuBlock(offset);
+		const u32 page = offset >> __pageshift;
+		if (mmap_DeltaHit(page) && m_PageProtectInfo[page].Mode != ProtMode_Write)
+			return HandlerResult::ContinueExecution;
+		if (m_PageProtectInfo[page].Mode == ProtMode_Manual)
+			mmap_DeltaProtect(page, false);
+		else
+			mmap_ClearCpuBlock(offset);
 		return HandlerResult::ContinueExecution;
 	}
 }
