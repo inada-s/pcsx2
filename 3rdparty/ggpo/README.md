@@ -20,7 +20,10 @@ PCSX2-side changes (the flycast sources are otherwise unchanged):
   IPv4 socket has the same port); on Windows `SIO_UDP_CONNRESET` and `SIO_UDP_NETRESET` off, so an ICMP
   error does not end a poll's reads (as later flycast).
 - `network/udp.cpp` `Udp::OnLoopPoll`: a socket that could not be created
-  (no IPv6) is skipped instead of looping forever.
+  (no IPv6) is skipped instead of looping forever. A packet whose handler threw
+  is dropped instead of being handled again on every poll. The network thread
+  logs a `GGPOException` instead of ending the process.
+- `main.cpp` `ggpo_set_disconnect_without_rollback`: passes `allow` on.
 - `network/udp_proto.cpp` `UdpProtocol::HandlesMsg`: a packet is matched to an
   endpoint by its peer's source address, not by the `remote_endpoint` header
   byte alone, so a third party who knows a player's address can no longer inject

@@ -213,6 +213,10 @@ namespace Zdxsv
 		int end = -1; // frames since the end msg (kind f) was sent or received, -1 = not yet
 		int last_real = INT_MAX; // last frame with the peers' inputs (the session left them at the end), INT_MAX = none
 		u32 zd_steps = 0, zd_changed = 0;
+		// Live steps per GGPO frame and position. Gaps (frames without a step) come with scene changes.
+		int zd_last[GGPO_MAX_PLAYERS] = {-1, -1, -1, -1};
+		u32 zd_repeats = 0, zd_gaps = 0;
+		int zd_gap_min = INT_MAX, zd_gap_max = 0;
 		u32 zds_echo = 0, zds_skip = 0;
 		// zds: kind 3 (round handshake) is the one barrier: each machine reaches it at its own frame
 		// (scene/load timing: one side can be a frame later), so it goes through the GGPO input
@@ -617,7 +621,6 @@ namespace Zdxsv
 	bool GgpoRunFrame();
 
 	// GgpoSession.cpp
-	extern std::recursive_mutex s_ggpo_mtx;
 	void GgpoStop(const char* what);
 	const char* GgpoStart();
 	void NetEndCheck();

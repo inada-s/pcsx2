@@ -27,6 +27,8 @@ namespace Zdxsv
 	// caller owns it), nullptr = plain TCP. The first bytes from the server: on a zdxsv lobby connection
 	// the platform info is sent on socket before the game answers.
 	LobbyFilter* LobbyOnFirstData(uptr socket, u32 serverIp, const u8* data, int len);
+	// The first bytes so far could still become a lobby's opening: wait for more before LobbyOnFirstData.
+	bool LobbyFirstDataPending(const u8* data, int len);
 	// A connection re-opened after a state load.
 	LobbyFilter* LobbyOnAdopted(u32 serverIp);
 	// Server bytes into the connection's filter. While the VM is paused the lobby's line checks are

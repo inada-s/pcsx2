@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 zdxsv contributors
 // SPDX-License-Identifier: GPL-3.0+
 
+#include "Zdxsv/GameAddresses.h"
 #include "Zdxsv/CpuHooks.h"
 #include "Zdxsv/TestOptions.h"
 
@@ -16,8 +17,7 @@ namespace Zdxsv
 	namespace
 	{
 		// SLPS-25419 (g_z_game checks serial and CRC).
-		constexpr u32 kGp = 0x6dd770;
-		constexpr u32 kSceneBlock = kGp - 0x5ce4; // pointer; +0x52 = the own player's index
+		constexpr u32 kOwnIndex = 0x52; // in the scene block: the own player's index
 		constexpr u32 kPlayers = 0x839330; // player structs, 0x2200 bytes each
 		constexpr u32 kPlayerSize = 0x2200;
 		constexpr u32 kMaxHp = 0x1f0; // s16
@@ -66,10 +66,10 @@ namespace Zdxsv
 			const u8 phase = memRead8(kPhase);
 			if (phase != 6 && phase != 7)
 				return false;
-			const u32 scene = memRead32(kSceneBlock);
+			const u32 scene = memRead32(GAME_SCENE_BLOCK);
 			if (scene == 0 || scene >= kRamSize)
 				return false;
-			const u8 me = memRead8(scene + 0x52);
+			const u8 me = memRead8(scene + kOwnIndex);
 			if (me >= 4)
 				return false;
 			*own = kPlayers + kPlayerSize * me;
