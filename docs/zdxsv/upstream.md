@@ -95,7 +95,7 @@ needs its marker.
 | `common/HTTPDownloaderCurl.cpp` | `HTTPDownloaderCurl::CloseRequest` | replay upload posts multipart |
 | `common/HTTPDownloaderCurl.h` |  | replay upload posts multipart |
 | `common/HTTPDownloaderWinHTTP.cpp` | `HTTPDownloaderWinHttp::StartRequest` | replay upload posts multipart |
-| `common/vsprops/LinkPCSX2Deps.props` |  | not marked yet |
+| `common/vsprops/LinkPCSX2Deps.props` |  | Sentry crash reports --> |
 | `common/vsprops/preBuild.cmd` | `0` | release tags are zdxsv-X.Y.Z (the auto updater compares these). |
 | `pcsx2-qt/AutoUpdaterDialog.cpp` |  | include `Zdxsv/TestOptions.h` |
 | `pcsx2-qt/AutoUpdaterDialog.cpp` |  | zdxsv release updates |
@@ -158,8 +158,8 @@ needs its marker.
 | `pcsx2-qt/Translations/pcsx2-qt_ja-JP.ts` |  | `ZdxsvMs` |
 | `pcsx2-qt/Translations/pcsx2-qt_ja-JP.ts` |  | `ZdxsvSettingsWidget`, `ZdxsvReplayDialog`, `ZdxsvSetupWizard` |
 | `pcsx2-qt/pcsx2-qt.vcxproj` |  | not marked yet |
-| `pcsx2-qt/pcsx2-qt.vcxproj` |  | not marked yet |
-| `pcsx2-qt/pcsx2-qt.vcxproj` |  | not marked yet |
+| `pcsx2-qt/pcsx2-qt.vcxproj` |  | Sentry crash reports --> |
+| `pcsx2-qt/pcsx2-qt.vcxproj` |  | TLS, GGPO and UPnP libraries --> |
 | `pcsx2-qt/pcsx2-qt.vcxproj` |  | `ZdxsvSettingsWidget`, `ZdxsvReplayDialog` |
 | `pcsx2-qt/pcsx2-qt.vcxproj` |  | `ZdxsvSettingsWidget`, `ZdxsvReplayDialog` |
 | `pcsx2-qt/pcsx2-qt.vcxproj` |  | `<ClInclude Include="Zdxsv\QtHooks.h" />` |
@@ -400,8 +400,8 @@ needs its marker.
 | `pcsx2/VUops.cpp` | `VMADDAz` | not marked yet |
 | `pcsx2/VUops.cpp` | `VXITOP` | not marked yet |
 | `pcsx2/Vif_Transfer.cpp` | `vifTransferLoop` | NOP can be most of the codes in a packet: same steps as vifCode_Nop, without the indirect call. |
-| `pcsx2/pcsx2.vcxproj` |  | not marked yet |
-| `pcsx2/pcsx2.vcxproj` |  | not marked yet |
+| `pcsx2/pcsx2.vcxproj` |  | GGPO, TLS, UPnP and JSON libraries --> |
+| `pcsx2/pcsx2.vcxproj` |  | MINIUPNP_STATICLIB --> |
 | `pcsx2/pcsx2.vcxproj` |  | `<ClCompile Include="Zdxsv\Lobby.cpp" />` |
 | `pcsx2/pcsx2.vcxproj` |  | `<ClCompile Include="Zdxsv\InputLatency.cpp" />` |
 | `pcsx2/pcsx2.vcxproj` |  | `<ClInclude Include="Zdxsv\Lobby.h" />` |
