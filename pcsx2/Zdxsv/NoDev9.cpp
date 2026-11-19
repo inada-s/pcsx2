@@ -11,6 +11,7 @@
 #include "Zdxsv/Lobby.h"
 #include "Zdxsv/ServerHosts.h"
 #include "Zdxsv/Settings.h"
+#include "Zdxsv/TestOptions.h"
 #include "Zdxsv/SaveStateHooks.h"
 
 #include "Memory.h"
@@ -429,7 +430,7 @@ namespace Zdxsv
 		}
 		s_state.on = g_no_dev9 = true;
 		// A host given at run time is a test server: no replay uploads to it.
-		if (!std::getenv("ZDXSV_SERVER_HOST"))
+		if (!TestEnv("ZDXSV_SERVER_HOST"))
 			ServerHostUsed();
 		s_state.server_ip = std::make_shared<std::atomic<u32>>(0);
 		std::thread(ResolveServer, s_state.server_ip).detach();

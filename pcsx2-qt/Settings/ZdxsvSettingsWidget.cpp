@@ -10,6 +10,7 @@
 #include "pcsx2/Zdxsv/AuthSignIn.h"
 #include "pcsx2/Zdxsv/CrashReportHooks.h"
 #include "pcsx2/Zdxsv/SyncSettings.h"
+#include "pcsx2/Zdxsv/TestOptions.h"
 #include "pcsx2/Zdxsv/Upnp.h"
 
 #include <QtCore/QPointer>
@@ -56,7 +57,7 @@ static const char* s_stick_message_names[] = {
 // and says by what.
 static void MarkEnvOverride(QWidget* widget, const char* env, const char* key = nullptr)
 {
-	const char* value = std::getenv(env);
+	const char* value = Zdxsv::TestEnv(env);
 	if (!value || (key && !std::strstr(value, key)))
 		return;
 	widget->setEnabled(false);

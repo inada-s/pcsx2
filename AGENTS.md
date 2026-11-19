@@ -123,8 +123,8 @@ the agent's context.
   upstream issue or PR.
 - No zdxsv feature active = upstream behavior. A changed default is listed in
   `docs/zdxsv/features.md` and has a setting to turn it off. Exception: the
-  zdxsv online battle extensions (on by default) are turned off only by their
-  environment variable, with no setting.
+  zdxsv online battle extensions (on by default) have no setting; a Devel
+  build turns them off with their environment variable.
 - Patches at fixed guest addresses check the game (serial or CRC).
 - Every changed spot in an upstream file is marked where it is: a line that
   names zdxsv (a `Zdxsv::` call or a `Zdxsv/` include) marks itself; any
@@ -138,16 +138,18 @@ the agent's context.
 
 - One responsibility per file; split around 800 lines.
 - Production code, test harnesses, tracing and fixtures in separate files.
-- Test and diagnostic code ships in every build: the rigs run against released
-  builds too. There is no test-build flag. Code that costs performance while
-  unused is not acceptable.
+- Rigs run against Devel builds. Release builds ignore every `ZDXSV_*` and
+  `GGPO_*` environment variable (`Zdxsv::TestEnv`, `GGPOPlatform::GetConfigInt`);
+  no per-variable exceptions. Code that costs performance while unused is not
+  acceptable.
 - Variables that together have one role (a session, a connection, a
   recording): one struct. A lone flag, counter or handle may stay a
   file-scope variable. State a rollback or replay key restores: one struct,
   saved and restored whole.
 - Reset zdxsv state, threads, sockets and sessions on VM shutdown and reset.
 - Player-facing choices: settings. Environment variables: tests and
-  diagnostics only, read in one place, listed in `docs/zdxsv/options.md`.
+  diagnostics only, read only through `Zdxsv::TestEnv` (never `std::getenv`),
+  listed in `docs/zdxsv/options.md`.
 - Outside data (packets, lobby values, replay and state files) is untrusted:
   check sizes, counts and ranges; bound every wait.
 - No host pointers or per-process values in save states or replays.

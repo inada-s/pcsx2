@@ -305,7 +305,7 @@ needs its marker.
 | `pcsx2/SPU2/Mixer.cpp` | `StepStoppedVoice` | not marked yet |
 | `pcsx2/SPU2/Mixer.cpp` | `MixCoreVoices` | `Zdxsv::SpuLazySkip` |
 | `pcsx2/SPU2/Reverb.cpp` |  | include `Zdxsv/MediaHooks.h` |
-| `pcsx2/SPU2/Reverb.cpp` |  | `// ZDXSV_RERUN_REVERB=1: reverb in rollback rerun frames too (the control for the skip in DoReverb).` |
+| `pcsx2/SPU2/Reverb.cpp` |  | include `Zdxsv/SpuHooks.h` |
 | `pcsx2/SPU2/Reverb.cpp` | `V_Core::DoReverb` | a rollback rerun frame's sound is dropped; its reverb only feeds that sound and the reverb work area in SPU2 RAM. |
 | `pcsx2/SPU2/defs.h` |  | not marked yet |
 | `pcsx2/SPU2/defs.h` |  | not marked yet |

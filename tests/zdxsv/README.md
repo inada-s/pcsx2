@@ -11,8 +11,8 @@ Each script's usage and knobs are in its header comment.
   snapshots only). OS differences live in `zrig.py`. Key and mouse input (`PAUSE`, `KEYS`): `zrig.ctl` -> `pcsx2ctl.ps1` on Windows,
   `pcsx2ctl.js` (osascript, CGEvent) on macOS; the macOS shell running the rig needs Accessibility
   (rc 4 without it). Other window control (`replayui`, `settingsui`, `winshot`) is Windows only.
-- A PCSX2 build of this repository (`bin/pcsx2-qtx64.exe`, or `PCSX2_EXE`):
-  `build-local.sh` or MSBuild. Every build reads the test options.
+- A Devel build of this repository (`bin/pcsx2-qtx64-dev.exe`, or `PCSX2_EXE`):
+  `build-local.sh --sse4` or MSBuild `Devel`. A Release build ignores every `ZDXSV_*` and `GGPO_*` variable.
 - The game image (`ISO`). It is not part of this repository.
 - The lobby tests (`m4*.py`, `stack.py`, `rbkprep.py`) need a zdxsv checkout
   with its binaries built in `$ZDXSV_DIR/bin` (`zdxsv.exe`, `zproxy.exe`) and Go to
@@ -36,7 +36,7 @@ fails with exit 2 and names it.
 |---|---|---|
 | `RUN` | all | work root: instance data dirs `$RUN/pN/PCSX2` |
 | `ISO` | `launch.py` | the game image |
-| `PCSX2_EXE` | `launch.py` | PCSX2 to test (Windows default `bin/pcsx2-qtx64.exe` of this tree; elsewhere required, a `.app` works) |
+| `PCSX2_EXE` | `launch.py` | PCSX2 to test (Windows default `bin/pcsx2-qtx64-dev.exe` of this tree; elsewhere required, a `.app` works) |
 | `ZDXSV_DIR` | lobby tests | zdxsv checkout (`bin/zdxsv.exe`, `bin/zproxy.exe`) |
 | `IP` | lobby tests | this machine's LAN IPv4 address, given to the game as the server |
 | `DEV9` | `launch.py` | `1`: the game's net over the DEV9 adapter (empty `ZDXSV_SERVER_HOST`, as a PS2); else online without DEV9 to `IP` |
