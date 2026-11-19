@@ -361,8 +361,6 @@ namespace Zdxsv
 	PlayState s_play;
 	PlayLoads s_play_loads;
 	std::mutex s_battle_loads_mtx;
-	std::vector<std::vector<u8>> s_play_answers; // common start: the file's lobby answers (RbkBody)
-	LimiterModeType s_play_rearm_limiter = LimiterModeType::Nominal;
 	std::map<int, std::unique_ptr<PlayKey>> s_play_keys[GGPO_MAX_PLAYERS]; // by point of view (position)
 	std::atomic<int> s_play_req{INT_MIN}; // requested seek target, INT_MIN = none
 	// Skip MS selection: from frame 0 the replay runs unlimited to the briefing (the end of battle load 1).

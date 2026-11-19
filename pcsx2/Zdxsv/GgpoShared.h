@@ -79,7 +79,13 @@ namespace Zdxsv
 		bool listed = false; // path is the replay list's pick
 	};
 	extern PlaySource s_play_src;
-	extern bool s_play_common;
+	struct PlayCommon
+	{
+		bool on = false; // from PlayLoad or PlayCommonArm up to the arm (PlayCommonStart)
+		std::vector<std::vector<u8>> answers; // the file's lobby answers (RbkBody)
+		LimiterModeType rearm_limiter = LimiterModeType::Nominal; // the limiter before s_play.rearm_seek
+	};
+	extern PlayCommon s_play_common;
 	extern s32 g_frame_period_trim_us;
 	extern std::string s_options;
 	extern bool g_ggpo_active;
@@ -479,8 +485,6 @@ namespace Zdxsv
 		std::vector<u32> file_ms, ms; // per round, as MsIds packs them
 	};
 	extern PlayLoads s_play_loads;
-	extern std::vector<std::vector<u8>> s_play_answers; // common start: the file's lobby answers (RbkBody)
-	extern LimiterModeType s_play_rearm_limiter; // the limiter before s_play.rearm_seek
 
 	// Seek key: the full state as .p2s in the cache folder (zipped on a thread) plus the HLE state outside it.
 	// A seek loads the newest key at or before the target and runs up to it unlimited.

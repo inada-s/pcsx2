@@ -252,7 +252,7 @@ namespace Zdxsv
 	// Common start: the replay has no start state (or ZDXSV_REPLAY_COMMON=1). The booted state (any post-entry
 	// state, tests/zdxsv/rbkprep.py) plays the battle start with the file's lobby answers through RbkCall up to the
 	// arm, which is GGPO frame 0 (PlayCommonStart).
-	bool s_play_common = false;
+	PlayCommon s_play_common;
 	bool g_ggpo_enabled = false; // GgpoOnVmInitialize
 	bool g_mtvu_off = false; // GgpoOnVmInitialize, cleared at VM shutdown
 	s32 g_frame_period_trim_us = 0;
@@ -424,7 +424,7 @@ namespace Zdxsv
 				if (s_play_src.path)
 					Host::RunOnCPUThread(PlayLoad);
 			}
-			if (s_play_src.path && !(s_play_common && s_battle.armed)) // PlayLoad starts it, or the arm of a common start
+			if (s_play_src.path && !(s_play_common.on && s_battle.armed)) // PlayLoad starts it, or the arm of a common start
 				return;
 			if (s_opt.net ? !s_battle.armed : s_vsyncs < s_opt.start)
 				return;
@@ -508,9 +508,9 @@ namespace Zdxsv
 	{
 		if (s_play_src.path)
 		{
-			s_hold.on = !s_play_common && LiveHold();
+			s_hold.on = !s_play_common.on && LiveHold();
 			if (!s_hold.on)
-				s_play_common ? PlayCommonStart() : PlayNext();
+				s_play_common.on ? PlayCommonStart() : PlayNext();
 			return;
 		}
 		if (!s_session)

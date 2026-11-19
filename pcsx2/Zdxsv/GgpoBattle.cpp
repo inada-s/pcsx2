@@ -188,9 +188,9 @@ namespace Zdxsv
 			const int p = qn ? q[0] : 0;
 			// Common start: the file's answer to cmd (0x6913 / 0x6917: the one of position p, its body's first
 			// byte); the side 0x6912 stays the point of view
-			if (s_play_common && cmd >= 0x6911 && cmd <= 0x6917 && cmd != 0x6912)
+			if (s_play_common.on && cmd >= 0x6911 && cmd <= 0x6917 && cmd != 0x6912)
 			{
-				for (const std::vector<u8>& a : s_play_answers)
+				for (const std::vector<u8>& a : s_play_common.answers)
 					if (a[2] == (cmd >> 8) && a[3] == (cmd & 0xff) && ((cmd != 0x6913 && cmd != 0x6917) || (a.size() > 12 && a[12] == p)))
 						return std::vector<u8>(a.begin() + 12, a.end());
 				Console.Error("ZdxsvGgpo: replay: common start: the file has no answer to 0x%04x (position %d)", cmd, p);
