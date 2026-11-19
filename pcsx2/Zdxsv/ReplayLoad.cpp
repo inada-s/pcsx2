@@ -615,24 +615,24 @@ namespace Zdxsv
 		// Takeover requests at the frame end before `next` runs (may set it). Returns true: pause after it.
 		bool PlayTakeover(int& next)
 		{
-			int req = s_to_req.exchange(TO_REQ_NONE);
+			int req = s_to_shared.req.exchange(TO_REQ_NONE);
 			if (next == s_to_test_at)
 				s_to_test_at = -1, req = TO_REQ_TAKE;
-			if (next == s_to_test_retry && s_to_phase == TO_ON)
+			if (next == s_to_test_retry && s_to_shared.phase == TO_ON)
 				s_to_test_retry = -1, req = TO_REQ_RETRY;
-			if (s_to_phase == TO_ON && !s_to_test)
+			if (s_to_shared.phase == TO_ON && !s_to_test)
 			{
 				const bool start = s_host[PadDualshock2::Inputs::PAD_START] >= 0.5f;
 				if (start && !s_to.start_held)
 					req = TO_REQ_RETRY;
 				s_to.start_held = start;
 			}
-			const int phase = s_to_phase;
+			const int phase = s_to_shared.phase;
 			const bool aligning = phase == TO_COUNT;
 			const auto align = [] {
-				s_to_phase = TO_COUNT;
+				s_to_shared.phase = TO_COUNT;
 				s_to.count_t0 = 0;
-				Console.WriteLn("ZdxsvGgpo: replay takeover: countdown at frame %d, the replay's input %04x", s_to.frame, s_to_target.load());
+				Console.WriteLn("ZdxsvGgpo: replay takeover: countdown at frame %d, the replay's input %04x", s_to.frame, s_to_shared.target.load());
 			};
 			const auto load = [&next] {
 				const int t = TakeoverLoad();
@@ -968,9 +968,9 @@ namespace Zdxsv
 			s_play.round_at.pop_front();
 		}
 		bool pause = PlayTakeover(next);
-		if (s_to_phase == TO_COUNT && s_to.pause_in > 0 && --s_to.pause_in == 0)
+		if (s_to_shared.phase == TO_COUNT && s_to.pause_in > 0 && --s_to.pause_in == 0)
 			pause = true;
-		if (s_to_phase != TO_OFF) // no seek, round jump or point of view switch
+		if (s_to_shared.phase != TO_OFF) // no seek, round jump or point of view switch
 		{
 			s_play_req = INT_MIN;
 			s_play_pov_req = -1;
@@ -1054,7 +1054,7 @@ namespace Zdxsv
 		if (next >= s_play.frames)
 			PlayRunEnd("replay ended first", s_battle.frame);
 		const char* exit_env = TestEnv("ZDXSV_REPLAY_EXIT");
-		if (next < s_play.frames || (s_to_phase == TO_ON && !(exit_env && exit_env[0] == '1')))
+		if (next < s_play.frames || (s_to_shared.phase == TO_ON && !(exit_env && exit_env[0] == '1')))
 		{
 			s_play.at_end = false;
 			s_live_wait.reset(); // played on from the end: no move to another battle

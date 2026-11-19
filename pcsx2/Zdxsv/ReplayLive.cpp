@@ -157,7 +157,7 @@ namespace Zdxsv
 			const bool idle = s_pace.call.GetTimeSeconds() > PACE_IDLE_S; // paused, or a long wait at the edge
 			s_pace.call.Reset();
 			if (s_pace_off || s_live_play.catchup || s_live_play.behind || s_play.run_load >= 0 || s_play.target >= 0 ||
-				s_to_phase != TO_OFF || !s_live_play.close.empty())
+				s_to_shared.phase != TO_OFF || !s_live_play.close.empty())
 			{
 				LivePaceReset();
 				return;
@@ -515,7 +515,7 @@ namespace Zdxsv
 				VMManager::SetLimiterMode(static_cast<LimiterModeType>(c.limiter));
 		}
 		if (const int lead = Zdxsv::SpectateSyncLeader();
-			!s_sync_test_off && !PlayCatchingUp() && s_to_phase == TO_OFF && s_play_req == INT_MIN && lead - next > SYNC_CHASE)
+			!s_sync_test_off && !PlayCatchingUp() && s_to_shared.phase == TO_OFF && s_play_req == INT_MIN && lead - next > SYNC_CHASE)
 		{
 			Console.WriteLn("ZdxsvGgpo: replay four-screen: frame %d, %d behind: seeking to %d", next, lead - next, lead + SYNC_CHASE / 3);
 			s_sync_chase = true;
