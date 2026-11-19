@@ -167,7 +167,7 @@ void CodeBuffer::Reset() {
 
 
 void CodeBuffer::Grow(size_t new_capacity) {
-  VIXL_ASSERT(managed_);
+  VIXL_CHECK(managed_);
   VIXL_ASSERT(new_capacity > capacity_);
   ptrdiff_t cursor_offset = GetCursorOffset();
 #ifdef VIXL_CODE_BUFFER_MALLOC
