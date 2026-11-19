@@ -30,9 +30,11 @@
 
 #include <atomic>
 #include <bit>
+#include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -291,6 +293,12 @@ namespace Zdxsv
 		LobbyFilter* filter = nullptr;
 		OpenLobby(serverIp, ggpoPort, filter, false); // the lobby cannot know the port (no platform info): fake_lobby.py --ggpo
 		return filter;
+	}
+
+	bool LobbyFirstDataPending(const u8* data, int len)
+	{
+		const u8 opening[4] = {LobbyToClient, LobbyQuestion, static_cast<u8>(LobbyKeyPair >> 8), static_cast<u8>(LobbyKeyPair)};
+		return len < static_cast<int>(LOBBY_FRAME_HEADER) && std::memcmp(data, opening, std::min(len, 4)) == 0;
 	}
 
 	// On a connection the lobby opens with the key pair question (0x6101), send the platform info
