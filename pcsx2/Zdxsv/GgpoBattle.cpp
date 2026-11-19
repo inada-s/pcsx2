@@ -634,7 +634,7 @@ namespace Zdxsv
 		u8* d = ram + NET_REQ_DATA;
 		const bool key = fno == NET_FNO_SEND && sock == NET_BATTLE_SOCK && len > 0 && len <= 0x3ca && HasKeyMsg(d, len);
 		// lobby=1: the battle server is answered on the EE (BattleServerCall); the game never reaches it
-		if (s_opt.lobby && !s_play_env && !s_rbk.on && fno == NET_FNO_CONNECT && (!s_battle.armed || s_battle.over))
+		if (s_opt.lobby && !s_play_src.path && !s_rbk.on && fno == NET_FNO_CONNECT && (!s_battle.armed || s_battle.over))
 		{
 			u32 ip;
 			std::memcpy(&ip, ram + NET_REQ_SOCK, 4);
@@ -679,7 +679,7 @@ namespace Zdxsv
 		{
 			// lobby=1: the first key msg of a battle with a new battle info starts the next GGPO battle; the
 			// sends of the ended battle (same battle info) stay with the IOP
-			if (s_opt.lobby && !s_play_env && !s_rbk.on && key && LobbyNewBattle())
+			if (s_opt.lobby && !s_play_src.path && !s_rbk.on && key && LobbyNewBattle())
 			{
 				NetReset();
 				Console.WriteLn("ZdxsvGgpo: next lobby battle at vsync %u", g_FrameCount);
@@ -731,7 +731,7 @@ namespace Zdxsv
 			{
 				s_rb.net_rx.insert(s_rb.net_rx.end(), s_rbk_server.rx.begin(), s_rbk_server.rx.end());
 				s_rbk_server.rx.clear();
-				if (!s_play_env)
+				if (!s_play_src.path)
 					s_net.players = RbkPlayers();
 			}
 			if (s_bs.players)
@@ -806,7 +806,7 @@ namespace Zdxsv
 
 	bool GgpoBattleRefuses(Error* error)
 	{
-		if (!g_ggpo_active || !s_opt.net || s_play_env)
+		if (!g_ggpo_active || !s_opt.net || s_play_src.path)
 			return false;
 		const std::string_view msg = TRANSLATE_SV("Zdxsv", "Not available during an online battle.");
 		Console.WriteLn("ZdxsvGgpo: refused during the battle (pause, speed or state load)");
@@ -819,7 +819,7 @@ namespace Zdxsv
 
 	bool OnlineBattleNow()
 	{
-		return g_ggpo_active && s_opt.net && !s_play_env;
+		return g_ggpo_active && s_opt.net && !s_play_src.path;
 	}
 
 	bool OnlineNow()

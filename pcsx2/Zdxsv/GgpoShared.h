@@ -69,9 +69,16 @@
 
 namespace Zdxsv
 {
-	extern const char* s_play_env;
-	extern int s_play_picked_pov; // the replay list's point of view, -1 = none
-	extern bool s_play_listed; // s_play_env is the replay list's pick
+	// ZDXSV_REPLAY=file.pb: plays a saved replay (PlayLoad), the net=1 hooks on, no GGPO session. Else the replay
+	// list's pick for one VM. Set by GgpoOnVmInitialize.
+	struct PlaySource
+	{
+		const char* path = nullptr; // nullptr = no replay plays
+		std::string picked;
+		int picked_pov = -1; // the replay list's point of view, -1 = none
+		bool listed = false; // path is the replay list's pick
+	};
+	extern PlaySource s_play_src;
 	extern bool s_play_common;
 	extern s32 g_frame_period_trim_us;
 	extern std::string s_options;
@@ -342,6 +349,7 @@ namespace Zdxsv
 		u32 gen = 0; // battle infos received
 		std::vector<LobbyPlayer> players; // user id, name + pilot name per position
 		std::vector<GamePatch> patches;
+		std::string ids; // battle info lines naming the battle (SetLobbyPeers)
 	};
 	// The battle GGPO armed with, taken from LobbyBattle.
 	struct ArmedBattle
@@ -357,7 +365,6 @@ namespace Zdxsv
 	extern ArmedBattle s_net;
 	extern std::vector<GamePatch> s_battle_patches; // the started battle's, for its replay header
 	extern std::mutex s_lobby_mtx;
-	extern std::string s_report_ids; // battle info lines naming the battle (SetLobbyPeers)
 	extern std::string s_report; // P2PMatchingReport of the last lobby battle (TakeLobbyReport)
 	extern GGPOSession* s_session;
 	extern bool s_frame_ended; // the CPU left Execute() at a vsync
@@ -581,10 +588,10 @@ namespace Zdxsv
 		bool behind = false; // a seek or round jump of the viewer: no catch-up until playback is at the newest frames again
 		int waits = 0;
 		int hold_want = -1; // the frame count the hold at the newest frame waits for, -1 = none
+		Common::Timer hold_wait;
 		double wait_ms = 0;
 	};
 	extern LivePlay s_live_play;
-	extern Common::Timer s_live_hold_wait;
 
 	// Live auto-next: after a closed stream, a thread polls the lobby for the newest battle not watched yet.
 	struct LiveWait

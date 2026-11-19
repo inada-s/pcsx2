@@ -259,7 +259,7 @@ namespace Zdxsv
 	std::string ReplayIds()
 	{
 		std::lock_guard lock(s_lobby_mtx);
-		return s_opt.lobby ? s_report_ids : std::string();
+		return s_opt.lobby ? s_lobby.ids : std::string();
 	}
 
 	std::string IdValue(const std::string& ids, std::string_view key)

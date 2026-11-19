@@ -248,12 +248,7 @@ namespace Zdxsv
 		return true;
 	}
 
-	// ZDXSV_REPLAY=file.pb: plays a saved replay (PlayLoad), the net=1 hooks on, no GGPO session. Else the replay
-	// list's pick (s_play_picked) for one VM. Set by GgpoOnVmInitialize.
-	const char* s_play_env = nullptr;
-	std::string s_play_picked;
-	int s_play_picked_pov = -1;
-	bool s_play_listed = false;
+	PlaySource s_play_src;
 	// Common start: the replay has no start state (or ZDXSV_REPLAY_COMMON=1). The booted state (any post-entry
 	// state, tests/zdxsv/rbkprep.py) plays the battle start with the file's lobby answers through RbkCall up to the
 	// arm, which is GGPO frame 0 (PlayCommonStart).
@@ -306,8 +301,13 @@ namespace Zdxsv
 
 	GGPOSession* s_session = nullptr;
 	bool s_frame_ended = false; // the CPU left Execute() at a vsync
-	static bool s_frame_hold = false; // the next frame waits, the CPU does not run (GgpoHoldsFrame)
-	static Common::Timer s_hold_poll;
+	// The next frame waits, the CPU does not run (GgpoHoldsFrame).
+	struct FrameHold
+	{
+		bool on = false;
+		Common::Timer poll;
+	};
+	static FrameHold s_hold;
 	int s_session_frames = 0;
 	std::array<float, PadDualshock2::Inputs::LENGTH> s_host = {};
 
@@ -365,7 +365,7 @@ namespace Zdxsv
 			VMManager::SetLimiterMode(LimiterModeType::Turbo);
 		// Once: the rbk knobs as received; tests/zdxsv/rbk.py compares this line to what it meant to pass
 		static bool rbk_env_logged = false;
-		if (s_rbk.on && !s_play_env && !rbk_env_logged)
+		if (s_rbk.on && !s_play_src.path && !rbk_env_logged)
 		{
 			rbk_env_logged = true;
 			const auto env = [](const char* k) { const char* v = TestEnv(k); return v && *v ? v : "-"; };
@@ -421,10 +421,10 @@ namespace Zdxsv
 			if (s_vsyncs++ == 0)
 			{
 				Parse();
-				if (s_play_env)
+				if (s_play_src.path)
 					Host::RunOnCPUThread(PlayLoad);
 			}
-			if (s_play_env && !(s_play_common && s_battle.armed)) // PlayLoad starts it, or the arm of a common start
+			if (s_play_src.path && !(s_play_common && s_battle.armed)) // PlayLoad starts it, or the arm of a common start
 				return;
 			if (s_opt.net ? !s_battle.armed : s_vsyncs < s_opt.start)
 				return;
@@ -444,7 +444,7 @@ namespace Zdxsv
 
 	bool GgpoDeferThrottle()
 	{
-		s_run.throttle_deferred = g_ggpo_active && s_session && !s_play_env && s_frame_ended;
+		s_run.throttle_deferred = g_ggpo_active && s_session && !s_play_src.path && s_frame_ended;
 		return s_run.throttle_deferred;
 	}
 
@@ -490,12 +490,12 @@ namespace Zdxsv
 
 	bool GgpoHoldsFrame()
 	{
-		if (!s_frame_hold)
+		if (!s_hold.on)
 			return false;
 		Threading::Sleep(2);
-		if (s_hold_poll.GetTimeMilliseconds() >= 16)
+		if (s_hold.poll.GetTimeMilliseconds() >= 16)
 		{
-			s_hold_poll.Reset();
+			s_hold.poll.Reset();
 			InputManager::PollSources();
 			MTGS::PresentCurrentFrame();
 		}
@@ -506,10 +506,10 @@ namespace Zdxsv
 
 	static void Returned()
 	{
-		if (s_play_env)
+		if (s_play_src.path)
 		{
-			s_frame_hold = !s_play_common && LiveHold();
-			if (!s_frame_hold)
+			s_hold.on = !s_play_common && LiveHold();
+			if (!s_hold.on)
 				s_play_common ? PlayCommonStart() : PlayNext();
 			return;
 		}
@@ -648,11 +648,11 @@ namespace Zdxsv
 
 	void GgpoOnVmInitialize(const char* serial, u32 crc)
 	{
-		TakeNextReplay(s_play_picked, s_play_picked_pov);
+		TakeNextReplay(s_play_src.picked, s_play_src.picked_pov);
 		s_live_next.url.clear();
 		const char* play = TestEnv("ZDXSV_REPLAY");
-		s_play_env = play ? play : s_play_picked.empty() ? nullptr : s_play_picked.c_str();
-		s_play_listed = !play && !s_play_picked.empty();
+		s_play_src.path = play ? play : s_play_src.picked.empty() ? nullptr : s_play_src.picked.c_str();
+		s_play_src.listed = !play && !s_play_src.picked.empty();
 		const char* e = TestEnv("ZDXSV_GGPO");
 		// ZDXSV_GAME_CRC=hex (test): the CRC taken as the Z game's, to run the wrong-game path on the Z game
 		const char* want_env = Zdxsv::TestEnv("ZDXSV_GAME_CRC");
@@ -665,14 +665,14 @@ namespace Zdxsv
 		AllyHpOnVmInitialize();
 		StickMessageOnVmInitialize();
 		NoDev9OnVmInitialize();
-		const bool lobby_default = g_z_game && !s_play_env;
+		const bool lobby_default = g_z_game && !s_play_src.path;
 		if (!g_z_game) // any other game or build, or ZDXSV_EXTENSIONS=0: no GGPO, replay, hooks or platform info
 		{
 			s_options.clear();
 			g_ggpo_enabled = s_net_env = g_net_hook = g_zd_hook = g_ps_hook = false;
 			if (ext_off)
 				Console.WriteLn("ZdxsvGgpo: off: ZDXSV_EXTENSIONS=0, all zdxsv extensions off");
-			else if (serial_match || (e && std::strcmp(e, "0") != 0) || s_play_env || s_net_trace)
+			else if (serial_match || (e && std::strcmp(e, "0") != 0) || s_play_src.path || s_net_trace)
 				Console.Warning("ZdxsvGgpo: off: not the Z game (serial %s CRC %08X, need %s %08X)", serial, crc, GAME_SERIAL, want);
 			return;
 		}
@@ -695,8 +695,8 @@ namespace Zdxsv
 				Console.WriteLn("ZdxsvGgpo: battle port %d picked and saved", s_lobby_port);
 			}
 		}
-		g_ggpo_enabled = !s_options.empty() || s_play_env;
-		s_net_env = s_options.find("net=1") != std::string::npos || s_play_env;
+		g_ggpo_enabled = !s_options.empty() || s_play_src.path;
+		s_net_env = s_options.find("net=1") != std::string::npos || s_play_src.path;
 		g_net_hook = s_net_trace != nullptr || s_net_env || g_no_dev9;
 		g_zd_hook = s_net_env;
 		g_ps_hook = true;
@@ -786,9 +786,9 @@ namespace Zdxsv
 		size_t keys = 0;
 		for (const auto& k : s_play_keys)
 			keys += k.size();
-		Console.WriteLn("ZdxsvGgpo: %s: session %d, replay recording %d, replay keys %zu", what, g_ggpo_active && !s_play_env ? 1 : 0,
+		Console.WriteLn("ZdxsvGgpo: %s: session %d, replay recording %d, replay keys %zu", what, g_ggpo_active && !s_play_src.path ? 1 : 0,
 			s_replay_rec ? 1 : 0, keys);
-		if (s_play_env)
+		if (s_play_src.path)
 		{
 			g_ggpo_active = false;
 			PlayReset();
@@ -804,7 +804,7 @@ namespace Zdxsv
 		LobbyReset();
 		RbkReset();
 		g_ggpo_in_rollback = false;
-		s_frame_hold = s_frame_ended = false;
+		s_hold.on = s_frame_ended = false;
 		s_vsyncs = 0; // the next VM start or the reset VM parses the options again (and loads a replay again)
 	}
 } // namespace Zdxsv

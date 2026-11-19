@@ -298,7 +298,7 @@ namespace Zdxsv
 		}
 		if (scene == kMenuNetwork && net == GameNetLoginBrowser && !FastLoginApplied() && s_boot.frame - s_boot.net_entry > kMenuSettleFrames)
 			return Finish("login browser");
-		if (s_boot.use_state && !s_play_env && !s_boot.state_handled && scene == kMenuNetwork && net == kNetFileLoad && net_sub == 0)
+		if (s_boot.use_state && !s_play_src.path && !s_boot.state_handled && scene == kMenuNetwork && net == kNetFileLoad && net_sub == 0)
 		{
 			s_boot.state_handled = true;
 			std::string path = BootStatePath();

@@ -261,7 +261,6 @@ namespace Zdxsv
 	PlaySent s_play_sent[GGPO_MAX_PLAYERS];
 	std::unique_ptr<Zdxsv::LiveDown> s_live_down;
 	LivePlay s_live_play;
-	Common::Timer s_live_hold_wait;
 	std::unique_ptr<LiveWait> s_live_wait;
 	LiveNextState s_live_next{.left = [] {
 		const char* e = TestEnv("ZDXSV_LIVE_NEXT");
@@ -324,7 +323,7 @@ namespace Zdxsv
 	{
 		if (s_live_next.left < 0 ? !Host::GetBoolSettingValue("DEV9/Eth", "ZdxsvLiveAutoNext", false) : s_live_next.left == 0)
 			return false;
-		const std::string_view src = s_live_next.url.empty() ? std::string_view(s_play_env) : std::string_view(s_live_next.url);
+		const std::string_view src = s_live_next.url.empty() ? std::string_view(s_play_src.path) : std::string_view(s_live_next.url);
 		std::string host, src_code;
 		Zdxsv::LiveSourceSplit(src, host, src_code);
 		const std::string why = !skip ? "" : !s_live_open_error.empty() ? s_live_open_error : "not a replay stream";
@@ -402,13 +401,13 @@ namespace Zdxsv
 			if (next < s_play.frames || !s_live_play.close.empty())
 				return false;
 			s_live_play.hold_want = next + (s_play.run_load >= 0 || s_play.target >= 0 || s_live_play.catchup ? 1 : LIVE_BUFFER);
-			s_live_hold_wait.Reset();
+			s_live_play.hold_wait.Reset();
 		}
 		if (s_play.frames < s_live_play.hold_want && s_live_play.close.empty() && s_play_req.load() == INT_MIN)
 			return true;
 		s_live_play.hold_want = -1;
 		s_live_play.waits++;
-		s_live_play.wait_ms += s_live_hold_wait.GetTimeMilliseconds();
+		s_live_play.wait_ms += s_live_play.hold_wait.GetTimeMilliseconds();
 		return false;
 	}
 

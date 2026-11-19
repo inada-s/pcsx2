@@ -438,7 +438,7 @@ namespace Zdxsv
 				(r.start_rng ? 1 : 0) + std::min(r.load_frames.size(), r.load_rngs.size()));
 			if (s_net_trace) // battle start marker: pwcheck.py --battle splits a multi-battle trace (live auto-next)
 				std::fprintf(s_net_trace, "%u B %s\n", g_FrameCount, r.code.empty() ? "-" : r.code.c_str());
-			if (http && s_play_listed)
+			if (http && s_play_src.listed)
 				ReplayPlayed(r.code);
 			return static_cast<int>(me);
 		}
@@ -787,7 +787,7 @@ namespace Zdxsv
 				return;
 			}
 			const char* e = TestEnv("ZDXSV_REPLAY_POV");
-			if (const std::string pov = e ? e : s_play_picked_pov >= 0 ? std::to_string(s_play_picked_pov) : ""; !pov.empty())
+			if (const std::string pov = e ? e : s_play_src.picked_pov >= 0 ? std::to_string(s_play_src.picked_pov) : ""; !pov.empty())
 			{
 				const int p = std::atoi(pov.c_str());
 				if (p >= 0 && p < s_opt.players && s_play.pov_ok[p])
@@ -803,7 +803,7 @@ namespace Zdxsv
 	void PlayLoad()
 	{
 		PlayKeysPrune();
-		std::string paths = s_live_next.url.empty() ? s_play_env : s_live_next.url;
+		std::string paths = s_live_next.url.empty() ? s_play_src.path : s_live_next.url;
 		std::vector<std::string> urls;
 		for (const std::string_view path : StringUtil::SplitString(paths, ';'))
 			if (path.starts_with("http://") || path.starts_with("https://"))
