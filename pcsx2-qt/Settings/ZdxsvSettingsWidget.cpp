@@ -23,6 +23,7 @@
 #include <QtWidgets/QDialogButtonBox>
 #include <QtWidgets/QLabel>
 #include <QtWidgets/QLineEdit>
+#include <QtWidgets/QMessageBox>
 #include <QtWidgets/QPushButton>
 #include <QtWidgets/QVBoxLayout>
 
@@ -146,7 +147,13 @@ ZdxsvSettingsWidget::ZdxsvSettingsWidget(SettingsWindow* settings_dialog, QWidge
 	connect(m_ui.zdxsvPresetHigh, &QPushButton::clicked, this, [this]() { applyPreset(3.0f, 2); });
 	connect(m_ui.zdxsvUPnPNow, &QPushButton::clicked, this, &ZdxsvSettingsWidget::mapUpnpNow);
 	connect(m_ui.zdxsvSignIn, &QPushButton::clicked, this, &ZdxsvSettingsWidget::signIn);
-	connect(m_ui.zdxsvSignOut, &QPushButton::clicked, this, &ZdxsvSettingsWidget::signOut);
+	connect(m_ui.zdxsvSignOut, &QPushButton::clicked, this, [this]() { signOut(false); });
+	connect(m_ui.zdxsvSignOutAll, &QPushButton::clicked, this, [this]() {
+		if (QMessageBox::question(this, tr("Sign Out Everywhere"),
+				tr("Sign out on every PC signed in with this Discord account? Each one has to sign in again.")) ==
+			QMessageBox::Yes)
+			signOut(true);
+	});
 	connect(m_ui.zdxsvAccountRefresh, &QPushButton::clicked, this, [this]() { loadAccounts(AccountRequest::List); });
 	connect(m_ui.zdxsvCarry, &QPushButton::clicked, this, &ZdxsvSettingsWidget::carryOver);
 	connect(m_ui.zdxsvAccountPick, &QComboBox::activated, this, &ZdxsvSettingsWidget::pickAccount);
@@ -161,6 +168,9 @@ ZdxsvSettingsWidget::ZdxsvSettingsWidget(SettingsWindow* settings_dialog, QWidge
 		tr("Uses your PS2 account on this PC too. Get the code by typing ｄｃ in the Kennedy Port lobby chat on the PS2."));
 	dialog()->registerWidgetHelp(m_ui.zdxsvSignOut, tr("Sign Out"), tr("None"),
 		tr("Revokes this PC's sign-in token on the server and deletes it."));
+	dialog()->registerWidgetHelp(m_ui.zdxsvSignOutAll, tr("Sign Out Everywhere"), tr("None"),
+		tr("Revokes the sign-in tokens of every PC signed in with this Discord account, this one included. "
+		   "If the server does not answer, this PC stays signed in."));
 	dialog()->registerWidgetHelp(m_ui.zdxsvUPnPNow, tr("UPnP Now"), tr("None"),
 		tr("Opens the battle port on the router now."));
 	dialog()->registerWidgetHelp(m_ui.zdxsvPresetLow, tr("Recommended Settings for Low-Spec PC"), tr("None"),
@@ -185,6 +195,7 @@ void ZdxsvSettingsWidget::updateAccount()
 		m_ui.zdxsvAccountStatus->setText(signed_in ? tr("Signed in on this PC.") : tr("Not signed in. Online play needs a sign-in."));
 	m_ui.zdxsvSignIn->setText(busy ? tr("Cancel Sign-in") : tr("Sign in with Discord"));
 	m_ui.zdxsvSignOut->setEnabled(!busy && signed_in);
+	m_ui.zdxsvSignOutAll->setEnabled(!busy && signed_in);
 	m_ui.zdxsvAccountPick->setEnabled(!busy && signed_in && m_ui.zdxsvAccountPick->count() > 0);
 	m_ui.zdxsvAccountRefresh->setEnabled(!busy && signed_in);
 	m_ui.zdxsvCarry->setEnabled(!busy && signed_in && m_carry_room);
@@ -322,18 +333,25 @@ void ZdxsvSettingsWidget::signIn()
 	}).detach();
 }
 
-void ZdxsvSettingsWidget::signOut()
+void ZdxsvSettingsWidget::signOut(bool every_pc)
 {
 	m_ui.zdxsvSignOut->setEnabled(false);
-	std::thread([widget = QPointer<ZdxsvSettingsWidget>(this)]() {
-		const std::string error = Zdxsv::AuthSignOut();
-		QtHost::RunOnUIThread([widget, error]() {
+	m_ui.zdxsvSignOutAll->setEnabled(false);
+	std::thread([widget = QPointer<ZdxsvSettingsWidget>(this), every_pc]() {
+		const std::string error = Zdxsv::AuthSignOut(every_pc);
+		QtHost::RunOnUIThread([widget, error, every_pc]() {
 			if (!widget)
 				return;
-			SetPickedAccount(0);
+			const bool signed_in = Zdxsv::AuthTokenRead().has_value();
+			if (!signed_in)
+				SetPickedAccount(0);
 			widget->updateAccount();
-			if (!error.empty())
+			if (signed_in)
+				widget->m_ui.zdxsvAccountStatus->setText(tr("Not signed out; %1").arg(QString::fromStdString(error)));
+			else if (!error.empty())
 				widget->m_ui.zdxsvAccountStatus->setText(tr("Signed out on this PC; %1").arg(QString::fromStdString(error)));
+			else if (every_pc)
+				widget->m_ui.zdxsvAccountStatus->setText(tr("Signed out on every PC."));
 		});
 	}).detach();
 }
