@@ -77,8 +77,10 @@ the agent's context.
 
 ### Layout
 
-- zdxsv code: `pcsx2/Zdxsv/` (Qt: `pcsx2-qt/Zdxsv/`), never next to upstream
-  sources.
+- zdxsv code: `pcsx2/Zdxsv/` (Qt: `pcsx2-qt/Zdxsv/`), not next to upstream
+  sources. Exceptions, kept with the upstream code of their kind: GUI pages
+  and dialogs (`pcsx2-qt/Settings/Zdxsv*`, `pcsx2-qt/Tools/Zdxsv*`) and the
+  recompilers (`pcsx2/arm64/`).
 - `pcsx2/Zdxsv/README.md`: glossary and file map; update on add, split, rename.
 - New fork files start with `// SPDX-FileCopyrightText: 2026 zdxsv contributors`
   and `// SPDX-License-Identifier: GPL-3.0+`. Upstream files keep the PCSX2 Dev
@@ -90,7 +92,10 @@ the agent's context.
 
 - `PascalCase` for directories, files, namespaces, types and functions.
 - One namespace, `Zdxsv`: no nested or other top-level namespaces, nothing in
-  the global or an upstream namespace.
+  an upstream namespace. Global scope only where the code belongs with
+  upstream code: an accessor or hook in an upstream file (`mmap_Delta*` in
+  `vtlb.cpp`, `SPU2Delta*` in `spu2freeze.cpp`). Code in `pcsx2/Zdxsv/` and
+  `pcsx2-qt/Zdxsv/` is in `Zdxsv` (or an anonymous namespace).
 - Prefix generic names with the component (`GgpoOnVsync`, `DeltaStateSave`,
   `g_ggpo_enabled`); specific names stay (`StartPingTest`).
 - One-file helpers: anonymous namespace. Component-shared helpers: a header
@@ -136,8 +141,10 @@ the agent's context.
 - Test and diagnostic code ships in every build: the rigs run against released
   builds too. There is no test-build flag. Code that costs performance while
   unused is not acceptable.
-- State in structs, not file-scope variables. State a rollback or replay key
-  restores: one struct, saved and restored whole.
+- Variables that together have one role (a session, a connection, a
+  recording): one struct. A lone flag, counter or handle may stay a
+  file-scope variable. State a rollback or replay key restores: one struct,
+  saved and restored whole.
 - Reset zdxsv state, threads, sockets and sessions on VM shutdown and reset.
 - Player-facing choices: settings. Environment variables: tests and
   diagnostics only, read in one place, listed in `docs/zdxsv/options.md`.
