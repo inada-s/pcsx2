@@ -848,9 +848,9 @@ namespace Zdxsv
 			k3.clear();
 		s_opt.net = true;
 		s_battle.me = pov;
-		s_rbk = true;
-		s_rbk_me = pov;
-		s_rbk_n = s_opt.players;
+		s_rbk.on = true;
+		s_rbk.me = pov;
+		s_rbk.n = s_opt.players;
 		RbkReset();
 		Console.WriteLn("ZdxsvGgpo: replay: common start as position %d of %d, %zu lobby answers%s", pov, s_opt.players,
 			s_play_answers.size(), seek >= 0 ? fmt::format(", then seek to {}", seek).c_str() : "");
@@ -878,7 +878,7 @@ namespace Zdxsv
 		k0.ok = true;
 		// the file's HLE state is its recorder's position's
 		Console.WriteLn("ZdxsvGgpo: replay: common start armed at vsync %u as position %d (asked %d), frame 0 HLE state %s",
-			g_FrameCount, me, s_rbk_me, me != s_play.rng_pos ? "not compared" : hle_same ? "equals the file's" : "differs from the file's");
+			g_FrameCount, me, s_rbk.me, me != s_play.rng_pos ? "not compared" : hle_same ? "equals the file's" : "differs from the file's");
 		// PlayBegin loads that state as PlayLoad does
 		s_battle.started = false;
 		g_ggpo_active = false;
