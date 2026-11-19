@@ -589,7 +589,7 @@ namespace Zdxsv
 	// At T = the next frame (the running state = before T): keeps the state and the own sent msgs.
 	bool TakeoverBegin(int t)
 	{
-		s_to.delay = s_min_delay;
+		s_to.delay = s_config.min_delay;
 		if (t < 1 || t + s_to.delay > s_play.frames)
 		{
 			Console.Error("ZdxsvGgpo: replay takeover at frame %d: not within the replay (%d frames)", t, s_play.frames);
