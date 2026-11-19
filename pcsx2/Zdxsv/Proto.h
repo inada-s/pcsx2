@@ -119,11 +119,13 @@ namespace Zdxsv
 		}
 	};
 
-	// A repeated varint field, packed (wire type 2) or not (0), appended to out.
-	inline bool PbReadInts(uint32_t wt, uint64_t v, const uint8_t* bytes, size_t n, std::vector<int64_t>& out)
+	// A repeated varint field, packed (wire type 2) or not (0), appended to out; false past max values in out.
+	inline bool PbReadInts(uint32_t wt, uint64_t v, const uint8_t* bytes, size_t n, std::vector<int64_t>& out, size_t max)
 	{
 		if (wt == 0)
 		{
+			if (out.size() >= max)
+				return false;
 			out.push_back(static_cast<int64_t>(v));
 			return true;
 		}
@@ -132,7 +134,7 @@ namespace Zdxsv
 		PbReader r{bytes, bytes + n};
 		while (r.p < r.end)
 		{
-			if (!r.Varint(v))
+			if (out.size() >= max || !r.Varint(v))
 				return false;
 			out.push_back(static_cast<int64_t>(v));
 		}

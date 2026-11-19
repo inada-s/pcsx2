@@ -2639,6 +2639,9 @@
     <ClInclude Include="Zdxsv\LobbySocket.h">
       <Filter>Zdxsv</Filter>
     </ClInclude>
+    <ClInclude Include="Zdxsv\LobbyFrame.h">
+      <Filter>Zdxsv</Filter>
+    </ClInclude>
     <ClInclude Include="Zdxsv\LobbyNet.h">
       <Filter>Zdxsv</Filter>
     </ClInclude>
@@ -2715,6 +2718,9 @@
       <Filter>Zdxsv</Filter>
     </ClInclude>
     <ClInclude Include="Zdxsv\Settings.h">
+      <Filter>Zdxsv</Filter>
+    </ClInclude>
+    <ClInclude Include="Zdxsv\GameAddresses.h">
       <Filter>Zdxsv</Filter>
     </ClInclude>
     <ClInclude Include="Zdxsv\FastLogin.h">

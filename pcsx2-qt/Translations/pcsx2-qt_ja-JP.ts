@@ -28707,6 +28707,26 @@ for High-Spec PC</source>
       <translation>この PC でサインアウトしました。%1</translation>
     </message>
     <message>
+      <source>Sign Out Everywhere</source>
+      <translation>すべての PC でサインアウト</translation>
+    </message>
+    <message>
+      <source>Sign out on every PC signed in with this Discord account? Each one has to sign in again.</source>
+      <translation>この Discord アカウントでサインインしているすべての PC でサインアウトしますか? それぞれサインインし直す必要があります。</translation>
+    </message>
+    <message>
+      <source>Revokes the sign-in tokens of every PC signed in with this Discord account, this one included. If the server does not answer, this PC stays signed in.</source>
+      <translation>この Discord アカウントでサインインしているすべての PC (この PC も含む) のサインイントークンを無効にします。サーバーが応答しない場合、この PC はサインインしたままです。</translation>
+    </message>
+    <message>
+      <source>Not signed out; %1</source>
+      <translation>サインアウトしていません。%1</translation>
+    </message>
+    <message>
+      <source>Signed out on every PC.</source>
+      <translation>すべての PC でサインアウトしました。</translation>
+    </message>
+    <message>
       <source>Set to the default during online battles, replays and live spectating (the same on every player&apos;s emulator).</source>
       <translation>オンライン対戦、リプレイ、ライブ観戦の間は既定値になります (全プレイヤーのエミュレーターで同じ値)。</translation>
     </message>

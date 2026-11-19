@@ -86,7 +86,7 @@ namespace Zdxsv
 				else if (f == 2 && w == 2)
 					out.ee.assign(rb, rb + rn);
 				else if (f == 3)
-					return PbReadInts(w, x, rb, rn, hle);
+					return PbReadInts(w, x, rb, rn, hle, RoundStateHle({}).size());
 				else if (f == 4 && w == 2 && rn <= 0x10000)
 					out.rb.net_rx.assign(rb, rb + rn);
 				return true;
@@ -121,6 +121,8 @@ namespace Zdxsv
 			std::memcpy(eeMem->Main + a, s.ee.data() + at, len);
 			at += len;
 		}
+		// the key holds another round's MS assets (sounds too): the battle load reloads every MS
+		MsSlotsClear();
 		s_rb = s.rb;
 		s_rings = {};
 		for (int p = 0; p < players; p++)

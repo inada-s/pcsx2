@@ -68,7 +68,7 @@ s32 SPU2Savestate::FreezeIt(DataBlock& spud)
 	spud.version = SAVE_VERSION;
 
 	memcpy(spud.unkregs, spu2regs, sizeof(spud.unkregs));
-	if (!g_SaveStateDeltaPagedRam)
+	if (!Zdxsv::g_delta_freeze_paged_ram)
 		memcpy(spud.mem, _spu2mem, sizeof(spud.mem));
 
 	memcpy(spud.Cores, Cores, sizeof(Cores));
@@ -136,9 +136,9 @@ s32 SPU2Savestate::ThawIt(DataBlock& spud)
 	else
 	{
 		memcpy(spu2regs, spud.unkregs, sizeof(spud.unkregs));
-		if (g_SaveStateDeltaLoad)
+		if (Zdxsv::g_delta_freeze_load)
 		{
-			if (!g_SaveStateDeltaPagedRam)
+			if (!Zdxsv::g_delta_freeze_paged_ram)
 				delta_restore_mem(reinterpret_cast<const u16*>(spud.mem));
 		}
 		else
@@ -174,7 +174,7 @@ s32 SPU2Savestate::ThawIt(DataBlock& spud)
 		lClocks = spud.lClocks;
 		PlayMode = spud.PlayMode;
 
-		if (!g_SaveStateDeltaLoad)
+		if (!Zdxsv::g_delta_freeze_load)
 			wipe_the_cache();
 
 		// Go through the V_Voice structs and recalculate SBuffer pointer from

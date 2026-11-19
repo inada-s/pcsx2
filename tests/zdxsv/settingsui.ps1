@@ -1,4 +1,4 @@
-# settingsui.ps1 [-Exe pcsx2-qtx64.exe] [-DataPath dir] [-Iso game.iso [-Boot 30]] [-Page zdxsv] [-Match regex] [-Shot out.png] [-Click name [-Wait 3]] [-Select 'name=item regex'] [-Scroll percent] [-Quit]
+# settingsui.ps1 [-Exe pcsx2-qtx64-dev.exe] [-DataPath dir] [-Iso game.iso [-Boot 30]] [-Page zdxsv] [-Match regex] [-Shot out.png] [-Click name [-Wait 3]] [-Select 'name=item regex'] [-Scroll percent] [-Quit]
 # Start a portable PCSX2 (portable.ini or portable.txt next to the exe; -DataPath: -datapath dir instead), open Settings -> page -Page,
 # -Click: invoke the button whose AutomationId ends with that name, wait -Wait s (default 3: the settings save), then
 # print each control whose AutomationId or name matches -Match (default: the page name) with its enabled
@@ -17,7 +17,7 @@
 # - Qt menus do not answer UIA Invoke: Settings opens by keyboard (Alt+N, Enter); the page item is clicked
 #   with the mouse at its UIA rectangle.
 # Exit 1 with the visible element names when a step finds nothing.
-param([string]$Exe = (Join-Path $PSScriptRoot '..\..\bin\pcsx2-qtx64.exe'), [string]$Page = 'zdxsv',
+param([string]$Exe = (Join-Path $PSScriptRoot '..\..\bin\pcsx2-qtx64-dev.exe'), [string]$Page = 'zdxsv',
       [string]$Match = '', [string]$Shot = '', [string]$DataPath = '', [string]$Iso = '', [int]$Boot = 30,
       [string]$Click = '', [int]$Wait = 3, [string]$Select = '', [int]$Scroll = -1, [switch]$Quit)
 $ErrorActionPreference = 'Stop'

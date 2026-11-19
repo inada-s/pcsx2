@@ -41,7 +41,8 @@ namespace Zdxsv
 		int players = 0, rounds = 0, frames = 0;
 		std::vector<ReplayFileUser> users;
 	};
-	// The header fields of a .pb (replay.proto BattleLogFile); false = not readable.
+	// The header fields of a .pb (replay.proto BattleLogFile), seeking past the others (inputs, states); any thread. false = not
+	// readable.
 	bool ReadReplayInfo(const std::string& path, ReplayFileInfo* info);
 
 	// [DEV9/Eth] ZdxsvLobbyApiUrl: the lobby's public API (http://host:port, /lbs/replay and /lbs/live); default the release build's server, "" = none.

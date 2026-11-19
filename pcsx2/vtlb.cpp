@@ -1616,6 +1616,11 @@ void mmap_DeltaSetFaultHook(mmap_DeltaFaultHook hook)
 	s_delta_fault_hook = hook;
 }
 
+bool mmap_DeltaHooked()
+{
+	return s_delta_hook != nullptr;
+}
+
 PageFaultHandler::HandlerResult PageFaultHandler::HandlePageFault(void* exception_pc, void* fault_address, bool is_write)
 {
 	pxAssert(eeMem);
@@ -1656,14 +1661,13 @@ PageFaultHandler::HandlerResult PageFaultHandler::HandlePageFault(void* exceptio
 		if (offset >= Ps2MemSize::ExposedRam)
 			return HandlerResult::ExecuteNextHandler;
 
-		if (m_PageProtectInfo[offset >> __pageshift].Mode != ProtMode_Write)
-		{
-			// zdxsv delta state watch (or a page another fault just unwatched).
-			mmap_DeltaHit(offset >> __pageshift);
+		const u32 page = offset >> __pageshift;
+		if (mmap_DeltaHit(page) && m_PageProtectInfo[page].Mode != ProtMode_Write)
 			return HandlerResult::ContinueExecution;
-		}
-		mmap_DeltaHit(offset >> __pageshift);
-		mmap_ClearCpuBlock(offset);
+		if (m_PageProtectInfo[page].Mode == ProtMode_Manual)
+			mmap_DeltaProtect(page, false);
+		else
+			mmap_ClearCpuBlock(offset);
 		return HandlerResult::ContinueExecution;
 	}
 }

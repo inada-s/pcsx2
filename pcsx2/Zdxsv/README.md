@@ -66,11 +66,12 @@ options: `docs/zdxsv/`.
 | `ReplayLoad.cpp` | Replay files: parse, load, common start, start of playback, position switch, next battle |
 | `DeltaState.cpp`, `DeltaState.h` | Fast per-frame save and load of the VM for rollback (copy-on-write EE RAM pages) |
 | `DeltaFreeze.cpp`, `DeltaFreeze.h` | The non-EE-RAM part of a delta state: CPU, IOP, VU, SPU2, DEV9, pad; section timing and offset names for reports |
-| `SpuLazyVoices.cpp` | SPU2 mixer: stopped voices skip their per-tick steps until their decode could reach the next block, caught up before any other SPU2 access (seam: `SpuHooks.h`) |
+| `SpuLazyVoices.cpp` | SPU2 mixer: stopped voices skip their per-tick steps until their decode could reach the next block, caught up before any other SPU2 access; reverb skipped in rerun frames (seam: `SpuHooks.h`) |
 | `Lobby.cpp`, `Lobby.h` | Lobby side of a GGPO battle: platform info, battle info and peers, STUN, UDP test, lobby frame filter |
 | `LobbyBattleInfo.cpp` | Lobby message bodies (JSON): parses the battle info notice, encodes the match report |
 | `LobbyLive.cpp` | Live spectating over the lobby HTTP API (one streamed POST, one streamed GET per spectator): `LiveUp` streams a battle, `LiveDown` receives one |
 | `LobbyPing.cpp` | GGPO ping test between the peers (direct and relay paths) and the cut connection's refusal |
+| `LobbyFrame.h` | The lobby TCP message frame: header layout, the commands zdxsv reads or writes, frame building; `Lobby*.cpp` only |
 | `LobbyNet.h` | Platform sockets and address helpers shared by the `Lobby*.cpp` files only |
 | `LogTail.cpp`, `LogTail.h` | The last 100 log lines in memory, for crash reports and the match report |
 | `Proto.h` | Minimal protobuf wire codec for replay files |
@@ -90,6 +91,7 @@ options: `docs/zdxsv/`.
 | `AuthSignIn.cpp`, `AuthSignIn.h` | Sign-in through the server in the browser (127.0.0.1 callback, PKCE), the token file, sign-out |
 | `AuthTest.cpp` | Sign-in and sign-out at app start for the rigs (`ZDXSV_AUTH_SIGNIN_TEST`) |
 | `FastLogin.cpp`, `FastLogin.h` | Login through the login API at DNAS start, the browser's result written to guest RAM, jump to the lobby connect |
+| `GameAddresses.h` | Guest addresses and network menu states of the game that more than one file reads |
 | `SingleDrawList.cpp` | single draw list: game code patch that draws a frame's list in that frame |
 | `AllyHp.cpp` | Teammate HP on the HUD: the own max HP digits read the teammate's HP (setting `ZdxsvAllyHp`) |
 | `StickMessage.cpp` | Team messages without a right stick: a held button + D-pad or left stick also tilts the right stick (setting `ZdxsvStickMessageButton`) |

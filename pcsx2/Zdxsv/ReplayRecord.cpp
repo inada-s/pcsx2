@@ -20,7 +20,7 @@ namespace Zdxsv
 		std::map<int, RoundState> s_replay_round_states; // by frame: each battle load end (-> round_states)
 		s64 s_replay_start_at = 0; // unix seconds
 		int s_replay_confirmed = -1; // GGPO's last confirmed frame: the frames after it (predicted inputs) are not written
-		constexpr int REPLAY_FILE_VERSION = 20261116; // BattleLogFile.log_file_version of the files written here
+		constexpr int REPLAY_FILE_VERSION = 20261118; // BattleLogFile.log_file_version of the files written here
 		// HLE state outside the save state at frame 0 (ReplayBegin; replay.proto net_rx0, hle0)
 		struct ReplayHle0
 		{
@@ -423,8 +423,12 @@ namespace Zdxsv
 		if (!dir.empty())
 		{
 			const std::string path = Path::Combine(dir, name + ".pb");
-			if (!FileSystem::WriteBinaryFile(path.c_str(), pb.data(), pb.size()))
+			const std::string part = path + ".part";
+			if (!FileSystem::WriteBinaryFile(part.c_str(), pb.data(), pb.size()) || !FileSystem::RenamePath(part.c_str(), path.c_str()))
+			{
+				FileSystem::DeleteFilePath(part.c_str());
 				Console.Error("ZdxsvGgpo: replay: write %s failed", path.c_str());
+			}
 			else
 				Console.WriteLn("ZdxsvGgpo: replay saved %s frames=%zu, file=%zu bytes, %.1f ms", path.c_str(), frames,
 					pb.size(), timer.GetTimeMilliseconds());

@@ -27,7 +27,7 @@ namespace Zdxsv
 		}
 	} // namespace
 
-	// lobby=1: peers of the last battle info (SetLobbyPeers, DEV9 thread)
+	// lobby=1: peers of the last battle info (SetLobbyPeers, CPU thread)
 	std::mutex s_lobby_mtx;
 	std::vector<Zdxsv::PeerAddr> s_net_peers; // per position, picked when armed
 	std::vector<int> s_net_via; // per position: PingResult.via (0 direct, 1 peer relay, 2 relay server)
@@ -227,7 +227,7 @@ namespace Zdxsv
 
 	int GgpoLobbyPort()
 	{
-		// s_options only changes in GgpoOnVmInitialize, before the DEV9 thread that calls this runs
+		// s_options only changes in GgpoOnVmInitialize, before the CPU thread calls this
 		if (s_options.find("net=1") == std::string::npos || s_options.find("lobby=1") == std::string::npos)
 			return 0;
 		int p = s_lobby_port;

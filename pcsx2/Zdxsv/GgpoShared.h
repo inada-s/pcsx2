@@ -125,7 +125,7 @@ namespace Zdxsv
 	// Player position (3 floats in the player work) and the 2 game RNGs (u16), hashed by synctest hash=pos.
 	constexpr u32 PW_POS = 0x2a8, RNG_A = 0x6d7940, RNG_B = 0x6d793c;
 	// The MS asset slot cache: one s8 MS id per slot, -1 = empty. It holds the MSes this machine loaded before, and the
-	// battle load sets player work +0x10f (hashed) from it.
+	// battle load sets player work +0x2067 from it.
 	constexpr u32 MS_SLOTS = 0x6f2b6c, MS_SLOTS_N = 6;
 	void MsSlotsClear();
 
@@ -137,7 +137,8 @@ namespace Zdxsv
 	// replay.proto BattleLogFile patches: Put writes one field per patch, Read takes one (false: malformed or out of range).
 	void ServerPatchesPut(std::vector<uint8_t>& pb, uint32_t field, const std::vector<GamePatch>& patches);
 	bool ServerPatchRead(const uint8_t* b, size_t n, GamePatch& out);
-	u32 ReplayStateHash();
+	// ms_slot: with the player work's MS slot, as files before version 20261118 hashed it
+	u32 ReplayStateHash(bool ms_slot = false);
 	u32 GameRng();
 	static constexpr u32 TICK_STATE = 0xc627b4; // u8 game phase; 8 = battle load
 	static constexpr u8 TICK_LOAD = 8, TICK_PLAY = 6, TICK_END = 7; // 7 = round or game end phase
@@ -213,6 +214,10 @@ namespace Zdxsv
 		int end = -1; // frames since the end msg (kind f) was sent or received, -1 = not yet
 		int last_real = INT_MAX; // last frame with the peers' inputs (the session left them at the end), INT_MAX = none
 		u32 zd_steps = 0, zd_changed = 0;
+		// Live steps per GGPO frame and position. Gaps (frames without a step) come with scene changes.
+		int zd_last[GGPO_MAX_PLAYERS] = {-1, -1, -1, -1};
+		u32 zd_repeats = 0, zd_gaps = 0;
+		int zd_gap_min = INT_MAX, zd_gap_max = 0;
 		u32 zds_echo = 0, zds_skip = 0;
 		// zds: kind 3 (round handshake) is the one barrier: each machine reaches it at its own frame
 		// (scene/load timing: one side can be a frame later), so it goes through the GGPO input
@@ -587,6 +592,7 @@ namespace Zdxsv
 	void PlayReset();
 	void PlayKeysPrune(); // deletes the cache folder's seek keys a killed or crashed replay left
 	void PlayLoad();
+	void PlayFetchStop(); // cancels and joins the replay downloads
 	bool PlayCommonArm(int pov, int seek = -1);
 	void PlayCommonStart();
 	void PlayBegin(int me);
@@ -617,7 +623,6 @@ namespace Zdxsv
 	bool GgpoRunFrame();
 
 	// GgpoSession.cpp
-	extern std::recursive_mutex s_ggpo_mtx;
 	void GgpoStop(const char* what);
 	const char* GgpoStart();
 	void NetEndCheck();

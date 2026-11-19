@@ -185,9 +185,9 @@ bool SaveStateBase::FreezeInternals(Error* error)
 	if (!FreezeTag("cpuRegs"))
 		return false;
 
-	SaveState_DeltaMarkScratch(GetCurrentPos() + offsetof(cpuRegisters, code), sizeof(cpuRegs.code));
+	Zdxsv::DeltaFreezeMarkScratch(GetCurrentPos() + offsetof(cpuRegisters, code), sizeof(cpuRegs.code));
 	Freeze(cpuRegs);		// cpu regs + COP0
-	SaveState_DeltaMarkScratch(GetCurrentPos() + offsetof(psxRegisters, code), sizeof(psxRegs.code));
+	Zdxsv::DeltaFreezeMarkScratch(GetCurrentPos() + offsetof(psxRegisters, code), sizeof(psxRegs.code));
 	Freeze(psxRegs);		// iop regs
 	Freeze(fpuRegs);
 	Freeze(tlb);			// tlbs
@@ -497,6 +497,7 @@ protected:
 bool MemorySavestateEntry::FreezeIn(zip_file_t* zf) const
 {
 	const u32 expectedSize = GetDataSize();
+	Zdxsv::DeltaStateHostWrite(GetDataPtr(), expectedSize);
 	const s64 bytesRead = zip_fread(zf, GetDataPtr(), expectedSize);
 	if (bytesRead != static_cast<s64>(expectedSize))
 	{
