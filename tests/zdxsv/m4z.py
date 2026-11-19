@@ -971,6 +971,10 @@ def main():
         dz = [re.search(r"desync checks ([0-9]+) mismatches ([0-9]+)", l) for i in gclients for l in g(el(i), "ZdxsvGgpo: desync checks")]
         ok("desync checks on every peer, 0 mismatches",
            len(dz) >= len(gclients) and all(m and int(m[1]) > 0 and m[2] == "0" for m in dz))
+        zr = [re.search(r"repeats ([0-9]+) gaps ([0-9]+)", l) for i in gclients for l in g(el(i), "ZdxsvGgpo: zd steps per frame:")]
+        for m in zr:
+            say(f"zd steps per frame: repeats {m[1]} gaps {m[2]}" if m else "zd steps per frame: unparsed")
+        ok("one zd step per GGPO frame on every peer (repeats 0)", len(zr) >= len(gclients) and all(m and m[1] == "0" for m in zr))
         for i in gclients if patch_names else []:
             for l in g(el(i), "ZdxsvPatch: "):
                 say(f"p{i} {l[:200]}")
