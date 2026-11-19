@@ -99,8 +99,13 @@ the agent's context.
 
 ### Seams With Upstream Code
 
-- An upstream file gets only an `#include` of a hook header and a guarded
-  one-line call into `Zdxsv::`.
+- A zdxsv feature of its own (its state, a block of its logic, code that
+  `pcsx2/Zdxsv/` also calls) lives in `pcsx2/Zdxsv/`; the upstream file gets
+  an `#include` of a hook header and a guarded call into `Zdxsv::`.
+- A change of a few lines that reads naturally where it is (a condition, a
+  flag test, a value) stays inline in the upstream file, marked and listed
+  (below). Never add a function or a file only to move a few lines out of an
+  upstream file: the reader then has to jump to see a few lines.
 - Hook headers (`pcsx2/Zdxsv/*Hooks.h`): `extern` flags, declarations, tiny
   inline guards; include only `common/Pcsx2Defs.h`. One per upstream area.
 - No ad hoc zdxsv declarations in an upstream `.cpp`.
@@ -116,6 +121,13 @@ the agent's context.
   zdxsv online battle extensions (on by default) are turned off only by their
   environment variable, with no setting.
 - Patches at fixed guest addresses check the game (serial or CRC).
+- Every changed spot in an upstream file is marked where it is: a line that
+  names zdxsv (a `Zdxsv::` call or a `Zdxsv/` include) marks itself; any
+  other change carries a `// zdxsv: <why>` comment on or above it (`#`, `::`
+  or `<!-- -->` where that is the file's comment), a removed line one at its
+  place.
+- Every changed spot is listed in `docs/zdxsv/upstream.md` (file, function,
+  what and why), in the same PR: `tools/zdxsv/upstream_spots.py --write`.
 
 ### Code
 

@@ -71,6 +71,7 @@ Everything is on only for the one game build it was made for; any other disc run
 | [docs/zdxsv/tools.md](docs/zdxsv/tools.md) | Releases, CI, local build and run scripts, PINE commands. |
 | [docs/zdxsv/crash-reports.md](docs/zdxsv/crash-reports.md) | Crash reports: the switch, what is sent, behavior per platform, symbols. |
 | [docs/zdxsv/arm64.md](docs/zdxsv/arm64.md) | ARM64 builds: CPU cores, math as x86, comparing with an x86_64 build. |
+| [docs/zdxsv/upstream.md](docs/zdxsv/upstream.md) | Changes to upstream PCSX2 code: the fork point, added and changed files, every changed spot. |
 | [pcsx2/Zdxsv/README.md](pcsx2/Zdxsv/README.md) | Glossary and source file map. |
 | [tests/zdxsv/README.md](tests/zdxsv/README.md) | Rig test scripts: setup, settings, the test of each feature. |
 | [AGENTS.md](AGENTS.md) | Rules for work in this fork. |
