@@ -2720,6 +2720,9 @@
     <ClInclude Include="Zdxsv\Settings.h">
       <Filter>Zdxsv</Filter>
     </ClInclude>
+    <ClInclude Include="Zdxsv\GameAddresses.h">
+      <Filter>Zdxsv</Filter>
+    </ClInclude>
     <ClInclude Include="Zdxsv\FastLogin.h">
       <Filter>Zdxsv</Filter>
     </ClInclude>
