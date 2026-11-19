@@ -116,15 +116,18 @@ namespace Zdxsv
 		}
 		// ZDXSV_RBK: answers of a real start (traced with 4 players and tests/zdxsv/fake_lobby.py): lobby frames are
 		// `18 cat cmd size seq 00ffffff body` (BE, 12-byte header), the game's `81 01 ..`.
-		std::vector<u8> s_rbk_rx; // what recv 0x13 / 0x14 and the poll's readable count see
+		struct RbkServer
+		{
+			std::vector<u8> rx; // what recv 0x13 / 0x14 and the poll's readable count see
+			bool started = false; // 0x6910 (battle start) queued
+			u32 calls[0x50] = {};
+		} s_rbk_server;
 		// lobby=1: the battle server answered on the EE until GGPO arms; players 0 = off
 		struct BattleServerAnswer
 		{
 			std::vector<u8> rx;
 			int me = -1, players = 0;
 		} s_bs;
-		bool s_rbk_started = false; // 0x6910 (battle start) queued
-		u32 s_rbk_calls[0x50] = {};
 		constexpr u32 RBK_FNO_RECV_LOBBY = 0x13;
 		const char* const RBK_USERS[4] = {
 			"010100064a3953584e4d000682a082a082a000000064834a837e815b838681458372835f839300000000000097b989f081490000000000000000000000000000000082bb82bf82e782cc94ed8a518ff38bb582cd8148000093478b408c82946a814900000000000000000000000089b482c9944382b982eb814901",
@@ -155,9 +158,9 @@ namespace Zdxsv
 		{
 			const u8 h[12] = {0x18, cat, static_cast<u8>(cmd >> 8), static_cast<u8>(cmd), static_cast<u8>(body.size() >> 8),
 				static_cast<u8>(body.size()), static_cast<u8>(seq >> 8), static_cast<u8>(seq), 0, 0xff, 0xff, 0xff};
-			s_rbk_rx.insert(s_rbk_rx.end(), h, h + 12);
-			s_rbk_rx.insert(s_rbk_rx.end(), body.begin(), body.end());
-			Zdxsv::LobbyNoteFrame(&*(s_rbk_rx.end() - 12 - body.size()), 12 + body.size());
+			s_rbk_server.rx.insert(s_rbk_server.rx.end(), h, h + 12);
+			s_rbk_server.rx.insert(s_rbk_server.rx.end(), body.begin(), body.end());
+			Zdxsv::LobbyNoteFrame(&*(s_rbk_server.rx.end() - 12 - body.size()), 12 + body.size());
 		}
 
 		// Position p (1-based) of N plays the recorded 4-player position of its side:
@@ -312,18 +315,18 @@ namespace Zdxsv
 		bool RbkCall(u32 fno, s16 len, u8* d)
 		{
 			u8* ram = eeMem->Main;
-			if (fno < std::size(s_rbk_calls) && s_rbk_calls[fno]++ < 3)
+			if (fno < std::size(s_rbk_server.calls) && s_rbk_server.calls[fno]++ < 3)
 				Console.WriteLn("ZdxsvGgpo: rbk fno %x len %d at vsync %u", fno, len, g_FrameCount);
 			s32 result = 0;
 			switch (fno)
 			{
 				case NET_FNO_POLL:
-					if (!std::exchange(s_rbk_started, true))
+					if (!std::exchange(s_rbk_server.started, true))
 					{
 						RbkQueue(0x10, 0x6910, 0x1000, {});
 						Console.WriteLn("ZdxsvGgpo: rbk position %d of %d, battle start at vsync %u", s_rbk.me + 1, s_rbk.n, g_FrameCount);
 					}
-					BattleServerCall(s_rbk_rx, s_rbk.me, s_rbk.n, fno, len, d, result);
+					BattleServerCall(s_rbk_server.rx, s_rbk.me, s_rbk.n, fno, len, d, result);
 					break;
 				case NET_FNO_SEND:
 				{
@@ -342,20 +345,20 @@ namespace Zdxsv
 						}
 					}
 					else
-						BattleServerCall(s_rbk_rx, s_rbk.me, s_rbk.n, fno, len, d, result);
+						BattleServerCall(s_rbk_server.rx, s_rbk.me, s_rbk.n, fno, len, d, result);
 					break;
 				}
 				case 0x38:
 					result = 3;
 					break;
 				case 0xd: // lobby close
-					s_rbk_rx.clear();
+					s_rbk_server.rx.clear();
 					break;
 				case 0x16:
 				case 0x46: // link up: 1 makes the game close the lobby it resumed with
 					break;
 				default:
-					if (!BattleServerCall(s_rbk_rx, s_rbk.me, s_rbk.n, fno, len, d, result))
+					if (!BattleServerCall(s_rbk_server.rx, s_rbk.me, s_rbk.n, fno, len, d, result))
 						return false;
 			}
 			*reinterpret_cast<s32*>(ram + NET_RES_LEN) = result;
@@ -614,11 +617,9 @@ namespace Zdxsv
 	// A reset VM (live auto-next) starts its battle from the lobby phase again.
 	void RbkReset()
 	{
-		s_rbk_rx.clear();
+		s_rbk_server = {};
 		s_bs.rx.clear();
 		s_bs.players = 0;
-		s_rbk_started = false;
-		std::fill(std::begin(s_rbk_calls), std::end(s_rbk_calls), 0u);
 	}
 
 	// net mode: the battle sock's RPCs. Returns true when answered (v0 = result, pc = ra).
@@ -728,8 +729,8 @@ namespace Zdxsv
 			s_battle.armed = true;
 			if (s_rbk.on)
 			{
-				s_rb.net_rx.insert(s_rb.net_rx.end(), s_rbk_rx.begin(), s_rbk_rx.end());
-				s_rbk_rx.clear();
+				s_rb.net_rx.insert(s_rb.net_rx.end(), s_rbk_server.rx.begin(), s_rbk_server.rx.end());
+				s_rbk_server.rx.clear();
 				if (!s_play_env)
 					s_net.players = RbkPlayers();
 			}
