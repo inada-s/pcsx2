@@ -6,7 +6,7 @@
 #include "Host.h"
 #include "Elfheader.h"
 #include "SaveState.h"
-#include "SIO/Pad/Pad.h"
+#include "SIO/Pad/Pad.h" // zdxsv: rig opcodes
 #include "GS/GS.h"
 #include "Counters.h"
 #include "PINE.h"
@@ -758,6 +758,7 @@ PINEServer::IPCBuffer PINEServer::ParseCommand(std::span<u8> buf, std::vector<u8
 				ret_cnt += 4;
 				break;
 			}
+			// zdxsv: rig opcodes (docs/zdxsv/tools.md)
 			case MsgPadSet:
 			{
 				if (!VMManager::HasValidVM())
