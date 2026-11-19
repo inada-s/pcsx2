@@ -821,6 +821,7 @@ namespace usb_hid
 		if (it == s->keycode_mapping.end())
 			return;
 
+		// zdxsv: kv is declared above, for the host key number
 		kv.type = KEY_VALUE_KIND_QCODE;
 		kv.u.qcode = it->second;
 		s->QueueKeyboardState(kv, (value >= 0.5f));

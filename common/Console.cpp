@@ -50,7 +50,7 @@ namespace Log
 	static LOGLEVEL s_debug_level = LOGLEVEL_NONE;
 	static LOGLEVEL s_file_level = LOGLEVEL_NONE;
 	static LOGLEVEL s_host_level = LOGLEVEL_NONE;
-	static LOGLEVEL s_tap_level = LOGLEVEL_NONE;
+	static LOGLEVEL s_tap_level = LOGLEVEL_NONE; // zdxsv: log tail (Zdxsv/LogTail.cpp)
 	static bool s_log_timestamps = true;
 
 	static FileSystem::ManagedCFilePtr s_file_handle;
@@ -58,7 +58,7 @@ namespace Log
 	static std::mutex s_file_mutex;
 
 	static HostCallbackType s_host_callback;
-	static HostCallbackType s_tap_callback;
+	static HostCallbackType s_tap_callback; // zdxsv: log tail (Zdxsv/LogTail.cpp)
 
 #ifdef _WIN32
 	static HANDLE s_hConsoleStdIn = NULL;
@@ -398,6 +398,7 @@ void Log::SetHostOutputLevel(LOGLEVEL level, HostCallbackType callback)
 	UpdateMaxLevel();
 }
 
+// zdxsv: log tail (Zdxsv/LogTail.cpp)
 void Log::SetTapOutputLevel(LOGLEVEL level, HostCallbackType callback)
 {
 	s_tap_callback = callback;
@@ -422,7 +423,7 @@ LOGLEVEL Log::GetMaxLevel()
 
 __ri void Log::UpdateMaxLevel()
 {
-	s_max_level = std::max(std::max(s_console_level, s_tap_level), std::max(s_debug_level, std::max(s_file_level, s_host_level)));
+	s_max_level = std::max(std::max(s_console_level, s_tap_level), std::max(s_debug_level, std::max(s_file_level, s_host_level))); // zdxsv: log tail (Zdxsv/LogTail.cpp)
 }
 
 void Log::ExecuteCallbacks(LOGLEVEL level, ConsoleColors color, std::string_view message)
@@ -468,7 +469,7 @@ void Log::ExecuteCallbacks(LOGLEVEL level, ConsoleColors color, std::string_view
 			s_host_callback(level, color, message);
 	}
 
-	if (level <= s_tap_level)
+	if (level <= s_tap_level) // zdxsv: log tail (Zdxsv/LogTail.cpp)
 	{
 		const HostCallbackType callback = s_tap_callback;
 		if (callback)

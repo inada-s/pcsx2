@@ -2128,7 +2128,7 @@ static void memory_protect_recompiled_code(u32 startpc, u32 size)
 			break;
 	}
 
-	// A branch in a page's last word has its delay slot on the next page: compare the words
+	// zdxsv: upstream bug. A branch in a page's last word has its delay slot on the next page: compare the words
 	// there at block entry.
 	const u32 next_page = (startpc | 0xfff) + 1;
 	if (PageType != ProtMode_NotRequired && PageType != ProtMode_Manual && startpc + inpage_sz > next_page)
