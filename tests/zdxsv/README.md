@@ -30,7 +30,7 @@ settings in `local.env`, see Settings):
    (sqlite needs cgo), `zproxy` from its own module `zproxy/` (`go build -o ../bin/zproxy[.exe] .`);
    Go also builds `battlereg/`. `IP` = this machine's LAN IPv4 address. An empty lobby database:
    `ZDXSV_DB_NAME=zdxsv.db $ZDXSV_DIR/bin/zdxsv initdb` in `$RUN`.
-5. Registered memory cards, one per client: a new formatted card from PCSX2 (Settings → Memory
+5. Registered memory cards, one per client: a new card from PCSX2 (Settings → Memory
    Cards) saved as `$RUN/Mcd001-<blank>.ps2`; per client
    `CARD=<blank> ROUTE=fresh,register,newlogin MAXS=280 LIMIT=300 SAVE_CARD=$RUN/Mcd001-<name>.ps2 OUT=<dir> boottime.py`,
    then copy `<dir>/zdxsv.db` over `$RUN/zdxsv.db` (it now holds that account). `CARDS` = the
