@@ -1043,14 +1043,15 @@ namespace Zdxsv
 			run = 1; // briefing not reached yet
 		if (run >= 0)
 			PlayRunBegin(run);
+		// before the gap skip: its seek would hold back the live viewer's seek to the edge
+		if (s_live_down)
+			next = LiveNext(next);
 		next = PlaySkipGap(next);
 		if (s_play.step_pause && s_play.target < 0)
 		{
 			s_play.step_pause = false;
 			pause = PlayStepPaused(next);
 		}
-		if (s_live_down)
-			next = LiveNext(next);
 		if (next >= s_play.frames)
 			PlayRunEnd("replay ended first", s_battle.frame);
 		const char* exit_env = TestEnv("ZDXSV_REPLAY_EXIT");

@@ -1191,6 +1191,8 @@ def main():
             ok("spectator's played rounds = the stream's", not c(f, "differs from the file"))
             if E("LIVE_AT"):
                 ok("late spectator had round results at its open", c(f, "live: battle .*, [1-9][0-9]* bytes of round results"))
+                jumps = g(f, "ZdxsvGgpo: (replay: frame .* is outside the rounds|live: [0-9]+ frames behind at frame .*: seeking)")
+                ok("late spectator seeked to the live edge before any round skip", bool(jumps) and "frames behind" in jumps[0])
         # per watched battle: the traces' lines from its `B <code>` line (pwcheck-live-<code>.txt)
         if E("PWTRACE"):
             for code in codes:
