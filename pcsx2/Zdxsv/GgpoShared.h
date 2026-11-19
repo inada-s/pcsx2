@@ -69,9 +69,16 @@
 
 namespace Zdxsv
 {
-	extern const char* s_play_env;
-	extern int s_play_picked_pov; // the replay list's point of view, -1 = none
-	extern bool s_play_listed; // s_play_env is the replay list's pick
+	// ZDXSV_REPLAY=file.pb: plays a saved replay (PlayLoad), the net=1 hooks on, no GGPO session. Else the replay
+	// list's pick for one VM. Set by GgpoOnVmInitialize.
+	struct PlaySource
+	{
+		const char* path = nullptr; // nullptr = no replay plays
+		std::string picked;
+		int picked_pov = -1; // the replay list's point of view, -1 = none
+		bool listed = false; // path is the replay list's pick
+	};
+	extern PlaySource s_play_src;
 	extern bool s_play_common;
 	extern s32 g_frame_period_trim_us;
 	extern std::string s_options;

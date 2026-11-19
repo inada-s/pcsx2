@@ -323,7 +323,7 @@ namespace Zdxsv
 			ReplayWrite(what);
 			NetReport();
 		}
-		if (s_rbk.on && !s_play_env && !s_vm_closing)
+		if (s_rbk.on && !s_play_src.path && !s_vm_closing)
 		{
 			Console.WriteLn("ZdxsvGgpo: rbk exit (%s) at vsync %u", what, g_FrameCount);
 			Host::RunOnCPUThread([] { Host::RequestVMShutdown(false, false, false); });

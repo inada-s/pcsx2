@@ -948,7 +948,7 @@ namespace Zdxsv
 
 	void ReplaySeekBy(int frames)
 	{
-		if (!s_play_env || s_play.frames <= 0 || !g_ggpo_active)
+		if (!s_play_src.path || s_play.frames <= 0 || !g_ggpo_active)
 			return;
 		const int req = s_play_req.load();
 		s_play_req = (req != INT_MIN ? req : s_battle.frame + 1) + frames;
@@ -958,7 +958,7 @@ namespace Zdxsv
 
 	void ReplaySeekTo(int frame)
 	{
-		if (!s_play_env || s_play.frames <= 0 || !g_ggpo_active)
+		if (!s_play_src.path || s_play.frames <= 0 || !g_ggpo_active)
 			return;
 		s_play_req = std::clamp(frame, 0, s_play.frames - 1);
 		Console.WriteLn("ZdxsvGgpo: replay seek requested: frame %d", s_play_req.load());
@@ -967,7 +967,7 @@ namespace Zdxsv
 
 	void ReplayTogglePause()
 	{
-		if (!s_play_env || s_play.frames <= 0 || !g_ggpo_active)
+		if (!s_play_src.path || s_play.frames <= 0 || !g_ggpo_active)
 			return;
 		if (s_play.at_end)
 			ReplaySeekTo(0); // play at the end = from the start
@@ -980,7 +980,7 @@ namespace Zdxsv
 	bool ReplayBarInfo(int& frame, int& frames, int& pov, u32& povs, int& target)
 	{
 		frame = s_bar.frame;
-		if (!s_play_env || frame < 0)
+		if (!s_play_src.path || frame < 0)
 			return false;
 		frames = s_bar.frames;
 		pov = s_bar.pov;
@@ -996,7 +996,7 @@ namespace Zdxsv
 
 	bool ReplayBarSpan(int& lo, int& hi, int& round, int& rounds)
 	{
-		if (!s_play_env || s_bar.frame < 0)
+		if (!s_play_src.path || s_bar.frame < 0)
 			return false;
 		lo = s_bar.lo;
 		hi = s_bar.hi;
@@ -1016,7 +1016,7 @@ namespace Zdxsv
 
 	void ReplayToggleKeys()
 	{
-		if (!s_play_env || s_play.frames <= 0 || !g_ggpo_active)
+		if (!s_play_src.path || s_play.frames <= 0 || !g_ggpo_active)
 			return;
 		s_keys_on = !s_keys_on;
 		Console.WriteLn("ZdxsvGgpo: replay key display %s", s_keys_on ? "on" : "off");
@@ -1029,7 +1029,7 @@ namespace Zdxsv
 
 	void ReplayJumpRound(int delta)
 	{
-		if (!s_play_env || s_play.frames <= 0 || !g_ggpo_active)
+		if (!s_play_src.path || s_play.frames <= 0 || !g_ggpo_active)
 			return;
 		int round = s_play_round_req.load();
 		const int f = s_play.target >= 0 ? s_play.target : s_battle.frame;
