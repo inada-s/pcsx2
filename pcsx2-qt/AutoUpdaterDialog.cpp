@@ -24,10 +24,10 @@
 
 #include "cpuinfo.h"
 
-#include <array>
-#include <cstdlib>
+#include <array> // zdxsv: zdxsv release updates
+#include <cstdlib> // zdxsv: zdxsv release updates
 #include <functional>
-#include <optional>
+#include <optional> // zdxsv: zdxsv release updates
 #include <QtCore/QCoreApplication>
 #include <QtCore/QDir>
 #include <QtCore/QFile>
@@ -37,7 +37,7 @@
 #include <QtCore/QJsonObject>
 #include <QtCore/QJsonValue>
 #include <QtCore/QProcess>
-#include <QtCore/QRegularExpression>
+#include <QtCore/QRegularExpression> // zdxsv: zdxsv release updates
 #include <QtCore/QString>
 #include <QtCore/QTemporaryDir>
 #include <QtWidgets/QDialog>
@@ -266,7 +266,7 @@ void AutoUpdaterDialog::getLatestReleaseComplete(s32 status_code, std::vector<u8
 		}
 		else
 		{
-			reportError("JSON is not an array");
+			reportError("JSON is not an array"); // zdxsv: zdxsv release updates
 		}
 	}
 	else
