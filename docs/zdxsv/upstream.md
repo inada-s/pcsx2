@@ -77,9 +77,9 @@ needs its marker.
 | `bin/docs/ThirdPartyLicenses.html` |  | not marked yet |
 | `bin/docs/ThirdPartyLicenses.html` |  | `Mbed TLS is dual-licensed under Apache-2.0 OR GPL-2.0-or-later. PCSX2 for zdxsv uses it under the Ap` |
 | `bin/docs/ThirdPartyLicenses.html` |  | not marked yet |
-| `bin/resources/GameIndex.yaml` |  | not marked yet |
+| `bin/resources/GameIndex.yaml` |  | the zdxsv game |
 | `cmake/Pcsx2Utils.cmake` | `function` | release tags are zdxsv-X.Y.Z (the auto updater compares these). |
-| `cmake/SearchForStuff.cmake` | `add_subdirectory` | not marked yet |
+| `cmake/SearchForStuff.cmake` | `add_subdirectory` | GGPO, UPnP and TLS libraries |
 | `common/Console.cpp` |  | log tail (Zdxsv/LogTail.cpp) |
 | `common/Console.cpp` |  | log tail (Zdxsv/LogTail.cpp) |
 | `common/Console.cpp` | `Log::SetTapOutputLevel` | log tail (Zdxsv/LogTail.cpp) |
@@ -172,17 +172,17 @@ needs its marker.
 | `pcsx2-qt/resources/resources.qrc` |  | `<file>icons/white/svg/zdxsv-line.svg</file>` |
 | `pcsx2/CDVD/InputIsoFile.cpp` | `InputIsoFile::BeginRead2` | a save state load can start a read while another is in flight. |
 | `pcsx2/CMakeLists.txt` | `target_compile_options` | production server defaults, given only by the official release build (docs/zdxsv/options.md) |
-| `pcsx2/CMakeLists.txt` |  | not marked yet |
+| `pcsx2/CMakeLists.txt` |  | ARM64 always has FMA: contracted a*b+c in the interpreters rounds unlike the PS2 and the x86 build. |
 | `pcsx2/CMakeLists.txt` |  | `Zdxsv/InputLatency.cpp` |
 | `pcsx2/CMakeLists.txt` |  | `Zdxsv/InputLatency.h` |
 | `pcsx2/CMakeLists.txt` |  | `Zdxsv/Lobby.cpp` |
 | `pcsx2/CMakeLists.txt` |  | `Zdxsv/Lobby.h` |
-| `pcsx2/CMakeLists.txt` |  | not marked yet |
-| `pcsx2/CMakeLists.txt` |  | not marked yet |
-| `pcsx2/CMakeLists.txt` |  | not marked yet |
-| `pcsx2/CMakeLists.txt` |  | not marked yet |
+| `pcsx2/CMakeLists.txt` |  | ARM64 recompilers |
+| `pcsx2/CMakeLists.txt` |  | ARM64 recompilers |
+| `pcsx2/CMakeLists.txt` |  | GGPO, UPnP and TLS libraries |
+| `pcsx2/CMakeLists.txt` |  | GGPO, UPnP and TLS libraries |
 | `pcsx2/CMakeLists.txt` |  | `CURL::libcurl # Zdxsv/HttpsLatency.cpp` |
-| `pcsx2/CMakeLists.txt` | `function` | not marked yet |
+| `pcsx2/CMakeLists.txt` | `function` | Sentry crash reports |
 | `pcsx2/Config.h` |  | present a frame before the frame limiter sleep, poll input after it. |
 | `pcsx2/Counters.cpp` |  | include `Zdxsv/CpuHooks.h` |
 | `pcsx2/Counters.cpp` | `ZdxsvPostVsyncStart` | `ZdxsvPostVsyncStart`, `Zdxsv::g_input_latency_enabled`, `Zdxsv::InputLatencyOnPush` |
@@ -427,7 +427,7 @@ needs its marker.
 | `pcsx2/x86/ix86-32/iR5900.cpp` | `Zdxsv::recEeBlockPc` | `Zdxsv::recEeBlockPc` |
 | `pcsx2/x86/microVU.cpp` |  | include `Zdxsv/CpuHooks.h` |
 | `pcsx2/x86/microVU.cpp` | `recMicroVU1::Execute` | `Zdxsv::g_rerun_split_time`, `Zdxsv::g_ggpo_in_rollback`, `Zdxsv::g_rerun_vu1_ticks` |
-| `tests/ctest/core/CMakeLists.txt` | `add_pcsx2_test` | not marked yet |
-| `tests/ctest/core/CMakeLists.txt` |  | not marked yet |
+| `tests/ctest/core/CMakeLists.txt` | `add_pcsx2_test` | GGPO tests |
+| `tests/ctest/core/CMakeLists.txt` |  | ggpo_tests.cpp tests GGPO's internal socket class; its headers throw (see 3rdparty/ggpo); no PCH, which is built without exceptions |
 | `updater/Updater.cpp` | `Updater::StageUpdate` | an empty file (portable.txt) writes 0 items; that is complete, not a failure. |
 <!-- upstream_spots end -->
