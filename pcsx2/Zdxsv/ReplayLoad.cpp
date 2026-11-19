@@ -881,8 +881,8 @@ namespace Zdxsv
 				run = load;
 			}
 		}
-		if (const bool chase = std::exchange(s_sync_chase, false); req != INT_MIN && !chase && Zdxsv::SpectateSync::IsHost())
-			Zdxsv::SpectateSync::HostSeek(req);
+		if (const bool chase = std::exchange(s_sync_chase, false); req != INT_MIN && !chase && Zdxsv::SpectateSyncIsHost())
+			Zdxsv::SpectateSyncHostSeek(req);
 		if (req != INT_MIN || run >= 0 || (pov >= 0 && pov != s_battle.me))
 		{
 			PlayRunEnd("cancelled by a seek", s_battle.frame);

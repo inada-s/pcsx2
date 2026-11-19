@@ -207,7 +207,7 @@ namespace Zdxsv
 		std::thread s_sync_thread;
 		std::atomic<bool> s_sync_quit{false};
 		u32 s_sync_seek_gen = 0;
-		int s_sync_pids[Zdxsv::SpectateSync::GRID] = {};
+		int s_sync_pids[Zdxsv::SPECTATE_SYNC_GRID] = {};
 		// ZDXSV_REPLAY_SYNC=0 (test control): members publish their frame but neither wait nor chase
 		const bool s_sync_test_off = [] { const char* e = TestEnv("ZDXSV_REPLAY_SYNC"); return e && e[0] == '0'; }();
 
@@ -225,20 +225,20 @@ namespace Zdxsv
 			{
 				if (host)
 				{
-					Zdxsv::SpectateSync::HostPaused(VMManager::GetState() == VMState::Paused);
+					Zdxsv::SpectateSyncHostPaused(VMManager::GetState() == VMState::Paused);
 					if (!tiled && i % 25 == 0 && i < 3000) // 60 s
-						tiled = Zdxsv::SpectateSync::TileWindows(s_sync_pids) == want;
+						tiled = Zdxsv::SpectateSyncTileWindows(s_sync_pids) == want;
 				}
 				else
 				{
-					Zdxsv::SpectateSync::Control c;
-					if (!quit && Zdxsv::SpectateSync::HostGone())
+					Zdxsv::SpectateSyncControl c;
+					if (!quit && Zdxsv::SpectateSyncHostGone())
 					{
 						quit = true;
 						Console.WriteLn("ZdxsvGgpo: replay four-screen: the host is gone, quitting");
 						Host::RequestVMShutdown(false, false, false);
 					}
-					if (Zdxsv::SpectateSync::ReadControl(c) && paused != c.paused)
+					if (Zdxsv::SpectateSyncReadControl(c) && paused != c.paused)
 					{
 						paused = c.paused;
 						Host::RunOnCPUThread([p = c.paused] {
@@ -444,7 +444,7 @@ namespace Zdxsv
 		s_sync_quit = true;
 		if (s_sync_thread.joinable())
 			s_sync_thread.join();
-		Zdxsv::SpectateSync::Leave();
+		Zdxsv::SpectateSyncLeave();
 		std::fill(std::begin(s_sync_pids), std::end(s_sync_pids), 0);
 	}
 
@@ -463,18 +463,18 @@ namespace Zdxsv
 		}
 		std::random_device rd;
 		const std::string g = group ? group : fmt::format("{:08x}{:08x}", rd(), rd());
-		if (!Zdxsv::SpectateSync::Join(g, host))
+		if (!Zdxsv::SpectateSyncJoin(g, host))
 			return;
-		Zdxsv::SpectateSync::Control c;
-		Zdxsv::SpectateSync::ReadControl(c);
+		Zdxsv::SpectateSyncControl c;
+		Zdxsv::SpectateSyncReadControl(c);
 		s_sync_seek_gen = c.seek_gen;
 		if (host)
 		{
-			Zdxsv::SpectateSync::HostLimiter(static_cast<int>(VMManager::GetLimiterMode()));
-			s_sync_pids[me] = Zdxsv::SpectateSync::SelfPid();
+			Zdxsv::SpectateSyncHostLimiter(static_cast<int>(VMManager::GetLimiterMode()));
+			s_sync_pids[me] = Zdxsv::SpectateSyncSelfPid();
 			const char* trace_env = TestEnv("ZDXSV_NET_TRACE");
 			const std::string trace = trace_env ? trace_env : "";
-			for (int p = 0; p < s_opt.players && p < Zdxsv::SpectateSync::GRID; p++)
+			for (int p = 0; p < s_opt.players && p < Zdxsv::SPECTATE_SYNC_GRID; p++)
 			{
 				if (p == me || !s_play.pov_ok[p])
 					continue;
@@ -487,7 +487,7 @@ namespace Zdxsv
 					env.emplace_back("ZDXSV_NET_TRACE", ext ? fmt::format("{}-pov{}{}", trace.substr(0, dot), p, trace.substr(dot)) :
 					                                          fmt::format("{}-pov{}", trace, p));
 				}
-				s_sync_pids[p] = Zdxsv::SpectateSync::SpawnGuest(env, {"-logfile", Path::Combine(EmuFolders::Logs, fmt::format("emulog-pov{}.txt", p))});
+				s_sync_pids[p] = Zdxsv::SpectateSyncSpawnGuest(env, {"-logfile", Path::Combine(EmuFolders::Logs, fmt::format("emulog-pov{}.txt", p))});
 				Console.WriteLn("ZdxsvGgpo: replay four-screen: group %s, point of view %d in pid %d", g.c_str(), p, s_sync_pids[p]);
 			}
 		}
@@ -498,10 +498,10 @@ namespace Zdxsv
 	// CPU thread, PlayNext: the host's seek and speed for a guest; a seek to the newest member when far behind.
 	void SyncFollow(int next)
 	{
-		if (!Zdxsv::SpectateSync::Active())
+		if (!Zdxsv::SpectateSyncActive())
 			return;
-		Zdxsv::SpectateSync::Control c;
-		if (!Zdxsv::SpectateSync::IsHost() && Zdxsv::SpectateSync::ReadControl(c))
+		Zdxsv::SpectateSyncControl c;
+		if (!Zdxsv::SpectateSyncIsHost() && Zdxsv::SpectateSyncReadControl(c))
 		{
 			if (c.seek_gen != s_sync_seek_gen)
 			{
@@ -512,7 +512,7 @@ namespace Zdxsv
 			if (!PlayCatchingUp() && c.limiter >= 0 && c.limiter != static_cast<int>(VMManager::GetLimiterMode()))
 				VMManager::SetLimiterMode(static_cast<LimiterModeType>(c.limiter));
 		}
-		if (const int lead = Zdxsv::SpectateSync::Leader();
+		if (const int lead = Zdxsv::SpectateSyncLeader();
 			!s_sync_test_off && !PlayCatchingUp() && s_to_phase == TO_OFF && s_play_req == INT_MIN && lead - next > SYNC_CHASE)
 		{
 			Console.WriteLn("ZdxsvGgpo: replay four-screen: frame %d, %d behind: seeking to %d", next, lead - next, lead + SYNC_CHASE / 3);
@@ -524,23 +524,23 @@ namespace Zdxsv
 	// CPU thread, before frame `next` plays: holds it for a member behind, publishes the host's speed.
 	void SyncFrame(int next)
 	{
-		if (!Zdxsv::SpectateSync::Active())
+		if (!Zdxsv::SpectateSyncActive())
 			return;
 		if (PlayCatchingUp())
 		{
-			Zdxsv::SpectateSync::Publish(next, true);
+			Zdxsv::SpectateSyncPublish(next, true);
 			return;
 		}
-		if (Zdxsv::SpectateSync::IsHost())
-			Zdxsv::SpectateSync::HostLimiter(static_cast<int>(VMManager::GetLimiterMode()));
+		if (Zdxsv::SpectateSyncIsHost())
+			Zdxsv::SpectateSyncHostLimiter(static_cast<int>(VMManager::GetLimiterMode()));
 		if (!s_sync_test_off)
-			Zdxsv::SpectateSync::WaitForPeers(next, SYNC_WAIT_MS);
+			Zdxsv::SpectateSyncWaitForPeers(next, SYNC_WAIT_MS);
 		else
-			Zdxsv::SpectateSync::Publish(next, false);
+			Zdxsv::SpectateSyncPublish(next, false);
 		if (next % 300 == 0)
 		{
 			int slowest, newest;
-			const int n = Zdxsv::SpectateSync::Members(slowest, newest);
+			const int n = Zdxsv::SpectateSyncMembers(slowest, newest);
 			Console.WriteLn("ZdxsvGgpo: replay four-screen: frame %d, %d members, spread %d (%d..%d)", next, n,
 				newest >= 0 ? newest - slowest : -1, slowest, newest);
 		}
