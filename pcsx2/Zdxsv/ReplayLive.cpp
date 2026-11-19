@@ -257,7 +257,6 @@ namespace Zdxsv
 	// Point of view: a switch at frame f loads the new position's newest key <= f and runs to f unlimited; a
 	// position never played runs its own battle start first. Keys and sent msgs are kept per position.
 	std::atomic<int> s_play_pov_req{-1}; // requested position, -1 = none
-	std::deque<std::pair<int, int>> s_play_pov_at; // ZDXSV_REPLAY_POV_AT=frame:position,...
 	PlaySent s_play_sent[GGPO_MAX_PLAYERS];
 	std::unique_ptr<Zdxsv::LiveDown> s_live_down;
 	LivePlay s_live_play;

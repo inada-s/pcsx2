@@ -936,7 +936,7 @@ namespace Zdxsv
 		if (const char* e = TestEnv("ZDXSV_REPLAY_POV_AT"))
 			for (const std::string_view one : StringUtil::SplitString(e, ','))
 				if (const size_t c = one.find(':'); c != std::string_view::npos)
-					s_play_pov_at.emplace_back(StringUtil::FromChars<int>(one.substr(0, c)).value_or(-1),
+					s_play.pov_at.emplace_back(StringUtil::FromChars<int>(one.substr(0, c)).value_or(-1),
 						StringUtil::FromChars<int>(one.substr(c + 1)).value_or(-1));
 		std::string povs;
 		for (int p = 0; p < s_opt.players; p++)
@@ -957,10 +957,10 @@ namespace Zdxsv
 			s_play_req = s_play.seeks.front().second;
 			s_play.seeks.pop_front();
 		}
-		if (!s_play_pov_at.empty() && s_play_pov_at.front().first == next)
+		if (!s_play.pov_at.empty() && s_play.pov_at.front().first == next)
 		{
-			s_play_pov_req = s_play_pov_at.front().second;
-			s_play_pov_at.pop_front();
+			s_play_pov_req = s_play.pov_at.front().second;
+			s_play.pov_at.pop_front();
 		}
 		if (!s_play.round_at.empty() && s_play.round_at.front().first == next)
 		{

@@ -460,6 +460,7 @@ namespace Zdxsv
 		bool step_pause = false; // pause again at the seek's target
 		int speed = 0; // -2..2
 		std::deque<std::pair<int, int>> round_at; // ZDXSV_REPLAY_ROUND_AT=frame:round,...
+		std::deque<std::pair<int, int>> pov_at; // ZDXSV_REPLAY_POV_AT=frame:position,...
 		bool pov_ok[GGPO_MAX_PLAYERS] = {};
 		std::vector<GamePatch> patches; // the file's, applied from each common start
 		std::map<int, RoundState> round_states; // the file's, by frame (a round jump writes one over the key of the first)
@@ -571,7 +572,6 @@ namespace Zdxsv
 	void PlayReport(const char* what);
 	void PlayStop(const char* what);
 	extern std::atomic<int> s_play_pov_req; // requested position, -1 = none
-	extern std::deque<std::pair<int, int>> s_play_pov_at; // ZDXSV_REPLAY_POV_AT=frame:position,...
 	struct PlaySent
 	{
 		std::vector<std::vector<u8>> sent;

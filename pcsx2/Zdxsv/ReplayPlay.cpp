@@ -819,7 +819,6 @@ namespace Zdxsv
 		s_play_round_req = INT_MIN;
 		PlayHideReset();
 		s_play_pov_req = -1;
-		s_play_pov_at.clear();
 		std::fill(std::begin(s_play_sent), std::end(s_play_sent), PlaySent{});
 		s_bar.frame = -1;
 		s_bar.frames = 0;
