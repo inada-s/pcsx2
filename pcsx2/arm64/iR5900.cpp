@@ -64,7 +64,12 @@ static void SetPages(BlockFn* blocks, u32 pagebase, u32 first, u32 count)
 
 static void recReserve()
 {
-	const auto alloc = [](u32 bytes) { return static_cast<BlockFn*>(std::calloc(bytes / 4, sizeof(BlockFn))); };
+	const auto alloc = [](u32 bytes) {
+		BlockFn* const blocks = static_cast<BlockFn*>(std::calloc(bytes / 4, sizeof(BlockFn)));
+		if (!blocks)
+			pxFailRel("Failed to allocate ARM64 EE block table");
+		return blocks;
+	};
 	s_ram_blocks = alloc(Ps2MemSize::ExposedRam);
 	s_rom_blocks = alloc(Ps2MemSize::Rom);
 	s_rom1_blocks = alloc(Ps2MemSize::Rom1);
