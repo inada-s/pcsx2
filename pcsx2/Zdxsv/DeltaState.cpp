@@ -230,7 +230,7 @@ namespace Zdxsv
 			if (std::exchange(s_host_watched[page - IOP_FIRST], false))
 				HostProtect(page, false);
 			if (page < SPU_FIRST)
-				SaveState_DeltaRestoreIopPage((page - IOP_FIRST) * PAGE_BYTES, data, PAGE_BYTES);
+				DeltaFreezeRestoreIopPage((page - IOP_FIRST) * PAGE_BYTES, data, PAGE_BYTES);
 			else
 				SPU2DeltaRestoreMem((page - SPU_FIRST) * PAGE_BYTES, data, PAGE_BYTES);
 		}
@@ -325,7 +325,7 @@ namespace Zdxsv
 	void DeltaStateTimesReset()
 	{
 		s_times = {};
-		SaveState_DeltaTimesReset();
+		DeltaFreezeTimesReset();
 	}
 
 	bool DeltaStateSave(int frame)
@@ -360,7 +360,7 @@ namespace Zdxsv
 			for (const SavedPage& p : s_open)
 				pages.push_back(p.page);
 			ReleaseDelta(s_open);
-			SaveState_DeltaSetPagedRam(true);
+			DeltaFreezeSetPagedRam(true);
 			WatchPages(pages);
 		}
 		else
@@ -368,7 +368,7 @@ namespace Zdxsv
 			// Never with DeltaStateDiscardBefore keeping the newest frame (a load of this frame would restore them).
 			if (!s_open.empty())
 				Console.Error("ZdxsvDelta: save of frame %d with no saved frame left, %zu stale open pages", frame, s_open.size());
-			SaveState_DeltaSetPagedRam(true);
+			DeltaFreezeSetPagedRam(true);
 			mmap_DeltaSetHook(&OnWrite);
 			mmap_DeltaSetFaultHook(&OnHostFault);
 			WatchAll();
@@ -380,7 +380,7 @@ namespace Zdxsv
 			s_buffer_pool.pop_back();
 		}
 		SplitTimer state;
-		if (!SaveState_DeltaSave(buffer))
+		if (!DeltaFreezeSave(buffer))
 			return false;
 		s_times.state_ms += state.GetTimeMilliseconds();
 		s_states[frame] = std::move(buffer);
@@ -431,7 +431,7 @@ namespace Zdxsv
 		}
 
 		timer.Reset();
-		const bool ok = SaveState_DeltaLoad(state->second);
+		const bool ok = DeltaFreezeLoad(state->second);
 		s_times.lstate_ms += timer.GetTimeMilliseconds();
 		return ok;
 	}
@@ -447,7 +447,7 @@ namespace Zdxsv
 		XXH3_state_t xs;
 		XXH3_64bits_reset(&xs);
 		size_t at = 0;
-		for (const auto& [pos, size] : SaveState_DeltaScratch())
+		for (const auto& [pos, size] : DeltaFreezeScratch())
 		{
 			if (pos < at || pos + size > state.size())
 				continue;
@@ -481,7 +481,7 @@ namespace Zdxsv
 
 	void DeltaStateMaskScratch(std::vector<u8>& state)
 	{
-		for (const auto& [pos, size] : SaveState_DeltaScratch())
+		for (const auto& [pos, size] : DeltaFreezeScratch())
 		{
 			if (pos + size <= state.size())
 				std::memset(state.data() + pos, 0, size);
@@ -515,9 +515,9 @@ namespace Zdxsv
 		WatchAll();
 		s_armed = true;
 		std::vector<u8> sized;
-		SaveState_DeltaSetPagedRam(true);
-		const bool ok = SaveState_DeltaSave(sized);
-		SaveState_DeltaSetPagedRam(false);
+		DeltaFreezeSetPagedRam(true);
+		const bool ok = DeltaFreezeSave(sized);
+		DeltaFreezeSetPagedRam(false);
 		if (ok)
 		{
 			sized.resize(sized.capacity());
@@ -582,7 +582,7 @@ namespace Zdxsv
 		std::map<int, Sample> s_samples;
 		int s_gap = 0, s_gap_skipped = 0;
 		int s_rollbacks = 0, s_compared = 0, s_mismatched = 0, s_ee_mismatched = 0;
-		std::map<std::string, int> s_fields; // SaveState_DeltaDescribe of differing state runs -> count
+		std::map<std::string, int> s_fields; // DeltaFreezeDescribe of differing state runs -> count
 		Stat s_save_ms, s_load_ms, s_pages, s_state_kb;
 
 		void Parse()
@@ -673,7 +673,7 @@ namespace Zdxsv
 				s_ee_mismatched++;
 			for (size_t k = 0; k < st_runs.size() && k < 16; k++)
 			{
-				std::string field = SaveState_DeltaDescribe(first.state, st_runs[k]);
+				std::string field = DeltaFreezeDescribe(first.state, st_runs[k]);
 				field = field.substr(0, field.find(" (block at"));
 				s_fields[field]++;
 			}
@@ -685,7 +685,7 @@ namespace Zdxsv
 				{
 					const size_t o = st_runs[k];
 					Console.WriteLn("ZdxsvDelta:   state offset %zu = %s: %02x -> %02x", o,
-						SaveState_DeltaDescribe(first.state, o).c_str(), first.state[o], again.state[o]);
+						DeltaFreezeDescribe(first.state, o).c_str(), first.state[o], again.state[o]);
 				}
 			}
 		}
@@ -752,7 +752,7 @@ namespace Zdxsv
 			}
 			// A load must be a no-op here: the state saved again has to match byte for byte.
 			std::vector<u8> after;
-			if (SaveState_DeltaSave(after))
+			if (DeltaFreezeSave(after))
 			{
 				std::vector<u8> before = s_states[frame];
 				DeltaStateMaskScratch(before);
@@ -764,7 +764,7 @@ namespace Zdxsv
 					if (before[i] != after[i] && (logged == 0 || i > last + 8))
 					{
 						Console.WriteLn("ZdxsvDelta: LOAD CHANGED frame %d offset %zu = %s: %02x -> %02x", frame, i,
-							SaveState_DeltaDescribe(before, i).c_str(), before[i], after[i]);
+							DeltaFreezeDescribe(before, i).c_str(), before[i], after[i]);
 						logged++;
 						s_preload_logged++;
 					}

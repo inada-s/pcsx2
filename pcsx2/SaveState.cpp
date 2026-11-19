@@ -185,9 +185,9 @@ bool SaveStateBase::FreezeInternals(Error* error)
 	if (!FreezeTag("cpuRegs"))
 		return false;
 
-	SaveState_DeltaMarkScratch(GetCurrentPos() + offsetof(cpuRegisters, code), sizeof(cpuRegs.code));
+	Zdxsv::DeltaFreezeMarkScratch(GetCurrentPos() + offsetof(cpuRegisters, code), sizeof(cpuRegs.code));
 	Freeze(cpuRegs);		// cpu regs + COP0
-	SaveState_DeltaMarkScratch(GetCurrentPos() + offsetof(psxRegisters, code), sizeof(psxRegs.code));
+	Zdxsv::DeltaFreezeMarkScratch(GetCurrentPos() + offsetof(psxRegisters, code), sizeof(psxRegs.code));
 	Freeze(psxRegs);		// iop regs
 	Freeze(fpuRegs);
 	Freeze(tlb);			// tlbs

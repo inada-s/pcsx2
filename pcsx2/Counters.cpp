@@ -1094,7 +1094,7 @@ bool SaveStateBase::rcntFreeze()
 	Freeze(gsVideoMode);
 	Freeze(gsIsInterlaced);
 
-	if (IsLoading() && !g_SaveStateDeltaLoad)
+	if (IsLoading() && !Zdxsv::g_delta_freeze_load)
 		cpuRcntSet();
 
 	return IsOkay();

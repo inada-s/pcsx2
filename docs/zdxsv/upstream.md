@@ -187,11 +187,11 @@ needs its marker.
 | `pcsx2/Counters.cpp` |  | include `Zdxsv/CpuHooks.h` |
 | `pcsx2/Counters.cpp` | `ZdxsvPostVsyncStart` | `ZdxsvPostVsyncStart`, `Zdxsv::g_input_latency_enabled`, `Zdxsv::InputLatencyOnPush` |
 | `pcsx2/Counters.cpp` | `VSyncStart` | present the finished frame now, sleep, then poll input right before the next frame is emulated. |
-| `pcsx2/Counters.cpp` | `SaveStateBase::rcntFreeze` | not marked yet |
+| `pcsx2/Counters.cpp` | `SaveStateBase::rcntFreeze` | `Zdxsv::g_delta_freeze_load` |
 | `pcsx2/DEV9/DEV9.cpp` |  | not marked yet |
 | `pcsx2/DEV9/DEV9.cpp` |  | not marked yet |
 | `pcsx2/DEV9/DEV9.cpp` | `DEV9async` | registers, SMAP buffers and FIFO, so a state saved while the game is online keeps its network adapter. |
-| `pcsx2/DEV9/DEV9.h` |  | `bool DEV9DeltaDoState(StateWrapper& sw); // zdxsv delta states (SaveState_DeltaSave)` |
+| `pcsx2/DEV9/DEV9.h` |  | `Zdxsv::DeltaFreezeSave` |
 | `pcsx2/DEV9/net.h` |  | not marked yet |
 | `pcsx2/FPU.cpp` |  | not marked yet |
 | `pcsx2/FPU.cpp` | `fp_min` | not marked yet |
@@ -225,8 +225,8 @@ needs its marker.
 | `pcsx2/GS/Renderers/Common/GSRenderer.cpp` | `GSRenderer::VSync` | `Zdxsv::g_gs_rerun_frame` |
 | `pcsx2/GS/Renderers/Common/GSRenderer.cpp` | `GSGetLastDrawRect` | not marked yet |
 | `pcsx2/Gif_Unit.cpp` |  | include `Zdxsv/SaveStateHooks.h` |
-| `pcsx2/Gif_Unit.cpp` | `SaveStateBase::gifPathFreeze` | not marked yet |
-| `pcsx2/Gif_Unit.cpp` | `SaveStateBase::gifPathFreeze` | not marked yet |
+| `pcsx2/Gif_Unit.cpp` | `SaveStateBase::gifPathFreeze` | `Zdxsv::DeltaFreezeMarkScratch` |
+| `pcsx2/Gif_Unit.cpp` | `SaveStateBase::gifPathFreeze` | `Zdxsv::g_delta_freeze_load` |
 | `pcsx2/Host/AudioStream.cpp` |  | include `Zdxsv/MediaHooks.h` |
 | `pcsx2/Host/AudioStream.cpp` | `AudioStream::ReadFrames` | `Zdxsv::g_audio_tap`, `Zdxsv::AudioTapWrite` |
 | `pcsx2/Hotkeys.cpp` |  | include `Zdxsv/UiHooks.h` |
@@ -267,7 +267,7 @@ needs its marker.
 | `pcsx2/Interpreter.cpp` | `intExecute` | not marked yet |
 | `pcsx2/Interpreter.cpp` | `intExecute` | not marked yet |
 | `pcsx2/IopCounters.cpp` |  | include `Zdxsv/SaveStateHooks.h` |
-| `pcsx2/IopCounters.cpp` | `SaveStateBase::psxRcntFreeze` | not marked yet |
+| `pcsx2/IopCounters.cpp` | `SaveStateBase::psxRcntFreeze` | `Zdxsv::g_delta_freeze_load` |
 | `pcsx2/MTGS.cpp` |  | include `Zdxsv/CpuHooks.h` |
 | `pcsx2/MTGS.cpp` |  | :g_ggpo_in_rollback |
 | `pcsx2/MTGS.cpp` | `MTGS::PostVsyncStart` | `Zdxsv::g_ggpo_in_rollback`, `Zdxsv::g_fast_boot_hidden_frame`, `Zdxsv::g_replay_hidden_frame` |
@@ -320,13 +320,13 @@ needs its marker.
 | `pcsx2/SPU2/spu2.cpp` | `SPU2write` | `Zdxsv::SpuLazyWake` |
 | `pcsx2/SPU2/spu2.cpp` | `SPU2freeze` | `Zdxsv::SpuLazyOnFreeze` |
 | `pcsx2/SPU2/spu2.cpp` | `spu2Output` | `Zdxsv::g_ggpo_active`, `Zdxsv::SpuOnOutput` |
-| `pcsx2/SPU2/spu2.h` |  | `// zdxsv delta state: the cache lines the voices decode from (see spu2freeze.cpp).` |
+| `pcsx2/SPU2/spu2.h` |  | `Zdxsv::g_delta_freeze_paged_ram` |
 | `pcsx2/SPU2/spu2freeze.cpp` |  | include `Zdxsv/SaveStateHooks.h` |
 | `pcsx2/SPU2/spu2freeze.cpp` |  | include `Zdxsv/SpuHooks.h` |
 | `pcsx2/SPU2/spu2freeze.cpp` |  | `// zdxsv delta load: a cache line is a decode of its block for the Prev1/Prev2 it holds, so only` |
-| `pcsx2/SPU2/spu2freeze.cpp` | `SPU2Savestate::FreezeIt` | not marked yet |
-| `pcsx2/SPU2/spu2freeze.cpp` | `SPU2Savestate::ThawIt` | not marked yet |
-| `pcsx2/SPU2/spu2freeze.cpp` | `SPU2Savestate::ThawIt` | not marked yet |
+| `pcsx2/SPU2/spu2freeze.cpp` | `SPU2Savestate::FreezeIt` | `Zdxsv::g_delta_freeze_paged_ram` |
+| `pcsx2/SPU2/spu2freeze.cpp` | `SPU2Savestate::ThawIt` | `Zdxsv::g_delta_freeze_load`, `Zdxsv::g_delta_freeze_paged_ram` |
+| `pcsx2/SPU2/spu2freeze.cpp` | `SPU2Savestate::ThawIt` | `Zdxsv::g_delta_freeze_load` |
 | `pcsx2/SPU2/spu2freeze.cpp` | `SPU2Savestate::SizeIt` | `Zdxsv::SpuLazyWake`, `Zdxsv::SpuLazyReset` |
 | `pcsx2/SPU2/spu2sys.cpp` |  | include `Zdxsv/MediaHooks.h` |
 | `pcsx2/SPU2/spu2sys.cpp` |  | not static, saved by the delta state (spu2freeze.cpp) |
@@ -334,7 +334,7 @@ needs its marker.
 | `pcsx2/SPU2/spu2sys.cpp` | `CheckDMAProgress` | `Zdxsv::SpuLazyWake` |
 | `pcsx2/SPU2/spu2sys.cpp` | `TimeUpdate` | `zdxsv_t0`, `Zdxsv::g_rerun_split_time`, `Zdxsv::g_ggpo_in_rollback` |
 | `pcsx2/SaveState.cpp` |  | include `Zdxsv/SaveStateHooks.h` |
-| `pcsx2/SaveState.cpp` | `SaveStateBase::FreezeInternals` | not marked yet |
+| `pcsx2/SaveState.cpp` | `SaveStateBase::FreezeInternals` | `Zdxsv::DeltaFreezeMarkScratch` |
 | `pcsx2/SaveState.cpp` | `SaveStateBase::FreezeInternals` | not marked yet |
 | `pcsx2/SaveState.cpp` |  | optional, so states without it still load (DEV9 then keeps its current state). |
 | `pcsx2/SaveState.cpp` |  | not marked yet |
