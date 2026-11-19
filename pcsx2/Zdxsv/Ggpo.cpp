@@ -276,16 +276,14 @@ namespace Zdxsv
 	bool g_gs_rerun_frame = false;
 	bool s_net_env = false; // net=1 in s_options, or a replay plays (GgpoOnVmInitialize)
 	// ZDXSV_RBK=i/N: until GGPO arms, every lobby / battle connect RPC is answered here (RbkCall).
-	int s_rbk_me = -1, s_rbk_n = 0;
-	bool RbkFromEnv()
+	RbkRole RbkFromEnv()
 	{
-		s_rbk_me = -1;
-		s_rbk_n = 0;
+		RbkRole r;
 		const char* e = Zdxsv::TestEnv("ZDXSV_RBK");
-		return e && std::sscanf(e, "%d/%d", &s_rbk_me, &s_rbk_n) == 2 && s_rbk_me >= 0 && s_rbk_me < s_rbk_n && s_rbk_n <= 4;
+		r.on = e && std::sscanf(e, "%d/%d", &r.me, &r.n) == 2 && r.me >= 0 && r.me < r.n && r.n <= 4;
+		return r;
 	}
-	// Also set by a replay's common start (PlayLoad); back to ZDXSV_RBK at VM shutdown.
-	bool s_rbk = RbkFromEnv();
+	RbkRole s_rbk = RbkFromEnv();
 	const char* s_rand_env = Zdxsv::TestEnv("ZDXSV_RAND_INPUT");
 	// ZDXSV_K3_LAG: a msg sent at GGPO frame s goes into the local input of frame s + lag. With lag above
 	// GGPO's 6 prediction frames, frame s is final when s + lag is added, so a send first made in a rerun
@@ -363,15 +361,15 @@ namespace Zdxsv
 
 	void GgpoOnVsync()
 	{
-		if (s_rbk && s_net_env && !s_battle.armed)
+		if (s_rbk.on && s_net_env && !s_battle.armed)
 			VMManager::SetLimiterMode(LimiterModeType::Turbo);
 		// Once: the rbk knobs as received; tests/zdxsv/rbk.py compares this line to what it meant to pass
 		static bool rbk_env_logged = false;
-		if (s_rbk && !s_play_env && !rbk_env_logged)
+		if (s_rbk.on && !s_play_env && !rbk_env_logged)
 		{
 			rbk_env_logged = true;
 			const auto env = [](const char* k) { const char* v = TestEnv(k); return v && *v ? v : "-"; };
-			Console.WriteLn("ZdxsvGgpo: rbk env pos=%d/%d rand=%s turbo=%s clamp=%s ggpo=%s", s_rbk_me, s_rbk_n,
+			Console.WriteLn("ZdxsvGgpo: rbk env pos=%d/%d rand=%s turbo=%s clamp=%s ggpo=%s", s_rbk.me, s_rbk.n,
 				env("ZDXSV_RAND_INPUT"), env("ZDXSV_RBK_TURBO"), env("ZDXSV_EE_CLAMP"), env("ZDXSV_GGPO"));
 		}
 		// ZDXSV_VM_TEST=frame:shutdown|reset|mute|ui (tests of GgpoOnVmShutdown; mute: the GGPO network goes silent): once, when a session or replay reaches GGPO frame `frame`

@@ -160,7 +160,7 @@ namespace Zdxsv
 		// p <= ceil(N/2) side 1 (recorded 1, 2), else side 2 (recorded 3, 4).
 		int RbkRecordedIndex(int p)
 		{
-			const int half = (s_rbk_n + 1) / 2;
+			const int half = (s_rbk.n + 1) / 2;
 			return p <= half ? p - 1 : 2 + p - 1 - half;
 		}
 
@@ -170,7 +170,7 @@ namespace Zdxsv
 			static constexpr const char* PILOT = "カミーユ・ビダン";
 			const LobbyPlayer recorded[4] = {{"J9SXNM", "あああ", PILOT}, {"UJB9AM", "いいい", PILOT}, {"8VQKPC", "ううう", PILOT}, {"Z57CN2", "えええ", PILOT}};
 			std::vector<LobbyPlayer> players;
-			for (int p = 1; p <= s_rbk_n; p++)
+			for (int p = 1; p <= s_rbk.n; p++)
 				players.push_back(recorded[RbkRecordedIndex(p)]);
 			return players;
 		}
@@ -190,12 +190,12 @@ namespace Zdxsv
 			}
 			switch (cmd)
 			{
-				case 0x6911: return {static_cast<u8>(s_rbk_n)};
-				case 0x6912: return {static_cast<u8>(s_rbk_me + 1)};
+				case 0x6911: return {static_cast<u8>(s_rbk.n)};
+				case 0x6912: return {static_cast<u8>(s_rbk.me + 1)};
 				case 0x6913:
 				case 0x6917:
 				{
-					if (p < 1 || p > s_rbk_n)
+					if (p < 1 || p > s_rbk.n)
 						break;
 					std::vector<u8> b = Unhex((cmd == 0x6913 ? RBK_USERS : RBK_6917)[RbkRecordedIndex(p)]);
 					b.front() = static_cast<u8>(p);
@@ -317,9 +317,9 @@ namespace Zdxsv
 					if (!std::exchange(s_rbk_started, true))
 					{
 						RbkQueue(0x10, 0x6910, 0x1000, {});
-						Console.WriteLn("ZdxsvGgpo: rbk position %d of %d, battle start at vsync %u", s_rbk_me + 1, s_rbk_n, g_FrameCount);
+						Console.WriteLn("ZdxsvGgpo: rbk position %d of %d, battle start at vsync %u", s_rbk.me + 1, s_rbk.n, g_FrameCount);
 					}
-					BattleServerCall(s_rbk_rx, s_rbk_me, s_rbk_n, fno, len, d, result);
+					BattleServerCall(s_rbk_rx, s_rbk.me, s_rbk.n, fno, len, d, result);
 					break;
 				case NET_FNO_SEND:
 				{
@@ -338,7 +338,7 @@ namespace Zdxsv
 						}
 					}
 					else
-						BattleServerCall(s_rbk_rx, s_rbk_me, s_rbk_n, fno, len, d, result);
+						BattleServerCall(s_rbk_rx, s_rbk.me, s_rbk.n, fno, len, d, result);
 					break;
 				}
 				case 0x38:
@@ -351,7 +351,7 @@ namespace Zdxsv
 				case 0x46: // link up: 1 makes the game close the lobby it resumed with
 					break;
 				default:
-					if (!BattleServerCall(s_rbk_rx, s_rbk_me, s_rbk_n, fno, len, d, result))
+					if (!BattleServerCall(s_rbk_rx, s_rbk.me, s_rbk.n, fno, len, d, result))
 						return false;
 			}
 			*reinterpret_cast<s32*>(ram + NET_RES_LEN) = result;
@@ -629,7 +629,7 @@ namespace Zdxsv
 		u8* d = ram + NET_REQ_DATA;
 		const bool key = fno == NET_FNO_SEND && sock == NET_BATTLE_SOCK && len > 0 && len <= 0x3ca && HasKeyMsg(d, len);
 		// lobby=1: the battle server is answered on the EE (BattleServerCall); the game never reaches it
-		if (s_opt.lobby && !s_play_env && !s_rbk && fno == NET_FNO_CONNECT && (!s_battle.armed || s_battle.over))
+		if (s_opt.lobby && !s_play_env && !s_rbk.on && fno == NET_FNO_CONNECT && (!s_battle.armed || s_battle.over))
 		{
 			u32 ip;
 			std::memcpy(&ip, ram + NET_REQ_SOCK, 4);
@@ -674,7 +674,7 @@ namespace Zdxsv
 		{
 			// lobby=1: the first key msg of a battle with a new battle info starts the next GGPO battle; the
 			// sends of the ended battle (same battle info) stay with the IOP
-			if (s_opt.lobby && !s_play_env && !s_rbk && key && LobbyNewBattle())
+			if (s_opt.lobby && !s_play_env && !s_rbk.on && key && LobbyNewBattle())
 			{
 				NetReset();
 				Console.WriteLn("ZdxsvGgpo: next lobby battle at vsync %u", g_FrameCount);
@@ -704,7 +704,7 @@ namespace Zdxsv
 				return true;
 			}
 		}
-		if (s_rbk && !s_battle.armed && !key) // connect (fno 7) has the address in the sock field
+		if (s_rbk.on && !s_battle.armed && !key) // connect (fno 7) has the address in the sock field
 			return RbkCall(fno, len, d);
 		if (s_battle.lobby_cut)
 			return LobbyCutCall(fno, sock, len);
@@ -722,7 +722,7 @@ namespace Zdxsv
 			if (s_opt.lobby && !LobbyArm(me))
 				return s_battle.lobby_cut && LobbyCutCall(fno, sock, len);
 			s_battle.armed = true;
-			if (s_rbk)
+			if (s_rbk.on)
 			{
 				s_rb.net_rx.insert(s_rb.net_rx.end(), s_rbk_rx.begin(), s_rbk_rx.end());
 				s_rbk_rx.clear();
@@ -737,7 +737,7 @@ namespace Zdxsv
 				s_battle.local_server = true;
 			}
 			// ZDXSV_RBK_TURBO=1: the battle runs turbo too (GGPO paces the peers by frame)
-			if (!s_rbk || !Zdxsv::TestEnv("ZDXSV_RBK_TURBO"))
+			if (!s_rbk.on || !Zdxsv::TestEnv("ZDXSV_RBK_TURBO"))
 				VMManager::SetLimiterMode(LimiterModeType::Nominal);
 			if (me >= 0)
 				s_battle.me = me;
