@@ -53,4 +53,7 @@ if(WIN32)
 	target_link_libraries(pcsx2-ggpo PRIVATE ws2_32 winmm)
 endif()
 
+# GGPO_* environment variables are read only in Devel and Debug builds.
+target_compile_definitions(pcsx2-ggpo PRIVATE "$<$<CONFIG:Debug,Devel>:PCSX2_DEVBUILD>")
+
 add_library(GGPO::GGPO ALIAS pcsx2-ggpo)

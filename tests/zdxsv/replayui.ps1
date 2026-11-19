@@ -1,4 +1,4 @@
-# replayui.ps1 -DataPath <dir> [-Exe pcsx2-qtx64.exe] [-Tab Local|Remote|Live] [-Row regex] [-Set spec] [-Button name] [-Pov 2P] [-Wait 90] [-Shot out.png] [-Boot game.iso]
+# replayui.ps1 -DataPath <dir> [-Exe pcsx2-qtx64-dev.exe] [-Tab Local|Remote|Live] [-Row regex] [-Set spec] [-Button name] [-Pov 2P] [-Wait 90] [-Shot out.png] [-Boot game.iso]
 # Replay dialog test: starts PCSX2 with -datapath <dir> (its game list must hold the Z game: ini [GameList] Paths),
 # opens Tools -> zdxsv Replays, shows tab -Tab (Remote: Search, Live: Refresh), prints the rows, clicks the first
 # row matching -Row, picks point of view -Pov (combo text) and invokes Play. After -Wait s: -Shot (PrintWindow of
@@ -14,7 +14,7 @@
 param([Parameter(Mandatory)][string]$DataPath, [string]$Exe = '',
       [string]$Tab = 'Local', [string]$Row = '', [string]$Set = '', [string]$Button = '', [string]$Pov = '', [int]$Wait = 90, [string]$Shot = '', [string]$Boot = '', [string]$Row2 = '', [int]$Wait2 = 60)
 $ErrorActionPreference = 'Stop'
-if (-not $Exe) { $Exe = Join-Path $PSScriptRoot '..\..\bin\pcsx2-qtx64.exe' }
+if (-not $Exe) { $Exe = Join-Path $PSScriptRoot '..\..\bin\pcsx2-qtx64-dev.exe' }
 . "$PSScriptRoot\localnet.ps1"  # fast login and no-DEV9 pinned to the box
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes, System.Drawing
 Add-Type @"

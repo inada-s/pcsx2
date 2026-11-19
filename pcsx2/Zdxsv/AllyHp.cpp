@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0+
 
 #include "Zdxsv/CpuHooks.h"
+#include "Zdxsv/TestOptions.h"
 
 #include "Host.h"
 #include "Memory.h"
@@ -39,7 +40,7 @@ namespace Zdxsv
 		// ZDXSV_ALLY_HP=0 / =1 over the setting.
 		bool Enabled(bool setting)
 		{
-			const char* e = std::getenv("ZDXSV_ALLY_HP");
+			const char* e = TestEnv("ZDXSV_ALLY_HP");
 			return e ? e[0] != '0' : setting;
 		}
 

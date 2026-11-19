@@ -21,6 +21,9 @@ uint32_t GGPOPlatform::GetCurrentTimeMS()
 
 int GGPOPlatform::GetConfigInt(const char* name)
 {
+#ifndef PCSX2_DEVBUILD
+   return 0;
+#endif
    char *buf = getenv(name);
    if (buf == nullptr)
       return 0;
@@ -29,6 +32,9 @@ int GGPOPlatform::GetConfigInt(const char* name)
 
 bool GGPOPlatform::GetConfigBool(const char* name)
 {
+#ifndef PCSX2_DEVBUILD
+   return false;
+#endif
 	char *buf = getenv(name);
 	if (buf == nullptr)
 		return false;

@@ -4,7 +4,8 @@ Every option this fork adds. Features are described in the topic documents;
 this file is the reference for names, values and defaults.
 
 All options except the settings below are environment variables, read once
-at startup. None is needed to play.
+at startup, only by Devel and Debug builds: a Release build ignores every
+`ZDXSV_*` and `GGPO_*` variable. None is needed to play.
 
 The **Use** column says what an option is for:
 
@@ -16,16 +17,13 @@ The **Use** column says what an option is for:
 | control | makes a test fail on purpose, to show the test detects the problem |
 | diagnostic | writes traces, dumps or screenshots |
 
-Every build reads every option, so a released build can be a peer in the rig
-tests.
-
 ## Build options
 
 CMake cache variables. Only the official release build (`zdxsv_release.yml`,
 tags `zdxsv-X.Y.Z`) sets them from the repository variables of the same name
 ([tools](tools.md)); a build from source connects to a zdxsv on this machine
 (zdxsv `scripts/run-local.sh`). `ZDXSV_SERVER_HOST` and `ZDXSV_API_URL` are also
-environment variables (test): set, they replace the build's value.
+environment variables (test): set, they replace the build's value in a Devel build.
 
 | Option | Default | Meaning |
 |---|---|---|

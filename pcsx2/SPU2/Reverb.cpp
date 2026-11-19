@@ -4,6 +4,7 @@
 #include "SPU2/defs.h"
 #include "GS/GSVector.h"
 #include "Zdxsv/MediaHooks.h"
+#include "Zdxsv/TestOptions.h"
 
 #include "common/Console.h"
 
@@ -12,7 +13,7 @@
 
 // ZDXSV_RERUN_REVERB=1: reverb in rollback rerun frames too (the control for the skip in DoReverb).
 static const bool s_rerun_reverb = [] {
-	const char* e = std::getenv("ZDXSV_RERUN_REVERB");
+	const char* e = Zdxsv::TestEnv("ZDXSV_RERUN_REVERB");
 	return e && e[0] == '1';
 }();
 
