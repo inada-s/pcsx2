@@ -685,7 +685,10 @@ namespace Zdxsv
 			Console.WriteLn("ZdxsvGgpo: replay seek done at frame %d, vsync %u: %d frames from key %d in %.1f ms, %.2f ms/frame",
 				f, g_FrameCount, n, s_play.seek_from, ms, n > 0 ? ms / n : 0.0);
 			if (const int then = std::exchange(s_play.then, -1); then >= 0)
+			{
 				s_play_req = then;
+				s_play.then_req = true;
+			}
 			else if (std::exchange(s_play.step_pause, false) && PlayStepPaused(f))
 				VMManager::SetPaused(true);
 		}
