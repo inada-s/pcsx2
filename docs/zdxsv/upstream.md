@@ -98,14 +98,14 @@ needs its marker.
 | `common/vsprops/LinkPCSX2Deps.props` |  | not marked yet |
 | `common/vsprops/preBuild.cmd` | `0` | release tags are zdxsv-X.Y.Z (the auto updater compares these). |
 | `pcsx2-qt/AutoUpdaterDialog.cpp` |  | include `Zdxsv/TestOptions.h` |
-| `pcsx2-qt/AutoUpdaterDialog.cpp` |  | not marked yet |
-| `pcsx2-qt/AutoUpdaterDialog.cpp` |  | not marked yet |
+| `pcsx2-qt/AutoUpdaterDialog.cpp` |  | zdxsv release updates |
+| `pcsx2-qt/AutoUpdaterDialog.cpp` |  | zdxsv release updates |
 | `pcsx2-qt/AutoUpdaterDialog.cpp` |  | updates come from the GitHub releases of inada-s/pcsx2, tagged zdxsv-X.Y.Z (.github/workflows/zdxsv_release.yml). |
 | `pcsx2-qt/AutoUpdaterDialog.cpp` | `AutoUpdaterDialog::queueUpdateCheck` | `Zdxsv::TestEnv` |
 | `pcsx2-qt/AutoUpdaterDialog.cpp` | `ParseZdxsvVersion` | `ParseZdxsvVersion` |
 | `pcsx2-qt/AutoUpdaterDialog.cpp` | `AutoUpdaterDialog::getLatestReleaseComplete` | `// GitHub releases list, newest first. Take the newest published zdxsv-X.Y.Z release` |
 | `pcsx2-qt/AutoUpdaterDialog.cpp` | `AutoUpdaterDialog::getLatestReleaseComplete` | `ParseZdxsvVersion` |
-| `pcsx2-qt/AutoUpdaterDialog.cpp` | `AutoUpdaterDialog::getLatestReleaseComplete` | not marked yet |
+| `pcsx2-qt/AutoUpdaterDialog.cpp` | `AutoUpdaterDialog::getLatestReleaseComplete` | zdxsv release updates |
 | `pcsx2-qt/AutoUpdaterDialog.cpp` | `AutoUpdaterDialog::checkIfUpdateNeeded` | `ParseZdxsvVersion` |
 | `pcsx2-qt/CMakeLists.txt` |  | `Zdxsv/CrashReports.cpp` |
 | `pcsx2-qt/CMakeLists.txt` |  | `ZdxsvSettingsWidget`, `ZdxsvReplayDialog` |
@@ -135,10 +135,10 @@ needs its marker.
 | `pcsx2-qt/QtHost.cpp` |  | `Zdxsv::CrashReportsStop` |
 | `pcsx2-qt/Settings/AdvancedSettingsWidget.cpp` |  | include `Zdxsv/UiHooks.h` |
 | `pcsx2-qt/Settings/AdvancedSettingsWidget.cpp` | `AdvancedSettingsWidget::AdvancedSettingsWidget` | `Zdxsv::FeaturesLimited` |
-| `pcsx2-qt/Settings/ControllerBindingWidget.cpp` | `ControllerMacroEditWidget::ControllerMacroEditWidget` | not marked yet |
-| `pcsx2-qt/Settings/EmulationSettingsWidget.cpp` | `EmulationSettingsWidget::EmulationSettingsWidget` | not marked yet |
-| `pcsx2-qt/Settings/EmulationSettingsWidget.cpp` | `EmulationSettingsWidget::EmulationSettingsWidget` | not marked yet |
-| `pcsx2-qt/Settings/EmulationSettingsWidget.cpp` | `EmulationSettingsWidget::updateUseVSyncForTimingEnabled` | not marked yet |
+| `pcsx2-qt/Settings/ControllerBindingWidget.cpp` | `ControllerMacroEditWidget::ControllerMacroEditWidget` | upstream bug, unnamed slots |
+| `pcsx2-qt/Settings/EmulationSettingsWidget.cpp` | `EmulationSettingsWidget::EmulationSettingsWidget` | VSync on by default |
+| `pcsx2-qt/Settings/EmulationSettingsWidget.cpp` | `EmulationSettingsWidget::EmulationSettingsWidget` | VSync on by default |
+| `pcsx2-qt/Settings/EmulationSettingsWidget.cpp` | `EmulationSettingsWidget::updateUseVSyncForTimingEnabled` | VSync on by default |
 | `pcsx2-qt/Settings/SettingsWindow.cpp` |  | include `Zdxsv/UiHooks.h` |
 | `pcsx2-qt/Settings/SettingsWindow.cpp` | `SettingsWindow::setupUi` | settings of the Z game (SLPS-25419), first in the list; an environment variable overrides its setting |
 | `pcsx2-qt/Settings/SettingsWindow.cpp` | `SettingsWindow::setupUi` | `ZdxsvSettingsWidget::markSyncForced` |
@@ -243,8 +243,8 @@ needs its marker.
 | `pcsx2/ImGui/FullscreenUI_Settings.cpp` |  | include `Zdxsv/DefaultsHooks.h` |
 | `pcsx2/ImGui/FullscreenUI_Settings.cpp` | `FullscreenUI::SwitchToGameSettings` | `Zdxsv::FeaturesLimited` |
 | `pcsx2/ImGui/FullscreenUI_Settings.cpp` | `FullscreenUI::DrawInterfaceSettingsPage` | `Zdxsv::FeaturesLimitedLocked` |
-| `pcsx2/ImGui/FullscreenUI_Settings.cpp` | `FullscreenUI::DrawEmulationSettingsPage` | not marked yet |
-| `pcsx2/ImGui/FullscreenUI_Settings.cpp` | `FullscreenUI::DrawEmulationSettingsPage` | not marked yet |
+| `pcsx2/ImGui/FullscreenUI_Settings.cpp` | `FullscreenUI::DrawEmulationSettingsPage` | VSync on by default |
+| `pcsx2/ImGui/FullscreenUI_Settings.cpp` | `FullscreenUI::DrawEmulationSettingsPage` | VSync on by default |
 | `pcsx2/ImGui/FullscreenUI_Settings.cpp` | `FullscreenUI::ResetControllerSettings` | `Zdxsv::InputDefaultsHotkeys`, `Zdxsv::InputDefaultsUsb` |
 | `pcsx2/ImGui/ImGuiOverlays.cpp` |  | include `Zdxsv/UiHooks.h` |
 | `pcsx2/ImGui/ImGuiOverlays.cpp` | `ImGuiManager::RenderOverlays` | `Zdxsv::g_ggpo_enabled`, `Zdxsv::DrawOverlays` |
