@@ -19,19 +19,13 @@ namespace Zdxsv
 		// More than LIVE_SEEK frames behind (a late join): a seek to LIVE_BUFFER before the newest frame, not shown.
 		constexpr int LIVE_SEEK = 1800;
 		LimiterModeType s_live_limiter = LimiterModeType::Nominal;
-		std::vector<std::string> s_live_seen; // battle codes watched, oldest first, kept across the resets
-		int s_live_next_left = [] {
-			const char* e = TestEnv("ZDXSV_LIVE_NEXT");
-			return e ? std::atoi(e) : -1; // -1 = the setting decides (no limit)
-		}();
-		int s_live_skips = 0; // battles auto-next could not play, kept across the resets
 		std::string s_live_open_error; // why the last LiveOpen failed, "" = it opened
 		constexpr int LIVE_NEXT_POLL_S = 5, LIVE_NEWEST_MS = 2000, LIVE_NEXT_SKIP = 32; // bounds the skip query
 
 		void LiveSeen(const std::string& code)
 		{
-			if (std::ranges::find(s_live_seen, code) == s_live_seen.end())
-				s_live_seen.push_back(code);
+			if (std::ranges::find(s_live_next.seen, code) == s_live_next.seen.end())
+				s_live_next.seen.push_back(code);
 		}
 
 		size_t s_live_round_bytes = 0; // of s_live_play.got.rounds already in s_play_loads.file_rounds
@@ -208,10 +202,13 @@ namespace Zdxsv
 		// Four-screen: the host spawns one guest per other position; all hold each other on the same frame
 		// (SpectateSync). A member more than SYNC_CHASE frames behind the newest seeks to it.
 		constexpr int SYNC_WAIT_MS = 200, SYNC_CHASE = 30;
-		std::thread s_sync_thread;
-		std::atomic<bool> s_sync_quit{false};
-		u32 s_sync_seek_gen = 0;
-		int s_sync_pids[Zdxsv::SPECTATE_SYNC_GRID] = {};
+		struct ReplaySync
+		{
+			std::thread thread;
+			std::atomic<bool> quit{false};
+			u32 seek_gen = 0;
+			int pids[Zdxsv::SPECTATE_SYNC_GRID] = {};
+		} s_sync;
 		// ZDXSV_REPLAY_SYNC=0 (test control): members publish their frame but neither wait nor chase
 		const bool s_sync_test_off = [] { const char* e = TestEnv("ZDXSV_REPLAY_SYNC"); return e && e[0] == '0'; }();
 
@@ -221,17 +218,17 @@ namespace Zdxsv
 		void SyncWatch(bool host)
 		{
 			int want = 0;
-			for (const int pid : s_sync_pids)
+			for (const int pid : s_sync.pids)
 				want += pid != 0;
 			bool tiled = false, quit = false;
 			std::optional<bool> paused;
-			for (int i = 0; !s_sync_quit; i++)
+			for (int i = 0; !s_sync.quit; i++)
 			{
 				if (host)
 				{
 					Zdxsv::SpectateSyncHostPaused(VMManager::GetState() == VMState::Paused);
 					if (!tiled && i % 25 == 0 && i < 3000) // 60 s
-						tiled = Zdxsv::SpectateSyncTileWindows(s_sync_pids) == want;
+						tiled = Zdxsv::SpectateSyncTileWindows(s_sync.pids) == want;
 				}
 				else
 				{
@@ -266,7 +263,10 @@ namespace Zdxsv
 	LivePlay s_live_play;
 	Common::Timer s_live_hold_wait;
 	std::unique_ptr<LiveWait> s_live_wait;
-	std::string s_live_next_url; // the battle auto-next moved on to, "" = ZDXSV_REPLAY
+	LiveNextState s_live_next{.left = [] {
+		const char* e = TestEnv("ZDXSV_LIVE_NEXT");
+		return e ? std::atoi(e) : -1;
+	}()};
 
 	// The live stream as a replay file's bytes (header, frames so far, start state).
 	std::optional<std::vector<u8>> LiveOpen(const std::string& url)
@@ -311,8 +311,8 @@ namespace Zdxsv
 			LogLiveWins(*wins, 0);
 		const std::string code = s_live_down->Code();
 		LiveSeen(code);
-		if (!s_live_next_url.empty() && s_live_next_left > 0)
-			s_live_next_left--; // a battle moved on to that does not open is skipped, not counted
+		if (!s_live_next.url.empty() && s_live_next.left > 0)
+			s_live_next.left--; // a battle moved on to that does not open is skipped, not counted
 		Console.WriteLn("ZdxsvGgpo: live: battle %s, %zu frames, %zu bytes of round results so far%s", code.c_str(), frames, s_live_round_bytes,
 			s_live_play.got.closed ? ", closed" : "");
 		return pb;
@@ -322,20 +322,20 @@ namespace Zdxsv
 	// the next battle (VM paused). Resuming the VM stops the wait.
 	bool LiveAutoNext(bool skip)
 	{
-		if (s_live_next_left < 0 ? !Host::GetBoolSettingValue("DEV9/Eth", "ZdxsvLiveAutoNext", false) : s_live_next_left == 0)
+		if (s_live_next.left < 0 ? !Host::GetBoolSettingValue("DEV9/Eth", "ZdxsvLiveAutoNext", false) : s_live_next.left == 0)
 			return false;
-		const std::string_view src = s_live_next_url.empty() ? std::string_view(s_play_env) : std::string_view(s_live_next_url);
+		const std::string_view src = s_live_next.url.empty() ? std::string_view(s_play_env) : std::string_view(s_live_next.url);
 		std::string host, src_code;
 		Zdxsv::LiveSourceSplit(src, host, src_code);
 		const std::string why = !skip ? "" : !s_live_open_error.empty() ? s_live_open_error : "not a replay stream";
 		if (skip)
-			s_live_skips++;
+			s_live_next.skips++;
 		Console.WriteLn("ZdxsvGgpo: live: auto-next: waiting for a new battle at %s (%zu watched, %d skipped)%s%s", host.c_str(),
-			s_live_seen.size(), s_live_skips, why.empty() ? "" : ": skipped, ", why.c_str());
+			s_live_next.seen.size(), s_live_next.skips, why.empty() ? "" : ": skipped, ", why.c_str());
 		s_live_wait = std::make_unique<LiveWait>();
-		const auto skip_from = s_live_seen.end() - std::min<ptrdiff_t>(s_live_seen.size(), LIVE_NEXT_SKIP);
-		s_live_wait->t = std::thread([w = s_live_wait.get(), host = std::move(host), seen = s_live_seen,
-										 skip = std::vector<std::string>(skip_from, s_live_seen.end()), why, skips = s_live_skips]() {
+		const auto skip_from = s_live_next.seen.end() - std::min<ptrdiff_t>(s_live_next.seen.size(), LIVE_NEXT_SKIP);
+		s_live_wait->t = std::thread([w = s_live_wait.get(), host = std::move(host), seen = s_live_next.seen,
+										 skip = std::vector<std::string>(skip_from, s_live_next.seen.end()), why, skips = s_live_next.skips]() {
 			Common::Timer since;
 			bool paused = false;
 			while (!w->quit)
@@ -361,7 +361,7 @@ namespace Zdxsv
 						if (!VMManager::HasValidVM())
 							return;
 						LiveSeen(code);
-						s_live_next_url = url;
+						s_live_next.url = url;
 						OnlineAllowReset();
 						VMManager::Reset();
 						VMManager::SetPaused(false);
@@ -444,11 +444,11 @@ namespace Zdxsv
 
 	void SyncStop()
 	{
-		s_sync_quit = true;
-		if (s_sync_thread.joinable())
-			s_sync_thread.join();
+		s_sync.quit = true;
+		if (s_sync.thread.joinable())
+			s_sync.thread.join();
 		Zdxsv::SpectateSyncLeave();
-		std::fill(std::begin(s_sync_pids), std::end(s_sync_pids), 0);
+		std::fill(std::begin(s_sync.pids), std::end(s_sync.pids), 0);
 	}
 
 	// CPU thread, after the replay loaded as position `me`.
@@ -470,11 +470,11 @@ namespace Zdxsv
 			return;
 		Zdxsv::SpectateSyncControl c;
 		Zdxsv::SpectateSyncReadControl(c);
-		s_sync_seek_gen = c.seek_gen;
+		s_sync.seek_gen = c.seek_gen;
 		if (host)
 		{
 			Zdxsv::SpectateSyncHostLimiter(static_cast<int>(VMManager::GetLimiterMode()));
-			s_sync_pids[me] = Zdxsv::SpectateSyncSelfPid();
+			s_sync.pids[me] = Zdxsv::SpectateSyncSelfPid();
 			const char* trace_env = TestEnv("ZDXSV_NET_TRACE");
 			const std::string trace = trace_env ? trace_env : "";
 			for (int p = 0; p < s_opt.players && p < Zdxsv::SPECTATE_SYNC_GRID; p++)
@@ -490,12 +490,12 @@ namespace Zdxsv
 					env.emplace_back("ZDXSV_NET_TRACE", ext ? fmt::format("{}-pov{}{}", trace.substr(0, dot), p, trace.substr(dot)) :
 					                                          fmt::format("{}-pov{}", trace, p));
 				}
-				s_sync_pids[p] = Zdxsv::SpectateSyncSpawnGuest(env, {"-logfile", Path::Combine(EmuFolders::Logs, fmt::format("emulog-pov{}.txt", p))});
-				Console.WriteLn("ZdxsvGgpo: replay four-screen: group %s, point of view %d in pid %d", g.c_str(), p, s_sync_pids[p]);
+				s_sync.pids[p] = Zdxsv::SpectateSyncSpawnGuest(env, {"-logfile", Path::Combine(EmuFolders::Logs, fmt::format("emulog-pov{}.txt", p))});
+				Console.WriteLn("ZdxsvGgpo: replay four-screen: group %s, point of view %d in pid %d", g.c_str(), p, s_sync.pids[p]);
 			}
 		}
-		s_sync_quit = false;
-		s_sync_thread = std::thread(SyncWatch, host);
+		s_sync.quit = false;
+		s_sync.thread = std::thread(SyncWatch, host);
 	}
 
 	// CPU thread, PlayNext: the host's seek and speed for a guest; a seek to the newest member when far behind.
@@ -506,9 +506,9 @@ namespace Zdxsv
 		Zdxsv::SpectateSyncControl c;
 		if (!Zdxsv::SpectateSyncIsHost() && Zdxsv::SpectateSyncReadControl(c))
 		{
-			if (c.seek_gen != s_sync_seek_gen)
+			if (c.seek_gen != s_sync.seek_gen)
 			{
-				s_sync_seek_gen = c.seek_gen;
+				s_sync.seek_gen = c.seek_gen;
 				s_play_req = c.seek_target;
 				Console.WriteLn("ZdxsvGgpo: replay four-screen: the host seeked to frame %d", c.seek_target);
 			}

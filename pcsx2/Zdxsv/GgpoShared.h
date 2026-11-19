@@ -594,7 +594,15 @@ namespace Zdxsv
 		}
 	};
 	extern std::unique_ptr<LiveWait> s_live_wait;
-	extern std::string s_live_next_url; // the battle auto-next moved on to, "" = ZDXSV_REPLAY
+	// Live auto-next: kept across the resets.
+	struct LiveNextState
+	{
+		std::vector<std::string> seen; // battle codes watched, oldest first
+		int left = -1; // battles left to move on to, -1 = the setting decides (no limit)
+		int skips = 0; // battles auto-next could not play
+		std::string url; // the battle auto-next moved on to, "" = ZDXSV_REPLAY
+	};
+	extern LiveNextState s_live_next;
 	std::optional<std::vector<u8>> LiveOpen(const std::string& url);
 	// A live stream's round frames (and with `states` its round states) as the file's: spans, MS-select starts, round states.
 	void PlayLiveRoundFrames(const std::vector<u8>& round_frames, const std::vector<u8>& states, bool with_states);

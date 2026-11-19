@@ -649,7 +649,7 @@ namespace Zdxsv
 	void GgpoOnVmInitialize(const char* serial, u32 crc)
 	{
 		TakeNextReplay(s_play_picked, s_play_picked_pov);
-		s_live_next_url.clear();
+		s_live_next.url.clear();
 		const char* play = TestEnv("ZDXSV_REPLAY");
 		s_play_env = play ? play : s_play_picked.empty() ? nullptr : s_play_picked.c_str();
 		s_play_listed = !play && !s_play_picked.empty();

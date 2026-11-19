@@ -803,7 +803,7 @@ namespace Zdxsv
 	void PlayLoad()
 	{
 		PlayKeysPrune();
-		std::string paths = s_live_next_url.empty() ? s_play_env : s_live_next_url;
+		std::string paths = s_live_next.url.empty() ? s_play_env : s_live_next.url;
 		std::vector<std::string> urls;
 		for (const std::string_view path : StringUtil::SplitString(paths, ';'))
 			if (path.starts_with("http://") || path.starts_with("https://"))
