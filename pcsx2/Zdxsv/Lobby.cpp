@@ -465,7 +465,7 @@ namespace Zdxsv
 			return std::chrono::duration_cast<std::chrono::nanoseconds>(Clock::now().time_since_epoch()).count();
 		}
 
-		// The platform info lines of the last OpenUdp. DEV9 thread only.
+		// The platform info lines of the last OpenUdp. CPU thread only.
 		std::string g_udpLines;
 
 		// StartUdpTest's thread

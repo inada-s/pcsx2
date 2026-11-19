@@ -202,7 +202,7 @@ namespace Zdxsv
 	// Keeps info (IsBattleServer) and passes it to the listener.
 	void SetBattleInfo(const BattleInfo& info);
 
-	// Called by SetBattleInfo (DEV9 thread) with every battle info (pcsx2: GGPO lobby peers).
+	// Called by SetBattleInfo (CPU thread) with every battle info (pcsx2: GGPO lobby peers).
 	void SetBattleInfoListener(std::function<void(const BattleInfo&)> listener);
 
 	// GGPO address candidates of every player by battle position (own position empty); the first one is
