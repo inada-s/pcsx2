@@ -384,8 +384,8 @@ namespace Zdxsv
 				Console.Error("ZdxsvGgpo: replay %s: hle0 kind-3 counters %d,%d,%d,%d,%d not 0", path.c_str(), h[4], h[5], h[6], h[7], h[8]);
 				return -1;
 			}
-			s_play_common = true;
-			s_play_answers = std::move(r.answers);
+			s_play_common.on = true;
+			s_play_common.answers = std::move(r.answers);
 			s_play.inputs.resize(static_cast<size_t>(frames * players));
 			std::memcpy(s_play.inputs.data(), r.inputs.data(), r.inputs.size());
 			s_play.frames = static_cast<int>(frames);
@@ -434,7 +434,7 @@ namespace Zdxsv
 			PlayFileRels(rb.ps.rel, rb.ms.rel);
 			Console.WriteLn("ZdxsvGgpo: replay %s: recorded at position %lld of %d, %lld frames, rx0 %zu bytes, "
 							"%zu lobby answers, state hashes %s, rngs %zu", path.c_str(), me, s_opt.players, frames,
-				rb.net_rx.size(), s_play_answers.size(), r.hashes.empty() ? "no" : "yes",
+				rb.net_rx.size(), s_play_common.answers.size(), r.hashes.empty() ? "no" : "yes",
 				(r.start_rng ? 1 : 0) + std::min(r.load_frames.size(), r.load_rngs.size()));
 			if (s_net_trace) // battle start marker: pwcheck.py --battle splits a multi-battle trace (live auto-next)
 				std::fprintf(s_net_trace, "%u B %s\n", g_FrameCount, r.code.empty() ? "-" : r.code.c_str());
@@ -823,11 +823,11 @@ namespace Zdxsv
 	{
 		if (!PlayCommonState())
 			return false;
-		s_play_common = true;
+		s_play_common.on = true;
 		s_play.rearm_seek = seek;
 		if (seek >= 0)
 		{
-			s_play_rearm_limiter = VMManager::GetLimiterMode();
+			s_play_common.rearm_limiter = VMManager::GetLimiterMode();
 			s_play.target = -1;
 			VMManager::SetLimiterMode(LimiterModeType::Unlimited); // the lobby phase up to the arm
 		}
@@ -853,7 +853,7 @@ namespace Zdxsv
 		s_rbk.n = s_opt.players;
 		RbkReset();
 		Console.WriteLn("ZdxsvGgpo: replay: common start as position %d of %d, %zu lobby answers%s", pov, s_opt.players,
-			s_play_answers.size(), seek >= 0 ? fmt::format(", then seek to {}", seek).c_str() : "");
+			s_play_common.answers.size(), seek >= 0 ? fmt::format(", then seek to {}", seek).c_str() : "");
 		return true;
 	}
 
@@ -861,7 +861,7 @@ namespace Zdxsv
 	// of the point of view, then the replay starts from it as from a file's state.
 	void PlayCommonStart()
 	{
-		s_play_common = false;
+		s_play_common.on = false;
 		const int me = s_battle.me;
 		PlayKey& k0 = *s_play_keys[me].at(0);
 		const bool hle_same = k0.rb.net_rx == s_rb.net_rx && k0.rb.ps == s_rb.ps && k0.rb.ms == s_rb.ms;
@@ -906,7 +906,7 @@ namespace Zdxsv
 		if (const int seek = std::exchange(s_play.rearm_seek, -1); seek >= 0)
 		{
 			// a switch: the rest of the first start (options, four-screen) stays
-			VMManager::SetLimiterMode(s_play_rearm_limiter);
+			VMManager::SetLimiterMode(s_play_common.rearm_limiter);
 			Console.WriteLn("ZdxsvGgpo: replay: point of view %d from its key 0, seeking to %d", me, seek);
 			s_play_req = seek;
 			PlayFrame(0);
