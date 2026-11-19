@@ -106,6 +106,7 @@ namespace Zdxsv
 		int frame[64] = {}; // sampled frame + 1 (0 = none) per (frame / DESYNC_PERIOD) & 63
 		u32 hash[64] = {};
 		int checked[GGPO_MAX_PLAYERS] = {-1, -1, -1, -1}; // per position: the last sample compared
+		u8 checked_tag[GGPO_MAX_PLAYERS] = {}; // per position: the trailer tag of that sample
 		int first[GGPO_MAX_PLAYERS] = {-1, -1, -1, -1}; // per position: the first sample that differed, -1 = none
 		u32 checks = 0, mismatches = 0;
 	};
