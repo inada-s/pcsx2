@@ -576,10 +576,10 @@ namespace Zdxsv
 		bool behind = false; // a seek or round jump of the viewer: no catch-up until playback is at the newest frames again
 		int waits = 0;
 		int hold_want = -1; // the frame count the hold at the newest frame waits for, -1 = none
+		Common::Timer hold_wait;
 		double wait_ms = 0;
 	};
 	extern LivePlay s_live_play;
-	extern Common::Timer s_live_hold_wait;
 
 	// Live auto-next: after a closed stream, a thread polls the lobby for the newest battle not watched yet.
 	struct LiveWait
