@@ -135,23 +135,31 @@ namespace Zdxsv
 		s_delta_paged_ram = on;
 	}
 
-	static bool s_delta_saving = false;
-	static std::vector<std::pair<size_t, size_t>> s_delta_scratch;
+	struct DeltaScratch
+	{
+		bool saving = false;
+		std::vector<std::pair<size_t, size_t>> ranges;
+	};
+	static DeltaScratch s_delta_scratch;
 
 	const std::vector<std::pair<size_t, size_t>>& DeltaFreezeScratch()
 	{
-		return s_delta_scratch;
+		return s_delta_scratch.ranges;
 	}
 
 	void DeltaFreezeMarkScratch(size_t pos, size_t size)
 	{
-		if (s_delta_saving)
-			s_delta_scratch.emplace_back(pos, size);
+		if (s_delta_scratch.saving)
+			s_delta_scratch.ranges.emplace_back(pos, size);
 	}
 
 	// Wall ms per section summed over delta saves [0] and loads [1], in section order.
-	static std::vector<std::pair<const char*, double>> s_delta_ms[2];
-	static int s_delta_calls[2] = {};
+	struct DeltaTimes
+	{
+		std::vector<std::pair<const char*, double>> ms[2];
+		int calls[2] = {};
+	};
+	static DeltaTimes s_delta_times;
 
 	std::string DeltaFreezeTimes()
 	{
@@ -159,8 +167,8 @@ namespace Zdxsv
 		for (int io = 0; io < 2; io++)
 		{
 			out += io ? " | load ms:" : "save ms:";
-			for (const auto& [name, ms] : s_delta_ms[io])
-				out += fmt::format(" {} {:.3f}", name, ms / std::max(s_delta_calls[io], 1));
+			for (const auto& [name, ms] : s_delta_times.ms[io])
+				out += fmt::format(" {} {:.3f}", name, ms / std::max(s_delta_times.calls[io], 1));
 		}
 		return out;
 	}
@@ -169,15 +177,15 @@ namespace Zdxsv
 	{
 		for (int io = 0; io < 2; io++)
 		{
-			s_delta_ms[io].clear();
-			s_delta_calls[io] = 0;
+			s_delta_times.ms[io].clear();
+			s_delta_times.calls[io] = 0;
 		}
 	}
 
 	static bool DeltaFreezeAll(SaveStateBase& s, Error* error)
 	{
 		const int io = s.IsSaving() ? 0 : 1;
-		s_delta_calls[io]++;
+		s_delta_times.calls[io]++;
 		size_t section = 0;
 		const char* current = "internals";
 		const bool timed = Zdxsv::g_rerun_split_time;
@@ -186,9 +194,9 @@ namespace Zdxsv
 			if (timed)
 			{
 				const Common::Timer::Value now = Common::Timer::GetCurrentValue();
-				if (section >= s_delta_ms[io].size())
-					s_delta_ms[io].emplace_back(current, 0.0);
-				s_delta_ms[io][section++].second += Common::Timer::ConvertValueToMilliseconds(now - t);
+				if (section >= s_delta_times.ms[io].size())
+					s_delta_times.ms[io].emplace_back(current, 0.0);
+				s_delta_times.ms[io][section++].second += Common::Timer::ConvertValueToMilliseconds(now - t);
 				t = now;
 			}
 			current = name;
@@ -271,11 +279,11 @@ namespace Zdxsv
 	{
 		memSavingState s(buffer);
 		Error error;
-		s_delta_scratch.clear();
-		s_delta_saving = true;
+		s_delta_scratch.ranges.clear();
+		s_delta_scratch.saving = true;
 		g_delta_freeze_paged_ram = s_delta_paged_ram;
 		const bool saved = DeltaFreezeAll(s, &error);
-		s_delta_saving = false;
+		s_delta_scratch.saving = false;
 		g_delta_freeze_paged_ram = false;
 		if (!saved)
 		{
