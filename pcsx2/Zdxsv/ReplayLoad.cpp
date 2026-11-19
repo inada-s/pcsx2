@@ -74,13 +74,13 @@ namespace Zdxsv
 
 		bool ReplayParse(std::string_view all, ReplayFile& r)
 		{
-			Pb::Reader rd{reinterpret_cast<const uint8_t*>(all.data()), reinterpret_cast<const uint8_t*>(all.data() + all.size())};
+			PbReader rd{reinterpret_cast<const uint8_t*>(all.data()), reinterpret_cast<const uint8_t*>(all.data() + all.size())};
 			return rd.Fields([&r](uint32_t field, uint32_t wt, uint64_t v, const uint8_t* b, size_t n) {
 				const std::string_view bytes(reinterpret_cast<const char*>(b), n);
 				std::vector<int64_t>* ints = field == 46 ? &r.hle0 : field == 54 ? &r.load_frames : field == 55 ? &r.load_rngs :
 											 field == 57 ? &r.play_starts : field == 58 ? &r.game_ends : field == 59 ? &r.round_ends : nullptr;
 				if (ints && (wt == 0 || wt == 2))
-					return Pb::ReadInts(wt, v, b, n, *ints, REPLAY_MAX_LIST);
+					return PbReadInts(wt, v, b, n, *ints, REPLAY_MAX_LIST);
 				if (wt == 0)
 				{
 					s64* num = field == 4 ? &r.version : field == 40 ? &r.players : field == 41 ? &r.me : field == 47 ? &r.input_size :
@@ -100,12 +100,12 @@ namespace Zdxsv
 							return false;
 						int win = 0;
 						std::vector<int64_t> used;
-						Pb::Reader round{b, b + n};
+						PbReader round{b, b + n};
 						if (!round.Fields([&win, &used](uint32_t f, uint32_t w, uint64_t x, const uint8_t* rb, size_t rn) {
 								if (f == 1 && w == 0)
 									win = static_cast<int32_t>(x);
 								else if (f == 2)
-									return Pb::ReadInts(w, x, rb, rn, used, REPLAY_MAX_LIST);
+									return PbReadInts(w, x, rb, rn, used, REPLAY_MAX_LIST);
 								return true;
 							}))
 							return false;

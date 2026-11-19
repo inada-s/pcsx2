@@ -60,11 +60,11 @@ namespace Zdxsv
 		std::optional<std::vector<int>> LiveWins(const std::vector<u8>& r)
 		{
 			std::vector<int> wins;
-			Pb::Reader rd{r.data(), r.data() + r.size()};
+			PbReader rd{r.data(), r.data() + r.size()};
 			if (!rd.Fields([&wins](uint32_t field, uint32_t, uint64_t, const uint8_t* b, size_t n) {
 					if (field != 18)
 						return true;
-					Pb::Reader round{b, b + n};
+					PbReader round{b, b + n};
 					wins.push_back(0);
 					return round.Fields([&wins](uint32_t f, uint32_t w, uint64_t x, const uint8_t*, size_t) {
 						if (f == 1 && w == 0)
@@ -284,9 +284,8 @@ namespace Zdxsv
 		s_live_down->Take(s_live_play.got, LIVE_STALL_MS);
 		const size_t fb = std::max(s_live_play.got.frameBytes, 1);
 		const size_t frames = s_live_play.got.inputs.size() / fb;
-		using namespace Pb;
 		std::vector<u8> pb = std::move(s_live_play.got.header);
-		PutInt(pb, 48, static_cast<int64_t>(frames));
+		PbPutInt(pb, 48, static_cast<int64_t>(frames));
 		// An uplink appends the frame's state hash to each record: never a whole number of inputs.
 		if (fb % sizeof(NetInput) == sizeof(u32))
 		{
@@ -297,11 +296,11 @@ namespace Zdxsv
 				std::memcpy(&inputs[f * in_bytes], &s_live_play.got.inputs[f * fb], in_bytes);
 				std::memcpy(&hashes[f * sizeof(u32)], &s_live_play.got.inputs[f * fb + in_bytes], sizeof(u32));
 			}
-			PutBytes(pb, 49, inputs.data(), inputs.size());
-			PutBytes(pb, 52, hashes.data(), hashes.size());
+			PbPutBytes(pb, 49, inputs.data(), inputs.size());
+			PbPutBytes(pb, 52, hashes.data(), hashes.size());
 		}
 		else
-			PutBytes(pb, 49, s_live_play.got.inputs.data(), frames * fb);
+			PbPutBytes(pb, 49, s_live_play.got.inputs.data(), frames * fb);
 		s_live_play.got.inputs.erase(s_live_play.got.inputs.begin(), s_live_play.got.inputs.begin() + frames * fb);
 		pb.insert(pb.end(), s_live_play.got.rounds.begin(), s_live_play.got.rounds.end());
 		s_live_round_bytes = s_live_play.got.rounds.size();

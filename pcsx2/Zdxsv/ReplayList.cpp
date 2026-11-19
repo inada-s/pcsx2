@@ -180,7 +180,7 @@ namespace Zdxsv
 					continue;
 				}
 				ReplayFileUser u;
-				Pb::Reader user{buf.data(), buf.data() + buf.size()};
+				PbReader user{buf.data(), buf.data() + buf.size()};
 				if (!user.Fields([&u](uint32_t f, uint32_t uwt, uint64_t uv, const uint8_t* ub, size_t un) {
 						if (uwt == 2 && (f == 2 || f == 3))
 							(f == 2 ? u.name : u.pilot).assign(reinterpret_cast<const char*>(ub), un);
