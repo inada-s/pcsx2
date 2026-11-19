@@ -423,6 +423,19 @@ namespace Zdxsv
 		}
 
 		// Binding requests from s to each server (3 tries, 300 ms each): the "ip:port" each one saw, "" for no answer
+		// A Pong answers one of our Pings only if it echoes that Ping's timestamp.
+		bool StunPongFor(const uint8_t* buf, int n, const std::vector<int64_t>& sent, std::string& addr, int64_t& sentAt)
+		{
+			StunPacket pong;
+			PeerAddr a;
+			if (n <= 0 || !StunDecode(buf, static_cast<size_t>(n), pong) || pong.type != StunPong ||
+				std::find(sent.begin(), sent.end(), pong.timestamp) == sent.end() || !LobbyParsePeerAddr(pong.publicAddr, a))
+				return false;
+			addr = a.String();
+			sentAt = pong.timestamp;
+			return true;
+		}
+
 		std::vector<std::string> StunMapped(sock_t s, const std::vector<sockaddr_in>& servers, const std::function<bool()>& stopped)
 		{
 			std::vector<std::string> mapped(servers.size());
@@ -557,9 +570,11 @@ namespace Zdxsv
 		int rtt = -1;
 		StunPacket ping;
 		ping.type = StunPing;
+		std::vector<int64_t> sent;
 		for (int i = 0; i < 3 && pub.empty(); i++)
 		{
 			ping.timestamp = NowNanos();
+			sent.push_back(ping.timestamp);
 			const std::string data = StunEncode(ping);
 			sendto(s, data.data(), static_cast<int>(data.size()), 0,
 				reinterpret_cast<const sockaddr*>(&stun), sizeof(stun));
@@ -573,12 +588,9 @@ namespace Zdxsv
 				sockaddr_in from{};
 				socklen_t fromLen = sizeof(from);
 				const int n = recvfrom(s, reinterpret_cast<char*>(buf), sizeof(buf), 0, reinterpret_cast<sockaddr*>(&from), &fromLen);
-				StunPacket pong;
-				if (n > 0 && LobbySameAddr(from, stun) && StunDecode(buf, n, pong) && pong.type == StunPong)
-				{
-					pub = pong.publicAddr;
-					rtt = static_cast<int>((NowNanos() - ping.timestamp) / 1000000);
-				}
+				int64_t sentAt = 0;
+				if (LobbySameAddr(from, stun) && StunPongFor(buf, n, sent, pub, sentAt))
+					rtt = static_cast<int>((NowNanos() - sentAt) / 1000000);
 			}
 		}
 		closesocket(s);
@@ -619,9 +631,11 @@ namespace Zdxsv
 			StunPacket ping;
 			ping.type = StunPing;
 			ping.userId = userId;
+			std::vector<int64_t> sent;
 			for (int i = 0; i < 3 && !done() && !stopped(); i++)
 			{
 				ping.timestamp = NowNanos();
+				sent.push_back(ping.timestamp);
 				const std::string data = StunEncode(ping);
 				sendto(s, data.data(), static_cast<int>(data.size()), 0,
 					reinterpret_cast<const sockaddr*>(&to), sizeof(to));
@@ -634,14 +648,15 @@ namespace Zdxsv
 					sockaddr_in from{};
 					socklen_t fromLen = sizeof(from);
 					const int n = recvfrom(s, reinterpret_cast<char*>(buf), sizeof(buf), 0, reinterpret_cast<sockaddr*>(&from), &fromLen);
-					StunPacket pong;
-					if (n <= 0 || !StunDecode(buf, n, pong) || pong.type != StunPong)
+					std::string addr;
+					int64_t sentAt = 0;
+					if (!StunPongFor(buf, n, sent, addr, sentAt))
 						continue;
 					if (LobbySameAddr(from, stun))
-						mapped = pong.publicAddr;
+						mapped = addr;
 					else if (LobbySameAddr(from, test))
 					{
-						mappedTest = pong.publicAddr;
+						mappedTest = addr;
 						if (userId == "udptest")
 							open = true;
 					}

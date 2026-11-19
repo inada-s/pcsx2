@@ -63,6 +63,7 @@ struct FakeStun
 {
 	SOCKET s;
 	std::atomic<int> mode{0};
+	std::atomic<int64_t> last{0};
 	std::atomic<bool> stop{false};
 	std::thread th;
 	explicit FakeStun(uint16_t port)
@@ -90,8 +91,11 @@ struct FakeStun
 				const int m = mode;
 				if (n <= 0 || m == 0)
 					continue;
-				Zdxsv::StunPacket pong;
+				Zdxsv::StunPacket ping, pong;
+				Zdxsv::StunDecode(reinterpret_cast<const uint8_t*>(buf), n, ping);
+				last = ping.timestamp;
 				pong.type = Zdxsv::StunPong;
+				pong.timestamp = ping.timestamp;
 				pong.publicAddr = "1.2.3.4:5555";
 				const std::string d = Zdxsv::StunEncode(pong);
 				std::thread([this, d, from, m] {
@@ -403,10 +407,11 @@ int main()
 				Zdxsv::StunPacket pong;
 				pong.type = Zdxsv::StunPong;
 				pong.publicAddr = "1.2.3.4:5555";
-				const std::string d = Zdxsv::StunEncode(pong);
 				for (int i = 0; i < 3; i++)
 				{
 					std::this_thread::sleep_for(std::chrono::milliseconds(100));
+					pong.timestamp = stun.last;
+					const std::string d = Zdxsv::StunEncode(pong);
 					sendto(ts, d.data(), (int)d.size(), 0, (const sockaddr*)&me, sizeof(me));
 				}
 			});
