@@ -157,7 +157,7 @@ needs its marker.
 | `pcsx2-qt/Translations/pcsx2-qt_ja-JP.ts` |  | not marked yet |
 | `pcsx2-qt/Translations/pcsx2-qt_ja-JP.ts` |  | `ZdxsvMs` |
 | `pcsx2-qt/Translations/pcsx2-qt_ja-JP.ts` |  | `ZdxsvSettingsWidget`, `ZdxsvReplayDialog`, `ZdxsvSetupWizard` |
-| `pcsx2-qt/pcsx2-qt.vcxproj` |  | not marked yet |
+| `pcsx2-qt/pcsx2-qt.vcxproj` |  | $(IntDir)Tools, moc output of Tools\ZdxsvReplayDialog --> |
 | `pcsx2-qt/pcsx2-qt.vcxproj` |  | Sentry crash reports --> |
 | `pcsx2-qt/pcsx2-qt.vcxproj` |  | TLS, GGPO and UPnP libraries --> |
 | `pcsx2-qt/pcsx2-qt.vcxproj` |  | `ZdxsvSettingsWidget`, `ZdxsvReplayDialog` |
