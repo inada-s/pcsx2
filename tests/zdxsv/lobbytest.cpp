@@ -556,6 +556,37 @@ int main()
 		filter.Take(out.data(), out.size());
 		Check(out == chat, "custom 0x99xx messages (known 9953, unknown 997e, 9950) dropped, a lobby notice passed", (long)out.size());
 	}
+	{
+		auto frame = [](uint8_t category, uint8_t id_hi, uint8_t id_lo, uint8_t seq_lo, const std::string& body) {
+			std::vector<uint8_t> f = {0x18, category, id_hi, id_lo, static_cast<uint8_t>(body.size() >> 8),
+				static_cast<uint8_t>(body.size()), 0x12, seq_lo, 0, 0xFF, 0xFF, 0xFF};
+			f.insert(f.end(), body.begin(), body.end());
+			return f;
+		};
+		const std::vector<uint8_t> check = frame(0x01, 0x60, 0x01, 0x34, "");
+		const std::vector<uint8_t> update = frame(0x10, 0x60, 0x03, 0x35, "PLEASE UPDATE PCSX2");
+		const std::vector<uint8_t> start = frame(0x10, 0x69, 0x10, 0x36, "");
+		const std::vector<uint8_t> side = frame(0x02, 0x69, 0x11, 0x37, "ab");
+		std::vector<uint8_t> in;
+		for (const auto& f : {check, update, start, side})
+			in.insert(in.end(), f.begin(), f.end());
+		for (const bool answer : {true, false})
+		{
+			Zdxsv::LobbyFilter filter;
+			filter.Feed(in.data(), in.size(), answer);
+			std::vector<uint8_t> out(filter.Ready());
+			filter.Take(out.data(), out.size());
+			std::vector<uint8_t> passed = answer ? std::vector<uint8_t>() : check;
+			for (const auto& f : {update, start, side})
+				passed.insert(passed.end(), f.begin(), f.end());
+			const std::vector<uint8_t> answered = {0x81, 0x02, 0x60, 0x01, 0, 0, 0x12, 0x34, 0, 0xFF, 0xFF, 0xFF};
+			Check(out == passed && filter.TakeAnswers() == (answer ? answered : std::vector<uint8_t>()),
+				answer ? "line check answered with its sequence, the rest passed" : "line check passed to the game", (long)out.size());
+			Check(filter.TakePleaseUpdate(), "update notice seen", 0);
+			const auto starts = Zdxsv::LobbyStartAnswers();
+			Check(starts.size() == 1 && starts[0] == side, "match start clears, its exchange frames kept", (long)starts.size());
+		}
+	}
 	std::printf("%d failed\n", g_fails);
 	return g_fails ? 1 : 0;
 }

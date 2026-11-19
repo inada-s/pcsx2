@@ -71,6 +71,7 @@ options: `docs/zdxsv/`.
 | `LobbyBattleInfo.cpp` | Lobby message bodies (JSON): parses the battle info notice, encodes the match report |
 | `LobbyLive.cpp` | Live spectating over the lobby HTTP API (one streamed POST, one streamed GET per spectator): `LiveUp` streams a battle, `LiveDown` receives one |
 | `LobbyPing.cpp` | GGPO ping test between the peers (direct and relay paths) and the cut connection's refusal |
+| `LobbyFrame.h` | The lobby TCP message frame: header layout, the commands zdxsv reads or writes, frame building; `Lobby*.cpp` only |
 | `LobbyNet.h` | Platform sockets and address helpers shared by the `Lobby*.cpp` files only |
 | `LogTail.cpp`, `LogTail.h` | The last 100 log lines in memory, for crash reports and the match report |
 | `Proto.h` | Minimal protobuf wire codec for replay files |
