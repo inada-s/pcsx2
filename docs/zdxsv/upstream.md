@@ -69,14 +69,14 @@ needs its marker.
 | `PCSX2_qt.sln` | `Project` | not marked yet |
 | `PCSX2_qt.sln` |  | not marked yet |
 | `PCSX2_qt.sln` |  | not marked yet |
-| `bin/docs/ThirdPartyLicenses.html` |  | not marked yet |
-| `bin/docs/ThirdPartyLicenses.html` |  | not marked yet |
-| `bin/docs/ThirdPartyLicenses.html` |  | not marked yet |
-| `bin/docs/ThirdPartyLicenses.html` |  | not marked yet |
-| `bin/docs/ThirdPartyLicenses.html` |  | not marked yet |
-| `bin/docs/ThirdPartyLicenses.html` |  | not marked yet |
-| `bin/docs/ThirdPartyLicenses.html` |  | `Mbed TLS is dual-licensed under Apache-2.0 OR GPL-2.0-or-later. PCSX2 for zdxsv uses it under the Ap` |
-| `bin/docs/ThirdPartyLicenses.html` |  | not marked yet |
+| `bin/docs/ThirdPartyLicenses.html` |  | a zdxsv dependency --> |
+| `bin/docs/ThirdPartyLicenses.html` |  | a zdxsv dependency --> |
+| `bin/docs/ThirdPartyLicenses.html` |  | a zdxsv dependency --> |
+| `bin/docs/ThirdPartyLicenses.html` |  | a zdxsv dependency --> |
+| `bin/docs/ThirdPartyLicenses.html` |  | a zdxsv dependency --> |
+| `bin/docs/ThirdPartyLicenses.html` |  | a zdxsv dependency --> |
+| `bin/docs/ThirdPartyLicenses.html` |  | a zdxsv dependency --> |
+| `bin/docs/ThirdPartyLicenses.html` |  | a zdxsv dependency --> |
 | `bin/resources/GameIndex.yaml` |  | the zdxsv game |
 | `cmake/Pcsx2Utils.cmake` | `function` | release tags are zdxsv-X.Y.Z (the auto updater compares these). |
 | `cmake/SearchForStuff.cmake` | `add_subdirectory` | GGPO, UPnP and TLS libraries |
