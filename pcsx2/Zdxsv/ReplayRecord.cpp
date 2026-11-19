@@ -39,12 +39,12 @@ namespace Zdxsv
 			PbPutString(pb, 3, code);
 			PbPutInt(pb, 4, REPLAY_FILE_VERSION);
 			PbPutString(pb, 5, "zdxsv-ps2");
-			for (size_t p = 0; p < s_net_players.size(); p++)
+			for (size_t p = 0; p < s_net.players.size(); p++)
 			{
 				std::vector<uint8_t> user;
-				PbPutString(user, 1, s_net_players[p].id);
-				PbPutString(user, 2, s_net_players[p].name);
-				PbPutString(user, 3, s_net_players[p].pilot);
+				PbPutString(user, 1, s_net.players[p].id);
+				PbPutString(user, 2, s_net.players[p].name);
+				PbPutString(user, 3, s_net.players[p].pilot);
 				PbPutInt(user, 12, static_cast<int64_t>(p));
 				PbPutBytes(pb, 11, user.data(), user.size());
 			}
@@ -309,7 +309,7 @@ namespace Zdxsv
 		s_replay_answers = Zdxsv::LobbyStartAnswers();
 		s_live.reset();
 		if (!to.empty())
-			s_live = std::make_shared<Zdxsv::LiveUp>(to, code, s_lobby_session, ReplayHeader(code, ids), s_opt.players * sizeof(NetInput) + sizeof(u32));
+			s_live = std::make_shared<Zdxsv::LiveUp>(to, code, s_lobby.session, ReplayHeader(code, ids), s_opt.players * sizeof(NetInput) + sizeof(u32));
 		Console.WriteLn("ZdxsvGgpo: replay: recording (save %s, upload %d, live %d)", dir.empty() ? "off" : dir.c_str(), upload ? 1 : 0,
 			to.empty() ? 0 : 1);
 	}
@@ -439,7 +439,7 @@ namespace Zdxsv
 			u32 session;
 			{
 				std::lock_guard lock(s_lobby_mtx);
-				session = s_lobby_session;
+				session = s_lobby.session;
 			}
 			ReplayUpload(name, session, pb, used_ms);
 		}

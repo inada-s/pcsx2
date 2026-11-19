@@ -207,7 +207,7 @@ namespace Zdxsv
 			GgpoPriority(true);
 			// relay servers before the players, in the battle info's order on every peer (ggpo_add_relay_server)
 			if (s_opt.lobby)
-				for (const Zdxsv::RelayServerAddr& r : s_net_servers)
+				for (const Zdxsv::RelayServerAddr& r : s_net.servers)
 				{
 					if (ggpo_add_relay_server(s_session, r.addr.ip.c_str(), r.addr.port, r.alt.ip.empty() ? nullptr : r.alt.ip.c_str()) != GGPO_OK)
 						return "start failed";
@@ -225,10 +225,10 @@ namespace Zdxsv
 				player.type = (p == s_battle.me) ? GGPO_PLAYERTYPE_LOCAL : GGPO_PLAYERTYPE_REMOTE;
 				if (player.type == GGPO_PLAYERTYPE_REMOTE && s_opt.lobby)
 				{
-					const Zdxsv::PeerAddr& a = s_net_peers[p];
+					const Zdxsv::PeerAddr& a = s_net.peers[p];
 					StringUtil::Strlcpy(player.u.remote.ip_address, a.ip.c_str(), sizeof(player.u.remote.ip_address));
 					player.u.remote.port = a.port;
-					player.u.remote.relay = p < static_cast<int>(s_net_via.size()) && s_net_via[p] != 0;
+					player.u.remote.relay = p < static_cast<int>(s_net.via.size()) && s_net.via[p] != 0;
 					// a relay is a zdxsv server, not a player: its address stays whole
 					Console.WriteLn("ZdxsvGgpo: lobby peer position %d at %s%s", p,
 						(player.u.remote.relay ? a.String() : a.Masked()).c_str(), player.u.remote.relay ? " (relay)" : "");

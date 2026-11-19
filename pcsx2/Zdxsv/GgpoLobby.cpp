@@ -13,11 +13,6 @@ namespace Zdxsv
 {
 	namespace
 	{
-		bool s_lobby_info = false, s_lobby_logged = false, s_lobby_unreachable = false;
-		int s_lobby_me = -1; // our position in the last battle info, -1 = not listed
-		std::vector<std::vector<Zdxsv::PeerAddr>> s_lobby_peers; // candidates per position
-		std::vector<Zdxsv::BattleInfo::Relay> s_lobby_relays; // relay servers of the last battle info
-		u32 s_lobby_gen = 0, s_armed_gen = 0; // battle infos received; the one the last GGPO battle armed with
 		// a peer that armed GGPO starts it up to its ping test's end after us, then waits its start timeout
 		constexpr int CUT_REFUSAL_MS = 20000;
 
@@ -27,12 +22,9 @@ namespace Zdxsv
 		}
 	} // namespace
 
-	// lobby=1: peers of the last battle info (SetLobbyPeers, CPU thread)
 	std::mutex s_lobby_mtx;
-	std::vector<Zdxsv::PeerAddr> s_net_peers; // per position, picked when armed
-	std::vector<int> s_net_via; // per position: PingResult.via (0 direct, 1 peer relay, 2 relay server)
-	std::vector<Zdxsv::RelayServerAddr> s_net_servers; // relay servers, registered with GGPO in order
-	u32 s_lobby_session = 0; // ggpo_session
+	LobbyBattle s_lobby;
+	ArmedBattle s_net;
 	std::string s_report_ids; // battle info lines naming the battle (SetLobbyPeers)
 	std::string s_report; // P2PMatchingReport of the last lobby battle (TakeLobbyReport)
 
@@ -40,15 +32,15 @@ namespace Zdxsv
 	bool LobbyNewBattle()
 	{
 		std::lock_guard lock(s_lobby_mtx);
-		return s_lobby_gen != s_armed_gen;
+		return s_lobby.gen != s_net.gen;
 	}
 	// lobby=1: a battle info not armed yet that lists our position; n = its player count
 	bool LobbyPendingBattle(int& me, int& n)
 	{
 		std::lock_guard lock(s_lobby_mtx);
-		me = s_lobby_me;
-		n = static_cast<int>(s_lobby_peers.size());
-		return s_lobby_info && s_lobby_gen != s_armed_gen && me >= 0 && me < n && n <= GGPO_MAX_PLAYERS;
+		me = s_lobby.me;
+		n = static_cast<int>(s_lobby.peers.size());
+		return s_lobby.received && s_lobby.gen != s_net.gen && me >= 0 && me < n && n <= GGPO_MAX_PLAYERS;
 	}
 	// lobby=1, at the battle's first key msg: GGPO only when the battle info has every peer and our
 	// position; else the battle connection is cut (LobbyCutCall, logged once per battle info). Without a
@@ -56,29 +48,29 @@ namespace Zdxsv
 	bool LobbyArm(int me)
 	{
 		std::lock_guard lock(s_lobby_mtx);
-		const int n = static_cast<int>(s_lobby_peers.size());
+		const int n = static_cast<int>(s_lobby.peers.size());
 		// sync_<user> of the battle info: every player's must be ours; none at all = a lobby without them, no check
 		const std::string sync = SyncFingerprint();
 		std::string sync_bad, sync_missing;
 		int syncs = 0;
-		for (const LobbyPlayer& p : s_lobby_players)
+		for (const LobbyPlayer& p : s_lobby.players)
 			syncs += !p.sync.empty();
-		for (size_t p = 0; syncs > 0 && p < s_lobby_players.size(); p++)
-			if (s_lobby_players[p].sync.empty())
+		for (size_t p = 0; syncs > 0 && p < s_lobby.players.size(); p++)
+			if (s_lobby.players[p].sync.empty())
 				sync_missing += (sync_missing.empty() ? "" : " ") + std::to_string(p);
-			else if (s_lobby_players[p].sync != sync)
-				sync_bad += (sync_bad.empty() ? "" : " ") + std::to_string(p) + ":" + s_lobby_players[p].sync;
+			else if (s_lobby.players[p].sync != sync)
+				sync_bad += (sync_bad.empty() ? "" : " ") + std::to_string(p) + ":" + s_lobby.players[p].sync;
 		// a peer without a listed address is reached only at a path the ping test found
 		bool unlisted = false;
 		for (int p = 0; p < n; p++)
-			unlisted |= p != s_lobby_me && s_lobby_peers[p].empty();
-		const char* why = !s_lobby_info ? "no battle info" :
+			unlisted |= p != s_lobby.me && s_lobby.peers[p].empty();
+		const char* why = !s_lobby.received ? "no battle info" :
 		                  !sync_bad.empty() ? "settings or build differ (sync fingerprint)" :
 		                  !sync_missing.empty() ? "battle info incomplete (a player has no sync fingerprint)" :
-		                  s_lobby_unreachable ? "a peer did not answer the ping test" :
-		                  !s_lobby_session ? "no ggpo_session" :
+		                  s_lobby.unreachable ? "a peer did not answer the ping test" :
+		                  !s_lobby.session ? "no ggpo_session" :
 		                  (n < 1 || n > GGPO_MAX_PLAYERS) ? "player count" :
-		                  (me < 0 || me >= n || me != s_lobby_me) ? "own position not in the battle info" :
+		                  (me < 0 || me >= n || me != s_lobby.me) ? "own position not in the battle info" :
 		                  (unlisted && s_opt.delay_set) ? "a peer has no GGPO address" :
 		                                              nullptr;
 		auto report = [&](const char* result) {
@@ -86,7 +78,7 @@ namespace Zdxsv
 		};
 		if (why)
 		{
-			if (!s_lobby_logged && s_lobby_info) // else not a lobby battle (key msgs can come before the login)
+			if (!s_lobby.logged && s_lobby.received) // else not a lobby battle (key msgs can come before the login)
 			{
 				Console.WriteLn("ZdxsvGgpo: lobby battle connection cut: %s (position %d, %d players, vsync %u)",
 					why, me, n, g_FrameCount);
@@ -94,8 +86,8 @@ namespace Zdxsv
 				s_battle.cut_sends = 0;
 				report("cut");
 				s_report += std::string("reason=") + why + "\n";
-				if (s_lobby_session && s_lobby_me >= 0)
-					Zdxsv::StartCutRefusal(s_lobby_me, static_cast<u16>(GgpoLobbyPort()), CUT_REFUSAL_MS);
+				if (s_lobby.session && s_lobby.me >= 0)
+					Zdxsv::StartCutRefusal(s_lobby.me, static_cast<u16>(GgpoLobbyPort()), CUT_REFUSAL_MS);
 				if (!sync_bad.empty())
 				{
 					Console.WriteLn("ZdxsvGgpo: sync fingerprint %s, differing positions %s", sync.empty() ? "none" : sync.c_str(), sync_bad.c_str());
@@ -112,13 +104,13 @@ namespace Zdxsv
 				else
 					LobbyCutOsd(TRANSLATE_STR("Zdxsv", "No battle: the battle information from the lobby is incomplete."));
 			}
-			s_lobby_logged = true;
+			s_lobby.logged = true;
 			return false;
 		}
 		std::vector<Zdxsv::PeerAddr> peers(n);
 		for (int p = 0; p < n; p++)
-			if (!s_lobby_peers[p].empty())
-				peers[p] = s_lobby_peers[p].front();
+			if (!s_lobby.peers[p].empty())
+				peers[p] = s_lobby.peers[p].front();
 		if (!s_opt.delay_set)
 		{
 			// one-way time to the slowest peer in 16 ms frames, rounded up
@@ -154,8 +146,8 @@ namespace Zdxsv
 			rtts += "relays=" + std::to_string(servers.size()) + "\n";
 			if (!pingError.empty())
 				rtts += "ping_error=" + pingError + "\n";
-			s_net_via = std::move(via);
-			s_net_servers = std::move(servers);
+			s_net.via = std::move(via);
+			s_net.servers = std::move(servers);
 			rtts += "ping_wait_ms=" + std::to_string(static_cast<int>(wait.GetTimeMilliseconds())) + "\n";
 			// no GGPO unless every peer answered the ping test (same
 			// session, position and address); a peer from another battle never gets our inputs
@@ -163,7 +155,7 @@ namespace Zdxsv
 			{
 				Console.WriteLn("ZdxsvGgpo: lobby battle connection cut: %d of %d peers answered the ping test (position %d, waited %.1f s, vsync %u)",
 					up, n - 1, me, wait.GetTimeSeconds(), g_FrameCount);
-				s_lobby_unreachable = s_lobby_logged = s_battle.lobby_cut = true;
+				s_lobby.unreachable = s_lobby.logged = s_battle.lobby_cut = true;
 				s_battle.cut_sends = 0;
 				report("cut");
 				s_report += "answered=" + std::to_string(up) + "\n" + rtts;
@@ -185,14 +177,14 @@ namespace Zdxsv
 		{
 			report("ggpo");
 			s_report += "delay=" + std::to_string(s_opt.delay) + "\nfixed_delay=1\n";
-			s_net_via.clear();
-			s_net_servers.clear();
+			s_net.via.clear();
+			s_net.servers.clear();
 		}
 		s_opt.players = n;
-		s_net_peers = std::move(peers);
-		s_net_players = s_lobby_players;
-		s_net_patches = s_lobby_patches;
-		s_armed_gen = s_lobby_gen;
+		s_net.peers = std::move(peers);
+		s_net.players = s_lobby.players;
+		s_net.patches = s_lobby.patches;
+		s_net.gen = s_lobby.gen;
 		return true;
 	}
 	// lobby=1, no GGPO session (LobbyArm): a connection failure, no fallback to the battle server.
@@ -253,25 +245,25 @@ namespace Zdxsv
 	{
 		std::lock_guard lock(s_lobby_mtx);
 		s_report_ids = std::move(ids);
-		s_lobby_players = std::move(players);
-		s_lobby_info = true;
-		s_lobby_gen++;
-		s_lobby_me = me;
-		s_lobby_logged = s_lobby_unreachable = false;
+		s_lobby.players = std::move(players);
+		s_lobby.received = true;
+		s_lobby.gen++;
+		s_lobby.me = me;
+		s_lobby.logged = s_lobby.unreachable = false;
 		if (s_opt.bad_session && session)
 		{
 			session ^= 0x5a5a5a5a;
 			Console.WriteLn("ZdxsvGgpo: badsession=1: ping test session %08x", session);
 		}
-		s_lobby_session = session;
-		s_lobby_peers = std::move(byPosition);
-		s_lobby_relays = std::move(relays);
-		s_lobby_patches = std::move(patches);
+		s_lobby.session = session;
+		s_lobby.peers = std::move(byPosition);
+		s_lobby.relays = std::move(relays);
+		s_lobby.patches = std::move(patches);
 		std::vector<int> teams;
-		for (const LobbyPlayer& p : s_lobby_players)
+		for (const LobbyPlayer& p : s_lobby.players)
 			teams.push_back(p.team);
 		if (me >= 0 && session && !s_opt.delay_set && pingMs > 0)
-			Zdxsv::StartPingTest(session, me, s_lobby_peers, static_cast<u16>(GgpoLobbyPort()), pingMs, s_lobby_relays, teams);
+			Zdxsv::StartPingTest(session, me, s_lobby.peers, static_cast<u16>(GgpoLobbyPort()), pingMs, s_lobby.relays, teams);
 	}
 
 	std::string TakeLobbyReport()
@@ -284,22 +276,22 @@ namespace Zdxsv
 	void LobbyReset()
 	{
 		std::lock_guard lock(s_lobby_mtx);
-		if (s_lobby_info && s_lobby_gen != s_armed_gen)
-			Console.WriteLn("ZdxsvGgpo: battle info dropped before its battle started (position %d)", s_lobby_me);
-		s_lobby_info = s_lobby_logged = s_lobby_unreachable = false;
-		s_lobby_me = -1;
-		s_lobby_peers.clear();
-		s_lobby_relays.clear();
-		s_lobby_players.clear();
-		s_lobby_patches.clear();
-		s_lobby_session = 0;
+		if (s_lobby.received && s_lobby.gen != s_net.gen)
+			Console.WriteLn("ZdxsvGgpo: battle info dropped before its battle started (position %d)", s_lobby.me);
+		s_lobby.received = s_lobby.logged = s_lobby.unreachable = false;
+		s_lobby.me = -1;
+		s_lobby.peers.clear();
+		s_lobby.relays.clear();
+		s_lobby.players.clear();
+		s_lobby.patches.clear();
+		s_lobby.session = 0;
 		s_report_ids.clear();
-		s_net_peers.clear();
-		s_net_via.clear();
-		s_net_servers.clear();
-		s_net_players.clear();
-		s_net_patches.clear();
-		s_armed_gen = s_lobby_gen;
+		s_net.peers.clear();
+		s_net.via.clear();
+		s_net.servers.clear();
+		s_net.players.clear();
+		s_net.patches.clear();
+		s_net.gen = s_lobby.gen;
 		StopPingTest();
 	}
 } // namespace Zdxsv
