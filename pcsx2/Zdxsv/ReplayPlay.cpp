@@ -262,10 +262,10 @@ namespace Zdxsv
 		void PlayFrameTakeover(int f)
 		{
 			const u8 st = eeMem->Main[TICK_STATE];
-			if (st == TICK_END && s_tick_st == TICK_PLAY && !s_to_test && s_to_req == TO_REQ_NONE)
+			if (st == TICK_END && s_tick_st == TICK_PLAY && !s_to_test && s_to_shared.req == TO_REQ_NONE)
 			{
 				Console.WriteLn("ZdxsvGgpo: replay takeover: the battle ended at frame %d, retrying", f);
-				s_to_req = TO_REQ_RETRY;
+				s_to_shared.req = TO_REQ_RETRY;
 			}
 			s_tick_st = st;
 			s_battle.frame = f;
@@ -578,9 +578,7 @@ namespace Zdxsv
 		else
 			Console.WriteLn("ZdxsvGgpo: replay round %d: %s at frame %d, vsync %u", load - 1, why, f, g_FrameCount);
 	}
-	std::atomic<int> s_to_phase{TO_OFF};
-	std::atomic<int> s_to_req{TO_REQ_NONE};
-	std::atomic<u16> s_to_target{0}; // own B of the file at T
+	TakeoverShared s_to_shared;
 	Takeover s_to;
 	int s_to_test_at = s_to_test ? std::atoi(s_to_test) : -1;
 	int s_to_test_retry = [] {
@@ -629,7 +627,7 @@ namespace Zdxsv
 		}
 		s_to.local = PlayRow(t + s_to.delay - 1, s_battle.me);
 		s_to.frame = t;
-		s_to_target = PlayOwnB(t);
+		s_to_shared.target = PlayOwnB(t);
 		Console.WriteLn("ZdxsvGgpo: replay takeover at frame %d, delay %d, own sends %zu, kind-3 not in an input %zu%s", t,
 			s_to.delay, pos, s_to.out.size(), bytes ? " (msg bytes of the file left over)" : "");
 		return true;
@@ -664,13 +662,13 @@ namespace Zdxsv
 		s_to.queue.clear();
 		for (int i = 0; i < s_to.delay; i++)
 			s_to.queue.push_back(PlayRow(s_to.frame + i, s_battle.me));
-		s_to_phase = TO_ON;
+		s_to_shared.phase = TO_ON;
 		Console.WriteLn("ZdxsvGgpo: replay takeover starts at frame %d, vsync %u", s_to.frame, g_FrameCount);
 	}
 
 	void TakeoverOff(const char* why)
 	{
-		s_to_phase = TO_OFF;
+		s_to_shared.phase = TO_OFF;
 		s_to.queue.clear();
 		s_to.key.reset();
 		Console.WriteLn("ZdxsvGgpo: replay takeover %s at frame %d, vsync %u", why, s_battle.frame, g_FrameCount);
@@ -678,7 +676,7 @@ namespace Zdxsv
 
 	void PlayFrame(int f)
 	{
-		if (s_to_phase == TO_ON)
+		if (s_to_shared.phase == TO_ON)
 		{
 			PlayHide(false, false);
 			PlayFrameTakeover(f);
@@ -729,7 +727,7 @@ namespace Zdxsv
 		const auto ahead = [f](const std::vector<u8>& file, const PS& b) {
 			return f < static_cast<int>(file.size()) && static_cast<u8>(file[f] - b.rel - 1) < 127;
 		};
-		const bool late = s_to_phase != TO_ON && f == s_battle.frame + 1 &&
+		const bool late = s_to_shared.phase != TO_ON && f == s_battle.frame + 1 &&
 						  (ahead(s_play.ps_rel, s_rb.ps) || (s_ms_on && ahead(s_play.ms_rel, s_rb.ms)));
 		if (!late)
 		{
@@ -830,9 +828,9 @@ namespace Zdxsv
 		s_bar.lo = s_bar.hi = s_bar.rounds = 0;
 		s_bar.round = -1;
 		ReplayControlsReset();
-		s_to_phase = TO_OFF;
-		s_to_req = TO_REQ_NONE;
-		s_to_target = 0;
+		s_to_shared.phase = TO_OFF;
+		s_to_shared.req = TO_REQ_NONE;
+		s_to_shared.target = 0;
 		s_to = {};
 	}
 
@@ -971,7 +969,7 @@ namespace Zdxsv
 			return;
 		if (s_play.at_end)
 			ReplaySeekTo(0); // play at the end = from the start
-		else if (s_to_phase == TO_COUNT)
+		else if (s_to_shared.phase == TO_COUNT)
 			ReplayTakeoverCancel();
 		else
 			VMManager::SetPaused(VMManager::GetState() != VMState::Paused);

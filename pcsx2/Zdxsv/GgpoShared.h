@@ -529,9 +529,14 @@ namespace Zdxsv
 	// mindelay= frames of input delay; the other positions keep the file's inputs.
 	enum : int { TO_OFF, TO_ALIGN, TO_COUNT, TO_ON };
 	enum : int { TO_REQ_NONE, TO_REQ_TAKE, TO_REQ_START, TO_REQ_RETRY, TO_REQ_RETURN, TO_REQ_CANCEL };
-	extern std::atomic<int> s_to_phase;
-	extern std::atomic<int> s_to_req;
-	extern std::atomic<u16> s_to_target; // own B of the file at T
+	// Read and written by the UI thread too; reset field by field (Takeover is reset whole).
+	struct TakeoverShared
+	{
+		std::atomic<int> phase{TO_OFF};
+		std::atomic<int> req{TO_REQ_NONE};
+		std::atomic<u16> target{0}; // own B of the file at T
+	};
+	extern TakeoverShared s_to_shared;
 	struct Takeover
 	{
 		int frame = -1; // T
