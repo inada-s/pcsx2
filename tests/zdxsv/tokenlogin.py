@@ -96,7 +96,7 @@ def after(out):
         session, temp = c.execute("SELECT session_id, temp_key FROM account WHERE login_key = ?", (key,)).fetchone()
     finally:
         c.close()
-    ok = bool(m) and m.group(1) == zrig.masked_session(session) and bool(temp)
+    ok = bool(m) and m.group(1) == session and bool(temp)
     print(f"{'PASS' if ok else 'FAIL'}: emulog session {m.group(1) if m else None}, "
           f"token account session {session}, temporary key {'set' if temp else 'none'}")
     return 0 if ok else 1

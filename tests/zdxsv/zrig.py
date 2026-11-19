@@ -422,12 +422,6 @@ def release():
             pass
 
 
-def masked_session(session):
-    """A session id as emulog `fast login: session` shows it: all but the last 2 characters as '*'."""
-    keep = 2 if len(session) > 2 else 0
-    return "*" * (len(session) - keep) + session[len(session) - keep:]
-
-
 def ini_set(path, section, key, value=None):
     """Drop KEY from [SECTION] of a pcsx2 ini; VALUE set: write `KEY = VALUE` right after the header (added
     when missing). Line ends kept as found (CRLF on Windows)."""
