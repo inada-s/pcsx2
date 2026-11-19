@@ -378,7 +378,7 @@ ControllerMacroEditWidget::ControllerMacroEditWidget(ControllerMacroWidget* pare
 	{
 		for (const InputBindingInfo& bi : cinfo->bindings)
 		{
-			if (bi.name && button == bi.name)
+			if (bi.name && button == bi.name) // zdxsv: upstream bug, unnamed slots
 			{
 				m_binds.push_back(&bi);
 				break;

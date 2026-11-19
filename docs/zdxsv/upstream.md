@@ -77,9 +77,9 @@ needs its marker.
 | `bin/docs/ThirdPartyLicenses.html` |  | not marked yet |
 | `bin/docs/ThirdPartyLicenses.html` |  | `Mbed TLS is dual-licensed under Apache-2.0 OR GPL-2.0-or-later. PCSX2 for zdxsv uses it under the Ap` |
 | `bin/docs/ThirdPartyLicenses.html` |  | not marked yet |
-| `bin/resources/GameIndex.yaml` |  | not marked yet |
+| `bin/resources/GameIndex.yaml` |  | the zdxsv game |
 | `cmake/Pcsx2Utils.cmake` | `function` | release tags are zdxsv-X.Y.Z (the auto updater compares these). |
-| `cmake/SearchForStuff.cmake` | `add_subdirectory` | not marked yet |
+| `cmake/SearchForStuff.cmake` | `add_subdirectory` | GGPO, UPnP and TLS libraries |
 | `common/Console.cpp` |  | log tail (Zdxsv/LogTail.cpp) |
 | `common/Console.cpp` |  | log tail (Zdxsv/LogTail.cpp) |
 | `common/Console.cpp` | `Log::SetTapOutputLevel` | log tail (Zdxsv/LogTail.cpp) |
@@ -95,17 +95,17 @@ needs its marker.
 | `common/HTTPDownloaderCurl.cpp` | `HTTPDownloaderCurl::CloseRequest` | replay upload posts multipart |
 | `common/HTTPDownloaderCurl.h` |  | replay upload posts multipart |
 | `common/HTTPDownloaderWinHTTP.cpp` | `HTTPDownloaderWinHttp::StartRequest` | replay upload posts multipart |
-| `common/vsprops/LinkPCSX2Deps.props` |  | not marked yet |
+| `common/vsprops/LinkPCSX2Deps.props` |  | Sentry crash reports --> |
 | `common/vsprops/preBuild.cmd` | `0` | release tags are zdxsv-X.Y.Z (the auto updater compares these). |
 | `pcsx2-qt/AutoUpdaterDialog.cpp` |  | include `Zdxsv/TestOptions.h` |
-| `pcsx2-qt/AutoUpdaterDialog.cpp` |  | not marked yet |
-| `pcsx2-qt/AutoUpdaterDialog.cpp` |  | not marked yet |
+| `pcsx2-qt/AutoUpdaterDialog.cpp` |  | zdxsv release updates |
+| `pcsx2-qt/AutoUpdaterDialog.cpp` |  | zdxsv release updates |
 | `pcsx2-qt/AutoUpdaterDialog.cpp` |  | updates come from the GitHub releases of inada-s/pcsx2, tagged zdxsv-X.Y.Z (.github/workflows/zdxsv_release.yml). |
 | `pcsx2-qt/AutoUpdaterDialog.cpp` | `AutoUpdaterDialog::queueUpdateCheck` | `Zdxsv::TestEnv` |
 | `pcsx2-qt/AutoUpdaterDialog.cpp` | `ParseZdxsvVersion` | `ParseZdxsvVersion` |
 | `pcsx2-qt/AutoUpdaterDialog.cpp` | `AutoUpdaterDialog::getLatestReleaseComplete` | `// GitHub releases list, newest first. Take the newest published zdxsv-X.Y.Z release` |
 | `pcsx2-qt/AutoUpdaterDialog.cpp` | `AutoUpdaterDialog::getLatestReleaseComplete` | `ParseZdxsvVersion` |
-| `pcsx2-qt/AutoUpdaterDialog.cpp` | `AutoUpdaterDialog::getLatestReleaseComplete` | not marked yet |
+| `pcsx2-qt/AutoUpdaterDialog.cpp` | `AutoUpdaterDialog::getLatestReleaseComplete` | zdxsv release updates |
 | `pcsx2-qt/AutoUpdaterDialog.cpp` | `AutoUpdaterDialog::checkIfUpdateNeeded` | `ParseZdxsvVersion` |
 | `pcsx2-qt/CMakeLists.txt` |  | `Zdxsv/CrashReports.cpp` |
 | `pcsx2-qt/CMakeLists.txt` |  | `ZdxsvSettingsWidget`, `ZdxsvReplayDialog` |
@@ -135,10 +135,10 @@ needs its marker.
 | `pcsx2-qt/QtHost.cpp` |  | `Zdxsv::CrashReportsStop` |
 | `pcsx2-qt/Settings/AdvancedSettingsWidget.cpp` |  | include `Zdxsv/UiHooks.h` |
 | `pcsx2-qt/Settings/AdvancedSettingsWidget.cpp` | `AdvancedSettingsWidget::AdvancedSettingsWidget` | `Zdxsv::FeaturesLimited` |
-| `pcsx2-qt/Settings/ControllerBindingWidget.cpp` | `ControllerMacroEditWidget::ControllerMacroEditWidget` | not marked yet |
-| `pcsx2-qt/Settings/EmulationSettingsWidget.cpp` | `EmulationSettingsWidget::EmulationSettingsWidget` | not marked yet |
-| `pcsx2-qt/Settings/EmulationSettingsWidget.cpp` | `EmulationSettingsWidget::EmulationSettingsWidget` | not marked yet |
-| `pcsx2-qt/Settings/EmulationSettingsWidget.cpp` | `EmulationSettingsWidget::updateUseVSyncForTimingEnabled` | not marked yet |
+| `pcsx2-qt/Settings/ControllerBindingWidget.cpp` | `ControllerMacroEditWidget::ControllerMacroEditWidget` | upstream bug, unnamed slots |
+| `pcsx2-qt/Settings/EmulationSettingsWidget.cpp` | `EmulationSettingsWidget::EmulationSettingsWidget` | VSync on by default |
+| `pcsx2-qt/Settings/EmulationSettingsWidget.cpp` | `EmulationSettingsWidget::EmulationSettingsWidget` | VSync on by default |
+| `pcsx2-qt/Settings/EmulationSettingsWidget.cpp` | `EmulationSettingsWidget::updateUseVSyncForTimingEnabled` | VSync on by default |
 | `pcsx2-qt/Settings/SettingsWindow.cpp` |  | include `Zdxsv/UiHooks.h` |
 | `pcsx2-qt/Settings/SettingsWindow.cpp` | `SettingsWindow::setupUi` | settings of the Z game (SLPS-25419), first in the list; an environment variable overrides its setting |
 | `pcsx2-qt/Settings/SettingsWindow.cpp` | `SettingsWindow::setupUi` | `ZdxsvSettingsWidget::markSyncForced` |
@@ -158,8 +158,8 @@ needs its marker.
 | `pcsx2-qt/Translations/pcsx2-qt_ja-JP.ts` |  | `ZdxsvMs` |
 | `pcsx2-qt/Translations/pcsx2-qt_ja-JP.ts` |  | `ZdxsvSettingsWidget`, `ZdxsvReplayDialog`, `ZdxsvSetupWizard` |
 | `pcsx2-qt/pcsx2-qt.vcxproj` |  | not marked yet |
-| `pcsx2-qt/pcsx2-qt.vcxproj` |  | not marked yet |
-| `pcsx2-qt/pcsx2-qt.vcxproj` |  | not marked yet |
+| `pcsx2-qt/pcsx2-qt.vcxproj` |  | Sentry crash reports --> |
+| `pcsx2-qt/pcsx2-qt.vcxproj` |  | TLS, GGPO and UPnP libraries --> |
 | `pcsx2-qt/pcsx2-qt.vcxproj` |  | `ZdxsvSettingsWidget`, `ZdxsvReplayDialog` |
 | `pcsx2-qt/pcsx2-qt.vcxproj` |  | `ZdxsvSettingsWidget`, `ZdxsvReplayDialog` |
 | `pcsx2-qt/pcsx2-qt.vcxproj` |  | `<ClInclude Include="Zdxsv\QtHooks.h" />` |
@@ -172,17 +172,17 @@ needs its marker.
 | `pcsx2-qt/resources/resources.qrc` |  | `<file>icons/white/svg/zdxsv-line.svg</file>` |
 | `pcsx2/CDVD/InputIsoFile.cpp` | `InputIsoFile::BeginRead2` | a save state load can start a read while another is in flight. |
 | `pcsx2/CMakeLists.txt` | `target_compile_options` | production server defaults, given only by the official release build (docs/zdxsv/options.md) |
-| `pcsx2/CMakeLists.txt` |  | not marked yet |
+| `pcsx2/CMakeLists.txt` |  | ARM64 always has FMA: contracted a*b+c in the interpreters rounds unlike the PS2 and the x86 build. |
 | `pcsx2/CMakeLists.txt` |  | `Zdxsv/InputLatency.cpp` |
 | `pcsx2/CMakeLists.txt` |  | `Zdxsv/InputLatency.h` |
 | `pcsx2/CMakeLists.txt` |  | `Zdxsv/Lobby.cpp` |
 | `pcsx2/CMakeLists.txt` |  | `Zdxsv/Lobby.h` |
-| `pcsx2/CMakeLists.txt` |  | not marked yet |
-| `pcsx2/CMakeLists.txt` |  | not marked yet |
-| `pcsx2/CMakeLists.txt` |  | not marked yet |
-| `pcsx2/CMakeLists.txt` |  | not marked yet |
+| `pcsx2/CMakeLists.txt` |  | ARM64 recompilers |
+| `pcsx2/CMakeLists.txt` |  | ARM64 recompilers |
+| `pcsx2/CMakeLists.txt` |  | GGPO, UPnP and TLS libraries |
+| `pcsx2/CMakeLists.txt` |  | GGPO, UPnP and TLS libraries |
 | `pcsx2/CMakeLists.txt` |  | `CURL::libcurl # Zdxsv/HttpsLatency.cpp` |
-| `pcsx2/CMakeLists.txt` | `function` | not marked yet |
+| `pcsx2/CMakeLists.txt` | `function` | Sentry crash reports |
 | `pcsx2/Config.h` |  | present a frame before the frame limiter sleep, poll input after it. |
 | `pcsx2/Counters.cpp` |  | include `Zdxsv/CpuHooks.h` |
 | `pcsx2/Counters.cpp` | `ZdxsvPostVsyncStart` | `ZdxsvPostVsyncStart`, `Zdxsv::g_input_latency_enabled`, `Zdxsv::InputLatencyOnPush` |
@@ -243,8 +243,8 @@ needs its marker.
 | `pcsx2/ImGui/FullscreenUI_Settings.cpp` |  | include `Zdxsv/DefaultsHooks.h` |
 | `pcsx2/ImGui/FullscreenUI_Settings.cpp` | `FullscreenUI::SwitchToGameSettings` | `Zdxsv::FeaturesLimited` |
 | `pcsx2/ImGui/FullscreenUI_Settings.cpp` | `FullscreenUI::DrawInterfaceSettingsPage` | `Zdxsv::FeaturesLimitedLocked` |
-| `pcsx2/ImGui/FullscreenUI_Settings.cpp` | `FullscreenUI::DrawEmulationSettingsPage` | not marked yet |
-| `pcsx2/ImGui/FullscreenUI_Settings.cpp` | `FullscreenUI::DrawEmulationSettingsPage` | not marked yet |
+| `pcsx2/ImGui/FullscreenUI_Settings.cpp` | `FullscreenUI::DrawEmulationSettingsPage` | VSync on by default |
+| `pcsx2/ImGui/FullscreenUI_Settings.cpp` | `FullscreenUI::DrawEmulationSettingsPage` | VSync on by default |
 | `pcsx2/ImGui/FullscreenUI_Settings.cpp` | `FullscreenUI::ResetControllerSettings` | `Zdxsv::InputDefaultsHotkeys`, `Zdxsv::InputDefaultsUsb` |
 | `pcsx2/ImGui/ImGuiOverlays.cpp` |  | include `Zdxsv/UiHooks.h` |
 | `pcsx2/ImGui/ImGuiOverlays.cpp` | `ImGuiManager::RenderOverlays` | `Zdxsv::g_ggpo_enabled`, `Zdxsv::DrawOverlays` |
@@ -400,8 +400,8 @@ needs its marker.
 | `pcsx2/VUops.cpp` | `VMADDAz` | not marked yet |
 | `pcsx2/VUops.cpp` | `VXITOP` | not marked yet |
 | `pcsx2/Vif_Transfer.cpp` | `vifTransferLoop` | NOP can be most of the codes in a packet: same steps as vifCode_Nop, without the indirect call. |
-| `pcsx2/pcsx2.vcxproj` |  | not marked yet |
-| `pcsx2/pcsx2.vcxproj` |  | not marked yet |
+| `pcsx2/pcsx2.vcxproj` |  | GGPO, TLS, UPnP and JSON libraries --> |
+| `pcsx2/pcsx2.vcxproj` |  | MINIUPNP_STATICLIB --> |
 | `pcsx2/pcsx2.vcxproj` |  | `<ClCompile Include="Zdxsv\Lobby.cpp" />` |
 | `pcsx2/pcsx2.vcxproj` |  | `<ClCompile Include="Zdxsv\InputLatency.cpp" />` |
 | `pcsx2/pcsx2.vcxproj` |  | `<ClInclude Include="Zdxsv\Lobby.h" />` |
@@ -427,7 +427,7 @@ needs its marker.
 | `pcsx2/x86/ix86-32/iR5900.cpp` | `Zdxsv::recEeBlockPc` | `Zdxsv::recEeBlockPc` |
 | `pcsx2/x86/microVU.cpp` |  | include `Zdxsv/CpuHooks.h` |
 | `pcsx2/x86/microVU.cpp` | `recMicroVU1::Execute` | `Zdxsv::g_rerun_split_time`, `Zdxsv::g_ggpo_in_rollback`, `Zdxsv::g_rerun_vu1_ticks` |
-| `tests/ctest/core/CMakeLists.txt` | `add_pcsx2_test` | not marked yet |
-| `tests/ctest/core/CMakeLists.txt` |  | not marked yet |
+| `tests/ctest/core/CMakeLists.txt` | `add_pcsx2_test` | GGPO tests |
+| `tests/ctest/core/CMakeLists.txt` |  | ggpo_tests.cpp tests GGPO's internal socket class; its headers throw (see 3rdparty/ggpo); no PCH, which is built without exceptions |
 | `updater/Updater.cpp` | `Updater::StageUpdate` | an empty file (portable.txt) writes 0 items; that is complete, not a failure. |
 <!-- upstream_spots end -->
