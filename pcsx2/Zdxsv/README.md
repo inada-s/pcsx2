@@ -103,6 +103,7 @@ options: `docs/zdxsv/`.
 | `IntHooks.cpp` | EE interpreter and ARM64 EE recompiler: the hook calls of `RecHooks.cpp` but the probes |
 | `RecProbe.cpp` | Debug: EE recompiler probes and store watches (`ZDXSV_EE_PROBE`, `ZDXSV_EE_WATCH`) |
 | `EeOpTest.cpp` | Test: EE COP1 and COP2 macro ops on generated inputs through the EE core in use, results to a file (`ZDXSV_EE_OPTEST`) |
+| `FpuX86.h` | EE FPU ops as the x86 recompiler computes them: the add operand cut (all hosts), the clamp, max/min, abs, neg and rounding the ARM64 interpreter uses |
 | `VuOpTest.cpp` | Test: VU1 ops on generated inputs through the VU1 core in use, results to a file (`ZDXSV_VU1_OPTEST`) |
 | `Overlays.cpp` | On-screen replay keys and replay control bar |
 | `GgpoOsd.cpp` | GGPO network status panel |

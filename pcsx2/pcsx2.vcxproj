@@ -960,6 +960,7 @@
     <ClInclude Include="VUmicro.h" />
     <ClInclude Include="Zdxsv\InputLatency.h" />
     <ClInclude Include="Zdxsv\DeltaState.h" />
+    <ClInclude Include="Zdxsv\FpuX86.h" />
     <ClInclude Include="Zdxsv\DeltaFreeze.h" />
     <ClInclude Include="Zdxsv\Ggpo.h" />
     <ClInclude Include="Zdxsv\GgpoShared.h" />

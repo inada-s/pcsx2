@@ -193,26 +193,25 @@ needs its marker.
 | `pcsx2/DEV9/DEV9.cpp` | `DEV9async` | registers, SMAP buffers and FIFO, so a state saved while the game is online keeps its network adapter. |
 | `pcsx2/DEV9/DEV9.h` |  | `Zdxsv::DeltaFreezeSave` |
 | `pcsx2/DEV9/net.h` |  | held by the rx thread while it writes a packet into the SMAP RX FIFO. |
-| `pcsx2/FPU.cpp` |  | not marked yet |
-| `pcsx2/FPU.cpp` | `fp_min` | not marked yet |
-| `pcsx2/FPU.cpp` | `fpuAddSubCut` | not marked yet |
-| `pcsx2/FPU.cpp` | `ABS_S` | not marked yet |
-| `pcsx2/FPU.cpp` | `ADD_S` | not marked yet |
-| `pcsx2/FPU.cpp` | `CFC1` | not marked yet |
-| `pcsx2/FPU.cpp` | `CVT_W` | not marked yet |
-| `pcsx2/FPU.cpp` | `DIV_S` | not marked yet |
-| `pcsx2/FPU.cpp` | `MADD_S` | not marked yet |
-| `pcsx2/FPU.cpp` | `MADDA_S` | not marked yet |
-| `pcsx2/FPU.cpp` | `MFC1` | not marked yet |
-| `pcsx2/FPU.cpp` | `MOV_S` | not marked yet |
-| `pcsx2/FPU.cpp` | `MSUB_S` | not marked yet |
-| `pcsx2/FPU.cpp` | `MTC1` | not marked yet |
-| `pcsx2/FPU.cpp` | `MUL_S` | not marked yet |
-| `pcsx2/FPU.cpp` | `MULA_S` | not marked yet |
-| `pcsx2/FPU.cpp` | `RSQRT_S` | not marked yet |
-| `pcsx2/FPU.cpp` | `SQRT_S` | not marked yet |
-| `pcsx2/FPU.cpp` | `SQRT_S` | not marked yet |
-| `pcsx2/FPU.cpp` | `SUB_S` | not marked yet |
+| `pcsx2/FPU.cpp` |  | include `Zdxsv/FpuX86.h` |
+| `pcsx2/FPU.cpp` | `fpuAddSub` | `Zdxsv::FpuAddSubCut`, `Zdxsv::FpuX86Mode`, `Zdxsv::FpuAbsX86` |
+| `pcsx2/FPU.cpp` | `ABS_S` | `Zdxsv::FpuAddSubX86` |
+| `pcsx2/FPU.cpp` | `ADD_S` | `Zdxsv::FpuAddSubX86` |
+| `pcsx2/FPU.cpp` | `CFC1` | as recCFC1 on ARM64: FCR31 with its always-zero bits cleared and always-one bits set, else FCR0. |
+| `pcsx2/FPU.cpp` | `CVT_W` | `Zdxsv::FpuX86Mode`, `Zdxsv::FpuResultX86`, `Zdxsv::FpuDaz` |
+| `pcsx2/FPU.cpp` | `DIV_S` | `Zdxsv::FpuMulAddX86` |
+| `pcsx2/FPU.cpp` | `MADD_S` | `Zdxsv::FpuMulAddX86` |
+| `pcsx2/FPU.cpp` | `MADDA_S` | `Zdxsv::FpuMaxMinX86` |
+| `pcsx2/FPU.cpp` | `MFC1` | `Zdxsv::FpuMaxMinX86` |
+| `pcsx2/FPU.cpp` | `MOV_S` | `Zdxsv::FpuMulAddX86` |
+| `pcsx2/FPU.cpp` | `MSUB_S` | `Zdxsv::FpuMulAddX86` |
+| `pcsx2/FPU.cpp` | `MTC1` | `Zdxsv::FpuResultX86`, `Zdxsv::FpuDaz` |
+| `pcsx2/FPU.cpp` | `MUL_S` | `Zdxsv::FpuResultX86`, `Zdxsv::FpuDaz` |
+| `pcsx2/FPU.cpp` | `MULA_S` | `Zdxsv::FpuNegX86` |
+| `pcsx2/FPU.cpp` | `RSQRT_S` | `Zdxsv::FpuX86Mode`, `Zdxsv::FpuResultX86`, `Zdxsv::FpuDaz` |
+| `pcsx2/FPU.cpp` | `SQRT_S` | round to nearest, as the recompiler (recSQRT_S_xmm). |
+| `pcsx2/FPU.cpp` | `SQRT_S` | `Zdxsv::FpuAddSubX86` |
+| `pcsx2/FPU.cpp` | `SUB_S` | `Zdxsv::FpuAddSubX86` |
 | `pcsx2/GS/GS.cpp` |  | include `Zdxsv/UiHooks.h` |
 | `pcsx2/GS/GS.cpp` | `GSQueueSnapshot` | `Zdxsv::g_online_limits`, `Zdxsv::OnlineRefuses` |
 | `pcsx2/GS/GS.cpp` | `GSBeginCapture` | `Zdxsv::g_online_limits`, `Zdxsv::OnlineRefuses` |
