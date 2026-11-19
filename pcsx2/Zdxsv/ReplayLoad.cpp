@@ -199,7 +199,8 @@ namespace Zdxsv
 		class PlayFetchCancel final : public BaseProgressCallback
 		{
 		public:
-			bool IsCancelled() const override { return s_fetch.stop.load(); }
+			bool IsCancelled() const override { return s_fetch.stop.load() || TooBig(); }
+			bool TooBig() const { return m_progress_value > REPLAY_MAX_BYTES; }
 			void SetTitle(const char*) override {}
 			void DisplayError(const char*) override {}
 			void DisplayWarning(const char*) override {}
@@ -262,6 +263,11 @@ namespace Zdxsv
 					Console.Error("ZdxsvGgpo: replay %s: status %d", url.c_str(), status); // 204: no such battle
 			}, &cancel);
 			http->WaitForAllRequests();
+			if (cancel.TooBig())
+			{
+				Console.Error("ZdxsvGgpo: replay %s: over %zu MiB", url.c_str(), REPLAY_MAX_BYTES >> 20);
+				return std::nullopt;
+			}
 			if (got && got->size() >= 2 && (*got)[0] == 0x1f && (*got)[1] == 0x8b)
 				got = Gunzip(url, *got);
 			return got;
