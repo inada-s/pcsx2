@@ -510,7 +510,6 @@ namespace Zdxsv
 
 	static void Returned()
 	{
-		std::unique_lock ggpo_lock(s_ggpo_mtx);
 		if (s_play_env)
 		{
 			s_frame_hold = !s_play_common && LiveHold();
@@ -626,9 +625,7 @@ namespace Zdxsv
 		if (s_opt.net)
 		{
 			const bool ok = NetWaitPredictionLimit();
-			ggpo_lock.unlock();
 			DeferredThrottle(false);
-			ggpo_lock.lock();
 			if (!ok || !GgpoSyncAndApply(false))
 				GgpoStop("failed");
 			return;
@@ -748,6 +745,8 @@ namespace Zdxsv
 			s_ns.other, s_ns.nowait, s_ns.senddiff, s_ns.toolong, s_ns.maxq, s_run.waits, s_run.sync_frames, s_run.sync_max_ms, s_k3_lag, s_ns.restamp, s_ns.late);
 		Console.WriteLn("ZdxsvGgpo: zd steps %u changed %u echo %u skip %u k3 %d/%d/%d/%d rel %d (fwd %u)", s_battle.zd_steps, s_battle.zd_changed, s_battle.zds_echo, s_battle.zds_skip,
 			s_rb.zds_seen[0], s_rb.zds_seen[1], s_rb.zds_seen[2], s_rb.zds_seen[3], s_rb.zds_rel, s_battle.zds_k3rel);
+		Console.WriteLn("ZdxsvGgpo: zd steps per frame: repeats %u gaps %u (frames %d..%d)", s_battle.zd_repeats, s_battle.zd_gaps,
+			s_battle.zd_gaps ? s_battle.zd_gap_min : 0, s_battle.zd_gap_max);
 		DesyncReport();
 		if (s_pw_hash && s_net_trace)
 		{

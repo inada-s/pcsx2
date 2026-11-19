@@ -18,7 +18,7 @@ skips does not run on that path.
 | Save state entries (`SaveStateHooks.h`, `SaveState.cpp`) | `NoDev9`, `DeltaState` | `ZdxsvNoDev9.bin` entry (No DEV9 state); DEV9 entry optional |
 | vtlb page protection and fault handler (`vtlb.h`: `mmap_DeltaSetHook`, `mmap_DeltaSetFaultHook`) | `DeltaState` | delta states: copy-on-write of watched EE RAM pages |
 | VU1 microprogram start (`CpuHooks.h`, `VU1micro.cpp`), microVU execute (`microVU.cpp`) | `GgpoSession`, `Ggpo`, `VuOpTest` | VU1 skipped in rerun frames, rerun time split (`ZDXSV_RERUN_SPLIT`), VU op test (`ZDXSV_VU1_OPTEST`) |
-| SPU2 reverb (`MediaHooks.h`, `SPU2/Reverb.cpp`) | `Ggpo` | no reverb in rerun frames (`ZDXSV_RERUN_REVERB`) |
+| SPU2 reverb (`SpuHooks.h`, `SPU2/Reverb.cpp`) | `SpuLazyVoices` | no reverb in rerun frames (`ZDXSV_RERUN_REVERB`) |
 | Audio output (`MediaHooks.h`, `Host/AudioStream.cpp`) | `AudioTap` | audio to a WAV file (`ZDXSV_AUDIO_WAV`) |
 | VIF transfer loop (`Vif_Transfer.cpp`, changed in place, no hook) | — | NOP codes run inline (same emulated state) |
 | HTTP downloader (`common/HTTPDownloader*`: POST content type) | `AuthSignIn`, `FastLogin`, `LobbyConnection`, `ReplayRecord` | JSON and multipart POSTs (sign-in, login API, replay upload) |
@@ -61,14 +61,11 @@ this table says it is missing.
 ## Online play ([lobby.md](lobby.md))
 
 - **Switch for all online battle extensions**: `ZDXSV_EXTENSIONS=0`.
-- **Online without DEV9**: with the platform info, a TCP battle, a GGPO battle and TLS; every connection menu button connects with no network setting, also from a blank card; ネット終了 closes the lobby connection and returns to the main menu; on with a server host (`ZDXSV_SERVER_HOST`).
+- **Online without DEV9**: with the platform info, a GGPO battle and TLS (no TCP battle: see [Development and rig paths](#development-and-rig-paths)); every connection menu button connects with no network setting, also from a blank card; ネット終了 closes the lobby connection and returns to the main menu; on with a server host (`ZDXSV_SERVER_HOST`).
 - **Fast login**: DNAS and the login browser skipped; the game waits at DNAS (VM paused) for the login API's answer; no answer or a server error keeps it held (OSD, retry 2-30 s backoff) until it answers or the player resumes (then, like no token or a refused login, back to the network menu: no DNAS). The game's reconnect after a failed battle connect (its login browser) logs in the same way once its earlier file load ends; a failed login leaves the game in its browser. The login result is written back when the game clears it for a newly made user, so the lobby connect after the battle has its address; `ZdxsvFastLogin`, `ZdxsvLoginApiUrl`.
 - **Sign-in**: Settings → zdxsv → Account, or the fast login at DNAS with no token (VM paused), signs in through the server (Discord) and saves the token the fast login sends; `ZdxsvAuthUrl`. Signing in makes no zdxsv account: the first login, or one with an empty slot picked, makes it; Carry Over from PS2 links a PS2 account by its carry-over code. Account picks one of the Discord account's accounts (`ZdxsvAccount`); the server sets the limits.
 - **Fast boot**: boot to the lobby user_id selection with no input; `ZdxsvFastBoot`, `ZdxsvFastBootState`, `ZdxsvFastBootLobby` (on through ID 1 into the lobby).
 - **Platform info `0x9950` to the lobby**: `ZDXSV_PLATFORM_INFO`.
-- **Battle over TCP to the battle server, as a PS2**: always.
-- **Playing as a console**: seen as a real PS2; `ZDXSV_PLATFORM_INFO=0`.
-- **A console behind a separate zproxy process**: `ZDXSV_PLATFORM_INFO=0`, server set by the lobby.
 - **First login from a blank memory card**: always.
 - **TLS to the zdxsv server**: lobby only, pinned keys; on when the client has pins.
 - **Lobby connection kept while paused**: line checks `0x6001` answered.
@@ -107,12 +104,10 @@ Keys (`net=1`, `lobby=1`, `port=`, `delay=`, ...) are parts of `ZDXSV_GGPO`.
 - **Single draw list**: always on, no setting; `ZDXSV_SINGLE_DRAW_LIST=0` turns it off.
 - **Battle start and MS select load barriers**: GGPO session.
 - **In-game button settings in GGPO battles**: each player's own input record takes its action bits from that player's button settings in guest RAM; GGPO session.
-- **GGPO synctest in a running game**: `ZDXSV_GGPO` without `net=1`.
 - **Rerun keep**: the bone matrix slots and beam saber trails are not rolled back during battle play, and parts attached to a player are drawn in every rerun frame; `ZDXSV_RERUN_KEEP`, `ZDXSV_RERUN_PARTS`.
 - **GGPO on by default for lobby battles**: `ZDXSV_EXTENSIONS=0` turns it off.
 - **Battle UDP port setting**: `ZdxsvGgpoPort`, `port=`.
 - **Minimum input delay setting**: `ZdxsvGgpoMinDelay`, `mindelay=`.
-- **GGPO battle without servers**: `net=1` + `ZDXSV_RBK`.
 - **Every pad input reaches a GGPO battle**: buttons, Start, both sticks.
 - **Session ends on a confirmed battle end**.
 - **Clean end, tails differ**.
@@ -121,7 +116,6 @@ Keys (`net=1`, `lobby=1`, `port=`, `delay=`, ...) are parts of `ZDXSV_GGPO`.
 - **A lobby battle that breaks after the start goes back to the lobby**.
 - **Pause and speed refused in a net battle**: pause, speed, frame advance, state loads, pause menu.
 - **MTVU speedhack off while GGPO or a replay runs**.
-- **GGPO battle with the battle server and a fake lobby**: `net=1`.
 - **GGPO battle from the battle info of the lobby**: `net=1,lobby=1`.
 - **Input delay from the ping test**: lobby battle without `delay=`.
 - **Ping test failure cuts the battle connection, OSD with the reason**.
@@ -203,6 +197,23 @@ Keys (`net=1`, `lobby=1`, `port=`, `delay=`, ...) are parts of `ZDXSV_GGPO`.
 - **VU1 trace recompiler**: `PCSX2_VU1_JIT=0` turns it off.
 - **FPU and VU math as x86**.
 - **EE FPU interpreter as the recompiler**: all builds.
+
+## Development and rig paths
+
+Not what a release does: a release has a server host, so the Z game takes the
+No DEV9 path ([Network paths](#network-paths)), where battles run only over
+GGPO: the emulator answers the battle socket, and a TCP connect to the battle
+server is refused. These run on the DEV9 path (an empty `ZDXSV_SERVER_HOST`)
+or with test options, for the test rigs.
+Real PS2 consoles battle on the battle server (through zproxy); these paths
+stand in for them.
+
+- **Battle over TCP to the battle server, as a PS2**: DEV9 path.
+- **Playing as a console**: seen as a real PS2; DEV9 path, `ZDXSV_PLATFORM_INFO=0`.
+- **A console behind a separate zproxy process**: DEV9 path, `ZDXSV_PLATFORM_INFO=0`, server set by the lobby.
+- **GGPO battle with the battle server and a fake lobby**: `ZDXSV_GGPO` `net=1`.
+- **GGPO battle without servers**: `ZDXSV_GGPO` `net=1` + `ZDXSV_RBK`.
+- **GGPO synctest in a running game**: `ZDXSV_GGPO` without `net=1`.
 
 ## Releases and tools ([tools.md](tools.md))
 

@@ -20,7 +20,8 @@ game never reaches the battle server: the connect to the battle server of a
 battle info that lists our position gets the server's greet, and each message
 the game sends before its first key message comes back once per other
 position, as the server's relay would send it. Without such a battle info the
-connect goes to the battle server.
+connect goes to the battle server on the DEV9 path and is refused without DEV9
+(the release).
 
 ## TLS to the zdxsv server
 
@@ -145,7 +146,9 @@ line with the JSON as received.
    joins the ping test: it is reached at the sources of its pings
    or through a relay; with `delay=` (no ping test) the battle is cut.
 
-No battle runs on the battle server.
+No emulator battle of a release runs on the battle server; real PS2 consoles
+battle there (through zproxy), and so does the DEV9 path
+([features.md](features.md#development-and-rig-paths)).
 
 ## Ping test
 

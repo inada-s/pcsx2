@@ -23,7 +23,7 @@ namespace Zdxsv
 	int GgpoLobbyPort();
 	// advertise=P (test): the port the platform info announces instead, at 127.0.0.1; 0 = off.
 	int GgpoLobbyAdvertisePort();
-	// The lobby's battle info (DEV9 thread): me = our position (-1 = not listed);
+	// The lobby's battle info (CPU thread): me = our position (-1 = not listed);
 	// byPosition = Zdxsv::GgpoPeers; session = ggpo_session (0 = none: the battle connection is cut),
 	// pingMs = ggpo_ping_ms. Without delay=, starts the ping test; GGPO arms after it at the path it picked.
 	// ids = report lines naming the battle; players = per position (network status OSD, replay header).

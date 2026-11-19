@@ -17,6 +17,9 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build_qt_msbuild:
     name: "MSBuild"
@@ -48,3 +51,5 @@ jobs:
         uses: actions/checkout@v7
       - name: Check CMake, vcxproj and filters agree
         run: python3 .github/workflows/scripts/common/check-vs-projects.py
+      - name: Check zdxsv features and rig test rows agree
+        run: python3 tests/zdxsv/featurecheck.py

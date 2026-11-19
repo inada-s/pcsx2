@@ -6,7 +6,9 @@
 #include <QtCore/QTimer>
 #include <QtWidgets/QDialog>
 
+#include <atomic>
 #include <functional>
+#include <memory>
 #include <string>
 
 class QCheckBox;
@@ -58,6 +60,8 @@ private:
 
 	QTreeWidget* m_local = nullptr;
 	QLabel* m_local_status = nullptr;
+	// Bumped by each refreshLocal and on close: the reading thread stops when it changes.
+	std::shared_ptr<std::atomic<int>> m_local_req = std::make_shared<std::atomic<int>>(0);
 
 	QLineEdit* m_remote_code = nullptr;
 	QLineEdit* m_remote_name = nullptr;

@@ -17,6 +17,11 @@
 - A tag with a suffix, such as `zdxsv-0.0.1-rc1`, becomes a prerelease. The
   updater skips prereleases.
 - The release zip holds `portable.txt`, `ZDXSV.md` and `ZDXSV.ja.md`.
+- Each release also has `SHA256SUMS.txt` and a GitHub build provenance
+  attestation for both files: `gh attestation verify <file> -R inada-s/pcsx2`.
+- A release that already exists for the tag (e.g. made on the web) is kept and
+  gets the files; a file of the same name already attached fails the release
+  job (delete that asset, then re-run the job).
 
 ## CI
 
@@ -29,6 +34,8 @@
   - macOS arm64 (`macos_build_arm64.yml`); builds and runs the unit tests,
     no artifact.
 - The Linux and macOS x86_64 workflows only run by hand (`workflow_dispatch`).
+- These builds get a read-only token. The upstream `pull_request_target` workflows
+  (`check_pr_commits.yml`, `windows_deps_dispatch.yml`) run only in `PCSX2/pcsx2`.
 
 ## Local build and run
 
@@ -43,6 +50,7 @@
 | `tools/zdxsv/recvcheck.py` | Checks the receive slots (`R` lines) of a `ZDXSV_NET_TRACE` file. |
 | `tools/zdxsv/ramcount.py` | Finds EE RAM values that count down or up linearly across `ZDXSV_RAM_DUMP` dumps. |
 | `tools/zdxsv/ramvals.py` | Lists EE RAM u16 slots by the values they take across `ZDXSV_RAM_DUMP` dumps. |
+| `tools/zdxsv/upstream_spots.py` | Checks that every changed spot in an upstream file is marked and listed in [upstream.md](upstream.md); `--write` regenerates the list, `--all` prints every spot. Exit 1 on an unmarked spot or a stale list. |
 | `tests/zdxsv/vu1_optest_cmp.py` | `vu1_optest_cmp.py <a.bin> <b.bin> <emulog of a> [cases]`: compares two `ZDXSV_VU1_OPTEST` files (e.g. x86_64 vs ARM64): per op, the cases whose outputs differ, then the first such cases with inputs and both outputs. |
 | `tests/zdxsv/ee_optest_cmp.py` | `ee_optest_cmp.py <a.bin> <b.bin> <emulog of a> [cases]`: compares two `ZDXSV_EE_OPTEST` files (record size per op: `V*` = COP2): per op, the cases whose outputs differ and which output (Fd/ACC, FCR31; VF3 lanes, status, MAC, clip, Q), then the first such cases with inputs and both outputs. |
 

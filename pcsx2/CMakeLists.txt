@@ -290,6 +290,7 @@ set(pcsx2Headers
 	Zdxsv/UiHooks.h
 	Zdxsv/Settings.h
 	Zdxsv/FastLogin.h
+	Zdxsv/GameAddresses.h
 	Zdxsv/ServerHosts.h
 	Zdxsv/TestOptions.h
 	Zdxsv/Upnp.h
@@ -465,6 +466,7 @@ set(pcsx2DEV9Headers
 	Zdxsv/Lobby.h
 	Zdxsv/Proto.h
 	Zdxsv/LobbySocket.h
+	Zdxsv/LobbyFrame.h
 	Zdxsv/LobbyNet.h
 	Zdxsv/LogTail.h
 	DEV9/Sessions/UDP_Session/UDP_Common.h

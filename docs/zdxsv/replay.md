@@ -13,7 +13,8 @@ battles save to the replay folder without it (settings `ZdxsvSaveReplay`,
 - The file name is `<battle_code>.pb`, else `rbk-<start time>-p<position>.pb`.
 - Only frames GGPO confirmed are written, so every peer's file of one battle
   holds the same inputs.
-- The file is written when the session stops, also on a VM shutdown or reset.
+- The file is written when the session stops, also on a VM shutdown or reset,
+  to `<name>.pb.part` first, then renamed over `<name>.pb`.
   A session that ends before GGPO confirmed frame 0 writes and posts nothing.
 - A lobby battle's file is posted (multipart field `file`) to the
   lobby's upload API (zdxsv `/lbs/replay_upload?battle_code=&session_id=`,
@@ -54,7 +55,8 @@ on, while positions and RNGs match.
 the first battle of the lobby's public API
 `http://<lobby api>/lbs/replay?battle_code=<code>`. A download
 that starts with the gzip magic (the lobby's bucket serves them gzip encoded) is
-decompressed first.
+decompressed first. A file over 256 MiB (decompressed) or with a repeated field
+over 4096 values is not played; a live stream stops past 256 MiB of records.
 
 Common start: playback loads a save state of the game
 at the post-entry point (logged in, before the lobby's battle start; any
@@ -69,7 +71,7 @@ battle-socket emulation as a live battle, without GGPO.
   end of the stream) the VM closes, so a replay started from the replay
   window goes back to it. A live battle with auto-next on waits for the
   next battle instead.
-- While a replay plays, state saves and loads and disc changes are refused
+- From the VM start of a replay (while it downloads too), state saves and loads and disc changes are refused
   from every entry point (hotkeys, menus, Big Picture, PINE), with the OSD
   "Not available during a replay."; the replay's own states (seek keys,
   takeover) still load.

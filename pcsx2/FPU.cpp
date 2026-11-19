@@ -505,7 +505,7 @@ void RSQRT_S() {
 	if (fpuX86Mode()) {
 		if ( _FtValUl_ & 0x80000000 )
 			_ContVal_ |= FPUflagI | FPUflagSI;
-		_FdValUl_ = fpuResultX86(fpuDaz( _FsValUl_ ) / sqrt( fabs( std::bit_cast<float>( _FtValUl_ ) ) ));
+		_FdValUl_ = fpuResultX86(fpuDaz( _FsValUl_ ) / std::sqrt( std::fabs( std::bit_cast<float>( _FtValUl_ ) ) ));
 		return;
 	}
 #endif

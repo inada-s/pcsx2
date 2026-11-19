@@ -9,7 +9,7 @@ on:
       - "zdxsv-*"
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   vars:
@@ -74,14 +74,23 @@ jobs:
         env:
           SENTRY_ORG: gdxsv-project
           SENTRY_PROJECT: pcsx2-zdxsv
+          SENTRY_CLI_VERSION: 2.58.6
+          SENTRY_CLI_SHA256: 36b689311b399d9332950d84f4299aee682d2d290a770a77372b30a74f7e7add
         run: |
+          curl -fsSL -o sentry-cli "https://github.com/getsentry/sentry-cli/releases/download/$SENTRY_CLI_VERSION/sentry-cli-Linux-x86_64"
+          echo "$SENTRY_CLI_SHA256  sentry-cli" | sha256sum -c -
+          chmod +x sentry-cli
           unzip -q zdxsv-release/pcsx2-zdxsv-windows-x64.zip -d binaries
-          npx --yes @sentry/cli@2 debug-files upload --type pe --type pdb --wait binaries symbols
+          ./sentry-cli debug-files upload --type pe --type pdb --wait binaries symbols
 
   release:
     name: "Release"
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
     steps:
       - uses: actions/download-artifact@v8
         with:
@@ -97,15 +106,25 @@ jobs:
           grep -aqF "$ZDXSV_SERVER_HOST" check/pcsx2-qt*.exe
           grep -aqF "$ZDXSV_UDPTEST_URL" check/pcsx2-qt*.exe
 
+      - name: Checksums
+        working-directory: zdxsv-release
+        run: |
+          sha256sum pcsx2-zdxsv-windows-x64.* > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-checksums: zdxsv-release/SHA256SUMS.txt
+
       - name: Create release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
         run: |
           # A release made by hand for this tag (e.g. on the web, which also creates the tag) is kept:
-          # only the build's files are attached to it, replacing any with the same name.
+          # the build's files are attached to it. A file of the same name already there fails the upload.
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
-            gh release upload "$TAG" zdxsv-release/* --repo "$GITHUB_REPOSITORY" --clobber
+            gh release upload "$TAG" zdxsv-release/* --repo "$GITHUB_REPOSITORY"
             exit 0
           fi
           PRE=""
