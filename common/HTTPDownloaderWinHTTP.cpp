@@ -278,6 +278,7 @@ bool HTTPDownloaderWinHttp::StartRequest(HTTPDownloader::Request* request)
 	BOOL result;
 	if (req->type == HTTPDownloader::Request::Type::Post)
 	{
+		// zdxsv: replay upload posts multipart
 		const std::wstring additional_headers = L"Content-Type: " +
 			(req->post_content_type.empty() ? std::wstring(L"application/x-www-form-urlencoded") :
 											  StringUtil::UTF8StringToWideString(req->post_content_type)) + L"\r\n";

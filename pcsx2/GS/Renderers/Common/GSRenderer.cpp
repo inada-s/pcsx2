@@ -981,6 +981,7 @@ void GSRenderer::PresentCurrentFrame()
 	}
 }
 
+// zdxsv: overlays place their text on the game image
 void GSGetLastDrawRect(float* left, float* top, float* right, float* bottom)
 {
 	*left = s_last_draw_rect.x;

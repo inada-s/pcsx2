@@ -64,13 +64,14 @@ struct StereoOut32
 };
 
 extern void (*spu2Mix)();
+// zdxsv: lazy SPU2 voices (Zdxsv/SpuLazyVoices.cpp)
 extern void (*spu2StepStoppedVoice)(uint coreidx, uint voiceidx);
 extern void (*spu2UpdateBlockHeader)(uint coreidx, uint voiceidx);
 extern s16* GetMemPtr(u32 addr);
 extern s16 spu2M_Read(u32 addr);
 extern void spu2M_Write(u32 addr, s16 value);
 extern void spu2M_Write(u32 addr, u16 value);
-MULTI_ISA_DEF(void spu2Mix(); void spu2StepStoppedVoice(uint coreidx, uint voiceidx); void spu2UpdateBlockHeader(uint coreidx, uint voiceidx);)
+MULTI_ISA_DEF(void spu2Mix(); void spu2StepStoppedVoice(uint coreidx, uint voiceidx); void spu2UpdateBlockHeader(uint coreidx, uint voiceidx);) // zdxsv: lazy SPU2 voices
 extern void spu2Output(StereoOut32 out);
 
 static __forceinline s16 SignExtend16(u16 v)

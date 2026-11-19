@@ -80,21 +80,21 @@ needs its marker.
 | `bin/resources/GameIndex.yaml` |  | not marked yet |
 | `cmake/Pcsx2Utils.cmake` | `function` | release tags are zdxsv-X.Y.Z (the auto updater compares these). |
 | `cmake/SearchForStuff.cmake` | `add_subdirectory` | not marked yet |
-| `common/Console.cpp` |  | not marked yet |
-| `common/Console.cpp` |  | not marked yet |
-| `common/Console.cpp` | `Log::SetTapOutputLevel` | not marked yet |
-| `common/Console.cpp` | `Log::UpdateMaxLevel` | not marked yet |
-| `common/Console.cpp` | `Log::ExecuteCallbacks` | not marked yet |
-| `common/Console.h` |  | not marked yet |
-| `common/HTTPDownloader.cpp` | `HTTPDownloader::CreateRequest` | not marked yet |
-| `common/HTTPDownloader.cpp` | `HTTPDownloader::CreatePostRequest` | not marked yet |
-| `common/HTTPDownloader.h` |  | not marked yet |
-| `common/HTTPDownloader.h` |  | not marked yet |
-| `common/HTTPDownloaderCurl.cpp` | `HTTPDownloaderCurl::StartRequest` | not marked yet |
-| `common/HTTPDownloaderCurl.cpp` | `HTTPDownloaderCurl::StartRequest` | not marked yet |
-| `common/HTTPDownloaderCurl.cpp` | `HTTPDownloaderCurl::CloseRequest` | not marked yet |
-| `common/HTTPDownloaderCurl.h` |  | not marked yet |
-| `common/HTTPDownloaderWinHTTP.cpp` | `HTTPDownloaderWinHttp::StartRequest` | not marked yet |
+| `common/Console.cpp` |  | log tail (Zdxsv/LogTail.cpp) |
+| `common/Console.cpp` |  | log tail (Zdxsv/LogTail.cpp) |
+| `common/Console.cpp` | `Log::SetTapOutputLevel` | log tail (Zdxsv/LogTail.cpp) |
+| `common/Console.cpp` | `Log::UpdateMaxLevel` | log tail (Zdxsv/LogTail.cpp) |
+| `common/Console.cpp` | `Log::ExecuteCallbacks` | log tail (Zdxsv/LogTail.cpp) |
+| `common/Console.h` |  | a second callback output, independent of the host one (Zdxsv/LogTail.cpp) |
+| `common/HTTPDownloader.cpp` | `HTTPDownloader::CreateRequest` | replay upload posts multipart |
+| `common/HTTPDownloader.cpp` | `HTTPDownloader::CreatePostRequest` | replay upload posts multipart |
+| `common/HTTPDownloader.h` |  | replay upload posts multipart |
+| `common/HTTPDownloader.h` |  | replay upload posts multipart |
+| `common/HTTPDownloaderCurl.cpp` | `HTTPDownloaderCurl::StartRequest` | the body may be binary (a multipart file): its length, not strlen. |
+| `common/HTTPDownloaderCurl.cpp` | `HTTPDownloaderCurl::StartRequest` | replay upload posts multipart |
+| `common/HTTPDownloaderCurl.cpp` | `HTTPDownloaderCurl::CloseRequest` | replay upload posts multipart |
+| `common/HTTPDownloaderCurl.h` |  | replay upload posts multipart |
+| `common/HTTPDownloaderWinHTTP.cpp` | `HTTPDownloaderWinHttp::StartRequest` | replay upload posts multipart |
 | `common/vsprops/LinkPCSX2Deps.props` |  | not marked yet |
 | `common/vsprops/preBuild.cmd` | `0` | release tags are zdxsv-X.Y.Z (the auto updater compares these). |
 | `pcsx2-qt/AutoUpdaterDialog.cpp` |  | include `Zdxsv/TestOptions.h` |
@@ -188,8 +188,8 @@ needs its marker.
 | `pcsx2/Counters.cpp` | `ZdxsvPostVsyncStart` | `ZdxsvPostVsyncStart`, `Zdxsv::g_input_latency_enabled`, `Zdxsv::InputLatencyOnPush` |
 | `pcsx2/Counters.cpp` | `VSyncStart` | present the finished frame now, sleep, then poll input right before the next frame is emulated. |
 | `pcsx2/Counters.cpp` | `SaveStateBase::rcntFreeze` | `Zdxsv::g_delta_freeze_load` |
-| `pcsx2/DEV9/DEV9.cpp` |  | not marked yet |
-| `pcsx2/DEV9/DEV9.cpp` |  | not marked yet |
+| `pcsx2/DEV9/DEV9.cpp` |  | delta state of DEV9 |
+| `pcsx2/DEV9/DEV9.cpp` |  | delta state of DEV9 |
 | `pcsx2/DEV9/DEV9.cpp` | `DEV9async` | registers, SMAP buffers and FIFO, so a state saved while the game is online keeps its network adapter. |
 | `pcsx2/DEV9/DEV9.h` |  | `Zdxsv::DeltaFreezeSave` |
 | `pcsx2/DEV9/net.h` |  | held by the rx thread while it writes a packet into the SMAP RX FIFO. |
@@ -219,11 +219,11 @@ needs its marker.
 | `pcsx2/GS/GS.cpp` | `GSAllocateWrappedMemory` | per process, concurrent launches each open the name exclusively before unlinking it. |
 | `pcsx2/GS/GS.cpp` | `GSAllocateWrappedMemory` | per-process name |
 | `pcsx2/GS/GS.cpp` | `HotkeyAdjustUpscaleMultiplier` | `Zdxsv::g_online_limits`, `Zdxsv::OnlineRefuses` |
-| `pcsx2/GS/GS.h` |  | not marked yet |
+| `pcsx2/GS/GS.h` |  | overlays |
 | `pcsx2/GS/Renderers/Common/GSRenderer.cpp` |  | include `Zdxsv/MediaHooks.h` |
 | `pcsx2/GS/Renderers/Common/GSRenderer.cpp` | `GSRenderer::VSync` | `Zdxsv::g_gs_rerun_frame` |
 | `pcsx2/GS/Renderers/Common/GSRenderer.cpp` | `GSRenderer::VSync` | `Zdxsv::g_gs_rerun_frame` |
-| `pcsx2/GS/Renderers/Common/GSRenderer.cpp` | `GSGetLastDrawRect` | not marked yet |
+| `pcsx2/GS/Renderers/Common/GSRenderer.cpp` | `GSGetLastDrawRect` | overlays place their text on the game image |
 | `pcsx2/Gif_Unit.cpp` |  | include `Zdxsv/SaveStateHooks.h` |
 | `pcsx2/Gif_Unit.cpp` | `SaveStateBase::gifPathFreeze` | `Zdxsv::DeltaFreezeMarkScratch` |
 | `pcsx2/Gif_Unit.cpp` | `SaveStateBase::gifPathFreeze` | `Zdxsv::g_delta_freeze_load` |
@@ -232,7 +232,7 @@ needs its marker.
 | `pcsx2/Hotkeys.cpp` |  | include `Zdxsv/UiHooks.h` |
 | `pcsx2/Hotkeys.cpp` | `DEFINE_HOTKEY` | `Zdxsv::g_online_limits`, `Zdxsv::OnlineRefuses` |
 | `pcsx2/Hotkeys.cpp` | `DEFINE_HOTKEY` | `ZdxsvReplaySeekBack`, `Zdxsv::ReplaySeekBy`, `ZdxsvReplaySeekForward` |
-| `pcsx2/INISettingsInterface.h` |  | not marked yet |
+| `pcsx2/INISettingsInterface.h` |  | replay child process |
 | `pcsx2/ImGui/FullscreenUI.cpp` |  | include `Zdxsv/UiHooks.h` |
 | `pcsx2/ImGui/FullscreenUI.cpp` | `FullscreenUI::OpenPauseMenu` | `Zdxsv::OnlinePauseMenuRefuses` |
 | `pcsx2/ImGui/FullscreenUI.cpp` | `FullscreenUI::DoShutdown` | `Zdxsv::g_online_limits`, `Zdxsv::OnlineRefuses` |
@@ -290,13 +290,13 @@ needs its marker.
 | `pcsx2/R5900.h` |  | target of the last taken branch (wait loop detection) |
 | `pcsx2/R5900.h` | `CpuRunsIntBranches` | true when branches, TLB misses and wait loops take the interpreter's paths: the interpreter, or the ARM64 EE recompiler, which runs interpreter code for them (arm64/iR5900.cpp). |
 | `pcsx2/SIO/Pad/Pad.cpp` |  | include `Zdxsv/InputHooks.h` |
-| `pcsx2/SIO/Pad/Pad.cpp` | `Pad::ControllerInfo::GetBindIndex` | not marked yet |
+| `pcsx2/SIO/Pad/Pad.cpp` | `Pad::ControllerInfo::GetBindIndex` | upstream bug, unnamed slots |
 | `pcsx2/SIO/Pad/Pad.cpp` | `Pad::SetDefaultHotkeyConfig` | `ZdxsvReplaySeekBack`, `ZdxsvReplaySeekForward`, `ZdxsvReplayToggleKeys` |
 | `pcsx2/SIO/Pad/Pad.cpp` | `Pad::SetControllerState` | `Zdxsv::g_stick_message`, `Zdxsv::StickMessageSetInput`, `Zdxsv::g_ggpo_active` |
 | `pcsx2/SIO/Pad/Pad.cpp` | `Pad::LoadMacroButtonConfig` | `Zdxsv::g_online_limits` |
 | `pcsx2/SIO/Pad/PadDualshock2.cpp` |  | include `Zdxsv/InputHooks.h` |
 | `pcsx2/SIO/Pad/PadDualshock2.cpp` | `PadDualshock2::Poll` | `Zdxsv::g_input_latency_enabled`, `Zdxsv::InputLatencyOnPadPoll` |
-| `pcsx2/SPU2/ADSR.cpp` | `V_VolumeSlide::UpdateSlide` | not marked yet |
+| `pcsx2/SPU2/ADSR.cpp` | `V_VolumeSlide::UpdateSlide` | Update() tests Enable inline (defs.h) |
 | `pcsx2/SPU2/Dma.cpp` |  | include `Zdxsv/SpuHooks.h` |
 | `pcsx2/SPU2/Dma.cpp` | `V_Core::StartADMAWrite` | `Zdxsv::SpuLazyWake` |
 | `pcsx2/SPU2/Dma.cpp` | `V_Core::PlainDMAWrite` | `Zdxsv::SpuLazyWake` |
@@ -306,8 +306,8 @@ needs its marker.
 | `pcsx2/SPU2/Mixer.cpp` | `MixCoreVoices` | `Zdxsv::SpuLazySkip` |
 | `pcsx2/SPU2/Reverb.cpp` |  | include `Zdxsv/MediaHooks.h` |
 | `pcsx2/SPU2/Reverb.cpp` | `V_Core::DoReverb` | `Zdxsv::g_ggpo_active`, `Zdxsv::g_ggpo_in_rollback`, `Zdxsv::SpuRerunReverbSkip` |
-| `pcsx2/SPU2/defs.h` |  | not marked yet |
-| `pcsx2/SPU2/defs.h` |  | not marked yet |
+| `pcsx2/SPU2/defs.h` |  | lazy SPU2 voices (Zdxsv/SpuLazyVoices.cpp) |
+| `pcsx2/SPU2/defs.h` |  | lazy SPU2 voices |
 | `pcsx2/SPU2/defs.h` |  | inline check, called twice per voice per sample, mostly with no slide. |
 | `pcsx2/SPU2/spu2.cpp` |  | include `Zdxsv/MediaHooks.h` |
 | `pcsx2/SPU2/spu2.cpp` | `SPU2readDMA4Mem` | `Zdxsv::SpuLazyWake` |
@@ -329,7 +329,7 @@ needs its marker.
 | `pcsx2/SPU2/spu2freeze.cpp` | `SPU2Savestate::SizeIt` | `Zdxsv::SpuLazyWake`, `Zdxsv::SpuLazyReset` |
 | `pcsx2/SPU2/spu2sys.cpp` |  | include `Zdxsv/MediaHooks.h` |
 | `pcsx2/SPU2/spu2sys.cpp` |  | not static, saved by the delta state (spu2freeze.cpp) |
-| `pcsx2/SPU2/spu2sys.cpp` |  | not marked yet |
+| `pcsx2/SPU2/spu2sys.cpp` |  | lazy SPU2 voices (Zdxsv/SpuLazyVoices.cpp) |
 | `pcsx2/SPU2/spu2sys.cpp` | `CheckDMAProgress` | `Zdxsv::SpuLazyWake` |
 | `pcsx2/SPU2/spu2sys.cpp` | `TimeUpdate` | `zdxsv_t0`, `Zdxsv::g_rerun_split_time`, `Zdxsv::g_ggpo_in_rollback` |
 | `pcsx2/SaveState.cpp` |  | include `Zdxsv/SaveStateHooks.h` |
@@ -340,7 +340,7 @@ needs its marker.
 | `pcsx2/SaveState.cpp` |  | NoDev9.cpp state |
 | `pcsx2/USB/usb-hid/usb-hid.cpp` |  | include `Zdxsv/KeyboardHooks.h` |
 | `pcsx2/USB/usb-hid/usb-hid.cpp` |  | `Zdxsv::HostKeyNumber` |
-| `pcsx2/USB/usb-hid/usb-hid.cpp` |  | not marked yet |
+| `pcsx2/USB/usb-hid/usb-hid.cpp` |  | kv is declared above, for the host key number |
 | `pcsx2/VMManager.cpp` |  | include `Zdxsv/CpuHooks.h` |
 | `pcsx2/VMManager.cpp` | `VMManager::SetState` | `Zdxsv::ReplayStepHoldsAudio` |
 | `pcsx2/VMManager.cpp` | `VMManager::SetDefaultSettings` | `Zdxsv::InputDefaultsUsb` |
@@ -381,7 +381,7 @@ needs its marker.
 | `pcsx2/VU1microInterp.cpp` | `InterpVU1::Reset` | not marked yet |
 | `pcsx2/VU1microInterp.cpp` | `InterpVU1::Execute` | not marked yet |
 | `pcsx2/VU1microInterp.cpp` | `InterpVU1::Execute` | not marked yet |
-| `pcsx2/VUmicro.h` |  | not marked yet |
+| `pcsx2/VUmicro.h` |  | ARM64 VU1 trace cache |
 | `pcsx2/VUops.cpp` | `_vuFDIVAdd` | not marked yet |
 | `pcsx2/VUops.cpp` | `_getDst` | not marked yet |
 | `pcsx2/VUops.cpp` | `applyBinaryMACOp` | not marked yet |
@@ -415,12 +415,12 @@ needs its marker.
 | `pcsx2/vtlb.cpp` | `PageFaultHandler::HandlePageFault` | not marked yet |
 | `pcsx2/vtlb.cpp` | `PageFaultHandler::HandlePageFault` | not marked yet |
 | `pcsx2/vtlb.cpp` | `mmap_ResetBlockTracking` | `// zdxsv delta state: watched pages stay read-only.` |
-| `pcsx2/vtlb.h` |  | not marked yet |
+| `pcsx2/vtlb.h` |  | delta state hooks below |
 | `pcsx2/vtlb.h` |  | `// zdxsv delta state: copy-on-write tracking of EE RAM pages (page = offset >> __pageshift).` |
 | `pcsx2/x86/ix86-32/iR5900.cpp` |  | include `Zdxsv/CpuHooks.h` |
 | `pcsx2/x86/ix86-32/iR5900.cpp` |  | word view, the copy holds RAM words at their word index (indexing the u8 array by word overlapped neighbouring blocks' copies). |
 | `pcsx2/x86/ix86-32/iR5900.cpp` | `recompileNextInstruction` | `Zdxsv::RecHooksOn`, `Zdxsv::RecEmitHooks` |
-| `pcsx2/x86/ix86-32/iR5900.cpp` | `memory_protect_recompiled_code` | not marked yet |
+| `pcsx2/x86/ix86-32/iR5900.cpp` | `memory_protect_recompiled_code` | upstream bug. |
 | `pcsx2/x86/ix86-32/iR5900.cpp` | `recRecompile` | `Zdxsv::EventLogBlocks`, `Zdxsv::EventLogBlock` |
 | `pcsx2/x86/ix86-32/iR5900.cpp` |  | word view |
 | `pcsx2/x86/ix86-32/iR5900.cpp` |  | word view |
