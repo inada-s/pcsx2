@@ -273,12 +273,8 @@ namespace Zdxsv
 		}
 	} // namespace
 
-	// s_ggpo_mtx guards every GGPO call: the frame loop holds it through Returned.
-	std::recursive_mutex s_ggpo_mtx;
-
 	void GgpoStop(const char* what)
 	{
-		std::lock_guard ggpo_lock(s_ggpo_mtx);
 		if (s_run.disconnected)
 			NetStatusUpdate(false); // the frame's lines predate the disconnect event
 		if (s_session)

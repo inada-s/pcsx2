@@ -426,8 +426,12 @@ namespace Zdxsv
 		if (!dir.empty())
 		{
 			const std::string path = Path::Combine(dir, name + ".pb");
-			if (!FileSystem::WriteBinaryFile(path.c_str(), pb.data(), pb.size()))
+			const std::string part = path + ".part";
+			if (!FileSystem::WriteBinaryFile(part.c_str(), pb.data(), pb.size()) || !FileSystem::RenamePath(part.c_str(), path.c_str()))
+			{
+				FileSystem::DeleteFilePath(part.c_str());
 				Console.Error("ZdxsvGgpo: replay: write %s failed", path.c_str());
+			}
 			else
 				Console.WriteLn("ZdxsvGgpo: replay saved %s frames=%zu, file=%zu bytes, %.1f ms", path.c_str(), frames,
 					pb.size(), timer.GetTimeMilliseconds());

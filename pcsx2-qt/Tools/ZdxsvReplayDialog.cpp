@@ -93,6 +93,14 @@ namespace
 		Host::CommitBaseSettingChanges();
 	}
 
+	struct LocalReplay
+	{
+		std::string path;
+		s64 mtime = 0;
+		bool ok = false;
+		Zdxsv::ReplayFileInfo info;
+	};
+
 	QString FormatDate(qint64 unix_seconds)
 	{
 		return unix_seconds > 0 ? QDateTime::fromSecsSinceEpoch(unix_seconds).toString(QStringLiteral("yyyy-MM-dd HH:mm")) : QString();
@@ -192,12 +200,15 @@ ZdxsvReplayDialog::ZdxsvReplayDialog(QWidget* parent)
 	m_live_timer.setInterval(LIVE_REFRESH_MS);
 	connect(&m_live_timer, &QTimer::timeout, this, &ZdxsvReplayDialog::refreshLive);
 
-	refreshLocal();
+	QTimer::singleShot(0, this, &ZdxsvReplayDialog::refreshLocal);
 	refreshFavorites();
 	updatePlayButton();
 }
 
-ZdxsvReplayDialog::~ZdxsvReplayDialog() = default;
+ZdxsvReplayDialog::~ZdxsvReplayDialog()
+{
+	++*m_local_req;
+}
 
 void ZdxsvReplayDialog::openDialog(QWidget* parent)
 {
@@ -397,30 +408,56 @@ void ZdxsvReplayDialog::removeFavorite()
 void ZdxsvReplayDialog::refreshLocal()
 {
 	m_local->clear();
+	const int req = ++*m_local_req;
 	const std::string dir = Zdxsv::ReplayDir();
-	FileSystem::FindResultsArray files;
-	FileSystem::FindFiles(dir.c_str(), "*.pb", FILESYSTEM_FIND_FILES, &files);
-	std::sort(files.begin(), files.end(), [](const FILESYSTEM_FIND_DATA& a, const FILESYSTEM_FIND_DATA& b) {
-		return a.ModificationTime > b.ModificationTime;
-	});
-	for (const FILESYSTEM_FIND_DATA& f : files)
-	{
-		Zdxsv::ReplayFileInfo info;
-		const bool ok = Zdxsv::ReadReplayInfo(f.FileName, &info);
-		QStringList players;
-		std::sort(info.users.begin(), info.users.end(), [](const auto& a, const auto& b) { return a.pos < b.pos; });
-		for (const Zdxsv::ReplayFileUser& u : info.users)
-			players.append(PlayerName(QString::fromStdString(u.name), QString::fromStdString(u.pilot)));
-		QTreeWidgetItem* item = new QTreeWidgetItem(m_local);
-		item->setText(0, FormatDate(info.start_at > 0 ? info.start_at : static_cast<qint64>(f.ModificationTime)));
-		item->setText(1, QString::fromStdString(info.battle_code));
-		item->setText(2, ok ? players.join(QStringLiteral(", ")) : tr("(unreadable)"));
-		item->setText(3, ok ? QString::number(info.rounds) : QString());
-		item->setText(4, ok ? FormatLength(info.frames) : QString());
-		item->setText(5, QString::fromStdString(std::string(Path::GetFileName(f.FileName))));
-		item->setData(0, SOURCE_ROLE, QString::fromStdString(f.FileName));
-	}
-	m_local_status->setText(tr("%n replay(s) in %1", nullptr, static_cast<int>(files.size())).arg(QString::fromStdString(dir)));
+	const QString qdir = QString::fromStdString(dir);
+	m_local_status->setText(tr("Reading replays in %1...").arg(qdir));
+	std::thread([dialog = QPointer<ZdxsvReplayDialog>(this), gen = m_local_req, req, dir, qdir]() {
+		FileSystem::FindResultsArray files;
+		FileSystem::FindFiles(dir.c_str(), "*.pb", FILESYSTEM_FIND_FILES, &files);
+		std::sort(files.begin(), files.end(), [](const FILESYSTEM_FIND_DATA& a, const FILESYSTEM_FIND_DATA& b) {
+			return a.ModificationTime > b.ModificationTime;
+		});
+		const int total = static_cast<int>(files.size());
+		const auto post = [&](std::vector<LocalReplay> rows, bool last) {
+			QtHost::RunOnUIThread([dialog, gen, req, rows = std::move(rows), last, total, qdir]() {
+				if (!dialog || *gen != req)
+					return;
+				for (const LocalReplay& r : rows)
+				{
+					QStringList players;
+					std::vector<Zdxsv::ReplayFileUser> users = r.info.users;
+					std::sort(users.begin(), users.end(), [](const auto& a, const auto& b) { return a.pos < b.pos; });
+					for (const Zdxsv::ReplayFileUser& u : users)
+						players.append(PlayerName(QString::fromStdString(u.name), QString::fromStdString(u.pilot)));
+					QTreeWidgetItem* item = new QTreeWidgetItem(dialog->m_local);
+					item->setText(0, FormatDate(r.info.start_at > 0 ? r.info.start_at : static_cast<qint64>(r.mtime)));
+					item->setText(1, QString::fromStdString(r.info.battle_code));
+					item->setText(2, r.ok ? players.join(QStringLiteral(", ")) : tr("(unreadable)"));
+					item->setText(3, r.ok ? QString::number(r.info.rounds) : QString());
+					item->setText(4, r.ok ? FormatLength(r.info.frames) : QString());
+					item->setText(5, QString::fromStdString(std::string(Path::GetFileName(r.path))));
+					item->setData(0, SOURCE_ROLE, QString::fromStdString(r.path));
+				}
+				if (last)
+					dialog->m_local_status->setText(tr("%n replay(s) in %1", nullptr, total).arg(qdir));
+			});
+		};
+		constexpr size_t BATCH = 32;
+		std::vector<LocalReplay> rows;
+		for (const FILESYSTEM_FIND_DATA& f : files)
+		{
+			if (*gen != req)
+				return;
+			LocalReplay& r = rows.emplace_back();
+			r.path = f.FileName;
+			r.mtime = static_cast<s64>(f.ModificationTime);
+			r.ok = Zdxsv::ReadReplayInfo(f.FileName, &r.info);
+			if (rows.size() == BATCH)
+				post(std::exchange(rows, {}), false);
+		}
+		post(std::move(rows), true);
+	}).detach();
 }
 
 void ZdxsvReplayDialog::searchRemote(int page)

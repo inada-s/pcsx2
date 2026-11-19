@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0+
 
 #include "Zdxsv/Lobby.h"
+#include "Zdxsv/LobbyFrame.h"
 #include "Zdxsv/LobbyNet.h"
 #include "Zdxsv/TestOptions.h"
 
@@ -169,10 +170,13 @@ namespace Zdxsv
 
 	void LobbyNoteFrame(const uint8_t* frame, size_t size)
 	{
-		if (size < 12 || frame[0] != 0x18 || frame[2] != 0x69 || frame[3] < 0x10 || frame[3] > 0x17)
+		if (size < LOBBY_FRAME_HEADER)
+			return;
+		const LobbyFrameView f{frame};
+		if (f.Direction() != LobbyToClient || f.Command() < LobbyMatchStart || f.Command() > LobbyMatchLast)
 			return;
 		std::lock_guard lock(g_mtx);
-		if (frame[3] == 0x10)
+		if (f.Command() == LobbyMatchStart)
 			g_startAnswers.clear();
 		else
 			g_startAnswers.emplace_back(frame, frame + size);
@@ -194,20 +198,19 @@ namespace Zdxsv
 
 	void LobbyFilter::Feed(const uint8_t* data, size_t len, bool answerLineChecks)
 	{
-		constexpr size_t header = 12;
 		buf.insert(buf.end(), data, data + len);
 		std::vector<uint8_t>& out = ready;
 		size_t pos = 0;
-		while (buf.size() - pos >= header)
+		while (buf.size() - pos >= LOBBY_FRAME_HEADER)
 		{
-			const uint8_t* f = &buf[pos];
-			const size_t total = header + ((size_t{f[4]} << 8) | f[5]);
+			const LobbyFrameView f{&buf[pos]};
+			const size_t total = f.Size();
 			if (buf.size() - pos < total)
 				break;
-			if (f[0] == 0x18 && f[1] == 0xFF && f[2] == 0x99 && f[3] == 0x51)
+			if (f.Is(LobbyToClient, LobbyCustom, LobbyBattleInfo))
 			{
 				BattleInfo info;
-				if (ParseBattleInfo(std::string(reinterpret_cast<const char*>(f + header), total - header), info))
+				if (ParseBattleInfo(std::string(f.Body()), info))
 				{
 					info.patches = std::exchange(patches, {});
 					SetBattleInfo(info);
@@ -215,38 +218,35 @@ namespace Zdxsv
 				else
 					LobbyLog("bad battle info notice");
 			}
-			else if (f[0] == 0x18 && f[1] == 0xFF && f[2] == 0x99 && f[3] == 0x53)
+			else if (f.Is(LobbyToClient, LobbyCustom, LobbyGamePatches))
 			{
 				patches.clear();
-				if (!ParseGamePatches(std::string(reinterpret_cast<const char*>(f + header), total - header), patches))
+				if (!ParseGamePatches(std::string(f.Body()), patches))
 				{
 					patches.clear();
 					LobbyLog("bad game patch notice");
 				}
 			}
-			else if (f[2] == 0x99)
+			else if ((f.Command() & 0xFF00) == LOBBY_CUSTOM_COMMANDS)
 			{
-				if (!loggedUnknown[f[3]])
+				const uint8_t low = f.Command() & 0xFF;
+				if (!loggedUnknown[low])
 				{
-					loggedUnknown[f[3]] = true;
+					loggedUnknown[low] = true;
 					char id[8];
-					std::snprintf(id, sizeof(id), "%02x%02x", f[2], f[3]);
+					std::snprintf(id, sizeof(id), "%04x", f.Command());
 					LobbyLog(std::string("dropped unknown custom message 0x") + id);
 				}
 			}
-			else if (answerLineChecks && f[0] == 0x18 && f[1] == 0x01 && f[2] == 0x60 && f[3] == 0x01)
-			{
-				const uint8_t answer[header] = {0x81, 0x02, 0x60, 0x01, 0x00, 0x00, f[6], f[7], 0x00, 0xFF, 0xFF, 0xFF};
-				answers.insert(answers.end(), answer, answer + header);
-			}
+			else if (answerLineChecks && f.Is(LobbyToClient, LobbyQuestion, LobbyLineCheck))
+				LobbyFrameAppend(answers, LobbyAnswer, LobbyLineCheck, f.Sequence());
 			else
 			{
 				constexpr std::string_view update = "PLEASE UPDATE PCSX2";
-				if (f[0] == 0x18 && f[1] == 0x10 && f[2] == 0x60 && f[3] == 0x03 &&
-					std::string_view(reinterpret_cast<const char*>(f + header), total - header).find(update) != std::string_view::npos)
+				if (f.Is(LobbyToClient, LobbyNotice, LobbyShutdownNotice) && f.Body().find(update) != std::string_view::npos)
 					pleaseUpdate = true;
-				LobbyNoteFrame(f, total);
-				out.insert(out.end(), f, f + total);
+				LobbyNoteFrame(f.p, total);
+				out.insert(out.end(), f.p, f.p + total);
 			}
 			pos += total;
 		}
@@ -423,6 +423,19 @@ namespace Zdxsv
 		}
 
 		// Binding requests from s to each server (3 tries, 300 ms each): the "ip:port" each one saw, "" for no answer
+		// A Pong answers one of our Pings only if it echoes that Ping's timestamp.
+		bool StunPongFor(const uint8_t* buf, int n, const std::vector<int64_t>& sent, std::string& addr, int64_t& sentAt)
+		{
+			StunPacket pong;
+			PeerAddr a;
+			if (n <= 0 || !StunDecode(buf, static_cast<size_t>(n), pong) || pong.type != StunPong ||
+				std::find(sent.begin(), sent.end(), pong.timestamp) == sent.end() || !LobbyParsePeerAddr(pong.publicAddr, a))
+				return false;
+			addr = a.String();
+			sentAt = pong.timestamp;
+			return true;
+		}
+
 		std::vector<std::string> StunMapped(sock_t s, const std::vector<sockaddr_in>& servers, const std::function<bool()>& stopped)
 		{
 			std::vector<std::string> mapped(servers.size());
@@ -465,7 +478,7 @@ namespace Zdxsv
 			return std::chrono::duration_cast<std::chrono::nanoseconds>(Clock::now().time_since_epoch()).count();
 		}
 
-		// The platform info lines of the last OpenUdp. DEV9 thread only.
+		// The platform info lines of the last OpenUdp. CPU thread only.
 		std::string g_udpLines;
 
 		// StartUdpTest's thread
@@ -557,9 +570,11 @@ namespace Zdxsv
 		int rtt = -1;
 		StunPacket ping;
 		ping.type = StunPing;
+		std::vector<int64_t> sent;
 		for (int i = 0; i < 3 && pub.empty(); i++)
 		{
 			ping.timestamp = NowNanos();
+			sent.push_back(ping.timestamp);
 			const std::string data = StunEncode(ping);
 			sendto(s, data.data(), static_cast<int>(data.size()), 0,
 				reinterpret_cast<const sockaddr*>(&stun), sizeof(stun));
@@ -573,12 +588,9 @@ namespace Zdxsv
 				sockaddr_in from{};
 				socklen_t fromLen = sizeof(from);
 				const int n = recvfrom(s, reinterpret_cast<char*>(buf), sizeof(buf), 0, reinterpret_cast<sockaddr*>(&from), &fromLen);
-				StunPacket pong;
-				if (n > 0 && LobbySameAddr(from, stun) && StunDecode(buf, n, pong) && pong.type == StunPong)
-				{
-					pub = pong.publicAddr;
-					rtt = static_cast<int>((NowNanos() - ping.timestamp) / 1000000);
-				}
+				int64_t sentAt = 0;
+				if (LobbySameAddr(from, stun) && StunPongFor(buf, n, sent, pub, sentAt))
+					rtt = static_cast<int>((NowNanos() - sentAt) / 1000000);
 			}
 		}
 		closesocket(s);
@@ -619,9 +631,11 @@ namespace Zdxsv
 			StunPacket ping;
 			ping.type = StunPing;
 			ping.userId = userId;
+			std::vector<int64_t> sent;
 			for (int i = 0; i < 3 && !done() && !stopped(); i++)
 			{
 				ping.timestamp = NowNanos();
+				sent.push_back(ping.timestamp);
 				const std::string data = StunEncode(ping);
 				sendto(s, data.data(), static_cast<int>(data.size()), 0,
 					reinterpret_cast<const sockaddr*>(&to), sizeof(to));
@@ -634,14 +648,15 @@ namespace Zdxsv
 					sockaddr_in from{};
 					socklen_t fromLen = sizeof(from);
 					const int n = recvfrom(s, reinterpret_cast<char*>(buf), sizeof(buf), 0, reinterpret_cast<sockaddr*>(&from), &fromLen);
-					StunPacket pong;
-					if (n <= 0 || !StunDecode(buf, n, pong) || pong.type != StunPong)
+					std::string addr;
+					int64_t sentAt = 0;
+					if (!StunPongFor(buf, n, sent, addr, sentAt))
 						continue;
 					if (LobbySameAddr(from, stun))
-						mapped = pong.publicAddr;
+						mapped = addr;
 					else if (LobbySameAddr(from, test))
 					{
-						mappedTest = pong.publicAddr;
+						mappedTest = addr;
 						if (userId == "udptest")
 							open = true;
 					}
