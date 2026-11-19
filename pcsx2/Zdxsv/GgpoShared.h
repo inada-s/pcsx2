@@ -342,6 +342,7 @@ namespace Zdxsv
 		u32 gen = 0; // battle infos received
 		std::vector<LobbyPlayer> players; // user id, name + pilot name per position
 		std::vector<GamePatch> patches;
+		std::string ids; // battle info lines naming the battle (SetLobbyPeers)
 	};
 	// The battle GGPO armed with, taken from LobbyBattle.
 	struct ArmedBattle
@@ -357,7 +358,6 @@ namespace Zdxsv
 	extern ArmedBattle s_net;
 	extern std::vector<GamePatch> s_battle_patches; // the started battle's, for its replay header
 	extern std::mutex s_lobby_mtx;
-	extern std::string s_report_ids; // battle info lines naming the battle (SetLobbyPeers)
 	extern std::string s_report; // P2PMatchingReport of the last lobby battle (TakeLobbyReport)
 	extern GGPOSession* s_session;
 	extern bool s_frame_ended; // the CPU left Execute() at a vsync
