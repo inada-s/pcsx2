@@ -73,7 +73,7 @@ eeProfiler EE::Profiler;
 #define X86
 
 static DynamicHeapArray<u8, 4096> recRAMCopy;
-// Word view: the copy holds RAM words at their word index (indexing the u8 array by word overlapped neighbouring blocks' copies).
+// zdxsv: word view, the copy holds RAM words at their word index (indexing the u8 array by word overlapped neighbouring blocks' copies).
 static u32* recRAMCopyW() { return reinterpret_cast<u32*>(recRAMCopy.data()); }
 static DynamicHeapArray<BASEBLOCK, 4096> recLutReserve_RAM;
 static DynamicHeapArray<BASEBLOCK, 4096> recLutUnmapped;
@@ -2711,7 +2711,7 @@ StartRecomp:
 			if ((oldBlock->startpc + oldBlock->size * 4) <= HWADDR(startpc))
 				break;
 
-			if (memcmp(&recRAMCopyW()[oldBlock->startpc / 4], PSM(oldBlock->startpc),
+			if (memcmp(&recRAMCopyW()[oldBlock->startpc / 4], PSM(oldBlock->startpc), // zdxsv: word view
 					oldBlock->size * 4))
 			{
 				recClear(startpc, (pc - startpc) / 4);
@@ -2721,7 +2721,7 @@ StartRecomp:
 			}
 		}
 
-		memcpy(&recRAMCopyW()[HWADDR(startpc) / 4], PSM(startpc), pc - startpc);
+		memcpy(&recRAMCopyW()[HWADDR(startpc) / 4], PSM(startpc), pc - startpc); // zdxsv: word view
 	}
 
 	s_pCurBlock->SetFnptr((uptr)recPtr);

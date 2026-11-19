@@ -422,7 +422,7 @@ static __forceinline StereoOut32 MixVoice(uint coreidx, uint voiceidx)
 	return voiceOut;
 }
 
-// Same steps as MixVoice for a stopped voice, which outputs silence.
+// zdxsv: same steps as MixVoice for a stopped voice, which outputs silence.
 static __forceinline void StepStoppedVoice(uint coreidx, uint voiceidx)
 {
 	V_Core& thiscore(Cores[coreidx]);

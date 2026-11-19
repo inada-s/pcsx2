@@ -136,7 +136,7 @@ public:
 	{
 	}
 
-	// Inline check: called twice per voice per sample, mostly with no slide.
+	// zdxsv: inline check, called twice per voice per sample, mostly with no slide.
 	void Update()
 	{
 		if (Enable)

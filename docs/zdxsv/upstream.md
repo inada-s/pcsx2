@@ -170,7 +170,7 @@ needs its marker.
 | `pcsx2-qt/pcsx2-qt.vcxproj.filters` |  | `ZdxsvReplayDialog` |
 | `pcsx2-qt/resources/resources.qrc` |  | `<file>icons/black/svg/zdxsv-line.svg</file>` |
 | `pcsx2-qt/resources/resources.qrc` |  | `<file>icons/white/svg/zdxsv-line.svg</file>` |
-| `pcsx2/CDVD/InputIsoFile.cpp` | `InputIsoFile::BeginRead2` | not marked yet |
+| `pcsx2/CDVD/InputIsoFile.cpp` | `InputIsoFile::BeginRead2` | a save state load can start a read while another is in flight. |
 | `pcsx2/CMakeLists.txt` | `target_compile_options` | production server defaults, given only by the official release build (docs/zdxsv/options.md) |
 | `pcsx2/CMakeLists.txt` |  | not marked yet |
 | `pcsx2/CMakeLists.txt` |  | `Zdxsv/InputLatency.cpp` |
@@ -192,7 +192,7 @@ needs its marker.
 | `pcsx2/DEV9/DEV9.cpp` |  | not marked yet |
 | `pcsx2/DEV9/DEV9.cpp` | `DEV9async` | registers, SMAP buffers and FIFO, so a state saved while the game is online keeps its network adapter. |
 | `pcsx2/DEV9/DEV9.h` |  | `Zdxsv::DeltaFreezeSave` |
-| `pcsx2/DEV9/net.h` |  | not marked yet |
+| `pcsx2/DEV9/net.h` |  | held by the rx thread while it writes a packet into the SMAP RX FIFO. |
 | `pcsx2/FPU.cpp` |  | not marked yet |
 | `pcsx2/FPU.cpp` | `fp_min` | not marked yet |
 | `pcsx2/FPU.cpp` | `fpuAddSubCut` | not marked yet |
@@ -216,8 +216,8 @@ needs its marker.
 | `pcsx2/GS/GS.cpp` |  | include `Zdxsv/UiHooks.h` |
 | `pcsx2/GS/GS.cpp` | `GSQueueSnapshot` | `Zdxsv::g_online_limits`, `Zdxsv::OnlineRefuses` |
 | `pcsx2/GS/GS.cpp` | `GSBeginCapture` | `Zdxsv::g_online_limits`, `Zdxsv::OnlineRefuses` |
-| `pcsx2/GS/GS.cpp` | `GSAllocateWrappedMemory` | not marked yet |
-| `pcsx2/GS/GS.cpp` | `GSAllocateWrappedMemory` | not marked yet |
+| `pcsx2/GS/GS.cpp` | `GSAllocateWrappedMemory` | per process, concurrent launches each open the name exclusively before unlinking it. |
+| `pcsx2/GS/GS.cpp` | `GSAllocateWrappedMemory` | per-process name |
 | `pcsx2/GS/GS.cpp` | `HotkeyAdjustUpscaleMultiplier` | `Zdxsv::g_online_limits`, `Zdxsv::OnlineRefuses` |
 | `pcsx2/GS/GS.h` |  | not marked yet |
 | `pcsx2/GS/Renderers/Common/GSRenderer.cpp` |  | include `Zdxsv/MediaHooks.h` |
@@ -273,22 +273,22 @@ needs its marker.
 | `pcsx2/MTGS.cpp` | `MTGS::PostVsyncStart` | `Zdxsv::g_ggpo_in_rollback`, `Zdxsv::g_fast_boot_hidden_frame`, `Zdxsv::g_replay_hidden_frame` |
 | `pcsx2/MTGS.cpp` | `MTGS::MainLoop` | `Zdxsv::g_gs_rerun_frame`, `Zdxsv::g_input_latency_enabled`, `Zdxsv::InputLatencyOnPresentStart` |
 | `pcsx2/MTGS.cpp` | `MTGS::ToggleSoftwareRendering` | `Zdxsv::g_online_limits`, `Zdxsv::OnlineRefuses` |
-| `pcsx2/PINE.cpp` |  | not marked yet |
+| `pcsx2/PINE.cpp` |  | rig opcodes |
 | `pcsx2/PINE.cpp` |  | include `Zdxsv/PineHooks.h` |
 | `pcsx2/PINE.cpp` |  | `MsgPadSet = 0x30, /**< zdxsv: set pad input (pad u8, bind u8, value u8 0-255). */` |
 | `pcsx2/PINE.cpp` | `PINEServer::ParseCommand` | `Zdxsv::PineRefuses` |
-| `pcsx2/PINE.cpp` | `PINEServer::ParseCommand` | not marked yet |
+| `pcsx2/PINE.cpp` | `PINEServer::ParseCommand` | rig opcodes (docs/zdxsv/tools.md) |
 | `pcsx2/Patch.cpp` |  | include `Zdxsv/PatchHooks.h` |
 | `pcsx2/Patch.cpp` | `Patch::OpenPatchesZip` | `Zdxsv::PatchesZipMissing` |
 | `pcsx2/Patch.cpp` | `Patch::EnumeratePnachFiles` | `zdxsv_pnach`, `Zdxsv::PatchZGamePnach` |
-| `pcsx2/Pcsx2Config.cpp` | `Pcsx2Config::GSOptions::GSOptions` | not marked yet |
-| `pcsx2/Pcsx2Config.cpp` | `Pcsx2Config::EmulationSpeedOptions::EmulationSpeedOptions` | not marked yet |
+| `pcsx2/Pcsx2Config.cpp` | `Pcsx2Config::GSOptions::GSOptions` | VSync on by default |
+| `pcsx2/Pcsx2Config.cpp` | `Pcsx2Config::EmulationSpeedOptions::EmulationSpeedOptions` | low-latency present always on |
 | `pcsx2/R3000A.cpp` |  | include `Zdxsv/CpuHooks.h` |
 | `pcsx2/R3000A.cpp` | `iopEventTest` | `Zdxsv::g_event_log`, `Zdxsv::EventLogIop` |
 | `pcsx2/R5900.cpp` |  | include `Zdxsv/CpuHooks.h` |
 | `pcsx2/R5900.cpp` | `_cpuEventTest_Shared` | `Zdxsv::g_event_log`, `Zdxsv::EventLogEe` |
-| `pcsx2/R5900.h` |  | not marked yet |
-| `pcsx2/R5900.h` | `CpuRunsIntBranches` | not marked yet |
+| `pcsx2/R5900.h` |  | target of the last taken branch (wait loop detection) |
+| `pcsx2/R5900.h` | `CpuRunsIntBranches` | true when branches, TLB misses and wait loops take the interpreter's paths: the interpreter, or the ARM64 EE recompiler, which runs interpreter code for them (arm64/iR5900.cpp). |
 | `pcsx2/SIO/Pad/Pad.cpp` |  | include `Zdxsv/InputHooks.h` |
 | `pcsx2/SIO/Pad/Pad.cpp` | `Pad::ControllerInfo::GetBindIndex` | not marked yet |
 | `pcsx2/SIO/Pad/Pad.cpp` | `Pad::SetDefaultHotkeyConfig` | `ZdxsvReplaySeekBack`, `ZdxsvReplaySeekForward`, `ZdxsvReplayToggleKeys` |
@@ -302,14 +302,13 @@ needs its marker.
 | `pcsx2/SPU2/Dma.cpp` | `V_Core::PlainDMAWrite` | `Zdxsv::SpuLazyWake` |
 | `pcsx2/SPU2/Dma.cpp` | `V_Core::DoDMAread` | `Zdxsv::SpuLazyWake` |
 | `pcsx2/SPU2/Mixer.cpp` |  | include `Zdxsv/SpuHooks.h` |
-| `pcsx2/SPU2/Mixer.cpp` | `StepStoppedVoice` | not marked yet |
+| `pcsx2/SPU2/Mixer.cpp` | `StepStoppedVoice` | same steps as MixVoice for a stopped voice, which outputs silence. |
 | `pcsx2/SPU2/Mixer.cpp` | `MixCoreVoices` | `Zdxsv::SpuLazySkip` |
 | `pcsx2/SPU2/Reverb.cpp` |  | include `Zdxsv/MediaHooks.h` |
-| `pcsx2/SPU2/Reverb.cpp` |  | include `Zdxsv/SpuHooks.h` |
-| `pcsx2/SPU2/Reverb.cpp` | `V_Core::DoReverb` | a rollback rerun frame's sound is dropped; its reverb only feeds that sound and the reverb work area in SPU2 RAM. |
+| `pcsx2/SPU2/Reverb.cpp` | `V_Core::DoReverb` | `Zdxsv::g_ggpo_active`, `Zdxsv::g_ggpo_in_rollback`, `Zdxsv::SpuRerunReverbSkip` |
 | `pcsx2/SPU2/defs.h` |  | not marked yet |
 | `pcsx2/SPU2/defs.h` |  | not marked yet |
-| `pcsx2/SPU2/defs.h` |  | not marked yet |
+| `pcsx2/SPU2/defs.h` |  | inline check, called twice per voice per sample, mostly with no slide. |
 | `pcsx2/SPU2/spu2.cpp` |  | include `Zdxsv/MediaHooks.h` |
 | `pcsx2/SPU2/spu2.cpp` | `SPU2readDMA4Mem` | `Zdxsv::SpuLazyWake` |
 | `pcsx2/SPU2/spu2.cpp` | `SPU2writeDMA4Mem` | `Zdxsv::SpuLazyWake` |
@@ -335,9 +334,10 @@ needs its marker.
 | `pcsx2/SPU2/spu2sys.cpp` | `TimeUpdate` | `zdxsv_t0`, `Zdxsv::g_rerun_split_time`, `Zdxsv::g_ggpo_in_rollback` |
 | `pcsx2/SaveState.cpp` |  | include `Zdxsv/SaveStateHooks.h` |
 | `pcsx2/SaveState.cpp` | `SaveStateBase::FreezeInternals` | `Zdxsv::DeltaFreezeMarkScratch` |
-| `pcsx2/SaveState.cpp` | `SaveStateBase::FreezeInternals` | not marked yet |
+| `pcsx2/SaveState.cpp` | `SaveStateBase::FreezeInternals` | not in the state, the interpreter's uncommitted cycles belong to the replaced state (a load from inside the interpreter's loop would add them to the loaded one). |
+| `pcsx2/SaveState.cpp` | `MemorySavestateEntry::FreezeIn` | `Zdxsv::DeltaStateHostWrite` |
 | `pcsx2/SaveState.cpp` |  | optional, so states without it still load (DEV9 then keeps its current state). |
-| `pcsx2/SaveState.cpp` |  | not marked yet |
+| `pcsx2/SaveState.cpp` |  | NoDev9.cpp state |
 | `pcsx2/USB/usb-hid/usb-hid.cpp` |  | include `Zdxsv/KeyboardHooks.h` |
 | `pcsx2/USB/usb-hid/usb-hid.cpp` |  | `Zdxsv::HostKeyNumber` |
 | `pcsx2/USB/usb-hid/usb-hid.cpp` |  | not marked yet |
@@ -352,18 +352,18 @@ needs its marker.
 | `pcsx2/VMManager.cpp` | `VMManager::Shutdown` | `Zdxsv::GgpoOnVmShutdown`, `Zdxsv::FeaturesLimited` |
 | `pcsx2/VMManager.cpp` | `VMManager::Reset` | `Zdxsv::g_online_limits`, `Zdxsv::OnlineRefusesReset` |
 | `pcsx2/VMManager.cpp` | `VMManager::Reset` | `Zdxsv::GgpoOnVmShutdown` |
-| `pcsx2/VMManager.cpp` | `VMManager::LoadState` | `Zdxsv::g_ggpo_active`, `Zdxsv::GgpoBattleRefuses`, `Zdxsv::ReplayRefuses` |
-| `pcsx2/VMManager.cpp` | `VMManager::LoadStateFromSlot` | `Zdxsv::g_ggpo_active`, `Zdxsv::GgpoBattleRefuses`, `Zdxsv::ReplayRefuses` |
-| `pcsx2/VMManager.cpp` | `VMManager::SaveState` | `Zdxsv::g_online_limits`, `Zdxsv::OnlineRefuses`, `Zdxsv::g_ggpo_active` |
-| `pcsx2/VMManager.cpp` | `VMManager::SaveStateToSlot` | `Zdxsv::g_online_limits`, `Zdxsv::OnlineRefuses`, `Zdxsv::g_ggpo_active` |
+| `pcsx2/VMManager.cpp` | `VMManager::LoadState` | `Zdxsv::g_ggpo_active`, `Zdxsv::GgpoBattleRefuses`, `Zdxsv::g_ggpo_enabled` |
+| `pcsx2/VMManager.cpp` | `VMManager::LoadStateFromSlot` | `Zdxsv::g_ggpo_active`, `Zdxsv::GgpoBattleRefuses`, `Zdxsv::g_ggpo_enabled` |
+| `pcsx2/VMManager.cpp` | `VMManager::SaveState` | `Zdxsv::g_online_limits`, `Zdxsv::OnlineRefuses`, `Zdxsv::g_ggpo_enabled` |
+| `pcsx2/VMManager.cpp` | `VMManager::SaveStateToSlot` | `Zdxsv::g_online_limits`, `Zdxsv::OnlineRefuses`, `Zdxsv::g_ggpo_enabled` |
 | `pcsx2/VMManager.cpp` | `VMManager::SetLimiterMode` | `Zdxsv::g_ggpo_active`, `Zdxsv::GgpoBattleRefuses` |
 | `pcsx2/VMManager.cpp` | `VMManager::Internal::Throttle` | `Zdxsv::g_frame_period_trim_us` |
 | `pcsx2/VMManager.cpp` | `VMManager::Internal::Throttle` | `Zdxsv::g_limiter_no_catch_up` |
 | `pcsx2/VMManager.cpp` | `VMManager::FrameAdvance` | `Zdxsv::g_ggpo_active`, `Zdxsv::GgpoBattleRefuses` |
-| `pcsx2/VMManager.cpp` | `VMManager::ChangeDisc` | `Zdxsv::g_online_limits`, `Zdxsv::OnlineRefuses`, `Zdxsv::g_ggpo_active` |
-| `pcsx2/VMManager.cpp` | `VMManager::InitializeCPUProviders` | not marked yet |
-| `pcsx2/VMManager.cpp` | `VMManager::ShutdownCPUProviders` | not marked yet |
-| `pcsx2/VMManager.cpp` | `VMManager::UpdateCPUImplementations` | not marked yet |
+| `pcsx2/VMManager.cpp` | `VMManager::ChangeDisc` | `Zdxsv::g_online_limits`, `Zdxsv::OnlineRefuses`, `Zdxsv::g_ggpo_enabled` |
+| `pcsx2/VMManager.cpp` | `VMManager::InitializeCPUProviders` | ARM64 EE and IOP recompilers (pcsx2/arm64/) |
+| `pcsx2/VMManager.cpp` | `VMManager::ShutdownCPUProviders` | ARM64 EE and IOP recompilers (pcsx2/arm64/) |
+| `pcsx2/VMManager.cpp` | `VMManager::UpdateCPUImplementations` | ARM64 EE and IOP recompilers (pcsx2/arm64/) |
 | `pcsx2/VMManager.cpp` | `VMManager::Execute` | `Zdxsv::g_ggpo_active`, `Zdxsv::GgpoHoldsFrame`, `Zdxsv::GgpoOnExecuteReturned` |
 | `pcsx2/VMManager.cpp` | `VMManager::IdlePollUpdate` | `Zdxsv::g_no_dev9`, `Zdxsv::NoDev9OnPausedIdle`, `Zdxsv::ReplayBarInfo` |
 | `pcsx2/VMManager.cpp` | `VMManager::SetPaused` | `Zdxsv::g_ggpo_active`, `Zdxsv::GgpoBattleRefuses` |
@@ -371,8 +371,8 @@ needs its marker.
 | `pcsx2/VMManager.cpp` | `VMManager::CheckForGSConfigChanges` | `Zdxsv::g_online_limits`, `Zdxsv::OnlineRefuses` |
 | `pcsx2/VMManager.cpp` | `VMManager::CheckForMemoryCardConfigChanges` | `Zdxsv::g_online_limits`, `Zdxsv::OnlineRefuses` |
 | `pcsx2/VMManager.cpp` | `VMManager::SaveSessionTime` | `Zdxsv::g_replay_child` |
-| `pcsx2/VU0.cpp` | `CTC2` | not marked yet |
-| `pcsx2/VU0microInterp.cpp` | `_vu0Exec` | not marked yet |
+| `pcsx2/VU0.cpp` | `CTC2` | as x86 recCTC2, only the sticky flags are written |
+| `pcsx2/VU0microInterp.cpp` | `_vu0Exec` | zeroed, some regs functions (SQ, SQI, ...) leave VFwxyzw unset, and the FMAC pipe keeps it. |
 | `pcsx2/VU1micro.cpp` |  | include `Zdxsv/CpuHooks.h` |
 | `pcsx2/VU1micro.cpp` | `vu1ExecMicro` | `Zdxsv::g_vu_op_test`, `Zdxsv::VuOpTest`, `Zdxsv::g_rerun_vu1_skip` |
 | `pcsx2/VU1microInterp.cpp` |  | not marked yet |
@@ -399,7 +399,7 @@ needs its marker.
 | `pcsx2/VUops.cpp` | `VMADDy` | not marked yet |
 | `pcsx2/VUops.cpp` | `VMADDAz` | not marked yet |
 | `pcsx2/VUops.cpp` | `VXITOP` | not marked yet |
-| `pcsx2/Vif_Transfer.cpp` | `vifTransferLoop` | not marked yet |
+| `pcsx2/Vif_Transfer.cpp` | `vifTransferLoop` | NOP can be most of the codes in a packet: same steps as vifCode_Nop, without the indirect call. |
 | `pcsx2/pcsx2.vcxproj` |  | not marked yet |
 | `pcsx2/pcsx2.vcxproj` |  | not marked yet |
 | `pcsx2/pcsx2.vcxproj` |  | `<ClCompile Include="Zdxsv\Lobby.cpp" />` |
@@ -413,16 +413,17 @@ needs its marker.
 | `pcsx2/vtlb.cpp` | `mmap_ClearCpuBlock` | `// zdxsv delta state: see mmap_DeltaSetHook in vtlb.h.` |
 | `pcsx2/vtlb.cpp` | `PageFaultHandler::HandlePageFault` | not marked yet |
 | `pcsx2/vtlb.cpp` | `PageFaultHandler::HandlePageFault` | not marked yet |
-| `pcsx2/vtlb.cpp` | `PageFaultHandler::HandlePageFault` | `// zdxsv delta state watch (or a page another fault just unwatched).` |
+| `pcsx2/vtlb.cpp` | `PageFaultHandler::HandlePageFault` | not marked yet |
 | `pcsx2/vtlb.cpp` | `mmap_ResetBlockTracking` | `// zdxsv delta state: watched pages stay read-only.` |
 | `pcsx2/vtlb.h` |  | not marked yet |
 | `pcsx2/vtlb.h` |  | `// zdxsv delta state: copy-on-write tracking of EE RAM pages (page = offset >> __pageshift).` |
 | `pcsx2/x86/ix86-32/iR5900.cpp` |  | include `Zdxsv/CpuHooks.h` |
-| `pcsx2/x86/ix86-32/iR5900.cpp` |  | not marked yet |
+| `pcsx2/x86/ix86-32/iR5900.cpp` |  | word view, the copy holds RAM words at their word index (indexing the u8 array by word overlapped neighbouring blocks' copies). |
 | `pcsx2/x86/ix86-32/iR5900.cpp` | `recompileNextInstruction` | `Zdxsv::RecHooksOn`, `Zdxsv::RecEmitHooks` |
+| `pcsx2/x86/ix86-32/iR5900.cpp` | `memory_protect_recompiled_code` | not marked yet |
 | `pcsx2/x86/ix86-32/iR5900.cpp` | `recRecompile` | `Zdxsv::EventLogBlocks`, `Zdxsv::EventLogBlock` |
-| `pcsx2/x86/ix86-32/iR5900.cpp` |  | not marked yet |
-| `pcsx2/x86/ix86-32/iR5900.cpp` |  | not marked yet |
+| `pcsx2/x86/ix86-32/iR5900.cpp` |  | word view |
+| `pcsx2/x86/ix86-32/iR5900.cpp` |  | word view |
 | `pcsx2/x86/ix86-32/iR5900.cpp` | `Zdxsv::recEeBlockPc` | `Zdxsv::recEeBlockPc` |
 | `pcsx2/x86/microVU.cpp` |  | include `Zdxsv/CpuHooks.h` |
 | `pcsx2/x86/microVU.cpp` | `recMicroVU1::Execute` | `Zdxsv::g_rerun_split_time`, `Zdxsv::g_ggpo_in_rollback`, `Zdxsv::g_rerun_vu1_ticks` |

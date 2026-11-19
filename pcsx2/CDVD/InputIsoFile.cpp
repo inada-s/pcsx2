@@ -83,7 +83,7 @@ void InputIsoFile::BeginRead2(uint lsn)
 	if (lsn == m_read_lsn)
 		return;
 
-	// A save state load can start a read while another is in flight. The reader cannot tell the two
+	// zdxsv: a save state load can start a read while another is in flight. The reader cannot tell the two
 	// apart, both use m_readbuffer: the first one's completion would end the second with the wrong sector.
 	if (m_read_inprogress)
 	{

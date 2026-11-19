@@ -2740,6 +2740,7 @@ void VMManager::InitializeCPUProviders()
 	// we still need the thread alive. Otherwise the read and write positions
 	// of the ring buffer wont match, and various systems in the emulator end up deadlocked.
 	vu1Thread.Open();
+	// zdxsv: ARM64 EE and IOP recompilers (pcsx2/arm64/)
 	recCpu.Reserve();
 	psxRec.Reserve();
 #endif
@@ -2767,6 +2768,7 @@ void VMManager::ShutdownCPUProviders()
 	if (vu1Thread.IsOpen())
 		vu1Thread.WaitVU();
 
+	// zdxsv: ARM64 EE and IOP recompilers (pcsx2/arm64/)
 	psxRec.Shutdown();
 	recCpu.Shutdown();
 #endif
@@ -2790,6 +2792,7 @@ void VMManager::UpdateCPUImplementations()
 	CpuVU0 = EmuConfig.Cpu.Recompiler.EnableVU0 ? static_cast<BaseVUmicroCPU*>(&CpuMicroVU0) : static_cast<BaseVUmicroCPU*>(&CpuIntVU0);
 	CpuVU1 = EmuConfig.Cpu.Recompiler.EnableVU1 ? static_cast<BaseVUmicroCPU*>(&CpuMicroVU1) : static_cast<BaseVUmicroCPU*>(&CpuIntVU1);
 #else
+	// zdxsv: ARM64 EE and IOP recompilers (pcsx2/arm64/)
 	Cpu = CHECK_EEREC ? &recCpu : &intCpu;
 	psxCpu = CHECK_IOPREC ? &psxRec : &psxInt;
 
