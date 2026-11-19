@@ -326,14 +326,32 @@ namespace Zdxsv
 	extern GgpoOptions s_opt;
 	extern int s_lobby_port; // setting DEV9/Eth ZdxsvGgpoPort (0: a random port, saved); port= overrides it
 	extern int s_min_delay; // mindelay=, else setting DEV9/Eth ZdxsvGgpoMinDelay
-	extern std::vector<LobbyPlayer> s_lobby_players, s_net_players;
-	extern std::vector<GamePatch> s_lobby_patches, s_net_patches; // the last battle info's; the armed battle's
+	// lobby=1: the last battle info (SetLobbyPeers, CPU thread), guarded by s_lobby_mtx
+	struct LobbyBattle
+	{
+		bool received = false, logged = false, unreachable = false;
+		int me = -1; // our position, -1 = not listed
+		std::vector<std::vector<Zdxsv::PeerAddr>> peers; // candidates per position
+		std::vector<Zdxsv::BattleInfo::Relay> relays;
+		u32 session = 0; // ggpo_session
+		u32 gen = 0; // battle infos received
+		std::vector<LobbyPlayer> players; // user id, name + pilot name per position
+		std::vector<GamePatch> patches;
+	};
+	// The battle GGPO armed with, taken from LobbyBattle.
+	struct ArmedBattle
+	{
+		std::vector<Zdxsv::PeerAddr> peers; // per position, picked when armed
+		std::vector<int> via; // per position: PingResult.via (0 direct, 1 peer relay, 2 relay server)
+		std::vector<Zdxsv::RelayServerAddr> servers; // relay servers, registered with GGPO in order
+		std::vector<LobbyPlayer> players;
+		std::vector<GamePatch> patches;
+		u32 gen = 0; // the LobbyBattle gen armed with
+	};
+	extern LobbyBattle s_lobby;
+	extern ArmedBattle s_net;
 	extern std::vector<GamePatch> s_battle_patches; // the started battle's, for its replay header
 	extern std::mutex s_lobby_mtx;
-	extern std::vector<Zdxsv::PeerAddr> s_net_peers; // per position, picked when armed
-	extern std::vector<int> s_net_via; // per position: PingResult.via (0 direct, 1 peer relay, 2 relay server)
-	extern std::vector<Zdxsv::RelayServerAddr> s_net_servers; // relay servers, registered with GGPO in order
-	extern u32 s_lobby_session; // ggpo_session
 	extern std::string s_report_ids; // battle info lines naming the battle (SetLobbyPeers)
 	extern std::string s_report; // P2PMatchingReport of the last lobby battle (TakeLobbyReport)
 	extern GGPOSession* s_session;

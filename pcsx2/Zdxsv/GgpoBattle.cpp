@@ -727,7 +727,7 @@ namespace Zdxsv
 				s_rb.net_rx.insert(s_rb.net_rx.end(), s_rbk_rx.begin(), s_rbk_rx.end());
 				s_rbk_rx.clear();
 				if (!s_play_env)
-					s_net_players = RbkPlayers();
+					s_net.players = RbkPlayers();
 			}
 			if (s_bs.players)
 			{
