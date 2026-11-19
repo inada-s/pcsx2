@@ -59913,7 +59913,7 @@ SLPS-25419:
   name-sort: "きどうせんしがんだむ がんだむvs.Zがんだむ"
   name-en: "Mobile Suit Gundam - Gundam vs. Z-Gundam"
   region: "NTSC-J"
-  gsHWFixes:
+  gsHWFixes: # zdxsv: the zdxsv game
     roundSprite: 2 # Fixes lines in 2D screens when upscaling.
 SLPS-25420:
   name: "シンドバットアドベンチャーは榎本加奈子でどうですか"
