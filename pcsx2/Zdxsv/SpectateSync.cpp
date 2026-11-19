@@ -23,7 +23,7 @@
 #include <unistd.h>
 #endif
 
-namespace Zdxsv::SpectateSync
+namespace Zdxsv
 {
 	namespace
 	{
@@ -166,9 +166,9 @@ namespace Zdxsv::SpectateSync
 		}
 	} // namespace
 
-	bool Join(const std::string& group, bool host)
+	bool SpectateSyncJoin(const std::string& group, bool host)
 	{
-		Leave();
+		SpectateSyncLeave();
 		Header* h = Map(group);
 		if (!h)
 		{
@@ -200,11 +200,11 @@ namespace Zdxsv::SpectateSync
 			}
 		}
 		Console.Error("ZdxsvSync: no free slot in group %s", group.c_str());
-		Leave();
+		SpectateSyncLeave();
 		return false;
 	}
 
-	void Leave()
+	void SpectateSyncLeave()
 	{
 		if (s_slot)
 			s_slot->heartbeat_us.store(0);
@@ -232,10 +232,10 @@ namespace Zdxsv::SpectateSync
 		s_group.clear();
 	}
 
-	bool Active() { return s_slot != nullptr; }
-	bool IsHost() { return s_slot && s_host; }
+	bool SpectateSyncActive() { return s_slot != nullptr; }
+	bool SpectateSyncIsHost() { return s_slot && s_host; }
 
-	void Publish(int frame, bool catching_up)
+	void SpectateSyncPublish(int frame, bool catching_up)
 	{
 		if (!s_slot)
 			return;
@@ -244,7 +244,7 @@ namespace Zdxsv::SpectateSync
 		s_slot->heartbeat_us.store(NowUs(), std::memory_order_release);
 	}
 
-	int Members(int& slowest, int& newest)
+	int SpectateSyncMembers(int& slowest, int& newest)
 	{
 		slowest = INT_MAX;
 		newest = -1;
@@ -258,7 +258,7 @@ namespace Zdxsv::SpectateSync
 		return n;
 	}
 
-	int Leader()
+	int SpectateSyncLeader()
 	{
 		int slowest, newest;
 		if (!s_slot || !Range(slowest, newest))
@@ -266,20 +266,20 @@ namespace Zdxsv::SpectateSync
 		return newest;
 	}
 
-	bool WaitForPeers(int frame, int max_wait_ms)
+	bool SpectateSyncWaitForPeers(int frame, int max_wait_ms)
 	{
 		if (!s_slot)
 			return false;
-		Publish(frame, false);
+		SpectateSyncPublish(frame, false);
 		const int64_t deadline = NowUs() + static_cast<int64_t>(max_wait_ms) * 1000;
 		for (;;)
 		{
 			int slowest, newest;
 			if (!Range(slowest, newest) || slowest == INT_MAX)
 				return false;
-			// Only while someone is more than SLACK behind: whoever is behind is never held, so the group converges
+			// Only while someone is more than SPECTATE_SYNC_SLACK behind: whoever is behind is never held, so the group converges
 			// (exact equality deadlocks members arriving out of step).
-			if (frame <= slowest + SLACK)
+			if (frame <= slowest + SPECTATE_SYNC_SLACK)
 				return true;
 			if (NowUs() > deadline)
 				return false;
@@ -287,27 +287,27 @@ namespace Zdxsv::SpectateSync
 		}
 	}
 
-	void HostPaused(bool paused)
+	void SpectateSyncHostPaused(bool paused)
 	{
-		if (IsHost())
+		if (SpectateSyncIsHost())
 			s_map->paused.store(paused ? 1 : 0);
 	}
 
-	void HostLimiter(int limiter)
+	void SpectateSyncHostLimiter(int limiter)
 	{
-		if (IsHost())
+		if (SpectateSyncIsHost())
 			s_map->limiter.store(limiter + 1);
 	}
 
-	void HostSeek(int frame)
+	void SpectateSyncHostSeek(int frame)
 	{
-		if (!IsHost())
+		if (!SpectateSyncIsHost())
 			return;
 		s_map->seek_target.store(frame);
 		s_map->seek_gen.fetch_add(1, std::memory_order_release);
 	}
 
-	bool ReadControl(Control& out)
+	bool SpectateSyncReadControl(SpectateSyncControl& out)
 	{
 		if (!s_map)
 			return false;
@@ -318,7 +318,7 @@ namespace Zdxsv::SpectateSync
 		return true;
 	}
 
-	bool HostGone()
+	bool SpectateSyncHostGone()
 	{
 		if (!s_map || s_host)
 			return false;
@@ -328,7 +328,7 @@ namespace Zdxsv::SpectateSync
 		return pid != 0 && !PidAlive(pid);
 	}
 
-	int SelfPid() { return Pid(); }
+	int SpectateSyncSelfPid() { return Pid(); }
 
 #ifdef _WIN32
 	namespace
@@ -386,7 +386,7 @@ namespace Zdxsv::SpectateSync
 		}
 	} // namespace
 
-	int SpawnGuest(const std::vector<std::pair<std::string, std::string>>& env, const std::vector<std::string>& args)
+	int SpectateSyncSpawnGuest(const std::vector<std::pair<std::string, std::string>>& env, const std::vector<std::string>& args)
 	{
 		int argc = 0;
 		LPWSTR* argv = CommandLineToArgvW(GetCommandLineW(), &argc);
@@ -430,7 +430,7 @@ namespace Zdxsv::SpectateSync
 		return static_cast<int>(pi.dwProcessId);
 	}
 
-	int TileWindows(const int pids[GRID])
+	int SpectateSyncTileWindows(const int pids[SPECTATE_SYNC_GRID])
 	{
 		WinSearch own{GetCurrentProcessId()};
 		EnumWindows(FindLargest, reinterpret_cast<LPARAM>(&own));
@@ -440,7 +440,7 @@ namespace Zdxsv::SpectateSync
 		const RECT& wa = mi.rcWork;
 		const LONG w = wa.right - wa.left, h = wa.bottom - wa.top;
 		int placed = 0;
-		for (int c = 0; c < GRID; c++)
+		for (int c = 0; c < SPECTATE_SYNC_GRID; c++)
 		{
 			if (!pids[c])
 				continue;
@@ -458,12 +458,12 @@ namespace Zdxsv::SpectateSync
 		return placed;
 	}
 #else
-	int SpawnGuest(const std::vector<std::pair<std::string, std::string>>&, const std::vector<std::string>&)
+	int SpectateSyncSpawnGuest(const std::vector<std::pair<std::string, std::string>>&, const std::vector<std::string>&)
 	{
 		Console.Error("ZdxsvSync: four-screen spawns guests on Windows only");
 		return 0;
 	}
 
-	int TileWindows(const int[GRID]) { return 0; }
+	int SpectateSyncTileWindows(const int[SPECTATE_SYNC_GRID]) { return 0; }
 #endif
-} // namespace Zdxsv::SpectateSync
+} // namespace Zdxsv
