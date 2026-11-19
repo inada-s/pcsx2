@@ -70,7 +70,7 @@ battle-socket emulation as a live battle, without GGPO.
   end of the stream) the VM closes, so a replay started from the replay
   window goes back to it. A live battle with auto-next on waits for the
   next battle instead.
-- While a replay plays, state saves and loads and disc changes are refused
+- From the VM start of a replay (while it downloads too), state saves and loads and disc changes are refused
   from every entry point (hotkeys, menus, Big Picture, PINE), with the OSD
   "Not available during a replay."; the replay's own states (seek keys,
   takeover) still load.
