@@ -64,6 +64,9 @@ user's), from `ZdxsvReplayStateUrl` (downloaded once into the cache
 folder, one file per URL: a new state needs a new URL; the default URL's file must match a SHA-256 built into the client, at download and at each load from the cache; a cached copy that
 does not load is downloaded again once). The game then plays the battle start from the recorded lobby
 answers, menus turbo, with the chosen point of view as the own position.
+The downloads (the `.pb`, the lobby's answer, a common state not in the cache)
+run on a worker thread while the game runs on; pause works, and a shutdown
+cancels them.
 From GGPO frame 0 every frame gets the recorded inputs through the same
 battle-socket emulation as a live battle, without GGPO.
 

@@ -784,6 +784,7 @@ namespace Zdxsv
 	void PlayReset()
 	{
 		s_play_gen++;
+		PlayFetchStop();
 		SyncStop();
 		ReplayBenchReset();
 		s_sync_chase = false;
