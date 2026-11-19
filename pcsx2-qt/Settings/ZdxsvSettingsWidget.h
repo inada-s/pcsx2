@@ -26,7 +26,7 @@ private:
 	void mapUpnpNow();
 	void updateAccount();
 	void signIn();
-	void signOut();
+	void signOut(bool every_pc);
 	enum class AccountRequest
 	{
 		List,
