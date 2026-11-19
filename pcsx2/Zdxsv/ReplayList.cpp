@@ -120,7 +120,7 @@ namespace Zdxsv
 		if (!data)
 			return false;
 		*info = {};
-		Pb::Reader rd{data->data(), data->data() + data->size()};
+		PbReader rd{data->data(), data->data() + data->size()};
 		return rd.Fields([info](uint32_t field, uint32_t wt, uint64_t v, const uint8_t* b, size_t n) {
 			if (wt == 0)
 			{
@@ -140,7 +140,7 @@ namespace Zdxsv
 				else if (field == 11)
 				{
 					ReplayFileUser u;
-					Pb::Reader user{b, b + n};
+					PbReader user{b, b + n};
 					if (!user.Fields([&u](uint32_t f, uint32_t uwt, uint64_t uv, const uint8_t* ub, size_t un) {
 							if (uwt == 2 && (f == 2 || f == 3))
 								(f == 2 ? u.name : u.pilot).assign(reinterpret_cast<const char*>(ub), un);
