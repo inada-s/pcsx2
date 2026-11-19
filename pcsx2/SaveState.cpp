@@ -497,6 +497,7 @@ protected:
 bool MemorySavestateEntry::FreezeIn(zip_file_t* zf) const
 {
 	const u32 expectedSize = GetDataSize();
+	Zdxsv::DeltaStateHostWrite(GetDataPtr(), expectedSize);
 	const s64 bytesRead = zip_fread(zf, GetDataPtr(), expectedSize);
 	if (bytesRead != static_cast<s64>(expectedSize))
 	{
