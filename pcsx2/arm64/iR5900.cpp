@@ -1131,6 +1131,10 @@ static BlockFn Compile(u32 startpc, BlockFn* entry)
 		else if (mode != ProtMode_NotRequired)
 			mmap_MarkCountedRamPage(hwaddr);
 	}
+	// A branch in a page's last word has its delay slot on the next page: the block compares the
+	// words there at entry.
+	const u32 next_page = (startpc | 0xfff) + 1;
+	const bool check_tail = in_ram && !check_code && endpc > next_page;
 
 	armSetAsmPtr(s_code_ptr, s_code_end - s_code_ptr, &s_pool);
 	u8* const fn = armStartBlock();
@@ -1149,6 +1153,17 @@ static BlockFn Compile(u32 startpc, BlockFn* entry)
 		{
 			armAsm->Ldr(a64::w10, a64::MemOperand(a64::x9, i * 4));
 			armAsm->Mov(a64::w11, memRead32(startpc + i * 4));
+			armAsm->Cmp(a64::w10, a64::w11);
+			armAsm->B(a64::ne, &discard);
+		}
+	}
+	if (check_tail)
+	{
+		for (u32 pc = next_page; pc < endpc; pc += 4)
+		{
+			armMoveAddressToReg(a64::x9, PSM(pc));
+			armAsm->Ldr(a64::w10, a64::MemOperand(a64::x9));
+			armAsm->Mov(a64::w11, memRead32(pc));
 			armAsm->Cmp(a64::w10, a64::w11);
 			armAsm->B(a64::ne, &discard);
 		}
@@ -1370,7 +1385,7 @@ static BlockFn Compile(u32 startpc, BlockFn* entry)
 	EmitEpilogue(rregs, rcycles);
 	armAsm->Ret();
 
-	if (check_code)
+	if (check_code || check_tail)
 	{
 		// The code changed: the pc is unchanged, the dispatcher recompiles.
 		armAsm->Bind(&discard);
