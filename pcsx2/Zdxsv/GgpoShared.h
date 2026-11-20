@@ -166,6 +166,9 @@ namespace Zdxsv
 	// replay.proto BattleLogFile patches: Put writes one field per patch, Read takes one (false: malformed or out of range).
 	void ServerPatchesPut(std::vector<uint8_t>& pb, uint32_t field, const std::vector<GamePatch>& patches);
 	bool ServerPatchRead(const uint8_t* b, size_t n, GamePatch& out);
+	// The first patch not equal to one built in (ServerPatches.cpp), nullptr if none: a replay or live stream carrying one
+	// does not play.
+	const GamePatch* ServerPatchNotBuiltin(const std::vector<GamePatch>& patches);
 	constexpr int REPLAY_FILE_VERSION = 20261121; // BattleLogFile.log_file_version of the files written here
 	// As files of log_file_version `version` hashed the state
 	u32 ReplayStateHash(s64 version = REPLAY_FILE_VERSION);
