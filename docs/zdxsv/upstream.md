@@ -242,21 +242,21 @@ Visual Studio and `lupdate` drop comments when they rewrite these files.
 | `pcsx2/Input/InputManager.cpp` |  | include `Zdxsv/InputHooks.h` |
 | `pcsx2/Input/InputManager.cpp` | `InputManager::InvokeEvents` | `Zdxsv::g_replay_child_unfocused` |
 | `pcsx2/Interpreter.cpp` |  | include `Zdxsv/CpuHooks.h` |
-| `pcsx2/Interpreter.cpp` |  | not marked yet |
+| `pcsx2/Interpreter.cpp` |  | cpuBlockCycles and intLastBranchTo not static, the ARM64 EE recompiler shares them. |
 | `pcsx2/Interpreter.cpp` | `execI` | `Zdxsv::IntHooksOn`, `Zdxsv::IntRunHooks` |
-| `pcsx2/Interpreter.cpp` | `_doBranchAfterDelaySlot` | not marked yet |
-| `pcsx2/Interpreter.cpp` | `_doBranch_shared` | not marked yet |
-| `pcsx2/Interpreter.cpp` | `_doBranch_shared` | not marked yet |
-| `pcsx2/Interpreter.cpp` | `intDoBranch` | not marked yet |
-| `pcsx2/Interpreter.cpp` | `intEventTest` | not marked yet |
-| `pcsx2/Interpreter.cpp` | `intSafeExitExecution` | not marked yet |
-| `pcsx2/Interpreter.cpp` | `intSafeExitExecution` | not marked yet |
-| `pcsx2/Interpreter.cpp` | `intCancelInstruction` | not marked yet |
-| `pcsx2/Interpreter.cpp` | `intExecuteWith` | not marked yet |
-| `pcsx2/Interpreter.cpp` | `intExecute` | not marked yet |
-| `pcsx2/Interpreter.cpp` | `intExecute` | not marked yet |
-| `pcsx2/Interpreter.cpp` | `intExecute` | not marked yet |
-| `pcsx2/Interpreter.cpp` | `intExecute` | not marked yet |
+| `pcsx2/Interpreter.cpp` | `_doBranchAfterDelaySlot` | split from _doBranch_shared, the ARM64 EE recompiler runs the delay slot itself. |
+| `pcsx2/Interpreter.cpp` | `_doBranch_shared` | also the ARM64 EE recompiler. |
+| `pcsx2/Interpreter.cpp` | `_doBranch_shared` | doBranch for the ARM64 recompiler, which runs the delay slot in its block. |
+| `pcsx2/Interpreter.cpp` | `intDoBranch` | also the ARM64 EE recompiler. |
+| `pcsx2/Interpreter.cpp` | `intEventTest` | the ARM64 recompiler tests events as the x86 one, only once the cycle target is reached. |
+| `pcsx2/Interpreter.cpp` | `intSafeExitExecution` | not static, the ARM64 EE recompiler calls it. |
+| `pcsx2/Interpreter.cpp` | `intSafeExitExecution` | outside execution (a VM state change run on the CPU thread between two Execute calls) intJmpBuf points into a returned frame: the next Execute leaves at its first event test (as x86's eeRecExitRequested). |
+| `pcsx2/Interpreter.cpp` | `intCancelInstruction` | not static, the ARM64 EE recompiler calls it. |
+| `pcsx2/Interpreter.cpp` | `intExecuteWith` | run_block is execI, or one compiled block of the ARM64 EE recompiler (arm64/iR5900.cpp) once the ELF has booted. |
+| `pcsx2/Interpreter.cpp` | `intExecute` | see intSafeExitExecution. |
+| `pcsx2/Interpreter.cpp` | `intExecute` | a state loaded during this loop is past the ELF entry, run blocks as after a fresh Execute. |
+| `pcsx2/Interpreter.cpp` | `intExecute` | execI or an ARM64 EE recompiler block. |
+| `pcsx2/Interpreter.cpp` | `intExecute` | intExecute split around intExecuteWith, intExecuteBlocks is the ARM64 EE recompiler's entry. |
 | `pcsx2/IopCounters.cpp` |  | include `Zdxsv/SaveStateHooks.h` |
 | `pcsx2/IopCounters.cpp` | `SaveStateBase::psxRcntFreeze` | `Zdxsv::g_delta_freeze_load` |
 | `pcsx2/MTGS.cpp` |  | include `Zdxsv/CpuHooks.h` |
