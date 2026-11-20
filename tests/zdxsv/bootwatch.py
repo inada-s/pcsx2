@@ -106,6 +106,9 @@ def main():
         emit("route " + a.route)
     last = None
     while time.time() < deadline:
+        if a.route and a.route_end and route_err:
+            print("FAIL route stopped: %r" % route_err[0])
+            return 1
         obj = p.r32(NET_OBJ_PTR)
         step = p.r8(obj + NET_STEP) if 0x100000 <= obj < 0x2000000 - NET_STEP else None
         if (obj != 0, step) != last:
