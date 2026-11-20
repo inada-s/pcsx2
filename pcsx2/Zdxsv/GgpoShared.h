@@ -163,8 +163,9 @@ namespace Zdxsv
 	// replay.proto BattleLogFile patches: Put writes one field per patch, Read takes one (false: malformed or out of range).
 	void ServerPatchesPut(std::vector<uint8_t>& pb, uint32_t field, const std::vector<GamePatch>& patches);
 	bool ServerPatchRead(const uint8_t* b, size_t n, GamePatch& out);
-	// ms_slot: with the player work's MS slot, as files before version 20261118 hashed it
-	u32 ReplayStateHash(bool ms_slot = false);
+	constexpr int REPLAY_FILE_VERSION = 20261121; // BattleLogFile.log_file_version of the files written here
+	// As files of log_file_version `version` hashed the state
+	u32 ReplayStateHash(s64 version = REPLAY_FILE_VERSION);
 	u32 GameRng();
 	static constexpr u32 TICK_STATE = 0xc627b4; // u8 game phase; 8 = battle load
 	static constexpr u8 TICK_LOAD = 8, TICK_PLAY = 6, TICK_END = 7; // 7 = round or game end phase
