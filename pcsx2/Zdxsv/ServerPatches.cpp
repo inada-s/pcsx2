@@ -4,6 +4,9 @@
 // Game patches from the lobby (notice 0x9953), written in EE RAM while a battle runs.
 
 #include "Zdxsv/GgpoShared.h"
+#include "Zdxsv/TestOptions.h"
+
+#include <algorithm>
 
 #include "Memory.h"
 #include "VMManager.h"
@@ -17,6 +20,28 @@ namespace Zdxsv
 			std::vector<GamePatch> applied;
 		};
 		ServerPatchState s_server_patches;
+
+		const std::vector<GamePatch>& BuiltinPatches()
+		{
+			static const std::vector<GamePatch> patches = {
+				{"rematch_max5", "SLPS-25419", false, {{32, 0x307ff0, 0x2842000a, 0x28420005}, {32, 0x308044, 0x0c0dccc4, 0x1000ffe7}}},
+			};
+			return patches;
+		}
+
+		bool SamePatch(const GamePatch& a, const GamePatch& b)
+		{
+			if (a.name != b.name || a.game != b.game || a.writeOnce != b.writeOnce || a.codes.size() != b.codes.size())
+				return false;
+			for (size_t i = 0; i < a.codes.size(); i++)
+			{
+				const GamePatchCode& x = a.codes[i];
+				const GamePatchCode& y = b.codes[i];
+				if (x.size != y.size || x.address != y.address || x.original != y.original || x.changed != y.changed)
+					return false;
+			}
+			return true;
+		}
 
 		u32 ReadCode(EEMemoryInterface& ee, const GamePatchCode& c)
 		{
@@ -133,6 +158,17 @@ namespace Zdxsv
 			}
 			PbPutBytes(pb, field, m.data(), m.size());
 		}
+	}
+
+	const GamePatch* ServerPatchNotBuiltin(const std::vector<GamePatch>& patches)
+	{
+		static const bool any = TestEnv("ZDXSV_PATCHES_ANY") != nullptr;
+		if (any)
+			return nullptr;
+		for (const GamePatch& p : patches)
+			if (std::none_of(BuiltinPatches().begin(), BuiltinPatches().end(), [&p](const GamePatch& b) { return SamePatch(p, b); }))
+				return &p;
+		return nullptr;
 	}
 
 	bool ServerPatchRead(const uint8_t* b, size_t n, GamePatch& out)

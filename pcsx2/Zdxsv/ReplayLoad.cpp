@@ -369,6 +369,11 @@ namespace Zdxsv
 					players, me, frames);
 				return -1;
 			}
+			if (const GamePatch* p = ServerPatchNotBuiltin(r.patches))
+			{
+				Console.Error("ZdxsvGgpo: replay %s: game patch %s is not built in", path.c_str(), p->name.c_str());
+				return -1;
+			}
 			if (r.answers.empty())
 			{
 				Console.Error("ZdxsvGgpo: replay %s: no lobby answers (an older file with a start state is not played)", path.c_str());

@@ -130,7 +130,7 @@ Keys (`net=1`, `lobby=1`, `port=`, `delay=`, ...) are parts of `ZDXSV_GGPO`.
 - **Match report round data**: mobile suits per round.
 - **Match report log tail**: the last log lines of each GGPO battle.
 - **Relay servers**: battle info with `relay_<k>`.
-- **Lobby game patches**: a lobby with `m_lobby_setting.patches` (notice `0x9953`); GGPO battles only. The battle's replay and live stream carry them (`BattleLogFile.patches`); playback and spectating apply them the same way.
+- **Lobby game patches**: a lobby with `m_lobby_setting.patches` (notice `0x9953`); GGPO battles only. The battle's replay and live stream carry them (`BattleLogFile.patches`); playback and spectating apply them the same way. A replay or live stream plays only if each patch it carries equals one built in (`ServerPatches.cpp`: `rematch_max5`); else it does not start (`game patch <name> is not built in`). Battles apply the lobby's patches as sent.
 - **Custom server messages kept from the game**: every lobby message `0x99xx`, known or not, is consumed by PCSX2; unknown ones are logged once.
 - **Peer without an address in the battle info**.
 - **Path through a relaying peer**.
