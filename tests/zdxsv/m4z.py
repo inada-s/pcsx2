@@ -587,6 +587,9 @@ def main():
         mc = os.path.join(run, f"p{i}", "PCSX2", "memcards", "Mcd001.ps2")
         if os.path.isfile(mc):
             shutil.copy2(mc, os.path.join(out, f"live-p{i}.ps2"))
+        ini = os.path.join(run, f"p{i}", "PCSX2", "inis", "PCSX2.ini")
+        if ggpo and i == E("GGPO_DEFAULT") and os.path.isfile(ini):
+            zrig.ini_set(ini, "DEV9/Eth", "ZdxsvGgpoPort")
         cpid[i] = launch.launch(ns=(int(i),), eth=eth(), speed=E("SPEED", "1"), headless=i not in show,
                                 memcard=os.path.join(run, f"Mcd001-{cards[int(i) - 1]}.ps2"),
                                 extra_env=cenv(i), token=tokens.get(i))[int(i)]
@@ -963,7 +966,8 @@ def main():
             pm = [re.search(r"[0-9]*$", l)[0] for l in g(os.path.join(run, f"p{gd}", "PCSX2", "inis", "PCSX2.ini"),
                                                          r"^ZdxsvGgpoPort = [0-9]*")]
             p = pm[0] if pm else ""
-            ok(f"p{gd} GGPO port from the setting", p.isdigit() and int(p) > 0 and c(f, f"ZdxsvGgpo: net player .* port {p} "))
+            ok(f"p{gd} GGPO port picked, saved and used", p.isdigit() and 29700 <= int(p) <= 29800 and
+               c(f, f"ZdxsvGgpo: battle port {p} picked and saved") and c(f, f"ZdxsvGgpo: net player .* port {p} "))
         ends, good = ggpo_ends([(i, el(i)) for i in gclients], nb)
         for i, k, a, f, m in ends:
             say(f"ggpo end p{i} battle {k} end_msg {a} frames {f} mismatches {m}")
