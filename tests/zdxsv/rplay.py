@@ -19,6 +19,8 @@ Control bar: KEYS="15:bar:show,w600,bar:timeline:0.7,shot:$OUT/a.png" (pcsx2ctl 
 API=1: plays ZDXSV_REPLAY=http://127.0.0.1:API_PORT/lbs/replay?battle_code=<FILE's name> from apiserve.py (API_PORT,
 default 9891), whose replay_url serves FILE; checks the replay_url line too. GZIP=1: replay_url serves FILE gzip encoded (Content-Encoding: gzip), as GCS serves the lobby's objects.
 EXPECT="regex=N;regex>=N": FAILs unless the emulog has exactly N (at least N) lines matching each regex.
+PNACH=1: a pnach file for the Z game in the instance's patches/ and cheats/ (removed at exit); FAILs unless only
+`zdxsv built-in patches` are loaded.
 BAD=1: FILE is not a playable replay: exit 0 if the player is told it did not start (`replay: not started`).
 """
 import atexit
@@ -104,9 +106,16 @@ def main(live):
     if child and os.path.exists(l):
         os.remove(l)
     api = []
+    pnach = [os.path.join(data, d, "SLPS-25419_435D8236.pnach") for d in ("patches", "cheats")] \
+        if zrig.env("PNACH") == "1" else []
 
     def cleanup():
         zrig.kill_name("pcsx2")
+        for p in pnach:
+            try:
+                os.remove(p)
+            except OSError:
+                pass
         for f in [l] + glob.glob(os.path.join(logs, "emulog-pov*.txt")):
             try:
                 shutil.copyfile(f, os.path.join(out, "emulog-play.txt" if f == l else os.path.basename(f)))
@@ -147,6 +156,12 @@ def main(live):
     if not all(expect):
         print("FAIL EXPECT entries are regex=N or regex>=N")
         return 1
+    for p in pnach:
+        os.makedirs(os.path.dirname(p), exist_ok=True)
+        with open(p, "w") as f:
+            f.write("[zdxsv rig test]\npatch=1,EE,00100000,word,00000000\n")
+    expect += [re.fullmatch(r"(.+?)(>=|=)([0-9]+)", e) for e in
+               ([r"Found [0-9]+ game patches in zdxsv built-in patches\.=1", r"\.pnach\.=0"] if pnach else [])]
     ini = os.path.join(run, f"p{n}", "PCSX2", "inis", "PCSX2.ini")
     keys = [k for k in keys_env.split(";") if k] if keys_env else []
     if keys_env:
