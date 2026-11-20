@@ -16,9 +16,10 @@ def main():
     os.makedirs(out, exist_ok=True)
     os.chdir(os.path.join(zrig.HERE, "..", ".."))
     exe = os.path.join(out, "lobbytest.exe")
+    # PCSX2_DEVBUILD: TestEnv reads ZDXSV_* only in Devel builds; the fake outside STUN servers need it
     # --allow-multiple-definition: common/Pcsx2Defs.h redefines __forceinline without inline, so the
     # MinGW headers' inline helpers are emitted in both objects
-    if subprocess.call([zrig.env("CXX", "g++"), "-std=c++20", "-O1", "-w", "-I", "pcsx2", "-I", ".",
+    if subprocess.call([zrig.env("CXX", "g++"), "-std=c++20", "-O1", "-w", "-DPCSX2_DEVBUILD", "-I", "pcsx2", "-I", ".",
                         "-I", "3rdparty/rapidjson/include", "tests/zdxsv/lobbytest.cpp", "pcsx2/Zdxsv/Lobby.cpp",
                         "pcsx2/Zdxsv/LobbyBattleInfo.cpp", "pcsx2/Zdxsv/LobbyPing.cpp", "-lws2_32",
                         "-Wl,--allow-multiple-definition", "-o", exe]):
