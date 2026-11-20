@@ -957,14 +957,20 @@ alignas(16) static const u32 s_vu1_jit_fconst[7][4] = {
 	{0x7f7fffff, 0x7f7fffff, 0x7f7fffff, 0x7f7fffff}, {0x0008, 0x0004, 0x0002, 0x0001},
 	{0x0080, 0x0040, 0x0020, 0x0010}, {0x0800, 0x0400, 0x0200, 0x0100}, {0x8000, 0x4000, 0x2000, 0x1000}};
 
-// Clamp settings the JIT code was compiled for (bits 0-1: vu0/vu1 Overflow, 2-3: SignOverflow,
-// 4-5: ExtraOverflow).
+static bool _vu1JitFz()
+{
+	return EmuConfig.Cpu.VU1FPCR.GetDenormalsAreZero() && EmuConfig.Cpu.VU1FPCR.GetRoundMode() == FPRoundMode::ChopZero;
+}
+
+// Settings the JIT code was compiled for (bits 0-1: vu0/vu1 Overflow, 2-3: SignOverflow,
+// 4-5: ExtraOverflow, 6: _vu1JitFz).
 static u8 s_vu1_jit_ovf = 0xff;
 static u8 _vu1JitOvf()
 {
 	const auto& r = EmuConfig.Cpu.Recompiler;
 	return (r.vu0Overflow ? 1 : 0) | (r.vu1Overflow ? 2 : 0) | (r.vu0SignOverflow ? 4 : 0) |
-		   (r.vu1SignOverflow ? 8 : 0) | (r.vu0ExtraOverflow ? 16 : 0) | (r.vu1ExtraOverflow ? 32 : 0);
+		   (r.vu1SignOverflow ? 8 : 0) | (r.vu0ExtraOverflow ? 16 : 0) | (r.vu1ExtraOverflow ? 32 : 0) |
+		   (_vu1JitFz() ? 64 : 0);
 }
 
 // vuDouble on 4 lanes: exponent 0 -> signed 0, exponent 255 -> signed max float.
@@ -1429,8 +1435,7 @@ static bool _vu1JitEmitFmac(FnPtr_VuVoid f, u32 code, bool dead = false)
 					  (ternary && (cl[32] & lanes) == lanes ? 4 : 0);
 	_vuJitEmitFmacCore(desc, code, s_vu1_jit_rvu, a64::x21, EmuConfig.Cpu.Recompiler.vu1Overflow, Zdxsv::VuX86Fmac(1),
 		Zdxsv::VuX86ClampOperands(code, 1, false), &s_vu1_jit_fconst_live, Zdxsv::VuX86Fmac(1) ? clean : 0,
-		&s_vu1_jit_vf.acc_live, dead && !op ? &s_vu1_jit_fl.sticky : nullptr,
-		EmuConfig.Cpu.VU1FPCR.GetDenormalsAreZero() && EmuConfig.Cpu.VU1FPCR.GetRoundMode() == FPRoundMode::ChopZero);
+		&s_vu1_jit_vf.acc_live, dead && !op ? &s_vu1_jit_fl.sticky : nullptr, _vu1JitFz());
 	s_vu1_jit_vf.out_reg = desc->acc ? 32 : static_cast<s8>(fd);
 	s_vu1_jit_vf.out_lanes = Zdxsv::VuX86Fmac(1) ? static_cast<u8>(op ? 0xe : lanes) : 0;
 	if (dead && !op)
