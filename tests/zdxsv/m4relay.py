@@ -40,7 +40,7 @@ def main():
         ls = zrig.log_lines(f, r"relay (end|stats)")
         print(f"{os.path.basename(f)[:-4]} {ls[-1] if ls else ''}")
         # a relay that never forwarded = peers bypassed it (or never started): not a latency run
-        if not any(re.search(r"relay (end|stats): packets in [1-9]", l) for l in ls):
+        if not any(re.search(r"relay (end|stats): packets in \d+ lost \d+ out [1-9]", l) for l in ls):
             idle = True
     if idle:
         print("FAIL relay idle")
