@@ -11,7 +11,7 @@
 
 // zdxsv delta state: fast per-frame save/load of the VM for rollback (GGPO).
 // EE, IOP and SPU2 RAM are copy-on-write (EE: vtlb mmap_Delta*): a save keeps only the old data
-// of the pages written since the previous save. The rest (SaveState_DeltaSave) is copied whole.
+// of the pages written since the previous save. The rest (DeltaFreezeSave) is copied whole.
 // GS thread state is not saved. CPU thread only, at the same point every frame (vsync).
 namespace Zdxsv
 {
@@ -26,7 +26,7 @@ namespace Zdxsv
 	void DeltaStateDiscardBefore(int frame);
 	// The state of a saved frame without EE, IOP and SPU2 RAM, or nullptr.
 	const std::vector<u8>* DeltaStateGetState(int frame);
-	// Hash of the state of the last saved frame, without its scratch bytes (SaveState_DeltaScratch).
+	// Hash of the state of the last saved frame, without its scratch bytes (DeltaFreezeScratch).
 	u64 DeltaStateHash(const std::vector<u8>& state);
 	// Hash per page of EE RAM, then IOP RAM, then SPU2 RAM (not in the states: see DeltaState.cpp).
 	void DeltaStateHashRam(std::vector<u64>& pages);
@@ -36,7 +36,7 @@ namespace Zdxsv
 	void DeltaStateMaskScratch(std::vector<u8>& state);
 	// Mean wall ms of the parts of DeltaStateSave so far.
 	std::string DeltaStateTimes();
-	// Zeroes the DeltaStateTimes and SaveState_DeltaTimes sums.
+	// Zeroes the DeltaStateTimes and DeltaFreezeTimes sums.
 	void DeltaStateTimesReset();
 	// Drops everything and stops EE RAM tracking.
 	void DeltaStateClear();

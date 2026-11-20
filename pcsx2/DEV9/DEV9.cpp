@@ -6,9 +6,9 @@
 #include "common/StringUtil.h"
 
 #include "IopDma.h"
-#include "IopMem.h"
+#include "IopMem.h" // zdxsv: delta state of DEV9
 
-#include <memory>
+#include <memory> // zdxsv: delta state of DEV9
 
 #ifdef _WIN32
 #include "common/RedtapeWindows.h"
@@ -28,7 +28,7 @@
 #include "DEV9.h"
 #include "Config.h"
 #include "smap.h"
-#include "StateWrapper.h"
+#include "StateWrapper.h" // zdxsv: delta state of DEV9
 
 #ifdef _WIN32
 #pragma warning(disable : 4244)

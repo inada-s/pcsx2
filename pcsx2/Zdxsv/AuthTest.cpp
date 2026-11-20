@@ -18,9 +18,10 @@ namespace Zdxsv
 		const char* env = TestEnv("ZDXSV_AUTH_SIGNIN_TEST");
 		if (!env || !env[0])
 			return;
-		if (std::strcmp(env, "signout") == 0)
+		if (std::strcmp(env, "signout") == 0 || std::strcmp(env, "signoutall") == 0)
 		{
-			std::thread([]() { AuthSignOut(); }).detach();
+			const bool every_pc = std::strcmp(env, "signoutall") == 0;
+			std::thread([every_pc]() { AuthSignOut(every_pc); }).detach();
 			return;
 		}
 		std::thread([]() {

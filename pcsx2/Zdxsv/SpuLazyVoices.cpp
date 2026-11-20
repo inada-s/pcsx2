@@ -7,6 +7,8 @@
 
 #include "Zdxsv/SpuHooks.h"
 
+#include "Zdxsv/TestOptions.h"
+
 #include "SPU2/defs.h"
 
 #include <algorithm>
@@ -128,5 +130,27 @@ namespace Zdxsv
 	void SpuLazyReset()
 	{
 		g_spu_lazy = {};
+	}
+
+	// ZDXSV_RERUN_REVERB=1: reverb in rerun frames too.
+	static const bool s_rerun_reverb = [] {
+		const char* e = TestEnv("ZDXSV_RERUN_REVERB");
+		return e && e[0] == '1';
+	}();
+
+	// Reverb only feeds the dropped sound and the reverb work area in SPU2 RAM, unless an IRQ address lies in that
+	// area: then its reads and writes raise the IRQ.
+	bool SpuRerunReverbSkip(bool fx_enable, u32 effects_start, u32 effects_end)
+	{
+		if (s_rerun_reverb)
+			return false;
+		if (!fx_enable)
+			return true;
+		for (const V_Core& c : Cores)
+		{
+			if (c.IRQEnable && c.IRQA >= effects_start && c.IRQA <= effects_end)
+				return false;
+		}
+		return true;
 	}
 } // namespace Zdxsv

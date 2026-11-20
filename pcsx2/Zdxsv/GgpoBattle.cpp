@@ -19,9 +19,13 @@ namespace Zdxsv
 		constexpr u32 NET_REQ_LEN = 0xc22c9e;
 		constexpr u32 NET_REQ_DATA = 0xc22ca0;
 		// Own key table (from the game's sends): k per counter, frame it was sent, last record X.
-		u8 s_own_k[64];
-		u32 s_own_frame[64];
-		int s_own_x = -1;
+		struct OwnKeys
+		{
+			u8 k[64] = {};
+			u32 frame[64] = {};
+			int x = -1;
+		};
+		OwnKeys s_own;
 		struct RecvStats
 		{
 			u32 msgs, keymsgs, slots, recs, unknown, kbad, xbad, rebuilt_bad;
@@ -112,15 +116,18 @@ namespace Zdxsv
 		}
 		// ZDXSV_RBK: answers of a real start (traced with 4 players and tests/zdxsv/fake_lobby.py): lobby frames are
 		// `18 cat cmd size seq 00ffffff body` (BE, 12-byte header), the game's `81 01 ..`.
-		std::vector<u8> s_rbk_rx; // what recv 0x13 / 0x14 and the poll's readable count see
+		struct RbkServer
+		{
+			std::vector<u8> rx; // what recv 0x13 / 0x14 and the poll's readable count see
+			bool started = false; // 0x6910 (battle start) queued
+			u32 calls[0x50] = {};
+		} s_rbk_server;
 		// lobby=1: the battle server answered on the EE until GGPO arms; players 0 = off
 		struct BattleServerAnswer
 		{
 			std::vector<u8> rx;
 			int me = -1, players = 0;
 		} s_bs;
-		bool s_rbk_started = false; // 0x6910 (battle start) queued
-		u32 s_rbk_calls[0x50] = {};
 		constexpr u32 RBK_FNO_RECV_LOBBY = 0x13;
 		const char* const RBK_USERS[4] = {
 			"010100064a3953584e4d000682a082a082a000000064834a837e815b838681458372835f839300000000000097b989f081490000000000000000000000000000000082bb82bf82e782cc94ed8a518ff38bb582cd8148000093478b408c82946a814900000000000000000000000089b482c9944382b982eb814901",
@@ -151,16 +158,16 @@ namespace Zdxsv
 		{
 			const u8 h[12] = {0x18, cat, static_cast<u8>(cmd >> 8), static_cast<u8>(cmd), static_cast<u8>(body.size() >> 8),
 				static_cast<u8>(body.size()), static_cast<u8>(seq >> 8), static_cast<u8>(seq), 0, 0xff, 0xff, 0xff};
-			s_rbk_rx.insert(s_rbk_rx.end(), h, h + 12);
-			s_rbk_rx.insert(s_rbk_rx.end(), body.begin(), body.end());
-			Zdxsv::LobbyNoteFrame(&*(s_rbk_rx.end() - 12 - body.size()), 12 + body.size());
+			s_rbk_server.rx.insert(s_rbk_server.rx.end(), h, h + 12);
+			s_rbk_server.rx.insert(s_rbk_server.rx.end(), body.begin(), body.end());
+			Zdxsv::LobbyNoteFrame(&*(s_rbk_server.rx.end() - 12 - body.size()), 12 + body.size());
 		}
 
 		// Position p (1-based) of N plays the recorded 4-player position of its side:
 		// p <= ceil(N/2) side 1 (recorded 1, 2), else side 2 (recorded 3, 4).
 		int RbkRecordedIndex(int p)
 		{
-			const int half = (s_rbk_n + 1) / 2;
+			const int half = (s_rbk.n + 1) / 2;
 			return p <= half ? p - 1 : 2 + p - 1 - half;
 		}
 
@@ -170,7 +177,7 @@ namespace Zdxsv
 			static constexpr const char* PILOT = "カミーユ・ビダン";
 			const LobbyPlayer recorded[4] = {{"J9SXNM", "あああ", PILOT}, {"UJB9AM", "いいい", PILOT}, {"8VQKPC", "ううう", PILOT}, {"Z57CN2", "えええ", PILOT}};
 			std::vector<LobbyPlayer> players;
-			for (int p = 1; p <= s_rbk_n; p++)
+			for (int p = 1; p <= s_rbk.n; p++)
 				players.push_back(recorded[RbkRecordedIndex(p)]);
 			return players;
 		}
@@ -181,21 +188,21 @@ namespace Zdxsv
 			const int p = qn ? q[0] : 0;
 			// Common start: the file's answer to cmd (0x6913 / 0x6917: the one of position p, its body's first
 			// byte); the side 0x6912 stays the point of view
-			if (s_play_common && cmd >= 0x6911 && cmd <= 0x6917 && cmd != 0x6912)
+			if (s_play_common.on && cmd >= 0x6911 && cmd <= 0x6917 && cmd != 0x6912)
 			{
-				for (const std::vector<u8>& a : s_play_answers)
+				for (const std::vector<u8>& a : s_play_common.answers)
 					if (a[2] == (cmd >> 8) && a[3] == (cmd & 0xff) && ((cmd != 0x6913 && cmd != 0x6917) || (a.size() > 12 && a[12] == p)))
 						return std::vector<u8>(a.begin() + 12, a.end());
 				Console.Error("ZdxsvGgpo: replay: common start: the file has no answer to 0x%04x (position %d)", cmd, p);
 			}
 			switch (cmd)
 			{
-				case 0x6911: return {static_cast<u8>(s_rbk_n)};
-				case 0x6912: return {static_cast<u8>(s_rbk_me + 1)};
+				case 0x6911: return {static_cast<u8>(s_rbk.n)};
+				case 0x6912: return {static_cast<u8>(s_rbk.me + 1)};
 				case 0x6913:
 				case 0x6917:
 				{
-					if (p < 1 || p > s_rbk_n)
+					if (p < 1 || p > s_rbk.n)
 						break;
 					std::vector<u8> b = Unhex((cmd == 0x6913 ? RBK_USERS : RBK_6917)[RbkRecordedIndex(p)]);
 					b.front() = static_cast<u8>(p);
@@ -308,18 +315,18 @@ namespace Zdxsv
 		bool RbkCall(u32 fno, s16 len, u8* d)
 		{
 			u8* ram = eeMem->Main;
-			if (fno < std::size(s_rbk_calls) && s_rbk_calls[fno]++ < 3)
+			if (fno < std::size(s_rbk_server.calls) && s_rbk_server.calls[fno]++ < 3)
 				Console.WriteLn("ZdxsvGgpo: rbk fno %x len %d at vsync %u", fno, len, g_FrameCount);
 			s32 result = 0;
 			switch (fno)
 			{
 				case NET_FNO_POLL:
-					if (!std::exchange(s_rbk_started, true))
+					if (!std::exchange(s_rbk_server.started, true))
 					{
 						RbkQueue(0x10, 0x6910, 0x1000, {});
-						Console.WriteLn("ZdxsvGgpo: rbk position %d of %d, battle start at vsync %u", s_rbk_me + 1, s_rbk_n, g_FrameCount);
+						Console.WriteLn("ZdxsvGgpo: rbk position %d of %d, battle start at vsync %u", s_rbk.me + 1, s_rbk.n, g_FrameCount);
 					}
-					BattleServerCall(s_rbk_rx, s_rbk_me, s_rbk_n, fno, len, d, result);
+					BattleServerCall(s_rbk_server.rx, s_rbk.me, s_rbk.n, fno, len, d, result);
 					break;
 				case NET_FNO_SEND:
 				{
@@ -338,20 +345,20 @@ namespace Zdxsv
 						}
 					}
 					else
-						BattleServerCall(s_rbk_rx, s_rbk_me, s_rbk_n, fno, len, d, result);
+						BattleServerCall(s_rbk_server.rx, s_rbk.me, s_rbk.n, fno, len, d, result);
 					break;
 				}
 				case 0x38:
 					result = 3;
 					break;
 				case 0xd: // lobby close
-					s_rbk_rx.clear();
+					s_rbk_server.rx.clear();
 					break;
 				case 0x16:
 				case 0x46: // link up: 1 makes the game close the lobby it resumed with
 					break;
 				default:
-					if (!BattleServerCall(s_rbk_rx, s_rbk_me, s_rbk_n, fno, len, d, result))
+					if (!BattleServerCall(s_rbk_server.rx, s_rbk.me, s_rbk.n, fno, len, d, result))
 						return false;
 			}
 			*reinterpret_cast<s32*>(ram + NET_RES_LEN) = result;
@@ -406,10 +413,10 @@ namespace Zdxsv
 
 	void NoteOwnSend(const KeySlot& s)
 	{
-		s_own_k[s.c] = s.k;
-		s_own_frame[s.c] = g_FrameCount;
+		s_own.k[s.c] = s.k;
+		s_own.frame[s.c] = g_FrameCount;
 		if (s.rec)
-			s_own_x = s.x;
+			s_own.x = s.x;
 	}
 
 	// EE rec hook at NET_RECV_RET_PC (fno 0x14 recv, after the wait RPC returned): s4 = sock,
@@ -448,22 +455,22 @@ namespace Zdxsv
 				s_rs.slots++;
 				s_rs.recs += s.rec;
 				// local k for c must be from a send within the last 32 frames (the counter wraps at 64)
-				const bool known = s_own_frame[s.c] != 0 && g_FrameCount - s_own_frame[s.c] < 32;
+				const bool known = s_own.frame[s.c] != 0 && g_FrameCount - s_own.frame[s.c] < 32;
 				char flag = ' ';
 				if (!known)
 					s_rs.unknown++, flag = '?';
-				else if (s_own_k[s.c] != s.k)
+				else if (s_own.k[s.c] != s.k)
 					s_rs.kbad++, flag = '!';
-				if (s.rec && s.x != s_own_x)
+				if (s.rec && s.x != s_own.x)
 					s_rs.xbad++, flag = flag == ' ' ? 'x' : flag;
 				if (s.rec)
 					std::fprintf(s_net_trace, " %02x:%02x:%02x:%04x/%04x%c", s.c, s.k, s.x, s.a, s.b, flag);
 				else
 					std::fprintf(s_net_trace, " %02x:%02x%c", s.c, s.k, flag);
 				if (known)
-					s.k = s_own_k[s.c];
-				if (s.rec && s_own_x >= 0)
-					s.x = static_cast<u8>(s_own_x);
+					s.k = s_own.k[s.c];
+				if (s.rec && s_own.x >= 0)
+					s.x = static_cast<u8>(s_own.x);
 			}
 			const std::vector<u8> m = BuildKeyMsg(d[i + 1] & 0xf, slots);
 			if (m.size() != d[i] || std::memcmp(m.data(), d + i, m.size()) != 0)
@@ -610,17 +617,15 @@ namespace Zdxsv
 	// A reset VM (live auto-next) starts its battle from the lobby phase again.
 	void RbkReset()
 	{
-		s_rbk_rx.clear();
+		s_rbk_server = {};
 		s_bs.rx.clear();
 		s_bs.players = 0;
-		s_rbk_started = false;
-		std::fill(std::begin(s_rbk_calls), std::end(s_rbk_calls), 0u);
 	}
 
 	// net mode: the battle sock's RPCs. Returns true when answered (v0 = result, pc = ra).
 	static bool GgpoNetCall()
 	{
-		if (!s_net_env)
+		if (!s_config.net)
 			return false;
 		const u32 fno = cpuRegs.GPR.n.a0.UL[0];
 		u8* ram = eeMem->Main;
@@ -629,7 +634,7 @@ namespace Zdxsv
 		u8* d = ram + NET_REQ_DATA;
 		const bool key = fno == NET_FNO_SEND && sock == NET_BATTLE_SOCK && len > 0 && len <= 0x3ca && HasKeyMsg(d, len);
 		// lobby=1: the battle server is answered on the EE (BattleServerCall); the game never reaches it
-		if (s_opt.lobby && !s_play_env && !s_rbk && fno == NET_FNO_CONNECT && (!s_battle.armed || s_battle.over))
+		if (s_opt.lobby && !s_play_src.path && !s_rbk.on && fno == NET_FNO_CONNECT && (!s_battle.armed || s_battle.over))
 		{
 			u32 ip;
 			std::memcpy(&ip, ram + NET_REQ_SOCK, 4);
@@ -674,7 +679,7 @@ namespace Zdxsv
 		{
 			// lobby=1: the first key msg of a battle with a new battle info starts the next GGPO battle; the
 			// sends of the ended battle (same battle info) stay with the IOP
-			if (s_opt.lobby && !s_play_env && !s_rbk && key && LobbyNewBattle())
+			if (s_opt.lobby && !s_play_src.path && !s_rbk.on && key && LobbyNewBattle())
 			{
 				NetReset();
 				Console.WriteLn("ZdxsvGgpo: next lobby battle at vsync %u", g_FrameCount);
@@ -704,7 +709,7 @@ namespace Zdxsv
 				return true;
 			}
 		}
-		if (s_rbk && !s_battle.armed && !key) // connect (fno 7) has the address in the sock field
+		if (s_rbk.on && !s_battle.armed && !key) // connect (fno 7) has the address in the sock field
 			return RbkCall(fno, len, d);
 		if (s_battle.lobby_cut)
 			return LobbyCutCall(fno, sock, len);
@@ -722,12 +727,12 @@ namespace Zdxsv
 			if (s_opt.lobby && !LobbyArm(me))
 				return s_battle.lobby_cut && LobbyCutCall(fno, sock, len);
 			s_battle.armed = true;
-			if (s_rbk)
+			if (s_rbk.on)
 			{
-				s_rb.net_rx.insert(s_rb.net_rx.end(), s_rbk_rx.begin(), s_rbk_rx.end());
-				s_rbk_rx.clear();
-				if (!s_play_env)
-					s_net_players = RbkPlayers();
+				s_rb.net_rx.insert(s_rb.net_rx.end(), s_rbk_server.rx.begin(), s_rbk_server.rx.end());
+				s_rbk_server.rx.clear();
+				if (!s_play_src.path)
+					s_net.players = RbkPlayers();
 			}
 			if (s_bs.players)
 			{
@@ -737,7 +742,7 @@ namespace Zdxsv
 				s_battle.local_server = true;
 			}
 			// ZDXSV_RBK_TURBO=1: the battle runs turbo too (GGPO paces the peers by frame)
-			if (!s_rbk || !Zdxsv::TestEnv("ZDXSV_RBK_TURBO"))
+			if (!s_rbk.on || !Zdxsv::TestEnv("ZDXSV_RBK_TURBO"))
 				VMManager::SetLimiterMode(LimiterModeType::Nominal);
 			if (me >= 0)
 				s_battle.me = me;
@@ -801,7 +806,7 @@ namespace Zdxsv
 
 	bool GgpoBattleRefuses(Error* error)
 	{
-		if (!g_ggpo_active || !s_opt.net || s_play_env)
+		if (!g_ggpo_active || !s_opt.net || s_play_src.path)
 			return false;
 		const std::string_view msg = TRANSLATE_SV("Zdxsv", "Not available during an online battle.");
 		Console.WriteLn("ZdxsvGgpo: refused during the battle (pause, speed or state load)");
@@ -814,7 +819,7 @@ namespace Zdxsv
 
 	bool OnlineBattleNow()
 	{
-		return g_ggpo_active && s_opt.net && !s_play_env;
+		return g_ggpo_active && s_opt.net && !s_play_src.path;
 	}
 
 	bool OnlineNow()
@@ -939,6 +944,19 @@ namespace Zdxsv
 		const u16 na = ab[0];
 		const u16 nb = static_cast<u16>((ab[1] & ~1u) | (b & 1u));
 		s_battle.zd_steps++;
+		if (!g_ggpo_in_rollback)
+		{
+			int& last = s_battle.zd_last[p];
+			if (k == last)
+				s_battle.zd_repeats++;
+			else if (last >= 0 && k > last + 1)
+			{
+				s_battle.zd_gaps++;
+				s_battle.zd_gap_min = std::min(s_battle.zd_gap_min, k - last - 1);
+				s_battle.zd_gap_max = std::max(s_battle.zd_gap_max, k - last - 1);
+			}
+			last = k;
+		}
 		if (a != na || b != nb)
 			s_battle.zd_changed++;
 		std::memcpy(ram + e + 2, &na, 2);

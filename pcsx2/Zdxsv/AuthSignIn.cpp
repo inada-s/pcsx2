@@ -215,8 +215,9 @@ namespace Zdxsv
 
 	void AuthOpenBrowser(const std::string& url)
 	{
-		Console.WriteLn("Zdxsv: auth: open %s", url.c_str());
-		if (!TestEnv("ZDXSV_AUTH_NO_BROWSER"))
+		const bool noBrowser = TestEnv("ZDXSV_AUTH_NO_BROWSER");
+		Console.WriteLn("Zdxsv: auth: open %s", (noBrowser ? url : url.substr(0, url.find('?'))).c_str());
+		if (!noBrowser)
 			Host::OpenURL(url);
 	}
 
@@ -317,20 +318,40 @@ namespace Zdxsv
 		return {};
 	}
 
-	std::string AuthSignOut()
+	std::string AuthSignOut(bool every_pc)
 	{
 		std::string error;
 		if (const std::optional<std::string> token = AuthTokenRead())
 		{
 			s32 status;
-			Post(AuthUrl("/revoke"), "token=" + *token, &status);
+			Post(AuthUrl("/revoke"), "token=" + *token + (every_pc ? "&all=1" : ""), &status);
 			if (status < 200 || status > 299)
 				error = "the server did not revoke the token (" + std::to_string(status) + ")";
 		}
+		else if (every_pc)
+		{
+			return "not signed in";
+		}
+		// Kept on a failed revoke of every PC: it is the only way to retry.
+		if (every_pc && !error.empty())
+		{
+			Console.Error("Zdxsv: auth: sign-out on every PC failed: %s", error.c_str());
+			return error;
+		}
 		if (FileSystem::FileExists(TokenPath().c_str()) && !FileSystem::DeleteFilePath(TokenPath().c_str()))
 			return "cannot delete the token file";
-		Console.WriteLn("Zdxsv: auth: signed out%s%s", error.empty() ? "" : ", ", error.c_str());
+		Console.WriteLn("Zdxsv: auth: signed out%s%s%s", every_pc ? " on every PC" : "", error.empty() ? "" : ", ",
+			error.c_str());
 		return error;
+	}
+
+	void AuthTokenRefused(const std::string& token)
+	{
+		if (AuthTokenRead() != token)
+			return;
+		if (!FileSystem::DeleteFilePath(TokenPath().c_str()))
+			Console.Warning("Zdxsv: auth: cannot delete the refused token file");
+		Console.WriteLn("Zdxsv: auth: the server refused the token, signed out on this PC");
 	}
 
 	namespace
@@ -377,6 +398,9 @@ namespace Zdxsv
 			{
 				case HTTPDownloader::HTTP_STATUS_OK:
 					return ParseAccounts(body, list);
+				case 401:
+					AuthTokenRefused(*token);
+					return "the Discord sign-in has expired or was revoked, sign in again";
 				case 400:
 					return "wrong or expired carry-over code";
 				case 409:

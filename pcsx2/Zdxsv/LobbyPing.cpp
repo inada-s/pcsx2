@@ -461,7 +461,7 @@ namespace Zdxsv
 							best = score, direct[p] = {r, c.addr};
 					}
 					line += ", " + std::to_string(m_pongsIn[p]) + " pings answered, picked " +
-							(direct[p].rtt > 0 ? direct[p].addr.String() : std::string("none"));
+							(direct[p].rtt > 0 ? direct[p].addr.Masked() : std::string("none"));
 				}
 				return direct;
 			}
@@ -711,7 +711,7 @@ namespace Zdxsv
 					if (std::find_if(refused.begin(), refused.end(), [&](const PeerAddr& a) { return a.String() == peer.String(); }) == refused.end())
 					{
 						refused.push_back(peer);
-						LobbyLog("cut refusal: refused the GGPO session of " + peer.String());
+						LobbyLog("cut refusal: refused the GGPO session of " + peer.Masked());
 					}
 				}
 			}

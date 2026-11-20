@@ -5,11 +5,13 @@
 // network setup from fixed replies, every name resolved to the zdxsv server, TCP on host sockets.
 // Experimental, needs proper testing: lobby, a 1v1 TCP battle and a 1v1 GGPO battle tested.
 
+#include "Zdxsv/GameAddresses.h"
 #include "Zdxsv/CpuHooks.h"
 #include "Zdxsv/LobbySocket.h"
 #include "Zdxsv/Lobby.h"
 #include "Zdxsv/ServerHosts.h"
 #include "Zdxsv/Settings.h"
+#include "Zdxsv/TestOptions.h"
 #include "Zdxsv/SaveStateHooks.h"
 
 #include "Memory.h"
@@ -52,19 +54,16 @@ namespace Zdxsv
 	{
 		// Wrapper RPC block: +0x18 result, +0x1c reply (setup), +0x1e length, +0x20 data.
 		constexpr u32 kRpc = 0xc22c80;
-		constexpr u32 kNetState = 0xcd1360; // u8, network menu state
-		constexpr u8 kNetPick = 5; // the network device pick
-		// The network setting list. Fast boot replaces state 5 with it in the same vsync, so the pick never runs.
-		constexpr u8 kNetSettingList = 6;
+		// The network device pick. Fast boot replaces it with GameNetSettingList in the same vsync, so the pick never runs.
+		constexpr u8 kNetPick = 5;
 		// The boot search for module "dev9" fills this entry; without it the pick shows the device as unavailable.
 		constexpr u32 kDevEntry = 0xc634e8;
 		constexpr u32 kDevEntryWords[] = {1, 5, 1, 2, 0x21, 0x6af5b8, 0x6af5c0};
 		// The pick's SMAP.IRX load (jal); SMAP needs dev9, and the pick never checks a load result.
 		constexpr u32 kSmapLoadPc = 0x336bd4;
 		constexpr u32 kSmapLoad = 0x0c0cd8f4;
-		// The connection menu (broadband, dial-up, last connection). Its exit branches for broadband and dial-up
-		// (beq to their setup screens) are retargeted to the last connection exit: no setup screen is needed.
-		constexpr u8 kNetConnectMenu = 3;
+		// The connection menu's exit branches for broadband and dial-up (beq to their setup screens) are retargeted
+		// to the last connection exit: no setup screen is needed.
 		constexpr u32 kMenuBroadbandPc = 0x368ba4;
 		constexpr u32 kMenuBroadband = 0x10430012;
 		constexpr u32 kMenuDialUpPc = 0x368bb0;
@@ -147,6 +146,7 @@ namespace Zdxsv
 			// After a lobby state load: the game still holds these slots open; the first call on one reconnects it.
 			bool adopt[kSlots] = {};
 			bool checked[kSlots] = {};
+			std::chrono::steady_clock::time_point pending_since[kSlots] = {};
 			// A zdxsv lobby connection: the server's bytes reach the game through it (platform info, battle info notice).
 			std::unique_ptr<LobbyFilter, LobbyFilterDeleter> lobby[kSlots];
 			sock_t none = INVALID_SOCKET;
@@ -155,6 +155,8 @@ namespace Zdxsv
 		constexpr int kResolveWaitMs = 5000;
 		// A server that stops reading: give up on the send instead of holding the emulation thread.
 		constexpr int kSendTimeoutMs = 5000;
+		// A lobby's opening split over segments arrives within a round trip; a server that never completes it is plain TCP.
+		constexpr int kFirstDataWaitMs = 3000;
 
 		void ResolveServer(std::shared_ptr<std::atomic<u32>> out)
 		{
@@ -267,13 +269,15 @@ namespace Zdxsv
 			CloseSock(s_state.socks[id]);
 			s_state.lobby[id].reset();
 			s_state.checked[id] = false;
+			s_state.pending_since[id] = {};
 			s_state.adopt[id] = false;
 			s_state.peer[id] = 0;
 			s_state.peer_port[id] = 0;
 		}
 
 		// Peeked: the first server bytes decide whether it is a zdxsv lobby; a lobby's bytes then all go through its filter.
-		void PumpLobby(int id)
+		// False while undecided: the game gets nothing yet.
+		bool PumpLobby(int id)
 		{
 			const sock_t s = s_state.socks[id];
 			u8 buf[0x2000];
@@ -281,14 +285,20 @@ namespace Zdxsv
 			{
 				const int n = recv(s, reinterpret_cast<char*>(buf), sizeof(buf), MSG_PEEK);
 				if (n <= 0)
-					return;
+					return false;
+				const auto now = std::chrono::steady_clock::now();
+				if (s_state.pending_since[id] == std::chrono::steady_clock::time_point{})
+					s_state.pending_since[id] = now;
+				if (LobbyFirstDataPending(buf, n) && now - s_state.pending_since[id] < std::chrono::milliseconds(kFirstDataWaitMs))
+					return false;
 				s_state.checked[id] = true;
 				s_state.lobby[id].reset(LobbyOnFirstData(static_cast<uptr>(s), s_state.peer[id], buf, n));
 			}
 			if (!s_state.lobby[id])
-				return;
+				return true;
 			for (int n; (n = recv(s, reinterpret_cast<char*>(buf), sizeof(buf), 0)) > 0;)
 				LobbyFeed(*s_state.lobby[id], static_cast<uptr>(s), buf, n);
+			return true;
 		}
 
 		s32 Connect(const u8* b)
@@ -326,8 +336,7 @@ namespace Zdxsv
 				timeval tv = {};
 				st = select(static_cast<int>(s) + 1, nullptr, &w, nullptr, &tv) > 0 ? 4 : 2;
 				const int id = Slot(b);
-				if (st == 4)
-					PumpLobby(id);
+				const bool decided = st == 4 && PumpLobby(id);
 				if (st == 4 && s_state.lobby[id])
 					rx = static_cast<u16>(std::min<size_t>(s_state.lobby[id]->Ready(), 0x2000));
 #ifdef _WIN32
@@ -337,7 +346,7 @@ namespace Zdxsv
 				int n = 0;
 				const int r = ioctl(s, FIONREAD, &n);
 #endif
-				if (st == 4 && r == 0 && !s_state.lobby[id])
+				if (decided && r == 0 && !s_state.lobby[id])
 					rx = static_cast<u16>(std::min<u32>(static_cast<u32>(n), 0x2000));
 			}
 			const u16 z = 0, tx = 0x2000;
@@ -363,7 +372,8 @@ namespace Zdxsv
 			if (s == INVALID_SOCKET)
 				return 0;
 			const int id = Slot(b);
-			PumpLobby(id);
+			if (!PumpLobby(id))
+				return 0;
 			if (s_state.lobby[id])
 				return static_cast<s32>(s_state.lobby[id]->Take(b + 0x20, std::min<u32>(len, kRxMax)));
 			const int n = recv(s, reinterpret_cast<char*>(b + 0x20), std::min<int>(len, kRxMax), 0);
@@ -420,7 +430,7 @@ namespace Zdxsv
 		}
 		s_state.on = g_no_dev9 = true;
 		// A host given at run time is a test server: no replay uploads to it.
-		if (!std::getenv("ZDXSV_SERVER_HOST"))
+		if (!TestEnv("ZDXSV_SERVER_HOST"))
 			ServerHostUsed();
 		s_state.server_ip = std::make_shared<std::atomic<u32>>(0);
 		std::thread(ResolveServer, s_state.server_ip).detach();
@@ -468,8 +478,8 @@ namespace Zdxsv
 
 	void NoDev9OnVsync()
 	{
-		const u8 net = memRead8(kNetState);
-		const bool pick = net == kNetPick || net == kNetSettingList;
+		const u8 net = memRead8(GAME_NET_STATE);
+		const bool pick = net == kNetPick || net == GameNetSettingList;
 		if (pick && s_state.last_net != net)
 		{
 			if (memRead32(kDevEntry) == 0xffffffff)
@@ -481,14 +491,14 @@ namespace Zdxsv
 		}
 		if (pick)
 			Patch(kSmapLoadPc, kSmapLoad, 0);
-		if (net == kNetConnectMenu)
+		if (net == GameNetConnectMenu)
 		{
 			Patch(kMenuBroadbandPc, kMenuBroadband, kMenuBroadbandToLast);
 			Patch(kMenuDialUpPc, kMenuDialUp, kMenuDialUpToLast);
 		}
 		if (net == kNetLastType)
 			Patch(kLastTypeLoadPc, kLastTypeLoad, kLastTypeBroadband);
-		if (net == kNetSettingList)
+		if (net == GameNetSettingList)
 		{
 			Patch(kLastSettingWaitPc, kLastSettingWait, 0);
 			if (memRead32(kSettingListState) == kSettingReadFailed)

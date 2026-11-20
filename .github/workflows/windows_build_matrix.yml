@@ -49,5 +49,11 @@ jobs:
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
       - name: Check CMake, vcxproj and filters agree
         run: python3 .github/workflows/scripts/common/check-vs-projects.py
+      - name: Check zdxsv features and rig test rows agree
+        run: python3 tests/zdxsv/featurecheck.py
+      - name: Check upstream spots are marked and listed
+        run: python3 tools/zdxsv/upstream_spots.py

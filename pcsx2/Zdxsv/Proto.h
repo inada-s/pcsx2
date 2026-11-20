@@ -12,9 +12,9 @@
 
 // Minimal protobuf wire codec for the replay file (replay.proto: BattleLogFile).
 // No generated code: the writers put fields in field order, the reader hands each field to a callback.
-namespace Zdxsv::Pb
+namespace Zdxsv
 {
-	inline void PutVarint(std::vector<uint8_t>& o, uint64_t v)
+	inline void PbPutVarint(std::vector<uint8_t>& o, uint64_t v)
 	{
 		while (v >= 0x80)
 		{
@@ -24,40 +24,40 @@ namespace Zdxsv::Pb
 		o.push_back(static_cast<uint8_t>(v));
 	}
 
-	inline void PutBytes(std::vector<uint8_t>& o, uint32_t field, const void* p, size_t n)
+	inline void PbPutBytes(std::vector<uint8_t>& o, uint32_t field, const void* p, size_t n)
 	{
-		PutVarint(o, (field << 3) | 2);
-		PutVarint(o, n);
+		PbPutVarint(o, (field << 3) | 2);
+		PbPutVarint(o, n);
 		o.insert(o.end(), static_cast<const uint8_t*>(p), static_cast<const uint8_t*>(p) + n);
 	}
 
-	inline void PutString(std::vector<uint8_t>& o, uint32_t field, std::string_view s)
+	inline void PbPutString(std::vector<uint8_t>& o, uint32_t field, std::string_view s)
 	{
-		PutBytes(o, field, s.data(), s.size());
+		PbPutBytes(o, field, s.data(), s.size());
 	}
 
 	// Varint field (int32 / int64 / uint / bool). Negative int32 / int64 go as 10-byte two's complement, as protobuf.
-	inline void PutUint(std::vector<uint8_t>& o, uint32_t field, uint64_t v)
+	inline void PbPutUint(std::vector<uint8_t>& o, uint32_t field, uint64_t v)
 	{
-		PutVarint(o, field << 3);
-		PutVarint(o, v);
+		PbPutVarint(o, field << 3);
+		PbPutVarint(o, v);
 	}
 
-	inline void PutInt(std::vector<uint8_t>& o, uint32_t field, int64_t v)
+	inline void PbPutInt(std::vector<uint8_t>& o, uint32_t field, int64_t v)
 	{
-		PutUint(o, field, static_cast<uint64_t>(v));
+		PbPutUint(o, field, static_cast<uint64_t>(v));
 	}
 
 	// Packed repeated varint (proto3 default for repeated int32 / uint64).
-	inline void PutPackedInts(std::vector<uint8_t>& o, uint32_t field, const std::vector<int64_t>& vs)
+	inline void PbPutPackedInts(std::vector<uint8_t>& o, uint32_t field, const std::vector<int64_t>& vs)
 	{
 		std::vector<uint8_t> m;
 		for (const int64_t v : vs)
-			PutVarint(m, static_cast<uint64_t>(v));
-		PutBytes(o, field, m.data(), m.size());
+			PbPutVarint(m, static_cast<uint64_t>(v));
+		PbPutBytes(o, field, m.data(), m.size());
 	}
 
-	struct Reader
+	struct PbReader
 	{
 		const uint8_t* p;
 		const uint8_t* end;
@@ -119,23 +119,25 @@ namespace Zdxsv::Pb
 		}
 	};
 
-	// A repeated varint field, packed (wire type 2) or not (0), appended to out.
-	inline bool ReadInts(uint32_t wt, uint64_t v, const uint8_t* bytes, size_t n, std::vector<int64_t>& out)
+	// A repeated varint field, packed (wire type 2) or not (0), appended to out; false past max values in out.
+	inline bool PbReadInts(uint32_t wt, uint64_t v, const uint8_t* bytes, size_t n, std::vector<int64_t>& out, size_t max)
 	{
 		if (wt == 0)
 		{
+			if (out.size() >= max)
+				return false;
 			out.push_back(static_cast<int64_t>(v));
 			return true;
 		}
 		if (wt != 2)
 			return false;
-		Reader r{bytes, bytes + n};
+		PbReader r{bytes, bytes + n};
 		while (r.p < r.end)
 		{
-			if (!r.Varint(v))
+			if (out.size() >= max || !r.Varint(v))
 				return false;
 			out.push_back(static_cast<int64_t>(v));
 		}
 		return true;
 	}
-} // namespace Zdxsv::Pb
+} // namespace Zdxsv

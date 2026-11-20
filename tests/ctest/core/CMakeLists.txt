@@ -1,6 +1,6 @@
 add_pcsx2_test(core_test
 	patch_tests.cpp
-	ggpo_tests.cpp
+	ggpo_tests.cpp # zdxsv: GGPO tests
 	MockMemoryInterface.h
 	StubHost.cpp
 )
@@ -15,7 +15,7 @@ target_link_libraries(core_test PUBLIC
 	common
 )
 
-# ggpo_tests.cpp tests GGPO's internal socket class; its headers throw (see 3rdparty/ggpo); no PCH, which is built without exceptions
+# zdxsv: ggpo_tests.cpp tests GGPO's internal socket class; its headers throw (see 3rdparty/ggpo); no PCH, which is built without exceptions
 target_include_directories(core_test PRIVATE "${CMAKE_SOURCE_DIR}/3rdparty/ggpo/lib/ggpo")
 set_source_files_properties(ggpo_tests.cpp PROPERTIES SKIP_PRECOMPILE_HEADERS ON)
 if(MSVC)

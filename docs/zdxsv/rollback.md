@@ -69,7 +69,11 @@ inputs of the next frame. Host pad input goes through GGPO.
 Rerun frames are not throttled, presented or heard: a rollback of N frames
 shows and plays the live frame once. SPU2 reverb is not computed in rerun
 frames (unless an SPU2 IRQ address lies in the reverb work area): it only
-feeds their dropped sound. The game builds a frame's draw list in its render
+feeds their dropped sound and the reverb work area in SPU2 RAM, so after a
+rollback a peer's SPU2 RAM and reverb buffers differ from its peers'. No
+comparison between peers includes them: the online desync check and the replay
+state hashes cover the players' work and the game RNG (`ZDXSV_GGPO` `hash=full`,
+a local synctest, does include them). The game builds a frame's draw list in its render
 callbacks, VU1 draws it in the next frame, and that picture is shown one
 vblank later. The present comes before the rollback, so the first present
 after it shows what VU1 drew in the last rerun frame, from the list of the
@@ -324,7 +328,8 @@ Every online battle checks itself (`GgpoDesync.cpp`):
 - The last 4 bytes of `NetInput.data` (when the msgs leave them free) carry the
   newest final sample: a tag for its frame and 24 bits of its hash. A peer
   writes them only into an input that changes anyway, so they cause no extra
-  prediction misses.
+  prediction misses. A trailer stays until that peer's input changes, so a
+  receiver skips one whose tag equals the last one it compared.
 - Each peer compares every peer's sample with its own, once per peer and sample.
   A mismatch logs `suspected desync with position N at frame F`; the battle
   goes on. The session end logs `desync checks N mismatches M`; the match

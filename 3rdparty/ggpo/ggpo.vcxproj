@@ -72,6 +72,7 @@
   <ItemDefinitionGroup>
     <ClCompile>
       <PreprocessorDefinitions>NOMINMAX;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions Condition="$(Configuration.Contains(Debug)) Or $(Configuration.Contains(Devel))">PCSX2_DEVBUILD;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <WarningLevel>TurnOffAllWarnings</WarningLevel>
       <ExceptionHandling>Sync</ExceptionHandling>
       <AdditionalIncludeDirectories>$(SolutionDir)3rdparty\ggpo\include;$(SolutionDir)3rdparty\ggpo\lib\ggpo;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>

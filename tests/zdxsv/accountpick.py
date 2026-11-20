@@ -63,6 +63,7 @@ def prepare(out):
     print(f"accounts {keys}, pick {pick}, want {want}")
     with open(os.path.join(out, "token_account.txt"), "w") as f:
         f.write(want)
+    tokenlogin.LAST_LOGIN[out] = tokenlogin.last_login(out, want)
     with open(tokenlogin.token_path(), "w") as f:
         f.write(token + "\n")
     set_pick(pick)

@@ -185,9 +185,9 @@ bool SaveStateBase::FreezeInternals(Error* error)
 	if (!FreezeTag("cpuRegs"))
 		return false;
 
-	SaveState_DeltaMarkScratch(GetCurrentPos() + offsetof(cpuRegisters, code), sizeof(cpuRegs.code));
+	Zdxsv::DeltaFreezeMarkScratch(GetCurrentPos() + offsetof(cpuRegisters, code), sizeof(cpuRegs.code));
 	Freeze(cpuRegs);		// cpu regs + COP0
-	SaveState_DeltaMarkScratch(GetCurrentPos() + offsetof(psxRegisters, code), sizeof(psxRegs.code));
+	Zdxsv::DeltaFreezeMarkScratch(GetCurrentPos() + offsetof(psxRegisters, code), sizeof(psxRegs.code));
 	Freeze(psxRegs);		// iop regs
 	Freeze(fpuRegs);
 	Freeze(tlb);			// tlbs
@@ -206,7 +206,7 @@ bool SaveStateBase::FreezeInternals(Error* error)
 	Freeze(nextStartCounter);
 	Freeze(psxNextStartCounter);
 	Freeze(psxNextDeltaCounter);
-	// Not in the state: the interpreter's uncommitted cycles belong to the replaced state (a load from inside the
+	// zdxsv: not in the state, the interpreter's uncommitted cycles belong to the replaced state (a load from inside the
 	// interpreter's loop would add them to the loaded one).
 	if (IsLoading())
 		cpuBlockCycles = 0;
@@ -497,6 +497,7 @@ protected:
 bool MemorySavestateEntry::FreezeIn(zip_file_t* zf) const
 {
 	const u32 expectedSize = GetDataSize();
+	Zdxsv::DeltaStateHostWrite(GetDataPtr(), expectedSize);
 	const s64 bytesRead = zip_fread(zf, GetDataPtr(), expectedSize);
 	if (bytesRead != static_cast<s64>(expectedSize))
 	{
@@ -751,7 +752,7 @@ static const std::unique_ptr<BaseSavestateEntry> SavestateEntries[] = {
 	std::unique_ptr<BaseSavestateEntry>(new SavestateEntry_SPU2),
 	std::unique_ptr<BaseSavestateEntry>(new SavestateEntry_USB),
 	std::unique_ptr<BaseSavestateEntry>(new SavestateEntry_DEV9),
-	std::unique_ptr<BaseSavestateEntry>(new SavestateEntry_NoDev9),
+	std::unique_ptr<BaseSavestateEntry>(new SavestateEntry_NoDev9), // zdxsv: NoDev9.cpp state
 	std::unique_ptr<BaseSavestateEntry>(new SavestateEntry_PAD),
 	std::unique_ptr<BaseSavestateEntry>(new SavestateEntry_GS),
 	std::unique_ptr<BaseSavestateEntry>(new SaveStateEntry_Achievements),

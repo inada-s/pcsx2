@@ -124,7 +124,7 @@ namespace Zdxsv
 		void AddRound(const std::vector<uint8_t>& entry); // a BattleLogFile round_data entry (field 18), once confirmed
 		void SetRoundFrames(const std::vector<uint8_t>& fields); // BattleLogFile fields 54, 55, 57-59 of the confirmed frames
 		void AddRoundState(const std::vector<uint8_t>& entry); // a BattleLogFile round_states entry (field 61), once confirmed
-		size_t Frames();
+		size_t Frames(); // given to AddFrames, also those dropped after the close or the upload end
 		void Close(const std::string& reason);
 		bool Done(); // the upload ended
 	private:
@@ -202,7 +202,7 @@ namespace Zdxsv
 	// Keeps info (IsBattleServer) and passes it to the listener.
 	void SetBattleInfo(const BattleInfo& info);
 
-	// Called by SetBattleInfo (DEV9 thread) with every battle info (pcsx2: GGPO lobby peers).
+	// Called by SetBattleInfo (CPU thread) with every battle info (pcsx2: GGPO lobby peers).
 	void SetBattleInfoListener(std::function<void(const BattleInfo&)> listener);
 
 	// GGPO address candidates of every player by battle position (own position empty); the first one is

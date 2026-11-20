@@ -92,7 +92,16 @@ def main():
         return 2
     if a.route:
         keys = ",".join(route_text(k, 1) if k in ROUTES else k for k in a.route.split(","))
-        route = threading.Thread(target=p.seq, args=(keys,), daemon=True)
+        route_err = []
+
+        def run_route():
+            try:
+                p.seq(keys)
+            except Exception as e:
+                route_err.append(e)
+                raise
+
+        route = threading.Thread(target=run_route, daemon=True)
         route.start()
         emit("route " + a.route)
     last = None
@@ -124,6 +133,9 @@ def main():
                     time.sleep(0.02)
                 if route.is_alive():
                     print("FAIL route not done in %.0f s" % a.maxs)
+                    return 1
+                if route_err:
+                    print("FAIL route stopped: %r" % route_err[0])
                     return 1
                 emit("route done")
             return 0 if res == "PASS" else 1
