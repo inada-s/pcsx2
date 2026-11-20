@@ -1175,6 +1175,7 @@ set(pcsx2arm64Sources
 
 set(pcsx2arm64Headers
 	arm64/AsmHelpers.h
+	arm64/VU1Trace.h # zdxsv: ARM64 recompilers
 	arm64/VU1Trace.inl # zdxsv: ARM64 recompilers
 )
 
