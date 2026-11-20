@@ -44,6 +44,12 @@ def card_token(db, card, stand_in=False):
     c = sqlite3.connect(db)
     try:
         keys = [r[0] for r in c.execute("SELECT login_key FROM account") if r[0] and r[0].encode() in data]
+        if not keys and not stand_in:
+            c.execute("INSERT INTO auth_token (token_hash, provider, provider_user_id, created) VALUES (?, ?, ?, ?)",
+                      (hashlib.sha256(token.encode()).hexdigest(), "rig", secrets.token_hex(8), datetime.now()))
+            c.commit()
+            print(f"{os.path.basename(card)}: no account, token of a new sign-in", flush=True)
+            return token, None
         if len(keys) != 1:
             return None, f"{os.path.basename(card)} matches {len(keys)} accounts in {db}"
         if stand_in:

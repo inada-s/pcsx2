@@ -2,7 +2,7 @@
 
   drive.py <route> <N> [<N> ...]   runs the route on each instance in parallel threads
   routes: top (attract/title -> server TOP page), fresh (blank card -> TOP), login (TOP -> 戦場選択 with ID 1),
-          register (TOP -> 新規登録), newlogin, map + lobby2p (戦場選択 -> side entry in Lobby 06),
+          register (TOP -> 新規登録), newlogin, firstlogin (blank card, fast login -> 戦場選択), map + lobby2p (戦場選択 -> side entry in Lobby 06),
           mash (in battle), after (result screen -> 作戦後部屋)
 4-player battle: top 1 2 3 4; login 1 2 3 4; map + lobby2p per client in turn; mash 1 2 3 4 (x2); after 1 2 3 4.
 Headless (launch.py -Headless): same routes blind, mash x3, then after; result ~65 s later.
@@ -109,6 +109,11 @@ if launch.server_host():
     ROUTES["fresh"] = "Return~scene=2/500,Down~menu=7/400,C~scene=7,C~net=2,@nsub=21,C~nsub=22,@dlg=1,C~lstate!/500,"\
                       "@dlg=2/15000,Up~lstate!/500,C~lstate!/500,@dlg=4/15000,@dlg=222/15000,C~lstate!/500,@net=3/15000,"\
                       "C~lstate!/500,@net=5,Up~lstate!/500,C~lstate!/500,@phase=23/40000,@wseq=21/20000"
+    # Blank card with fast login: "fresh" up to the terms, the login makes the account (no TOP), then the
+    # Capcom registration screen (wseq 18; it takes input ~14 s later) -> 登録しない -> HN あああ -> 登録 -> はい
+    # -> 戦場選択 (step 1).
+    ROUTES["firstlogin"] = ROUTES["fresh"].split(",@phase=")[0] + \
+        ",@wseq=18/40000,w14000,Right,w1500,C,w8000,C,w6000,C,C,C,Return,w6000,Return,w6000,C,w6000,Up,C,@step=1/30000"
 
 
 def route_text(route, n):
