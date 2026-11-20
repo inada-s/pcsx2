@@ -107,6 +107,9 @@ namespace Zdxsv
 		u8 unused[2];
 	};
 	static_assert(sizeof(Input) == 8);
+	// A net input's barrier count k: 0 MS select, 1 play start, 2 round end. (A, B) fills buttons .. ly, so rx is free.
+	enum : int { BARRIER_MS = 0, BARRIER_PS = 1, BARRIER_RE = 2 };
+	inline u8 BarrierCount(const Input& in, int k) { return k == BARRIER_RE ? in.rx : in.unused[k]; }
 
 	// GGPO input of one frame: the host pad's (A, B) plus the kind-3 msgs the game sent K3_LAG frames
 	// earlier. GGPO player = battle position + 1.
@@ -173,8 +176,8 @@ namespace Zdxsv
 	u32 MsIds();
 	int RoundResult(u32 a, u32 b);
 	extern std::FILE* s_pw_dump;
-	// Play-start barrier: the n-th battle load passes once every peer's synced count (Input::unused[1])
-	// reaches n. The MS-select load has the same barrier (count in Input::unused[0]), off when a file
+	// Play-start barrier: the n-th battle load passes once every peer's synced count (BARRIER_PS) reaches n.
+	// The MS-select load (BARRIER_MS) and the round end (BARRIER_RE) have the same barrier, each off when a file
 	// recorded without it plays. Part of the rollback state.
 	struct PS
 	{
@@ -183,6 +186,7 @@ namespace Zdxsv
 		bool operator==(const PS&) const = default;
 	};
 	extern bool s_ms_on;
+	extern bool s_re_on;
 	extern const int s_k3_lag;
 	struct NetOut
 	{
@@ -198,7 +202,7 @@ namespace Zdxsv
 		int end_frame = -1; // frame that sent the end msg (kind f) in the current timeline, -1 = not yet
 		std::vector<u8> net_rx; // remote msgs not yet given to the game's recv
 		int zds_seen[GGPO_MAX_PLAYERS] = {}, zds_rel = 0; // zds kind-3 barrier counters
-		PS ps = {}, ms = {};
+		PS ps = {}, ms = {}, re = {};
 	};
 	extern RollbackState s_rb;
 	// Per-frame rings that a rollback leaves in place (they hold every frame it can go back to) and a
@@ -455,7 +459,7 @@ namespace Zdxsv
 		int rng_pos = -1;
 		std::vector<std::pair<int, int>> cut;
 		std::vector<u8> ps_rel; // per frame: the file's play-start barrier releases (PS::rel) before it
-		std::vector<u8> ms_rel; // the same for the MS-select barrier
+		std::vector<u8> ms_rel, re_rel; // the same for the MS-select and round-end barriers
 		int frames = 0;
 		int rearm_seek = -1; // a switch's common start: the frame to seek to from its key 0
 		bool booted_saved = false; // ZDXSV_REPLAY_STATE empty: the booted state is in the cache (PlayCommonState)
@@ -630,7 +634,7 @@ namespace Zdxsv
 	std::optional<std::vector<u8>> LiveOpen(const std::string& url);
 	// A live stream's round frames (and with `states` its round states) as the file's: spans, MS-select starts, round states.
 	void PlayLiveRoundFrames(const std::vector<u8>& round_frames, const std::vector<u8>& states, bool with_states);
-	void PlayFileRels(u8 ps0, u8 ms0);
+	void PlayFileRels(u8 ps0, u8 ms0, u8 re0);
 	bool LiveAutoNext(bool skip = false);
 	void LiveCatchupEnd(int f);
 	void LivePaceReset();

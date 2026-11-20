@@ -50,8 +50,11 @@ namespace Zdxsv
 		{
 			return {static_cast<int64_t>(rb.net_pos), rb.end_frame, rb.ps.n, rb.ps.rel, rb.ps.hold ? 1 : 0, rb.ps.go ? 1 : 0,
 				rb.zds_seen[0], rb.zds_seen[1], rb.zds_seen[2], rb.zds_seen[3], rb.zds_rel, rb.ms.n, rb.ms.rel, rb.ms.hold ? 1 : 0,
-				rb.ms.go ? 1 : 0};
+				rb.ms.go ? 1 : 0, rb.re.n, rb.re.rel, rb.re.hold ? 1 : 0, rb.re.go ? 1 : 0};
 		}
+
+		// Recorded without the round-end barrier: its fields are absent.
+		constexpr size_t ROUND_STATE_HLE_NO_RE = 15;
 	} // namespace
 
 	RoundState RoundStateTake(int f)
@@ -92,7 +95,8 @@ namespace Zdxsv
 				return true;
 			}))
 			return false;
-		if (frame < 1 || frame > INT_MAX || out.ee.size() != RoundStateEeSize() || hle.size() != RoundStateHle({}).size())
+		if (frame < 1 || frame > INT_MAX || out.ee.size() != RoundStateEeSize() ||
+			(hle.size() != RoundStateHle({}).size() && hle.size() != ROUND_STATE_HLE_NO_RE))
 			return false;
 		const auto u8in = [](int64_t v) { return v >= 0 && v <= 0xff; };
 		if (hle[0] < 0 || hle[0] > INT_MAX || hle[1] < -1 || hle[1] > INT_MAX || !std::all_of(hle.begin() + 2, hle.end(), u8in))
@@ -106,6 +110,8 @@ namespace Zdxsv
 			rb.zds_seen[p] = static_cast<int>(hle[6 + p]);
 		rb.zds_rel = static_cast<int>(hle[10]);
 		rb.ms = {static_cast<u8>(hle[11]), static_cast<u8>(hle[12]), hle[13] != 0, hle[14] != 0};
+		if (hle.size() > ROUND_STATE_HLE_NO_RE)
+			rb.re = {static_cast<u8>(hle[15]), static_cast<u8>(hle[16]), hle[17] != 0, hle[18] != 0};
 		return true;
 	}
 

@@ -496,8 +496,9 @@ namespace Zdxsv
 			std::fprintf(s_net_trace, "%u Q %d %04x %04x\n", g_FrameCount, frame, ab[0], ab[1]);
 		in.pad = {};
 		std::memcpy(&in.pad, ab, sizeof(ab));
-		in.pad.unused[0] = s_rb.ms.n;
-		in.pad.unused[1] = s_rb.ps.n;
+		in.pad.unused[BARRIER_MS] = s_rb.ms.n;
+		in.pad.unused[BARRIER_PS] = s_rb.ps.n;
+		in.pad.rx = s_rb.re.n;
 		std::vector<u8> data;
 		while (!s_battle.out.empty() && (s_k3_lag == 0 || s_battle.out.front().frame + s_k3_lag <= frame))
 		{
@@ -582,16 +583,18 @@ namespace Zdxsv
 			if (!b.hold || b.go)
 				return;
 			for (int p = 0; p < s_opt.players; p++)
-				if (static_cast<u8>(in[p].pad.unused[k] - b.rel) < 1 || static_cast<u8>(in[p].pad.unused[k] - b.rel) >= 128)
+				if (static_cast<u8>(BarrierCount(in[p].pad, k) - b.rel) < 1 || static_cast<u8>(BarrierCount(in[p].pad, k) - b.rel) >= 128)
 					return;
 			b.go = true;
 			b.rel++;
 			if (s_net_trace)
 				std::fprintf(s_net_trace, "%u %cS%s %d %d\n", g_FrameCount, tag, g_ggpo_in_rollback ? "r" : "", f, b.rel);
 		};
-		release(s_rb.ps, 1, 'P');
+		release(s_rb.ps, BARRIER_PS, 'P');
 		if (s_ms_on)
-			release(s_rb.ms, 0, 'M');
+			release(s_rb.ms, BARRIER_MS, 'M');
+		if (s_re_on)
+			release(s_rb.re, BARRIER_RE, 'R');
 	}
 
 	// A peer that keeps sending inputs but never counts its hold keeps GGPO's disconnect timer from firing.
@@ -603,7 +606,7 @@ namespace Zdxsv
 	bool NetBarrierTimedOut()
 	{
 		const auto held = [](const PS& b) { return b.hold && !b.go; };
-		if (!held(s_rb.ps) && !(s_ms_on && held(s_rb.ms)))
+		if (!held(s_rb.ps) && !(s_ms_on && held(s_rb.ms)) && !(s_re_on && held(s_rb.re)))
 		{
 			s_run.barrier_since = 0;
 			return false;
@@ -922,6 +925,14 @@ namespace Zdxsv
 	bool OnMsStep()
 	{
 		return s_ms_on && BarrierHold(s_rb.ms, 'M', 0x2b8ab8);
+	}
+
+	bool s_re_on = true;
+
+	// re: rec hook at ROUND_END_PC (0x2b3d88, round-end step past its fade check), epilogue 0x2b3db0.
+	bool OnRoundEndStep()
+	{
+		return s_re_on && BarrierHold(s_rb.re, 'R', 0x2b3db0);
 	}
 
 	// zd: rec hook at the lockstep step's ring read (0x312bf4, per active position: s0 = position,

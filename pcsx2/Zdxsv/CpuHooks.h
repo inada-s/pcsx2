@@ -122,6 +122,10 @@ namespace Zdxsv
 	// MS-select load step past its load-busy check (same hold, under g_ps_hook).
 	constexpr u32 MS_STEP_PC = 0x2b8698;
 	bool OnMsStep();
+	// Round-end step past its fade check (same hold, counted with the play start): the result display before
+	// it lasts a viewer-dependent number of frames.
+	constexpr u32 ROUND_END_PC = 0x2b3d88;
+	bool OnRoundEndStep();
 	// Render callback runners of the battle frame step 0x2124f0 (it runs both after the frame logic).
 	// true = skipped in this rerun frame (pc = ra), see g_rerun_draw_skip.
 	constexpr u32 DRAW_RUN_PC = 0x20ff30, DRAW_RUN2_PC = 0x20ff90;
@@ -149,7 +153,7 @@ namespace Zdxsv
 	constexpr bool IsIntHookPc(u32 pc)
 	{
 		return pc == NET_RPC_PC || pc == NET_RECV_RET_PC || pc == STEP_COPY_PC || pc == LOAD_STEP_PC ||
-			   pc == MS_STEP_PC || pc == DRAW_RUN_PC || pc == DRAW_RUN2_PC || pc == OBJ_CALL_PC;
+			   pc == MS_STEP_PC || pc == ROUND_END_PC || pc == DRAW_RUN_PC || pc == DRAW_RUN2_PC || pc == OBJ_CALL_PC;
 	}
 
 	// ZDXSV_DELTA_TEST: synctest in a running game, see Zdxsv/DeltaState.cpp.

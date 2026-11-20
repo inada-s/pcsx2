@@ -39,7 +39,7 @@ message BattleLogFile {
   // battle socket emulation state at frame 0
   reserved 44;  // was zds_ps
   bytes net_rx0 = 45;  // msgs waiting for the game's recv
-  repeated int32 hle0 = 46;  // play-start barrier n, rel, hold, go; kind-3 seen 0..3, rel; MS-select barrier n, rel, hold, go (absent: played without it)
+  repeated int32 hle0 = 46;  // play-start barrier n, rel, hold, go; kind-3 seen 0..3, rel; MS-select barrier n, rel, hold, go; round-end barrier n, rel, hold, go (each absent: played without it)
   int32 input_size = 47;  // bytes per player per frame (NetInput)
   int32 frames = 48;  // GGPO-confirmed frames
   bytes inputs = 49;  // frames * players * input_size: frame-major, by position
@@ -91,6 +91,6 @@ message GamePatchCode {
 message RoundState {
   int32 frame = 1;
   bytes ee = 2;  // EE RAM ranges (ReplayRoundState.cpp), concatenated
-  repeated int32 hle = 3;  // msgs sent, end frame; play-start barrier n, rel, hold, go; kind-3 seen 0..3, rel; MS-select barrier n, rel, hold, go
+  repeated int32 hle = 3;  // msgs sent, end frame; play-start barrier n, rel, hold, go; kind-3 seen 0..3, rel; MS-select barrier n, rel, hold, go; round-end barrier n, rel, hold, go (absent: without it)
   bytes net_rx = 4;  // msgs waiting for the game's recv
 }

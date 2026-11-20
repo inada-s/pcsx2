@@ -304,7 +304,8 @@ namespace Zdxsv
 		// play-start barrier, kind-3 barrier, MS-select barrier
 		s_replay_hle0.rx.assign(s_rb.net_rx.begin(), s_rb.net_rx.end());
 		s_replay_hle0.hle = {s_rb.ps.n, s_rb.ps.rel, s_rb.ps.hold ? 1 : 0, s_rb.ps.go ? 1 : 0, s_rb.zds_seen[0], s_rb.zds_seen[1],
-			s_rb.zds_seen[2], s_rb.zds_seen[3], s_rb.zds_rel, s_rb.ms.n, s_rb.ms.rel, s_rb.ms.hold ? 1 : 0, s_rb.ms.go ? 1 : 0};
+			s_rb.zds_seen[2], s_rb.zds_seen[3], s_rb.zds_rel, s_rb.ms.n, s_rb.ms.rel, s_rb.ms.hold ? 1 : 0, s_rb.ms.go ? 1 : 0,
+			s_rb.re.n, s_rb.re.rel, s_rb.re.hold ? 1 : 0, s_rb.re.go ? 1 : 0};
 		s_replay_answers = Zdxsv::LobbyStartAnswers();
 		s_live.reset();
 		if (!to.empty())
