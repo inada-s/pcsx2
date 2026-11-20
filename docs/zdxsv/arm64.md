@@ -183,6 +183,6 @@ the default clamp mode (other clamp modes keep upstream's code).
   unchanged (frame-locked game): compare the whole replay's event log (a
   `lines` above the replay's event tests (2M are ~6 s of game time), the
   file a FIFO read by `md5`).
-- Recompiler self-checks: `PCSX2_VU1_JIT=check`, `ZDXSV_VU1_OPTEST` (vs the x86 build),
+- Recompiler self-checks: `ZDXSV_VU1_OPTEST` (vs the x86 build),
   `PCSX2_ARM64_EE_NATIVE=0`.
 - Profiles of JIT code: `PCSX2_EE_JIT_MAP`, `PCSX2_VU1_JIT_MAP`.
