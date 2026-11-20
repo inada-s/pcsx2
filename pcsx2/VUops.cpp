@@ -4204,7 +4204,7 @@ void VFCGET()  { VU0.code = cpuRegs.code; _vuFCGET(&VU0); }
 void VXITOP()  { VU0.code = cpuRegs.code; _vuXITOP(&VU0); }
 
 
-// zdxsv: the trace the ARM64 VU1 JIT check compares.
+// zdxsv: the ARM64 VU1 trace recompiler.
 #ifdef ARCH_ARM64
 #include "arm64/VU1Trace.inl"
 #endif

@@ -148,7 +148,6 @@ struct VU1Trace
 	VU1PipeSig sig;
 	u32 last_start_rel; // cycle before the last step, relative to the cycle at trace entry
 	bool program_end = false; // the last two steps are an E-bit pair and its delay slot
-	bool kicks = false; // has an XGKICK op
 	std::vector<VU1TraceStep> steps;
 	void (*code)() = nullptr; // native code, compiled on first run
 	u8* entry = nullptr; // where a chain jump enters code: past the frame push and the x19/x21 setup
@@ -347,8 +346,6 @@ static std::unique_ptr<VU1Trace> _vu1TraceCompile(u32 pc, const VU1PipeSig& sig,
 		if (_vu1TraceStops(pc) || (delay_slot && branch) ||
 			(ebit && (delay_slot || t->steps.size() + 2 > VU1_TRACE_MAX_STEPS)))
 			break;
-		if (!d.ibit && d.lregs.pipe == VUPIPE_XGKICK)
-			t->kicks = true;
 
 		VU1TraceStep& s = t->steps.emplace_back();
 		s.code = d.code;
@@ -444,14 +441,12 @@ static u8* s_vu1_jit_ptr;
 static u8* s_vu1_jit_end;
 static constexpr u32 VU1_JIT_POOL_SIZE = 64 * 1024;
 static constexpr u32 VU1_JIT_MAX_STEP_CODE = 1024;
-// PCSX2_VU1_JIT: 0 = interpreter only, check = see _vu1TraceCheck, unset = traces.
-enum class VU1JitMode { Off, On, Check };
+// PCSX2_VU1_JIT: 0 = interpreter only, unset = traces.
+enum class VU1JitMode { Off, On };
 static const VU1JitMode s_vu1_jit_mode = [] {
 	const char* env = Zdxsv::TestEnv("PCSX2_VU1_JIT");
 	if (env && std::strcmp(env, "0") == 0)
 		return VU1JitMode::Off;
-	if (env && std::strcmp(env, "check") == 0)
-		return VU1JitMode::Check;
 	return VU1JitMode::On;
 }();
 // PCSX2_VU1_JIT_MAP=<file>: start address of each emitted section, what it does and the handler
@@ -2959,85 +2954,6 @@ static void _vu1TraceExec(VU1Trace& t)
 	t.code();
 }
 
-// PCSX2_VU1_JIT=check: every trace also runs through the interpreter from the same start, and
-// the VU1 registers and data memory of both runs are compared. The interpreter's result is kept.
-static bool _vu1TraceCheck(VU1Trace& t)
-{
-	alignas(16) static VURegs start, ref;
-	static u8 start_mem[VU1_MEMSIZE], ref_mem[VU1_MEMSIZE];
-	static u64 checked, failed;
-
-	// XGKICK transfers reach the GIF: they cannot run twice.
-	if (VU1.xgkickenable || t.kicks)
-		return false;
-
-	const u32 start_stat = VU0.VI[REG_VPU_STAT].UL;
-	std::memcpy(&start, &VU1, sizeof(VURegs));
-	std::memcpy(start_mem, VU1.Mem, VU1_MEMSIZE);
-	// Up to the side exit the trace takes, if any.
-	for (size_t i = 0; i < t.steps.size(); i++)
-	{
-		vu1Exec(&VU1);
-		if (t.steps[i].side >= 0 && VU1.VI[REG_TPC].UL != t.steps[i].next_pc)
-			break;
-	}
-	std::memcpy(&ref, &VU1, sizeof(VURegs));
-	std::memcpy(ref_mem, VU1.Mem, VU1_MEMSIZE);
-	const u32 ref_stat = VU0.VI[REG_VPU_STAT].UL;
-
-	std::memcpy(&VU1, &start, sizeof(VURegs));
-	std::memcpy(VU1.Mem, start_mem, VU1_MEMSIZE);
-	VU0.VI[REG_VPU_STAT].UL = start_stat;
-	_vu1TraceExec(t);
-
-	// _vu1Exec leaves an FMAC entry's write mask uninitialized for ops that write no VF register
-	// (stack contents); the traces store 0. _vuFMACTestStall never matches register 0.
-	// Retired entries are never read again; the traces store only the flags of those retiring inside.
-	alignas(16) static VURegs ref_cmp;
-	std::memcpy(&ref_cmp, &ref, sizeof(VURegs));
-	for (VURegs* r : {&VU1, &ref_cmp})
-	{
-		for (u32 i = r->fmaccount; i < 4; i++)
-			std::memset(&r->fmac[(r->fmacreadpos + i) & 3], 0, sizeof(fmacPipe));
-		for (fmacPipe& f : r->fmac)
-		{
-			if (f.regupper == 0)
-				f.xyzwupper = 0;
-			if (f.reglower == 0)
-				f.xyzwlower = 0;
-		}
-	}
-
-	checked++;
-	const u8* a = reinterpret_cast<const u8*>(&VU1);
-	const u8* b = reinterpret_cast<const u8*>(&ref_cmp);
-	size_t diff = sizeof(VURegs);
-	for (size_t i = 0; i < sizeof(VURegs); i++)
-	{
-		if (a[i] != b[i])
-		{
-			diff = i;
-			break;
-		}
-	}
-	const bool mem_diff = std::memcmp(VU1.Mem, ref_mem, VU1_MEMSIZE) != 0;
-	if (diff != sizeof(VURegs) || mem_diff || VU0.VI[REG_VPU_STAT].UL != ref_stat)
-	{
-		failed++;
-		if (failed <= 20)
-			Console.Error("VU1 trace check: pc %04x steps %zu differs: regs offset %zd, mem %d, stat %d (%llu of %llu)",
-				start.VI[REG_TPC].UL, t.steps.size(), diff == sizeof(VURegs) ? -1 : static_cast<ptrdiff_t>(diff), mem_diff,
-				VU0.VI[REG_VPU_STAT].UL != ref_stat, failed, checked);
-	}
-	if ((checked & (checked - 1)) == 0 && checked >= 1024)
-		Console.WriteLn("VU1 trace check: %llu traces checked, %llu differ", checked, failed);
-
-	std::memcpy(&VU1, &ref, sizeof(VURegs));
-	std::memcpy(VU1.Mem, ref_mem, VU1_MEMSIZE);
-	VU0.VI[REG_VPU_STAT].UL = ref_stat;
-	return true;
-}
-
 // The trace for VU1's TPC and the given pipe state (nullptr: taken from VU1), or nullptr when
 // the caller must step instead.
 static VU1Trace* _vu1TraceLookup(u32 pc, const VU1PipeSig* known)
@@ -3165,13 +3081,9 @@ bool _vu1TraceStep(u64 startcycles, u32 cycles)
 
 	s_vu1_chain.limit = startcycles + cycles;
 	s_vu1_chain.last = t;
-	if (!(s_vu1_jit_mode == VU1JitMode::Check && _vu1TraceCheck(*t)))
-	{
-		VU1Trace* const first = t;
-		_vu1TraceExec(*t);
-		if (link >= 0 && first->entry)
-			_vu1JitLink(*prev, link, first->entry);
-	}
+	_vu1TraceExec(*t);
+	if (link >= 0 && t->entry)
+		_vu1JitLink(*prev, link, t->entry);
 	t = s_vu1_chain.last;
 
 	if (t->prof_left)
@@ -3195,25 +3107,7 @@ bool _vu1TraceStep(u64 startcycles, u32 cycles)
 	}
 
 	if (t->exit_known == 0)
-	{
 		t->exit_known = _vu1PipeSig(&VU1, &t->exit_sig) ? 1 : 2;
-	}
-	else if (s_vu1_jit_mode == VU1JitMode::Check)
-	{
-		static u64 checked, failed;
-		VU1PipeSig s;
-		const u8 known = _vu1PipeSig(&VU1, &s) ? 1 : 2;
-		checked++;
-		if (known != t->exit_known || (known == 1 && std::memcmp(&s, &t->exit_sig, sizeof(s)) != 0))
-		{
-			failed++;
-			if (failed <= 20)
-				Console.Error("VU1 trace check: exit pipe state of pc %04x differs (%llu of %llu)",
-					pc, failed, checked);
-		}
-		if ((checked & (checked - 1)) == 0 && checked >= 1024)
-			Console.WriteLn("VU1 trace check: %llu exit pipe states checked, %llu differ", checked, failed);
-	}
 	if (t->exit_known == 1)
 		s_vu1_prev = t;
 	return true;

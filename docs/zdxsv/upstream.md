@@ -390,7 +390,7 @@ Visual Studio and `lupdate` drop comments when they rewrite these files.
 | `pcsx2/VUops.cpp` | `SYNCSTATUSFLAG` | `Zdxsv::Vu0MacroStatusKeep` |
 | `pcsx2/VUops.cpp` | `VMADDy` | `Zdxsv::VuCop2Op` |
 | `pcsx2/VUops.cpp` | `VMADDAz` | `Zdxsv::VuCop2Op` |
-| `pcsx2/VUops.cpp` | `VXITOP` | the trace the ARM64 VU1 JIT check compares. |
+| `pcsx2/VUops.cpp` | `VXITOP` | the ARM64 VU1 trace recompiler. |
 | `pcsx2/Vif_Transfer.cpp` | `vifTransferLoop` | NOP can be most of the codes in a packet: same steps as vifCode_Nop, without the indirect call. |
 | `pcsx2/pcsx2.vcxproj` |  | GGPO, TLS, UPnP and JSON libraries --> |
 | `pcsx2/pcsx2.vcxproj` |  | MINIUPNP_STATICLIB --> |
