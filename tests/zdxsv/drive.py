@@ -143,6 +143,13 @@ def run(route, n, log):
     log.append("p%d %s frame %d -> %s" % (n, route, p.frame(), path))
 
 
+def run_logged(route, n, log):
+    try:
+        run(route, n, log)
+    except Exception as e:
+        log.append("FAIL p%d %s: %s: %s" % (n, route, type(e).__name__, e))
+
+
 def sweep(n, name, tokens, crop=None):
     """tokens with a snap after each wait token -> one labelled contact sheet pN/<name>.png."""
     from PIL import Image, ImageDraw
@@ -200,7 +207,7 @@ def main():
         sys.argv[1:] = [sys.argv[4], sys.argv[2]]
     route, ns = sys.argv[1], [int(x) for x in sys.argv[2:]]
     log = []
-    ts = [threading.Thread(target=run, args=(route, n, log)) for n in ns]
+    ts = [threading.Thread(target=run_logged, args=(route, n, log)) for n in ns]
     for t in ts:
         t.start()
     for t in ts:
