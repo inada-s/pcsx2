@@ -68,11 +68,11 @@ ROUTES = {
     # TOP -> 新規登録 -> save ID+password to NET file -> ユーザ作成完了 -> 戻る -> TOP (new key on the card)
     # A C lost under load (3 logins at once) left the key unsaved: check the shot, run it alone.
     "register": "=wseq,Right~lstate!/500,C~lstate!/500,@wseq=+2/20000,C,@wseq=+4/20000,C,@wseq=+5/20000,C,@wseq=+7/20000",
-    # TOP with a fresh key -> pre-lobby screens up to TOP + 9 (Capcom ユーザー登録/変更: Right = 登録しない)
-    # -> HN入力 (step 4, TOP + 11): kana column {h} x3 -> Start x2 (kana, 決定; cursor on 登録) -> 登録
-    # -> この内容で登録しますか? opens on いいえ: Up -> はい -> DecideUserID -> 戦場選択 (step 5 -> 1)
+    # TOP with a fresh key -> ログイン -> Capcom ユーザー登録/変更 (TOP + 3: Right = 登録しない)
+    # -> HN入力 (step 4, TOP + 6): kana column {h} x3 -> Start x2 (kana, 決定; cursor on 登録) -> 登録
+    # -> この内容で登録しますか? (TOP + 9, opens on いいえ): Up -> はい -> DecideUserID -> 戦場選択 (step 5 -> 1)
     "newlogin": "=wseq,@wseq=+3/20000,Right,C,@wseq=+5/20000,C,@wseq=+6/20000,Right*{h},C,C,C,Return,@wseq=+7/20000,Return,"
-                "@wseq=+8/20000,C,@wseq=+9/20000,Right~lstate!/500,C~lstate!/500,@wseq=+11/20000,w1500,Right*{h},C,C,C,Return,w1500,Return,w1500,C~lstate!/500,w6000,Up~lstate!/500,C~lstate!/500,@step=5/20000,@step=1/3000",
+                "@wseq=+8/20000,C,@wseq=+9/20000,w1500,Up~lstate!/500,C~lstate!/500,@step=5/20000,@step=1/3000",
     # 戦場選択 -> map cursor to ジャブロー2 (Lobby 06: starts at 2 AEUG + 2 Titans entries, zdxsv
     # model/lobby.go CanBattleStart) -> lobby -> パートナー自動選抜 -> side {s}: p1/p2 連邦・エゥーゴ, p3/p4 ジオン・ティターンズ
     # m4z.py: map ends with the Lobby 06 press (0x6305 00 06); a late press is
