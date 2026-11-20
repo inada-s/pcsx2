@@ -167,7 +167,7 @@ Keys (`net=1`, `lobby=1`, `port=`, `delay=`, ...) are parts of `ZDXSV_GGPO`.
 - **Point of view**: picked before the start; `ZDXSV_REPLAY_POV`, `ZDXSV_REPLAY_POV_AT`.
 - **Control bar**: shown after the mouse moves or a pad control; no setting.
 - **Key display**: End; `ZdxsvReplayKeyDisplay`.
-- **Operations refused during a replay**: state saves and loads, disc changes.
+- **Operations refused during a replay**: state saves and loads, disc changes. A refused state load (also online or in a net battle) is an OSD notice, not the error dialog that pauses the VM.
 - **Live spectating**: battle info `spectator_uplink`; `ZDXSV_REPLAY=live:...`.
 - **Live round results**.
 - **Live speed trim**: `ZDXSV_LIVE_PACING=0` turns it off.

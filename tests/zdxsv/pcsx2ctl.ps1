@@ -1,7 +1,7 @@
 # Drive a running pcsx2 window: key sequence, then optional screenshot.
 # -Seq "Return,w2000,Down*3,X"  : key names (System.Windows.Forms.Keys), wN = sleep N ms, K*n = repeat, Shift+K / Control+K = with the modifier held.
 # -Shot out.png : PrintWindow capture of the pcsx2 main window (works when occluded).
-# -ProcId : pcsx2 pid (default: first pcsx2-qtx64). Keys go via SetForegroundWindow + keybd_event.
+# -ProcId : pcsx2 pid (default: first pcsx2-qtx64 or pcsx2-qtx64-dev). Keys go via SetForegroundWindow + keybd_event.
 # Mouse tokens in -Seq (pixels of the render surface = the child window of the bar's layout size):
 #   mv:X:Y move; ck:X:Y move + left click; bar:show moves over the bottom (shows the replay control bar);
 #   bar:NAME[:F] clicks a bar element (pause back forward prevround nextround results timeline pov) at fraction F of its width (default
@@ -32,7 +32,8 @@ public static class W {
 }
 "@
 if (!$Check) {
-  $p = if ($ProcId) { Get-Process -Id $ProcId } else { Get-Process pcsx2-qtx64 -ea Stop | Select-Object -First 1 }
+  $p = if ($ProcId) { Get-Process -Id $ProcId } else { Get-Process pcsx2-qtx64, pcsx2-qtx64-dev -ea SilentlyContinue | Select-Object -First 1 }
+  if (!$p) { Write-Error "no pcsx2-qtx64 or pcsx2-qtx64-dev process"; exit 1 }
   $h = $p.MainWindowHandle
 }
 # A key with no Keyboard/<name> binding in the instance ini does nothing (e.g. Space with TogglePause unbound:

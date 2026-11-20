@@ -127,6 +127,7 @@ namespace Zdxsv
 		int frame[64] = {}; // sampled frame + 1 (0 = none) per (frame / DESYNC_PERIOD) & 63
 		u32 hash[64] = {};
 		int checked[GGPO_MAX_PLAYERS] = {-1, -1, -1, -1}; // per position: the last sample compared
+		u8 checked_tag[GGPO_MAX_PLAYERS] = {}; // per position: the trailer tag of that sample
 		int first[GGPO_MAX_PLAYERS] = {-1, -1, -1, -1}; // per position: the first sample that differed, -1 = none
 		u32 checks = 0, mismatches = 0;
 	};
@@ -462,6 +463,7 @@ namespace Zdxsv
 		int target = -1; // seeking: frames run unlimited up to this one
 		int seek_from = -1;
 		int then = -1; // seeking to the first load end to save its key: the round jump's target after it
+		bool then_req = false; // the seek request is that target: not limited to the round it was run from
 		u64 seek_t0 = 0;
 		int hi = -1, tick_f = -1;
 		int run_load = -1; // running unlimited until this load has ended, -1 = none (skip MS selection = 1)

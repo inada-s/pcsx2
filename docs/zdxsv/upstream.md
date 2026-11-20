@@ -230,6 +230,7 @@ Visual Studio and `lupdate` drop comments when they rewrite these files.
 | `pcsx2/ImGui/FullscreenUI.cpp` | `FullscreenUI::DrawPauseMenu` | `Zdxsv::FeaturesLimited` |
 | `pcsx2/ImGui/FullscreenUI.cpp` | `FullscreenUI::HandleGameListOptions` | `Zdxsv::FeaturesLimited` |
 | `pcsx2/ImGui/FullscreenUI.cpp` | `FullscreenUI::HandleGameListOptions` | `Zdxsv::FeaturesLimited` |
+| `pcsx2/ImGui/FullscreenUI.cpp` | `FullscreenUI::ReportStateLoadError` | `Zdxsv::StateLoadRefusal` |
 | `pcsx2/ImGui/FullscreenUI_Settings.cpp` |  | include `Zdxsv/DefaultsHooks.h` |
 | `pcsx2/ImGui/FullscreenUI_Settings.cpp` | `FullscreenUI::SwitchToGameSettings` | `Zdxsv::FeaturesLimited` |
 | `pcsx2/ImGui/FullscreenUI_Settings.cpp` | `FullscreenUI::DrawInterfaceSettingsPage` | `Zdxsv::FeaturesLimitedLocked` |
