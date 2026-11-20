@@ -58,7 +58,8 @@ the first battle of the lobby's public API
 `http://<lobby api>/lbs/replay?battle_code=<code>`. A download
 that starts with the gzip magic (the lobby's bucket serves them gzip encoded) is
 decompressed first. A file over 256 MiB (decompressed) or with a repeated field
-over 4096 values is not played; a live stream stops past 256 MiB of records.
+over 4096 values is not played; a download stops past 256 MiB received, a live
+stream past 256 MiB of records.
 The replay window's list shows the first 4 users of a file, ignores a battle
 code or user entry over 4 KiB and shows a file with over 4096 top-level fields
 as unreadable.
