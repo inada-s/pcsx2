@@ -4,7 +4,8 @@ Every option this fork adds. Features are described in the topic documents;
 this file is the reference for names, values and defaults.
 
 All options except the settings below are environment variables, read once
-at startup. None is needed to play.
+at startup, only by Devel and Debug builds: a Release build ignores every
+`ZDXSV_*` and `GGPO_*` variable. None is needed to play.
 
 The **Use** column says what an option is for:
 
@@ -16,16 +17,13 @@ The **Use** column says what an option is for:
 | control | makes a test fail on purpose, to show the test detects the problem |
 | diagnostic | writes traces, dumps or screenshots |
 
-Every build reads every option, so a released build can be a peer in the rig
-tests.
-
 ## Build options
 
 CMake cache variables. Only the official release build (`zdxsv_release.yml`,
 tags `zdxsv-X.Y.Z`) sets them from the repository variables of the same name
 ([tools](tools.md)); a build from source connects to a zdxsv on this machine
 (zdxsv `scripts/run-local.sh`). `ZDXSV_SERVER_HOST` and `ZDXSV_API_URL` are also
-environment variables (test): set, they replace the build's value.
+environment variables (test): set, they replace the build's value in a Devel build.
 
 | Option | Default | Meaning |
 |---|---|---|
@@ -70,11 +68,11 @@ page greys it out and its tooltip names the variable.
 | `[DEV9/Eth] ZdxsvReplayKeyDisplay` | `true` | feature | Replays start with the key display on. `ZDXSV_REPLAY_KEY_DISPLAY` overrides it. |
 | `[DEV9/Eth] ZdxsvReplayStateUrl` | the hosted `rbk-p1.p2s` | feature | The post-entry state a replay or live battle starts from: URL (downloaded once into the cache folder) or file; empty = the booted state. `ZDXSV_REPLAY_STATE` overrides it. |
 | `[DEV9/Eth] ZdxsvFastBoot` | `true` | feature | Z game, from boot: unlimited speed and automatic presses through the title, main menu and network menus (broadband, network setting 1 with the DEV9 adapter on; the terms screen skipped) to the lobby user_id selection (without fast login: to the login browser), then normal speed. Stops at once at the NET file load when the memory card is unformatted or has no NET file, at the lobby when the account has no user_id, and when fast login goes back to the network menu (the player connects again). Settings → zdxsv → Fast boot. Env `ZDXSV_FAST_BOOT=1/0` overrides. |
-| `[DEV9/Eth] ZdxsvFastBootState` | `true` | feature | With `ZdxsvFastBoot`: the first boot saves a state at the NET file load (`sstates/<serial> zdxsv-fastboot <state version> <memory card checksum>.p2s`; `zdxsv-fastboot-eth` on the DEV9 path with the adapter on, `zdxsv-fastboot-noeth` with it off, as each stalls on the others); later boots with the same memory card 1 contents load it and skip the title and main menu. The state holds the system data the game auto-loaded from the card, so another card, or one written since, boots in full and replaces the state. Delete the file to retake it. Env `ZDXSV_FAST_BOOT_STATE=1/0` overrides. |
+| `[DEV9/Eth] ZdxsvFastBootState` | `true` | feature | With `ZdxsvFastBoot`: the first boot (not a replay) saves a state at the NET file load (`sstates/<serial> zdxsv-fastboot <state version> <memory card checksum>.p2s`; `zdxsv-fastboot-eth` on the DEV9 path with the adapter on, `zdxsv-fastboot-noeth` with it off, as each stalls on the others); later boots with the same memory card 1 contents load it and skip the title and main menu. The state holds the system data the game auto-loaded from the card, so another card, or one written since, boots in full and replaces the state. Delete the file to retake it. Env `ZDXSV_FAST_BOOT_STATE=1/0` overrides. |
 | `[DEV9/Eth] ZdxsvFastBootLobby` | `false` | test | With `ZdxsvFastBoot`: at the user_id selection, presses Circle (still at unlimited speed) until ID 1 is picked and confirmed, and ends in the lobby (戦場選択, emulog `Zdxsv: fast boot: lobby`); `gave up in the user_id selection` after 60 s. No settings UI. Env `ZDXSV_FAST_BOOT_LOBBY=1/0` overrides. |
 | `[DEV9/Eth] ZdxsvFastLogin` | `true` | feature | Z game, on the way to the lobby: when DNAS starts, log in through `ZdxsvLoginApiUrl` with the token in `inis/zdxsv_auth_token.txt` (form `token`); no token: the VM pauses, the sign-in of `ZdxsvAuthUrl` runs in the browser, the VM resumes when it ends (resuming by hand cancels it) and the new token logs in; at every DNAS start, and jump to the lobby connect (no DNAS, no login browser). No token after the sign-in, a refused login, or resuming during the hold: back to the network menu (connection menu), no DNAS. No `ZdxsvLoginApiUrl`: the normal login. `ZDXSV_FAST_LOGIN` overrides. Ini only. |
 | `[DEV9/Eth] ZdxsvLoginApiUrl` | server `/lbs/login` | feature | The zdxsv login API (`POST`; the zdxsv lobby API `/lbs/login`) (form `token`; JSON `login_key`, `session_id`, `lobby_addr`, `lbs_info`) used by `ZdxsvFastLogin`. The same with or without DEV9. `ZDXSV_LOGIN_API_URL` overrides it (the rigs: the local stack). Ini only. |
-| `[DEV9/Eth] ZdxsvAuthUrl` | server `/auth` | feature | The zdxsv sign-in base URL for Settings → zdxsv → Account: the browser opens `<url>/start` (the reply comes to a listener on `127.0.0.1`, random port, for 10 minutes); `POST <url>/token` (PKCE) saves the token to `inis/zdxsv_auth_token.txt`, the token `ZdxsvFastLogin` sends; Sign Out `POST <url>/revoke` and deletes the file. `ZDXSV_AUTH_URL` overrides it. Ini only. |
+| `[DEV9/Eth] ZdxsvAuthUrl` | server `/auth` | feature | The zdxsv sign-in base URL for Settings → zdxsv → Account: the browser opens `<url>/start` (the reply comes to a listener on `127.0.0.1`, random port, for 10 minutes); `POST <url>/token` (PKCE) saves the token to `inis/zdxsv_auth_token.txt`, the token `ZdxsvFastLogin` sends; Sign Out `POST <url>/revoke` and deletes the file; Sign Out Everywhere sends `all=1` (every token of the Discord account) and keeps the file if the server did not revoke. `ZDXSV_AUTH_URL` overrides it. Ini only. |
 | `[DEV9/Eth] ZdxsvAccount` | `0` | feature | Which account of the signed-in Discord account the fast login uses (form `account`, from 1); `0`: the server's default (the first; with no account, the login makes one); `-1`: an empty slot, the login sends `account=new`, the server makes the account and the setting becomes its number. Settings → zdxsv → Account sets it from `POST <ZdxsvAuthUrl>/accounts`; Carry Over from PS2 (`POST <ZdxsvAuthUrl>/accounts/carry`, form `code`) picks the carried account; sign-in and sign-out reset it to `0`. |
 | `[DEV9/Eth] ZdxsvLobbyApiUrl` | server | feature | The lobby's public API (`http://host:port`, zdxsv `ZDXSV_LOBBY_API_ADDR`) the replay window's Remote (`/lbs/replay`) and Live (`/lbs/live`) tabs and the Favorites tab ask; empty = none. A live battle is watched at `live:<this URL>#<code>`. |
 | `[DEV9/Eth] ZdxsvReplayFavorites` | empty | feature | The replay window's Favorites: one value per battle (battle code, start time, players and rounds, tab-separated), at most 1000; added from the Remote tab, removed in the Favorites tab. |
@@ -159,10 +157,10 @@ turns GGPO off and leaves the other extensions on. Any other value turns it on. 
 | `ZDXSV_RERUN_SPLIT=1` | off | diagnostic | The battle report measures the VU1 and SPU2 time per rerun frame (`rerun frame split` line) and the times of a delta save and load (`delta` line: its parts and per section). Off: these read 0 or are empty (the timers cost time in every frame). `benchab.py` sets it. |
 | `ZDXSV_SINGLE_DRAW_LIST=0` | on | control | Z game: no single draw list (the game draws a frame's draw list in the next frame, as stock). See rollback.md. |
 | `ZDXSV_LOW_LATENCY_PRESENT=0` | on | control | Z game: no low-latency present. On: present the finished frame before the frame limiter sleeps, and poll input right before the next frame runs (in a net battle: before the sleep, see [rollback.md](rollback.md)). |
-| `ZDXSV_AUTH_SIGNIN_TEST=1\|signout` | unset | test | At app start, `1` signs in once through `ZdxsvAuthUrl` and logs `Zdxsv: auth: open <url>` instead of opening a browser; `signout` signs out. |
+| `ZDXSV_AUTH_SIGNIN_TEST=1\|signout\|signoutall` | unset | test | At app start, `1` signs in once through `ZdxsvAuthUrl` and logs `Zdxsv: auth: open <url>` instead of opening a browser; `signout` signs out; `signoutall` signs out on every PC. |
 | `ZDXSV_AUTH_URL=<url>` | unset | test | Overrides `ZdxsvAuthUrl`. |
 | `ZDXSV_AUTH_AT_DNAS=0` | unset (on) | test | `ZdxsvFastLogin` with no token skips the sign-in at DNAS (back to the network menu); the rigs set it unless set. |
-| `ZDXSV_AUTH_NO_BROWSER=1` | unset | test | Sign-in URLs are only logged (`Zdxsv: auth: open <url>`), no browser opens; the rigs set it, with `ZDXSV_AUTH_URL` = the local stack. |
+| `ZDXSV_AUTH_NO_BROWSER=1` | unset | test | Sign-in URLs are only logged in full (`Zdxsv: auth: open <url>`; without it the log omits the query), no browser opens; the rigs set it, with `ZDXSV_AUTH_URL` = the local stack. |
 | `ZDXSV_RERUN_EE_DRAW=1` | off | control | The game's render callbacks run in every rerun frame. Default: not in rerun frames but the last two (see rollback.md). |
 | `ZDXSV_RERUN_KEEP=0` or `=lo-hi,...` | bone slots, saber trails | control | EE RAM a rollback does not roll back during play: `0` none; else these ranges (hex, end exclusive) and the saber trails. Off with `ZDXSV_RERUN_EE_DRAW=1`. See rollback.md. |
 | `ZDXSV_RERUN_PARTS=0` | on | control | With the bone slots kept: rerun frames that skip the render callbacks do not run the draws of parts attached to a player either (see rollback.md). |

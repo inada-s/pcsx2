@@ -69,12 +69,33 @@
 
 namespace Zdxsv
 {
-	extern const char* s_play_env;
-	extern int s_play_picked_pov; // the replay list's point of view, -1 = none
-	extern bool s_play_listed; // s_play_env is the replay list's pick
-	extern bool s_play_common;
+	// ZDXSV_REPLAY=file.pb: plays a saved replay (PlayLoad), the net=1 hooks on, no GGPO session. Else the replay
+	// list's pick for one VM. Set by GgpoOnVmInitialize.
+	struct PlaySource
+	{
+		const char* path = nullptr; // nullptr = no replay plays
+		std::string picked;
+		int picked_pov = -1; // the replay list's point of view, -1 = none
+		bool listed = false; // path is the replay list's pick
+	};
+	extern PlaySource s_play_src;
+	struct PlayCommon
+	{
+		bool on = false; // from PlayLoad or PlayCommonArm up to the arm (PlayCommonStart)
+		std::vector<std::vector<u8>> answers; // the file's lobby answers (RbkBody)
+		LimiterModeType rearm_limiter = LimiterModeType::Nominal; // the limiter before s_play.rearm_seek
+	};
+	extern PlayCommon s_play_common;
 	extern s32 g_frame_period_trim_us;
-	extern std::string s_options;
+	// read at VM start (GgpoOnVmInitialize)
+	struct GgpoConfig
+	{
+		std::string options;
+		bool net = false; // net=1 in options, or a replay plays
+		int lobby_port = 7001; // setting DEV9/Eth ZdxsvGgpoPort (0: a random port, saved); port= overrides it
+		int min_delay = 2; // mindelay=, else setting DEV9/Eth ZdxsvGgpoMinDelay
+	};
+	extern GgpoConfig s_config;
 	extern bool g_ggpo_active;
 	extern bool g_ggpo_in_rollback;
 	constexpr u32 BUTTONS = 16; // PadDualshock2::Inputs PAD_UP .. PAD_R3
@@ -106,6 +127,7 @@ namespace Zdxsv
 		int frame[64] = {}; // sampled frame + 1 (0 = none) per (frame / DESYNC_PERIOD) & 63
 		u32 hash[64] = {};
 		int checked[GGPO_MAX_PLAYERS] = {-1, -1, -1, -1}; // per position: the last sample compared
+		u8 checked_tag[GGPO_MAX_PLAYERS] = {}; // per position: the trailer tag of that sample
 		int first[GGPO_MAX_PLAYERS] = {-1, -1, -1, -1}; // per position: the first sample that differed, -1 = none
 		u32 checks = 0, mismatches = 0;
 	};
@@ -115,9 +137,13 @@ namespace Zdxsv
 	void DesyncCheck(const NetInput* in, int f);
 	void DesyncReport();
 	std::string DesyncReportLines();
-	extern bool s_net_env; // net=1 in s_options, or a replay plays (GgpoOnVmInitialize)
-	extern int s_rbk_me, s_rbk_n;
-	extern bool s_rbk; // also set by a replay's common start (PlayLoad); back to ZDXSV_RBK at VM shutdown
+	// ZDXSV_RBK=i/N; also set by a replay's common start (PlayLoad); back to ZDXSV_RBK at VM shutdown
+	struct RbkRole
+	{
+		bool on = false;
+		int me = -1, n = 0;
+	};
+	extern RbkRole s_rbk;
 	extern const char* s_rand_env;
 	extern const bool s_pw_hash;
 	constexpr u32 PW_BASE = 0x8395d8, PW_SIZE = 0x2200;
@@ -125,7 +151,7 @@ namespace Zdxsv
 	// Player position (3 floats in the player work) and the 2 game RNGs (u16), hashed by synctest hash=pos.
 	constexpr u32 PW_POS = 0x2a8, RNG_A = 0x6d7940, RNG_B = 0x6d793c;
 	// The MS asset slot cache: one s8 MS id per slot, -1 = empty. It holds the MSes this machine loaded before, and the
-	// battle load sets player work +0x10f (hashed) from it.
+	// battle load sets player work +0x2067 from it.
 	constexpr u32 MS_SLOTS = 0x6f2b6c, MS_SLOTS_N = 6;
 	void MsSlotsClear();
 
@@ -137,7 +163,8 @@ namespace Zdxsv
 	// replay.proto BattleLogFile patches: Put writes one field per patch, Read takes one (false: malformed or out of range).
 	void ServerPatchesPut(std::vector<uint8_t>& pb, uint32_t field, const std::vector<GamePatch>& patches);
 	bool ServerPatchRead(const uint8_t* b, size_t n, GamePatch& out);
-	u32 ReplayStateHash();
+	// ms_slot: with the player work's MS slot, as files before version 20261118 hashed it
+	u32 ReplayStateHash(bool ms_slot = false);
 	u32 GameRng();
 	static constexpr u32 TICK_STATE = 0xc627b4; // u8 game phase; 8 = battle load
 	static constexpr u8 TICK_LOAD = 8, TICK_PLAY = 6, TICK_END = 7; // 7 = round or game end phase
@@ -213,6 +240,10 @@ namespace Zdxsv
 		int end = -1; // frames since the end msg (kind f) was sent or received, -1 = not yet
 		int last_real = INT_MAX; // last frame with the peers' inputs (the session left them at the end), INT_MAX = none
 		u32 zd_steps = 0, zd_changed = 0;
+		// Live steps per GGPO frame and position. Gaps (frames without a step) come with scene changes.
+		int zd_last[GGPO_MAX_PLAYERS] = {-1, -1, -1, -1};
+		u32 zd_repeats = 0, zd_gaps = 0;
+		int zd_gap_min = INT_MAX, zd_gap_max = 0;
 		u32 zds_echo = 0, zds_skip = 0;
 		// zds: kind 3 (round handshake) is the one barrier: each machine reaches it at its own frame
 		// (scene/load timing: one side can be a frame later), so it goes through the GGPO input
@@ -319,17 +350,33 @@ namespace Zdxsv
 		bool frame_osd = false; // setting DEV9/Eth ZdxsvFrameOsd
 	};
 	extern GgpoOptions s_opt;
-	extern int s_lobby_port; // setting DEV9/Eth ZdxsvGgpoPort (0: a random port, saved); port= overrides it
-	extern int s_min_delay; // mindelay=, else setting DEV9/Eth ZdxsvGgpoMinDelay
-	extern std::vector<LobbyPlayer> s_lobby_players, s_net_players;
-	extern std::vector<GamePatch> s_lobby_patches, s_net_patches; // the last battle info's; the armed battle's
+	// lobby=1: the last battle info (SetLobbyPeers, CPU thread), guarded by s_lobby_mtx
+	struct LobbyBattle
+	{
+		bool received = false, logged = false, unreachable = false;
+		int me = -1; // our position, -1 = not listed
+		std::vector<std::vector<Zdxsv::PeerAddr>> peers; // candidates per position
+		std::vector<Zdxsv::BattleInfo::Relay> relays;
+		u32 session = 0; // ggpo_session
+		u32 gen = 0; // battle infos received
+		std::vector<LobbyPlayer> players; // user id, name + pilot name per position
+		std::vector<GamePatch> patches;
+		std::string ids; // battle info lines naming the battle (SetLobbyPeers)
+	};
+	// The battle GGPO armed with, taken from LobbyBattle.
+	struct ArmedBattle
+	{
+		std::vector<Zdxsv::PeerAddr> peers; // per position, picked when armed
+		std::vector<int> via; // per position: PingResult.via (0 direct, 1 peer relay, 2 relay server)
+		std::vector<Zdxsv::RelayServerAddr> servers; // relay servers, registered with GGPO in order
+		std::vector<LobbyPlayer> players;
+		std::vector<GamePatch> patches;
+		u32 gen = 0; // the LobbyBattle gen armed with
+	};
+	extern LobbyBattle s_lobby;
+	extern ArmedBattle s_net;
 	extern std::vector<GamePatch> s_battle_patches; // the started battle's, for its replay header
 	extern std::mutex s_lobby_mtx;
-	extern std::vector<Zdxsv::PeerAddr> s_net_peers; // per position, picked when armed
-	extern std::vector<int> s_net_via; // per position: PingResult.via (0 direct, 1 peer relay, 2 relay server)
-	extern std::vector<Zdxsv::RelayServerAddr> s_net_servers; // relay servers, registered with GGPO in order
-	extern u32 s_lobby_session; // ggpo_session
-	extern std::string s_report_ids; // battle info lines naming the battle (SetLobbyPeers)
 	extern std::string s_report; // P2PMatchingReport of the last lobby battle (TakeLobbyReport)
 	extern GGPOSession* s_session;
 	extern bool s_frame_ended; // the CPU left Execute() at a vsync
@@ -416,6 +463,7 @@ namespace Zdxsv
 		int target = -1; // seeking: frames run unlimited up to this one
 		int seek_from = -1;
 		int then = -1; // seeking to the first load end to save its key: the round jump's target after it
+		bool then_req = false; // the seek request is that target: not limited to the round it was run from
 		u64 seek_t0 = 0;
 		int hi = -1, tick_f = -1;
 		int run_load = -1; // running unlimited until this load has ended, -1 = none (skip MS selection = 1)
@@ -425,6 +473,7 @@ namespace Zdxsv
 		bool step_pause = false; // pause again at the seek's target
 		int speed = 0; // -2..2
 		std::deque<std::pair<int, int>> round_at; // ZDXSV_REPLAY_ROUND_AT=frame:round,...
+		std::deque<std::pair<int, int>> pov_at; // ZDXSV_REPLAY_POV_AT=frame:position,...
 		bool pov_ok[GGPO_MAX_PLAYERS] = {};
 		std::vector<GamePatch> patches; // the file's, applied from each common start
 		std::map<int, RoundState> round_states; // the file's, by frame (a round jump writes one over the key of the first)
@@ -443,8 +492,6 @@ namespace Zdxsv
 		std::vector<u32> file_ms, ms; // per round, as MsIds packs them
 	};
 	extern PlayLoads s_play_loads;
-	extern std::vector<std::vector<u8>> s_play_answers; // common start: the file's lobby answers (RbkBody)
-	extern LimiterModeType s_play_rearm_limiter; // the limiter before s_play.rearm_seek
 
 	// Seek key: the full state as .p2s in the cache folder (zipped on a thread) plus the HLE state outside it.
 	// A seek loads the newest key at or before the target and runs up to it unlimited.
@@ -501,9 +548,14 @@ namespace Zdxsv
 	// mindelay= frames of input delay; the other positions keep the file's inputs.
 	enum : int { TO_OFF, TO_ALIGN, TO_COUNT, TO_ON };
 	enum : int { TO_REQ_NONE, TO_REQ_TAKE, TO_REQ_START, TO_REQ_RETRY, TO_REQ_RETURN, TO_REQ_CANCEL };
-	extern std::atomic<int> s_to_phase;
-	extern std::atomic<int> s_to_req;
-	extern std::atomic<u16> s_to_target; // own B of the file at T
+	// Read and written by the UI thread too; reset field by field (Takeover is reset whole).
+	struct TakeoverShared
+	{
+		std::atomic<int> phase{TO_OFF};
+		std::atomic<int> req{TO_REQ_NONE};
+		std::atomic<u16> target{0}; // own B of the file at T
+	};
+	extern TakeoverShared s_to_shared;
 	struct Takeover
 	{
 		int frame = -1; // T
@@ -531,7 +583,6 @@ namespace Zdxsv
 	void PlayReport(const char* what);
 	void PlayStop(const char* what);
 	extern std::atomic<int> s_play_pov_req; // requested position, -1 = none
-	extern std::deque<std::pair<int, int>> s_play_pov_at; // ZDXSV_REPLAY_POV_AT=frame:position,...
 	struct PlaySent
 	{
 		std::vector<std::vector<u8>> sent;
@@ -548,10 +599,10 @@ namespace Zdxsv
 		bool behind = false; // a seek or round jump of the viewer: no catch-up until playback is at the newest frames again
 		int waits = 0;
 		int hold_want = -1; // the frame count the hold at the newest frame waits for, -1 = none
+		Common::Timer hold_wait;
 		double wait_ms = 0;
 	};
 	extern LivePlay s_live_play;
-	extern Common::Timer s_live_hold_wait;
 
 	// Live auto-next: after a closed stream, a thread polls the lobby for the newest battle not watched yet.
 	struct LiveWait
@@ -566,7 +617,15 @@ namespace Zdxsv
 		}
 	};
 	extern std::unique_ptr<LiveWait> s_live_wait;
-	extern std::string s_live_next_url; // the battle auto-next moved on to, "" = ZDXSV_REPLAY
+	// Live auto-next: kept across the resets.
+	struct LiveNextState
+	{
+		std::vector<std::string> seen; // battle codes watched, oldest first
+		int left = -1; // battles left to move on to, -1 = the setting decides (no limit)
+		int skips = 0; // battles auto-next could not play
+		std::string url; // the battle auto-next moved on to, "" = ZDXSV_REPLAY
+	};
+	extern LiveNextState s_live_next;
 	std::optional<std::vector<u8>> LiveOpen(const std::string& url);
 	// A live stream's round frames (and with `states` its round states) as the file's: spans, MS-select starts, round states.
 	void PlayLiveRoundFrames(const std::vector<u8>& round_frames, const std::vector<u8>& states, bool with_states);
@@ -587,6 +646,7 @@ namespace Zdxsv
 	void PlayReset();
 	void PlayKeysPrune(); // deletes the cache folder's seek keys a killed or crashed replay left
 	void PlayLoad();
+	void PlayFetchStop(); // cancels and joins the replay downloads
 	bool PlayCommonArm(int pov, int seek = -1);
 	void PlayCommonStart();
 	void PlayBegin(int me);
@@ -617,7 +677,6 @@ namespace Zdxsv
 	bool GgpoRunFrame();
 
 	// GgpoSession.cpp
-	extern std::recursive_mutex s_ggpo_mtx;
 	void GgpoStop(const char* what);
 	const char* GgpoStart();
 	void NetEndCheck();

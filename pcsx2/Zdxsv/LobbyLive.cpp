@@ -39,6 +39,7 @@ namespace Zdxsv
 		constexpr int LIVE_HTTP_TIMEOUT_MS = 10000; // the uplink sends at least every LIVE_TICK
 		constexpr int LIVE_SLEEP_STEP_MS = 10;
 		constexpr size_t LIVE_MAX_RECORD = 1 << 20;
+		constexpr size_t LIVE_MAX_STREAM = 256u << 20; // a battle sends 132 bytes a frame and well under 1 MiB a round
 		constexpr std::string_view LIVE_SCHEME = "live:";
 		constexpr std::string_view LIVE_MAGIC = "ZLV1";
 
@@ -428,6 +429,8 @@ namespace Zdxsv
 				const int status = HttpPost(url, next, error);
 				LobbyLog("live: uplink " + code + (ended && status == 204 ? " closed: " : " gave up on the close: ") + std::to_string(sent) +
 					", HTTP " + std::to_string(status) + (error.empty() ? "" : " (" + error + ")"));
+				std::lock_guard lock(mtx);
+				queue = {};
 				done = true;
 			}
 		};
@@ -456,19 +459,19 @@ namespace Zdxsv
 		Impl::State& s = *m->s;
 		const auto* p = static_cast<const uint8_t*>(data);
 		std::lock_guard lock(s.mtx);
-		if (s.closing)
+		s.frames += frames;
+		if (s.closing || s.done)
 			return;
 		if (s.queue.empty() || s.queue.back().type != REC_INPUTS)
 			s.queue.emplace_back();
 		s.queue.back().data.insert(s.queue.back().data.end(), p, p + frames * s.frameBytes);
-		s.frames += frames;
 	}
 
 	void LiveUp::AddRound(const std::vector<uint8_t>& entry)
 	{
 		Impl::State& s = *m->s;
 		std::lock_guard lock(s.mtx);
-		if (!s.closing)
+		if (!s.closing && !s.done)
 			s.queue.push_back({REC_ROUND, entry});
 	}
 
@@ -476,7 +479,7 @@ namespace Zdxsv
 	{
 		Impl::State& s = *m->s;
 		std::lock_guard lock(s.mtx);
-		if (!s.closing)
+		if (!s.closing && !s.done)
 			s.queue.push_back({REC_ROUND_FRAMES, fields});
 	}
 
@@ -484,7 +487,7 @@ namespace Zdxsv
 	{
 		Impl::State& s = *m->s;
 		std::lock_guard lock(s.mtx);
-		if (!s.closing)
+		if (!s.closing && !s.done)
 			s.queue.push_back({REC_ROUND_STATE, entry});
 	}
 
@@ -518,6 +521,7 @@ namespace Zdxsv
 			LiveStreams got; // inputs not taken yet
 			bool headerTaken = false;
 			size_t frames = 0;
+			size_t bytes = 0;
 			Clock::time_point rx = Clock::now();
 			std::string error;
 			std::string buf; // bytes not parsed yet
@@ -541,7 +545,7 @@ namespace Zdxsv
 				{
 					const uint8_t type = static_cast<uint8_t>(buf[pos]);
 					const uint32_t len = GetU32(buf.data() + pos + 1);
-					if (len > LIVE_MAX_RECORD)
+					if (len > LIVE_MAX_RECORD || bytes + len > LIVE_MAX_STREAM)
 						return false;
 					if (buf.size() - pos - 5 < len)
 						break;
@@ -580,6 +584,7 @@ namespace Zdxsv
 						default:
 							break;
 					}
+					bytes += len;
 					pos += 5 + len;
 				}
 				buf.erase(0, pos);

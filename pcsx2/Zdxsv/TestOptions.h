@@ -3,14 +3,20 @@
 
 #pragma once
 
-// Environment options meant for tests and diagnostics (docs/zdxsv/options.md: Use "test", "control",
-// "diagnostic"). Every build reads them, so a released build can take part in the tests in
-// tests/zdxsv: a battle between a release and a new build checks that they stay in sync.
-// Reading them through TestEnv() marks them in the code.
+// Every ZDXSV_* environment variable is read through TestEnv() (docs/zdxsv/options.md). A Release
+// build behaves as if none were set; Devel and Debug builds (PCSX2_DEVBUILD) read them.
 
 #include <cstdlib>
+#include <cstring>
 
 namespace Zdxsv
 {
-	inline const char* TestEnv(const char* name) { return std::getenv(name); }
+	inline const char* TestEnv(const char* name)
+	{
+#ifdef PCSX2_DEVBUILD
+		return std::getenv(name);
+#else
+		return (std::strncmp(name, "ZDXSV_", 6) == 0 || std::strncmp(name, "GGPO_", 5) == 0) ? nullptr : std::getenv(name);
+#endif
+	}
 } // namespace Zdxsv

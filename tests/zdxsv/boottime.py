@@ -7,7 +7,8 @@ SPEED (launch -Speed, default 1), SHOW=1 (windowed), LOBBY=fake (boot_lobby.py i
 only the lobby API login and the lobby up to the user_id list), SAVE_CARD (path: p1's card after the run is copied there).
 ROUTE_END=1: after the user_id screen, wait until the route keys are all sent (MAXS bounds it).
 Fast login on (ZDXSV_FAST_LOGIN=1, no ZDXSV_AUTH_AT_DNAS=1) with no token file: the run writes a token for the
-card's account (LOBBY=fake: its login_key) and removes the file after.
+card's account (LOBBY=fake: its login_key; a card of no account: a new sign-in, the login makes the account)
+and removes the file after.
 Exit 0 = the screen is up within LIMIT s. Logs: OUT/boottime.txt (net step changes), stack logs.
 """
 import os
@@ -119,7 +120,7 @@ def run(out, after=None, prepare=None):
         # ZDXSV_TLS=0: the local stack has no TLS ports. Fast login API: the lobby API, /lbs/login
         ex = {"ZDXSV_TLS": "0", "ZDXSV_LOGIN_API_URL": zrig.env("ZDXSV_LOGIN_API_URL", f"http://{API}/lbs/login")}
         pids = launch.launch([1], speed=zrig.env("SPEED", "1"), memcard=os.path.join(run_, f"Mcd001-{card}.ps2"),
-                             headless=not zrig.env("SHOW"), extra_env=ex)
+                             headless=not zrig.env("SHOW"), extra_env=ex, eth=not launch.server_host())
         a = [zrig.PY, os.path.join(zrig.HERE, "bootwatch.py"), "--t0", str(t0), "--pid", str(pids[1]),
              "--emulog", emulog, "--out", out, "--limit", zrig.env("LIMIT", "5"), "--maxs", zrig.env("MAXS", "200")]
         if zrig.env("ROUTE"):

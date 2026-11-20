@@ -15,8 +15,10 @@ namespace Zdxsv
 		// (0x2146: the next player's ally HP for the HUD, AllyHp.cpp).
 		constexpr std::pair<u32, u32> PW_MASK_BITS[] = {{0x58, 0x100}, {0x68, 0x300}, {0x9c, 0x110000}, {0x2004, ~0u}, {0x2068, 1}, {0x2074, 0x101}, {0x2088, 0xff},
 			{0xcc, 0xffff}, {0x90, 0xffff0000}, {0x2144, 0xffff0000}};
-		// XXH3 of player p's work with the fields above masked (synctest hash=pw).
-		u64 PwHash(u32 p)
+		// MS slot + 3, set at each battle load from the machine's MS cache, which a round jump empties
+		constexpr u32 PW_MS_SLOT = 0x2067;
+		// XXH3 of player p's work with the fields above masked (synctest hash=pw); ms_slot keeps PW_MS_SLOT.
+		u64 PwHash(u32 p, bool ms_slot = false)
 		{
 			std::array<u8, PW_SIZE> w;
 			std::memcpy(w.data(), &eeMem->Main[PW_BASE + PW_SIZE * p], PW_SIZE);
@@ -29,6 +31,8 @@ namespace Zdxsv
 				v &= ~bits;
 				std::memcpy(&w[o], &v, 4);
 			}
+			if (!ms_slot)
+				w[PW_MS_SLOT] = 0;
 			return XXH3_64bits(w.data(), PW_SIZE);
 		}
 		std::array<u8, 4 * 12 + 4> PosRng()
@@ -54,11 +58,11 @@ namespace Zdxsv
 	std::map<int, std::array<u64, 5>> s_pw;
 	// The replay file's per-frame state hash (replay.proto state_hashes): the 4 masked player works (PwHash) and
 	// RNG B. RNG A is left out: its machine-local draws would make the files of one battle's positions differ.
-	u32 ReplayStateHash()
+	u32 ReplayStateHash(bool ms_slot)
 	{
 		u64 h[5];
 		for (u32 p = 0; p < 4; p++)
-			h[p] = PwHash(p);
+			h[p] = PwHash(p, ms_slot);
 		u16 b;
 		std::memcpy(&b, &eeMem->Main[RNG_B], 2);
 		h[4] = b;

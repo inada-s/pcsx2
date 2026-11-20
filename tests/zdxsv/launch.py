@@ -56,7 +56,7 @@ def pcsx2_env(base=None):
 def exe_path():
     exe = os.environ.get("PCSX2_EXE")
     if zrig.WIN:
-        exe = exe or os.path.join(zrig.HERE, "..", "..", "bin", "pcsx2-qtx64.exe")
+        exe = exe or os.path.join(zrig.HERE, "..", "..", "bin", "pcsx2-qtx64-dev.exe")
     else:
         zrig.need("PCSX2_EXE")
     if exe.endswith(".app"):

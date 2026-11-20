@@ -18,7 +18,7 @@ skips does not run on that path.
 | Save state entries (`SaveStateHooks.h`, `SaveState.cpp`) | `NoDev9`, `DeltaState` | `ZdxsvNoDev9.bin` entry (No DEV9 state); DEV9 entry optional |
 | vtlb page protection and fault handler (`vtlb.h`: `mmap_DeltaSetHook`, `mmap_DeltaSetFaultHook`) | `DeltaState` | delta states: copy-on-write of watched EE RAM pages |
 | VU1 microprogram start (`CpuHooks.h`, `VU1micro.cpp`), microVU execute (`microVU.cpp`) | `GgpoSession`, `Ggpo`, `VuOpTest` | VU1 skipped in rerun frames, rerun time split (`ZDXSV_RERUN_SPLIT`), VU op test (`ZDXSV_VU1_OPTEST`) |
-| SPU2 reverb (`MediaHooks.h`, `SPU2/Reverb.cpp`) | `Ggpo` | no reverb in rerun frames (`ZDXSV_RERUN_REVERB`) |
+| SPU2 reverb (`SpuHooks.h`, `SPU2/Reverb.cpp`) | `SpuLazyVoices` | no reverb in rerun frames (`ZDXSV_RERUN_REVERB`) |
 | Audio output (`MediaHooks.h`, `Host/AudioStream.cpp`) | `AudioTap` | audio to a WAV file (`ZDXSV_AUDIO_WAV`) |
 | VIF transfer loop (`Vif_Transfer.cpp`, changed in place, no hook) | — | NOP codes run inline (same emulated state) |
 | HTTP downloader (`common/HTTPDownloader*`: POST content type) | `AuthSignIn`, `FastLogin`, `LobbyConnection`, `ReplayRecord` | JSON and multipart POSTs (sign-in, login API, replay upload) |
@@ -167,7 +167,7 @@ Keys (`net=1`, `lobby=1`, `port=`, `delay=`, ...) are parts of `ZDXSV_GGPO`.
 - **Point of view**: picked before the start; `ZDXSV_REPLAY_POV`, `ZDXSV_REPLAY_POV_AT`.
 - **Control bar**: shown after the mouse moves or a pad control; no setting.
 - **Key display**: End; `ZdxsvReplayKeyDisplay`.
-- **Operations refused during a replay**: state saves and loads, disc changes.
+- **Operations refused during a replay**: state saves and loads, disc changes. A refused state load (also online or in a net battle) is an OSD notice, not the error dialog that pauses the VM.
 - **Live spectating**: battle info `spectator_uplink`; `ZDXSV_REPLAY=live:...`.
 - **Live round results**.
 - **Live speed trim**: `ZDXSV_LIVE_PACING=0` turns it off.

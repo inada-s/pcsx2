@@ -3957,7 +3957,7 @@ void FullscreenUI::ReportStateLoadError(const std::string& message, std::optiona
 {
 	MTGS::RunOnGSThread([message, slot, backup]() {
 		const bool prompt_on_error = Host::GetBaseBoolSettingValue("UI", "PromptOnStateLoadSaveFailure", true);
-		if (!prompt_on_error || !ImGuiManager::InitializeFullscreenUI())
+		if (!prompt_on_error || Zdxsv::StateLoadRefusal(message.c_str()) || !ImGuiManager::InitializeFullscreenUI())
 		{
 			SaveState_ReportLoadErrorOSD(message, slot, backup);
 			return;

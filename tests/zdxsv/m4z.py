@@ -587,6 +587,9 @@ def main():
         mc = os.path.join(run, f"p{i}", "PCSX2", "memcards", "Mcd001.ps2")
         if os.path.isfile(mc):
             shutil.copy2(mc, os.path.join(out, f"live-p{i}.ps2"))
+        ini = os.path.join(run, f"p{i}", "PCSX2", "inis", "PCSX2.ini")
+        if ggpo and i == E("GGPO_DEFAULT") and os.path.isfile(ini):
+            zrig.ini_set(ini, "DEV9/Eth", "ZdxsvGgpoPort")
         cpid[i] = launch.launch(ns=(int(i),), eth=eth(), speed=E("SPEED", "1"), headless=i not in show,
                                 memcard=os.path.join(run, f"Mcd001-{cards[int(i) - 1]}.ps2"),
                                 extra_env=cenv(i), token=tokens.get(i))[int(i)]
@@ -732,6 +735,7 @@ def main():
                and not c(f, "sent platform info|ZdxsvGgpo: options"))
     if emu and not ext_off:
         ok(f"platform info sent x{nc}", sum(c(f, "sent platform info") for f in every) >= nc)
+        ok(f"lobby read platform info x{nc}", c(lobby, r'\splatform\s.*"platform": "emu".*"emulator":"pcsx2"') >= nc)
     if not emu and not ext_off:
         ok(f"DEV9 path x{nc} (adapter DHCP), no platform info, TLS, bridge or no-DEV9",
            sum(1 for f in every if c(f, "DEV9: DHCP")) >= nc
@@ -963,7 +967,8 @@ def main():
             pm = [re.search(r"[0-9]*$", l)[0] for l in g(os.path.join(run, f"p{gd}", "PCSX2", "inis", "PCSX2.ini"),
                                                          r"^ZdxsvGgpoPort = [0-9]*")]
             p = pm[0] if pm else ""
-            ok(f"p{gd} GGPO port from the setting", p.isdigit() and int(p) > 0 and c(f, f"ZdxsvGgpo: net player .* port {p} "))
+            ok(f"p{gd} GGPO port picked, saved and used", p.isdigit() and 29700 <= int(p) <= 29800 and
+               c(f, f"ZdxsvGgpo: battle port {p} picked and saved") and c(f, f"ZdxsvGgpo: net player .* port {p} "))
         ends, good = ggpo_ends([(i, el(i)) for i in gclients], nb)
         for i, k, a, f, m in ends:
             say(f"ggpo end p{i} battle {k} end_msg {a} frames {f} mismatches {m}")
@@ -971,6 +976,10 @@ def main():
         dz = [re.search(r"desync checks ([0-9]+) mismatches ([0-9]+)", l) for i in gclients for l in g(el(i), "ZdxsvGgpo: desync checks")]
         ok("desync checks on every peer, 0 mismatches",
            len(dz) >= len(gclients) and all(m and int(m[1]) > 0 and m[2] == "0" for m in dz))
+        zr = [re.search(r"repeats ([0-9]+) gaps ([0-9]+)", l) for i in gclients for l in g(el(i), "ZdxsvGgpo: zd steps per frame:")]
+        for m in zr:
+            say(f"zd steps per frame: repeats {m[1]} gaps {m[2]}" if m else "zd steps per frame: unparsed")
+        ok("one zd step per GGPO frame on every peer (repeats 0)", len(zr) >= len(gclients) and all(m and m[1] == "0" for m in zr))
         for i in gclients if patch_names else []:
             for l in g(el(i), "ZdxsvPatch: "):
                 say(f"p{i} {l[:200]}")
@@ -1083,15 +1092,15 @@ def main():
             f = el(i)
             for l in g(f, r"ZdxsvHttpsLatency: (asia-northeast1|done|off)"):
                 say(l[:200])
-            # the lobby logs each platform info as a Go map; a client's lines carry its GGPO port (ggpo:<port>)
+            # the lobby logs each platform info as JSON; a client's lines carry its GGPO port ("ggpo":"<port>")
             p = int(ggpo or 0) + int(i) - 1
-            pl = g(lobby, rf"platform.*ggpo:{p}[\] ]")
+            pl = g(lobby, rf'platform.*"ggpo":"{p}"')
             if i == E("HTTPS_OFF"):
                 ok(f"p{i} (ZDXSV_HTTPS_LATENCY=0): off, no region in its platform info",
-                   c(f, "ZdxsvHttpsLatency: off") and pl and not any("asia-northeast1:" in l for l in pl))
+                   c(f, "ZdxsvHttpsLatency: off") and pl and not any('"asia-northeast1":' in l for l in pl))
             else:
                 ok(f"p{i} https latency: one run, its platform info has asia-northeast1",
-                   c(f, "ZdxsvHttpsLatency: done") == 1 and any(re.search("asia-northeast1:[0-9]", l) for l in pl))
+                   c(f, "ZdxsvHttpsLatency: done") == 1 and any(re.search('"asia-northeast1":"[0-9]', l) for l in pl))
     if E("RELAY"):
         ok("lobby relay started", c(lobby, "[Ss]tart relay"))
         for i in gclients:
@@ -1191,6 +1200,8 @@ def main():
             ok("spectator's played rounds = the stream's", not c(f, "differs from the file"))
             if E("LIVE_AT"):
                 ok("late spectator had round results at its open", c(f, "live: battle .*, [1-9][0-9]* bytes of round results"))
+                jumps = g(f, "ZdxsvGgpo: (replay: frame .* is outside the rounds|live: [0-9]+ frames behind at frame .*: seeking)")
+                ok("late spectator seeked to the live edge before any round skip", bool(jumps) and "frames behind" in jumps[0])
         # per watched battle: the traces' lines from its `B <code>` line (pwcheck-live-<code>.txt)
         if E("PWTRACE"):
             for code in codes:

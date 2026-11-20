@@ -34,7 +34,7 @@ namespace Zdxsv
 	int PlaySkipGap(int next)
 	{
 		const int i = PlaySpanAt(next);
-		if (i < 0 || next < 0 || s_to_phase != TO_OFF || s_play.target >= 0 || s_play.run_load >= 0)
+		if (i < 0 || next < 0 || s_to_shared.phase != TO_OFF || s_play.target >= 0 || s_play.run_load >= 0)
 			return next;
 		const auto [begin, end] = s_play.spans[i];
 		if (next >= end)
@@ -98,7 +98,7 @@ namespace Zdxsv
 
 	void ReplayStep(int dir)
 	{
-		if (!s_play_env || s_play.frames <= 0 || !g_ggpo_active || dir == 0)
+		if (!s_play_src.path || s_play.frames <= 0 || !g_ggpo_active || dir == 0)
 			return;
 		// a step (or a seek from a pause) still runs, unpaused, until it pauses at its target: not playing
 		if (s_play.step_pause)
@@ -125,7 +125,7 @@ namespace Zdxsv
 
 	void ReplayPadPoll()
 	{
-		if (!s_play_env || s_play.frames <= 0 || !g_ggpo_active || s_to_phase != TO_OFF)
+		if (!s_play_src.path || s_play.frames <= 0 || !g_ggpo_active || s_to_shared.phase != TO_OFF)
 		{
 			s_pad = {};
 			return;
@@ -168,7 +168,7 @@ namespace Zdxsv
 
 	bool ReplayRefuses(Error* error)
 	{
-		if (!s_play_env || s_limits.own_load)
+		if (!s_play_src.path || s_limits.own_load)
 			return false;
 		const std::string msg = TRANSLATE_STR("Zdxsv", "Not available during a replay.");
 		Console.WriteLn("ZdxsvGgpo: refused during a replay (state save, state load or disc change)");
@@ -190,7 +190,7 @@ namespace Zdxsv
 
 	void ReplaySpeedBy(int delta)
 	{
-		if (!s_play_env || s_play.frames <= 0 || !g_ggpo_active || s_live_down)
+		if (!s_play_src.path || s_play.frames <= 0 || !g_ggpo_active || s_live_down)
 			return;
 		const int speed = std::clamp(s_play.speed + delta, -2, 2);
 		if (speed == s_play.speed)
@@ -208,7 +208,7 @@ namespace Zdxsv
 
 	void PlaySlowWait()
 	{
-		if (s_play.speed >= 0 || s_to_phase != TO_OFF)
+		if (s_play.speed >= 0 || s_to_shared.phase != TO_OFF)
 			return;
 		Threading::SleepUntil(GetCPUTicks() + static_cast<u64>(-s_play.speed) * GetTickFrequency() * 1001 / 60000);
 	}
@@ -220,11 +220,11 @@ namespace Zdxsv
 
 	void ReplayTakeover()
 	{
-		if (!s_play_env || s_play.frames <= 0 || !g_ggpo_active)
+		if (!s_play_src.path || s_play.frames <= 0 || !g_ggpo_active)
 			return;
-		if (s_to_phase == TO_OFF || s_to_phase == TO_ON)
+		if (s_to_shared.phase == TO_OFF || s_to_shared.phase == TO_ON)
 		{
-			s_to_req = s_to_phase == TO_OFF ? TO_REQ_TAKE : TO_REQ_RETRY;
+			s_to_shared.req = s_to_shared.phase == TO_OFF ? TO_REQ_TAKE : TO_REQ_RETRY;
 			if (VMManager::GetState() == VMState::Paused)
 				VMManager::SetPaused(false);
 		}
@@ -232,26 +232,26 @@ namespace Zdxsv
 
 	void ReplayTakeoverCancel()
 	{
-		if (s_to_phase != TO_COUNT)
+		if (s_to_shared.phase != TO_COUNT)
 			return;
-		s_to_req = TO_REQ_CANCEL;
+		s_to_shared.req = TO_REQ_CANCEL;
 		VMManager::SetPaused(false);
 	}
 
 	void ReplayTakeoverReturn()
 	{
-		if (s_to_phase == TO_OFF)
+		if (s_to_shared.phase == TO_OFF)
 			return;
-		s_to_req = TO_REQ_RETURN;
+		s_to_shared.req = TO_REQ_RETURN;
 		VMManager::SetPaused(false);
 	}
 
 	bool ReplayTakeoverInfo(int& phase, u16& target, u16& current, float& countdown)
 	{
-		if (!s_play_env || !g_ggpo_active)
+		if (!s_play_src.path || !g_ggpo_active)
 			return false;
-		phase = s_to_phase;
-		target = s_to_target;
+		phase = s_to_shared.phase;
+		target = s_to_shared.target;
 		current = s_ctl.to_current;
 		countdown = s_ctl.to_left;
 		return true;
@@ -259,7 +259,7 @@ namespace Zdxsv
 
 	bool ReplayIdleFastPoll()
 	{
-		return s_play_env && g_ggpo_active;
+		return s_play_src.path && g_ggpo_active;
 	}
 
 	bool ReplayIdlePresentDue()
@@ -274,7 +274,7 @@ namespace Zdxsv
 	void ReplayTakeoverIdle()
 	{
 		ReplayPadPoll();
-		if (s_to_phase != TO_COUNT)
+		if (s_to_shared.phase != TO_COUNT)
 			return;
 		u16 a, b;
 		ZdPadAB(TakeoverHostInput(), a, b);
@@ -286,8 +286,8 @@ namespace Zdxsv
 		s_ctl.to_left = static_cast<float>(std::max(0.0, 1.0 - ms / 1000.0));
 		if (ms >= 1000.0)
 		{
-			Console.WriteLn("ZdxsvGgpo: replay takeover: countdown over, input %s, starting", b == s_to_target ? "matched" : "not matched");
-			s_to_req = TO_REQ_START;
+			Console.WriteLn("ZdxsvGgpo: replay takeover: countdown over, input %s, starting", b == s_to_shared.target ? "matched" : "not matched");
+			s_to_shared.req = TO_REQ_START;
 			VMManager::SetPaused(false);
 		}
 	}

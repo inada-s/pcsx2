@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2002-2026 PCSX2 Dev Team
+// SPDX-FileCopyrightText: 2026 zdxsv contributors
 // SPDX-License-Identifier: GPL-3.0+
 
 // ARM64 EE recompiler.
@@ -16,6 +16,7 @@
 #include "vtlb.h"
 #include "arm64/AsmHelpers.h"
 #include "Zdxsv/CpuHooks.h"
+#include "Zdxsv/TestOptions.h"
 
 #include "common/Console.h"
 
@@ -63,12 +64,17 @@ static void SetPages(BlockFn* blocks, u32 pagebase, u32 first, u32 count)
 
 static void recReserve()
 {
-	const auto alloc = [](u32 bytes) { return static_cast<BlockFn*>(std::calloc(bytes / 4, sizeof(BlockFn))); };
+	const auto alloc = [](u32 bytes) {
+		BlockFn* const blocks = static_cast<BlockFn*>(std::calloc(bytes / 4, sizeof(BlockFn)));
+		if (!blocks)
+			pxFailRel("Failed to allocate ARM64 EE block table");
+		return blocks;
+	};
 	s_ram_blocks = alloc(Ps2MemSize::ExposedRam);
 	s_rom_blocks = alloc(Ps2MemSize::Rom);
 	s_rom1_blocks = alloc(Ps2MemSize::Rom1);
 	s_rom2_blocks = alloc(Ps2MemSize::Rom2);
-	const char* native = std::getenv("PCSX2_ARM64_EE_NATIVE");
+	const char* native = Zdxsv::TestEnv("PCSX2_ARM64_EE_NATIVE");
 	s_native = !native || std::strcmp(native, "0") != 0;
 	Console.WriteLn("ARM64 EE rec: reserved, native ops %s", s_native ? "on" : "off");
 
@@ -1043,7 +1049,7 @@ static void EmitTimeoutLoop(u32 reg, u32 endpc, const a64::Register& rregs, cons
 // PCSX2_EE_JIT_MAP=<file>: host address of each compiled instruction (pc, name, code word), to
 // attribute `sample` addresses in block code.
 static FILE* const s_ee_map = [] {
-	const char* path = std::getenv("PCSX2_EE_JIT_MAP");
+	const char* path = Zdxsv::TestEnv("PCSX2_EE_JIT_MAP");
 	return path ? std::fopen(path, "w") : nullptr;
 }();
 static BlockFn Compile(u32 startpc, BlockFn* entry)
@@ -1125,6 +1131,10 @@ static BlockFn Compile(u32 startpc, BlockFn* entry)
 		else if (mode != ProtMode_NotRequired)
 			mmap_MarkCountedRamPage(hwaddr);
 	}
+	// A branch in a page's last word has its delay slot on the next page: the block compares the
+	// words there at entry.
+	const u32 next_page = (startpc | 0xfff) + 1;
+	const bool check_tail = in_ram && !check_code && endpc > next_page;
 
 	armSetAsmPtr(s_code_ptr, s_code_end - s_code_ptr, &s_pool);
 	u8* const fn = armStartBlock();
@@ -1143,6 +1153,17 @@ static BlockFn Compile(u32 startpc, BlockFn* entry)
 		{
 			armAsm->Ldr(a64::w10, a64::MemOperand(a64::x9, i * 4));
 			armAsm->Mov(a64::w11, memRead32(startpc + i * 4));
+			armAsm->Cmp(a64::w10, a64::w11);
+			armAsm->B(a64::ne, &discard);
+		}
+	}
+	if (check_tail)
+	{
+		for (u32 pc = next_page; pc < endpc; pc += 4)
+		{
+			armMoveAddressToReg(a64::x9, PSM(pc));
+			armAsm->Ldr(a64::w10, a64::MemOperand(a64::x9));
+			armAsm->Mov(a64::w11, memRead32(pc));
 			armAsm->Cmp(a64::w10, a64::w11);
 			armAsm->B(a64::ne, &discard);
 		}
@@ -1364,7 +1385,7 @@ static BlockFn Compile(u32 startpc, BlockFn* entry)
 	EmitEpilogue(rregs, rcycles);
 	armAsm->Ret();
 
-	if (check_code)
+	if (check_code || check_tail)
 	{
 		// The code changed: the pc is unchanged, the dispatcher recompiles.
 		armAsm->Bind(&discard);

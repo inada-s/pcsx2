@@ -8,15 +8,12 @@
 #include "Gif_Unit.h"
 #include "MTVU.h"
 
+#include "arm64/VU1Trace.h" // zdxsv: ARM64 VU1 trace recompiler.
+
 #include <cfenv>
 
 extern void _vuFlushAll(VURegs* VU);
 extern void _vuXGKICKFlush(VURegs* VU);
-#ifdef ARCH_ARM64
-extern bool _vu1TraceStep(u64 startcycles, u32 cycles);
-extern void _vu1TraceClear();
-extern void _vu1TraceForget();
-#endif
 
 void _vu1ExecUpper(VURegs* VU, u32* ptr)
 {
@@ -34,7 +31,7 @@ void _vu1ExecLower(VURegs* VU, u32* ptr)
 
 int vu1branch = 0;
 
-// After the delay slot of an E-bit pair. Also called by the arm64 VU1 recompiler.
+// zdxsv: the E-bit end below as a function the ARM64 VU1 trace recompiler also calls.
 void _vu1EndProgram()
 {
 	VU1.VIBackupCycles = 0;
@@ -53,7 +50,7 @@ void _vu1EndProgram()
 
 static void _vu1Exec(VURegs* VU)
 {
-	// Zeroed: some regs functions (SQ, SQI, ...) leave VFwxyzw unset, and the FMAC pipe keeps it.
+	// zdxsv: zeroed, some regs functions (SQ, SQI, ...) leave VFwxyzw unset, and the FMAC pipe keeps it.
 	_VURegsNum lregs{};
 	_VURegsNum uregs{};
 	u32* ptr;
@@ -211,7 +208,7 @@ static void _vu1Exec(VURegs* VU)
 	if (VU->ebit > 0)
 	{
 		if (VU->ebit-- == 1)
-			_vu1EndProgram();
+			_vu1EndProgram(); // zdxsv: was inline here.
 	}
 
 	// Progress the write position of the FMAC pipeline by one place
@@ -253,14 +250,14 @@ void InterpVU1::Reset()
 	VU1.ialuwritepos = 0;
 	VU1.ialureadpos = 0;
 	VU1.ialucount = 0;
-#ifdef ARCH_ARM64
+#ifdef ARCH_ARM64 // zdxsv: ARM64 VU1 traces are compiled from VU1 micro memory.
 	_vu1TraceClear();
 #endif
 }
 
 void InterpVU1::Clear(u32 addr, u32 size)
 {
-#ifdef ARCH_ARM64
+#ifdef ARCH_ARM64 // zdxsv: ARM64 VU1 traces are compiled from VU1 micro memory.
 	_vu1TraceClear();
 #endif
 }
@@ -282,7 +279,7 @@ void InterpVU1::Execute(u32 cycles)
 
 	VU1.VI[REG_TPC].UL <<= 3;
 	u64 startcycles = VU1.cycle;
-#ifdef ARCH_ARM64
+#ifdef ARCH_ARM64 // zdxsv: no trace chain across Execute calls.
 	_vu1TraceForget();
 #endif
 
@@ -297,7 +294,7 @@ void InterpVU1::Execute(u32 cycles)
 			}
 			break;
 		}
-#ifdef ARCH_ARM64
+#ifdef ARCH_ARM64 // zdxsv: ARM64 runs compiled VU1 traces between interpreter steps.
 		if (VU1.branch == 0 && VU1.ebit == 0 && _vu1TraceStep(startcycles, cycles))
 			continue;
 		_vu1TraceForget();

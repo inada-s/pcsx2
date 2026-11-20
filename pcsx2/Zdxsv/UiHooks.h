@@ -34,6 +34,9 @@ namespace Zdxsv
 	bool OnlineNowAnyThread();
 	bool OnlineBattleNowAnyThread();
 	bool OnlineRefusesReset();
+	// FullscreenUI::ReportStateLoadError: true when `message` is a refusal reason above (online, net battle,
+	// replay); reported as an OSD notice, not a dialog that pauses the VM.
+	bool StateLoadRefusal(const char* message);
 
 	// Replay play (ZDXSV_REPLAY): seek by `frames` from the current frame (hotkeys "Zdxsv Replay: Seek
 	// Back / Forward 10 s"), done at the next frame start; at the end (paused) it plays on. No-op otherwise.
@@ -50,7 +53,7 @@ namespace Zdxsv
 	bool ReplayStepHoldsAudio(bool paused);
 	void ReplaySpeedBy(int delta);
 	u32 ReplayPadPokes();
-	// Under g_ggpo_active (VMManager): state saves and loads and disc changes.
+	// Under g_ggpo_enabled (VMManager): state saves and loads and disc changes, from the VM start of a replay.
 	bool ReplayRefuses(Error* error = nullptr);
 	void ReplaySeekTo(int frame);
 	void ReplayTogglePause();

@@ -4,12 +4,11 @@ Env as boottime.py, plus DELAY (s the fake browser waits before signing in, defa
 (ZBIN) must have Discord sign-in. A stdlib fake Discord (signin.py) stands in for the provider; its user
 is linked to an account with users in OUT's db, so the sign-in yields that account.
 Exit 0 = the game reached the user_id screen, emulog has the paused sign-in and `fast login: by token`,
-the session is the linked account's, and the token file holds a token the db maps to it.
+the linked account's last login in the db is this run's, and the token file holds a token the db maps to it.
 """
 import hashlib
 import http.server
 import os
-import re
 import sqlite3
 import sys
 import threading
@@ -39,6 +38,7 @@ def prepare(out):
         c.close()
     with open(os.path.join(out, "token_account.txt"), "w") as f:
         f.write(row[0])
+    tokenlogin.LAST_LOGIN[out] = tokenlogin.last_login(out, row[0])
     if os.path.exists(tokenlogin.token_path()):
         os.remove(tokenlogin.token_path())
     emulog = os.path.join(os.environ["RUN"], "p1", "PCSX2", "logs", "emulog.txt")
@@ -65,20 +65,19 @@ def after(out):
     key = open(os.path.join(out, "token_account.txt")).read()
     paused = "fast login: no token, signing in with the VM paused" in emulog
     by_token = "Zdxsv: fast login: by token" in emulog
-    m = re.search(r"Zdxsv: fast login: session ([^,\s]+)", emulog)
+    session = "Zdxsv: fast login: session " in emulog
+    logged_in = tokenlogin.last_login(out, key) != tokenlogin.LAST_LOGIN.get(out)
     c = sqlite3.connect(os.path.join(out, "zdxsv.db"))
     try:
-        session = c.execute("SELECT session_id FROM account WHERE login_key = ?", (key,)).fetchone()[0]
         tok = open(tokenlogin.token_path()).read().strip() if os.path.exists(tokenlogin.token_path()) else ""
         stored = c.execute("SELECT a.login_key FROM auth_token t JOIN auth_identity a ON a.provider = t.provider "
                            "AND a.provider_user_id = t.provider_user_id WHERE t.token_hash = ?",
                            (hashlib.sha256(tok.encode()).hexdigest(),)).fetchall()
     finally:
         c.close()
-    ok = paused and by_token and bool(m) and m.group(1) == session and stored == [(key,)]
-    print(f"{'PASS' if ok else 'FAIL'}: paused sign-in {paused}, by token {by_token}, emulog session "
-          f"{m.group(1) if m else None}, account session {session}, token file account "
-          f"{stored[0][0] if stored else None}")
+    ok = paused and by_token and session and logged_in and stored == [(key,)]
+    print(f"{'PASS' if ok else 'FAIL'}: paused sign-in {paused}, by token {by_token}, emulog session {session}, "
+          f"linked account logged in {logged_in}, token file account {stored[0][0] if stored else None}")
     return 0 if ok else 1
 
 
