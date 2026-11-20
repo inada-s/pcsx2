@@ -522,6 +522,7 @@ static __ri void vtlb_Miss(u32 addr, u32 mode)
 		GoemonTlbMissDebug();
 
 	// Hack to handle expected tlb miss by some games.
+	// zdxsv: the ARM64 recompiler takes the interpreter TLB miss path too.
 	if (CpuRunsIntBranches())
 	{
 		if (mode)
@@ -865,6 +866,7 @@ static bool vtlb_IsHostCoalesced(u32 page)
 	}
 }
 
+// zdxsv: delta state page watch, used by vtlb_GetMainMemoryOffsetFromPtr.
 static bool mmap_DeltaIsWatched(u32 page);
 
 static bool vtlb_GetMainMemoryOffsetFromPtr(uptr ptr, u32* mainmem_offset, u32* mainmem_size, PageProtectionMode* prot)
@@ -875,6 +877,7 @@ static bool vtlb_GetMainMemoryOffsetFromPtr(uptr ptr, u32* mainmem_offset, u32* 
 	if (ptr >= (uptr)eeMem->Main && page_end <= (uptr)eeMem->ZeroRead)
 	{
 		const u32 eemem_offset = static_cast<u32>(ptr - (uptr)eeMem->Main);
+		// zdxsv: a delta-watched page is not writable through fastmem.
 		const bool writeable = ((eemem_offset < Ps2MemSize::ExposedRam) ?
 			(mmap_GetRamPageInfo(eemem_offset) != ProtMode_Write && !mmap_DeltaIsWatched(eemem_offset >> __pageshift)) : true);
 		*mainmem_offset = (eemem_offset + HostMemoryMap::EEmemOffset);
@@ -1625,6 +1628,7 @@ PageFaultHandler::HandlerResult PageFaultHandler::HandlePageFault(void* exceptio
 {
 	pxAssert(eeMem);
 
+	// zdxsv: faults outside guest RAM the delta state handles itself.
 	if (s_delta_fault_hook && s_delta_fault_hook(reinterpret_cast<uptr>(fault_address)))
 		return HandlerResult::ContinueExecution;
 
@@ -1636,6 +1640,7 @@ PageFaultHandler::HandlerResult PageFaultHandler::HandlePageFault(void* exceptio
 
 		uptr ptr = (uptr)PSM(vaddr);
 		uptr offset = (ptr - (uptr)eeMem->Main);
+		// zdxsv: a write to a delta-watched page that is not code continues once the page is unwatched.
 		if (ptr && offset < Ps2MemSize::ExposedRam && mmap_DeltaHit(offset >> __pageshift) &&
 			m_PageProtectInfo[offset >> __pageshift].Mode != ProtMode_Write)
 			return HandlerResult::ContinueExecution;
@@ -1661,6 +1666,7 @@ PageFaultHandler::HandlerResult PageFaultHandler::HandlePageFault(void* exceptio
 		if (offset >= Ps2MemSize::ExposedRam)
 			return HandlerResult::ExecuteNextHandler;
 
+		// zdxsv: a delta-watched page is unwatched, not cleared; a manually protected page is only unprotected.
 		const u32 page = offset >> __pageshift;
 		if (mmap_DeltaHit(page) && m_PageProtectInfo[page].Mode != ProtMode_Write)
 			return HandlerResult::ContinueExecution;

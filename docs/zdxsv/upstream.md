@@ -69,14 +69,14 @@ needs its marker.
 | `PCSX2_qt.sln` | `Project` | not marked yet |
 | `PCSX2_qt.sln` |  | not marked yet |
 | `PCSX2_qt.sln` |  | not marked yet |
-| `bin/docs/ThirdPartyLicenses.html` |  | not marked yet |
-| `bin/docs/ThirdPartyLicenses.html` |  | not marked yet |
-| `bin/docs/ThirdPartyLicenses.html` |  | not marked yet |
-| `bin/docs/ThirdPartyLicenses.html` |  | not marked yet |
-| `bin/docs/ThirdPartyLicenses.html` |  | not marked yet |
-| `bin/docs/ThirdPartyLicenses.html` |  | not marked yet |
-| `bin/docs/ThirdPartyLicenses.html` |  | `Mbed TLS is dual-licensed under Apache-2.0 OR GPL-2.0-or-later. PCSX2 for zdxsv uses it under the Ap` |
-| `bin/docs/ThirdPartyLicenses.html` |  | not marked yet |
+| `bin/docs/ThirdPartyLicenses.html` |  | a zdxsv dependency --> |
+| `bin/docs/ThirdPartyLicenses.html` |  | a zdxsv dependency --> |
+| `bin/docs/ThirdPartyLicenses.html` |  | a zdxsv dependency --> |
+| `bin/docs/ThirdPartyLicenses.html` |  | a zdxsv dependency --> |
+| `bin/docs/ThirdPartyLicenses.html` |  | a zdxsv dependency --> |
+| `bin/docs/ThirdPartyLicenses.html` |  | a zdxsv dependency --> |
+| `bin/docs/ThirdPartyLicenses.html` |  | a zdxsv dependency --> |
+| `bin/docs/ThirdPartyLicenses.html` |  | a zdxsv dependency --> |
 | `bin/resources/GameIndex.yaml` |  | the zdxsv game |
 | `cmake/Pcsx2Utils.cmake` | `function` | release tags are zdxsv-X.Y.Z (the auto updater compares these). |
 | `cmake/SearchForStuff.cmake` | `add_subdirectory` | GGPO, UPnP and TLS libraries |
@@ -157,7 +157,7 @@ needs its marker.
 | `pcsx2-qt/Translations/pcsx2-qt_ja-JP.ts` |  | not marked yet |
 | `pcsx2-qt/Translations/pcsx2-qt_ja-JP.ts` |  | `ZdxsvMs` |
 | `pcsx2-qt/Translations/pcsx2-qt_ja-JP.ts` |  | `ZdxsvSettingsWidget`, `ZdxsvReplayDialog`, `ZdxsvSetupWizard` |
-| `pcsx2-qt/pcsx2-qt.vcxproj` |  | not marked yet |
+| `pcsx2-qt/pcsx2-qt.vcxproj` |  | $(IntDir)Tools, moc output of Tools\ZdxsvReplayDialog --> |
 | `pcsx2-qt/pcsx2-qt.vcxproj` |  | Sentry crash reports --> |
 | `pcsx2-qt/pcsx2-qt.vcxproj` |  | TLS, GGPO and UPnP libraries --> |
 | `pcsx2-qt/pcsx2-qt.vcxproj` |  | `ZdxsvSettingsWidget`, `ZdxsvReplayDialog` |
@@ -407,13 +407,13 @@ needs its marker.
 | `pcsx2/pcsx2.vcxproj` |  | `<ClInclude Include="Zdxsv\Lobby.h" />` |
 | `pcsx2/pcsx2.vcxproj` |  | `<ClInclude Include="Zdxsv\InputLatency.h" />` |
 | `pcsx2/pcsx2.vcxproj.filters` |  | `<Filter Include="Zdxsv">` |
-| `pcsx2/vtlb.cpp` | `vtlb_Miss` | not marked yet |
-| `pcsx2/vtlb.cpp` | `vtlb_IsHostCoalesced` | not marked yet |
-| `pcsx2/vtlb.cpp` | `vtlb_GetMainMemoryOffsetFromPtr` | not marked yet |
+| `pcsx2/vtlb.cpp` | `vtlb_Miss` | the ARM64 recompiler takes the interpreter TLB miss path too. |
+| `pcsx2/vtlb.cpp` | `vtlb_IsHostCoalesced` | delta state page watch, used by vtlb_GetMainMemoryOffsetFromPtr. |
+| `pcsx2/vtlb.cpp` | `vtlb_GetMainMemoryOffsetFromPtr` | a delta-watched page is not writable through fastmem. |
 | `pcsx2/vtlb.cpp` | `mmap_ClearCpuBlock` | `// zdxsv delta state: see mmap_DeltaSetHook in vtlb.h.` |
-| `pcsx2/vtlb.cpp` | `PageFaultHandler::HandlePageFault` | not marked yet |
-| `pcsx2/vtlb.cpp` | `PageFaultHandler::HandlePageFault` | not marked yet |
-| `pcsx2/vtlb.cpp` | `PageFaultHandler::HandlePageFault` | not marked yet |
+| `pcsx2/vtlb.cpp` | `PageFaultHandler::HandlePageFault` | faults outside guest RAM the delta state handles itself. |
+| `pcsx2/vtlb.cpp` | `PageFaultHandler::HandlePageFault` | a write to a delta-watched page that is not code continues once the page is unwatched. |
+| `pcsx2/vtlb.cpp` | `PageFaultHandler::HandlePageFault` | a delta-watched page is unwatched, not cleared; a manually protected page is only unprotected. |
 | `pcsx2/vtlb.cpp` | `mmap_ResetBlockTracking` | `// zdxsv delta state: watched pages stay read-only.` |
 | `pcsx2/vtlb.h` |  | delta state hooks below |
 | `pcsx2/vtlb.h` |  | `// zdxsv delta state: copy-on-write tracking of EE RAM pages (page = offset >> __pageshift).` |
