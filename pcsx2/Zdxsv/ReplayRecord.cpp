@@ -304,7 +304,8 @@ namespace Zdxsv
 		// play-start barrier, kind-3 barrier, MS-select barrier
 		s_replay_hle0.rx.assign(s_rb.net_rx.begin(), s_rb.net_rx.end());
 		s_replay_hle0.hle = {s_rb.ps.n, s_rb.ps.rel, s_rb.ps.hold ? 1 : 0, s_rb.ps.go ? 1 : 0, s_rb.zds_seen[0], s_rb.zds_seen[1],
-			s_rb.zds_seen[2], s_rb.zds_seen[3], s_rb.zds_rel, s_rb.ms.n, s_rb.ms.rel, s_rb.ms.hold ? 1 : 0, s_rb.ms.go ? 1 : 0};
+			s_rb.zds_seen[2], s_rb.zds_seen[3], s_rb.zds_rel, s_rb.ms.n, s_rb.ms.rel, s_rb.ms.hold ? 1 : 0, s_rb.ms.go ? 1 : 0,
+			s_rb.re.n, s_rb.re.rel, s_rb.re.hold ? 1 : 0, s_rb.re.go ? 1 : 0};
 		s_replay_answers = Zdxsv::LobbyStartAnswers();
 		s_live.reset();
 		if (!to.empty())
@@ -331,7 +332,7 @@ namespace Zdxsv
 		s_replay_ticks.resize(f);
 		s_replay_ticks.push_back(eeMem->Main[TICK_STATE]);
 		s_replay_ps.resize(f);
-		s_replay_ps.push_back(static_cast<u8>(s_rb.ps.rel - s_rb.ps.re));
+		s_replay_ps.push_back(s_rb.ps.rel);
 		s_replay_round_states.erase(s_replay_round_states.lower_bound(f), s_replay_round_states.end());
 		if (f > 0 && s_replay_ticks[f - 1] == TICK_LOAD && s_replay_ticks[f] != TICK_LOAD)
 			s_replay_round_states.emplace(f, RoundStateTake(f));

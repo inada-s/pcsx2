@@ -119,7 +119,7 @@ namespace Zdxsv
 				}
 				s_live_play.got.inputs.erase(s_live_play.got.inputs.begin(), s_live_play.got.inputs.begin() + n * fb);
 				s_play.frames += static_cast<int>(n);
-				PlayFileRels(0, 0);
+				PlayFileRels(0, 0, 0);
 			}
 			LiveRoundFrames();
 			if (s_live_play.got.closed && s_live_play.close.empty())

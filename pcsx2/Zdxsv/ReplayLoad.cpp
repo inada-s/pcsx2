@@ -374,14 +374,15 @@ namespace Zdxsv
 				Console.Error("ZdxsvGgpo: replay %s: no lobby answers (an older file with a start state is not played)", path.c_str());
 				return -1;
 			}
-			// 9 values: recorded without the MS-select barrier (its inputs carry no MS-select count)
-			int h[13] = {};
-			if (r.hle0.size() != std::size(h) && r.hle0.size() != 9)
+			// 9 values: recorded without the MS-select barrier, 13: without the round-end barrier (its inputs carry no such count)
+			int h[17] = {};
+			if (r.hle0.size() != std::size(h) && r.hle0.size() != 13 && r.hle0.size() != 9)
 			{
-				Console.Error("ZdxsvGgpo: replay %s: hle0 has %zu values, not 9 or %zu", path.c_str(), r.hle0.size(), std::size(h));
+				Console.Error("ZdxsvGgpo: replay %s: hle0 has %zu values, not 9, 13 or %zu", path.c_str(), r.hle0.size(), std::size(h));
 				return -1;
 			}
-			s_ms_on = r.hle0.size() == std::size(h);
+			s_ms_on = r.hle0.size() >= 13;
+			s_re_on = r.hle0.size() == std::size(h);
 			std::copy(r.hle0.begin(), r.hle0.end(), h);
 			// The kind-3 counters index s_battle.zds_k3 (NetApply) and the file holds no kind-3 bodies: only the empty barrier
 			// the recorder writes (ReplayBegin, right after the session reset) can be played.
@@ -401,7 +402,6 @@ namespace Zdxsv
 			if (r.start_rng)
 				s_play.rngs[0] = *r.start_rng;
 			s_play.version = r.version;
-			s_re_on = r.version >= 20261122;
 			s_play.states_off = false;
 			// Before 20261116 round states lack the MS-select menu state and part of the MS slot table, which the file
 			// cannot rebuild: those rounds are reached by seeking.
@@ -436,9 +436,11 @@ namespace Zdxsv
 				rb.zds_seen[p] = h[4 + p];
 			rb.zds_rel = h[8];
 			rb.ms = {static_cast<u8>(h[9]), static_cast<u8>(h[10]), h[11] != 0, h[12] != 0};
+			rb.re = {static_cast<u8>(h[13]), static_cast<u8>(h[14]), h[15] != 0, h[16] != 0};
 			s_play.ps_rel.clear();
 			s_play.ms_rel.clear();
-			PlayFileRels(rb.ps.rel, rb.ms.rel);
+			s_play.re_rel.clear();
+			PlayFileRels(rb.ps.rel, rb.ms.rel, rb.re.rel);
 			Console.WriteLn("ZdxsvGgpo: replay %s: recorded at position %lld of %d, %lld frames, rx0 %zu bytes, "
 							"%zu lobby answers, state hashes %s, rngs %zu", path.c_str(), me, s_opt.players, frames,
 				rb.net_rx.size(), s_play_common.answers.size(), r.hashes.empty() ? "no" : "yes",
@@ -707,15 +709,15 @@ namespace Zdxsv
 		}
 	} // namespace
 
-	// The recorder's barrier releases (s_play.ps_rel, ms_rel) as NetApply makes them: all positions' counts past rel (its
+	// The recorder's barrier releases (s_play.ps_rel, ms_rel, re_rel) as NetApply makes them: all positions' counts past rel (its
 	// own count implies its hold). A playback whose own load step comes later releases later. Extended to s_play.frames:
-	// a live stream grows; ps0 and ms0 (the releases at frame 0) start empty ones.
-	void PlayFileRels(u8 ps0, u8 ms0)
+	// a live stream grows; ps0, ms0 and re0 (the releases at frame 0) start empty ones.
+	void PlayFileRels(u8 ps0, u8 ms0, u8 re0)
 	{
 		const auto extend = [](std::vector<u8>& out, u8 rel, int k) {
 			const auto passed = [k](int f, u8 r) {
 				const NetInput* in = &s_play.inputs[static_cast<size_t>(f) * s_opt.players];
-				return std::all_of(in, in + s_opt.players, [r, k](const NetInput& i) { return static_cast<u8>(i.pad.unused[k] - r - 1) < 127; });
+				return std::all_of(in, in + s_opt.players, [r, k](const NetInput& i) { return static_cast<u8>(BarrierCount(i.pad, k) - r - 1) < 127; });
 			};
 			int f = static_cast<int>(out.size());
 			if (f > 0)
@@ -728,8 +730,9 @@ namespace Zdxsv
 					rel++;
 			}
 		};
-		extend(s_play.ps_rel, ps0, 1);
-		extend(s_play.ms_rel, ms0, 0);
+		extend(s_play.ps_rel, ps0, BARRIER_PS);
+		extend(s_play.ms_rel, ms0, BARRIER_MS);
+		extend(s_play.re_rel, re0, BARRIER_RE);
 	}
 
 	void PlayLiveRoundFrames(const std::vector<u8>& round_frames, const std::vector<u8>& states, bool with_states)
@@ -871,7 +874,7 @@ namespace Zdxsv
 		s_play_common.on = false;
 		const int me = s_battle.me;
 		PlayKey& k0 = *s_play_keys[me].at(0);
-		const bool hle_same = k0.rb.net_rx == s_rb.net_rx && k0.rb.ps == s_rb.ps && k0.rb.ms == s_rb.ms;
+		const bool hle_same = k0.rb.net_rx == s_rb.net_rx && k0.rb.ps == s_rb.ps && k0.rb.ms == s_rb.ms && k0.rb.re == s_rb.re;
 		MsSlotsClear();
 		ServerPatchesBegin(s_play.patches);
 		Error error;

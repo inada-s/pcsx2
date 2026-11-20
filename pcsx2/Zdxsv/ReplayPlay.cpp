@@ -729,7 +729,8 @@ namespace Zdxsv
 			return f < static_cast<int>(file.size()) && static_cast<u8>(file[f] - b.rel - 1) < 127;
 		};
 		const bool late = s_to_shared.phase != TO_ON && f == s_battle.frame + 1 &&
-						  (ahead(s_play.ps_rel, s_rb.ps) || (s_ms_on && ahead(s_play.ms_rel, s_rb.ms)));
+						  (ahead(s_play.ps_rel, s_rb.ps) || (s_ms_on && ahead(s_play.ms_rel, s_rb.ms)) ||
+							  (s_re_on && ahead(s_play.re_rel, s_rb.re)));
 		if (!late)
 		{
 			if (s_check.wait_run > 0 && s_check.wait_run <= LOAD_WAIT_MAX)

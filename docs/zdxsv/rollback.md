@@ -230,9 +230,8 @@ Four mechanisms keep the peers on the same frame:
 - **Round-end barrier**: the result display after a round lasts a number of
   frames that depends on the viewer's position; the round-end step holds
   until every peer reached it, so the round ends on the same frame on all
-  peers. It counts in the play-start barrier's count (a round end always lies
-  between two play starts). Replays older than `log_file_version` 20261122
-  play without it.
+  peers. Its own count, like the other two. Replays without it (`hle0` of 9
+  or 13 values) play without it.
 - A barrier held past its limit (`ZDXSV_NET_BARRIER_MS`) ends the battle as a
   connection failure: a peer that sends inputs but never reports ready keeps
   GGPO's disconnect timer from firing. A rollback whose state load fails ends
