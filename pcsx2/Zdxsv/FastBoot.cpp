@@ -238,7 +238,7 @@ namespace Zdxsv
 		if (!s_boot.started)
 		{
 			s_boot.started = true;
-			if (!BoolSetting("ZdxsvFastBoot", true, "ZDXSV_FAST_BOOT"))
+			if (!BoolSetting("ZdxsvFastBoot", false, "ZDXSV_FAST_BOOT"))
 			{
 				s_boot.done = true;
 				return;
@@ -333,7 +333,7 @@ namespace Zdxsv
 
 	const char* FastBootInitialState()
 	{
-		if (!BoolSetting("ZdxsvFastBoot", true, "ZDXSV_FAST_BOOT") || !BoolSetting("ZdxsvFastBootState", true, "ZDXSV_FAST_BOOT_STATE"))
+		if (!BoolSetting("ZdxsvFastBoot", false, "ZDXSV_FAST_BOOT") || !BoolSetting("ZdxsvFastBootState", true, "ZDXSV_FAST_BOOT_STATE"))
 			return "";
 		s_boot.initial_state = BootStatePath();
 		if (!FileSystem::FileExists(s_boot.initial_state.c_str()))

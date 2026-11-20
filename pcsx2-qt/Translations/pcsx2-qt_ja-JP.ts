@@ -28323,8 +28323,8 @@ Continue with the keyboard?</source>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="72"/>
-      <source>Goes from game start to the lobby ID selection with no input. Uncheck it to play offline.</source>
-      <translation>ゲーム起動からロビーの ID 選択まで操作なしで進めます。オフラインで遊ぶときは外してください。</translation>
+      <source>Goes from game start to the lobby ID selection with no input.</source>
+      <translation>ゲーム起動からロビーの ID 選択まで操作なしで進めます。</translation>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.ui" line="20"/>

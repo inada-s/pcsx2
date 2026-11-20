@@ -72,7 +72,7 @@ ZdxsvSettingsWidget::ZdxsvSettingsWidget(SettingsWindow* settings_dialog, QWidge
 
 	setupTab(m_ui, tr("zdxsv"));
 
-	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvFastBoot, "DEV9/Eth", "ZdxsvFastBoot", true);
+	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvFastBoot, "DEV9/Eth", "ZdxsvFastBoot", false);
 	SettingWidgetBinder::BindWidgetToIntSetting(sif, m_ui.zdxsvGgpoMinDelay, "DEV9/Eth", "ZdxsvGgpoMinDelay", 2);
 	SettingWidgetBinder::BindWidgetToIntSetting(sif, m_ui.zdxsvGgpoPort, "DEV9/Eth", "ZdxsvGgpoPort", 0);
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvNetOsd, "DEV9/Eth", "ZdxsvNetOsd", true);
@@ -114,8 +114,8 @@ ZdxsvSettingsWidget::ZdxsvSettingsWidget(SettingsWindow* settings_dialog, QWidge
 	MarkEnvOverride(m_ui.zdxsvSaveReplay, "ZDXSV_GGPO", "replay=");
 	MarkEnvOverride(m_ui.zdxsvReplayPath, "ZDXSV_GGPO", "replay=");
 
-	dialog()->registerWidgetHelp(m_ui.zdxsvFastBoot, tr("Fast Boot"), tr("Checked"),
-		tr("Goes from game start to the lobby ID selection with no input. Uncheck it to play offline."));
+	dialog()->registerWidgetHelp(m_ui.zdxsvFastBoot, tr("Fast Boot"), tr("Unchecked"),
+		tr("Goes from game start to the lobby ID selection with no input."));
 	dialog()->registerWidgetHelp(m_ui.zdxsvGgpoMinDelay, tr("Minimum Input Delay"), tr("2"),
 		tr("Lowest input delay of a battle (frames). Higher: fewer rollbacks, but slower controls."));
 	dialog()->registerWidgetHelp(m_ui.zdxsvGgpoPort, tr("Battle UDP Port"), tr("0"),

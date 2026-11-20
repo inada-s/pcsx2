@@ -81,8 +81,8 @@ USERS=AAAAAA BBBBBB CCCCCC DDDDDD
   (the instances share fixed ports).
 - `launch.py` gives a client without `ZDXSV_GGPO` the value `0` (GGPO off,
   which is otherwise on by default); `ZDXSV_GGPO=default` leaves it on.
-  Same for `ZDXSV_FAST_BOOT` (fast boot, on by default):
-  `0` unless set, `ZDXSV_FAST_BOOT=default` leaves it on.
+  Same for `ZDXSV_FAST_BOOT`: `0` unless set, `ZDXSV_FAST_BOOT=default`
+  leaves the ini setting.
 - `launch.py` runs `probelint.py` first and refuses a PCSX2 build older than
   its sources (an exe outside a PCSX2 tree, e.g. a copied `bin/`: no age check).
 - Every script that starts PCSX2 sources the network pins (`launch.py`: `pcsx2_env`;
