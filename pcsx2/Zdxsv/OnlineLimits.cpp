@@ -164,6 +164,13 @@ namespace Zdxsv
 		return !s_online.reset_allowed && OnlineRefuses();
 	}
 
+	bool StateLoadRefusal(const char* message)
+	{
+		return message == TRANSLATE_STR("Zdxsv", "Not available while online.") ||
+			   message == TRANSLATE_STR("Zdxsv", "Not available during an online battle.") ||
+			   message == TRANSLATE_STR("Zdxsv", "Not available during a replay.");
+	}
+
 	bool PineRefuses()
 	{
 		if (!s_online.pine_refused.load(std::memory_order_relaxed))
