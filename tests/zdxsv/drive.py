@@ -58,7 +58,7 @@ ROUTES = {
              "Down,C,w2000,Right,w3000,C,w2000,Right,w3000,C,w2000,Right,w3000,Right,w3000,C,w5000,C,w4000,"
              "C,w4000,C,w3000,X,w4000,Left,C,w45000,"
              "Return~scene=2/500,Down~menu=7/400,C~scene=7,C~net=2,C~net=3/500,w1500,C,@net=4,C~net=5,w1500,"
-             "Up,C,@net=6,w6000,Down*2,C,@net=7/10000,@net=0x21/30000",
+             "Up,C,@net=6,w6000,Down*2,C,@net=7/10000,@net=0x21/30000,@phase=23/40000,@wseq=25/20000",
     # TOP (cursor on ログイン) -> ID select (C again every 6 s until step 4) -> ID 1 -> 戦場選択, keyed on
     # a change of lstate (its values differ per path to TOP); then the lobby connection
     # steps (step 7, 8, 9, 1, 2, 5, 1 = 戦場選択 ready)
@@ -67,12 +67,12 @@ ROUTES = {
     "idlogin": "C~lstate!/2000,C~lstate!/3000,@step=5/10000,@step=1/3000",
     # TOP -> 新規登録 -> save ID+password to NET file -> ユーザ作成完了 -> 戻る -> TOP (new key on the card)
     # A C lost under load (3 logins at once) left the key unsaved: check the shot, run it alone.
-    "register": "Right~lstate!/500,C~lstate!/500,@wseq=23/20000,C,@wseq=25/20000,C,@wseq=26/20000,C,@wseq=28/20000",
-    # TOP with a fresh key -> pre-lobby screens up to wseq 37 (Capcom ユーザー登録/変更: Right = 登録しない)
-    # -> HN入力 (step 4, wseq 39): kana column {h} x3 -> Start x2 (kana, 決定; cursor on 登録) -> 登録
-    # -> この内容で登録しますか? opens on いいえ: Up -> はい -> DecideUserID -> 戦場選択 (step 5 -> 1)
-    "newlogin": "@wseq=31/20000,Right,C,@wseq=33/20000,C,@wseq=34/20000,Right*{h},C,C,C,Return,@wseq=35/20000,Return,"
-                "@wseq=36/20000,C,@wseq=37/20000,Right~lstate!/500,C~lstate!/500,@wseq=39/20000,w1500,Right*{h},C,C,C,Return,w1500,Return,w1500,C~lstate!/500,@dlg=4/15000,w500,Up~lstate!/500,C~lstate!/500,@step=5/20000,@step=1/3000",
+    "register": "=wseq,Right~lstate!/500,C~lstate!/500,@wseq=+2/20000,C,@wseq=+4/20000,C,@wseq=+5/20000,C,@wseq=+7/20000",
+    # TOP with a fresh key -> ログイン -> Capcom ユーザー登録/変更 (TOP + 3: Right = 登録しない)
+    # -> HN入力 (step 4, TOP + 6): kana column {h} x3 -> Start x2 (kana, 決定; cursor on 登録) -> 登録
+    # -> この内容で登録しますか? (TOP + 9, opens on いいえ): Up -> はい -> DecideUserID -> 戦場選択 (step 5 -> 1)
+    "newlogin": "=wseq,@wseq=+3/20000,Right,C,@wseq=+5/20000,C,@wseq=+6/20000,Right*{h},C,C,C,Return,@wseq=+7/20000,Return,"
+                "@wseq=+8/20000,C,@wseq=+9/20000,w1500,Up~lstate!/500,C~lstate!/500,@step=5/20000,@step=1/3000",
     # 戦場選択 -> map cursor to ジャブロー2 (Lobby 06: starts at 2 AEUG + 2 Titans entries, zdxsv
     # model/lobby.go CanBattleStart) -> lobby -> パートナー自動選抜 -> side {s}: p1/p2 連邦・エゥーゴ, p3/p4 ジオン・ティターンズ
     # m4z.py: map ends with the Lobby 06 press (0x6305 00 06); a late press is

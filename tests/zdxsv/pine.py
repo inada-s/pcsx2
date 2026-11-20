@@ -32,7 +32,8 @@ STALL_S = 120  # wait(): frame count not moving this long = emulator hung or pau
 # connection step (4 = ID選択); menu = main menu cursor; lstate = accepted key presses mod 32 (counts in
 # menus and the lobby browser alike); dlg = memory card dialog while a blank card gets its NET file (17 slot,
 # then 1, 2, 5, 4 in screen order, 222 closing, 255 none); wseq = lobby browser screen updates (counts up on
-# each page load and form step; register after fresh: 21 on TOP, 23 register page ready, then 25, 26, 28).
+# each page load and form step; TOP is 21 without DEV9, 25 with it after the netcnf setup; register: TOP + 2 page
+# ready, then + 4, + 5, + 7).
 PROBE = {
     "scene": (0x6D7A8C, 0), "net": (None, 0xCD1360), "nsub": (None, 0xCD1361),
     "step": (0x6D7D54, 0xA1F), "phase": (None, 0x6D7D84), "menu": (0x6D7954, 0x25C),
@@ -260,13 +261,18 @@ class Pine:
         """Comma list: Key, Key+Key (chord), Key*N, Key:holdMS, wMS (wait), fN (wait until frame count >= N).
         @name=V[/MS] (wait until game RAM probe name == V, see PROBE and until; V decimal or 0x).
         @name![/MS]: wait until name leaves the value it has when the token starts.
+        =name: keep name's current value as its base; @name=+N[/MS]: wait until name == base + N.
         Key~name=V[/MS]: press Key, again every MS, until name == V. Key~name![/MS]: the same until name leaves
         the value it had before the first press. Key^name>=V[/MS], Key^name<=V[/MS]: hold Key until FPROBE name
         reaches V (default 5000 ms). Up|Down^name=V[/MS]: hold Up while name < V (until >= V), else Down
         (until <= V).
         ms = game time (vsyncs at 60/s, see wait)."""
+        base = {}
         for tok in [t.strip() for t in text.split(",") if t.strip()]:
             self.trace(tok)
+            if tok[0] == "=":
+                base[tok[1:]] = self.probe(tok[1:])
+                continue
             if tok[0] == "@" and "!" in tok:
                 name, _, ms = tok[1:].partition("!")
                 self.until(name, self.probe(name), int(ms.lstrip("/") or UNTIL_MS), ne=True)
@@ -274,7 +280,7 @@ class Pine:
             if tok[0] == "@":
                 name, _, rest = tok[1:].partition("=")
                 v, _, ms = rest.partition("/")
-                self.until(name, int(v, 0), int(ms or UNTIL_MS))
+                self.until(name, base[name] + int(v[1:]) if v[0] == "+" else int(v, 0), int(ms or UNTIL_MS))
                 continue
             if "^" in tok and "|" in tok:
                 keys, _, cond = tok.partition("^")
