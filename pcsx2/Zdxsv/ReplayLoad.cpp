@@ -401,6 +401,7 @@ namespace Zdxsv
 			if (r.start_rng)
 				s_play.rngs[0] = *r.start_rng;
 			s_play.version = r.version;
+			s_re_on = r.version >= 20261122;
 			s_play.states_off = false;
 			// Before 20261116 round states lack the MS-select menu state and part of the MS slot table, which the file
 			// cannot rebuild: those rounds are reached by seeking.

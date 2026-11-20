@@ -163,7 +163,7 @@ namespace Zdxsv
 	// replay.proto BattleLogFile patches: Put writes one field per patch, Read takes one (false: malformed or out of range).
 	void ServerPatchesPut(std::vector<uint8_t>& pb, uint32_t field, const std::vector<GamePatch>& patches);
 	bool ServerPatchRead(const uint8_t* b, size_t n, GamePatch& out);
-	constexpr int REPLAY_FILE_VERSION = 20261121; // BattleLogFile.log_file_version of the files written here
+	constexpr int REPLAY_FILE_VERSION = 20261122; // BattleLogFile.log_file_version of the files written here
 	// As files of log_file_version `version` hashed the state
 	u32 ReplayStateHash(s64 version = REPLAY_FILE_VERSION);
 	u32 GameRng();
@@ -183,6 +183,7 @@ namespace Zdxsv
 		bool operator==(const PS&) const = default;
 	};
 	extern bool s_ms_on;
+	extern bool s_re_on; // round-end barrier, off for files older than version 20261122
 	extern const int s_k3_lag;
 	struct NetOut
 	{

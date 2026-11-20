@@ -219,7 +219,7 @@ The game runs with its own input delay 0; GGPO adds the input delay.
   earlier split packet was lost) is skipped; the sender resends from the
   oldest unacked frame.
 
-Three mechanisms keep the peers on the same frame:
+Four mechanisms keep the peers on the same frame:
 
 - **Play-start barrier**: each machine finishes loading the battle at its own
   time; the barrier holds the game until every peer is ready.
@@ -227,6 +227,12 @@ Three mechanisms keep the peers on the same frame:
   the game RNG. A peer without it never reports ready; the others wait at MS
   select until the barrier limit. Replays without it (`hle0` of 9 values) play
   without it.
+- **Round-end barrier**: the result display after a round lasts a number of
+  frames that depends on the viewer's position; the round-end step holds
+  until every peer reached it, so the round ends on the same frame on all
+  peers. It counts in the play-start barrier's count (a round end always lies
+  between two play starts). Replays older than `log_file_version` 20261122
+  play without it.
 - A barrier held past its limit (`ZDXSV_NET_BARRIER_MS`) ends the battle as a
   connection failure: a peer that sends inputs but never reports ready keeps
   GGPO's disconnect timer from firing. A rollback whose state load fails ends

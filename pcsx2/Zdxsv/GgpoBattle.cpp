@@ -924,6 +924,15 @@ namespace Zdxsv
 		return s_ms_on && BarrierHold(s_rb.ms, 'M', 0x2b8ab8);
 	}
 
+	bool s_re_on = true;
+
+	// re: rec hook at ROUND_END_PC (0x2b3d88), epilogue 0x2b3db0. A round end comes between two play starts,
+	// so it shares their count.
+	bool OnRoundEndStep()
+	{
+		return s_re_on && BarrierHold(s_rb.ps, 'R', 0x2b3db0);
+	}
+
 	// zd: rec hook at the lockstep step's ring read (0x312bf4, per active position: s0 = position,
 	// a1 = ring entry: +2 A, +6 B as u16; bit 0 of B is game-wide state, kept). Trace `Z frame p slot A B`.
 	void OnStepCopy()
