@@ -9,6 +9,8 @@
 #include "Zdxsv/UiHooks.h"
 #include "IconsFontAwesome.h"
 
+#include "common/ProgressCallback.h"
+
 #include "mbedtls/sha256.h"
 #include "rapidjson/document.h"
 
@@ -18,6 +20,9 @@ namespace Zdxsv
 {
 	namespace
 	{
+		// Far above a real battle: tens of loads, rounds and lobby answers; 128 input bytes a frame.
+		constexpr size_t REPLAY_MAX_LIST = 4096;
+		constexpr size_t REPLAY_MAX_BYTES = 256u << 20;
 
 		// A replay file (Zdxsv/replay.proto) as PlayLoadFile uses it.
 		struct ReplayFile
@@ -69,29 +74,21 @@ namespace Zdxsv
 
 		bool ReplayParse(std::string_view all, ReplayFile& r)
 		{
-			Pb::Reader rd{reinterpret_cast<const uint8_t*>(all.data()), reinterpret_cast<const uint8_t*>(all.data() + all.size())};
+			PbReader rd{reinterpret_cast<const uint8_t*>(all.data()), reinterpret_cast<const uint8_t*>(all.data() + all.size())};
 			return rd.Fields([&r](uint32_t field, uint32_t wt, uint64_t v, const uint8_t* b, size_t n) {
 				const std::string_view bytes(reinterpret_cast<const char*>(b), n);
+				std::vector<int64_t>* ints = field == 46 ? &r.hle0 : field == 54 ? &r.load_frames : field == 55 ? &r.load_rngs :
+											 field == 57 ? &r.play_starts : field == 58 ? &r.game_ends : field == 59 ? &r.round_ends : nullptr;
+				if (ints && (wt == 0 || wt == 2))
+					return PbReadInts(wt, v, b, n, *ints, REPLAY_MAX_LIST);
 				if (wt == 0)
 				{
 					s64* num = field == 4 ? &r.version : field == 40 ? &r.players : field == 41 ? &r.me : field == 47 ? &r.input_size :
 							   field == 48 ? &r.frames : nullptr;
 					if (num)
 						*num = static_cast<s64>(v);
-					else if (field == 46)
-						r.hle0.push_back(static_cast<int64_t>(v));
 					else if (field == 53)
 						r.start_rng = static_cast<u32>(v);
-					else if (field == 54)
-						r.load_frames.push_back(static_cast<int64_t>(v));
-					else if (field == 55)
-						r.load_rngs.push_back(static_cast<int64_t>(v));
-					else if (field == 57)
-						r.play_starts.push_back(static_cast<int64_t>(v));
-					else if (field == 58)
-						r.game_ends.push_back(static_cast<int64_t>(v));
-					else if (field == 59)
-						r.round_ends.push_back(static_cast<int64_t>(v));
 				}
 				else if (wt == 2)
 				{
@@ -99,14 +96,16 @@ namespace Zdxsv
 						r.code = bytes;
 					else if (field == 18)
 					{
+						if (r.rounds.size() >= REPLAY_MAX_LIST)
+							return false;
 						int win = 0;
 						std::vector<int64_t> used;
-						Pb::Reader round{b, b + n};
+						PbReader round{b, b + n};
 						if (!round.Fields([&win, &used](uint32_t f, uint32_t w, uint64_t x, const uint8_t* rb, size_t rn) {
 								if (f == 1 && w == 0)
 									win = static_cast<int32_t>(x);
 								else if (f == 2)
-									return Pb::ReadInts(w, x, rb, rn, used);
+									return PbReadInts(w, x, rb, rn, used, REPLAY_MAX_LIST);
 								return true;
 							}))
 							return false;
@@ -119,24 +118,16 @@ namespace Zdxsv
 					}
 					else if (field == 45)
 						r.rx0.assign(b, b + n);
-					else if (field == 46)
-						return Pb::ReadInts(wt, v, b, n, r.hle0);
 					else if (field == 49)
 						r.inputs = bytes;
 					else if (field == 51 && n >= 12)
+					{
+						if (r.answers.size() >= REPLAY_MAX_LIST)
+							return false;
 						r.answers.emplace_back(b, b + n);
+					}
 					else if (field == 52)
 						r.hashes = bytes;
-					else if (field == 54)
-						return Pb::ReadInts(wt, v, b, n, r.load_frames);
-					else if (field == 55)
-						return Pb::ReadInts(wt, v, b, n, r.load_rngs);
-					else if (field == 57)
-						return Pb::ReadInts(wt, v, b, n, r.play_starts);
-					else if (field == 58)
-						return Pb::ReadInts(wt, v, b, n, r.game_ends);
-					else if (field == 59)
-						return Pb::ReadInts(wt, v, b, n, r.round_ends);
 					else if (field == 60)
 						return r.patches.size() < 16 && ServerPatchRead(b, n, r.patches.emplace_back());
 					else if (field == 61 && wt == 2 && r.round_states.size() < 256)
@@ -193,6 +184,32 @@ namespace Zdxsv
 		}
 
 
+		// Replay and common state downloads run on a worker, never on the CPU thread: pause and shutdown keep working.
+		struct PlayFetch
+		{
+			std::thread worker;
+			std::atomic<bool> stop{false};
+			std::map<std::string, std::optional<std::vector<u8>>> got; // CPU thread: the worker's replay files by URL
+			std::string common_fetched; // the common state URL a broken copy was deleted of: once per URL per run
+			bool common_fresh = false; // the common state was just downloaded and checked
+			u32 id = 0; // bumped by PlayFetchStop: a queued end of an earlier fetch drops out
+		};
+		PlayFetch s_fetch;
+
+		class PlayFetchCancel final : public BaseProgressCallback
+		{
+		public:
+			bool IsCancelled() const override { return s_fetch.stop.load(); }
+			void SetTitle(const char*) override {}
+			void DisplayError(const char*) override {}
+			void DisplayWarning(const char*) override {}
+			void DisplayInformation(const char*) override {}
+			void DisplayDebugMessage(const char*) override {}
+			void ModalError(const char*) override {}
+			bool ModalConfirmation(const char*) override { return false; }
+			void ModalInformation(const char*) override {}
+		};
+
 		// The lobby stores replays gzip encoded with Cache-Control: no-transform, so its bucket serves them compressed
 		// whatever the request's Accept-Encoding, and the HTTP clients do not decode them.
 		std::optional<std::vector<u8>> Gunzip(const std::string& url, const std::vector<u8>& in)
@@ -204,15 +221,20 @@ namespace Zdxsv
 			z.avail_in = static_cast<uInt>(in.size());
 			std::vector<u8> out;
 			int rc = Z_OK;
-			while (rc == Z_OK)
+			while (rc == Z_OK && out.size() < REPLAY_MAX_BYTES)
 			{
-				out.resize(out.size() + std::max<size_t>(in.size() * 4, 1 << 16));
+				out.resize(std::min(out.size() + std::max<size_t>(in.size() * 4, 1 << 16), REPLAY_MAX_BYTES));
 				z.next_out = out.data() + z.total_out;
 				z.avail_out = static_cast<uInt>(out.size() - z.total_out);
 				rc = inflate(&z, Z_NO_FLUSH);
 			}
 			out.resize(z.total_out);
 			inflateEnd(&z);
+			if (rc == Z_OK)
+			{
+				Console.Error("ZdxsvGgpo: replay %s: gzip data over %zu MiB", url.c_str(), REPLAY_MAX_BYTES >> 20);
+				return std::nullopt;
+			}
 			if (rc != Z_STREAM_END)
 			{
 				Console.Error("ZdxsvGgpo: replay %s: bad gzip data (zlib %d)", url.c_str(), rc);
@@ -232,12 +254,13 @@ namespace Zdxsv
 			}
 			http->SetTimeout(120.0f);
 			std::optional<std::vector<u8>> got;
+			PlayFetchCancel cancel;
 			http->CreateRequest(url, [&](s32 status, const std::string&, HTTPDownloader::Request::Data data) {
 				if (status == HTTPDownloader::HTTP_STATUS_OK)
 					got = std::move(data);
 				else
 					Console.Error("ZdxsvGgpo: replay %s: status %d", url.c_str(), status); // 204: no such battle
-			});
+			}, &cancel);
 			http->WaitForAllRequests();
 			if (got && got->size() >= 2 && (*got)[0] == 0x1f && (*got)[1] == 0x8b)
 				got = Gunzip(url, *got);
@@ -258,7 +281,7 @@ namespace Zdxsv
 
 		// ZDXSV_REPLAY=http(s)://...: a replay file, or the lobby's /lbs/replay?battle_code=C answer
 		// (a JSON list, newest first), whose first battle's replay_url is then fetched.
-		std::optional<std::vector<u8>> HttpOpen(const std::string& url)
+		std::optional<std::vector<u8>> HttpFetch(const std::string& url)
 		{
 			std::optional<std::vector<u8>> got = HttpGet(url);
 			if (!got || got->empty() || got->front() != '[') // a .pb starts with field 1 (0x08)
@@ -271,6 +294,16 @@ namespace Zdxsv
 			}
 			Console.WriteLn("ZdxsvGgpo: replay %s: replay_url %s", url.c_str(), pb.c_str());
 			return HttpGet(pb);
+		}
+
+		std::optional<std::vector<u8>> HttpOpen(const std::string& url)
+		{
+			const auto it = s_fetch.got.find(url);
+			if (it == s_fetch.got.end())
+				return std::nullopt;
+			std::optional<std::vector<u8>> got = std::move(it->second);
+			s_fetch.got.erase(it);
+			return got;
 		}
 
 		// Counted only for a pick of the replay list, whose remote replays come from LobbyApiUrl(): a ZDXSV_REPLAY url may
@@ -304,11 +337,18 @@ namespace Zdxsv
 				Console.Error("ZdxsvGgpo: replay %s: one file plays every position, a 2nd one is not used", path.c_str());
 				return -1;
 			}
+			const std::string native = Path::ToNativePath(path); // '/' fails on Windows
+			FILESYSTEM_STAT_DATA st;
+			if (!live && !http && FileSystem::StatFile(native.c_str(), &st) && st.Size > static_cast<s64>(REPLAY_MAX_BYTES))
+			{
+				Console.Error("ZdxsvGgpo: replay %s: over %zu MiB", path.c_str(), REPLAY_MAX_BYTES >> 20);
+				return -1;
+			}
 			const std::optional<std::vector<u8>> file =
-				live ? LiveOpen(path) : http ? HttpOpen(path) : FileSystem::ReadBinaryFile(Path::ToNativePath(path).c_str()); // '/' fails on Windows
+				live ? LiveOpen(path) : http ? HttpOpen(path) : FileSystem::ReadBinaryFile(native.c_str());
 			const std::string_view all = file ? std::string_view(reinterpret_cast<const char*>(file->data()), file->size()) : std::string_view();
 			ReplayFile r;
-			if (all.empty() || !ReplayParse(all, r) || r.version <= 0)
+			if (all.empty() || all.size() > REPLAY_MAX_BYTES || !ReplayParse(all, r) || r.version <= 0)
 			{
 				Console.Error("ZdxsvGgpo: replay %s: not a replay file", path.c_str());
 				return -1;
@@ -344,8 +384,8 @@ namespace Zdxsv
 				Console.Error("ZdxsvGgpo: replay %s: hle0 kind-3 counters %d,%d,%d,%d,%d not 0", path.c_str(), h[4], h[5], h[6], h[7], h[8]);
 				return -1;
 			}
-			s_play_common = true;
-			s_play_answers = std::move(r.answers);
+			s_play_common.on = true;
+			s_play_common.answers = std::move(r.answers);
 			s_play.inputs.resize(static_cast<size_t>(frames * players));
 			std::memcpy(s_play.inputs.data(), r.inputs.data(), r.inputs.size());
 			s_play.frames = static_cast<int>(frames);
@@ -394,11 +434,11 @@ namespace Zdxsv
 			PlayFileRels(rb.ps.rel, rb.ms.rel);
 			Console.WriteLn("ZdxsvGgpo: replay %s: recorded at position %lld of %d, %lld frames, rx0 %zu bytes, "
 							"%zu lobby answers, state hashes %s, rngs %zu", path.c_str(), me, s_opt.players, frames,
-				rb.net_rx.size(), s_play_answers.size(), r.hashes.empty() ? "no" : "yes",
+				rb.net_rx.size(), s_play_common.answers.size(), r.hashes.empty() ? "no" : "yes",
 				(r.start_rng ? 1 : 0) + std::min(r.load_frames.size(), r.load_rngs.size()));
 			if (s_net_trace) // battle start marker: pwcheck.py --battle splits a multi-battle trace (live auto-next)
 				std::fprintf(s_net_trace, "%u B %s\n", g_FrameCount, r.code.empty() ? "-" : r.code.c_str());
-			if (http && s_play_listed)
+			if (http && s_play_src.listed)
 				ReplayPlayed(r.code);
 			return static_cast<int>(me);
 		}
@@ -406,11 +446,87 @@ namespace Zdxsv
 		// The hosted post-entry state of a common start: ZDXSV_REPLAY_STATE, else the setting
 		// DEV9/Eth ZdxsvReplayStateUrl (default: the hosted one); a URL is downloaded once into the cache (one file
 		// per URL). Set empty = the booted state is used as it is.
-		bool PlayCommonState()
+		struct CommonSource
+		{
+			std::string src, path;
+			std::string_view want; // SHA-256 hex, empty: not pinned
+			bool http = false;
+		};
+
+		CommonSource CommonStateSource()
 		{
 			const char* env = TestEnv("ZDXSV_REPLAY_STATE");
-			const std::string src = env ? env : Host::GetStringSettingValue("DEV9/Eth", "ZdxsvReplayStateUrl", REPLAY_STATE_URL);
-			std::string path = src;
+			CommonSource c;
+			c.src = env ? env : Host::GetStringSettingValue("DEV9/Eth", "ZdxsvReplayStateUrl", REPLAY_STATE_URL);
+			c.path = c.src;
+			c.http = c.src.starts_with("http://") || c.src.starts_with("https://");
+			c.want = c.src == REPLAY_STATE_URL ? REPLAY_STATE_SHA256 : "";
+			if (c.http)
+				c.path = Path::Combine(EmuFolders::Cache, fmt::format("zdxsv-common-{:016x}.p2s", std::hash<std::string>{}(c.src)));
+			return c;
+		}
+
+		bool CommonStatePinned(const CommonSource& c, const std::vector<u8>& data)
+		{
+			if (c.want.empty())
+				return true;
+			std::array<unsigned char, 32> sum;
+			mbedtls_sha256(data.data(), data.size(), sum.data(), 0);
+			if (StringUtil::EncodeHex(sum.data(), static_cast<int>(sum.size())) == c.want)
+				return true;
+			Console.Error("ZdxsvGgpo: replay: common state %s: SHA-256 mismatch", c.src.c_str());
+			return false;
+		}
+
+		// Worker thread.
+		bool CommonStateDownload(const CommonSource& c)
+		{
+			const std::optional<std::vector<u8>> got = HttpGet(c.src);
+			if (!got || !CommonStatePinned(c, *got) || !FileSystem::WriteBinaryFile(c.path.c_str(), got->data(), got->size()))
+			{
+				Console.Error("ZdxsvGgpo: replay: common state %s: download to %s failed", c.src.c_str(), c.path.c_str());
+				return false;
+			}
+			Console.WriteLn("ZdxsvGgpo: replay: common state %s: %zu bytes into %s", c.src.c_str(), got->size(), c.path.c_str());
+			return true;
+		}
+
+		// Downloads the URLs and a missing common state on the worker, then runs `then` on the CPU thread with the
+		// files in s_fetch.got. A VM shutdown cancels the downloads and drops `then`.
+		void PlayFetchThen(std::vector<std::string> urls, bool common, std::function<void()> then)
+		{
+			PlayFetchStop();
+			const CommonSource c = CommonStateSource();
+			Console.WriteLn("ZdxsvGgpo: replay: downloading %zu file(s)%s at vsync %u", urls.size(), common ? " and the common state" : "",
+				g_FrameCount);
+			s_fetch.worker = std::thread([urls = std::move(urls), common, c, then = std::move(then), id = s_fetch.id]() mutable {
+				Threading::SetNameOfCurrentThread("Zdxsv Replay Download");
+				auto got = std::make_shared<std::map<std::string, std::optional<std::vector<u8>>>>();
+				for (const std::string& url : urls)
+					if (!s_fetch.stop)
+						(*got)[url] = HttpFetch(url);
+				const bool downloaded = common && !s_fetch.stop && CommonStateDownload(c);
+				if (s_fetch.stop)
+					return;
+				Host::RunOnCPUThread([got, downloaded, then = std::move(then), id] {
+					if (id != s_fetch.id)
+						return;
+					if (s_fetch.worker.joinable())
+						s_fetch.worker.join();
+					Console.WriteLn("ZdxsvGgpo: replay: downloads done at vsync %u", g_FrameCount);
+					s_fetch.common_fresh = downloaded;
+					s_fetch.got = std::move(*got);
+					then();
+					s_fetch.got.clear();
+				});
+			});
+		}
+
+		bool PlayCommonState()
+		{
+			const CommonSource c = CommonStateSource();
+			const std::string& src = c.src;
+			std::string path = c.path;
 			if (src.empty()) // the booted state, saved at the first start for a switch's start
 			{
 				path = Path::Combine(EmuFolders::Cache, "zdxsv-common-booted.p2s");
@@ -426,63 +542,32 @@ namespace Zdxsv
 					return true;
 				}
 			}
-			const bool http = src.starts_with("http://") || src.starts_with("https://");
-			const std::string_view want = src == REPLAY_STATE_URL ? REPLAY_STATE_SHA256 : "";
-			const auto pinned = [&want, &src](const std::vector<u8>& data) {
-				if (want.empty())
-					return true;
-				std::array<unsigned char, 32> sum;
-				mbedtls_sha256(data.data(), data.size(), sum.data(), 0);
-				if (StringUtil::EncodeHex(sum.data(), static_cast<int>(sum.size())) == want)
-					return true;
-				Console.Error("ZdxsvGgpo: replay: common state %s: SHA-256 mismatch", src.c_str());
-				return false;
-			};
-			const auto download = [&src, &path, &pinned]() {
-				const std::optional<std::vector<u8>> got = HttpGet(src);
-				if (!got || !pinned(*got) || !FileSystem::WriteBinaryFile(path.c_str(), got->data(), got->size()))
-				{
-					Console.Error("ZdxsvGgpo: replay: common state %s: download to %s failed", src.c_str(), path.c_str());
-					return false;
-				}
-				Console.WriteLn("ZdxsvGgpo: replay: common state %s: %zu bytes into %s", src.c_str(), got->size(), path.c_str());
-				return true;
-			};
-			bool fresh = false;
-			if (http)
+			if (c.http && !FileSystem::FileExists(path.c_str()))
 			{
-				path = Path::Combine(EmuFolders::Cache, fmt::format("zdxsv-common-{:016x}.p2s", std::hash<std::string>{}(src)));
-				if (!FileSystem::FileExists(path.c_str()))
-				{
-					if (!download())
-						return false;
-					fresh = true;
-				}
+				Console.Error("ZdxsvGgpo: replay: common state %s: not downloaded", src.c_str());
+				return false;
 			}
+			const bool fresh = std::exchange(s_fetch.common_fresh, false);
 			Error error;
-			bool loaded = fresh || want.empty();
+			bool loaded = fresh || c.want.empty();
 			if (!loaded)
 			{
 				const std::optional<std::vector<u8>> cached = FileSystem::ReadBinaryFile(path.c_str());
-				loaded = cached && pinned(*cached);
+				loaded = cached && CommonStatePinned(c, *cached);
 				if (!loaded)
 					error.SetStringView("not the pinned file");
 			}
 			loaded = loaded && ReplayLoadState(path.c_str(), &error);
-			// a broken cached copy (a cut download, a bad disk) is downloaded again, once per URL per run: a start
-			// that fails is tried again soon, and a bad file on the server would be downloaded at each try
-			static std::string refetched;
-			if (!loaded && http && !fresh && refetched != src)
-			{
-				refetched = src;
-				Console.Error("ZdxsvGgpo: replay: common state %s: cached copy load failed: %s", path.c_str(), error.GetDescription().c_str());
-				FileSystem::DeleteFilePath(path.c_str());
-				error.Clear();
-				loaded = download() && ReplayLoadState(path.c_str(), &error);
-			}
 			if (!loaded)
 			{
 				Console.Error("ZdxsvGgpo: replay: common state %s: load failed: %s", path.c_str(), error.GetDescription().c_str());
+				// a broken cached copy (a cut download, a bad disk) is deleted for a new download, once per URL per run:
+				// a bad file on the server would be downloaded at each try
+				if (c.http && !fresh && s_fetch.common_fetched != src)
+				{
+					s_fetch.common_fetched = src;
+					FileSystem::DeleteFilePath(path.c_str());
+				}
 				return false;
 			}
 			Console.WriteLn("ZdxsvGgpo: replay: common state %s loaded", path.c_str());
@@ -530,24 +615,24 @@ namespace Zdxsv
 		// Takeover requests at the frame end before `next` runs (may set it). Returns true: pause after it.
 		bool PlayTakeover(int& next)
 		{
-			int req = s_to_req.exchange(TO_REQ_NONE);
+			int req = s_to_shared.req.exchange(TO_REQ_NONE);
 			if (next == s_to_test_at)
 				s_to_test_at = -1, req = TO_REQ_TAKE;
-			if (next == s_to_test_retry && s_to_phase == TO_ON)
+			if (next == s_to_test_retry && s_to_shared.phase == TO_ON)
 				s_to_test_retry = -1, req = TO_REQ_RETRY;
-			if (s_to_phase == TO_ON && !s_to_test)
+			if (s_to_shared.phase == TO_ON && !s_to_test)
 			{
 				const bool start = s_host[PadDualshock2::Inputs::PAD_START] >= 0.5f;
 				if (start && !s_to.start_held)
 					req = TO_REQ_RETRY;
 				s_to.start_held = start;
 			}
-			const int phase = s_to_phase;
+			const int phase = s_to_shared.phase;
 			const bool aligning = phase == TO_COUNT;
 			const auto align = [] {
-				s_to_phase = TO_COUNT;
+				s_to_shared.phase = TO_COUNT;
 				s_to.count_t0 = 0;
-				Console.WriteLn("ZdxsvGgpo: replay takeover: countdown at frame %d, the replay's input %04x", s_to.frame, s_to_target.load());
+				Console.WriteLn("ZdxsvGgpo: replay takeover: countdown at frame %d, the replay's input %04x", s_to.frame, s_to_shared.target.load());
 			};
 			const auto load = [&next] {
 				const int t = TakeoverLoad();
@@ -651,33 +736,85 @@ namespace Zdxsv
 	}
 
 
+	void PlayFetchStop()
+	{
+		s_fetch.stop = true;
+		if (s_fetch.worker.joinable())
+			s_fetch.worker.join();
+		s_fetch.stop = false;
+		s_fetch.id++;
+		s_fetch.got.clear();
+		s_fetch.common_fresh = false;
+	}
+
+	namespace
+	{
+		bool CommonStateMissing()
+		{
+			const CommonSource c = CommonStateSource();
+			return c.http && !FileSystem::FileExists(c.path.c_str());
+		}
+
+		// fetched: this start downloaded the common state already (a failed download is not tried again)
+		void PlayStartAs(int me, bool fetched)
+		{
+			if (!fetched && CommonStateMissing())
+			{
+				PlayFetchThen({}, true, [me] { PlayStartAs(me, true); });
+				return;
+			}
+			if (PlayCommonArm(me))
+				return;
+			if (!fetched && CommonStateMissing()) // PlayCommonState deleted a broken cached copy
+			{
+				PlayFetchThen({}, true, [me] { PlayStartAs(me, true); });
+				return;
+			}
+			PlayFailed(TRANSLATE_STR("Zdxsv", "Failed to start the replay. The common start state could not be downloaded or loaded."));
+		}
+
+		void PlayLoadFiles(const std::string& paths, bool fetched)
+		{
+			int me = -1;
+			for (const std::string_view path : StringUtil::SplitString(paths, ';'))
+				if (const int p = PlayLoadFile(std::string(path)); me < 0)
+					me = p;
+			if (me < 0 && paths.starts_with("live:") && LiveAutoNext(true))
+				return; // a live battle that does not play is skipped, the wait goes on
+			if (me < 0)
+			{
+				PlayFailed(TRANSLATE_STR("Zdxsv", "Failed to start the replay. The replay file could not be read, or it is corrupted or outdated."));
+				return;
+			}
+			const char* e = TestEnv("ZDXSV_REPLAY_POV");
+			if (const std::string pov = e ? e : s_play_src.picked_pov >= 0 ? std::to_string(s_play_src.picked_pov) : ""; !pov.empty())
+			{
+				const int p = std::atoi(pov.c_str());
+				if (p >= 0 && p < s_opt.players && s_play.pov_ok[p])
+					me = p;
+				else
+					Console.Error("ZdxsvGgpo: replay: point of view %s is not a position of the battle, playing position %d", pov.c_str(), me);
+			}
+			PlayStartAs(me, fetched);
+		}
+	} // namespace
+
 	// CPU thread, queued at the first vsync.
 	void PlayLoad()
 	{
-		int me = -1;
 		PlayKeysPrune();
-		const std::string paths = s_live_next_url.empty() ? s_play_env : s_live_next_url; // the split's views point into it
+		std::string paths = s_live_next.url.empty() ? s_play_src.path : s_live_next.url;
+		std::vector<std::string> urls;
 		for (const std::string_view path : StringUtil::SplitString(paths, ';'))
-			if (const int p = PlayLoadFile(std::string(path)); me < 0)
-				me = p;
-		if (me < 0 && paths.starts_with("live:") && LiveAutoNext(true))
-			return; // a live battle that does not play is skipped, the wait goes on
-		if (me < 0)
+			if (path.starts_with("http://") || path.starts_with("https://"))
+				urls.emplace_back(path);
+		const bool common = CommonStateMissing();
+		if (urls.empty() && !common)
 		{
-			PlayFailed(TRANSLATE_STR("Zdxsv", "Failed to start the replay. The replay file could not be read, or it is corrupted or outdated."));
+			PlayLoadFiles(paths, false);
 			return;
 		}
-		const char* e = TestEnv("ZDXSV_REPLAY_POV");
-		if (const std::string pov = e ? e : s_play_picked_pov >= 0 ? std::to_string(s_play_picked_pov) : ""; !pov.empty())
-		{
-			const int p = std::atoi(pov.c_str());
-			if (p >= 0 && p < s_opt.players && s_play.pov_ok[p])
-				me = p;
-			else
-				Console.Error("ZdxsvGgpo: replay: point of view %s is not a position of the battle, playing position %d", pov.c_str(), me);
-		}
-		if (!PlayCommonArm(me))
-			PlayFailed(TRANSLATE_STR("Zdxsv", "Failed to start the replay. The common start state could not be downloaded or loaded."));
+		PlayFetchThen(std::move(urls), common, [paths = std::move(paths), common] { PlayLoadFiles(paths, common); });
 	}
 
 	// The battle start from the common state, the lobby answering 0x6912 (own position) with pov: the game plays that
@@ -686,11 +823,11 @@ namespace Zdxsv
 	{
 		if (!PlayCommonState())
 			return false;
-		s_play_common = true;
+		s_play_common.on = true;
 		s_play.rearm_seek = seek;
 		if (seek >= 0)
 		{
-			s_play_rearm_limiter = VMManager::GetLimiterMode();
+			s_play_common.rearm_limiter = VMManager::GetLimiterMode();
 			s_play.target = -1;
 			VMManager::SetLimiterMode(LimiterModeType::Unlimited); // the lobby phase up to the arm
 		}
@@ -703,16 +840,20 @@ namespace Zdxsv
 		s_battle.end = -1;
 		s_battle.last_real = INT_MAX;
 		s_battle.zd_steps = s_battle.zd_changed = s_battle.zds_echo = s_battle.zds_skip = s_battle.zds_k3rel = 0;
+		std::fill(std::begin(s_battle.zd_last), std::end(s_battle.zd_last), -1);
+		s_battle.zd_repeats = s_battle.zd_gaps = 0;
+		s_battle.zd_gap_min = INT_MAX;
+		s_battle.zd_gap_max = 0;
 		for (auto& k3 : s_battle.zds_k3)
 			k3.clear();
 		s_opt.net = true;
 		s_battle.me = pov;
-		s_rbk = true;
-		s_rbk_me = pov;
-		s_rbk_n = s_opt.players;
+		s_rbk.on = true;
+		s_rbk.me = pov;
+		s_rbk.n = s_opt.players;
 		RbkReset();
 		Console.WriteLn("ZdxsvGgpo: replay: common start as position %d of %d, %zu lobby answers%s", pov, s_opt.players,
-			s_play_answers.size(), seek >= 0 ? fmt::format(", then seek to {}", seek).c_str() : "");
+			s_play_common.answers.size(), seek >= 0 ? fmt::format(", then seek to {}", seek).c_str() : "");
 		return true;
 	}
 
@@ -720,7 +861,7 @@ namespace Zdxsv
 	// of the point of view, then the replay starts from it as from a file's state.
 	void PlayCommonStart()
 	{
-		s_play_common = false;
+		s_play_common.on = false;
 		const int me = s_battle.me;
 		PlayKey& k0 = *s_play_keys[me].at(0);
 		const bool hle_same = k0.rb.net_rx == s_rb.net_rx && k0.rb.ps == s_rb.ps && k0.rb.ms == s_rb.ms;
@@ -737,7 +878,7 @@ namespace Zdxsv
 		k0.ok = true;
 		// the file's HLE state is its recorder's position's
 		Console.WriteLn("ZdxsvGgpo: replay: common start armed at vsync %u as position %d (asked %d), frame 0 HLE state %s",
-			g_FrameCount, me, s_rbk_me, me != s_play.rng_pos ? "not compared" : hle_same ? "equals the file's" : "differs from the file's");
+			g_FrameCount, me, s_rbk.me, me != s_play.rng_pos ? "not compared" : hle_same ? "equals the file's" : "differs from the file's");
 		// PlayBegin loads that state as PlayLoad does
 		s_battle.started = false;
 		g_ggpo_active = false;
@@ -765,7 +906,7 @@ namespace Zdxsv
 		if (const int seek = std::exchange(s_play.rearm_seek, -1); seek >= 0)
 		{
 			// a switch: the rest of the first start (options, four-screen) stays
-			VMManager::SetLimiterMode(s_play_rearm_limiter);
+			VMManager::SetLimiterMode(s_play_common.rearm_limiter);
 			Console.WriteLn("ZdxsvGgpo: replay: point of view %d from its key 0, seeking to %d", me, seek);
 			s_play_req = seek;
 			PlayFrame(0);
@@ -795,7 +936,7 @@ namespace Zdxsv
 		if (const char* e = TestEnv("ZDXSV_REPLAY_POV_AT"))
 			for (const std::string_view one : StringUtil::SplitString(e, ','))
 				if (const size_t c = one.find(':'); c != std::string_view::npos)
-					s_play_pov_at.emplace_back(StringUtil::FromChars<int>(one.substr(0, c)).value_or(-1),
+					s_play.pov_at.emplace_back(StringUtil::FromChars<int>(one.substr(0, c)).value_or(-1),
 						StringUtil::FromChars<int>(one.substr(c + 1)).value_or(-1));
 		std::string povs;
 		for (int p = 0; p < s_opt.players; p++)
@@ -816,10 +957,10 @@ namespace Zdxsv
 			s_play_req = s_play.seeks.front().second;
 			s_play.seeks.pop_front();
 		}
-		if (!s_play_pov_at.empty() && s_play_pov_at.front().first == next)
+		if (!s_play.pov_at.empty() && s_play.pov_at.front().first == next)
 		{
-			s_play_pov_req = s_play_pov_at.front().second;
-			s_play_pov_at.pop_front();
+			s_play_pov_req = s_play.pov_at.front().second;
+			s_play.pov_at.pop_front();
 		}
 		if (!s_play.round_at.empty() && s_play.round_at.front().first == next)
 		{
@@ -827,9 +968,9 @@ namespace Zdxsv
 			s_play.round_at.pop_front();
 		}
 		bool pause = PlayTakeover(next);
-		if (s_to_phase == TO_COUNT && s_to.pause_in > 0 && --s_to.pause_in == 0)
+		if (s_to_shared.phase == TO_COUNT && s_to.pause_in > 0 && --s_to.pause_in == 0)
 			pause = true;
-		if (s_to_phase != TO_OFF) // no seek, round jump or point of view switch
+		if (s_to_shared.phase != TO_OFF) // no seek, round jump or point of view switch
 		{
 			s_play_req = INT_MIN;
 			s_play_pov_req = -1;
@@ -881,8 +1022,8 @@ namespace Zdxsv
 				run = load;
 			}
 		}
-		if (const bool chase = std::exchange(s_sync_chase, false); req != INT_MIN && !chase && Zdxsv::SpectateSync::IsHost())
-			Zdxsv::SpectateSync::HostSeek(req);
+		if (const bool chase = std::exchange(s_sync_chase, false); req != INT_MIN && !chase && Zdxsv::SpectateSyncIsHost())
+			Zdxsv::SpectateSyncHostSeek(req);
 		if (req != INT_MIN || run >= 0 || (pov >= 0 && pov != s_battle.me))
 		{
 			PlayRunEnd("cancelled by a seek", s_battle.frame);
@@ -913,7 +1054,7 @@ namespace Zdxsv
 		if (next >= s_play.frames)
 			PlayRunEnd("replay ended first", s_battle.frame);
 		const char* exit_env = TestEnv("ZDXSV_REPLAY_EXIT");
-		if (next < s_play.frames || (s_to_phase == TO_ON && !(exit_env && exit_env[0] == '1')))
+		if (next < s_play.frames || (s_to_shared.phase == TO_ON && !(exit_env && exit_env[0] == '1')))
 		{
 			s_play.at_end = false;
 			s_live_wait.reset(); // played on from the end: no move to another battle

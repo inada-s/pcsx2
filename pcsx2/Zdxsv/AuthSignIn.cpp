@@ -317,19 +317,30 @@ namespace Zdxsv
 		return {};
 	}
 
-	std::string AuthSignOut()
+	std::string AuthSignOut(bool every_pc)
 	{
 		std::string error;
 		if (const std::optional<std::string> token = AuthTokenRead())
 		{
 			s32 status;
-			Post(AuthUrl("/revoke"), "token=" + *token, &status);
+			Post(AuthUrl("/revoke"), "token=" + *token + (every_pc ? "&all=1" : ""), &status);
 			if (status < 200 || status > 299)
 				error = "the server did not revoke the token (" + std::to_string(status) + ")";
 		}
+		else if (every_pc)
+		{
+			return "not signed in";
+		}
+		// Kept on a failed revoke of every PC: it is the only way to retry.
+		if (every_pc && !error.empty())
+		{
+			Console.Error("Zdxsv: auth: sign-out on every PC failed: %s", error.c_str());
+			return error;
+		}
 		if (FileSystem::FileExists(TokenPath().c_str()) && !FileSystem::DeleteFilePath(TokenPath().c_str()))
 			return "cannot delete the token file";
-		Console.WriteLn("Zdxsv: auth: signed out%s%s", error.empty() ? "" : ", ", error.c_str());
+		Console.WriteLn("Zdxsv: auth: signed out%s%s%s", every_pc ? " on every PC" : "", error.empty() ? "" : ", ",
+			error.c_str());
 		return error;
 	}
 

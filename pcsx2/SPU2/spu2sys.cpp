@@ -42,6 +42,7 @@ s32 (*ReverbDownsample)(V_Core& core, bool right);
 
 // Function pointer for multi-isa mixer 
 void (*spu2Mix)();
+// zdxsv: lazy SPU2 voices (Zdxsv/SpuLazyVoices.cpp)
 void (*spu2StepStoppedVoice)(uint coreidx, uint voiceidx);
 void (*spu2UpdateBlockHeader)(uint coreidx, uint voiceidx);
 

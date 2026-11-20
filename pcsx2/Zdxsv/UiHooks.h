@@ -50,7 +50,7 @@ namespace Zdxsv
 	bool ReplayStepHoldsAudio(bool paused);
 	void ReplaySpeedBy(int delta);
 	u32 ReplayPadPokes();
-	// Under g_ggpo_active (VMManager): state saves and loads and disc changes.
+	// Under g_ggpo_enabled (VMManager): state saves and loads and disc changes, from the VM start of a replay.
 	bool ReplayRefuses(Error* error = nullptr);
 	void ReplaySeekTo(int frame);
 	void ReplayTogglePause();

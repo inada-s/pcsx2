@@ -7,6 +7,9 @@
 
 namespace Zdxsv
 {
+	// A rollback rerun frame (sound dropped): true = V_Core::DoReverb skips its reverb (SpuLazyVoices.cpp).
+	bool SpuRerunReverbSkip(bool fx_enable, u32 effects_start, u32 effects_end);
+
 	// Stopped voices that skip mixing until their decode could reach the next block (SpuLazyVoices.cpp).
 	struct SpuLazyVoices
 	{

@@ -29,7 +29,7 @@ EmulationSettingsWidget::EmulationSettingsWidget(SettingsWindow* settings_dialog
 	initializeSpeedCombo(m_ui.slowMotionSpeed, "Framerate", "SlomoScalar", 0.5f);
 
 	SettingWidgetBinder::BindWidgetToIntSetting(sif, m_ui.maxFrameLatency, "EmuCore/GS", "VsyncQueueSize", DEFAULT_FRAME_LATENCY);
-	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.vsync, "EmuCore/GS", "VsyncEnable", true);
+	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.vsync, "EmuCore/GS", "VsyncEnable", true); // zdxsv: VSync on by default
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.syncToHostRefreshRate, "EmuCore/GS", "SyncToHostRefreshRate", false);
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.useVSyncForTiming, "EmuCore/GS", "UseVSyncForTiming", false);
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.skipPresentingDuplicateFrames, "EmuCore/GS", "SkipDuplicateFrames", true);
@@ -144,6 +144,7 @@ EmulationSettingsWidget::EmulationSettingsWidget(SettingsWindow* settings_dialog
 		   "potentially increasing the emulation speed by less than 1%. Sync to Host Refresh Rate will not take effect if "
 		   "the console's refresh rate is too far from the host's refresh rate. Users with variable refresh rate displays "
 		   "should disable this option."));
+	// zdxsv: VSync on by default
 	dialog()->registerWidgetHelp(m_ui.vsync, tr("Vertical Sync (VSync)"), tr("Checked"),
 		tr("Enable this option to match PCSX2's refresh rate with your current monitor or screen. VSync is automatically disabled when "
 		   "it is not possible (e.g., running at non-100% speed)."));
@@ -299,7 +300,7 @@ void EmulationSettingsWidget::updateOptimalFramePacing()
 
 void EmulationSettingsWidget::updateUseVSyncForTimingEnabled()
 {
-	const bool vsync = dialog()->getEffectiveBoolValue("EmuCore/GS", "VsyncEnable", true);
+	const bool vsync = dialog()->getEffectiveBoolValue("EmuCore/GS", "VsyncEnable", true); // zdxsv: VSync on by default
 	const bool sync_to_host_refresh = dialog()->getEffectiveBoolValue("EmuCore/GS", "SyncToHostRefreshRate", false);
 	m_ui.useVSyncForTiming->setEnabled(vsync && sync_to_host_refresh);
 }

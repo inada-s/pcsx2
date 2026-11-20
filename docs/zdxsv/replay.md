@@ -13,7 +13,8 @@ battles save to the replay folder without it (settings `ZdxsvSaveReplay`,
 - The file name is `<battle_code>.pb`, else `rbk-<start time>-p<position>.pb`.
 - Only frames GGPO confirmed are written, so every peer's file of one battle
   holds the same inputs.
-- The file is written when the session stops, also on a VM shutdown or reset.
+- The file is written when the session stops, also on a VM shutdown or reset,
+  to `<name>.pb.part` first, then renamed over `<name>.pb`.
   A session that ends before GGPO confirmed frame 0 writes and posts nothing.
 - A lobby battle's file is posted (multipart field `file`) to the
   lobby's upload API (zdxsv `/lbs/replay_upload?battle_code=&session_id=`,
@@ -42,7 +43,9 @@ battle would play every later input N frames late. A wait is bounded at
 600 frames; past it playback plays on and those frames count as
 `own load late`, not judged.
 The game's MS asset slot cache holds the MSes a machine loaded before and
-sets a hashed player-work byte at each battle load. Every GGPO session and
+sets a player-work byte (the slot) at each battle load. The state hash
+leaves that byte out from `log_file_version` 20261118; an older file
+hashed it, and playback of such a file hashes it too. Every GGPO session and
 every common start empties it at frame 0 (the game reloads each battle MS),
 so recorder and playback start from the same cache. A file recorded by a
 build that did not empty it can differ in state hashes from a round start
@@ -54,7 +57,8 @@ on, while positions and RNGs match.
 the first battle of the lobby's public API
 `http://<lobby api>/lbs/replay?battle_code=<code>`. A download
 that starts with the gzip magic (the lobby's bucket serves them gzip encoded) is
-decompressed first.
+decompressed first. A file over 256 MiB (decompressed) or with a repeated field
+over 4096 values is not played; a live stream stops past 256 MiB of records.
 
 Common start: playback loads a save state of the game
 at the post-entry point (logged in, before the lobby's battle start; any
@@ -62,6 +66,9 @@ user's), from `ZdxsvReplayStateUrl` (downloaded once into the cache
 folder, one file per URL: a new state needs a new URL; the default URL's file must match a SHA-256 built into the client, at download and at each load from the cache; a cached copy that
 does not load is downloaded again once). The game then plays the battle start from the recorded lobby
 answers, menus turbo, with the chosen point of view as the own position.
+The downloads (the `.pb`, the lobby's answer, a common state not in the cache)
+run on a worker thread while the game runs on; pause works, and a shutdown
+cancels them.
 From GGPO frame 0 every frame gets the recorded inputs through the same
 battle-socket emulation as a live battle, without GGPO.
 
@@ -69,7 +76,7 @@ battle-socket emulation as a live battle, without GGPO.
   end of the stream) the VM closes, so a replay started from the replay
   window goes back to it. A live battle with auto-next on waits for the
   next battle instead.
-- While a replay plays, state saves and loads and disc changes are refused
+- From the VM start of a replay (while it downloads too), state saves and loads and disc changes are refused
   from every entry point (hotkeys, menus, Big Picture, PINE), with the OSD
   "Not available during a replay."; the replay's own states (seek keys,
   takeover) still load.
@@ -190,7 +197,10 @@ D-pad. While taken over the pad plays the game.
   and the battle-socket state. A seek or round jump past the played frames
   whose path holds a mobile-suit-selection load end with a state starts
   from the first load end's key with that state written over it, instead of
-  running every frame from the start. Without that key (a point of view
+  running every frame from the start. The jump empties the mobile suit
+  cache, so the battle load reloads every mobile suit's assets and sounds
+  (the key holds another round's); the slots it picks can differ from the
+  recording's. Without that key (a point of view
   switched to after a jump), the seek runs to the first load end first, then
   jumps. State hashes are not checked up to the
   next load end (the player work still holds the first round's values); the

@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2026 zdxsv contributors
 // SPDX-License-Identifier: GPL-3.0+
 
+#include "Zdxsv/LobbyFrame.h"
 #include "Zdxsv/LobbySocket.h"
 #include "Zdxsv/CpuHooks.h"
 #include "Zdxsv/Ggpo.h"
@@ -29,9 +30,11 @@
 
 #include <atomic>
 #include <bit>
+#include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <memory>
 #include <mutex>
 #include <string>
@@ -292,13 +295,19 @@ namespace Zdxsv
 		return filter;
 	}
 
+	bool LobbyFirstDataPending(const u8* data, int len)
+	{
+		const u8 opening[4] = {LobbyToClient, LobbyQuestion, static_cast<u8>(LobbyKeyPair >> 8), static_cast<u8>(LobbyKeyPair)};
+		return len < static_cast<int>(LOBBY_FRAME_HEADER) && std::memcmp(data, opening, std::min(len, 4)) == 0;
+	}
+
 	// On a connection the lobby opens with the key pair question (0x6101), send the platform info
 	// (custom command 0x9950, "key=value" lines) before the game answers, so the lobby can tell
 	// emulator players apart. The game never sees it.
 	LobbyFilter* LobbyOnFirstData(uptr socket, u32 serverIp, const u8* data, int len)
 	{
 		const sock_t client = static_cast<sock_t>(socket);
-		if (len < 12 || data[0] != 0x18 || data[1] != 0x01 || data[2] != 0x61 || data[3] != 0x01)
+		if (len < static_cast<int>(LOBBY_FRAME_HEADER) || !LobbyFrameView{data}.Is(LobbyToClient, LobbyQuestion, LobbyKeyPair))
 			return nullptr;
 		// Only the Z game talks to the zdxsv lobby: any other game's server that happens to open the same way
 		// gets nothing (the platform info carries our addresses).
@@ -359,19 +368,14 @@ namespace Zdxsv
 		body += HttpsLatencyLines();
 
 		std::vector<u8> msg;
-		const auto append = [&msg](u8 command, const std::string& b) {
-			const u8 header[12] = {0x81, 0xFF, 0x99, command, static_cast<u8>(b.size() >> 8), static_cast<u8>(b.size()),
-				0x00, 0x00, 0x00, 0xFF, 0xFF, 0xFF};
-			msg.insert(msg.end(), header, header + 12);
-			msg.insert(msg.end(), b.begin(), b.end());
-		};
-		append(0x50, body);
+		if (!LobbyFrameAppend(msg, LobbyCustom, LobbyPlatformInfo, 0, body))
+			Console.Error("DEV9: TCP: zdxsv platform info of %zu bytes does not fit a lobby frame", body.size());
 		// The last lobby battle's report (0x9952, JSON).
 		const std::string report = ggpoPort > 0 ? TakeLobbyReport() : "";
 		const std::string encoded = EncodeMatchingReport(report);
 		if (!report.empty() && encoded.size() <= MATCHING_REPORT_MAX_BYTES)
 		{
-			append(0x52, encoded);
+			LobbyFrameAppend(msg, LobbyCustom, LobbyMatchingReport, 0, encoded);
 			Console.WriteLn("DEV9: TCP: zdxsv matching report: %s", ReportLogLine(report).c_str());
 		}
 

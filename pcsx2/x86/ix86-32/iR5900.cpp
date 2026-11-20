@@ -73,7 +73,7 @@ eeProfiler EE::Profiler;
 #define X86
 
 static DynamicHeapArray<u8, 4096> recRAMCopy;
-// Word view: the copy holds RAM words at their word index (indexing the u8 array by word overlapped neighbouring blocks' copies).
+// zdxsv: word view, the copy holds RAM words at their word index (indexing the u8 array by word overlapped neighbouring blocks' copies).
 static u32* recRAMCopyW() { return reinterpret_cast<u32*>(recRAMCopy.data()); }
 static DynamicHeapArray<BASEBLOCK, 4096> recLutReserve_RAM;
 static DynamicHeapArray<BASEBLOCK, 4096> recLutUnmapped;
@@ -2127,6 +2127,20 @@ static void memory_protect_recompiled_code(u32 startpc, u32 size)
 			}
 			break;
 	}
+
+	// zdxsv: upstream bug. A branch in a page's last word has its delay slot on the next page: compare the words
+	// there at block entry.
+	const u32 next_page = (startpc | 0xfff) + 1;
+	if (PageType != ProtMode_NotRequired && PageType != ProtMode_Manual && startpc + inpage_sz > next_page)
+	{
+		xMOV(arg1regd, inpage_ptr);
+		xMOV(arg2regd, size);
+		for (u32 pc = next_page; pc < startpc + inpage_sz; pc += 4)
+		{
+			xCMP(ptr32[PSM(pc)], *(u32*)PSM(pc));
+			xJNE(DispatchBlockDiscard);
+		}
+	}
 }
 
 // Skip MPEG Game-Fix
@@ -2697,7 +2711,7 @@ StartRecomp:
 			if ((oldBlock->startpc + oldBlock->size * 4) <= HWADDR(startpc))
 				break;
 
-			if (memcmp(&recRAMCopyW()[oldBlock->startpc / 4], PSM(oldBlock->startpc),
+			if (memcmp(&recRAMCopyW()[oldBlock->startpc / 4], PSM(oldBlock->startpc), // zdxsv: word view
 					oldBlock->size * 4))
 			{
 				recClear(startpc, (pc - startpc) / 4);
@@ -2707,7 +2721,7 @@ StartRecomp:
 			}
 		}
 
-		memcpy(&recRAMCopyW()[HWADDR(startpc) / 4], PSM(startpc), pc - startpc);
+		memcpy(&recRAMCopyW()[HWADDR(startpc) / 4], PSM(startpc), pc - startpc); // zdxsv: word view
 	}
 
 	s_pCurBlock->SetFnptr((uptr)recPtr);
