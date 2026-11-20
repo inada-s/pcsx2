@@ -16177,7 +16177,7 @@ Swap chain: see Microsoft&apos;s Terminology Portal.</extracomment>
     <message>
       <location filename="../Settings/GraphicsSettingsWidget.cpp" line="1154"/>
       <source>3x Native (~1080px/FHD)</source>
-      <translation>3x Native (~1080px/FHD)</translation>
+      <translation>3x ネイティブ (~1080px/FHD)</translation>
     </message>
     <message>
       <location filename="../Settings/GraphicsSettingsWidget.cpp" line="1155"/>
@@ -28323,8 +28323,8 @@ Continue with the keyboard?</source>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.cpp" line="72"/>
-      <source>Goes from game start to the lobby ID selection with no input. Uncheck it to play offline.</source>
-      <translation>ゲーム起動からロビーの ID 選択まで操作なしで進めます。オフラインで遊ぶときは外してください。</translation>
+      <source>Goes from game start to the lobby ID selection with no input.</source>
+      <translation>ゲーム起動からロビーの ID 選択まで操作なしで進めます。</translation>
     </message>
     <message>
       <location filename="../Settings/ZdxsvSettingsWidget.ui" line="20"/>
@@ -28799,6 +28799,38 @@ Steps:
   <message>
       <source>Account %1: not made yet (made at the first connection)</source>
       <translation>アカウント %1: 未作成 (最初の接続で作成)</translation>
+    </message>
+    <message>
+      <source>Graphics</source>
+      <translation>グラフィック</translation>
+    </message>
+    <message>
+      <source>Internal resolution:</source>
+      <translation>内部解像度:</translation>
+    </message>
+    <message>
+      <source>Apply widescreen patches</source>
+      <translation>ワイドスクリーンパッチを有効化</translation>
+    </message>
+    <message>
+      <source>Internal Resolution</source>
+      <translation>内部解像度</translation>
+    </message>
+    <message>
+      <source>Native (PS2)</source>
+      <translation>ネイティブ (PS2)</translation>
+    </message>
+    <message>
+      <source>The same setting as Graphics → Rendering → Internal Resolution.</source>
+      <translation>グラフィック → レンダリング → 内部解像度 と同じ設定です。</translation>
+    </message>
+    <message>
+      <source>Apply Widescreen Patches</source>
+      <translation>ワイドスクリーンパッチを有効化</translation>
+    </message>
+    <message>
+      <source>The same setting as Graphics → Display → Apply Widescreen Patches.</source>
+      <translation>グラフィック → 画面 → ワイドスクリーンパッチを有効化 と同じ設定です。</translation>
     </message>
   </context>
 </TS>

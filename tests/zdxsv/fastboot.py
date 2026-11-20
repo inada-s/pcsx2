@@ -1,4 +1,4 @@
-"""Fast boot: four boottime.py runs with fast boot at its default (on) and no input. Run 1 starts without the boot
+"""Fast boot: four boottime.py runs with fast boot on and no input. Run 1 starts without the boot
 state and must save it at the NET file load (within SAVELIMIT s); run 2 must load it and reach the user_id
 selection within LIMIT s of the VM start. Each run prints its time from the launch and the VM start.
 Run 3 (another card) must not load the state (it holds run 1's system data) and must save its own in its place.
@@ -18,7 +18,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 
 
 def boottime(out, name, **env):
-    e = dict(os.environ, ZDXSV_FAST_BOOT="default", OUT=os.path.join(out, name), **env)
+    e = dict(os.environ, ZDXSV_FAST_BOOT="1", OUT=os.path.join(out, name), **env)
     r = subprocess.run([zrig.PY, os.path.join(HERE, "boottime.py")], env=e, capture_output=True, text=True,
                        errors="replace")
     txt = r.stdout + r.stderr

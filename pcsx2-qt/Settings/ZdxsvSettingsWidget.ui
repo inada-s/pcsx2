@@ -131,6 +131,35 @@ for High-Spec PC</string>
     </layout>
    </item>
    <item>
+    <widget class="QGroupBox" name="graphicsGroupBox">
+     <property name="title">
+      <string>Graphics</string>
+     </property>
+     <layout class="QGridLayout" name="graphicsLayout" columnstretch="1,1">
+      <item row="0" column="0">
+       <widget class="QLabel" name="zdxsvUpscaleLabel">
+        <property name="text">
+         <string>Internal resolution:</string>
+        </property>
+        <property name="buddy">
+         <cstring>zdxsvUpscale</cstring>
+        </property>
+       </widget>
+      </item>
+      <item row="0" column="1">
+       <widget class="QComboBox" name="zdxsvUpscale"/>
+      </item>
+      <item row="1" column="0" colspan="2">
+       <widget class="QCheckBox" name="zdxsvWidescreen">
+        <property name="text">
+         <string>Apply widescreen patches</string>
+        </property>
+       </widget>
+      </item>
+     </layout>
+    </widget>
+   </item>
+   <item>
     <widget class="QGroupBox" name="battleGroupBox">
      <property name="title">
       <string>Online Battles</string>
