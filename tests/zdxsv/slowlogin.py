@@ -1,7 +1,7 @@
 """Slow login API under fast boot: the game waits at DNAS (paused) for the answer instead of running its own
 DNAS, which fails and shows its error.
   OUT=<dir> python tests/zdxsv/slowlogin.py
-Env as freshboot.py (servers + fresh_boot p1, FB_LOBBY=0), plus DELAY (s the login API answers late, default 2).
+Env as freshboot.py (servers + fresh_boot p1, FB_LOBBY=0), plus DELAY (s the login API answers late, default 4: longer than the game waits at DNAS on its own (under 3 s), shorter than the 5 s request timeout).
 The game's login API URL points at a relay on 127.0.0.1:9896 that forwards to the fake login API DELAY s late.
 Exit 0 = fast boot reaches the user_id selection after one login and the emulog has no
 `the game left DNAS before the answer`.
@@ -22,7 +22,7 @@ PORT = 9896
 class Relay(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         body = self.rfile.read(int(self.headers.get("Content-Length", 0)))
-        time.sleep(float(zrig.env("DELAY", "2")))
+        time.sleep(float(zrig.env("DELAY", "4")))
         req = urllib.request.Request(f"http://127.0.0.1:{os.environ['API']}{self.path}", data=body,
                                      headers={"Content-Type": self.headers.get("Content-Type", "")})
         with urllib.request.urlopen(req, timeout=10) as r:
