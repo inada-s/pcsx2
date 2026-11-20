@@ -22,6 +22,8 @@ EXPECT="regex=N;regex>=N": FAILs unless the emulog has exactly N (at least N) li
 PNACH=1: a pnach file for the Z game in the instance's patches/ and cheats/ (removed at exit); FAILs unless only
 `zdxsv built-in patches` are loaded.
 BAD=1: FILE is not a playable replay: exit 0 if the player is told it did not start (`replay: not started`).
+VU1CHECK=1 (ARM64 builds): PCSX2_VU1_JIT=check; also FAILs on a `VU1 trace check` line that `differs`, or
+without a `traces checked` line ending `, 0 differ` (logged from 1024 checked traces).
 """
 import atexit
 import glob
@@ -209,6 +211,9 @@ def main(live):
         e["ZDXSV_REPLAY_FOUR"] = "1"
     if zrig.env("SKIP_MS") != "ini":
         e["ZDXSV_REPLAY_SKIP_MS"] = zrig.env("SKIP_MS", "0")
+    vu1check = zrig.env("VU1CHECK") == "1"
+    if vu1check:
+        e["PCSX2_VU1_JIT"] = "check"
     for a in zrig.env("PCSX2_ENV").split():
         k, sep, v = a.partition("=")
         if sep:
@@ -279,6 +284,14 @@ def main(live):
     if not grep(l, "ZdxsvGgpo: replay end"):
         print("FAIL no replay end")
         ok = 1
+    if vu1check:
+        vc = grep(l, "VU1 trace check: ")
+        sums = [x for x in vc if "traces checked" in x]
+        for x in [x for x in vc if " differs: " in x][:5] + sums[-1:]:
+            print(x[:200])
+        if any(" differs: " in x for x in vc) or not sums or not sums[-1].rstrip().endswith(", 0 differ"):
+            print("FAIL VU1 trace check: a trace differs or no summary line")
+            ok = 1
     for m in expect:
         rx, op, want = m.group(1), m.group(2), int(m.group(3))
         got = len(grep(l, rx))

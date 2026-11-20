@@ -323,7 +323,7 @@ Scripts are in `tests/zdxsv/` except `run.py` (repository root) and
 | Feature | Test | Control |
 |---|---|---|
 | EE and IOP recompilers with the x86 timing | the same replay with `ZDXSV_CYCLE_LOG` on an ARM64 and an x86_64 build: same cycle lines | none |
-| VU1 trace recompiler | a replay with `PCSX2_VU1_JIT=check`: `0 differ`; `ZDXSV_VU1_OPTEST` vs the x86 build: `0 differ` | none |
+| VU1 trace recompiler | `VU1CHECK=1 rplay.py` on an ARM64 build: PASS (no trace differs, the last `traces checked` line `0 differ`); `ZDXSV_VU1_OPTEST` vs the x86 build: `0 differ` | none |
 | FPU and VU math as x86 | `ZDXSV_VU1_OPTEST` and `ZDXSV_EE_OPTEST` on an ARM64 and an x86_64 build, then `vu1_optest_cmp.py` / `ee_optest_cmp.py`: no op differs | none |
 | EE FPU interpreter as the recompiler | none | none |
 
