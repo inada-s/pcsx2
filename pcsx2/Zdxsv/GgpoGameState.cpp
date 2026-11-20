@@ -17,8 +17,10 @@ namespace Zdxsv
 			{0xcc, 0xffff}, {0x90, 0xffff0000}, {0x2144, 0xffff0000}};
 		// MS slot + 3, set at each battle load from the machine's MS cache, which a round jump empties
 		constexpr u32 PW_MS_SLOT = 0x2067;
-		// XXH3 of player p's work with the fields above masked (synctest hash=pw); ms_slot keeps PW_MS_SLOT.
-		u64 PwHash(u32 p, bool ms_slot = false)
+		// Depends on the point of view: the same inputs played from another POV can keep it set or clear for the rest of a round
+		constexpr u32 PW_VIEW_FLAG = 0x2074, PW_VIEW_FLAG_BIT = 2;
+		// XXH3 of player p's work with the fields above masked (synctest hash=pw), as files of that version hashed it.
+		u64 PwHash(u32 p, int version = REPLAY_FILE_VERSION)
 		{
 			std::array<u8, PW_SIZE> w;
 			std::memcpy(w.data(), &eeMem->Main[PW_BASE + PW_SIZE * p], PW_SIZE);
@@ -31,8 +33,10 @@ namespace Zdxsv
 				v &= ~bits;
 				std::memcpy(&w[o], &v, 4);
 			}
-			if (!ms_slot)
+			if (version >= 20261118)
 				w[PW_MS_SLOT] = 0;
+			if (version >= 20261121)
+				w[PW_VIEW_FLAG] &= static_cast<u8>(~PW_VIEW_FLAG_BIT);
 			return XXH3_64bits(w.data(), PW_SIZE);
 		}
 		std::array<u8, 4 * 12 + 4> PosRng()
@@ -58,11 +62,11 @@ namespace Zdxsv
 	std::map<int, std::array<u64, 5>> s_pw;
 	// The replay file's per-frame state hash (replay.proto state_hashes): the 4 masked player works (PwHash) and
 	// RNG B. RNG A is left out: its machine-local draws would make the files of one battle's positions differ.
-	u32 ReplayStateHash(bool ms_slot)
+	u32 ReplayStateHash(s64 version)
 	{
 		u64 h[5];
 		for (u32 p = 0; p < 4; p++)
-			h[p] = PwHash(p, ms_slot);
+			h[p] = PwHash(p, static_cast<int>(std::min<s64>(version, REPLAY_FILE_VERSION)));
 		u16 b;
 		std::memcpy(&b, &eeMem->Main[RNG_B], 2);
 		h[4] = b;

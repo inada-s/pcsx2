@@ -50,6 +50,12 @@ every common start empties it at frame 0 (the game reloads each battle MS),
 so recorder and playback start from the same cache. A file recorded by a
 build that did not empty it can differ in state hashes from a round start
 on, while positions and RNGs match.
+Bit 1 of player-work byte +0x2074 depends on the point of view: the same
+inputs played from another POV can keep it set or clear for the rest of a
+round, while positions and RNG B stay equal. The state
+hash leaves it out from `log_file_version` 20261121; playback of an older
+file hashes it, so such a file played from another POV than the recorder's
+can differ in state hashes for that round.
 
 ## Playing
 
