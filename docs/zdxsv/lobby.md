@@ -253,9 +253,10 @@ accepts it, for tests.
 ## HTTPS latency test
 
 When the game goes online, the emulator measures the HTTPS latency to the
-cloud regions (gcping hosts,
-`Zdxsv/HttpsLatency.cpp`): the fastest of 3 `HEAD /api/ping` on a warm
-connection per region. The best region goes to the log; every later platform
+cloud regions (Cloud Storage's regional endpoints `storage.<region>.rep.googleapis.com`,
+`Zdxsv/HttpsLatency.cpp`): the fastest of 3 `HEAD /storage/v1` on a warm
+connection per region; any 2xx-4xx answer counts (without credentials it is a 404).
+The best region goes to the log; every later platform
 info carries `<region>=ms`. Once per run.
 
 ## Network status OSD

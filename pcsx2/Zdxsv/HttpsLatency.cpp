@@ -39,23 +39,30 @@ namespace Zdxsv
 			std::string label; // log and OSD
 		};
 
-		// the gcping regions (https://github.com/GoogleCloudPlatform/gcping)
-		const char* const kPath = "/api/ping";
+		// Cloud Storage's regional endpoints: one in every region, TLS ends in the region.
+		// Without credentials the API path answers a prompt 404.
+		const char* const kPath = "/storage/v1";
 		const Region kRegions[] = {
-			{"australia-southeast1", "australia-southeast1-5tkroniexa-ts.a.run.app", "Australia"},
-			{"europe-west2", "europe-west2-5tkroniexa-nw.a.run.app", "London"},
-			{"northamerica-northeast1", "northamerica-northeast1-5tkroniexa-nn.a.run.app", "Canada"},
-			{"southamerica-east1", "southamerica-east1-5tkroniexa-rj.a.run.app", "Brazil"},
-			{"us-central1", "us-central1-5tkroniexa-uc.a.run.app", "US Central - Iowa"},
-			{"us-east4", "us-east4-5tkroniexa-uk.a.run.app", "US East - Virginia"},
-			{"us-west2", "us-west2-5tkroniexa-wl.a.run.app", "US West - California"},
-			{"asia-southeast1", "asia-southeast1-5tkroniexa-as.a.run.app", "Singapore"},
-			{"asia-east1", "asia-east1-5tkroniexa-de.a.run.app", "Taiwan"},
-			{"asia-east2", "asia-east2-5tkroniexa-df.a.run.app", "Hong Kong"},
-			{"asia-northeast1", "asia-northeast1-5tkroniexa-an.a.run.app", "Tokyo"},
-			{"asia-northeast2", "asia-northeast2-5tkroniexa-dt.a.run.app", "Osaka"},
-			{"asia-northeast3", "asia-northeast3-5tkroniexa-du.a.run.app", "Seoul"},
+			{"australia-southeast1", "storage.australia-southeast1.rep.googleapis.com", "Australia"},
+			{"europe-west2", "storage.europe-west2.rep.googleapis.com", "London"},
+			{"northamerica-northeast1", "storage.northamerica-northeast1.rep.googleapis.com", "Canada"},
+			{"southamerica-east1", "storage.southamerica-east1.rep.googleapis.com", "Brazil"},
+			{"us-central1", "storage.us-central1.rep.googleapis.com", "US Central - Iowa"},
+			{"us-east4", "storage.us-east4.rep.googleapis.com", "US East - Virginia"},
+			{"us-west2", "storage.us-west2.rep.googleapis.com", "US West - California"},
+			{"asia-southeast1", "storage.asia-southeast1.rep.googleapis.com", "Singapore"},
+			{"asia-east1", "storage.asia-east1.rep.googleapis.com", "Taiwan"},
+			{"asia-east2", "storage.asia-east2.rep.googleapis.com", "Hong Kong"},
+			{"asia-northeast1", "storage.asia-northeast1.rep.googleapis.com", "Tokyo"},
+			{"asia-northeast2", "storage.asia-northeast2.rep.googleapis.com", "Osaka"},
+			{"asia-northeast3", "storage.asia-northeast3.rep.googleapis.com", "Seoul"},
 		};
+
+		// A 4xx is still a round trip to the region.
+		bool Answered(int status)
+		{
+			return status >= 200 && status < 500;
+		}
 		constexpr int kAttempts = 3;
 		constexpr int kWorkers = 6;
 
@@ -173,7 +180,7 @@ namespace Zdxsv
 			Result r;
 			Connection c(host);
 			int status = c.Head(kPath, r.error);
-			if (status < 200 || status >= 300)
+			if (!Answered(status))
 			{
 				if (r.error.empty())
 					r.error = "warm-up status " + std::to_string(status);
@@ -184,7 +191,7 @@ namespace Zdxsv
 				const auto t1 = std::chrono::steady_clock::now();
 				status = c.Head(kPath, r.error);
 				const auto t2 = std::chrono::steady_clock::now();
-				if (status < 200 || status >= 300)
+				if (!Answered(status))
 				{
 					if (r.error.empty())
 						r.error = "status " + std::to_string(status);
