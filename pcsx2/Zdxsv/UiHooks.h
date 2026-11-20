@@ -34,6 +34,9 @@ namespace Zdxsv
 	bool OnlineNowAnyThread();
 	bool OnlineBattleNowAnyThread();
 	bool OnlineRefusesReset();
+	// FullscreenUI::ReportStateLoadError: true when `message` is a refusal reason above (online, net battle,
+	// replay); reported as an OSD notice, not a dialog that pauses the VM.
+	bool StateLoadRefusal(const char* message);
 
 	// Replay play (ZDXSV_REPLAY): seek by `frames` from the current frame (hotkeys "Zdxsv Replay: Seek
 	// Back / Forward 10 s"), done at the next frame start; at the end (paused) it plays on. No-op otherwise.
