@@ -1125,7 +1125,7 @@ def main():
             ok(f"p{i} lobby delay {e}", c(f, f"ZdxsvGgpo: lobby delay {e}:"))
         ul = g(os.path.join(out, "udprelay.txt"), r"relay (end|stats)")
         say(f"udprelay: {ul[-1] if ul else ''}")
-        ok("udprelay forwarded (the ping test reached it)", bool(ul) and re.search("packets in [1-9]", ul[-1]))
+        ok("udprelay forwarded (the ping test reached it)", bool(ul) and re.search(r"packets in \d+ lost \d+ out [1-9]", ul[-1]))
     live = E("LIVE")
     llog = os.path.join(out, "live-launch.txt")
     if E("LIVE_STALL"):
