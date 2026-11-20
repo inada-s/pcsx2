@@ -586,6 +586,8 @@ namespace Zdxsv
 					return;
 			b.go = true;
 			b.rel++;
+			if (b.round_end)
+				b.re++;
 			if (s_net_trace)
 				std::fprintf(s_net_trace, "%u %cS%s %d %d\n", g_FrameCount, tag, g_ggpo_in_rollback ? "r" : "", f, b.rel);
 		};
@@ -898,6 +900,7 @@ namespace Zdxsv
 		if (!b.hold)
 		{
 			b.hold = true;
+			b.round_end = tag == 'R';
 			b.n++;
 			if (s_net_trace)
 				std::fprintf(s_net_trace, "%u %cH%s %d %d\n", g_FrameCount, tag, g_ggpo_in_rollback ? "r" : "", s_battle.frame, b.n);

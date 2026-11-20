@@ -331,7 +331,7 @@ namespace Zdxsv
 		s_replay_ticks.resize(f);
 		s_replay_ticks.push_back(eeMem->Main[TICK_STATE]);
 		s_replay_ps.resize(f);
-		s_replay_ps.push_back(s_rb.ps.rel);
+		s_replay_ps.push_back(static_cast<u8>(s_rb.ps.rel - s_rb.ps.re));
 		s_replay_round_states.erase(s_replay_round_states.lower_bound(f), s_replay_round_states.end());
 		if (f > 0 && s_replay_ticks[f - 1] == TICK_LOAD && s_replay_ticks[f] != TICK_LOAD)
 			s_replay_round_states.emplace(f, RoundStateTake(f));

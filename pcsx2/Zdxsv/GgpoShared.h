@@ -179,6 +179,8 @@ namespace Zdxsv
 	struct PS
 	{
 		u8 n, rel;
+		u8 re = 0; // releases of round-end holds (recorded play starts leave them out)
+		bool round_end = false; // the current hold is a round end
 		bool hold, go;
 		bool operator==(const PS&) const = default;
 	};
