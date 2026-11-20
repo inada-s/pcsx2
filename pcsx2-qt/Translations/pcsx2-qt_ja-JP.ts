@@ -16177,7 +16177,7 @@ Swap chain: see Microsoft&apos;s Terminology Portal.</extracomment>
     <message>
       <location filename="../Settings/GraphicsSettingsWidget.cpp" line="1154"/>
       <source>3x Native (~1080px/FHD)</source>
-      <translation>3x Native (~1080px/FHD)</translation>
+      <translation>3x ネイティブ (~1080px/FHD)</translation>
     </message>
     <message>
       <location filename="../Settings/GraphicsSettingsWidget.cpp" line="1155"/>
