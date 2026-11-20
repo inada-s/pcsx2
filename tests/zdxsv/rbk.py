@@ -22,6 +22,8 @@ MAXLAG=n: FAIL if a peer's OSD Lag level (`osd lag` lines: segments filled, 4 = 
 battle (the 1st half holds the meter's start and its slow recovery).
 MAXLOSS=n: FAIL if a peer's `peer report` counts more than n GGPO packets lost (received or sent) to a peer.
 STALL=ms: suspend the peer at position 1 for ms every 5 s, 8 times from 40 s, so the others run ahead.
+CRASH=1 (with replay=DIR in GGPO, COUNT>=2): kill every peer once all logged a replay checkpoint; PASS = each did, none
+logged a final save (play the file with rplay.py against the traces of the same run without CRASH).
 Sync check: pwcheck compares each player's x, y, z and game RNG B (0x6d793c) on every frame (RNG A takes
 machine-local sound draws: reported, not judged; OWN: no effect).
 """
@@ -199,11 +201,25 @@ def main(argv):
             return 1
     print(f"start check ok: {n} peers got the intended knobs (seed {seed or 'none'})", flush=True)
     maxs = float(zrig.env("MAXS", "900"))
+    crash = opt("CRASH", "") == "1"
     while time.time() - t0 < maxs:
         time.sleep(1)
+        if crash and all(lines(emulog(p), r"ZdxsvGgpo: replay checkpoint") for p in peers):
+            zrig.kill_name("pcsx2")
+            break
         if zrig.count_name("pcsx2") == 0:
             break
     print(f"{round(time.time() - t0)} s: {zrig.count_name('pcsx2')} pcsx2 left", flush=True)
+    if crash:
+        ok = 0
+        for p in peers:
+            ck = lines(emulog(p), r"ZdxsvGgpo: replay (checkpoint|saved)")
+            print("\n".join(x[:200] for x in ck) or f"p{p}: no replay written", flush=True)
+            if not any("checkpoint" in x for x in ck) or any("saved" in x for x in ck):
+                print(f"FAIL p{p}: no checkpoint before the kill", flush=True)
+                ok = 1
+        print(f"rbk N={n} seed={seed or 'none'} CRASH=1: {round(time.time() - t0)} s, {'FAIL' if ok else 'PASS'}", flush=True)
+        return ok
     ok = 0
     for p in peers:
         l = emulog(p)

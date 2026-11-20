@@ -16,6 +16,9 @@ battles save to the replay folder without it (settings `ZdxsvSaveReplay`,
 - The file is written when the session stops, also on a VM shutdown or reset,
   to `<name>.pb.part` first, then renamed over `<name>.pb`.
   A session that ends before GGPO confirmed frame 0 writes and posts nothing.
+- Each round result in the confirmed frames also saves the file so far
+  (`close_reason` `checkpoint`, same name, written off the CPU thread), so a
+  crash loses at most the round in play. The final write replaces it.
 - A lobby battle's file is posted (multipart field `file`) to the
   lobby's upload API (zdxsv `/lbs/replay_upload?battle_code=&session_id=`,
   the battle's `ggpo_session`; the lobby refuses an upload without them) at
