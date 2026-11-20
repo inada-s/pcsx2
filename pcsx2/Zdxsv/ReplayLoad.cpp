@@ -978,6 +978,7 @@ namespace Zdxsv
 		}
 		SyncFollow(next);
 		int req = s_play_req.exchange(INT_MIN);
+		const bool then_req = std::exchange(s_play.then_req, false);
 		const int pov = s_play_pov_req.exchange(-1);
 		int run = -1; // load to run to after the seek
 		const int round = s_play_round_req.exchange(INT_MIN);
@@ -998,9 +999,11 @@ namespace Zdxsv
 			}
 			else if (req == 0)
 				req = spans[0].first;
-			else if (req != INT_MIN && PlayLiveNextRound(s_play.target >= 0 ? s_play.target : s_battle.frame))
+			else if (req == INT_MIN || then_req)
+				;
+			else if (PlayLiveNextRound(s_play.target >= 0 ? s_play.target : s_battle.frame))
 				req = std::clamp(req, spans.back().second, s_play.frames - 1);
-			else if (req != INT_MIN)
+			else
 				req = std::clamp(req, spans[span].first, spans[span].second - 1);
 		}
 		else if (round != INT_MIN)
@@ -1043,14 +1046,15 @@ namespace Zdxsv
 			run = 1; // briefing not reached yet
 		if (run >= 0)
 			PlayRunBegin(run);
+		// before the gap skip: its seek would hold back the live viewer's seek to the edge
+		if (s_live_down)
+			next = LiveNext(next);
 		next = PlaySkipGap(next);
 		if (s_play.step_pause && s_play.target < 0)
 		{
 			s_play.step_pause = false;
 			pause = PlayStepPaused(next);
 		}
-		if (s_live_down)
-			next = LiveNext(next);
 		if (next >= s_play.frames)
 			PlayRunEnd("replay ended first", s_battle.frame);
 		const char* exit_env = TestEnv("ZDXSV_REPLAY_EXIT");
