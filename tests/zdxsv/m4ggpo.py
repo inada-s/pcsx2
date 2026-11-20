@@ -7,7 +7,7 @@ Env: OUT (required), PORT (7101), GDELAY (GGPO frame delay, 1; auto = no delay=,
   cutting the battle connection: a peer has no GGPO address); other env goes to m4.py.
 Checks (besides m4.py's): GGPO clients: `lobby peer position` x(N-1) and `net player` each;
   each client with a GGPO session: `peer report` with timesync=, input_blocks=, fps_history= and loss_ x(N-1);
-  GDELAY=auto: `ping test` and `lobby delay E`, E = max(GMIN or 2, ceil(2*GGPO_LAT/32));
+  GDELAY=auto: `ping test`, logged rtt >= 2*GGPO_LAT and `lobby delay E`, E = max(GMIN or 2, ceil(rtt/32));
   P2P=v6: every peer at an IPv6 address; P2P=dual + GDELAY=auto: every peer's IPv6 candidate answered
   the ping test; P2P!=v4: every client found its IPv6 (`udp: ... IPv6 [`);
   control: `connection cut: a peer has no GGPO address` on each lobby=1 client, no `net player` anywhere.
@@ -114,7 +114,7 @@ def main():
         (f" --ggpo-block {gb}" if gb else "") + (f" --relay {rl} --relay-session {rs}" if relay else "")
     RC[0] = subprocess.call([zrig.PY, "-u", os.path.join(zrig.HERE, "m4.py")], env=dict(os.environ, FAKE_ARGS=fa))
     n = len(gc)
-    e = max((2 * int(lat or 0) + 31) // 32 if not relay else 0, int(gmin or 2))
+    e = int(gmin or 2)
     logs = {}
     for i in gc + ["1", "2", "3", "4"]:
         try:
@@ -156,7 +156,14 @@ def main():
                 ok(f"p{i} 2 peers answered, p{cut} rtt -1, {dl}",
                    any(re.search(r"rtt [0-9].*rtt [0-9]", l) and "rtt -1" in l and re.search(dq, l) for l in ping))
         if auto and not cut and not blk:
-            ok(f"p{i} lobby delay {e}", c(rf"ZdxsvGgpo: lobby delay {e}:"))
+            d = e
+            if not relay:
+                # the measured rtt is 2*GGPO_LAT plus a few ms of frame pacing, enough to cross a 32 ms step
+                rtts = [int(x) for l in g("ZdxsvGgpo: lobby delay") for x in re.findall(r"slowest peer rtt ([0-9]+) ms", l)]
+                rtt = rtts[-1] if rtts else 0
+                ok(f"p{i} lobby rtt {rtt} ms >= {2 * int(lat or 0)} ms", rtt > 0 and rtt >= 2 * int(lat or 0))
+                d = max(e, (rtt + 31) // 32)
+            ok(f"p{i} lobby delay {d}", c(rf"ZdxsvGgpo: lobby delay {d}:"))
         if p2p == "v6":
             ok(f"p{i} peers at IPv6 x3", c(r"ZdxsvGgpo: lobby peer position [0-9] at \[") == 3)
         if p2p == "dual" and auto:
