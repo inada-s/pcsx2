@@ -26,6 +26,9 @@ namespace Zdxsv
 	// every_pc: revokes every token of the Discord account (all PCs); the file stays if the server did not revoke.
 	std::string AuthSignOut(bool every_pc);
 
+	// The server answered 401 to this token (unknown, revoked or expired): deletes the file if it still holds it.
+	void AuthTokenRefused(const std::string& token);
+
 	struct AuthAccountList
 	{
 		// Per account, numbered from 1: the names of its users, and whether it was carried over from a PS2.

@@ -103,7 +103,8 @@ the server allows; an empty slot becomes an account when you first connect with 
 from PS2 adds the account you play on a PS2 (on the PS2, type ｄｃ in the chat of the Kennedy Port lobby and enter the code it shows within 3 minutes; the
 PS2 keeps playing with it). Account picks the one used online.
 Sign Out revokes the token. Sign Out Everywhere revokes the tokens of every PC signed in with your Discord
-account (this one too); each has to sign in again.
+account (this one too); each has to sign in again. A sign-in unused for 90 days, or revoked, is refused by the server: PCSX2
+then signs out and asks you to sign in again.
 
 With no token, going online opens the sign-in page and pauses the game until you sign in; resume
 the game to cancel it and go back to the network menu.

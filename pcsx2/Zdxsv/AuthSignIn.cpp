@@ -345,6 +345,15 @@ namespace Zdxsv
 		return error;
 	}
 
+	void AuthTokenRefused(const std::string& token)
+	{
+		if (AuthTokenRead() != token)
+			return;
+		if (!FileSystem::DeleteFilePath(TokenPath().c_str()))
+			Console.Warning("Zdxsv: auth: cannot delete the refused token file");
+		Console.WriteLn("Zdxsv: auth: the server refused the token, signed out on this PC");
+	}
+
 	namespace
 	{
 		std::string ParseAccounts(const std::string& body, AuthAccountList* list)
@@ -389,6 +398,9 @@ namespace Zdxsv
 			{
 				case HTTPDownloader::HTTP_STATUS_OK:
 					return ParseAccounts(body, list);
+				case 401:
+					AuthTokenRefused(*token);
+					return "the Discord sign-in has expired or was revoked, sign in again";
 				case 400:
 					return "wrong or expired carry-over code";
 				case 409:
