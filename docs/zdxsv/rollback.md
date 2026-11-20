@@ -328,7 +328,8 @@ Every online battle checks itself (`GgpoDesync.cpp`):
 - The last 4 bytes of `NetInput.data` (when the msgs leave them free) carry the
   newest final sample: a tag for its frame and 24 bits of its hash. A peer
   writes them only into an input that changes anyway, so they cause no extra
-  prediction misses.
+  prediction misses. A trailer stays until that peer's input changes, so a
+  receiver skips one whose tag equals the last one it compared.
 - Each peer compares every peer's sample with its own, once per peer and sample.
   A mismatch logs `suspected desync with position N at frame F`; the battle
   goes on. The session end logs `desync checks N mismatches M`; the match
