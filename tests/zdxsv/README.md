@@ -336,5 +336,5 @@ Scripts are in `tests/zdxsv/` except `run.py` (repository root) and
 | CI builds | the workflows themselves; the CMake and arm64 builds also run the unit tests | none |
 | PINE opcodes `0x30` to `0x32` | no test of its own; the rig scripts drive the emulator through them (`pine.py`) | none |
 | GGPO battle with the battle server and a fake lobby: log lines from concurrent connections | `lograce.py`: 4 threads log 3000 `0x6138` and `BATTLE RESULT` lines each through `fake_lobby.log`, none lost or glued | `fake_lobby.log` as an unlocked `print()`: lines glued and lost, FAIL |
-| EE probe, watch and rerun profile | `probelint.py`: refuses a bad or stale probe list | none |
+| EE probe, watch and rerun profile | `probelint.py`: refuses a bad or stale probe list in `pcsx2/Zdxsv/*.cpp` and `iR5900.cpp`, and a tree with no `pcsx2/Zdxsv/*.cpp` | a probe line written without `fflush` (e.g. `setvbuf` removed from `RecProbe.cpp`): `flush:` errors, exit 1 |
 | `run.py` | `rbk_test` ends with the sync check of `pwcheck.py` | none |
