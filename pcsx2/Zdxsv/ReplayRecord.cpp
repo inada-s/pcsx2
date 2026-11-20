@@ -20,6 +20,12 @@ namespace Zdxsv
 		std::map<int, RoundState> s_replay_round_states; // by frame: each battle load end (-> round_states)
 		s64 s_replay_start_at = 0; // unix seconds
 		int s_replay_confirmed = -1; // GGPO's last confirmed frame: the frames after it (predicted inputs) are not written
+		size_t s_replay_ckpt = 0; // confirmed frames already scanned for a round result (ReplayCheckpoint)
+		struct ReplayFileWriter
+		{
+			std::mutex mtx;
+			u64 gen = 0; // bumped per write started: a checkpoint write that is no longer the latest is dropped
+		} s_replay_file;
 		// HLE state outside the save state at frame 0 (ReplayBegin; replay.proto net_rx0, hle0)
 		struct ReplayHle0
 		{
@@ -81,6 +87,7 @@ namespace Zdxsv
 		}
 
 		std::vector<uint8_t> RoundFramesFields(size_t frames);
+		void ReplayCheckpoint(size_t frames);
 
 		// The confirmed frames not yet given to the live uplink, then the round frames when a tick state or play start changed in
 		// them and their round states.
@@ -300,6 +307,7 @@ namespace Zdxsv
 		s_replay_ps.clear();
 		s_replay_round_states.clear();
 		s_replay_confirmed = -1;
+		s_replay_ckpt = 0;
 		// HLE state outside the save state at frame 0 (PlayLoad restores it): msgs waiting for the game's recv,
 		// play-start barrier, kind-3 barrier, MS-select barrier
 		s_replay_hle0.rx.assign(s_rb.net_rx.begin(), s_rb.net_rx.end());
@@ -340,6 +348,7 @@ namespace Zdxsv
 		if (s_session && ggpo_get_last_confirmed_frame(s_session, &confirmed) == GGPO_OK)
 			s_replay_confirmed = std::max(s_replay_confirmed, std::min(confirmed, s_battle.last_real));
 		LiveFeed(static_cast<size_t>(s_replay_confirmed + 1));
+		ReplayCheckpoint(static_cast<size_t>(s_replay_confirmed + 1));
 	}
 
 	std::string ReplayRoundsReport()
@@ -360,8 +369,105 @@ namespace Zdxsv
 		return s;
 	}
 
+	namespace
+	{
+		std::string ReplayName(const std::string& code)
+		{
+			std::string name;
+			for (const char c : code)
+				name += std::isalnum(static_cast<unsigned char>(c)) || c == '-' || c == '_' ? c : '_';
+			return name.empty() ? fmt::format("rbk-{}-p{}", s_replay_start_at, s_battle.me) : name;
+		}
+
+		// used_ms (the upload's MS ids per round) is filled and the round results logged only for the final file.
+		std::vector<uint8_t> ReplayPb(const std::string& code, const std::string& ids, const char* what, size_t frames, std::string* used_ms)
+		{
+			std::vector<uint8_t> pb = ReplayHeader(code, ids);
+			pb.reserve(frames * s_opt.players * sizeof(NetInput) + pb.size() + 1024);
+			PbPutInt(pb, 21, static_cast<s64>(std::time(nullptr)));
+			PbPutString(pb, 24, what);
+			PbPutInt(pb, 48, static_cast<int64_t>(frames));
+			PbPutBytes(pb, 49, s_replay_inputs.data(), frames * s_opt.players * sizeof(NetInput));
+			PbPutBytes(pb, 52, s_replay_hashes.data(), frames * sizeof(u32));
+			for (int p = 0; p < s_opt.players; p++)
+				if (s_desync.first[p] >= 0)
+					PbPutInt(pb, 62, p), PbPutInt(pb, 62, s_desync.first[p]);
+			if (frames > 0)
+				PbPutUint(pb, 53, s_replay_rngs[0]);
+			const std::vector<uint8_t> round_frames = RoundFramesFields(frames);
+			pb.insert(pb.end(), round_frames.begin(), round_frames.end());
+			for (const auto& [f, s] : s_replay_round_states)
+				if (static_cast<size_t>(f) < frames)
+				{
+					const std::vector<uint8_t> m = RoundStatePb(s);
+					PbPutBytes(pb, 61, m.data(), m.size());
+				}
+			if (used_ms)
+				*used_ms = "[";
+			for (size_t f = 1; f < std::min(frames, s_replay_records.size()); f++)
+			{
+				if (const int win = RoundResult(s_replay_records[f - 1], s_replay_records[f]))
+				{
+					const std::vector<uint8_t> entry = RoundEntry(f, win);
+					pb.insert(pb.end(), entry.begin(), entry.end());
+					if (!used_ms)
+						continue;
+					*used_ms += used_ms->size() > 1 ? ",[" : "[";
+					for (const int64_t ms : RoundMs(f))
+						*used_ms += fmt::format("{}{}", used_ms->back() == '[' ? "" : ",", ms);
+					*used_ms += "]";
+					Console.WriteLn("ZdxsvGgpo: replay round result: win_team %d at frame %zu, MS ids %08x", win, f - 1, s_replay_ms[f]);
+				}
+			}
+			if (used_ms)
+				*used_ms += "]";
+			return pb;
+		}
+
+		bool ReplaySaveFile(const std::string& path, const std::vector<uint8_t>& pb)
+		{
+			const std::string part = path + ".part";
+			if (FileSystem::WriteBinaryFile(part.c_str(), pb.data(), pb.size()) && FileSystem::RenamePath(part.c_str(), path.c_str()))
+				return true;
+			FileSystem::DeleteFilePath(part.c_str());
+			Console.Error("ZdxsvGgpo: replay: write %s failed", path.c_str());
+			return false;
+		}
+
+		// The file so far, saved once a confirmed frame has a round result, so a crash loses at most the round in play.
+		// Built here (the recording changes on the next frame), written on a worker thread.
+		void ReplayCheckpoint(size_t frames)
+		{
+			const size_t n = std::min({frames, s_replay_records.size(), s_replay_inputs.size() / s_opt.players});
+			if (s_replay_rec_dir.empty() || n <= s_replay_ckpt)
+				return;
+			bool hit = false;
+			for (size_t f = std::max<size_t>(s_replay_ckpt, 1); f < n; f++)
+				hit |= RoundResult(s_replay_records[f - 1], s_replay_records[f]) != 0;
+			s_replay_ckpt = n;
+			if (!hit)
+				return;
+			const std::string ids = ReplayIds();
+			const std::string code = IdValue(ids, "battle_code");
+			const std::string path = Path::Combine(s_replay_rec_dir, ReplayName(code) + ".pb");
+			std::vector<uint8_t> pb = ReplayPb(code, ids, "checkpoint", n, nullptr);
+			u64 gen;
+			{
+				std::lock_guard lock(s_replay_file.mtx);
+				gen = ++s_replay_file.gen;
+			}
+			std::thread([path, pb = std::move(pb), gen, n]() {
+				std::lock_guard lock(s_replay_file.mtx);
+				if (gen != s_replay_file.gen)
+					return;
+				if (ReplaySaveFile(path, pb))
+					Console.WriteLn("ZdxsvGgpo: replay checkpoint %s frames=%zu, file=%zu bytes", path.c_str(), n, pb.size());
+			}).detach();
+		}
+	} // namespace
+
 	// <dir>/<battle_code>.pb (without a battle code: rbk-<start_at>-p<position>.pb): a BattleLogFile protobuf,
-	// schema in Zdxsv/replay.proto.
+	// schema in Zdxsv/replay.proto. Also saved at each round result (close_reason "checkpoint") until this final write.
 	void ReplayWrite(const char* what)
 	{
 		if (!std::exchange(s_replay_rec, false))
@@ -381,59 +487,18 @@ namespace Zdxsv
 		}
 		const std::string ids = ReplayIds();
 		const std::string code = IdValue(ids, "battle_code");
-		std::string name;
-		for (const char c : code)
-			name += std::isalnum(static_cast<unsigned char>(c)) || c == '-' || c == '_' ? c : '_';
-		if (name.empty())
-			name = fmt::format("rbk-{}-p{}", s_replay_start_at, s_battle.me);
-		std::vector<uint8_t> pb = ReplayHeader(code, ids);
-		pb.reserve(frames * s_opt.players * sizeof(NetInput) + pb.size() + 1024);
-		PbPutInt(pb, 21, static_cast<s64>(std::time(nullptr)));
-		PbPutString(pb, 24, what);
-		PbPutInt(pb, 48, static_cast<int64_t>(frames));
-		PbPutBytes(pb, 49, s_replay_inputs.data(), frames * s_opt.players * sizeof(NetInput));
-		PbPutBytes(pb, 52, s_replay_hashes.data(), frames * sizeof(u32));
-		for (int p = 0; p < s_opt.players; p++)
-			if (s_desync.first[p] >= 0)
-				PbPutInt(pb, 62, p), PbPutInt(pb, 62, s_desync.first[p]);
-		if (frames > 0)
-			PbPutUint(pb, 53, s_replay_rngs[0]);
-		const std::vector<uint8_t> round_frames = RoundFramesFields(frames);
-		pb.insert(pb.end(), round_frames.begin(), round_frames.end());
-		for (const auto& [f, s] : s_replay_round_states)
-			if (static_cast<size_t>(f) < frames)
-			{
-				const std::vector<uint8_t> m = RoundStatePb(s);
-				PbPutBytes(pb, 61, m.data(), m.size());
-			}
-		std::string used_ms = "[";
-		for (size_t f = 1; f < std::min(frames, s_replay_records.size()); f++)
-		{
-			if (const int win = RoundResult(s_replay_records[f - 1], s_replay_records[f]))
-			{
-				const std::vector<uint8_t> entry = RoundEntry(f, win);
-				pb.insert(pb.end(), entry.begin(), entry.end());
-				used_ms += used_ms.size() > 1 ? ",[" : "[";
-				for (const int64_t ms : RoundMs(f))
-					used_ms += fmt::format("{}{}", used_ms.back() == '[' ? "" : ",", ms);
-				used_ms += "]";
-				Console.WriteLn("ZdxsvGgpo: replay round result: win_team %d at frame %zu, MS ids %08x", win, f - 1, s_replay_ms[f]);
-			}
-		}
+		const std::string name = ReplayName(code);
+		std::string used_ms;
+		const std::vector<uint8_t> pb = ReplayPb(code, ids, what, frames, &used_ms);
 		if (!dir.empty())
 		{
 			const std::string path = Path::Combine(dir, name + ".pb");
-			const std::string part = path + ".part";
-			if (!FileSystem::WriteBinaryFile(part.c_str(), pb.data(), pb.size()) || !FileSystem::RenamePath(part.c_str(), path.c_str()))
-			{
-				FileSystem::DeleteFilePath(part.c_str());
-				Console.Error("ZdxsvGgpo: replay: write %s failed", path.c_str());
-			}
-			else
+			std::lock_guard lock(s_replay_file.mtx);
+			++s_replay_file.gen;
+			if (ReplaySaveFile(path, pb))
 				Console.WriteLn("ZdxsvGgpo: replay saved %s frames=%zu, file=%zu bytes, %.1f ms", path.c_str(), frames,
 					pb.size(), timer.GetTimeMilliseconds());
 		}
-		used_ms += "]";
 		if (!code.empty())
 		{
 			u32 session;
