@@ -124,7 +124,7 @@ namespace Zdxsv
 		void AddRound(const std::vector<uint8_t>& entry); // a BattleLogFile round_data entry (field 18), once confirmed
 		void SetRoundFrames(const std::vector<uint8_t>& fields); // BattleLogFile fields 54, 55, 57-59 of the confirmed frames
 		void AddRoundState(const std::vector<uint8_t>& entry); // a BattleLogFile round_states entry (field 61), once confirmed
-		size_t Frames();
+		size_t Frames(); // given to AddFrames, also those dropped after the close or the upload end
 		void Close(const std::string& reason);
 		bool Done(); // the upload ended
 	private:
