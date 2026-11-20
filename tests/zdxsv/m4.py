@@ -20,7 +20,7 @@ GAUGE, COUNT, TIME: the battle rule (戦力ゲージ, 連続対戦数, 作戦時
   shoot-down or 90 s (4 mashing clients rarely shoot anyone down); 0: the trace's value. MASHP="1" needs GAUGE=0.
 POST=<route>: driven on all 4 after mash (default none: every post-battle screen has a countdown).
 Checks: battlereg 4 users; `join success` (TCP) xJOINS (4; m4ggpo: 0, the EE answers for the battle server), no `join udp peer`, no `BattleInfo not found`;
-  `BATTLE RESULT` x4 with the same total_frame and kills = deaths.
+  `BATTLE RESULT` x4, each with battles>=1 and frames>0, the same total_frame and kills = deaths.
 NORESULT=1 (a battle that must fail): wait for 8 lobby conns (4 + each client's reconnect) instead;
   checks every `BATTLE RESULT` has battles=0, conn from x8.
 """
@@ -152,6 +152,8 @@ def main():
         return ok[0]
     check("BATTLE RESULT x4", len(res) >= 4)
     fs = [fields(x) for x in res]
+    check("a battle was fought (every BATTLE RESULT battles>=1, frames>0)",
+          len(fs) >= 4 and all(f["battles"] != "0" and f["frames"] != "0" for f in fs))
     check("results agree", len(fs) >= 4 and len({f["frames"] for f in fs}) == 1
           and sum(int(f["kill"]) for f in fs) == sum(int(f["death"]) for f in fs))
     return ok[0]
