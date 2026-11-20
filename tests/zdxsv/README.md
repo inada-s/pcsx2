@@ -150,7 +150,7 @@ Scripts are in `tests/zdxsv/` except `run.py` (repository root) and
 | Lobby connection kept while paused | `CLIENTS=1 EMU=1 SHOW=1 PAUSE=150 PAUSE_ONLY=1 m4z.py`: no `Recv Timeout` in the lobby log, >= 13 line checks answered while paused | `CENV=ZDXSV_PAUSE_LINE_CHECK=0`: `Recv Timeout` about 2 min into the pause |
 | Pause menu | no committed test. By hand: `CLIENTS=1 EMU=1 SHOW=1 m4z.py`, Escape in the lobby: the log has `pause menu refused (lobby)`, no `(VMManager) Pausing...` | offline (no lobby connection), Escape opens the pause menu |
 | Settings page | none (checked by hand) | none |
-| Recommended-settings buttons | `settingsui.ps1 -DataPath <new dir> -Click zdxsvPresetHigh -Match 'zdxsvGgpoMinDelay$'`: the ini gets `upscale_multiplier = 3`, `ZdxsvGgpoMinDelay = 2`; `-Click zdxsvPresetLow`: `ZdxsvGgpoMinDelay = 3` | none |
+| Recommended-settings buttons | `settingsui.ps1 -DataPath <new dir> -Click zdxsvPresetHigh -Quit -IniHas '^upscale_multiplier = 3'`; `-DataPath <another new dir> -Click zdxsvPresetLow -Quit -IniHas '^ZdxsvGgpoMinDelay = 3'` (a value equal to the default, High's delay 2 and Low's scale 1, is not written) | without `-Click`: FAIL |
 | First-run wizard | none. By hand: start with `-datapath <new dir>`: the wizard shows the zdxsv texts and the zdxsv Account page; Next on the controller page with port 1 on the keyboard asks first; Sign in with Discord opens the browser and ends with Signed in on this PC | none |
 
 ### Input latency
