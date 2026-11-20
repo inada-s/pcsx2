@@ -373,23 +373,24 @@ Visual Studio and `lupdate` drop comments when they rewrite these files.
 | `pcsx2/VU1microInterp.cpp` | `InterpVU1::Execute` | no trace chain across Execute calls. |
 | `pcsx2/VU1microInterp.cpp` | `InterpVU1::Execute` | ARM64 runs compiled VU1 traces between interpreter steps. |
 | `pcsx2/VUmicro.h` |  | ARM64 VU1 trace cache |
-| `pcsx2/VUops.cpp` | `_vuFDIVAdd` | not marked yet |
-| `pcsx2/VUops.cpp` | `_getDst` | not marked yet |
-| `pcsx2/VUops.cpp` | `applyBinaryMACOp` | not marked yet |
-| `pcsx2/VUops.cpp` | `applyBinaryMACOpBroadcast` | not marked yet |
-| `pcsx2/VUops.cpp` | `applyTernaryMACOp` | not marked yet |
-| `pcsx2/VUops.cpp` | `applyTernaryMACOpBroadcast` | not marked yet |
-| `pcsx2/VUops.cpp` | `_vuMINIw` | not marked yet |
-| `pcsx2/VUops.cpp` | `_vuOPMSUB` | not marked yet |
-| `pcsx2/VUops.cpp` | `_vuCLIP` | not marked yet |
-| `pcsx2/VUops.cpp` | `_vuRSQRT` | not marked yet |
-| `pcsx2/VUops.cpp` | `_vuWAITP` | not marked yet |
-| `pcsx2/VUops.cpp` | `_vuEEXP` | not marked yet |
-| `pcsx2/VUops.cpp` | `_vuRegsTables` | not marked yet |
-| `pcsx2/VUops.cpp` | `SYNCSTATUSFLAG` | not marked yet |
-| `pcsx2/VUops.cpp` | `VMADDy` | not marked yet |
-| `pcsx2/VUops.cpp` | `VMADDAz` | not marked yet |
-| `pcsx2/VUops.cpp` | `VXITOP` | not marked yet |
+| `pcsx2/VUops.cpp` |  | include `Zdxsv/VuX86.h` |
+| `pcsx2/VUops.cpp` | `_vuFDIVAdd` | D/I also set their sticky bits (DS/IS), as x86 microVU does. |
+| `pcsx2/VUops.cpp` | `_getDst` | `Zdxsv::VuX86ClampOperands`, `Zdxsv::VuCop2Op`, `Zdxsv::VuX86Fmac` |
+| `pcsx2/VUops.cpp` | `applyBinaryMACOp` | `Zdxsv::VuX86Op`, `Zdxsv::VuX86In`, `Zdxsv::VuX86Apply` |
+| `pcsx2/VUops.cpp` | `applyBinaryMACOpBroadcast` | `Zdxsv::VuX86Op`, `Zdxsv::VuX86In`, `Zdxsv::VuX86Apply` |
+| `pcsx2/VUops.cpp` | `applyTernaryMACOp` | `Zdxsv::VuX86Op`, `Zdxsv::VuX86In`, `Zdxsv::VuX86Apply` |
+| `pcsx2/VUops.cpp` | `applyTernaryMACOpBroadcast` | `Zdxsv::VuX86Op`, `Zdxsv::VuX86In`, `Zdxsv::VuX86Apply` |
+| `pcsx2/VUops.cpp` | `_vuOPMULA` | `Zdxsv::VuX86Outer`, `Zdxsv::VuX86Op` |
+| `pcsx2/VUops.cpp` | `_vuOPMSUB` | `Zdxsv::VuX86Outer`, `Zdxsv::VuX86Op` |
+| `pcsx2/VUops.cpp` | `_vuCLIP` | `Zdxsv::VuDivX86`, `Zdxsv::VuSqrtX86`, `Zdxsv::VuRsqrtX86` |
+| `pcsx2/VUops.cpp` | `_vuRSQRT` | end of the ARM64 / upstream split |
+| `pcsx2/VUops.cpp` | `_vuWAITP` | `Zdxsv::VuEsaddX86`, `Zdxsv::VuErsaddX86`, `Zdxsv::VuElengX86` |
+| `pcsx2/VUops.cpp` | `_vuEEXP` | end of the ARM64 / upstream split |
+| `pcsx2/VUops.cpp` | `SYNCMSFLAGS` | `Zdxsv::Vu0MacroStatusKeep` |
+| `pcsx2/VUops.cpp` | `SYNCSTATUSFLAG` | `Zdxsv::Vu0MacroStatusKeep` |
+| `pcsx2/VUops.cpp` | `VMADDy` | `Zdxsv::VuCop2Op` |
+| `pcsx2/VUops.cpp` | `VMADDAz` | `Zdxsv::VuCop2Op` |
+| `pcsx2/VUops.cpp` | `VXITOP` | the trace the ARM64 VU1 JIT check compares. |
 | `pcsx2/Vif_Transfer.cpp` | `vifTransferLoop` | NOP can be most of the codes in a packet: same steps as vifCode_Nop, without the indirect call. |
 | `pcsx2/pcsx2.vcxproj` |  | GGPO, TLS, UPnP and JSON libraries --> |
 | `pcsx2/pcsx2.vcxproj` |  | MINIUPNP_STATICLIB --> |

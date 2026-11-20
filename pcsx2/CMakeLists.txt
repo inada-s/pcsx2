@@ -269,6 +269,7 @@ set(pcsx2Headers
 	Zdxsv/DeltaState.h
 	Zdxsv/DeltaFreeze.h
 	Zdxsv/FpuX86.h
+	Zdxsv/VuX86.h
 	Zdxsv/Ggpo.h
 	Zdxsv/GgpoShared.h
 	Zdxsv/ReplayList.h
