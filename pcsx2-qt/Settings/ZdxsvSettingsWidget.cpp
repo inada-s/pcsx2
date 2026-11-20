@@ -15,9 +15,11 @@
 
 #include <QtCore/QPointer>
 #include <QtCore/QRegularExpression>
+#include <QtCore/QSignalBlocker>
 #include <QtCore/QTimer>
 #include <QtGui/QFontDatabase>
 #include <QtGui/QRegularExpressionValidator>
+#include <QtWidgets/QCheckBox>
 #include <QtWidgets/QComboBox>
 #include <QtWidgets/QDialog>
 #include <QtWidgets/QDialogButtonBox>
@@ -173,6 +175,10 @@ ZdxsvSettingsWidget::ZdxsvSettingsWidget(SettingsWindow* settings_dialog, QWidge
 		   "If the server does not answer, this PC stays signed in."));
 	dialog()->registerWidgetHelp(m_ui.zdxsvUPnPNow, tr("UPnP Now"), tr("None"),
 		tr("Opens the battle port on the router now."));
+	dialog()->registerWidgetHelp(m_ui.zdxsvUpscale, tr("Internal Resolution"), tr("Native (PS2)"),
+		tr("The same setting as Graphics → Rendering → Internal Resolution."));
+	dialog()->registerWidgetHelp(m_ui.zdxsvWidescreen, tr("Apply Widescreen Patches"), tr("Unchecked"),
+		tr("The same setting as Graphics → Display → Apply Widescreen Patches."));
 	dialog()->registerWidgetHelp(m_ui.zdxsvPresetLow, tr("Recommended Settings for Low-Spec PC"), tr("None"),
 		tr("Native resolution, input delay 3."));
 	dialog()->registerWidgetHelp(m_ui.zdxsvPresetMid, tr("Recommended Settings for Mid-Spec PC"), tr("None"),
@@ -354,6 +360,64 @@ void ZdxsvSettingsWidget::signOut(bool every_pc)
 				widget->m_ui.zdxsvAccountStatus->setText(tr("Signed out on every PC."));
 		});
 	}).detach();
+}
+
+void ZdxsvSettingsWidget::showEvent(QShowEvent* event)
+{
+	SettingsWidget::showEvent(event);
+	linkGraphics();
+}
+
+// The Graphics page is built after this one and keeps the bindings (per-game values, the adapter's multipliers):
+// these widgets only mirror its widgets.
+void ZdxsvSettingsWidget::linkGraphics()
+{
+	if (!m_graphics_linked)
+	{
+		m_graphics_linked = true;
+		m_graphics_upscale = dialog()->findChild<QComboBox*>(QStringLiteral("upscaleMultiplier"));
+		// per-game settings have no widescreen checkbox: the Patches page has it
+		if (!dialog()->isPerGameSettings())
+			m_graphics_widescreen = dialog()->findChild<QCheckBox*>(QStringLiteral("widescreenPatches"));
+		if (m_graphics_upscale)
+		{
+			m_ui.zdxsvUpscale->setModel(m_graphics_upscale->model());
+			connect(m_ui.zdxsvUpscale, &QComboBox::currentIndexChanged, this, [this](int index) {
+				if (m_graphics_upscale && index >= 0)
+					m_graphics_upscale->setCurrentIndex(index);
+			});
+			connect(m_graphics_upscale, &QComboBox::currentIndexChanged, this, [this](int index) {
+				QSignalBlocker block(m_ui.zdxsvUpscale);
+				m_ui.zdxsvUpscale->setCurrentIndex(index);
+			});
+		}
+		if (m_graphics_widescreen)
+		{
+			connect(m_ui.zdxsvWidescreen, &QCheckBox::toggled, this, [this](bool checked) {
+				if (m_graphics_widescreen)
+					m_graphics_widescreen->setChecked(checked);
+			});
+			connect(m_graphics_widescreen, &QCheckBox::toggled, this, [this](bool checked) {
+				QSignalBlocker block(m_ui.zdxsvWidescreen);
+				m_ui.zdxsvWidescreen->setChecked(checked);
+			});
+		}
+	}
+	m_ui.zdxsvUpscaleLabel->setVisible(m_graphics_upscale != nullptr);
+	m_ui.zdxsvUpscale->setVisible(m_graphics_upscale != nullptr);
+	m_ui.zdxsvWidescreen->setVisible(m_graphics_widescreen != nullptr);
+	m_ui.graphicsGroupBox->setVisible(m_graphics_upscale || m_graphics_widescreen);
+	// the Graphics page refills its list with signals blocked (adapter or renderer change)
+	if (m_graphics_upscale)
+	{
+		QSignalBlocker block(m_ui.zdxsvUpscale);
+		m_ui.zdxsvUpscale->setCurrentIndex(m_graphics_upscale->currentIndex());
+	}
+	if (m_graphics_widescreen)
+	{
+		QSignalBlocker block(m_ui.zdxsvWidescreen);
+		m_ui.zdxsvWidescreen->setChecked(m_graphics_widescreen->isChecked());
+	}
 }
 
 void ZdxsvSettingsWidget::applyPreset(float upscale_multiplier, int min_delay)

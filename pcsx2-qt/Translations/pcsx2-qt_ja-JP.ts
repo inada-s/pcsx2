@@ -28800,5 +28800,37 @@ Steps:
       <source>Account %1: not made yet (made at the first connection)</source>
       <translation>アカウント %1: 未作成 (最初の接続で作成)</translation>
     </message>
+    <message>
+      <source>Graphics</source>
+      <translation>グラフィック</translation>
+    </message>
+    <message>
+      <source>Internal resolution:</source>
+      <translation>内部解像度:</translation>
+    </message>
+    <message>
+      <source>Apply widescreen patches</source>
+      <translation>ワイドスクリーンパッチを有効化</translation>
+    </message>
+    <message>
+      <source>Internal Resolution</source>
+      <translation>内部解像度</translation>
+    </message>
+    <message>
+      <source>Native (PS2)</source>
+      <translation>ネイティブ (PS2)</translation>
+    </message>
+    <message>
+      <source>The same setting as Graphics → Rendering → Internal Resolution.</source>
+      <translation>グラフィック → レンダリング → 内部解像度 と同じ設定です。</translation>
+    </message>
+    <message>
+      <source>Apply Widescreen Patches</source>
+      <translation>ワイドスクリーンパッチを有効化</translation>
+    </message>
+    <message>
+      <source>The same setting as Graphics → Display → Apply Widescreen Patches.</source>
+      <translation>グラフィック → 画面 → ワイドスクリーンパッチを有効化 と同じ設定です。</translation>
+    </message>
   </context>
 </TS>

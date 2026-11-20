@@ -6,6 +6,8 @@
 #include "ui_ZdxsvSettingsWidget.h"
 #include "SettingsWidget.h"
 
+#include <QtCore/QPointer>
+
 #include <atomic>
 #include <memory>
 
@@ -21,7 +23,11 @@ public:
 	// a tooltip while forced; checked once a second.
 	static void markSyncForced(QWidget* window);
 
+protected:
+	void showEvent(QShowEvent* event) override;
+
 private:
+	void linkGraphics();
 	void applyPreset(float upscale_multiplier, int min_delay);
 	void mapUpnpNow();
 	void updateAccount();
@@ -40,4 +46,7 @@ private:
 	std::shared_ptr<std::atomic<bool>> m_sign_in_cancel;
 	// The signed-in Discord account can carry over one more account (as the server last answered).
 	bool m_carry_room = false;
+	QPointer<QComboBox> m_graphics_upscale;
+	QPointer<QCheckBox> m_graphics_widescreen;
+	bool m_graphics_linked = false;
 };
