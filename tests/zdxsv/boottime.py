@@ -49,6 +49,9 @@ def run(out, after=None, prepare=None):
     shutil.copyfile(os.path.join(run_, "zdxsv.db"), os.path.join(out, "zdxsv.db"))
     if prepare and prepare(out):
         return 1
+    if not prepare:
+        import tokenlogin
+        tokenlogin.migrate(out)
     seeded = seed_token(out, p1, os.path.join(run_, f"Mcd001-{card}.ps2"))
     if seeded is False:
         return 1
