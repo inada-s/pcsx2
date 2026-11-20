@@ -732,6 +732,7 @@ def main():
                and not c(f, "sent platform info|ZdxsvGgpo: options"))
     if emu and not ext_off:
         ok(f"platform info sent x{nc}", sum(c(f, "sent platform info") for f in every) >= nc)
+        ok(f"lobby read platform info x{nc}", c(lobby, r'\splatform\s.*"platform": "emu".*"emulator":"pcsx2"') >= nc)
     if not emu and not ext_off:
         ok(f"DEV9 path x{nc} (adapter DHCP), no platform info, TLS, bridge or no-DEV9",
            sum(1 for f in every if c(f, "DEV9: DHCP")) >= nc
@@ -1083,15 +1084,15 @@ def main():
             f = el(i)
             for l in g(f, r"ZdxsvHttpsLatency: (asia-northeast1|done|off)"):
                 say(l[:200])
-            # the lobby logs each platform info as a Go map; a client's lines carry its GGPO port (ggpo:<port>)
+            # the lobby logs each platform info as JSON; a client's lines carry its GGPO port ("ggpo":"<port>")
             p = int(ggpo or 0) + int(i) - 1
-            pl = g(lobby, rf"platform.*ggpo:{p}[\] ]")
+            pl = g(lobby, rf'platform.*"ggpo":"{p}"')
             if i == E("HTTPS_OFF"):
                 ok(f"p{i} (ZDXSV_HTTPS_LATENCY=0): off, no region in its platform info",
-                   c(f, "ZdxsvHttpsLatency: off") and pl and not any("asia-northeast1:" in l for l in pl))
+                   c(f, "ZdxsvHttpsLatency: off") and pl and not any('"asia-northeast1":' in l for l in pl))
             else:
                 ok(f"p{i} https latency: one run, its platform info has asia-northeast1",
-                   c(f, "ZdxsvHttpsLatency: done") == 1 and any(re.search("asia-northeast1:[0-9]", l) for l in pl))
+                   c(f, "ZdxsvHttpsLatency: done") == 1 and any(re.search('"asia-northeast1":"[0-9]', l) for l in pl))
     if E("RELAY"):
         ok("lobby relay started", c(lobby, "[Ss]tart relay"))
         for i in gclients:
