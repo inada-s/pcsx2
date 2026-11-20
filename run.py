@@ -20,7 +20,8 @@ have no default (gui needs neither; without BIOS, the BIOS setting is left as it
     FRAME_LATENCY=0 python run.py rom      # maximum frame latency 0 (optimal frame pacing)
     LAT=100 JITTER=20 LOSS=0.05 N=4 python run.py rbk_test_random   # 100 ms one-way +-20 ms, 5 % loss
 
-rbk_test ends with a sync check (tools/zdxsv/pwcheck.py on the players' work RAM hashes): IN SYNC or DESYNC.
+rbk_test ends with a sync check (tools/zdxsv/pwcheck.py on the players' work RAM hashes and RNG B): IN SYNC (exit 0) or
+DESYNC (exit 1).
 
 Each instance gets its own data dir work/pcsx2-<i> (-datapath), so inis, memory cards, save states
 and logs never mix with your normal PCSX2 setup. Instance 1's log is echoed to this terminal.
@@ -270,15 +271,17 @@ def report_sync():
     missing = [t for t in traces if not Path(t).is_file()]
     if missing:
         print(f"sync check: no trace {missing}")
-        return
+        return False
     r = subprocess.run([sys.executable, str(ROOT / "tools" / "zdxsv" / "pwcheck.py"), "--own", *traces],
                        capture_output=True, text=True)
-    lines = [l for l in r.stdout.splitlines() if l.startswith(("common", "player"))]
+    lines = [l for l in r.stdout.splitlines() if l.startswith(("common", "player", "rng:"))]
     print("\n".join(lines))
     common = next((int(l.split()[2]) for l in lines if l.startswith("common")), 0)
     bad = sum(int(l.split()[3]) for l in lines if l.startswith("player") and int(l.split()[1][:-1]) < N)
+    bad += sum(int(l.split()[2]) for l in lines if l.startswith("rng:"))
     print(f"sync check: {'IN SYNC' if common and not bad else 'DESYNC' if bad else 'no common frames'}"
-          f" ({common} frames, {bad} mismatching player-frames)")
+          f" ({common} frames, {bad} mismatching player and RNG frames)")
+    return bool(common) and not bad
 
 
 MODES = ("gui", "rom", "state", "rbk_test", "rbk_test_random")
@@ -421,8 +424,9 @@ def exec_mode(mode: str):
             print(f"instance {i + 1} exit {p.poll()}  log: {log_path(i)}")
     if rbk:
         report_rbk()
-        if SYNC_CHECK:
-            report_sync()
+        if SYNC_CHECK and not report_sync():
+            return 1
+    return 0
 
 
 def main():
@@ -434,8 +438,8 @@ def main():
     if mode.startswith("rbk_test"):
         download_rbk_state()
     check(mode)
-    exec_mode(mode)
+    return exec_mode(mode)
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
