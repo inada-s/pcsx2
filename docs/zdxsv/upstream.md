@@ -375,12 +375,12 @@ needs its marker.
 | `pcsx2/VU0microInterp.cpp` | `_vu0Exec` | zeroed, some regs functions (SQ, SQI, ...) leave VFwxyzw unset, and the FMAC pipe keeps it. |
 | `pcsx2/VU1micro.cpp` |  | include `Zdxsv/CpuHooks.h` |
 | `pcsx2/VU1micro.cpp` | `vu1ExecMicro` | `Zdxsv::g_vu_op_test`, `Zdxsv::VuOpTest`, `Zdxsv::g_rerun_vu1_skip` |
-| `pcsx2/VU1microInterp.cpp` |  | not marked yet |
-| `pcsx2/VU1microInterp.cpp` | `_vu1EndProgram` | not marked yet |
-| `pcsx2/VU1microInterp.cpp` | `_vu1Exec` | not marked yet |
-| `pcsx2/VU1microInterp.cpp` | `InterpVU1::Reset` | not marked yet |
-| `pcsx2/VU1microInterp.cpp` | `InterpVU1::Execute` | not marked yet |
-| `pcsx2/VU1microInterp.cpp` | `InterpVU1::Execute` | not marked yet |
+| `pcsx2/VU1microInterp.cpp` |  | ARM64 VU1 trace recompiler. |
+| `pcsx2/VU1microInterp.cpp` | `_vu1EndProgram` | the E-bit end below as a function the ARM64 VU1 trace recompiler also calls. |
+| `pcsx2/VU1microInterp.cpp` | `_vu1Exec` | was inline here. |
+| `pcsx2/VU1microInterp.cpp` | `InterpVU1::Reset` | ARM64 VU1 traces are compiled from VU1 micro memory. |
+| `pcsx2/VU1microInterp.cpp` | `InterpVU1::Execute` | no trace chain across Execute calls. |
+| `pcsx2/VU1microInterp.cpp` | `InterpVU1::Execute` | ARM64 runs compiled VU1 traces between interpreter steps. |
 | `pcsx2/VUmicro.h` |  | ARM64 VU1 trace cache |
 | `pcsx2/VUops.cpp` | `_vuFDIVAdd` | not marked yet |
 | `pcsx2/VUops.cpp` | `_getDst` | not marked yet |

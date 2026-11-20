@@ -476,7 +476,7 @@ static void _vu1JitMark(const char* what, const void* fn = nullptr)
 
 // As _vuFDIVflush and _vuEFUflush do once the result is due.
 static void _vu1JitXGKICK() { _vuXGKICKTransfer((VU1.cycle - VU1.xgkicklastcycle) - 1, false); }
-extern void _vu1EndProgram();
+#include "arm64/VU1Trace.h"
 
 template <typename T>
 static s64 _vu1Off(const T& field)
