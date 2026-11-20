@@ -18,8 +18,9 @@ Each script's usage and knobs are in its header comment.
 Steps, in order (`rigcheck.py` checks their results and names the step of each missing one;
 settings in `local.env`, see Settings):
 
-1. A PCSX2 build of this repository (`bin/pcsx2-qtx64.exe`, or `PCSX2_EXE`):
-   `build-local.sh` or MSBuild. Every build reads the test options.
+1. A Devel build of this repository (`bin/pcsx2-qtx64-dev.exe`, or `PCSX2_EXE`):
+   `build-local.sh` or MSBuild, configuration Devel (CMake: `-DCMAKE_BUILD_TYPE=Devel`).
+   A Release build ignores the `ZDXSV_*` and `GGPO_*` test options: fast login and GGPO stay on.
 2. The game image (`ISO`). It is not part of this repository.
 3. `RUN` and its first instance: start the build with `-datapath $RUN/p1`, finish the setup
    wizard with a BIOS dump of your console (`$RUN/p1/PCSX2/bios`), quit. Merge `pcsx2.ini.part`
@@ -48,7 +49,7 @@ fails with exit 2 and names it.
 |---|---|---|
 | `RUN` | all | work root: instance data dirs `$RUN/pN/PCSX2` |
 | `ISO` | `launch.py` | the game image |
-| `PCSX2_EXE` | `launch.py` | PCSX2 to test (Windows default `bin/pcsx2-qtx64.exe` of this tree; elsewhere required, a `.app` works) |
+| `PCSX2_EXE` | `launch.py` | PCSX2 to test (Windows default `bin/pcsx2-qtx64-dev.exe` of this tree; elsewhere required, a `.app` works) |
 | `ZDXSV_DIR` | lobby tests | zdxsv checkout (`bin/zdxsv.exe`, `bin/zproxy.exe`) |
 | `IP` | lobby tests | this machine's LAN IPv4 address, given to the game as the server |
 | `DEV9` | `launch.py` | `1`: the game's net over the DEV9 adapter (empty `ZDXSV_SERVER_HOST`, as a PS2); else online without DEV9 to `IP` |

@@ -34,6 +34,7 @@ def base():
     if zrig.WIN or zrig.env("PCSX2_EXE"):
         exe = launch.exe_path()
         report(os.path.isfile(exe), f"PCSX2 build {exe}", 1)
+        report(os.path.basename(exe).lower() != "pcsx2-qtx64.exe", f"a Devel build, not the Release {exe}", 1)
     else:
         report(False, "setting PCSX2_EXE", 1)
     iso = setting("ISO", 2)
