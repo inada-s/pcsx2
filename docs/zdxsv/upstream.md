@@ -59,8 +59,7 @@ Each change in an upstream file is marked where it is: a line that names
 zdxsv (a `Zdxsv::` call or a `Zdxsv/` include), else a `// zdxsv: <why>`
 comment. The list below is generated from those markers;
 `tools/zdxsv/upstream_spots.py` checks that every spot is marked and the list
-is current (`--write` updates it). A spot listed as "not marked yet" still
-needs its marker.
+is current (`--write` updates it); CI (Lint VS Project Files) fails otherwise.
 
 Not markable, so not listed: `PCSX2_qt.sln` (the GGPO, miniupnpc and mbedtls
 projects) and `pcsx2-qt/Translations/*.ts` (strings the fork translated), because
