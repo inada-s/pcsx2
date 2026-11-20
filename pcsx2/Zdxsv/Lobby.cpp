@@ -663,14 +663,14 @@ namespace Zdxsv
 				}
 			}
 		};
-		// the test socket's Pong may come a little after the main one
+		// the two Pongs may arrive in either order; the udptest request needs the main one's address
 		const auto start = Clock::now();
-		ask(stun, "udptest", [&] { return open || (!mapped.empty() && Clock::now() - start > std::chrono::milliseconds(500)); });
+		ask(stun, "udptest", [&] { return !mapped.empty() && (open || Clock::now() - start > std::chrono::milliseconds(500)); });
 		if (!mapped.empty() && !open)
 			ask(test, "", [&] { return !mappedTest.empty(); });
 		// "" = not asked; the server's test socket shares its IP, so an address-restricted NAT passes it
 		std::string reach;
-		if (open && reachAsk && !stopped())
+		if (open && !mapped.empty() && reachAsk && !stopped())
 		{
 			reach = "no answer";
 			if (!reachAsk(mapped, stop))

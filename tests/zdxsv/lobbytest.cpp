@@ -436,6 +436,17 @@ int main()
 		Check(line == "nat=cone\n" && summary == "cone NAT (open to the server only)", "no udptest Hello: nat=cone (ms)", Ms(t0));
 		line = run([](const std::string&, const std::atomic<bool>*) { return false; }, summary);
 		Check(line == "nat=open\n", "udptest request failed: server result kept, nat=open", 0);
+		stun.mode = 250;
+		asked = "-";
+		line = run([&](const std::string& addr, const std::atomic<bool>*) {
+			asked = addr;
+			std::thread([ts, me] {
+				std::this_thread::sleep_for(std::chrono::milliseconds(200));
+				sendto(ts, "Hello", 5, 0, (const sockaddr*)&me, sizeof(me));
+			}).detach();
+			return true;
+		}, summary);
+		Check(line == "nat=open\n" && asked == "1.2.3.4:5555", "test socket Pong before the main one: waits for the address, nat=open", 0);
 		closesocket(ts);
 	}
 	// a peer listed at :27141 answers from :27142 (its NAT mapping): the pongs count, :27142 is picked
