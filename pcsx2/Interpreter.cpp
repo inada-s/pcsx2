@@ -20,10 +20,11 @@ using namespace R5900;		// for OPCODE and OpcodeImpl
 extern int vu0branch, vu1branch;
 
 static int branch2 = 0;
+// zdxsv: cpuBlockCycles and intLastBranchTo not static, the ARM64 EE recompiler shares them.
 u32 cpuBlockCycles = 0;		// 3 bit fixed point version of cycle count
 static std::string disOut;
 static bool intExitExecution = false;
-// intJmpBuf is only valid while intExecuteWith runs (as x86's eeCpuExecuting)
+// zdxsv: intJmpBuf is only valid while intExecuteWith runs (as x86's eeCpuExecuting).
 static bool intCpuExecuting = false;
 static fastjmp_buf intJmpBuf;
 u32 intLastBranchTo;
@@ -223,6 +224,7 @@ static void execI()
 	opcode.interpret();
 }
 
+// zdxsv: split from _doBranch_shared, the ARM64 EE recompiler runs the delay slot itself.
 static __fi void _doBranchAfterDelaySlot(u32 tar)
 {
 	// branch being 0 means an exception was thrown, since only the exception
@@ -230,7 +232,7 @@ static __fi void _doBranchAfterDelaySlot(u32 tar)
 
 	if( cpuRegs.branch != 0 )
 	{
-		if (CpuRunsIntBranches())
+		if (CpuRunsIntBranches()) // zdxsv: also the ARM64 EE recompiler.
 		{
 			if (intLastBranchTo == tar && EmuConfig.Speedhacks.WaitLoop)
 			{
@@ -275,7 +277,7 @@ static __fi void _doBranch_shared(u32 tar)
 	_doBranchAfterDelaySlot(tar);
 }
 
-// doBranch for the ARM64 recompiler, which runs the delay slot in its block.
+// zdxsv: doBranch for the ARM64 recompiler, which runs the delay slot in its block.
 void intBranchAfterDelaySlot(u32 target)
 {
 	_doBranchAfterDelaySlot(target);
@@ -295,7 +297,7 @@ void intDoBranch(u32 target)
 	//Console.WriteLn("Interpreter Branch ");
 	_doBranch_shared( target );
 
-	if( CpuRunsIntBranches() )
+	if( CpuRunsIntBranches() ) // zdxsv: also the ARM64 EE recompiler.
 	{
 		intUpdateCPUCycles();
 		intEventTest();
@@ -575,7 +577,7 @@ static void intReset()
 void intEventTest()
 {
 #ifdef ARCH_ARM64
-	// The ARM64 recompiler tests events as the x86 one: only once the cycle target is reached.
+	// zdxsv: the ARM64 recompiler tests events as the x86 one, only once the cycle target is reached.
 	if (Cpu == &recCpu && static_cast<s64>(cpuRegs.cycle - cpuRegs.nextEventCycle) < 0)
 		return;
 #endif
@@ -592,11 +594,12 @@ void intEventTest()
 	}
 }
 
+// zdxsv: not static, the ARM64 EE recompiler calls it.
 void intSafeExitExecution()
 {
 	// If we're currently processing events, we can't safely jump out of the interpreter here, because we'll
 	// leave things in an inconsistent state. So instead, we flag it for exiting once cpuEventTest() returns.
-	// Outside execution (a VM state change run on the CPU thread between two Execute calls) intJmpBuf points
+	// zdxsv: outside execution (a VM state change run on the CPU thread between two Execute calls) intJmpBuf points
 	// into a returned frame: the next Execute leaves at its first event test (as x86's eeRecExitRequested).
 	if (eeEventTestIsActive || !intCpuExecuting)
 		intExitExecution = true;
@@ -608,20 +611,21 @@ void intSafeExitExecution()
 	}
 }
 
+// zdxsv: not static, the ARM64 EE recompiler calls it.
 void intCancelInstruction()
 {
 	// See execute function.
 	fastjmp_jmp(&intJmpBuf, 0);
 }
 
-// run_block: execI, or one compiled block of the ARM64 EE recompiler (arm64/iR5900.cpp) once the ELF has booted.
+// zdxsv: run_block is execI, or one compiled block of the ARM64 EE recompiler (arm64/iR5900.cpp) once the ELF has booted.
 static __fi void intExecuteWith(void (*run_block)())
 {
 	// This will come back as zero the first time it runs, or on instruction cancel.
 	// It will come back as nonzero when we exit execution.
 	if (fastjmp_set(&intJmpBuf) != 0)
 	{
-		intCpuExecuting = false;
+		intCpuExecuting = false; // zdxsv: see intSafeExitExecution.
 		return;
 	}
 	intCpuExecuting = true;
@@ -681,7 +685,7 @@ static __fi void intExecuteWith(void (*run_block)())
 				}
 				else if (VMManager::Internal::HasBootedELF())
 				{
-					// A state loaded during this loop is past the ELF entry: run blocks, as after a fresh Execute.
+					// zdxsv: a state loaded during this loop is past the ELF entry, run blocks as after a fresh Execute.
 					break;
 				}
 			}
@@ -689,11 +693,12 @@ static __fi void intExecuteWith(void (*run_block)())
 		else
 		{
 			while (true)
-				run_block();
+				run_block(); // zdxsv: execI or an ARM64 EE recompiler block.
 		}
 	}
 }
 
+// zdxsv: intExecute split around intExecuteWith, intExecuteBlocks is the ARM64 EE recompiler's entry.
 static void intExecute()
 {
 	intExecuteWith(execI);
