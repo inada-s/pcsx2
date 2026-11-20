@@ -2657,6 +2657,9 @@
     <ClInclude Include="Zdxsv\FpuX86.h">
       <Filter>Zdxsv</Filter>
     </ClInclude>
+    <ClInclude Include="Zdxsv\VuX86.h">
+      <Filter>Zdxsv</Filter>
+    </ClInclude>
     <ClInclude Include="Zdxsv\DeltaFreeze.h">
       <Filter>Zdxsv</Filter>
     </ClInclude>
