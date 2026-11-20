@@ -658,8 +658,7 @@ void ZdxsvReplayDialog::play(const QString& src)
 		return;
 	}
 	const int pov = m_pov->currentData().toInt();
-	if (Zdxsv::QtReplayChildLaunch(this, disc.c_str(), src.toUtf8().constData(), pov))
-		close();
+	Zdxsv::QtReplayChildLaunch(this, disc.c_str(), src.toUtf8().constData(), pov);
 }
 
 #include "moc_ZdxsvReplayDialog.cpp"
