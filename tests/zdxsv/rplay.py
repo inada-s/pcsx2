@@ -18,6 +18,7 @@ guest's trace (trace-play-povP.txt) is pwchecked too, and the host's `spread` li
 Control bar: KEYS="15:bar:show,w600,bar:timeline:0.7,shot:$OUT/a.png" (pcsx2ctl mouse tokens).
 API=1: plays ZDXSV_REPLAY=http://127.0.0.1:API_PORT/lbs/replay?battle_code=<FILE's name> from apiserve.py (API_PORT,
 default 9891), whose replay_url serves FILE; checks the replay_url line too. GZIP=1: replay_url serves FILE gzip encoded (Content-Encoding: gzip), as GCS serves the lobby's objects.
+EXPECT="regex=N;regex>=N": FAILs unless the emulog has exactly N (at least N) lines matching each regex.
 BAD=1: FILE is not a playable replay: exit 0 if the player is told it did not start (`replay: not started`).
 """
 import atexit
@@ -142,6 +143,10 @@ def main(live):
             os.remove(f)
         except OSError:
             pass
+    expect = [re.fullmatch(r"(.+?)(>=|=)([0-9]+)", e) for e in zrig.env("EXPECT").split(";") if e]
+    if not all(expect):
+        print("FAIL EXPECT entries are regex=N or regex>=N")
+        return 1
     ini = os.path.join(run, f"p{n}", "PCSX2", "inis", "PCSX2.ini")
     keys = [k for k in keys_env.split(";") if k] if keys_env else []
     if keys_env:
@@ -259,6 +264,14 @@ def main(live):
     if not grep(l, "ZdxsvGgpo: replay end"):
         print("FAIL no replay end")
         ok = 1
+    for m in expect:
+        rx, op, want = m.group(1), m.group(2), int(m.group(3))
+        got = len(grep(l, rx))
+        if got == want or (op == ">=" and got > want):
+            print(f"PASS {got} emulog lines '{rx}'")
+        else:
+            print(f"FAIL {got} emulog lines '{rx}', want {op}{want}")
+            ok = 1
     if child:
         if zrig.count_name("pcsx2"):
             print("FAIL the replay child did not exit")
