@@ -6,7 +6,7 @@ on:
 
 jobs:
   trigger:
-    if: github.event.pull_request.merged == true && contains(github.event.pull_request.labels.*.name, 'requires-win-deps-build')
+    if: github.repository == 'PCSX2/pcsx2' && github.event.pull_request.merged == true && contains(github.event.pull_request.labels.*.name, 'requires-win-deps-build')
     runs-on: ubuntu-latest
     steps:
       - name: Dispatch to windows-dependencies repo

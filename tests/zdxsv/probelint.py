@@ -13,7 +13,7 @@ Rules, each from a run that read a bad probe:
   frames, key dumps on g_FrameCount = vsync.
 - stale (--exe): a checked file newer than the exe, content changed since a lint saw it older
   (`<exe>.probelint` sha1 stamp; a `git stash` mtime bump alone passes): the run would read the old probe.
-Files: pcsx2/Zdxsv*.cpp, pcsx2/x86/ix86-32/iR5900.cpp, pcsx2/DEV9/Zdxsv/*.cpp (or the given files).
+Files: pcsx2/Zdxsv/*.cpp, pcsx2/x86/ix86-32/iR5900.cpp (or the given files).
 """
 import glob
 import hashlib
@@ -171,10 +171,11 @@ def main(argv):
     if argv[:1] == ["--exe"]:
         exe, argv = argv[1], argv[2:]
     tree = argv[0] if argv else os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
-    paths = argv[1:] or sorted(glob.glob(os.path.join(tree, "pcsx2", "Zdxsv*.cpp")) +
-                               [os.path.join(tree, "pcsx2", "x86", "ix86-32", "iR5900.cpp")] +
-                               glob.glob(os.path.join(tree, "pcsx2", "DEV9", "Zdxsv", "*.cpp")))
+    paths = argv[1:] or sorted(glob.glob(os.path.join(tree, "pcsx2", "Zdxsv", "*.cpp")) +
+                               [os.path.join(tree, "pcsx2", "x86", "ix86-32", "iR5900.cpp")])
     errs = [e for p in paths if os.path.exists(p) for e in lint(p)]
+    if not argv[1:] and not glob.glob(os.path.join(tree, "pcsx2", "Zdxsv", "*.cpp")):
+        errs.append("%s: no pcsx2/Zdxsv/*.cpp to check" % tree.replace("\\", "/"))
     if exe and os.path.exists(exe):
         errs += ["%s: stale: newer than %s, rebuild (the run would read the old probe)" % (p.replace("\\", "/"), exe)
                  for p in stale(exe, [p for p in paths if os.path.exists(p)])]

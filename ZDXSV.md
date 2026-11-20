@@ -102,7 +102,9 @@ PCSX2 keeps a sign-in token for this PC and logs in with it. Account lists your 
 the server allows; an empty slot becomes an account when you first connect with it picked. Carry Over
 from PS2 adds the account you play on a PS2 (on the PS2, type ｄｃ in the chat of the Kennedy Port lobby and enter the code it shows within 3 minutes; the
 PS2 keeps playing with it). Account picks the one used online.
-Sign Out revokes the token. A sign-in unused for 90 days, or revoked, is refused by the server: PCSX2 then signs out and asks you to sign in again.
+Sign Out revokes the token. Sign Out Everywhere revokes the tokens of every PC signed in with your Discord
+account (this one too); each has to sign in again. A sign-in unused for 90 days, or revoked, is refused by the server: PCSX2
+then signs out and asks you to sign in again.
 
 With no token, going online opens the sign-in page and pauses the game until you sign in; resume
 the game to cancel it and go back to the network menu.
@@ -140,3 +142,11 @@ You can also check by hand from the Help menu (Check for Updates).
 If the game shows "PLEASE UPDATE PCSX2" when you connect (PCSX2 also shows "The lobby refused this PCSX2
 as outdated"), the server no longer accepts your
 version: update as above, then connect again.
+
+## License and source code
+
+PCSX2 for zdxsv is free software under the GNU General Public License, version 3 or later
+(`docs/GPL.html`). Its source code is at https://github.com/inada-s/pcsx2 (branch `zdxsv-master`);
+the source of each release is under its tag `zdxsv-X.Y.Z` on https://github.com/inada-s/pcsx2/releases.
+It includes third-party software (GGPO, Mbed TLS, MiniUPnPc, Sentry Native, Crashpad and others)
+under their own licenses: see `docs/ThirdPartyLicenses.html`.

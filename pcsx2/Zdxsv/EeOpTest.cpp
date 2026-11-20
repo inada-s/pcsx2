@@ -250,148 +250,155 @@ namespace
 		Running,
 		Done,
 	};
-	State s_state = State::Waiting;
-	std::string s_path;
-	u32 s_count = 2048;
-	u32 s_vsync = 0;
-	u32 s_op = 0;
-	u32 s_end_pc = 0;
-	std::vector<u8> s_ram;
-	std::vector<u32> s_in;
-	std::vector<std::vector<u32>> s_out;
-	GPR_reg s_gpr[4];
-	std::unique_ptr<fpuRegisters> s_fpu;
-	struct Vu0Saved
+	struct OpTestRun
 	{
-		VECTOR VF[32];
-		REG_VI VI[32];
-		VECTOR ACC;
-		REG_VI q, p;
-		u32 macflag, statusflag, clipflag;
-	} s_vu0;
-	u32 s_status = 0, s_pc = 0;
+		State state = State::Waiting;
+		std::string path;
+		u32 count = 2048;
+		u32 vsync = 0;
+		u32 op = 0;
+		u32 end_pc = 0;
+		std::vector<u32> in;
+		std::vector<std::vector<u32>> out;
+	} s_run;
+	// The guest state the test borrows, put back at the end.
+	struct SavedGuest
+	{
+		std::vector<u8> ram;
+		GPR_reg gpr[4];
+		std::unique_ptr<fpuRegisters> fpu;
+		struct
+		{
+			VECTOR VF[32];
+			REG_VI VI[32];
+			VECTOR ACC;
+			REG_VI q, p;
+			u32 macflag, statusflag, clipflag;
+		} vu0;
+		u32 status = 0, pc = 0;
+	} s_saved;
 
 	void LoadOp(u32 k)
 	{
 		const EeTestOp& op = s_ops[k];
-		std::vector<u32> prog = op.fmt == C2 ? BuildCop2(op, s_count) : BuildCop1(op, s_count);
+		std::vector<u32> prog = op.fmt == C2 ? BuildCop2(op, s_run.count) : BuildCop1(op, s_run.count);
 		prog.push_back(I(0x04, 0, 0, 0xffff)); // end: beq zero, zero, end
 		prog.push_back(0); // nop
 		std::memset(eeMem->Main + BASE, 0, IN - BASE);
 		std::memcpy(eeMem->Main + BASE, prog.data(), prog.size() * 4);
 		Cpu->Clear(BASE, (IN - BASE) / 4);
-		s_end_pc = BASE + static_cast<u32>(prog.size() - 2) * 4;
+		s_run.end_pc = BASE + static_cast<u32>(prog.size() - 2) * 4;
 		cpuRegs.pc = BASE;
 	}
 
 	void Start()
 	{
-		s_ram.assign(eeMem->Main + BASE, eeMem->Main + BASE + SIZE);
-		std::memcpy(s_gpr, &cpuRegs.GPR.r[T0], sizeof(s_gpr));
-		s_fpu = std::make_unique<fpuRegisters>(fpuRegs);
-		std::memcpy(s_vu0.VF, VU0.VF, sizeof(s_vu0.VF));
-		std::memcpy(s_vu0.VI, VU0.VI, sizeof(s_vu0.VI));
-		s_vu0.ACC = VU0.ACC;
-		s_vu0.q = VU0.q;
-		s_vu0.p = VU0.p;
-		s_vu0.macflag = VU0.macflag;
-		s_vu0.statusflag = VU0.statusflag;
-		s_vu0.clipflag = VU0.clipflag;
-		s_status = cpuRegs.CP0.n.Status.val;
-		s_pc = cpuRegs.pc;
+		s_saved.ram.assign(eeMem->Main + BASE, eeMem->Main + BASE + SIZE);
+		std::memcpy(s_saved.gpr, &cpuRegs.GPR.r[T0], sizeof(s_saved.gpr));
+		s_saved.fpu = std::make_unique<fpuRegisters>(fpuRegs);
+		std::memcpy(s_saved.vu0.VF, VU0.VF, sizeof(s_saved.vu0.VF));
+		std::memcpy(s_saved.vu0.VI, VU0.VI, sizeof(s_saved.vu0.VI));
+		s_saved.vu0.ACC = VU0.ACC;
+		s_saved.vu0.q = VU0.q;
+		s_saved.vu0.p = VU0.p;
+		s_saved.vu0.macflag = VU0.macflag;
+		s_saved.vu0.statusflag = VU0.statusflag;
+		s_saved.vu0.clipflag = VU0.clipflag;
+		s_saved.status = cpuRegs.CP0.n.Status.val;
+		s_saved.pc = cpuRegs.pc;
 
-		s_in.resize(s_count * IN_WORDS);
-		for (u32& v : s_in)
+		s_run.in.resize(s_run.count * IN_WORDS);
+		for (u32& v : s_run.in)
 			v = Value();
-		s_out.assign(NUM_OPS, {});
+		s_run.out.assign(NUM_OPS, {});
 		std::memset(eeMem->Main + BASE, 0, SIZE);
-		std::memcpy(eeMem->Main + IN, s_in.data(), s_in.size() * 4);
+		std::memcpy(eeMem->Main + IN, s_run.in.data(), s_run.in.size() * 4);
 		// COP1 and COP2 usable, interrupts off (IE, EIE).
-		cpuRegs.CP0.n.Status.val = (s_status | 0x60000000) & ~0x10001u;
-		s_op = 0;
+		cpuRegs.CP0.n.Status.val = (s_saved.status | 0x60000000) & ~0x10001u;
+		s_run.op = 0;
 		LoadOp(0);
-		Console.WriteLn("EE optest: %u ops x %u cases started at vsync %u, pc %08x", NUM_OPS, s_count, s_vsync, s_pc);
+		Console.WriteLn("EE optest: %u ops x %u cases started at vsync %u, pc %08x", NUM_OPS, s_run.count, s_run.vsync, s_saved.pc);
 	}
 
 	void Finish()
 	{
-		std::FILE* fp = std::fopen(s_path.c_str(), "wb");
+		std::FILE* fp = std::fopen(s_run.path.c_str(), "wb");
 		if (!fp)
-			Console.Error("EE optest: cannot write %s", s_path.c_str());
-		const bool in_ok = std::memcmp(eeMem->Main + IN, s_in.data(), s_in.size() * 4) == 0;
+			Console.Error("EE optest: cannot write %s", s_run.path.c_str());
+		const bool in_ok = std::memcmp(eeMem->Main + IN, s_run.in.data(), s_run.in.size() * 4) == 0;
 		for (u32 k = 0; k < NUM_OPS; k++)
 		{
 			const u32 ow = OutWords(s_ops[k]), iw = FileInWords(s_ops[k]);
-			const u32* out = s_out[k].data();
+			const u32* out = s_run.out[k].data();
 			u32 hash = 0x811c9dc5;
-			for (u32 i = 0; i < s_count; i++)
+			for (u32 i = 0; i < s_run.count; i++)
 			{
 				for (u32 j = 0; j < ow; j++)
 					hash = (hash ^ out[i * ow + j]) * 0x01000193;
 				if (fp)
 				{
-					std::fwrite(&s_in[i * IN_WORDS], iw * 4, 1, fp);
+					std::fwrite(&s_run.in[i * IN_WORDS], iw * 4, 1, fp);
 					std::fwrite(&out[i * ow], ow * 4, 1, fp);
 				}
 			}
-			Console.WriteLn("EE optest: %s %u cases, hash %08x", s_ops[k].name, s_count, hash);
+			Console.WriteLn("EE optest: %s %u cases, hash %08x", s_ops[k].name, s_run.count, hash);
 		}
 		if (fp)
 			std::fclose(fp);
-		Console.WriteLn("EE optest: done at vsync %u, inputs %s", s_vsync, in_ok ? "intact" : "CHANGED (DMA into the borrowed RAM?)");
+		Console.WriteLn("EE optest: done at vsync %u, inputs %s", s_run.vsync, in_ok ? "intact" : "CHANGED (DMA into the borrowed RAM?)");
 
-		std::memcpy(eeMem->Main + BASE, s_ram.data(), SIZE);
+		std::memcpy(eeMem->Main + BASE, s_saved.ram.data(), SIZE);
 		Cpu->Clear(BASE, SIZE / 4);
-		std::memcpy(&cpuRegs.GPR.r[T0], s_gpr, sizeof(s_gpr));
-		fpuRegs = *s_fpu;
-		std::memcpy(VU0.VF, s_vu0.VF, sizeof(s_vu0.VF));
-		std::memcpy(VU0.VI, s_vu0.VI, sizeof(s_vu0.VI));
-		VU0.ACC = s_vu0.ACC;
-		VU0.q = s_vu0.q;
-		VU0.p = s_vu0.p;
-		VU0.macflag = s_vu0.macflag;
-		VU0.statusflag = s_vu0.statusflag;
-		VU0.clipflag = s_vu0.clipflag;
-		cpuRegs.CP0.n.Status.val = s_status;
-		cpuRegs.pc = s_pc;
+		std::memcpy(&cpuRegs.GPR.r[T0], s_saved.gpr, sizeof(s_saved.gpr));
+		fpuRegs = *s_saved.fpu;
+		std::memcpy(VU0.VF, s_saved.vu0.VF, sizeof(s_saved.vu0.VF));
+		std::memcpy(VU0.VI, s_saved.vu0.VI, sizeof(s_saved.vu0.VI));
+		VU0.ACC = s_saved.vu0.ACC;
+		VU0.q = s_saved.vu0.q;
+		VU0.p = s_saved.vu0.p;
+		VU0.macflag = s_saved.vu0.macflag;
+		VU0.statusflag = s_saved.vu0.statusflag;
+		VU0.clipflag = s_saved.vu0.clipflag;
+		cpuRegs.CP0.n.Status.val = s_saved.status;
+		cpuRegs.pc = s_saved.pc;
 	}
 } // namespace
 
 void Zdxsv::EeOpTestOnVsync()
 {
-	switch (s_state)
+	switch (s_run.state)
 	{
 		case State::Waiting:
 		{
 			const char* env = TestEnv("ZDXSV_EE_OPTEST");
 			if (!env || !*env)
 			{
-				s_state = State::Off;
+				s_run.state = State::Off;
 				return;
 			}
-			if (++s_vsync < 300)
+			if (++s_run.vsync < 300)
 				return;
-			s_path = env;
-			if (const size_t comma = s_path.find(','); comma != std::string::npos)
+			s_run.path = env;
+			if (const size_t comma = s_run.path.find(','); comma != std::string::npos)
 			{
-				s_count = std::min<u32>(std::strtoul(s_path.c_str() + comma + 1, nullptr, 10), MAX_CASES);
-				s_finite = s_path.find(",finite", comma) != std::string::npos;
-				s_path.resize(comma);
+				s_run.count = std::min<u32>(std::strtoul(s_run.path.c_str() + comma + 1, nullptr, 10), MAX_CASES);
+				s_finite = s_run.path.find(",finite", comma) != std::string::npos;
+				s_run.path.resize(comma);
 			}
 			Start();
-			s_state = State::Running;
+			s_run.state = State::Running;
 			return;
 		}
 		case State::Running:
-			s_vsync++;
-			if (cpuRegs.pc - s_end_pc < 8)
+			s_run.vsync++;
+			if (cpuRegs.pc - s_run.end_pc < 8)
 			{
 				const u32* out = reinterpret_cast<const u32*>(eeMem->Main + OUT);
-				s_out[s_op].assign(out, out + s_count * OutWords(s_ops[s_op]));
-				if (++s_op < NUM_OPS)
-					return LoadOp(s_op);
+				s_run.out[s_run.op].assign(out, out + s_run.count * OutWords(s_ops[s_run.op]));
+				if (++s_run.op < NUM_OPS)
+					return LoadOp(s_run.op);
 				Finish();
-				s_state = State::Done;
+				s_run.state = State::Done;
 			}
 			return;
 		default:

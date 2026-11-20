@@ -77,8 +77,10 @@ the agent's context.
 
 ### Layout
 
-- zdxsv code: `pcsx2/Zdxsv/` (Qt: `pcsx2-qt/Zdxsv/`), never next to upstream
-  sources.
+- zdxsv code: `pcsx2/Zdxsv/` (Qt: `pcsx2-qt/Zdxsv/`), not next to upstream
+  sources. Exceptions, kept with the upstream code of their kind: GUI pages
+  and dialogs (`pcsx2-qt/Settings/Zdxsv*`, `pcsx2-qt/Tools/Zdxsv*`) and the
+  recompilers (`pcsx2/arm64/`).
 - `pcsx2/Zdxsv/README.md`: glossary and file map; update on add, split, rename.
 - New fork files start with `// SPDX-FileCopyrightText: 2026 zdxsv contributors`
   and `// SPDX-License-Identifier: GPL-3.0+`. Upstream files keep the PCSX2 Dev
@@ -90,7 +92,10 @@ the agent's context.
 
 - `PascalCase` for directories, files, namespaces, types and functions.
 - One namespace, `Zdxsv`: no nested or other top-level namespaces, nothing in
-  the global or an upstream namespace.
+  an upstream namespace. Global scope only where the code belongs with
+  upstream code: an accessor or hook in an upstream file (`mmap_Delta*` in
+  `vtlb.cpp`, `SPU2Delta*` in `spu2freeze.cpp`). Code in `pcsx2/Zdxsv/` and
+  `pcsx2-qt/Zdxsv/` is in `Zdxsv` (or an anonymous namespace).
 - Prefix generic names with the component (`GgpoOnVsync`, `DeltaStateSave`,
   `g_ggpo_enabled`); specific names stay (`StartPingTest`).
 - One-file helpers: anonymous namespace. Component-shared helpers: a header
@@ -99,8 +104,13 @@ the agent's context.
 
 ### Seams With Upstream Code
 
-- An upstream file gets only an `#include` of a hook header and a guarded
-  one-line call into `Zdxsv::`.
+- A zdxsv feature of its own (its state, a block of its logic, code that
+  `pcsx2/Zdxsv/` also calls) lives in `pcsx2/Zdxsv/`; the upstream file gets
+  an `#include` of a hook header and a guarded call into `Zdxsv::`.
+- A change of a few lines that reads naturally where it is (a condition, a
+  flag test, a value) stays inline in the upstream file, marked and listed
+  (below). Never add a function or a file only to move a few lines out of an
+  upstream file: the reader then has to jump to see a few lines.
 - Hook headers (`pcsx2/Zdxsv/*Hooks.h`): `extern` flags, declarations, tiny
   inline guards; include only `common/Pcsx2Defs.h`. One per upstream area.
 - No ad hoc zdxsv declarations in an upstream `.cpp`.
@@ -113,22 +123,33 @@ the agent's context.
   upstream issue or PR.
 - No zdxsv feature active = upstream behavior. A changed default is listed in
   `docs/zdxsv/features.md` and has a setting to turn it off. Exception: the
-  zdxsv online battle extensions (on by default) are turned off only by their
-  environment variable, with no setting.
+  zdxsv online battle extensions (on by default) have no setting; a Devel
+  build turns them off with their environment variable.
 - Patches at fixed guest addresses check the game (serial or CRC).
+- Every changed spot in an upstream file is marked where it is: a line that
+  names zdxsv (a `Zdxsv::` call or a `Zdxsv/` include) marks itself; any
+  other change carries a `// zdxsv: <why>` comment on or above it (`#`, `::`
+  or `<!-- -->` where that is the file's comment), a removed line one at its
+  place.
+- Every changed spot is listed in `docs/zdxsv/upstream.md` (file, function,
+  what and why), in the same PR: `tools/zdxsv/upstream_spots.py --write`.
 
 ### Code
 
 - One responsibility per file; split around 800 lines.
 - Production code, test harnesses, tracing and fixtures in separate files.
-- Test and diagnostic code ships in every build: the rigs run against released
-  builds too. There is no test-build flag. Code that costs performance while
-  unused is not acceptable.
-- State in structs, not file-scope variables. State a rollback or replay key
-  restores: one struct, saved and restored whole.
+- Rigs run against Devel builds. Release builds ignore every `ZDXSV_*` and
+  `GGPO_*` environment variable (`Zdxsv::TestEnv`, `GGPOPlatform::GetConfigInt`);
+  no per-variable exceptions. Code that costs performance while unused is not
+  acceptable.
+- Variables that together have one role (a session, a connection, a
+  recording): one struct. A lone flag, counter or handle may stay a
+  file-scope variable. State a rollback or replay key restores: one struct,
+  saved and restored whole.
 - Reset zdxsv state, threads, sockets and sessions on VM shutdown and reset.
 - Player-facing choices: settings. Environment variables: tests and
-  diagnostics only, read in one place, listed in `docs/zdxsv/options.md`.
+  diagnostics only, read only through `Zdxsv::TestEnv` (never `std::getenv`),
+  listed in `docs/zdxsv/options.md`.
 - Outside data (packets, lobby values, replay and state files) is untrusted:
   check sizes, counts and ranges; bound every wait.
 - No host pointers or per-process values in save states or replays.

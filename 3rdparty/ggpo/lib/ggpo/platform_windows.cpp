@@ -10,6 +10,9 @@
 int
 GGPOPlatform::GetConfigInt(const char* name)
 {
+#ifndef PCSX2_DEVBUILD
+   return 0;
+#endif
    char buf[1024];
    if (GetEnvironmentVariableA(name, buf, ARRAY_SIZE(buf)) == 0) {
       return 0;
@@ -19,6 +22,9 @@ GGPOPlatform::GetConfigInt(const char* name)
 
 bool GGPOPlatform::GetConfigBool(const char* name)
 {
+#ifndef PCSX2_DEVBUILD
+   return false;
+#endif
    char buf[1024];
    if (GetEnvironmentVariableA(name, buf, ARRAY_SIZE(buf)) == 0) {
       return false;

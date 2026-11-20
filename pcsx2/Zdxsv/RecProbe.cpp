@@ -431,6 +431,8 @@ namespace Zdxsv
 		s_event_log_from = env.from;
 		s_event_log_lines = 0;
 		s_event_log = s_event_log_left ? std::fopen(env.path.c_str(), "w") : nullptr;
+		if (s_event_log)
+			std::setvbuf(s_event_log, nullptr, _IONBF, 0);
 		g_event_log = s_event_log != nullptr;
 		if (g_event_log)
 			EventLogLine('S');

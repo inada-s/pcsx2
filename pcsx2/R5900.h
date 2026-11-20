@@ -290,7 +290,7 @@ void intSetBranch();
 // parts of the Recs (namely COP0's branch codes and stuff).
 void intDoBranch(u32 target);
 void intBranchAfterDelaySlot(u32 target);
-extern u32 intLastBranchTo; // target of the last taken branch (wait loop detection)
+extern u32 intLastBranchTo; // zdxsv: target of the last taken branch (wait loop detection)
 
 // modules loaded at hardcoded addresses by the kernel
 const u32 EEKERNEL_START	= 0;
@@ -358,7 +358,7 @@ extern R5900cpu *Cpu;
 extern R5900cpu intCpu;
 extern R5900cpu recCpu;
 
-// True when branches, TLB misses and wait loops take the interpreter's paths: the interpreter, or the
+// zdxsv: true when branches, TLB misses and wait loops take the interpreter's paths: the interpreter, or the
 // ARM64 EE recompiler, which runs interpreter code for them (arm64/iR5900.cpp).
 static __fi bool CpuRunsIntBranches()
 {
@@ -369,7 +369,7 @@ static __fi bool CpuRunsIntBranches()
 #endif
 }
 
-// Interpreter internals the ARM64 EE recompiler shares.
+// zdxsv: interpreter internals the ARM64 EE recompiler shares.
 extern u32 cpuBlockCycles;
 void intSafeExitExecution();
 void intCancelInstruction();

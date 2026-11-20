@@ -3,13 +3,12 @@
 Env as boottime.py. The server (ZBIN) must have token logins (/lbs/login form token). The test
 migrates OUT's copy of the db, stores a token for an account with users, writes it to
 <p1>/inis/zdxsv_auth_token.txt (removed after the run).
-Exit 0 = the game reached the user_id screen, emulog has `fast login: by token` and a session that is
-the token account's, and the server gave that account a temporary key.
+Exit 0 = the game reached the user_id screen, emulog has `fast login: by token` and a session, and the
+token account's last login in the db is this run's.
 """
 import base64
 import hashlib
 import os
-import re
 import secrets
 import sqlite3
 import subprocess
@@ -44,6 +43,12 @@ def card_token(db, card, stand_in=False):
     c = sqlite3.connect(db)
     try:
         keys = [r[0] for r in c.execute("SELECT login_key FROM account") if r[0] and r[0].encode() in data]
+        if not keys and not stand_in:
+            c.execute("INSERT INTO auth_token (token_hash, provider, provider_user_id, created) VALUES (?, ?, ?, ?)",
+                      (hashlib.sha256(token.encode()).hexdigest(), "rig", secrets.token_hex(8), datetime.now()))
+            c.commit()
+            print(f"{os.path.basename(card)}: no account, token of a new sign-in", flush=True)
+            return token, None
         if len(keys) != 1:
             return None, f"{os.path.basename(card)} matches {len(keys)} accounts in {db}"
         if stand_in:
@@ -78,6 +83,7 @@ def prepare(out):
         c.close()
     with open(os.path.join(out, "token_account.txt"), "w") as f:
         f.write(row[0])
+    LAST_LOGIN[out] = last_login(out, row[0])
     with open(token_path(), "w") as f:
         f.write(token + "\n")
     return 0
@@ -89,17 +95,23 @@ def after(out):
     if "Zdxsv: fast login: by token" not in emulog:
         print("FAIL: emulog has no `fast login: by token`")
         return 1
-    m = re.search(r"Zdxsv: fast login: session ([^,\s]+)", emulog)
+    session = "Zdxsv: fast login: session " in emulog
     key = open(os.path.join(out, "token_account.txt")).read()
+    logged_in = last_login(out, key) != LAST_LOGIN.get(out)
+    ok = session and logged_in
+    print(f"{'PASS' if ok else 'FAIL'}: emulog session {session}, token account logged in {logged_in}")
+    return 0 if ok else 1
+
+
+LAST_LOGIN = {}
+
+
+def last_login(out, key):
     c = sqlite3.connect(os.path.join(out, "zdxsv.db"))
     try:
-        session, temp = c.execute("SELECT session_id, temp_key FROM account WHERE login_key = ?", (key,)).fetchone()
+        return c.execute("SELECT last_login FROM account WHERE login_key = ?", (key,)).fetchone()[0]
     finally:
         c.close()
-    ok = bool(m) and m.group(1) == session and bool(temp)
-    print(f"{'PASS' if ok else 'FAIL'}: emulog session {m.group(1) if m else None}, "
-          f"token account session {session}, temporary key {'set' if temp else 'none'}")
-    return 0 if ok else 1
 
 
 def main():

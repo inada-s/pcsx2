@@ -23,7 +23,8 @@ namespace Zdxsv
 	std::string AuthSignIn(const std::function<void(const std::string&)>& open_url, const std::atomic<bool>& cancel);
 
 	// Blocking: revokes the token on the server and deletes the file (the file goes even if the server is unreachable).
-	std::string AuthSignOut();
+	// every_pc: revokes every token of the Discord account (all PCs); the file stays if the server did not revoke.
+	std::string AuthSignOut(bool every_pc);
 
 	// The server answered 401 to this token (unknown, revoked or expired): deletes the file if it still holds it.
 	void AuthTokenRefused(const std::string& token);

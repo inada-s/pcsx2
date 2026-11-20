@@ -116,6 +116,7 @@ void V_VolumeSlide::RegSet(u16 src)
 	}
 }
 
+// zdxsv: Update() tests Enable inline (defs.h)
 void V_VolumeSlide::UpdateSlide()
 {
 	s32 step_size = 7 - Step;

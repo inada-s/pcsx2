@@ -1,8 +1,10 @@
 // SPDX-FileCopyrightText: 2026 zdxsv contributors
 // SPDX-License-Identifier: GPL-3.0+
 
+#include "Zdxsv/GameAddresses.h"
 #include "Zdxsv/CpuHooks.h"
 #include "Zdxsv/FastLogin.h"
+#include "Zdxsv/GgpoShared.h"
 #include "Zdxsv/MediaHooks.h"
 #include "Zdxsv/Settings.h"
 
@@ -33,12 +35,9 @@ namespace Zdxsv
 	namespace
 	{
 		// Guest addresses of SLPS-25419 (g_z_game checks serial and CRC).
-		constexpr u32 kGp = 0x6dd770;
-		constexpr u32 kSceneBlock = kGp - 0x5ce4; // pointer; byte 0 = scene: 1 title, 2 main menu, 7 network mode
-		constexpr u32 kMainMenu = kGp - 0x5e1c; // pointer; +0x25c = cursor
+		constexpr u32 kMainMenu = GAME_GP - 0x5e1c; // pointer; +0x25c = cursor
 		constexpr u32 kMainMenuCursor = 0x25c;
 		constexpr u8 kMenuNetwork = 7;
-		constexpr u32 kNetState = 0xcd1360; // network menu state; +1 = its sub state, +2 = the sub state's step
 		constexpr u32 kShownFrameInterval = 8;
 		constexpr u8 kNetFileLoad = 2;
 		// NET file load sub states: 0x14 and up are the card error dialogs (an unformatted card waits at 0x17), 100 = loaded.
@@ -48,10 +47,7 @@ namespace Zdxsv
 		constexpr u8 kNetFileSearch = 7;
 		constexpr u8 kNetFileNotFound = 0x14;
 		constexpr u8 kNetTerms = 5;
-		constexpr u8 kNetSettingList = 6;
-		// The login browser without fast login. Fast login sets it too, then the game connects to the lobby.
-		constexpr u8 kNetLoginBrowser = 0x27;
-		constexpr u32 kLobbyObject = kGp - 0x5a1c; // pointer; +0xa1f = network step, +0xa20 = its sub step
+		constexpr u32 kLobbyObject = GAME_GP - 0x5a1c; // pointer; +0xa1f = network step, +0xa20 = its sub step
 		constexpr u32 kLobbyMarker = 0xa1f;
 		constexpr u32 kLobbySub = 0xa20;
 		// Network steps: 4 user_id selection (sub 5 = ID picked, confirm bar), 7 ID confirmed (DecideUserID sent),
@@ -191,13 +187,13 @@ namespace Zdxsv
 					s_boot.queue.push_back(Circle);
 				}
 			}
-			else if (scene == kMenuNetwork && (net == 1 || net == 2 || net == 4 || (net == 3 && eeMem->Main[kNetState + 1] == 2)))
+			else if (scene == kMenuNetwork && (net == 1 || net == 2 || net == 4 || (net == GameNetConnectMenu && eeMem->Main[GAME_NET_SUB] == 2)))
 				s_boot.queue.push_back(Circle);
-			else if (scene == kMenuNetwork && s_boot.frame >= s_boot.sequence_after && s_boot.frame - s_boot.net_entry > (net == kNetSettingList ? kNetconfSettleFrames : kMenuSettleFrames))
+			else if (scene == kMenuNetwork && s_boot.frame >= s_boot.sequence_after && s_boot.frame - s_boot.net_entry > (net == GameNetSettingList ? kNetconfSettleFrames : kMenuSettleFrames))
 			{
-				if (net == 3)
+				if (net == GameNetConnectMenu)
 					Sequence({Up, Up, Circle}); // broadband
-				else if (net == kNetSettingList)
+				else if (net == GameNetSettingList)
 					Sequence({Down, Down, Circle}); // network setting 1
 			}
 		}
@@ -278,15 +274,15 @@ namespace Zdxsv
 			return;
 		}
 
-		const u32 scene_block = Pointer(kSceneBlock);
+		const u32 scene_block = Pointer(GAME_SCENE_BLOCK);
 		const u8 scene = scene_block ? eeMem->Main[scene_block] : 0;
-		const int net = eeMem->Main[kNetState];
-		const u8 net_sub = eeMem->Main[kNetState + 1];
+		const int net = eeMem->Main[GAME_NET_STATE];
+		const u8 net_sub = eeMem->Main[GAME_NET_SUB];
 		if (scene == kMenuNetwork && net == kNetFileLoad)
 		{
 			if (net_sub >= kNetFileErrorFirst && net_sub < kNetFileLoaded)
 				return Finish("stopped, memory card error");
-			if (net_sub == kNetFileSearch && eeMem->Main[kNetState + 2] == kNetFileNotFound)
+			if (net_sub == kNetFileSearch && eeMem->Main[GAME_NET_STEP] == kNetFileNotFound)
 				return Finish("stopped, no NET file on the memory card");
 		}
 		if (net != s_boot.net_state)
@@ -296,13 +292,13 @@ namespace Zdxsv
 			s_boot.sequence_after = 0;
 			if (net == kNetTerms)
 			{
-				eeMem->Main[kNetState] = kNetSettingList;
-				eeMem->Main[kNetState + 1] = 0;
+				eeMem->Main[GAME_NET_STATE] = GameNetSettingList;
+				eeMem->Main[GAME_NET_SUB] = 0;
 			}
 		}
-		if (scene == kMenuNetwork && net == kNetLoginBrowser && !FastLoginApplied() && s_boot.frame - s_boot.net_entry > kMenuSettleFrames)
+		if (scene == kMenuNetwork && net == GameNetLoginBrowser && !FastLoginApplied() && s_boot.frame - s_boot.net_entry > kMenuSettleFrames)
 			return Finish("login browser");
-		if (s_boot.use_state && !s_boot.state_handled && scene == kMenuNetwork && net == kNetFileLoad && net_sub == 0)
+		if (s_boot.use_state && !s_play_src.path && !s_boot.state_handled && scene == kMenuNetwork && net == kNetFileLoad && net_sub == 0)
 		{
 			s_boot.state_handled = true;
 			std::string path = BootStatePath();

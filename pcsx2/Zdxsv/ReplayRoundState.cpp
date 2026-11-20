@@ -67,12 +67,11 @@ namespace Zdxsv
 
 	std::vector<uint8_t> RoundStatePb(const RoundState& s)
 	{
-		using namespace Pb;
 		std::vector<uint8_t> pb;
-		PutInt(pb, 1, s.frame);
-		PutBytes(pb, 2, s.ee.data(), s.ee.size());
-		PutPackedInts(pb, 3, RoundStateHle(s.rb));
-		PutBytes(pb, 4, s.rb.net_rx.data(), s.rb.net_rx.size());
+		PbPutInt(pb, 1, s.frame);
+		PbPutBytes(pb, 2, s.ee.data(), s.ee.size());
+		PbPutPackedInts(pb, 3, RoundStateHle(s.rb));
+		PbPutBytes(pb, 4, s.rb.net_rx.data(), s.rb.net_rx.size());
 		return pb;
 	}
 
@@ -80,14 +79,14 @@ namespace Zdxsv
 	{
 		std::vector<int64_t> hle;
 		int64_t frame = -1;
-		Pb::Reader rd{b, b + n};
+		PbReader rd{b, b + n};
 		if (!rd.Fields([&](uint32_t f, uint32_t w, uint64_t x, const uint8_t* rb, size_t rn) {
 				if (f == 1 && w == 0)
 					frame = static_cast<int64_t>(x);
 				else if (f == 2 && w == 2)
 					out.ee.assign(rb, rb + rn);
 				else if (f == 3)
-					return Pb::ReadInts(w, x, rb, rn, hle);
+					return PbReadInts(w, x, rb, rn, hle, RoundStateHle({}).size());
 				else if (f == 4 && w == 2 && rn <= 0x10000)
 					out.rb.net_rx.assign(rb, rb + rn);
 				return true;
@@ -122,6 +121,8 @@ namespace Zdxsv
 			std::memcpy(eeMem->Main + a, s.ee.data() + at, len);
 			at += len;
 		}
+		// the key holds another round's MS assets (sounds too): the battle load reloads every MS
+		MsSlotsClear();
 		s_rb = s.rb;
 		s_rings = {};
 		for (int p = 0; p < players; p++)

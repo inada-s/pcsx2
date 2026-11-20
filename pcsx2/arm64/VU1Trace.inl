@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2002-2026 PCSX2 Dev Team
+// SPDX-FileCopyrightText: 2026 zdxsv contributors
 // SPDX-License-Identifier: GPL-3.0+
 
 // ARM64 VU1 recompiler. Included at the end of VUops.cpp: it uses the interpreter's stall and
@@ -6,6 +6,7 @@
 
 #include "arm64/AsmHelpers.h"
 #include "R5900OpcodeTables.h"
+#include "Zdxsv/TestOptions.h"
 
 #include <algorithm>
 #include <cstdio>
@@ -446,7 +447,7 @@ static constexpr u32 VU1_JIT_MAX_STEP_CODE = 1024;
 // PCSX2_VU1_JIT: 0 = interpreter only, check = see _vu1TraceCheck, unset = traces.
 enum class VU1JitMode { Off, On, Check };
 static const VU1JitMode s_vu1_jit_mode = [] {
-	const char* env = std::getenv("PCSX2_VU1_JIT");
+	const char* env = Zdxsv::TestEnv("PCSX2_VU1_JIT");
 	if (env && std::strcmp(env, "0") == 0)
 		return VU1JitMode::Off;
 	if (env && std::strcmp(env, "check") == 0)
@@ -456,7 +457,7 @@ static const VU1JitMode s_vu1_jit_mode = [] {
 // PCSX2_VU1_JIT_MAP=<file>: start address of each emitted section, what it does and the handler
 // it calls, to attribute `sample` addresses in JIT code.
 static FILE* const s_vu1_jit_map = [] {
-	const char* path = std::getenv("PCSX2_VU1_JIT_MAP");
+	const char* path = Zdxsv::TestEnv("PCSX2_VU1_JIT_MAP");
 	return path ? std::fopen(path, "w") : nullptr;
 }();
 static void _vu1JitMark(const char* what, const void* fn = nullptr)
@@ -475,7 +476,7 @@ static void _vu1JitMark(const char* what, const void* fn = nullptr)
 
 // As _vuFDIVflush and _vuEFUflush do once the result is due.
 static void _vu1JitXGKICK() { _vuXGKICKTransfer((VU1.cycle - VU1.xgkicklastcycle) - 1, false); }
-extern void _vu1EndProgram();
+#include "arm64/VU1Trace.h"
 
 template <typename T>
 static s64 _vu1Off(const T& field)
@@ -1008,7 +1009,7 @@ static void _vuJitEmitClampDouble(const a64::VRegister& v, bool daz = true)
 	armAsm->Bit(v.V16B(), a64::v26.V16B(), a64::v24.V16B());
 }
 
-// r = a op b as x86 SSE (_vuX86Arith): r holds the ARM64 result. A NaN in a, else in b, passes
+// r = a op b as x86 SSE (Zdxsv::VuX86Arith): r holds the ARM64 result. A NaN in a, else in b, passes
 // through quieted; any other NaN result becomes the x86 default NaN; FTZ unless !daz.
 // v5 = 0x00400000, v6 = 0xffc00000.
 static void _vuJitEmitX86Nan(const a64::VRegister& r, const a64::VRegister& a, const a64::VRegister& b, bool daz = true)
@@ -1426,12 +1427,12 @@ static bool _vu1JitEmitFmac(FnPtr_VuVoid f, u32 code, bool dead = false)
 	const bool ternary = desc->op == VU1FmacOp::Madd || desc->op == VU1FmacOp::Msub;
 	const u32 clean = ((cl[fs] & lanes) == lanes ? 2 : 0) | ((cl[ft] & ft_lanes) == ft_lanes ? 1 : 0) |
 					  (ternary && (cl[32] & lanes) == lanes ? 4 : 0);
-	_vuJitEmitFmacCore(desc, code, s_vu1_jit_rvu, a64::x21, EmuConfig.Cpu.Recompiler.vu1Overflow, vuX86Fmac(1),
-		vuX86ClampOperands(code, 1, false), &s_vu1_jit_fconst_live, vuX86Fmac(1) ? clean : 0,
+	_vuJitEmitFmacCore(desc, code, s_vu1_jit_rvu, a64::x21, EmuConfig.Cpu.Recompiler.vu1Overflow, Zdxsv::VuX86Fmac(1),
+		Zdxsv::VuX86ClampOperands(code, 1, false), &s_vu1_jit_fconst_live, Zdxsv::VuX86Fmac(1) ? clean : 0,
 		&s_vu1_jit_vf.acc_live, dead && !op ? &s_vu1_jit_fl.sticky : nullptr,
 		EmuConfig.Cpu.VU1FPCR.GetDenormalsAreZero() && EmuConfig.Cpu.VU1FPCR.GetRoundMode() == FPRoundMode::ChopZero);
 	s_vu1_jit_vf.out_reg = desc->acc ? 32 : static_cast<s8>(fd);
-	s_vu1_jit_vf.out_lanes = vuX86Fmac(1) ? static_cast<u8>(op ? 0xe : lanes) : 0;
+	s_vu1_jit_vf.out_lanes = Zdxsv::VuX86Fmac(1) ? static_cast<u8>(op ? 0xe : lanes) : 0;
 	if (dead && !op)
 	{
 		s_vu1_jit_fl.scratch = false;
@@ -1489,12 +1490,12 @@ void vu0MacroEmit(u32 code, const a64::Register& rvu, bool* fconst_live, bool* a
 	}
 	if (!*fconst_live)
 		armMoveAddressToReg(a64::x1, s_vu1_jit_fconst);
-	_vuJitEmitFmacCore(_vu0MacroDesc(code), code, rvu, a64::x1, EmuConfig.Cpu.Recompiler.vu0Overflow, vuX86Fmac(0),
-		vuX86ClampOperands(code, 0, true), fconst_live, 0, acc_live);
+	_vuJitEmitFmacCore(_vu0MacroDesc(code), code, rvu, a64::x1, EmuConfig.Cpu.Recompiler.vu0Overflow, Zdxsv::VuX86Fmac(0),
+		Zdxsv::VuX86ClampOperands(code, 0, true), fconst_live, 0, acc_live);
 	armAsm->Ldr(a64::w1, mem(_vu1Off(VU1.statusflag)));
 	armAsm->And(a64::w1, a64::w1, 0xf);
 	armAsm->Ldr(a64::w2, mem(_vu1Off(VU1.VI[REG_STATUS_FLAG].UL)));
-	armAsm->And(a64::w2, a64::w2, VU0_MACRO_STATUS_KEEP);
+	armAsm->And(a64::w2, a64::w2, Zdxsv::Vu0MacroStatusKeep);
 	armAsm->Orr(a64::w2, a64::w2, a64::w1);
 	armAsm->Orr(a64::w2, a64::w2, a64::Operand(a64::w1, a64::LSL, 6));
 	armAsm->Str(a64::w2, mem(_vu1Off(VU1.VI[REG_STATUS_FLAG].UL)));

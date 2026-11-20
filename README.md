@@ -63,14 +63,18 @@ Everything is on only for the one game build it was made for; any other disc run
 |---|---|
 | [ZDXSV.md](ZDXSV.md) | Player setup. Shipped in the release zip. |
 | [ZDXSV.ja.md](ZDXSV.ja.md) | Player setup in Japanese, same content. Shipped in the release zip. |
+| [docs/zdxsv/architecture.md](docs/zdxsv/architecture.md) | Start here: processes and threads and the state each touches, a battle frame, trust boundaries, kinds of failure and what the player sees. |
 | [docs/zdxsv/features.md](docs/zdxsv/features.md) | Structure: where zdxsv code meets the emulator, the network paths. Every feature, one line each. |
 | [docs/zdxsv/options.md](docs/zdxsv/options.md) | Every option and setting: name, default, use; the game check. |
 | [docs/zdxsv/lobby.md](docs/zdxsv/lobby.md) | Network defaults, lobby messages, ping test, relay servers, how a lobby battle starts. |
 | [docs/zdxsv/rollback.md](docs/zdxsv/rollback.md) | GGPO library, delta save states, the GGPO session, sync-safe settings and fingerprint, sync checks. |
 | [docs/zdxsv/replay.md](docs/zdxsv/replay.md) | Replay files, upload, playback and its controls, live spectating. |
+| [docs/zdxsv/desync.md](docs/zdxsv/desync.md) | How to investigate a desync, step by step. |
 | [docs/zdxsv/tools.md](docs/zdxsv/tools.md) | Releases, CI, local build and run scripts, PINE commands. |
+| [docs/zdxsv/maintenance.md](docs/zdxsv/maintenance.md) | Procedures: merging upstream PCSX2, cutting a release, rolling one back. |
 | [docs/zdxsv/crash-reports.md](docs/zdxsv/crash-reports.md) | Crash reports: the switch, what is sent, behavior per platform, symbols. |
 | [docs/zdxsv/arm64.md](docs/zdxsv/arm64.md) | ARM64 builds: CPU cores, math as x86, comparing with an x86_64 build. |
+| [docs/zdxsv/upstream.md](docs/zdxsv/upstream.md) | Changes to upstream PCSX2 code: the fork point, added and changed files, every changed spot. |
 | [pcsx2/Zdxsv/README.md](pcsx2/Zdxsv/README.md) | Glossary and source file map. |
 | [tests/zdxsv/README.md](tests/zdxsv/README.md) | Rig test scripts: setup, settings, the test of each feature. |
 | [AGENTS.md](AGENTS.md) | Rules for work in this fork. |

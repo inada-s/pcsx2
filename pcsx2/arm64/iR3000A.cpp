@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2002-2026 PCSX2 Dev Team
+// SPDX-FileCopyrightText: 2026 zdxsv contributors
 // SPDX-License-Identifier: GPL-3.0+
 
 // ARM64 IOP recompiler with the timing of the x86 IOP recompiler (x86/iR3000A.cpp), so that ARM64 and x86
@@ -77,6 +77,8 @@ static BlockFn* Entry(u32 pc, bool alloc)
 		if (!alloc)
 			return nullptr;
 		page = static_cast<BlockFn*>(std::calloc(PAGE_ENTRIES, sizeof(BlockFn)));
+		if (!page)
+			pxFailRel("Failed to allocate ARM64 IOP block page");
 		s_pages.push_back(phys >> 16);
 	}
 	return &page[(phys & 0xffff) >> 2];

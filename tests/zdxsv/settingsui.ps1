@@ -1,4 +1,4 @@
-# settingsui.ps1 [-Exe pcsx2-qtx64.exe] [-DataPath dir] [-Iso game.iso [-Boot 30]] [-Page zdxsv] [-Match regex] [-Shot out.png] [-Click name [-Wait 3]] [-Select 'name=item regex'] [-Scroll percent] [-Quit]
+# settingsui.ps1 [-Exe pcsx2-qtx64-dev.exe] [-DataPath dir] [-Iso game.iso [-Boot 30]] [-Page zdxsv] [-Match regex] [-Shot out.png] [-Click name [-Wait 3]] [-Select 'name=item regex'] [-Scroll percent] [-Quit]
 # Start a portable PCSX2 (portable.ini or portable.txt next to the exe; -DataPath: -datapath dir instead), open Settings -> page -Page,
 # -Click: invoke the button whose AutomationId ends with that name, wait -Wait s (default 3: the settings save), then
 # print each control whose AutomationId or name matches -Match (default: the page name) with its enabled
@@ -16,10 +16,11 @@
 #   load" reset dialog) and Language = en-US (else menus in the system language) when missing.
 # - Qt menus do not answer UIA Invoke: Settings opens by keyboard (Alt+N, Enter); the page item is clicked
 #   with the mouse at its UIA rectangle.
+# -IniHas 're1;re2': after PCSX2 closed, each regex must match a line of the ini (exit 1 otherwise).
 # Exit 1 with the visible element names when a step finds nothing.
-param([string]$Exe = (Join-Path $PSScriptRoot '..\..\bin\pcsx2-qtx64.exe'), [string]$Page = 'zdxsv',
+param([string]$Exe = (Join-Path $PSScriptRoot '..\..\bin\pcsx2-qtx64-dev.exe'), [string]$Page = 'zdxsv',
       [string]$Match = '', [string]$Shot = '', [string]$DataPath = '', [string]$Iso = '', [int]$Boot = 30,
-      [string]$Click = '', [int]$Wait = 3, [string]$Select = '', [int]$Scroll = -1, [switch]$Quit)
+      [string]$Click = '', [int]$Wait = 3, [string]$Select = '', [int]$Scroll = -1, [switch]$Quit, [string]$IniHas = '')
 $ErrorActionPreference = 'Stop'
 . "$PSScriptRoot\localnet.ps1"  # fast login and no-DEV9 pinned to the box
 if (-not $Match) { $Match = $Page }
@@ -158,3 +159,8 @@ try {
 } finally {
   Stop-Process -Id $p.Id -Force -ErrorAction SilentlyContinue
 }
+$bad = 0
+foreach ($re in ($IniHas -split ';' | Where-Object { $_ })) {
+  if (Select-String -Path $ini -Pattern $re -Quiet) { "PASS ini has '$re'" } else { "FAIL ini has no '$re'"; $bad = 1 }
+}
+exit $bad

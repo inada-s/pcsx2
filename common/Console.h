@@ -88,7 +88,7 @@ namespace Log
 	bool IsHostOutputEnabled();
 	void SetHostOutputLevel(LOGLEVEL level, HostCallbackType callback);
 
-	// adds a second callback output, independent of the host one
+	// zdxsv: a second callback output, independent of the host one (Zdxsv/LogTail.cpp)
 	void SetTapOutputLevel(LOGLEVEL level, HostCallbackType callback);
 
 	// sets logging timestamps

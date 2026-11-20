@@ -7,6 +7,7 @@
 // Order: the environment variable if set, then the setting, then the default.
 
 #include "Host.h"
+#include "Zdxsv/TestOptions.h"
 
 #include <cstdlib>
 #include <string>
@@ -35,14 +36,14 @@ namespace Zdxsv
 	// the host the game's server names are looked up as; "" = none
 	inline const char* ServerHost()
 	{
-		const char* e = std::getenv("ZDXSV_SERVER_HOST");
+		const char* e = TestEnv("ZDXSV_SERVER_HOST");
 		return e ? e : ZDXSV_SERVER_HOST;
 	}
 
 	// the zdxsv public API + path; "" without one
 	inline std::string ServerApiUrl(const char* path)
 	{
-		const char* e = std::getenv("ZDXSV_API_URL");
+		const char* e = TestEnv("ZDXSV_API_URL");
 		const std::string base = e ? e : ZDXSV_API_URL;
 		return base.empty() ? base : base + path;
 	}
@@ -50,7 +51,7 @@ namespace Zdxsv
 	// env: "0" = off, any other value = on
 	inline bool BoolSetting(const char* key, bool default_value, const char* env)
 	{
-		if (const char* e = std::getenv(env))
+		if (const char* e = TestEnv(env))
 			return e[0] != '0';
 		return Host::GetBoolSettingValue("DEV9/Eth", key, default_value);
 	}
