@@ -107,7 +107,7 @@ namespace Zdxsv
 		{
 			if (p == s_battle.me)
 				continue;
-			const LobbyPlayer who = p < static_cast<int>(s_net_players.size()) ? s_net_players[p] : LobbyPlayer{};
+			const LobbyPlayer who = p < static_cast<int>(s_net.players.size()) ? s_net.players[p] : LobbyPlayer{};
 			lines.push_back({fmt::format("{}P {}", p + 1, who.id), OSD_TEXT});
 			if (!who.name.empty())
 				lines.push_back({" " + who.name, OSD_TEXT});
@@ -123,7 +123,7 @@ namespace Zdxsv
 					lines.push_back({fmt::format(" Interrupted  P {}", st.sync.predicted_frames), OsdPingColor(999)});
 				else
 					lines.push_back({fmt::format(" Ping {}ms{}  P {}", st.network.ping,
-					                     p < static_cast<int>(s_net_via.size()) && s_net_via[p] ? " (R)" : "", st.sync.predicted_frames),
+					                     p < static_cast<int>(s_net.via.size()) && s_net.via[p] ? " (R)" : "", st.sync.predicted_frames),
 						OsdPingColor(st.network.ping)});
 			}
 		}
@@ -147,17 +147,17 @@ namespace Zdxsv
 				continue;
 			GgpoOsdPeer peer;
 			peer.position = p;
-			if (p < static_cast<int>(s_net_players.size()))
+			if (p < static_cast<int>(s_net.players.size()))
 			{
-				peer.id = s_net_players[p].id;
-				peer.name = s_net_players[p].name;
-				peer.pilot = s_net_players[p].pilot;
+				peer.id = s_net.players[p].id;
+				peer.name = s_net.players[p].name;
+				peer.pilot = s_net.players[p].pilot;
 			}
 			peer.connected = s_peers.state[p] != 2;
 			GGPONetworkStats st{};
 			if (peer.connected && ggpo_get_network_stats(s_session, s_handles[p], &st) == GGPO_OK)
 			{
-				peer.relay = st.network.is_relay != 0 || (p < static_cast<int>(s_net_via.size()) && s_net_via[p] != 0);
+				peer.relay = st.network.is_relay != 0 || (p < static_cast<int>(s_net.via.size()) && s_net.via[p] != 0);
 				peer.ping = st.network.ping;
 				peer.recv_loss = st.network.recv_packet_loss;
 				peer.send_loss = st.network.send_packet_loss;

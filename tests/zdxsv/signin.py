@@ -3,16 +3,20 @@
 Env as boottime.py. The server (ZBIN) must have /auth/ (Discord sign-in). The test migrates OUT's copy
 of the db, serves a fake provider on 127.0.0.1, starts p1 with ZDXSV_AUTH_SIGNIN_TEST=1 and plays the
 browser: the start page, its provider link and every redirect up to the emulator's 127.0.0.1 callback.
-Then p1 again with ZDXSV_AUTH_SIGNIN_TEST=signout.
+Then the db gets a second token of that user (another PC) and p1 runs again with
+ZDXSV_AUTH_SIGNIN_TEST=signout; then p1 gets a new token of that user and runs with signoutall.
 Exit 0 = after sign-in p1's token file holds a token the db stores for the fake provider user (no account is
-made); after sign-out the file is gone and the db has no token for that user.
+made); after sign-out the file is gone and only the other PC's token is left; after signoutall the file is
+gone and the db has no token for that user.
 """
+import base64
 import hashlib
 import html
 import http.server
 import json
 import os
 import re
+import secrets
 import shutil
 import sqlite3
 import subprocess
@@ -100,6 +104,27 @@ def db_query(out, sql, *args):
         c.close()
 
 
+def add_token(out):
+    token = base64.urlsafe_b64encode(secrets.token_bytes(32)).rstrip(b"=").decode()
+    c = sqlite3.connect(os.path.join(out, "zdxsv.db"))
+    try:
+        c.execute("INSERT INTO auth_token (token_hash, provider, provider_user_id, created) VALUES (?, 'discord', ?, ?)",
+                  (hashlib.sha256(token.encode()).hexdigest(), USER_ID, time.strftime("%Y-%m-%d %H:%M:%S")))
+        c.commit()
+    finally:
+        c.close()
+    return token
+
+
+def user_tokens(out):
+    return db_query(out, "SELECT COUNT(*) FROM auth_token WHERE provider = 'discord' AND provider_user_id = ?",
+                    USER_ID)[0][0]
+
+
+def emulog_has(emulog, pattern, secs):
+    return wait(lambda: re.search(pattern, open(emulog, encoding="utf-8", errors="replace").read(), re.M), secs)
+
+
 def run_p1(out, run_, card, value, emulog):
     if os.path.exists(emulog):
         os.remove(emulog)
@@ -153,16 +178,26 @@ def main():
         print(f"sign-in: token file {'set' if token else 'none'}, db token identity {stored[0] if stored else None}")
         zrig.kill(pid)
         zrig.kill_name("pcsx2")
+        add_token(out)
         pid = run_p1(out, run_, card, "signout", emulog)
         gone = wait(lambda: not os.path.exists(token_file), 60)
-        left = db_query(out, "SELECT COUNT(*) FROM auth_token WHERE provider = 'discord' AND provider_user_id = ?",
-                        USER_ID)[0][0]
-        clean = wait(lambda: re.search(r"Zdxsv: auth: signed out\r?$", open(emulog, encoding="utf-8",
-                                                                         errors="replace").read(), re.M), 10)
-        signed_out = bool(gone) and left == 0 and bool(clean)
-        print(f"sign-out: token file {'gone' if gone else 'still there'}, db tokens for the identity {left}, "
-              f"emulog {'clean' if clean else 'reports an error'}")
-        ok = signed_in and signed_out
+        clean = emulog_has(emulog, r"Zdxsv: auth: signed out\r?$", 10)
+        left = user_tokens(out)
+        signed_out = bool(gone) and left == 1 and bool(clean)
+        print(f"sign-out: token file {'gone' if gone else 'still there'}, db tokens for the identity {left} "
+              f"(want 1, the other PC's), emulog {'clean' if clean else 'reports an error'}")
+        zrig.kill(pid)
+        zrig.kill_name("pcsx2")
+        with open(token_file, "w") as f:
+            f.write(add_token(out))
+        pid = run_p1(out, run_, card, "signoutall", emulog)
+        gone = wait(lambda: not os.path.exists(token_file), 60)
+        clean = emulog_has(emulog, r"Zdxsv: auth: signed out on every PC\r?$", 10)
+        left = user_tokens(out)
+        signed_out_all = bool(gone) and left == 0 and bool(clean)
+        print(f"sign-out on every PC: token file {'gone' if gone else 'still there'}, db tokens for the identity "
+              f"{left}, emulog {'clean' if clean else 'reports an error'}")
+        ok = signed_in and signed_out and signed_out_all
         print("PASS" if ok else "FAIL")
         return 0 if ok else 1
     finally:

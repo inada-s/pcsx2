@@ -26,7 +26,7 @@ static void _vu0ExecLower(VURegs* VU, u32* ptr)
 int vu0branch = 0;
 static void _vu0Exec(VURegs* VU)
 {
-	// Zeroed: some regs functions (SQ, SQI, ...) leave VFwxyzw unset, and the FMAC pipe keeps it.
+	// zdxsv: zeroed, some regs functions (SQ, SQI, ...) leave VFwxyzw unset, and the FMAC pipe keeps it.
 	_VURegsNum lregs{};
 	_VURegsNum uregs{};
 	u32* ptr;

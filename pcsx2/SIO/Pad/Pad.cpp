@@ -81,7 +81,7 @@ std::optional<u32> Pad::ControllerInfo::GetBindIndex(const std::string_view name
 {
 	for (u32 i = 0; i < static_cast<u32>(bindings.size()); i++)
 	{
-		if (bindings[i].name && name == bindings[i].name)
+		if (bindings[i].name && name == bindings[i].name) // zdxsv: upstream bug, unnamed slots
 			return i;
 	}
 

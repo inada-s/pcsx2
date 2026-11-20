@@ -43,7 +43,7 @@ _vifT void vifTransferLoop(u32* &data) {
 			}
 		}
 
-		// NOP can be most of the codes in a packet: same steps as vifCode_Nop, without the indirect call.
+		// zdxsv: NOP can be most of the codes in a packet: same steps as vifCode_Nop, without the indirect call.
 		if ((vifX.cmd & 0x7f) == 0 && vifX.pass == 0)
 		{
 			vifX.cmd = 0;

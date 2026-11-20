@@ -723,7 +723,7 @@ Pcsx2Config::GSOptions::GSOptions()
 	DisableFramebufferFetch = false;
 	DisableVertexShaderExpand = false;
 	SkipDuplicateFrames = true;
-	VsyncEnable = true;
+	VsyncEnable = true; // zdxsv: VSync on by default
 	OsdMessagesPos = OsdOverlayPos::TopLeft;
 	OsdPerformancePos = OsdOverlayPos::TopRight;
 	OsdShowSpeed = false;
@@ -1720,7 +1720,7 @@ Pcsx2Config::EmulationSpeedOptions::EmulationSpeedOptions()
 	bitset = 0;
 
 	SyncToHostRefreshRate = false;
-	LowLatencyPresent = true;
+	LowLatencyPresent = true; // zdxsv: low-latency present always on
 }
 
 void Pcsx2Config::EmulationSpeedOptions::SanityCheck()

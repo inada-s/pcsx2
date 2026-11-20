@@ -35,30 +35,29 @@ namespace Zdxsv
 		// The BattleLogFile fields known at frame 0 (the live header; ReplayWrite adds the end, inputs and state).
 		std::vector<uint8_t> ReplayHeader(const std::string& code, const std::string& ids)
 		{
-			using namespace Pb;
 			std::vector<uint8_t> pb;
-			PutString(pb, 3, code);
-			PutInt(pb, 4, REPLAY_FILE_VERSION);
-			PutString(pb, 5, "zdxsv-ps2");
-			for (size_t p = 0; p < s_net_players.size(); p++)
+			PbPutString(pb, 3, code);
+			PbPutInt(pb, 4, REPLAY_FILE_VERSION);
+			PbPutString(pb, 5, "zdxsv-ps2");
+			for (size_t p = 0; p < s_net.players.size(); p++)
 			{
 				std::vector<uint8_t> user;
-				PutString(user, 1, s_net_players[p].id);
-				PutString(user, 2, s_net_players[p].name);
-				PutString(user, 3, s_net_players[p].pilot);
-				PutInt(user, 12, static_cast<int64_t>(p));
-				PutBytes(pb, 11, user.data(), user.size());
+				PbPutString(user, 1, s_net.players[p].id);
+				PbPutString(user, 2, s_net.players[p].name);
+				PbPutString(user, 3, s_net.players[p].pilot);
+				PbPutInt(user, 12, static_cast<int64_t>(p));
+				PbPutBytes(pb, 11, user.data(), user.size());
 			}
-			PutInt(pb, 20, s_replay_start_at);
-			PutInt(pb, 40, s_opt.players);
-			PutInt(pb, 41, s_battle.me);
-			PutInt(pb, 42, s_opt.delay);
-			PutString(pb, 43, ids);
-			PutBytes(pb, 45, s_replay_hle0.rx.data(), s_replay_hle0.rx.size());
-			PutPackedInts(pb, 46, s_replay_hle0.hle);
-			PutInt(pb, 47, sizeof(NetInput));
+			PbPutInt(pb, 20, s_replay_start_at);
+			PbPutInt(pb, 40, s_opt.players);
+			PbPutInt(pb, 41, s_battle.me);
+			PbPutInt(pb, 42, s_opt.delay);
+			PbPutString(pb, 43, ids);
+			PbPutBytes(pb, 45, s_replay_hle0.rx.data(), s_replay_hle0.rx.size());
+			PbPutPackedInts(pb, 46, s_replay_hle0.hle);
+			PbPutInt(pb, 47, sizeof(NetInput));
 			for (const std::vector<u8>& a : s_replay_answers)
-				PutBytes(pb, 51, a.data(), a.size());
+				PbPutBytes(pb, 51, a.data(), a.size());
 			ServerPatchesPut(pb, 60, s_battle_patches);
 			return pb;
 		}
@@ -76,9 +75,9 @@ namespace Zdxsv
 		std::vector<uint8_t> RoundEntry(size_t f, int win)
 		{
 			std::vector<uint8_t> round, entry;
-			Pb::PutInt(round, 1, win);
-			Pb::PutPackedInts(round, 2, RoundMs(f));
-			Pb::PutBytes(entry, 18, round.data(), round.size());
+			PbPutInt(round, 1, win);
+			PbPutPackedInts(round, 2, RoundMs(f));
+			PbPutBytes(entry, 18, round.data(), round.size());
 			return entry;
 		}
 
@@ -112,7 +111,7 @@ namespace Zdxsv
 			{
 				const std::vector<uint8_t> m = RoundStatePb(it->second);
 				std::vector<uint8_t> entry;
-				Pb::PutBytes(entry, 61, m.data(), m.size());
+				PbPutBytes(entry, 61, m.data(), m.size());
 				s_live->AddRoundState(entry);
 			}
 			for (size_t f = std::max<size_t>(have, 1); f < std::min(frames, s_replay_records.size()); f++)
@@ -230,7 +229,6 @@ namespace Zdxsv
 		// replay.proto load_frames, load_rngs, play_start_frames, game_end_frames, round_end_frames of the first `frames` frames
 		std::vector<uint8_t> RoundFramesFields(size_t frames)
 		{
-			using namespace Pb;
 			frames = std::min({frames, s_replay_ticks.size(), s_replay_rngs.size()});
 			std::vector<int64_t> load_frames, load_rngs;
 			for (size_t f = 1; f < frames; f++)
@@ -242,13 +240,13 @@ namespace Zdxsv
 				}
 			}
 			std::vector<uint8_t> pb;
-			PutPackedInts(pb, 54, load_frames);
-			PutPackedInts(pb, 55, load_rngs);
+			PbPutPackedInts(pb, 54, load_frames);
+			PbPutPackedInts(pb, 55, load_rngs);
 			std::vector<int64_t> starts, ends, rounds;
 			ReplayGameEnds(frames, starts, ends, rounds);
-			PutPackedInts(pb, 57, starts);
-			PutPackedInts(pb, 58, ends);
-			PutPackedInts(pb, 59, rounds);
+			PbPutPackedInts(pb, 57, starts);
+			PbPutPackedInts(pb, 58, ends);
+			PbPutPackedInts(pb, 59, rounds);
 			return pb;
 		}
 	} // namespace
@@ -261,7 +259,7 @@ namespace Zdxsv
 	std::string ReplayIds()
 	{
 		std::lock_guard lock(s_lobby_mtx);
-		return s_opt.lobby ? s_report_ids : std::string();
+		return s_opt.lobby ? s_lobby.ids : std::string();
 	}
 
 	std::string IdValue(const std::string& ids, std::string_view key)
@@ -311,7 +309,7 @@ namespace Zdxsv
 		s_replay_answers = Zdxsv::LobbyStartAnswers();
 		s_live.reset();
 		if (!to.empty())
-			s_live = std::make_shared<Zdxsv::LiveUp>(to, code, s_lobby_session, ReplayHeader(code, ids), s_opt.players * sizeof(NetInput) + sizeof(u32));
+			s_live = std::make_shared<Zdxsv::LiveUp>(to, code, s_lobby.session, ReplayHeader(code, ids), s_opt.players * sizeof(NetInput) + sizeof(u32));
 		Console.WriteLn("ZdxsvGgpo: replay: recording (save %s, upload %d, live %d)", dir.empty() ? "off" : dir.c_str(), upload ? 1 : 0,
 			to.empty() ? 0 : 1);
 	}
@@ -388,26 +386,25 @@ namespace Zdxsv
 			name += std::isalnum(static_cast<unsigned char>(c)) || c == '-' || c == '_' ? c : '_';
 		if (name.empty())
 			name = fmt::format("rbk-{}-p{}", s_replay_start_at, s_battle.me);
-		using namespace Pb;
 		std::vector<uint8_t> pb = ReplayHeader(code, ids);
 		pb.reserve(frames * s_opt.players * sizeof(NetInput) + pb.size() + 1024);
-		PutInt(pb, 21, static_cast<s64>(std::time(nullptr)));
-		PutString(pb, 24, what);
-		PutInt(pb, 48, static_cast<int64_t>(frames));
-		PutBytes(pb, 49, s_replay_inputs.data(), frames * s_opt.players * sizeof(NetInput));
-		PutBytes(pb, 52, s_replay_hashes.data(), frames * sizeof(u32));
+		PbPutInt(pb, 21, static_cast<s64>(std::time(nullptr)));
+		PbPutString(pb, 24, what);
+		PbPutInt(pb, 48, static_cast<int64_t>(frames));
+		PbPutBytes(pb, 49, s_replay_inputs.data(), frames * s_opt.players * sizeof(NetInput));
+		PbPutBytes(pb, 52, s_replay_hashes.data(), frames * sizeof(u32));
 		for (int p = 0; p < s_opt.players; p++)
 			if (s_desync.first[p] >= 0)
-				PutInt(pb, 62, p), PutInt(pb, 62, s_desync.first[p]);
+				PbPutInt(pb, 62, p), PbPutInt(pb, 62, s_desync.first[p]);
 		if (frames > 0)
-			PutUint(pb, 53, s_replay_rngs[0]);
+			PbPutUint(pb, 53, s_replay_rngs[0]);
 		const std::vector<uint8_t> round_frames = RoundFramesFields(frames);
 		pb.insert(pb.end(), round_frames.begin(), round_frames.end());
 		for (const auto& [f, s] : s_replay_round_states)
 			if (static_cast<size_t>(f) < frames)
 			{
 				const std::vector<uint8_t> m = RoundStatePb(s);
-				PutBytes(pb, 61, m.data(), m.size());
+				PbPutBytes(pb, 61, m.data(), m.size());
 			}
 		std::string used_ms = "[";
 		for (size_t f = 1; f < std::min(frames, s_replay_records.size()); f++)
@@ -442,7 +439,7 @@ namespace Zdxsv
 			u32 session;
 			{
 				std::lock_guard lock(s_lobby_mtx);
-				session = s_lobby_session;
+				session = s_lobby.session;
 			}
 			ReplayUpload(name, session, pb, used_ms);
 		}

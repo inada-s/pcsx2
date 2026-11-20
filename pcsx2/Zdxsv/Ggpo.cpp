@@ -37,8 +37,8 @@ namespace Zdxsv
 			s_opt = {};
 			s_opt.osd = Host::GetBoolSettingValue("DEV9/Eth", "ZdxsvNetOsd", true); // osd= overrides it
 			s_opt.frame_osd = BoolSetting("ZdxsvFrameOsd", false, "ZDXSV_FRAME_OSD");
-			s_opt.port = s_options.find("lobby=1") != std::string::npos ? s_lobby_port : 7001;
-			for (const std::string_view item : StringUtil::SplitString(s_options, ','))
+			s_opt.port = s_config.options.find("lobby=1") != std::string::npos ? s_config.lobby_port : 7001;
+			for (const std::string_view item : StringUtil::SplitString(s_config.options, ','))
 			{
 				const size_t eq = item.find('=');
 				if (eq == std::string_view::npos)
@@ -75,7 +75,7 @@ namespace Zdxsv
 					s_opt.delay_set = true;
 				}
 				else if (key == "mindelay")
-					s_min_delay = n;
+					s_config.min_delay = n;
 				else if (key == "sync")
 					s_opt.sync = (n != 0);
 				else if (key == "net")
@@ -248,23 +248,17 @@ namespace Zdxsv
 		return true;
 	}
 
-	// ZDXSV_REPLAY=file.pb: plays a saved replay (PlayLoad), the net=1 hooks on, no GGPO session. Else the replay
-	// list's pick (s_play_picked) for one VM. Set by GgpoOnVmInitialize.
-	const char* s_play_env = nullptr;
-	std::string s_play_picked;
-	int s_play_picked_pov = -1;
-	bool s_play_listed = false;
+	PlaySource s_play_src;
 	// Common start: the replay has no start state (or ZDXSV_REPLAY_COMMON=1). The booted state (any post-entry
 	// state, tests/zdxsv/rbkprep.py) plays the battle start with the file's lobby answers through RbkCall up to the
 	// arm, which is GGPO frame 0 (PlayCommonStart).
-	bool s_play_common = false;
+	PlayCommon s_play_common;
 	bool g_ggpo_enabled = false; // GgpoOnVmInitialize
 	bool g_mtvu_off = false; // GgpoOnVmInitialize, cleared at VM shutdown
 	s32 g_frame_period_trim_us = 0;
 	bool g_limiter_no_catch_up = false;
 	// The ZDXSV_GGPO options of this VM: the variable, else DEFAULT_OPTIONS for the Z game, else empty = off.
 	// Set by GgpoOnVmInitialize before the CPU runs.
-	std::string s_options;
 	bool g_z_game = false;
 	bool g_ggpo_active = false;
 	bool g_ggpo_in_rollback = false;
@@ -274,18 +268,15 @@ namespace Zdxsv
 	u64 g_rerun_spu2_ticks = 0;
 	const bool g_rerun_split_time = Zdxsv::TestEnv("ZDXSV_RERUN_SPLIT") != nullptr;
 	bool g_gs_rerun_frame = false;
-	bool s_net_env = false; // net=1 in s_options, or a replay plays (GgpoOnVmInitialize)
 	// ZDXSV_RBK=i/N: until GGPO arms, every lobby / battle connect RPC is answered here (RbkCall).
-	int s_rbk_me = -1, s_rbk_n = 0;
-	bool RbkFromEnv()
+	RbkRole RbkFromEnv()
 	{
-		s_rbk_me = -1;
-		s_rbk_n = 0;
+		RbkRole r;
 		const char* e = Zdxsv::TestEnv("ZDXSV_RBK");
-		return e && std::sscanf(e, "%d/%d", &s_rbk_me, &s_rbk_n) == 2 && s_rbk_me >= 0 && s_rbk_me < s_rbk_n && s_rbk_n <= 4;
+		r.on = e && std::sscanf(e, "%d/%d", &r.me, &r.n) == 2 && r.me >= 0 && r.me < r.n && r.n <= 4;
+		return r;
 	}
-	// Also set by a replay's common start (PlayLoad); back to ZDXSV_RBK at VM shutdown.
-	bool s_rbk = RbkFromEnv();
+	RbkRole s_rbk = RbkFromEnv();
 	const char* s_rand_env = Zdxsv::TestEnv("ZDXSV_RAND_INPUT");
 	// ZDXSV_K3_LAG: a msg sent at GGPO frame s goes into the local input of frame s + lag. With lag above
 	// GGPO's 6 prediction frames, frame s is final when s + lag is added, so a send first made in a rerun
@@ -302,16 +293,18 @@ namespace Zdxsv
 	SessionStats s_stats;
 	GGPOPlayerHandle s_handles[GGPO_MAX_PLAYERS] = {};
 	GgpoOptions s_opt;
-	int s_lobby_port = 7001;
-	int s_min_delay = 2; // mindelay=, else setting DEV9/Eth ZdxsvGgpoMinDelay
-	// network status OSD: user id, name + pilot name per position (lobby battle info), lines of the last frame
-	std::vector<LobbyPlayer> s_lobby_players, s_net_players;
-	std::vector<GamePatch> s_lobby_patches, s_net_patches, s_battle_patches;
+	GgpoConfig s_config;
+	std::vector<GamePatch> s_battle_patches;
 
 	GGPOSession* s_session = nullptr;
 	bool s_frame_ended = false; // the CPU left Execute() at a vsync
-	static bool s_frame_hold = false; // the next frame waits, the CPU does not run (GgpoHoldsFrame)
-	static Common::Timer s_hold_poll;
+	// The next frame waits, the CPU does not run (GgpoHoldsFrame).
+	struct FrameHold
+	{
+		bool on = false;
+		Common::Timer poll;
+	};
+	static FrameHold s_hold;
 	int s_session_frames = 0;
 	std::array<float, PadDualshock2::Inputs::LENGTH> s_host = {};
 
@@ -365,15 +358,15 @@ namespace Zdxsv
 
 	void GgpoOnVsync()
 	{
-		if (s_rbk && s_net_env && !s_battle.armed)
+		if (s_rbk.on && s_config.net && !s_battle.armed)
 			VMManager::SetLimiterMode(LimiterModeType::Turbo);
 		// Once: the rbk knobs as received; tests/zdxsv/rbk.py compares this line to what it meant to pass
 		static bool rbk_env_logged = false;
-		if (s_rbk && !s_play_env && !rbk_env_logged)
+		if (s_rbk.on && !s_play_src.path && !rbk_env_logged)
 		{
 			rbk_env_logged = true;
 			const auto env = [](const char* k) { const char* v = TestEnv(k); return v && *v ? v : "-"; };
-			Console.WriteLn("ZdxsvGgpo: rbk env pos=%d/%d rand=%s turbo=%s clamp=%s ggpo=%s", s_rbk_me, s_rbk_n,
+			Console.WriteLn("ZdxsvGgpo: rbk env pos=%d/%d rand=%s turbo=%s clamp=%s ggpo=%s", s_rbk.me, s_rbk.n,
 				env("ZDXSV_RAND_INPUT"), env("ZDXSV_RBK_TURBO"), env("ZDXSV_EE_CLAMP"), env("ZDXSV_GGPO"));
 		}
 		// ZDXSV_VM_TEST=frame:shutdown|reset|mute|ui (tests of GgpoOnVmShutdown; mute: the GGPO network goes silent): once, when a session or replay reaches GGPO frame `frame`
@@ -425,10 +418,10 @@ namespace Zdxsv
 			if (s_vsyncs++ == 0)
 			{
 				Parse();
-				if (s_play_env)
+				if (s_play_src.path)
 					Host::RunOnCPUThread(PlayLoad);
 			}
-			if (s_play_env && !(s_play_common && s_battle.armed)) // PlayLoad starts it, or the arm of a common start
+			if (s_play_src.path && !(s_play_common.on && s_battle.armed)) // PlayLoad starts it, or the arm of a common start
 				return;
 			if (s_opt.net ? !s_battle.armed : s_vsyncs < s_opt.start)
 				return;
@@ -448,7 +441,7 @@ namespace Zdxsv
 
 	bool GgpoDeferThrottle()
 	{
-		s_run.throttle_deferred = g_ggpo_active && s_session && !s_play_env && s_frame_ended;
+		s_run.throttle_deferred = g_ggpo_active && s_session && !s_play_src.path && s_frame_ended;
 		return s_run.throttle_deferred;
 	}
 
@@ -494,12 +487,12 @@ namespace Zdxsv
 
 	bool GgpoHoldsFrame()
 	{
-		if (!s_frame_hold)
+		if (!s_hold.on)
 			return false;
 		Threading::Sleep(2);
-		if (s_hold_poll.GetTimeMilliseconds() >= 16)
+		if (s_hold.poll.GetTimeMilliseconds() >= 16)
 		{
-			s_hold_poll.Reset();
+			s_hold.poll.Reset();
 			InputManager::PollSources();
 			MTGS::PresentCurrentFrame();
 		}
@@ -510,11 +503,11 @@ namespace Zdxsv
 
 	static void Returned()
 	{
-		if (s_play_env)
+		if (s_play_src.path)
 		{
-			s_frame_hold = !s_play_common && LiveHold();
-			if (!s_frame_hold)
-				s_play_common ? PlayCommonStart() : PlayNext();
+			s_hold.on = !s_play_common.on && LiveHold();
+			if (!s_hold.on)
+				s_play_common.on ? PlayCommonStart() : PlayNext();
 			return;
 		}
 		if (!s_session)
@@ -525,7 +518,7 @@ namespace Zdxsv
 				GgpoStop(fail);
 				return;
 			}
-			s_battle_patches = std::exchange(s_net_patches, {});
+			s_battle_patches = std::exchange(s_net.patches, {});
 			ServerPatchesBegin(s_battle_patches);
 			if (s_opt.net)
 				ReplayBegin();
@@ -652,11 +645,11 @@ namespace Zdxsv
 
 	void GgpoOnVmInitialize(const char* serial, u32 crc)
 	{
-		TakeNextReplay(s_play_picked, s_play_picked_pov);
-		s_live_next_url.clear();
+		TakeNextReplay(s_play_src.picked, s_play_src.picked_pov);
+		s_live_next.url.clear();
 		const char* play = TestEnv("ZDXSV_REPLAY");
-		s_play_env = play ? play : s_play_picked.empty() ? nullptr : s_play_picked.c_str();
-		s_play_listed = !play && !s_play_picked.empty();
+		s_play_src.path = play ? play : s_play_src.picked.empty() ? nullptr : s_play_src.picked.c_str();
+		s_play_src.listed = !play && !s_play_src.picked.empty();
 		const char* e = TestEnv("ZDXSV_GGPO");
 		// ZDXSV_GAME_CRC=hex (test): the CRC taken as the Z game's, to run the wrong-game path on the Z game
 		const char* want_env = Zdxsv::TestEnv("ZDXSV_GAME_CRC");
@@ -669,43 +662,43 @@ namespace Zdxsv
 		AllyHpOnVmInitialize();
 		StickMessageOnVmInitialize();
 		NoDev9OnVmInitialize();
-		const bool lobby_default = g_z_game && !s_play_env;
+		const bool lobby_default = g_z_game && !s_play_src.path;
 		if (!g_z_game) // any other game or build, or ZDXSV_EXTENSIONS=0: no GGPO, replay, hooks or platform info
 		{
-			s_options.clear();
-			g_ggpo_enabled = s_net_env = g_net_hook = g_zd_hook = g_ps_hook = false;
+			s_config.options.clear();
+			g_ggpo_enabled = s_config.net = g_net_hook = g_zd_hook = g_ps_hook = false;
 			if (ext_off)
 				Console.WriteLn("ZdxsvGgpo: off: ZDXSV_EXTENSIONS=0, all zdxsv extensions off");
-			else if (serial_match || (e && std::strcmp(e, "0") != 0) || s_play_env || s_net_trace)
+			else if (serial_match || (e && std::strcmp(e, "0") != 0) || s_play_src.path || s_net_trace)
 				Console.Warning("ZdxsvGgpo: off: not the Z game (serial %s CRC %08X, need %s %08X)", serial, crc, GAME_SERIAL, want);
 			return;
 		}
 		SyncSettingsEnforce(); // LoadSettings ran before the game was known
 		if (e && std::strcmp(e, "0") == 0) // off (rigs without GGPO)
-			s_options.clear();
+			s_config.options.clear();
 		else
-			s_options = e ? e : lobby_default ? DEFAULT_OPTIONS : "";
+			s_config.options = e ? e : lobby_default ? DEFAULT_OPTIONS : "";
 		// mindelay= overrides it
-		s_min_delay = std::clamp(Host::GetIntSettingValue("DEV9/Eth", "ZdxsvGgpoMinDelay", 2), 2, 6);
-		if (s_options.find("lobby=1") != std::string::npos)
+		s_config.min_delay = std::clamp(Host::GetIntSettingValue("DEV9/Eth", "ZdxsvGgpoMinDelay", 2), 2, 6);
+		if (s_config.options.find("lobby=1") != std::string::npos)
 		{
-			s_lobby_port = Host::GetIntSettingValue("DEV9/Eth", "ZdxsvGgpoPort", 0);
-			if (s_lobby_port <= 0 || s_lobby_port > 0xFFFF)
+			s_config.lobby_port = Host::GetIntSettingValue("DEV9/Eth", "ZdxsvGgpoPort", 0);
+			if (s_config.lobby_port <= 0 || s_config.lobby_port > 0xFFFF)
 			{
 				std::random_device rd;
-				s_lobby_port = std::uniform_int_distribution<int>(29700, 29800)(rd);
-				Host::SetBaseIntSettingValue("DEV9/Eth", "ZdxsvGgpoPort", s_lobby_port);
+				s_config.lobby_port = std::uniform_int_distribution<int>(29700, 29800)(rd);
+				Host::SetBaseIntSettingValue("DEV9/Eth", "ZdxsvGgpoPort", s_config.lobby_port);
 				Host::CommitBaseSettingChanges();
-				Console.WriteLn("ZdxsvGgpo: battle port %d picked and saved", s_lobby_port);
+				Console.WriteLn("ZdxsvGgpo: battle port %d picked and saved", s_config.lobby_port);
 			}
 		}
-		g_ggpo_enabled = !s_options.empty() || s_play_env;
-		s_net_env = s_options.find("net=1") != std::string::npos || s_play_env;
-		g_net_hook = s_net_trace != nullptr || s_net_env || g_no_dev9;
-		g_zd_hook = s_net_env;
+		g_ggpo_enabled = !s_config.options.empty() || s_play_src.path;
+		s_config.net = s_config.options.find("net=1") != std::string::npos || s_play_src.path;
+		g_net_hook = s_net_trace != nullptr || s_config.net || g_no_dev9;
+		g_zd_hook = s_config.net;
 		g_ps_hook = true;
-		if (!s_options.empty() || std::strcmp(serial, GAME_SERIAL) == 0)
-			Console.WriteLn("ZdxsvGgpo: options '%s' (serial %s)", s_options.c_str(), serial);
+		if (!s_config.options.empty() || std::strcmp(serial, GAME_SERIAL) == 0)
+			Console.WriteLn("ZdxsvGgpo: options '%s' (serial %s)", s_config.options.c_str(), serial);
 		// Delta saves and loads, replay keys: VU1 memory is copied while the MTVU thread may still run on it.
 		// The settings were loaded before this; VMManager::LoadCoreSettings keeps it off on later reloads.
 		g_mtvu_off = g_ggpo_enabled || g_delta_state_test_enabled;
@@ -790,9 +783,9 @@ namespace Zdxsv
 		size_t keys = 0;
 		for (const auto& k : s_play_keys)
 			keys += k.size();
-		Console.WriteLn("ZdxsvGgpo: %s: session %d, replay recording %d, replay keys %zu", what, g_ggpo_active && !s_play_env ? 1 : 0,
+		Console.WriteLn("ZdxsvGgpo: %s: session %d, replay recording %d, replay keys %zu", what, g_ggpo_active && !s_play_src.path ? 1 : 0,
 			s_replay_rec ? 1 : 0, keys);
-		if (s_play_env)
+		if (s_play_src.path)
 		{
 			g_ggpo_active = false;
 			PlayReset();
@@ -808,7 +801,7 @@ namespace Zdxsv
 		LobbyReset();
 		RbkReset();
 		g_ggpo_in_rollback = false;
-		s_frame_hold = s_frame_ended = false;
+		s_hold.on = s_frame_ended = false;
 		s_vsyncs = 0; // the next VM start or the reset VM parses the options again (and loads a replay again)
 	}
 } // namespace Zdxsv

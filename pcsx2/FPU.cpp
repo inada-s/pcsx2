@@ -2,8 +2,8 @@
 // SPDX-License-Identifier: GPL-3.0+
 
 #include "Common.h"
+#include "Zdxsv/FpuX86.h"
 
-#include <bit>
 #include <cmath>
 
 // Helper Macros
@@ -100,36 +100,6 @@ __fi u32 fp_min(u32 a, u32 b)
 	return ((s32)a < 0 && (s32)b < 0) ? std::max<s32>(a, b) : std::min<s32>(a, b);
 }
 
-#ifdef ARCH_ARM64
-// ARM64 runs these ops here; they follow the x86 recompiler (iFPU.cpp) so both hosts compute the same bits.
-
-// fpuFloat2: +/-NaN, +/-Inf -> +/-Fmax
-static u32 fpuClampX86(u32 v)
-{
-	if (!CHECK_FPU_OVERFLOW)
-		return v;
-	v = static_cast<u32>(std::min<s32>(static_cast<s32>(v), static_cast<s32>(posFmax)));
-	return std::min<u32>(v, negFmax);
-}
-
-// MAXSS/MINSS on clamped operands with denormals as zero: on equal operands (+0 vs -0) SSE returns the
-// second one, which recCommutativeOp makes Ft, or Fs when Fd == Ft.
-static u32 fpuMaxMinX86(bool max)
-{
-	u32 a = fpuClampX86(_FsValUl_);
-	u32 b = fpuClampX86(_FtValUl_);
-	if (_Fd_ == _Ft_)
-		std::swap(a, b);
-	if (!(a & 0x7f800000))
-		a &= 0x80000000;
-	if (!(b & 0x7f800000))
-		b &= 0x80000000;
-	const float fa = std::bit_cast<float>(a);
-	const float fb = std::bit_cast<float>(b);
-	return (max ? fa > fb : fa < fb) ? a : b;
-}
-#endif
-
 /*	Checks if Divide by Zero will occur. (z/y = x)
 	cFlagsToSet1 = Flags to set if (z != 0)
 	cFlagsToSet2 = Flags to set if (z == 0)
@@ -213,99 +183,33 @@ float fpuDouble(u32 f)
 	}
 }
 
-// a + b or a - b with the smaller operand's mantissa cut to the bits the larger exponent keeps
-// (the PS2 FPU's add, as the recompiler emulates it: FPU_ADD_SUB in x86/iFPU.cpp)
-static void fpuAddSubCut(u32& a, u32& b)
-{
-	const s32 d = static_cast<s32>((a >> 23) & 0xff) - static_cast<s32>((b >> 23) & 0xff);
-	if (d >= 25)
-		b &= 0x80000000;
-	else if (d > 0)
-		b &= 0xffffffffu << (d - 1);
-	else if (d <= -25)
-		a &= 0x80000000;
-	else if (d < 0)
-		a &= 0xffffffffu << (-d - 1);
-}
-
 static float fpuAddSub(u32 a, u32 b, bool sub)
 {
-	fpuAddSubCut(a, b);
+	Zdxsv::FpuAddSubCut(a, b);
 	return sub ? fpuDouble(a) - fpuDouble(b) : fpuDouble(a) + fpuDouble(b);
 }
 
 #ifdef ARCH_ARM64
-// The x86 recompiler (iFPU.cpp) in its default clamp mode: operands reach SSE unclamped, denormals as
-// zero; a NaN result becomes +Fmax and an infinity +/-Fmax (ClampValues); O and U are never written.
-static bool fpuX86Mode()
-{
-	return CHECK_FPU_OVERFLOW && !CHECK_FPU_EXTRA_OVERFLOW && !CHECK_FPU_FULL;
-}
-
-static float fpuDaz(u32 f)
-{
-	if (!(f & 0x7f800000))
-		f &= 0x80000000;
-	return std::bit_cast<float>(f);
-}
-
-static u32 fpuResultX86(float r)
-{
-	u32 v = std::bit_cast<u32>(r);
-	if ((v & 0x7f800000) == 0x7f800000)
-		return (v & 0x007fffff) ? posFmax : (v & 0x80000000) | posFmax;
-	if (!(v & 0x7f800000))
-		v &= 0x80000000;
-	return v;
-}
-
-static u32 fpuAddSubX86(u32 a, u32 b, bool sub)
-{
-	fpuAddSubCut(a, b);
-	return fpuResultX86(sub ? fpuDaz(a) - fpuDaz(b) : fpuDaz(a) + fpuDaz(b));
-}
-
-// MADD/MSUB: the product rounded on its own, then added to ACC as ADD.S
-static u32 fpuMulAddX86(bool sub)
-{
-	const float p = fpuDaz(_FsValUl_) * fpuDaz(_FtValUl_);
-	return fpuAddSubX86(_FAValUl_, std::bit_cast<u32>(p), sub);
-}
-
-// recABS_S_xmm: MINSS with +Fmax, so NaN and Inf give +Fmax and a denormal 0
-static u32 fpuAbsX86(u32 v)
-{
-	v &= 0x7fffffff;
-	return v >= PosInfinity ? posFmax : v < 0x00800000 ? 0 : v;
-}
-
-// recNEG_S_xmm: fpuFloat3 on the result, denormals kept
-static u32 fpuNegX86(u32 v)
-{
-	v ^= 0x80000000;
-	return std::min<u32>(static_cast<u32>(std::min<s32>(static_cast<s32>(v), static_cast<s32>(posFmax))), negFmax);
-}
-
-#define FPU_X86(reg, value) if (fpuX86Mode()) { reg = (value); return; }
+#define FPU_X86(reg, value) if (Zdxsv::FpuX86Mode()) { reg = (value); return; }
 #else
 #define FPU_X86(reg, value)
 #endif
 
 void ABS_S() {
-	FPU_X86(_FdValUl_, fpuAbsX86(_FsValUl_));
+	FPU_X86(_FdValUl_, Zdxsv::FpuAbsX86(_FsValUl_));
 	_FdValUl_ = _FsValUl_ & 0x7fffffff;
 	clearFPUFlags( FPUflagO | FPUflagU );
 }
 
 void ADD_S() {
-	FPU_X86(_FdValUl_, fpuAddSubX86(_FsValUl_, _FtValUl_, false));
+	FPU_X86(_FdValUl_, Zdxsv::FpuAddSubX86(_FsValUl_, _FtValUl_, false));
 	_FdValf_  = fpuAddSub( _FsValUl_, _FtValUl_, false );
 	if (checkOverflow( _FdValUl_, FPUflagO | FPUflagSO)) return;
 	checkUnderflow( _FdValUl_, FPUflagU | FPUflagSU);
 }
 
 void ADDA_S() {
-	FPU_X86(_FAValUl_, fpuAddSubX86(_FsValUl_, _FtValUl_, false));
+	FPU_X86(_FAValUl_, Zdxsv::FpuAddSubX86(_FsValUl_, _FtValUl_, false));
 	_FAValf_  = fpuAddSub( _FsValUl_, _FtValUl_, false );
 	if (checkOverflow( _FAValUl_, FPUflagO | FPUflagSO)) return;
 	checkUnderflow( _FAValUl_, FPUflagU | FPUflagSU);
@@ -347,7 +251,7 @@ void CFC1() {
 	if (!_Rt_) return;
 
 #ifdef ARCH_ARM64
-	// recCFC1: FCR31 with its always-zero bits cleared and always-one bits set, else FCR0
+	// zdxsv: as recCFC1 on ARM64: FCR31 with its always-zero bits cleared and always-one bits set, else FCR0.
 	if (_Fs_ >= 16)
 		cpuRegs.GPR.r[_Rt_].SD[0] = (s32)((fpuRegs.fprc[31] & 0x0083c078) | 0x01000001);
 	else
@@ -380,11 +284,11 @@ void CVT_W() {
 
 void DIV_S() {
 #ifdef ARCH_ARM64
-	if (fpuX86Mode()) {
+	if (Zdxsv::FpuX86Mode()) {
 		clearFPUFlags(FPUflagD | FPUflagI); // recDIVhelper1
 		if (checkDivideByZero( _FdValUl_, _FtValUl_, _FsValUl_, FPUflagD | FPUflagSD, FPUflagI | FPUflagSI)) return;
 		const FPControlRegisterBackup fpcr(EmuConfig.Cpu.FPUDivFPCR);
-		_FdValUl_ = fpuResultX86(fpuDaz(_FsValUl_) / fpuDaz(_FtValUl_));
+		_FdValUl_ = Zdxsv::FpuResultX86(Zdxsv::FpuDaz(_FsValUl_) / Zdxsv::FpuDaz(_FtValUl_));
 		return;
 	}
 #endif
@@ -403,7 +307,7 @@ void DIV_S() {
 	method provides a similar outcome and is faster. (cottonvibes)
 */
 void MADD_S() {
-	FPU_X86(_FdValUl_, fpuMulAddX86(false));
+	FPU_X86(_FdValUl_, Zdxsv::FpuMulAddX86(_FAValUl_, _FsValUl_, _FtValUl_, false));
 	FPRreg temp;
 	temp.f = fpuDouble( _FsValUl_ ) * fpuDouble( _FtValUl_ );
 	_FdValf_  = fpuAddSub( _FAValUl_, temp.UL, false );
@@ -412,7 +316,7 @@ void MADD_S() {
 }
 
 void MADDA_S() {
-	FPU_X86(_FAValUl_, fpuMulAddX86(false));
+	FPU_X86(_FAValUl_, Zdxsv::FpuMulAddX86(_FAValUl_, _FsValUl_, _FtValUl_, false));
 	FPRreg temp;
 	temp.f = fpuDouble( _FsValUl_ ) * fpuDouble( _FtValUl_ );
 	_FAValf_ = fpuAddSub( _FAValUl_, temp.UL, false );
@@ -422,7 +326,7 @@ void MADDA_S() {
 
 void MAX_S() {
 #ifdef ARCH_ARM64
-	_FdValUl_ = fpuMaxMinX86(true); // recMAX_S_xmm keeps O and U
+	_FdValUl_ = Zdxsv::FpuMaxMinX86(_FsValUl_, _FtValUl_, _Fd_ == _Ft_, true); // recMAX_S_xmm keeps O and U
 	return;
 #endif
 	_FdValUl_  = fp_max( _FsValUl_, _FtValUl_ );
@@ -436,7 +340,7 @@ void MFC1() {
 
 void MIN_S() {
 #ifdef ARCH_ARM64
-	_FdValUl_ = fpuMaxMinX86(false); // recMIN_S_xmm keeps O and U
+	_FdValUl_ = Zdxsv::FpuMaxMinX86(_FsValUl_, _FtValUl_, _Fd_ == _Ft_, false); // recMIN_S_xmm keeps O and U
 	return;
 #endif
 	_FdValUl_ = fp_min(_FsValUl_, _FtValUl_);
@@ -448,7 +352,7 @@ void MOV_S() {
 }
 
 void MSUB_S() {
-	FPU_X86(_FdValUl_, fpuMulAddX86(true));
+	FPU_X86(_FdValUl_, Zdxsv::FpuMulAddX86(_FAValUl_, _FsValUl_, _FtValUl_, true));
 	FPRreg temp;
 	temp.f = fpuDouble( _FsValUl_ ) * fpuDouble( _FtValUl_ );
 	_FdValf_  = fpuAddSub( _FAValUl_, temp.UL, true );
@@ -457,7 +361,7 @@ void MSUB_S() {
 }
 
 void MSUBA_S() {
-	FPU_X86(_FAValUl_, fpuMulAddX86(true));
+	FPU_X86(_FAValUl_, Zdxsv::FpuMulAddX86(_FAValUl_, _FsValUl_, _FtValUl_, true));
 	FPRreg temp;
 	temp.f = fpuDouble( _FsValUl_ ) * fpuDouble( _FtValUl_ );
 	_FAValf_ = fpuAddSub( _FAValUl_, temp.UL, true );
@@ -470,21 +374,21 @@ void MTC1() {
 }
 
 void MUL_S() {
-	FPU_X86(_FdValUl_, fpuResultX86(fpuDaz(_FsValUl_) * fpuDaz(_FtValUl_)));
+	FPU_X86(_FdValUl_, Zdxsv::FpuResultX86(Zdxsv::FpuDaz(_FsValUl_) * Zdxsv::FpuDaz(_FtValUl_)));
 	_FdValf_  = fpuDouble( _FsValUl_ ) * fpuDouble( _FtValUl_ );
 	if (checkOverflow( _FdValUl_, FPUflagO | FPUflagSO)) return;
 	checkUnderflow( _FdValUl_, FPUflagU | FPUflagSU);
 }
 
 void MULA_S() {
-	FPU_X86(_FAValUl_, fpuResultX86(fpuDaz(_FsValUl_) * fpuDaz(_FtValUl_)));
+	FPU_X86(_FAValUl_, Zdxsv::FpuResultX86(Zdxsv::FpuDaz(_FsValUl_) * Zdxsv::FpuDaz(_FtValUl_)));
 	_FAValf_  = fpuDouble( _FsValUl_ ) * fpuDouble( _FtValUl_ );
 	if (checkOverflow( _FAValUl_, FPUflagO | FPUflagSO)) return;
 	checkUnderflow( _FAValUl_, FPUflagU | FPUflagSU);
 }
 
 void NEG_S() {
-	FPU_X86(_FdValUl_, fpuNegX86(_FsValUl_));
+	FPU_X86(_FdValUl_, Zdxsv::FpuNegX86(_FsValUl_));
 	_FdValUl_  = (_FsValUl_ ^ 0x80000000);
 	clearFPUFlags( FPUflagO | FPUflagU );
 }
@@ -502,10 +406,10 @@ void RSQRT_S() {
 		_FdValUl_ = ( _FsValUl_ & 0x80000000 ) | posFmax;
 		return;
 	}
-	if (fpuX86Mode()) {
+	if (Zdxsv::FpuX86Mode()) {
 		if ( _FtValUl_ & 0x80000000 )
 			_ContVal_ |= FPUflagI | FPUflagSI;
-		_FdValUl_ = fpuResultX86(fpuDaz( _FsValUl_ ) / std::sqrt( std::fabs( std::bit_cast<float>( _FtValUl_ ) ) ));
+		_FdValUl_ = Zdxsv::FpuResultX86(Zdxsv::FpuDaz( _FsValUl_ ) / std::sqrt( std::fabs( std::bit_cast<float>( _FtValUl_ ) ) ));
 		return;
 	}
 #endif
@@ -527,7 +431,7 @@ void RSQRT_S() {
 
 void SQRT_S() {
 	clearFPUFlags(FPUflagI | FPUflagD);
-	// round to nearest, as the recompiler (recSQRT_S_xmm)
+	// zdxsv: round to nearest, as the recompiler (recSQRT_S_xmm).
 	const FPControlRegisterBackup fpcr(FPControlRegister(EmuConfig.Cpu.FPUFPCR).SetRoundMode(FPRoundMode::Nearest));
 
 #ifdef ARCH_ARM64
@@ -550,14 +454,14 @@ void SQRT_S() {
 }
 
 void SUB_S() {
-	FPU_X86(_FdValUl_, fpuAddSubX86(_FsValUl_, _FtValUl_, true));
+	FPU_X86(_FdValUl_, Zdxsv::FpuAddSubX86(_FsValUl_, _FtValUl_, true));
 	_FdValf_  = fpuAddSub( _FsValUl_, _FtValUl_, true );
 	if (checkOverflow( _FdValUl_, FPUflagO | FPUflagSO)) return;
 	checkUnderflow( _FdValUl_, FPUflagU | FPUflagSU);
 }
 
 void SUBA_S() {
-	FPU_X86(_FAValUl_, fpuAddSubX86(_FsValUl_, _FtValUl_, true));
+	FPU_X86(_FAValUl_, Zdxsv::FpuAddSubX86(_FsValUl_, _FtValUl_, true));
 	_FAValf_  = fpuAddSub( _FsValUl_, _FtValUl_, true );
 	if (checkOverflow( _FAValUl_, FPUflagO | FPUflagSO)) return;
 	checkUnderflow( _FAValUl_, FPUflagU | FPUflagSU);

@@ -86,7 +86,8 @@ namespace Zdxsv
 		for (int p = 0; p < s_opt.players; p++)
 		{
 			const u8* t = in[p].data + DESYNC_TRAILER_AT;
-			if (p == s_battle.me || in[p].len > DESYNC_TRAILER_AT || t[0] == 0)
+			// A trailer keeps its claim until the peer's input changes; after 255 periods its tag names a newer frame.
+			if (p == s_battle.me || in[p].len > DESYNC_TRAILER_AT || t[0] == 0 || t[0] == s_desync.checked_tag[p])
 				continue;
 			const int h = TagFrame(f, t[0]);
 			if (h <= s_desync.checked[p] || h > c + 1)
@@ -95,6 +96,7 @@ namespace Zdxsv
 			if (!v)
 				continue;
 			s_desync.checked[p] = h;
+			s_desync.checked_tag[p] = t[0];
 			s_desync.checks++;
 			const u32 theirs = t[1] | t[2] << 8 | t[3] << 16;
 			if ((*v & 0xffffff) == theirs)

@@ -136,10 +136,15 @@ namespace Zdxsv
 			}
 			return false;
 		};
+		constexpr int max_fields = 4096;
+		constexpr u64 max_header_bytes = 4096;
+		constexpr size_t max_users = 4;
 		*info = {};
 		std::vector<u8> buf;
-		for (;;)
+		for (int fields = 0;; fields++)
 		{
+			if (fields == max_fields)
+				return false;
 			const s64 at = FileSystem::FTell64(fp.get());
 			if (at < 0 || at > size)
 				return false;
@@ -169,7 +174,7 @@ namespace Zdxsv
 			const s64 body = FileSystem::FTell64(fp.get());
 			if (body < 0 || body > size || v > static_cast<u64>(size - body))
 				return false;
-			if (wt == 2 && (field == 3 || field == 11))
+			if (wt == 2 && (field == 3 || field == 11) && v <= max_header_bytes && (field == 3 || info->users.size() < max_users))
 			{
 				buf.resize(static_cast<size_t>(v));
 				if (std::fread(buf.data(), 1, buf.size(), fp.get()) != buf.size())
@@ -180,7 +185,7 @@ namespace Zdxsv
 					continue;
 				}
 				ReplayFileUser u;
-				Pb::Reader user{buf.data(), buf.data() + buf.size()};
+				PbReader user{buf.data(), buf.data() + buf.size()};
 				if (!user.Fields([&u](uint32_t f, uint32_t uwt, uint64_t uv, const uint8_t* ub, size_t un) {
 						if (uwt == 2 && (f == 2 || f == 3))
 							(f == 2 ? u.name : u.pilot).assign(reinterpret_cast<const char*>(ub), un);

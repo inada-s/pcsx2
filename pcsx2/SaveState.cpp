@@ -206,7 +206,7 @@ bool SaveStateBase::FreezeInternals(Error* error)
 	Freeze(nextStartCounter);
 	Freeze(psxNextStartCounter);
 	Freeze(psxNextDeltaCounter);
-	// Not in the state: the interpreter's uncommitted cycles belong to the replaced state (a load from inside the
+	// zdxsv: not in the state, the interpreter's uncommitted cycles belong to the replaced state (a load from inside the
 	// interpreter's loop would add them to the loaded one).
 	if (IsLoading())
 		cpuBlockCycles = 0;
@@ -752,7 +752,7 @@ static const std::unique_ptr<BaseSavestateEntry> SavestateEntries[] = {
 	std::unique_ptr<BaseSavestateEntry>(new SavestateEntry_SPU2),
 	std::unique_ptr<BaseSavestateEntry>(new SavestateEntry_USB),
 	std::unique_ptr<BaseSavestateEntry>(new SavestateEntry_DEV9),
-	std::unique_ptr<BaseSavestateEntry>(new SavestateEntry_NoDev9),
+	std::unique_ptr<BaseSavestateEntry>(new SavestateEntry_NoDev9), // zdxsv: NoDev9.cpp state
 	std::unique_ptr<BaseSavestateEntry>(new SavestateEntry_PAD),
 	std::unique_ptr<BaseSavestateEntry>(new SavestateEntry_GS),
 	std::unique_ptr<BaseSavestateEntry>(new SaveStateEntry_Achievements),

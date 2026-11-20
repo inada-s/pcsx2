@@ -52,6 +52,7 @@ public:
 		ProgressCallback* progress;
 		std::string url;
 		std::string post_data;
+		// zdxsv: replay upload posts multipart
 		std::string post_content_type; // "" = application/x-www-form-urlencoded
 		std::string content_type;
 		Data data;
@@ -73,6 +74,7 @@ public:
 	void SetMaxActiveRequests(u32 max_active_requests);
 
 	void CreateRequest(std::string url, Request::Callback callback, ProgressCallback* progress = nullptr);
+	// zdxsv: replay upload posts multipart
 	void CreatePostRequest(std::string url, std::string post_data, Request::Callback callback, ProgressCallback* progress = nullptr,
 		std::string content_type = {});
 	void PollRequests();

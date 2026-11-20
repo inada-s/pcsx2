@@ -119,10 +119,14 @@ namespace Zdxsv
 		std::atomic<u64> s_presented{0};
 
 		// Present -> present intervals while presses run (frame pacing), GS thread.
-		std::atomic<bool> s_pace_on{false};
-		std::mutex s_pace_mutex;
-		std::vector<double> s_pace_ms;
-		Common::Timer::Value s_pace_prev = 0;
+		struct FramePacing
+		{
+			std::atomic<bool> on{false};
+			std::mutex mutex;
+			std::vector<double> ms;
+			Common::Timer::Value prev = 0;
+		};
+		FramePacing s_pace;
 
 		// pixel=: s_vsync of each pushed frame by frame number, and the vsyncs of the shown frames whose
 		// watched pixels differ from the shown frame before (GS thread).
@@ -523,8 +527,8 @@ namespace Zdxsv
 			Summarize(pram);
 			Summarize(pres);
 			Summarize(total);
-			std::lock_guard lock(s_pace_mutex);
-			Pacing("present->present", s_pace_ms);
+			std::lock_guard lock(s_pace.mutex);
+			Pacing("present->present", s_pace.ms);
 			Pacing("frameend->frameend", s_end_ms); // CPU thread: emulated frame done
 			std::vector<double> gq, gv, sl, em, rr;
 			for (const GsSplit& g : s_gs_split)
@@ -545,27 +549,27 @@ namespace Zdxsv
 			Pacing("rollback", rr);
 			// Late presents with the frame-end intervals around them (stall in emulation or in present),
 			// counted by cause: a rollback in that frame-end interval, else emulation.
-			const double m = s_pace_ms.empty() ? 0 : mean(s_pace_ms);
+			const double m = s_pace.ms.empty() ? 0 : mean(s_pace.ms);
 			size_t late = 0, late_rb = 0;
-			for (size_t i = 0; i < s_pace_ms.size() && i < s_split.size(); i++)
+			for (size_t i = 0; i < s_pace.ms.size() && i < s_split.size(); i++)
 			{
-				late += s_pace_ms[i] > 1.5 * m;
+				late += s_pace.ms[i] > 1.5 * m;
 				// split i + 1 holds a rollback before push i (LowLatencyPresent), split i - 1 one before the
 				// sleep that present i follows (default order)
 				bool rb = false;
 				for (size_t j = i ? i - 1 : 0; j <= i + 1 && j < s_split.size(); j++)
 					rb |= s_split[j].rerun > 0;
-				late_rb += s_pace_ms[i] > 1.5 * m && rb;
+				late_rb += s_pace.ms[i] > 1.5 * m && rb;
 			}
 			Console.WriteLn("ZdxsvLatency: rerun frames %zu, late presents %zu, with a rollback %zu", s_rerun_frames, late, late_rb);
-			for (size_t i = 0, shown = 0; i < s_pace_ms.size() && shown < 8; i++)
+			for (size_t i = 0, shown = 0; i < s_pace.ms.size() && shown < 8; i++)
 			{
-				if (s_pace_ms[i] <= 1.5 * m)
+				if (s_pace.ms[i] <= 1.5 * m)
 					continue;
 				shown++;
 				auto end = [](size_t j) { return j < s_end_ms.size() ? s_end_ms[j] : -1.0; };
 				Console.WriteLn("ZdxsvLatency: late present %zu: %.2f ms, frame ends %.2f %.2f %.2f %.2f %.2f",
-					i, s_pace_ms[i], end(i - 2), end(i - 1), end(i), end(i + 1), end(i + 2));
+					i, s_pace.ms[i], end(i - 2), end(i - 1), end(i), end(i + 1), end(i + 2));
 				for (size_t j = i - 1; j <= i + 1; j++)
 				{
 					if (j < s_split.size())
@@ -573,7 +577,7 @@ namespace Zdxsv
 							j, end(j), s_split[j].push, s_split[j].sleep, s_split[j].rerun, s_split[j].emu);
 					if (j < s_gs_split.size())
 						Console.WriteLn("ZdxsvLatency:   present %zu: %.2f ms, push -> GS thread at vsync %.2f, GSvsync %.2f",
-							j, s_pace_ms[j], s_gs_split[j].queue, s_gs_split[j].vsync);
+							j, s_pace.ms[j], s_gs_split[j].queue, s_gs_split[j].vsync);
 				}
 			}
 			Console.WriteLn("ZdxsvLatency: done");
@@ -647,7 +651,7 @@ namespace Zdxsv
 			if (phase >= 8) // last press' frames are presented by now
 			{
 				s_done = true;
-				s_pace_on.store(false, std::memory_order_release);
+				s_pace.on.store(false, std::memory_order_release);
 				if (!s_cfg.pixels.empty())
 					PixelReport();
 				if (s_cfg.has_addr)
@@ -683,7 +687,7 @@ namespace Zdxsv
 				Snapshot(s_pre);
 			s_presses.push_back(np);
 			s_cur = &s_presses.back();
-			s_pace_on.store(true, std::memory_order_release);
+			s_pace.on.store(true, std::memory_order_release);
 			Pad::SetControllerState(0, btn->bind, 1.0f);
 		}
 		else if (phase == 8 + s_cfg.hold)
@@ -713,12 +717,12 @@ namespace Zdxsv
 			s_rerun_ms += d;
 			s_rerun_since_poll += d; // the next poll clears it
 			s_t_any_end = now;
-			s_rerun_frames += s_pace_on.load(std::memory_order_relaxed);
+			s_rerun_frames += s_pace.on.load(std::memory_order_relaxed);
 			s_pix.rb_pending = true;
 			return;
 		}
 		s_t_any_end = now;
-		if (s_pace_on.load(std::memory_order_relaxed))
+		if (s_pace.on.load(std::memory_order_relaxed))
 		{
 			if (s_end_prev > 0)
 			{
@@ -760,17 +764,17 @@ namespace Zdxsv
 		s_present_t[n % RING].store(Common::Timer::GetCurrentValue(), std::memory_order_relaxed);
 		s_presented.store(n, std::memory_order_release);
 		const Common::Timer::Value t = s_present_t[n % RING].load(std::memory_order_relaxed);
-		if (s_pace_on.load(std::memory_order_acquire) && !g_gs_rerun_frame) // a rerun frame is not shown
+		if (s_pace.on.load(std::memory_order_acquire) && !g_gs_rerun_frame) // a rerun frame is not shown
 		{
-			if (s_pace_prev)
+			if (s_pace.prev)
 			{
-				std::lock_guard lock(s_pace_mutex);
-				s_pace_ms.push_back(Common::Timer::ConvertValueToMilliseconds(t - s_pace_prev));
+				std::lock_guard lock(s_pace.mutex);
+				s_pace.ms.push_back(Common::Timer::ConvertValueToMilliseconds(t - s_pace.prev));
 				const Common::Timer::Value push = s_push_t[n % RING].load(std::memory_order_relaxed);
 				s_gs_split.push_back({Common::Timer::ConvertValueToMilliseconds(s_vsync_start_t - push),
 					Common::Timer::ConvertValueToMilliseconds(t - s_vsync_start_t)});
 			}
-			s_pace_prev = t;
+			s_pace.prev = t;
 		}
 		if (s_pix.on.load(std::memory_order_acquire) && !g_gs_rerun_frame)
 			PixelWatch(s_pix.push_v[n % RING].load(std::memory_order_relaxed), s_pix.push_rb[n % RING].load(std::memory_order_relaxed));

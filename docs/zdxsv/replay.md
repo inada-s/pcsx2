@@ -60,6 +60,9 @@ that starts with the gzip magic (the lobby's bucket serves them gzip encoded) is
 decompressed first. A file over 256 MiB (decompressed) or with a repeated field
 over 4096 values is not played; a download stops past 256 MiB received, a live
 stream past 256 MiB of records.
+The replay window's list shows the first 4 users of a file, ignores a battle
+code or user entry over 4 KiB and shows a file with over 4096 top-level fields
+as unreadable.
 
 Common start: playback loads a save state of the game
 at the post-entry point (logged in, before the lobby's battle start; any

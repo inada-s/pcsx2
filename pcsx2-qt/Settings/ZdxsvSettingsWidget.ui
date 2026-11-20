@@ -55,6 +55,13 @@
           </property>
          </widget>
         </item>
+        <item>
+         <widget class="QPushButton" name="zdxsvSignOutAll">
+          <property name="text">
+           <string>Sign Out Everywhere</string>
+          </property>
+         </widget>
+        </item>
        </layout>
       </item>
       <item>

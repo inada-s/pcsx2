@@ -74,13 +74,13 @@ namespace Zdxsv
 
 		bool ReplayParse(std::string_view all, ReplayFile& r)
 		{
-			Pb::Reader rd{reinterpret_cast<const uint8_t*>(all.data()), reinterpret_cast<const uint8_t*>(all.data() + all.size())};
+			PbReader rd{reinterpret_cast<const uint8_t*>(all.data()), reinterpret_cast<const uint8_t*>(all.data() + all.size())};
 			return rd.Fields([&r](uint32_t field, uint32_t wt, uint64_t v, const uint8_t* b, size_t n) {
 				const std::string_view bytes(reinterpret_cast<const char*>(b), n);
 				std::vector<int64_t>* ints = field == 46 ? &r.hle0 : field == 54 ? &r.load_frames : field == 55 ? &r.load_rngs :
 											 field == 57 ? &r.play_starts : field == 58 ? &r.game_ends : field == 59 ? &r.round_ends : nullptr;
 				if (ints && (wt == 0 || wt == 2))
-					return Pb::ReadInts(wt, v, b, n, *ints, REPLAY_MAX_LIST);
+					return PbReadInts(wt, v, b, n, *ints, REPLAY_MAX_LIST);
 				if (wt == 0)
 				{
 					s64* num = field == 4 ? &r.version : field == 40 ? &r.players : field == 41 ? &r.me : field == 47 ? &r.input_size :
@@ -100,12 +100,12 @@ namespace Zdxsv
 							return false;
 						int win = 0;
 						std::vector<int64_t> used;
-						Pb::Reader round{b, b + n};
+						PbReader round{b, b + n};
 						if (!round.Fields([&win, &used](uint32_t f, uint32_t w, uint64_t x, const uint8_t* rb, size_t rn) {
 								if (f == 1 && w == 0)
 									win = static_cast<int32_t>(x);
 								else if (f == 2)
-									return Pb::ReadInts(w, x, rb, rn, used, REPLAY_MAX_LIST);
+									return PbReadInts(w, x, rb, rn, used, REPLAY_MAX_LIST);
 								return true;
 							}))
 							return false;
@@ -390,8 +390,8 @@ namespace Zdxsv
 				Console.Error("ZdxsvGgpo: replay %s: hle0 kind-3 counters %d,%d,%d,%d,%d not 0", path.c_str(), h[4], h[5], h[6], h[7], h[8]);
 				return -1;
 			}
-			s_play_common = true;
-			s_play_answers = std::move(r.answers);
+			s_play_common.on = true;
+			s_play_common.answers = std::move(r.answers);
 			s_play.inputs.resize(static_cast<size_t>(frames * players));
 			std::memcpy(s_play.inputs.data(), r.inputs.data(), r.inputs.size());
 			s_play.frames = static_cast<int>(frames);
@@ -440,11 +440,11 @@ namespace Zdxsv
 			PlayFileRels(rb.ps.rel, rb.ms.rel);
 			Console.WriteLn("ZdxsvGgpo: replay %s: recorded at position %lld of %d, %lld frames, rx0 %zu bytes, "
 							"%zu lobby answers, state hashes %s, rngs %zu", path.c_str(), me, s_opt.players, frames,
-				rb.net_rx.size(), s_play_answers.size(), r.hashes.empty() ? "no" : "yes",
+				rb.net_rx.size(), s_play_common.answers.size(), r.hashes.empty() ? "no" : "yes",
 				(r.start_rng ? 1 : 0) + std::min(r.load_frames.size(), r.load_rngs.size()));
 			if (s_net_trace) // battle start marker: pwcheck.py --battle splits a multi-battle trace (live auto-next)
 				std::fprintf(s_net_trace, "%u B %s\n", g_FrameCount, r.code.empty() ? "-" : r.code.c_str());
-			if (http && s_play_listed)
+			if (http && s_play_src.listed)
 				ReplayPlayed(r.code);
 			return static_cast<int>(me);
 		}
@@ -621,24 +621,24 @@ namespace Zdxsv
 		// Takeover requests at the frame end before `next` runs (may set it). Returns true: pause after it.
 		bool PlayTakeover(int& next)
 		{
-			int req = s_to_req.exchange(TO_REQ_NONE);
+			int req = s_to_shared.req.exchange(TO_REQ_NONE);
 			if (next == s_to_test_at)
 				s_to_test_at = -1, req = TO_REQ_TAKE;
-			if (next == s_to_test_retry && s_to_phase == TO_ON)
+			if (next == s_to_test_retry && s_to_shared.phase == TO_ON)
 				s_to_test_retry = -1, req = TO_REQ_RETRY;
-			if (s_to_phase == TO_ON && !s_to_test)
+			if (s_to_shared.phase == TO_ON && !s_to_test)
 			{
 				const bool start = s_host[PadDualshock2::Inputs::PAD_START] >= 0.5f;
 				if (start && !s_to.start_held)
 					req = TO_REQ_RETRY;
 				s_to.start_held = start;
 			}
-			const int phase = s_to_phase;
+			const int phase = s_to_shared.phase;
 			const bool aligning = phase == TO_COUNT;
 			const auto align = [] {
-				s_to_phase = TO_COUNT;
+				s_to_shared.phase = TO_COUNT;
 				s_to.count_t0 = 0;
-				Console.WriteLn("ZdxsvGgpo: replay takeover: countdown at frame %d, the replay's input %04x", s_to.frame, s_to_target.load());
+				Console.WriteLn("ZdxsvGgpo: replay takeover: countdown at frame %d, the replay's input %04x", s_to.frame, s_to_shared.target.load());
 			};
 			const auto load = [&next] {
 				const int t = TakeoverLoad();
@@ -793,7 +793,7 @@ namespace Zdxsv
 				return;
 			}
 			const char* e = TestEnv("ZDXSV_REPLAY_POV");
-			if (const std::string pov = e ? e : s_play_picked_pov >= 0 ? std::to_string(s_play_picked_pov) : ""; !pov.empty())
+			if (const std::string pov = e ? e : s_play_src.picked_pov >= 0 ? std::to_string(s_play_src.picked_pov) : ""; !pov.empty())
 			{
 				const int p = std::atoi(pov.c_str());
 				if (p >= 0 && p < s_opt.players && s_play.pov_ok[p])
@@ -809,7 +809,7 @@ namespace Zdxsv
 	void PlayLoad()
 	{
 		PlayKeysPrune();
-		std::string paths = s_live_next_url.empty() ? s_play_env : s_live_next_url;
+		std::string paths = s_live_next.url.empty() ? s_play_src.path : s_live_next.url;
 		std::vector<std::string> urls;
 		for (const std::string_view path : StringUtil::SplitString(paths, ';'))
 			if (path.starts_with("http://") || path.starts_with("https://"))
@@ -829,11 +829,11 @@ namespace Zdxsv
 	{
 		if (!PlayCommonState())
 			return false;
-		s_play_common = true;
+		s_play_common.on = true;
 		s_play.rearm_seek = seek;
 		if (seek >= 0)
 		{
-			s_play_rearm_limiter = VMManager::GetLimiterMode();
+			s_play_common.rearm_limiter = VMManager::GetLimiterMode();
 			s_play.target = -1;
 			VMManager::SetLimiterMode(LimiterModeType::Unlimited); // the lobby phase up to the arm
 		}
@@ -854,12 +854,12 @@ namespace Zdxsv
 			k3.clear();
 		s_opt.net = true;
 		s_battle.me = pov;
-		s_rbk = true;
-		s_rbk_me = pov;
-		s_rbk_n = s_opt.players;
+		s_rbk.on = true;
+		s_rbk.me = pov;
+		s_rbk.n = s_opt.players;
 		RbkReset();
 		Console.WriteLn("ZdxsvGgpo: replay: common start as position %d of %d, %zu lobby answers%s", pov, s_opt.players,
-			s_play_answers.size(), seek >= 0 ? fmt::format(", then seek to {}", seek).c_str() : "");
+			s_play_common.answers.size(), seek >= 0 ? fmt::format(", then seek to {}", seek).c_str() : "");
 		return true;
 	}
 
@@ -867,7 +867,7 @@ namespace Zdxsv
 	// of the point of view, then the replay starts from it as from a file's state.
 	void PlayCommonStart()
 	{
-		s_play_common = false;
+		s_play_common.on = false;
 		const int me = s_battle.me;
 		PlayKey& k0 = *s_play_keys[me].at(0);
 		const bool hle_same = k0.rb.net_rx == s_rb.net_rx && k0.rb.ps == s_rb.ps && k0.rb.ms == s_rb.ms;
@@ -884,7 +884,7 @@ namespace Zdxsv
 		k0.ok = true;
 		// the file's HLE state is its recorder's position's
 		Console.WriteLn("ZdxsvGgpo: replay: common start armed at vsync %u as position %d (asked %d), frame 0 HLE state %s",
-			g_FrameCount, me, s_rbk_me, me != s_play.rng_pos ? "not compared" : hle_same ? "equals the file's" : "differs from the file's");
+			g_FrameCount, me, s_rbk.me, me != s_play.rng_pos ? "not compared" : hle_same ? "equals the file's" : "differs from the file's");
 		// PlayBegin loads that state as PlayLoad does
 		s_battle.started = false;
 		g_ggpo_active = false;
@@ -912,7 +912,7 @@ namespace Zdxsv
 		if (const int seek = std::exchange(s_play.rearm_seek, -1); seek >= 0)
 		{
 			// a switch: the rest of the first start (options, four-screen) stays
-			VMManager::SetLimiterMode(s_play_rearm_limiter);
+			VMManager::SetLimiterMode(s_play_common.rearm_limiter);
 			Console.WriteLn("ZdxsvGgpo: replay: point of view %d from its key 0, seeking to %d", me, seek);
 			s_play_req = seek;
 			PlayFrame(0);
@@ -942,7 +942,7 @@ namespace Zdxsv
 		if (const char* e = TestEnv("ZDXSV_REPLAY_POV_AT"))
 			for (const std::string_view one : StringUtil::SplitString(e, ','))
 				if (const size_t c = one.find(':'); c != std::string_view::npos)
-					s_play_pov_at.emplace_back(StringUtil::FromChars<int>(one.substr(0, c)).value_or(-1),
+					s_play.pov_at.emplace_back(StringUtil::FromChars<int>(one.substr(0, c)).value_or(-1),
 						StringUtil::FromChars<int>(one.substr(c + 1)).value_or(-1));
 		std::string povs;
 		for (int p = 0; p < s_opt.players; p++)
@@ -963,10 +963,10 @@ namespace Zdxsv
 			s_play_req = s_play.seeks.front().second;
 			s_play.seeks.pop_front();
 		}
-		if (!s_play_pov_at.empty() && s_play_pov_at.front().first == next)
+		if (!s_play.pov_at.empty() && s_play.pov_at.front().first == next)
 		{
-			s_play_pov_req = s_play_pov_at.front().second;
-			s_play_pov_at.pop_front();
+			s_play_pov_req = s_play.pov_at.front().second;
+			s_play.pov_at.pop_front();
 		}
 		if (!s_play.round_at.empty() && s_play.round_at.front().first == next)
 		{
@@ -974,9 +974,9 @@ namespace Zdxsv
 			s_play.round_at.pop_front();
 		}
 		bool pause = PlayTakeover(next);
-		if (s_to_phase == TO_COUNT && s_to.pause_in > 0 && --s_to.pause_in == 0)
+		if (s_to_shared.phase == TO_COUNT && s_to.pause_in > 0 && --s_to.pause_in == 0)
 			pause = true;
-		if (s_to_phase != TO_OFF) // no seek, round jump or point of view switch
+		if (s_to_shared.phase != TO_OFF) // no seek, round jump or point of view switch
 		{
 			s_play_req = INT_MIN;
 			s_play_pov_req = -1;
@@ -984,6 +984,7 @@ namespace Zdxsv
 		}
 		SyncFollow(next);
 		int req = s_play_req.exchange(INT_MIN);
+		const bool then_req = std::exchange(s_play.then_req, false);
 		const int pov = s_play_pov_req.exchange(-1);
 		int run = -1; // load to run to after the seek
 		const int round = s_play_round_req.exchange(INT_MIN);
@@ -1004,9 +1005,11 @@ namespace Zdxsv
 			}
 			else if (req == 0)
 				req = spans[0].first;
-			else if (req != INT_MIN && PlayLiveNextRound(s_play.target >= 0 ? s_play.target : s_battle.frame))
+			else if (req == INT_MIN || then_req)
+				;
+			else if (PlayLiveNextRound(s_play.target >= 0 ? s_play.target : s_battle.frame))
 				req = std::clamp(req, spans.back().second, s_play.frames - 1);
-			else if (req != INT_MIN)
+			else
 				req = std::clamp(req, spans[span].first, spans[span].second - 1);
 		}
 		else if (round != INT_MIN)
@@ -1049,18 +1052,19 @@ namespace Zdxsv
 			run = 1; // briefing not reached yet
 		if (run >= 0)
 			PlayRunBegin(run);
+		// before the gap skip: its seek would hold back the live viewer's seek to the edge
+		if (s_live_down)
+			next = LiveNext(next);
 		next = PlaySkipGap(next);
 		if (s_play.step_pause && s_play.target < 0)
 		{
 			s_play.step_pause = false;
 			pause = PlayStepPaused(next);
 		}
-		if (s_live_down)
-			next = LiveNext(next);
 		if (next >= s_play.frames)
 			PlayRunEnd("replay ended first", s_battle.frame);
 		const char* exit_env = TestEnv("ZDXSV_REPLAY_EXIT");
-		if (next < s_play.frames || (s_to_phase == TO_ON && !(exit_env && exit_env[0] == '1')))
+		if (next < s_play.frames || (s_to_shared.phase == TO_ON && !(exit_env && exit_env[0] == '1')))
 		{
 			s_play.at_end = false;
 			s_live_wait.reset(); // played on from the end: no move to another battle

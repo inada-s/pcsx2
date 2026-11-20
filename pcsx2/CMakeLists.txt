@@ -51,7 +51,7 @@ else()
 		-Wno-missing-braces
 		-Wno-unknown-pragmas
 	)
-	# ARM64 always has FMA: contracted a*b+c in the interpreters rounds unlike the PS2 and the x86 build.
+	# zdxsv: ARM64 always has FMA: contracted a*b+c in the interpreters rounds unlike the PS2 and the x86 build.
 	if(ARCH_ARM64)
 		target_compile_options(PCSX2_FLAGS INTERFACE -ffp-contract=off)
 	endif()
@@ -268,6 +268,8 @@ set(pcsx2Headers
 	Zdxsv/InputLatency.h
 	Zdxsv/DeltaState.h
 	Zdxsv/DeltaFreeze.h
+	Zdxsv/FpuX86.h
+	Zdxsv/VuX86.h
 	Zdxsv/Ggpo.h
 	Zdxsv/GgpoShared.h
 	Zdxsv/ReplayList.h
@@ -1167,14 +1169,15 @@ set(pcsx2arm64Sources
 	arm64/AsmHelpers.cpp
 	arm64/Vif_Dynarec.cpp
 	arm64/Vif_UnpackNEON.cpp
-	arm64/iR3000A.cpp
+	arm64/iR3000A.cpp # zdxsv: ARM64 recompilers
 	arm64/RecStubs.cpp
-	arm64/iR5900.cpp
+	arm64/iR5900.cpp # zdxsv: ARM64 recompilers
 	)
 
 set(pcsx2arm64Headers
 	arm64/AsmHelpers.h
-	arm64/VU1Trace.inl
+	arm64/VU1Trace.h # zdxsv: ARM64 recompilers
+	arm64/VU1Trace.inl # zdxsv: ARM64 recompilers
 )
 
 # These ones benefit a lot from LTO
@@ -1192,7 +1195,7 @@ set(pcsx2LTOSources
 if(ARCH_X86)
 	list(APPEND pcsx2LTOSources ${pcsx2x86Sources} ${pcsx2x86Headers})
 	target_link_libraries(PCSX2_FLAGS INTERFACE zydis)
-	target_link_libraries(PCSX2_FLAGS INTERFACE pcsx2-ggpo)
+	target_link_libraries(PCSX2_FLAGS INTERFACE pcsx2-ggpo) # zdxsv: GGPO, UPnP and TLS libraries
 elseif(ARCH_ARM64)
 	list(APPEND pcsx2LTOSources ${pcsx2arm64Sources} ${pcsx2arm64Headers})
 	target_link_libraries(PCSX2_FLAGS INTERFACE vixl)
@@ -1283,10 +1286,10 @@ target_link_libraries(PCSX2_FLAGS INTERFACE
 	SoundTouch::SoundTouch
 	PNG::PNG
 	LZMA::LZMA
-	GGPO::GGPO
-	MiniUPnPc::MiniUPnPc
-	pcsx2-mbedtls
-	rapidjson
+	GGPO::GGPO # zdxsv: GGPO, UPnP and TLS libraries
+	MiniUPnPc::MiniUPnPc # zdxsv: GGPO, UPnP and TLS libraries
+	pcsx2-mbedtls # zdxsv: GGPO, UPnP and TLS libraries
+	rapidjson # zdxsv: JSON of the zdxsv server
 	Zstd::Zstd
 	demanglegnu
 	ccc
@@ -1443,6 +1446,7 @@ function(setup_main_executable target)
 			install(FILES "${DEPS_BINDIR}/${DEP_TO_COPY}" DESTINATION "${CMAKE_SOURCE_DIR}/bin")
 		endforeach()
 
+		# zdxsv: Sentry crash reports
 		set(OPT_DEPS_TO_COPY avcodec-62.dll avformat-62.dll avutil-60.dll swresample-6.dll swscale-9.dll sentry.dll crashpad_handler.exe crashpad_wer.dll)
 		foreach(OPT_DEP_TO_COPY ${OPT_DEPS_TO_COPY})
 			install(FILES "${DEPS_BINDIR}/${OPT_DEP_TO_COPY}" DESTINATION "${CMAKE_SOURCE_DIR}/bin" OPTIONAL)
