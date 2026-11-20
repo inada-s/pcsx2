@@ -89,7 +89,7 @@ EMU=1: the 4 clients are emulators instead (platform info, no zproxy by default;
   is RELAY_PATH (default direct: a LAN peer is never 16 ms slower than the relay).
   GGPO_LAT=D (CLIENTS="1 3", GGPO, GDELAY=auto; pcsx2 ZDXSV_GGPO advertise=): a udprelay.py (D ms one way) on
   127.0.0.1:7300/7301 between p1 and p3's GGPO ports; each announces only its relay socket, so the direct
-  path is ~2D ms rtt. Checks: lobby delay = max(GMIN or 2, ceil(2D/32)), or GMIN/2 when RELAY_PATH is a relay.
+  path is ~2D ms rtt. Checks: logged rtt >= 2D and lobby delay = max(GMIN or 2, ceil(rtt/32)), or GMIN/2 when RELAY_PATH is a relay.
   GGPO_JITTER=ms, GGPO_LOSS=0..1 (with GGPO_LAT): udprelay.py --jitter/--loss on that path.
   With RELAY=1 RELAY_PATH="relay 0" the GGPO traffic skips udprelay.py (its count = ping test only).
   PAR (default 1): all clients boot at once with fast boot, each waits for `fast boot: login
@@ -1111,17 +1111,21 @@ def main():
             ok(f"p{i} paths {relay_path}", c(f, "ZdxsvGgpo: lobby path to position [0-9]: " + re.escape(relay_path))
                and not any(f": {relay_path}" not in l for l in g(f, "ZdxsvGgpo: lobby path to")))
     if lat:
-        e = (2 * int(lat) + 31) // 32
         m = int(E("GMIN", "2"))
-        if E("RELAY") and relay_path != "direct":
-            e = 0
-        e = max(e, m)
+        via_relay = E("RELAY") and relay_path != "direct"
         for i in clients:
             f = el(i)
             for l in g(f, "advertise=|ping test|lobby delay")[-4:]:
                 say(l[:200])
             a = 7300 + (i == "1")
             ok(f"p{i} announced 127.0.0.1:{a} only", c(f, f"zdxsv advertise={a}:"))
+            e = m
+            if not via_relay:
+                # the measured rtt is 2*LAT plus a few ms of frame pacing, enough to cross a 32 ms step
+                rtts = [int(x) for l in g(f, "ZdxsvGgpo: lobby delay") for x in re.findall(r"slowest peer rtt ([0-9]+) ms", l)]
+                rtt = rtts[-1] if rtts else 0
+                ok(f"p{i} lobby rtt {rtt} ms >= {2 * int(lat)} ms", rtt >= 2 * int(lat))
+                e = max(m, (rtt + 31) // 32)
             ok(f"p{i} lobby delay {e}", c(f, f"ZdxsvGgpo: lobby delay {e}:"))
         ul = g(os.path.join(out, "udprelay.txt"), r"relay (end|stats)")
         say(f"udprelay: {ul[-1] if ul else ''}")
