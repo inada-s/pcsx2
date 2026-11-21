@@ -168,6 +168,7 @@ turns GGPO off and leaves the other extensions on. Any other value turns it on. 
 | `ZDXSV_ROLLBACK_BUDGET=1` | off | test | The lobby delay subtracts the learned `ZdxsvRollbackBudget` instead of 0. |
 | `ZDXSV_NET_TAIL=n` | 60 | tuning | Frames run after the battle end message is confirmed, before the session stops. |
 | `ZDXSV_NET_DISCONNECT_MS=ms` | 10000 | tuning | GGPO disconnect timeout. |
+| `ZDXSV_PEER_RELAY_PICK=first` / `=last` | the lowest path rtt sum | test | The ping test sends a peer without a path of its own through the lowest / highest usable other position instead of the one with the lowest rtt sum, so the two sides of a blocked pair can relay through different peers. |
 | `ZDXSV_NET_BARRIER_MS=ms` | 60000 | test | A load barrier held longer than this ends the net battle as a connection failure (`ZdxsvGgpo: load barrier held over`). |
 | `GGPO_NETWORK_DELAY=ms` | 0 | test | GGPO holds each sent packet ms * (2/3 .. 1) before sending it ([rollback.md](rollback.md)). |
 | `GGPO_NETWORK_JAM_DELAY=ms` | 0 | test | GGPO packet jams: about once in 600 sends a jam starts and holds the send queue until its first packet is ms old. |

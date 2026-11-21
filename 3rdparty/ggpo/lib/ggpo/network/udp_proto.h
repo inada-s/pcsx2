@@ -92,6 +92,9 @@ public:
    void SendAppData(const void *data, int len, bool spectators);
    void SendUnmanagedMsg(UdpMsg* msg, int len, const sockaddr_storage &from);
    bool IsPeerAddress(const sockaddr_storage &addr) const { return SameAddress(_peer_addr, addr); }
+   bool IsRelay() const { return _relay; }
+   const sockaddr_storage &PeerAddress() const { return _peer_addr; }
+   void AddRelaySource(const sockaddr_storage &addr);
    void UseRelayServer(const sockaddr_storage &server, int index, const std::vector<sockaddr_storage> &sources);
    static bool SameAddress(const sockaddr_storage &a, const sockaddr_storage &b);
   
@@ -157,7 +160,7 @@ protected:
    int            _queue;
    bool           _relay;
    int            _relay_server_idx; /* index of the relay server _relay goes through, -1 if a peer or none */
-   std::vector<sockaddr_storage> _relay_sources; /* addresses packets of that relay server may come from */
+   std::vector<sockaddr_storage> _relay_sources; /* addresses relayed packets may come from: the relay server's, or the directly reached players */
    uint16         _remote_magic_number;
    bool           _connected;
    int            _send_latency;
