@@ -365,6 +365,8 @@ void AutoUpdaterDialog::getChangesComplete(s32 status_code, std::vector<u8> data
 	}
 
 	m_ui.downloadAndInstall->setEnabled(true);
+	if (Zdxsv::TestEnv("ZDXSV_UPDATE_INSTALL"))
+		QMetaObject::invokeMethod(this, &AutoUpdaterDialog::downloadUpdateClicked, Qt::QueuedConnection);
 }
 
 void AutoUpdaterDialog::downloadUpdateClicked()
@@ -488,8 +490,6 @@ void AutoUpdaterDialog::checkIfUpdateNeeded()
 
 	// We have to defer this, because it comes back through the timer/HTTP callback...
 	QMetaObject::invokeMethod(this, "exec", Qt::QueuedConnection);
-	if (Zdxsv::TestEnv("ZDXSV_UPDATE_INSTALL"))
-		QMetaObject::invokeMethod(this, &AutoUpdaterDialog::downloadUpdateClicked, Qt::QueuedConnection);
 }
 
 void AutoUpdaterDialog::skipThisUpdateClicked()

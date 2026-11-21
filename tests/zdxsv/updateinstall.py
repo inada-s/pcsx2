@@ -5,8 +5,8 @@
 --app is a Devel build at the zdxsv-X.Y.Z tag --tag (only a tagged build checks for updates). It is
 copied as PCSX2-<tag>.app into a new directory, and a second copy with a marker file is packed as the
 offered update. A local server answers the release list (ZDXSV_UPDATE_URL) with --offer, which must
-be newer than --tag and exist on GitHub (the update dialog loads its change list from there; a 404
-is a modal error that stops the install). ZDXSV_UPDATE_INSTALL=1 presses Download and Install.
+be newer than --tag. ZDXSV_UPDATE_INSTALL=1 presses Download and Install once the change list from
+GitHub has loaded or failed (an unknown tag or the API rate limit only logs an error).
 Pass: the old bundle is gone, PCSX2-<offer>.app holds the marker, has no quarantine attribute and
 runs. Control: --offer older than --tag must fail ("No update needed.").
 Exit 0 = pass, 1 = fail, 2 = setup error.
@@ -125,7 +125,8 @@ while time.time() < end:
     time.sleep(1)
     text = open(log, encoding="utf-8", errors="replace").read() if os.path.isfile(log) else ""
     running = new_pids()
-    if running or "Updater Error" in text or "No update needed." in text:
+    errors = [l for l in text.splitlines() if "Updater Error" in l and "change list" not in l]
+    if running or errors or "No update needed." in text:
         break
 time.sleep(2)
 running = new_pids()
