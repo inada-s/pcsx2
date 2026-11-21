@@ -11,8 +11,10 @@ Env: ZP (clients behind zproxy, default "1 3": one per side), ZPROXY (exe), ZP_U
 zproxy registers, default its client's; control: one no user has), SHOW ("1 2":
 windowed with GS snapshots), MAXS (s after mash to wait for results).
 GAUGE, COUNT, TIME: the lobby battle rule (戦力ゲージ, 連続対戦数, 作戦時間 s; menu values) as the stack's
-ZDXSV_LOBBY_BATTLE_*, or (server with m_rule) as an m_rule row for lobby 2 in OUT/zdxsv.db, printed. Default GAUGE=1 COUNT=1 (one round, the first shoot-down ends it); `GAUGE=0 COUNT=0`:
-the lobby's default rule (rematches picked by the mash). Lobby 2's start follows CLIENTS: 4 clients 2v2,
+ZDXSV_LOBBY_BATTLE_*, or (server with m_rule) as an m_rule row for the clients' lobby (2 with up to 2 clients, 6 with 4)
+in OUT/zdxsv.db, printed; every 0x6914 rule answer must then carry its gauge and time. RULE_LOBBY=N: the
+rule (and PATCHES) go to lobby N instead (control: a lobby the clients do not enter). Default GAUGE=1 COUNT=1 (one round, the first shoot-down ends it); `GAUGE=0 COUNT=0`:
+the lobby's default rule (rematches picked by the mash). The lobby's start follows CLIENTS: 4 clients 2v2,
 2 1v1, 1 solo (one entry starts the battle). The game reports battle counts only from a 4-player battle (a 1v1 result: the code, all
 counts 0): a 4-client run checks 4 results
 with the battle_record's code per battle, a 2-client run checks each client's post-battle login instead.
@@ -207,9 +209,9 @@ def pwcheck_ok(path, n):
     return cm > 0 and s == 0
 
 
-def lobby_rule(path, start, gauge, count, time_s):
-    """Writes lobby 2's rule (both platforms) and returns it as read back, None if the server has no m_rule
-    (it then plays its built-in lobby 2 with ZDXSV_LOBBY_BATTLE_*). 0 = the menu default."""
+def lobby_rule(path, lobby_no, start, gauge, count, time_s):
+    """Writes lobby lobby_no's rule (both platforms) and returns it as read back, None if the server has no m_rule
+    (it then plays its built-in lobby with ZDXSV_LOBBY_BATTLE_*). 0 = the menu default."""
     db = sqlite3.connect(path)
     try:
         if not db.execute("select 1 from sqlite_master where name='m_rule'").fetchone():
@@ -218,11 +220,11 @@ def lobby_rule(path, start, gauge, count, time_s):
                    " reload_type, damage_level, awake_type, awake_inc_ratio, awake_dec_ratio)"
                    " values ('m4z', ?, 0, ?, ?, 0, 3, 0, 100, 100)", (count, time_s or 180, gauge or 600))
         for platform in ("emu", "console"):
-            db.execute("insert or replace into m_lobby_setting (platform, no, start, rule_id) values (?, 2, ?, 'm4z')",
-                       (platform, start))
+            db.execute("insert or replace into m_lobby_setting (platform, no, start, rule_id) values (?, ?, ?, 'm4z')",
+                       (platform, lobby_no, start))
         db.commit()
         return db.execute("select s.platform, s.start, r.battle_gauge, r.battle_count, r.battle_time from m_lobby_setting s"
-                          " join m_rule r on r.id = s.rule_id where s.no = 2 order by s.platform").fetchall()
+                          " join m_rule r on r.id = s.rule_id where s.no = ? order by s.platform", (lobby_no,)).fetchall()
     finally:
         db.close()
 
@@ -273,6 +275,20 @@ def battle_results(lobby_log):
             blk[0] = l.split()[-1]
         else:
             blk[1].update(re.findall(r'"(\w+)": "?([^",]*)"?', l))
+    return out
+
+
+def rule_answers(lobby_log):
+    """(gauge, time s) per 0x6914 GetBattleRule answer the lobby logged; the rule's gauge is the big-endian u16
+    at body offset 72, its time at offset 80."""
+    out = []
+    for l in g(lobby_log, r"C<-S \[A\] ID:0x6914 "):
+        body = bytearray()
+        for row in l.split("\\n")[1:]:
+            hexpart = row.split("  |")[0].split()
+            if hexpart and re.fullmatch(r"[0-9a-f]{8}", hexpart[0]):
+                body += bytes.fromhex("".join(hexpart[1:]))
+        out.append((int.from_bytes(body[72:74], "big"), int.from_bytes(body[80:82], "big")) if len(body) >= 82 else None)
     return out
 
 
@@ -519,25 +535,26 @@ def main():
         say("FAIL CLIENTS: 4 (2v2), 2 (1v1) or 1 (solo)")
         return 1
     lobby_start = "2v2" if nc == 4 else "solo" if nc == 1 else "1v1"
-    rule = lobby_rule(os.path.join(out, "zdxsv.db"), lobby_start, int(E("GAUGE", "1")), int(E("COUNT", "1")), int(E("TIME", "0")))
+    # the route enters Lobby 02 with up to 2 clients, Lobby 06 with 4
+    lobby_no = int(E("RULE_LOBBY", "2" if pair else "6"))
+    rule = lobby_rule(os.path.join(out, "zdxsv.db"), lobby_no, lobby_start, int(E("GAUGE", "1")), int(E("COUNT", "1")),
+                      int(E("TIME", "0")))
     if rule is None:
-        say(f"lobby 2 rule: the server's built-in (no m_rule), ZDXSV_LOBBY_BATTLE_* GAUGE={E('GAUGE', '1')}"
+        say(f"lobby {lobby_no} rule: the server's built-in (no m_rule), ZDXSV_LOBBY_BATTLE_* GAUGE={E('GAUGE', '1')}"
             f" COUNT={E('COUNT', '1')} TIME={E('TIME', '0')}; {nc} clients need {lobby_start}")
     else:
         for p, s, gg, cn, tm in rule:
-            say(f"lobby 2 rule ({p}): start {s}, gauge {gg}, count {cn}, time {tm} s")
+            say(f"lobby {lobby_no} rule ({p}): start {s}, gauge {gg}, count {cn}, time {tm} s")
         if any(r[1] != lobby_start for r in rule):
-            say(f"FAIL lobby 2 rule: start is not {lobby_start}")
+            say(f"FAIL lobby {lobby_no} rule: start is not {lobby_start}")
             return 1
     patch_names = []
     if E("PATCHES"):
-        # the route enters Lobby 02 with up to 2 clients, Lobby 06 with 4
-        patch_lobby = 2 if pair else 6
-        patch_names = lobby_patches(os.path.join(out, "zdxsv.db"), E("PATCHES"), patch_lobby)
+        patch_names = lobby_patches(os.path.join(out, "zdxsv.db"), E("PATCHES"), lobby_no)
         if not patch_names or rule is None:
             say("FAIL PATCHES: the server has no m_patch or m_rule")
             return 1
-        say(f"lobby {patch_lobby} patches (emu): {','.join(patch_names)}")
+        say(f"lobby {lobby_no} patches (emu): {','.join(patch_names)}")
     if E("RELAY"):
         os.environ["ZDXSV_LOBBY_RELAY_ADDR"] = ":8203"
     relay_path = E("RELAY_PATH", "direct")
@@ -949,6 +966,11 @@ def main():
             deaths += int(v.get("death_count") or 0)
         ok(f"results agree ({nb} battle codes)",
            len(n) == nb and len(fr) == nb and all(x >= nc for x in n.values()) and kills == deaths)
+    if rule is not None:
+        ans = rule_answers(lobby)
+        say(f"0x6914 rule answers (gauge, time): {sorted(set(ans))}")
+        ok(f"every 0x6914 rule answer carries lobby {lobby_no}'s gauge {rule[0][2]} + time {rule[0][4]} s (x{len(ans)})",
+           bool(ans) and all(a == (rule[0][2], rule[0][4]) for a in ans))
     tools = zrig.TOOLS
     if emu and ggpo:
         seen = set()
