@@ -61,7 +61,7 @@ EMU=1: the 4 clients are emulators instead (platform info, no zproxy by default;
   checks: cut + cut ended per client, no GGPO session, no result with frames.
   GGPO_CLIENTS without a client of CLIENTS (GGPO): that client has no GGPO port (ZDXSV_GGPO=0), so every
   GGPO client cuts (`a peer has no GGPO address`); the same wait and checks as BAD_SESSION.
-  SYNC_SALT=K (GGPO): client K gets ZDXSV_SYNC_SALT=m4z (another sync fingerprint, as another build):
+  SYNC_SALT=K (GGPO): client K gets ZDXSV_SYNC_SALT=m4z (another sync fingerprint, as other sync settings):
   the lobby gets two fingerprints, every client enters the battle, no battle starts (the lobby matches equal ones only).
   DROP_SYNC=K (GGPO): client K gets ZDXSV_DROP_SYNC=0 (position 0's sync missing from its battle info): only
   client K cuts, the others start GGPO; checks: K refuses their GGPO session, each other client closes on

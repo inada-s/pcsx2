@@ -301,7 +301,7 @@ itself, runs turbo until the battle, and exits when the session ends.
   emulation speed, frame rate and sync to host refresh rate (off: it runs
   the game up to 5 % off nominal speed). An OSD message names the overridden
   settings; the settings page greys them out.
-- Sync fingerprint: a hash of the build, those settings and the recompiler
+- Sync fingerprint: a hash of those settings and the recompiler
   settings (not the BIOS), sent in the platform info and logged as
   `ZdxsvSync: fingerprint <hex>`. A lobby battle whose players' fingerprints
   differ is cut, and the players return to the lobby.

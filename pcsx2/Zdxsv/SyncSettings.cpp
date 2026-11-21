@@ -5,14 +5,14 @@
 // (VMManager::EnforceAchievementsChallengeModeSettings): the settings that change what the emulated
 // machine computes are forced to PCSX2's defaults while the game runs, its speedhacks only during
 // battles (GGPO sessions: online battles, replay playback, live spectating). Peers compare a
-// fingerprint of these settings and the build before a lobby battle (GgpoLobby.cpp LobbyArm).
+// fingerprint of these settings before a lobby battle (GgpoLobby.cpp LobbyArm). Not of the build: releases are
+// tested for sync with the last one, and an incompatible one raises the lobby's min_pcsx2_version.
 
 #include "Zdxsv/SyncSettings.h"
 #include "Zdxsv/CpuHooks.h"
 #include "Zdxsv/OnlineLimits.h"
 #include "Zdxsv/TestOptions.h"
 
-#include "BuildVersion.h"
 #include "Config.h"
 #include "GameDatabase.h"
 #include "Host.h"
@@ -103,7 +103,7 @@ namespace Zdxsv
 			c.EmulationSpeed.SyncToHostRefreshRate = false;
 		}
 
-		// FNV-1a 64 of the build and the forced settings (round modes, not FPCR bits: x86 and ARM builds agree)
+		// FNV-1a 64 of the forced settings (round modes, not FPCR bits: x86 and ARM builds agree)
 		std::string Fingerprint(const Pcsx2Config& c)
 		{
 			u64 h = 14695981039346656037ull;
@@ -112,8 +112,7 @@ namespace Zdxsv
 					h = (h ^ static_cast<const u8*>(p)[i]) * 1099511628211ull;
 			};
 			const auto add32 = [&add](u32 v) { add(&v, sizeof(v)); };
-			add(BuildVersion::GitRev, std::strlen(BuildVersion::GitRev));
-			// ZDXSV_SYNC_SALT=s (test): mixed in, as another build would be
+			// ZDXSV_SYNC_SALT=s (test): mixed in, as other settings would be
 			if (static const char* salt = TestEnv("ZDXSV_SYNC_SALT"); salt)
 				add(salt, std::strlen(salt));
 			add32(c.Cpu.Recompiler.bitset);

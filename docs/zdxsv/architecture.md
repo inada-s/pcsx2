@@ -98,7 +98,7 @@ sizes, counts and ranges; bound every wait.
 | Login server not answering | OSD: not answering, retrying; resuming the game goes back to the network menu | `FastLogin.cpp` |
 | Login refused or failed | OSD `zdxsv login failed: ...` | `FastLogin.cpp` |
 | Client too old for the lobby | OSD: the lobby refused this PCSX2 as outdated | `LobbyConnection.cpp` |
-| Opponent's build or settings differ (sync fingerprint) | OSD `No battle: ...`; the game's connection error, back to the lobby | `GgpoLobby.cpp`, [rollback.md](rollback.md) (Sync-safe settings) |
+| Opponent's sync settings differ (sync fingerprint) | OSD `No battle: ...`; the game's connection error, back to the lobby | `GgpoLobby.cpp`, [rollback.md](rollback.md) (Sync-safe settings) |
 | Battle info incomplete; opponent without an address | OSD `No battle: ...`; back to the lobby | `GgpoLobby.cpp` |
 | Opponent not answering the ping test; GGPO port in use | OSD `No battle: ...` (router and firewall, or port in use); back to the lobby | `GgpoLobby.cpp`, [lobby.md](lobby.md) (Connection cut) |
 | GGPO start timeout or session mismatch | the game's connection error | [rollback.md](rollback.md) (Battle) |
