@@ -123,7 +123,7 @@ jobs:
 
   symbols:
     name: "Upload crash report symbols"
-    needs: build
+    needs: [build, macos]
     runs-on: ubuntu-latest
     continue-on-error: true
     env:
@@ -133,6 +133,12 @@ jobs:
         if: env.SENTRY_AUTH_TOKEN != ''
         with:
           name: zdxsv-release-windows-x64
+          path: zdxsv-release
+
+      - uses: actions/download-artifact@v8
+        if: env.SENTRY_AUTH_TOKEN != ''
+        with:
+          name: zdxsv-release-macos
           path: zdxsv-release
 
       - uses: actions/download-artifact@v8
@@ -154,7 +160,10 @@ jobs:
           echo "$SENTRY_CLI_SHA256  sentry-cli" | sha256sum -c -
           chmod +x sentry-cli
           unzip -q zdxsv-release/pcsx2-zdxsv-windows-x64.zip -d binaries
+          mkdir macos
+          tar -xJf zdxsv-release/pcsx2-zdxsv-macos.tar.xz -C macos
           ./sentry-cli debug-files upload --type pe --type pdb --wait binaries symbols
+          ./sentry-cli debug-files upload --type macho --wait macos
 
   release:
     name: "Release"
