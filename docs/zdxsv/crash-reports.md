@@ -32,9 +32,12 @@ The crashpad backend runs as a separate process, `crashpad_handler`, shipped nex
 
 - **Windows**: page faults stay with PCSX2's vectored handler. A crash reaches crashpad's unhandled
   exception filter, which replaces upstream's, so no local `crash-*.dmp` is written while reports are on.
-- **Linux, macOS**: the page fault handler replaces crashpad's `SIGSEGV` and `SIGBUS` handlers and passes
+- **Linux**: the page fault handler replaces crashpad's `SIGSEGV` and `SIGBUS` handlers and passes
   a real crash to upstream's handler, which aborts. Crashpad reports that abort, so these issues read as
-  `SIGABRT`. Not tested: no release is built for these platforms.
+  `SIGABRT`. Not tested: no release is built for Linux.
+- **macOS**: the page fault handler takes `EXC_BAD_ACCESS` on the emulator threads' Mach exception ports
+  and declines a real crash; the process dies of the signal (`SIGSEGV` or `SIGBUS`, no abort) and crashpad,
+  on the task's `EXC_CRASH` port, reports it with that signal.
 - **Windows ARM64**: the dependency script does not build the SDK, so there are no reports.
 
 ## Symbols
