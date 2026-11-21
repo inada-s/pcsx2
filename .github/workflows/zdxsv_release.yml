@@ -96,6 +96,10 @@ jobs:
           tar -xf zdxsv-app-macos-x64/PCSX2.app.tar -C x64
           .github/workflows/scripts/zdxsv/macos-universal-app.sh arm64/PCSX2.app x64/PCSX2.app "PCSX2-$TAG.app"
           test "$(lipo -archs "PCSX2-$TAG.app/Contents/MacOS/PCSX2")" = "x86_64 arm64"
+          mkdir dsym
+          mv arm64/PCSX2.dSYM dsym/PCSX2-arm64.dSYM
+          mv x64/PCSX2.dSYM dsym/PCSX2-x86_64.dSYM
+          dwarfdump --uuid "PCSX2-$TAG.app/Contents/MacOS/PCSX2" dsym/*.dSYM
 
       - name: Check the production server defaults
         env:
@@ -121,6 +125,11 @@ jobs:
           name: zdxsv-release-macos
           path: zdxsv-release
           compression-level: 0
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: zdxsv-dsym-macos
+          path: dsym
 
   symbols:
     name: "Upload crash report symbols"
@@ -149,7 +158,13 @@ jobs:
           merge-multiple: true
           path: symbols
 
-      - name: Upload binaries and PDBs
+      - uses: actions/download-artifact@v8
+        if: env.SENTRY_AUTH_TOKEN != ''
+        with:
+          name: zdxsv-dsym-macos
+          path: macos-dsym
+
+      - name: Upload binaries, PDBs and dSYMs
         if: env.SENTRY_AUTH_TOKEN != ''
         env:
           SENTRY_ORG: gdxsv-project
@@ -164,7 +179,7 @@ jobs:
           mkdir macos
           tar -xJf zdxsv-release/pcsx2-zdxsv-macos.tar.xz -C macos
           ./sentry-cli debug-files upload --type pe --type pdb --wait binaries symbols
-          ./sentry-cli debug-files upload --type macho --wait macos
+          ./sentry-cli debug-files upload --type dsym --wait macos macos-dsym
 
   release:
     name: "Release"

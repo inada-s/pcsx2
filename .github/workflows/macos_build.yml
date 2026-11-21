@@ -34,7 +34,7 @@ on:
         required: false
         type: string
         default: ""
-      # zdxsv: when set, PCSX2.app is also uploaded as PCSX2.app.tar under this artifact name
+      # zdxsv: when set, PCSX2.app and its PCSX2.dSYM are also uploaded as PCSX2.app.tar under this artifact name
       zdxsvAppArtifact:
         required: false
         type: string
@@ -134,10 +134,15 @@ jobs:
           key: ${{ inputs.os }} ${{ inputs.arch }} ccache ${{ steps.ccache_cache_timestamp.outputs.timestamp }}
           restore-keys: ${{ inputs.os }} ${{ inputs.arch }} ccache
 
-      # zdxsv: inputs.cmakeFlags
+      # zdxsv: inputs.cmakeFlags; the release app gets debug info for its dSYM
       - name: Generate CMake Files
         run: |
-          cmake -DCMAKE_PREFIX_PATH="$HOME/deps" \
+          DEBUG_FLAGS=
+          if [ -n "${{ inputs.zdxsvAppArtifact }}" ]; then
+            # ThinLTO objects must outlive the link, or dsymutil finds no debug info
+            DEBUG_FLAGS="-DCMAKE_C_FLAGS=-g -DCMAKE_CXX_FLAGS=-g -DCMAKE_EXE_LINKER_FLAGS=-Wl,-object_path_lto,$PWD/build/lto"
+          fi
+          cmake -DCMAKE_PREFIX_PATH="$HOME/deps" $DEBUG_FLAGS \
                 -DCMAKE_BUILD_TYPE=Release \
                 -DCMAKE_OSX_ARCHITECTURES="${{ case(inputs.arch == 'x86-64', 'x86_64', inputs.arch) }}" \
                 -DDISABLE_ADVANCE_SIMD=ON \
@@ -209,7 +214,10 @@ jobs:
       # zdxsv: the unpacked app for the release's universal merge (tar keeps symlinks and modes)
       - name: Pack the App for the zdxsv Release
         if: inputs.zdxsvAppArtifact != ''
-        run: tar -cf PCSX2.app.tar PCSX2.app
+        run: |
+          dsymutil PCSX2.app/Contents/MacOS/PCSX2 -o PCSX2.dSYM 2>&1 | tee dsymutil.log
+          ! grep -q "no debug symbols" dsymutil.log
+          tar -cf PCSX2.app.tar PCSX2.app PCSX2.dSYM
 
       # zdxsv: see the step above
       - name: Upload the App for the zdxsv Release
