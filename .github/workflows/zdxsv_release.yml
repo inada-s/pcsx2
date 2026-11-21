@@ -96,6 +96,7 @@ jobs:
           tar -xf zdxsv-app-macos-x64/PCSX2.app.tar -C x64
           .github/workflows/scripts/zdxsv/macos-universal-app.sh arm64/PCSX2.app x64/PCSX2.app "PCSX2-$TAG.app"
           test "$(lipo -archs "PCSX2-$TAG.app/Contents/MacOS/PCSX2")" = "x86_64 arm64"
+          test "$(/usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "PCSX2-$TAG.app/Contents/Info.plist")" = net.zdxsv.pcsx2
           mkdir dsym
           mv arm64/PCSX2.dSYM dsym/PCSX2-arm64.dSYM
           mv x64/PCSX2.dSYM dsym/PCSX2-x86_64.dSYM
