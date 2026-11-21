@@ -305,10 +305,12 @@ class Conn:
         if cmd == 0x6103 and cat == A:  # FirstData: switch to the recorded login of the same user
             # before the battle start a fresh boot is headed for the entry: a recorded login that entered first
             tpls = self.trace.lobby + self.trace.fresh if b and not b.started else self.trace.fresh
-            for fs in tpls:
-                j = next((j for j, f in enumerate(fs) if f["c2s"] and f["cmd"] == cmd and f["body"] == body), None)
-                if j is not None:
-                    self.tpl, self.ti = fs, j
+            # the body is the same for every user except bytes that change between runs and boxes (0x16, 0x1a):
+            # no exact match takes the first recorded FirstData
+            for same in (lambda f: f["body"] == body, lambda f: True):
+                hit = next(((fs, j) for fs in tpls for j, f in enumerate(fs) if f["c2s"] and f["cmd"] == cmd and same(f)), None)
+                if hit:
+                    self.tpl, self.ti = hit
                     break
         if b and cat == Q and cmd == 0x640E:
             with lock:
