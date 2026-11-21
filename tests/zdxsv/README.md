@@ -53,7 +53,7 @@ fails with exit 2 and names it.
 | `ISO` | `launch.py` | the game image |
 | `PCSX2_EXE` | `launch.py` | PCSX2 to test (Windows default `bin/pcsx2-qtx64-dev.exe` of this tree; elsewhere required, a `.app` works) |
 | `ZDXSV_DIR` | lobby tests | zdxsv checkout (`bin/zdxsv.exe`, `bin/zproxy.exe`) |
-| `IP` | lobby tests | this machine's LAN IPv4 address, given to the game as the server |
+| `IP` | lobby tests | this machine's LAN IPv4 address, given to the game as the server; `rbk.py`: default `127.0.0.1` (its states are online without DEV9) |
 | `DEV9` | `launch.py` | `1`: the game's net over the DEV9 adapter (empty `ZDXSV_SERVER_HOST`, as a PS2); else online without DEV9 to `IP` |
 | `TRACE` | `m4.py`, `m4ggpo.py`, `rbkprep.py` | an `EMU=1 m4z.py` OUT dir: `lobby-trace.log` + `zdxsv.db`, made with the same `CARDS` |
 | `RBKSTATES` | `rbk.py` | dir of `rbk-p1..p4.p2s` from `rbkprep.py` |
