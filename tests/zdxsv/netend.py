@@ -1,6 +1,6 @@
 """ネット終了 from the lobby: boottime.py with ID 1 chosen (戦場選択), then ネット終了 → はい by pad keys.
   OUT=<dir> python tests/zdxsv/netend.py
-Env as boottime.py (ROUTE and ROUTE_END preset); LIMIT_END (s, default 5): the logout answer (0x6006)
+Env as boottime.py (ROUTE, ROUTE_END and ZDXSV_FAST_BOOT=1 preset); LIMIT_END (s, default 5): the logout answer (0x6006)
 to the closed lobby connection, WATCH (s, default 30) to wait for it.
 Exit 0 = the lobby sees the game's connection close within LIMIT_END s of the logout.
 """
@@ -58,6 +58,7 @@ def after(out):
 def main():
     os.environ.setdefault("ROUTE", ROUTE)
     os.environ.setdefault("ROUTE_END", "1")
+    os.environ.setdefault("ZDXSV_FAST_BOOT", "1")
     zrig.take()
     zrig.need("ZDXSV_DIR", "IP", "OUT", "CARDS")
     return boottime.run(os.environ["OUT"], after)

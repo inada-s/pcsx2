@@ -44,6 +44,7 @@ def after(out):
 
 def main():
     os.environ.setdefault("ROUTE", netend.ROUTE)
+    os.environ.setdefault("ZDXSV_FAST_BOOT", "1")
     os.environ.setdefault("ROUTE_END", "1")
     os.environ.setdefault("LIMIT", "60")
     zrig.take()
