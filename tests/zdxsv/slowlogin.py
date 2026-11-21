@@ -3,8 +3,8 @@ DNAS, which fails and shows its error.
   OUT=<dir> python tests/zdxsv/slowlogin.py
 Env as freshboot.py (servers + fresh_boot p1, FB_LOBBY=0), plus DELAY (s the login API answers late, default 4: longer than the game waits at DNAS on its own (under 3 s), shorter than the 5 s request timeout).
 The game's login API URL points at a relay on 127.0.0.1:9896 that forwards to the fake login API DELAY s late.
-Exit 0 = fast boot reaches the user_id selection after one login and the emulog has no
-`the game left DNAS before the answer`.
+Exit 0 = fast boot reaches the user_id selection after one login, the emulog has no
+`the game left DNAS before the answer`, and no `cdvdReadKey` (the game's own DNAS) between the login request and its session.
 """
 import http.server
 import os
@@ -49,8 +49,18 @@ def main():
     log = os.path.join(os.environ["RUN"], "p1", "PCSX2", "logs", "emulog.txt")
     logins = len(zrig.log_lines(log, r"Zdxsv: fast login: by token"))
     left = len(zrig.log_lines(log, r"Zdxsv: fast login: the game left DNAS before the answer"))
-    ok = booted and logins == 1 and left == 0
-    print(f"{'PASS' if ok else 'FAIL'}: user_id selection {booted}, logins {logins}, left DNAS {left}", flush=True)
+    # The game's own DNAS reads the disc key (Devel log); held, it reads none while the request is out
+    own, out = 0, False
+    for l in zrig.log_lines(log, r"Zdxsv: fast login: by token", r"cdvdReadKey\(", r"Zdxsv: fast login: session"):
+        if "by token" in l:
+            out = True
+        elif "session" in l:
+            out = False
+        elif out:
+            own += 1
+    ok = booted and logins == 1 and left == 0 and own == 0
+    print(f"{'PASS' if ok else 'FAIL'}: user_id selection {booted}, logins {logins}, left DNAS {left}, "
+          f"key reads while the request was out {own}", flush=True)
     return 0 if ok else 1
 
 
