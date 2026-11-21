@@ -29,6 +29,11 @@ on:
         required: false
         type: boolean
         default: false
+      # zdxsv: extra CMake flags (the release passes the production server defaults)
+      cmakeFlags:
+        required: false
+        type: string
+        default: ""
 
 jobs:
   build_macos:
@@ -117,6 +122,7 @@ jobs:
           key: ${{ inputs.os }} ${{ inputs.arch }} ccache ${{ steps.ccache_cache_timestamp.outputs.timestamp }}
           restore-keys: ${{ inputs.os }} ${{ inputs.arch }} ccache
 
+      # zdxsv: inputs.cmakeFlags
       - name: Generate CMake Files
         run: |
           cmake -DCMAKE_PREFIX_PATH="$HOME/deps" \
@@ -128,6 +134,7 @@ jobs:
                 -DCMAKE_C_COMPILER_LAUNCHER=ccache \
                 -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
                 -DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON \
+                ${{ inputs.cmakeFlags }} \
                 -B build .
 
       - name: Build PCSX2
