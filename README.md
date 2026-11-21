@@ -20,7 +20,7 @@ Everything is on only for the one game build it was made for; any other disc run
 - Fast login through the zdxsv login API (DNAS skipped), and fast boot: from game start to the lobby ID selection with no input.
 - Settings page Settings → zdxsv (global or per game).
 - Crash reports to the zdxsv developers, on by default, with a setting to turn them off.
-- Sync-safe settings forced while the game runs, and a sync fingerprint that cuts a battle between differing builds.
+- Sync-safe settings forced while the game runs.
 
 ### Input latency
 
@@ -68,7 +68,7 @@ Everything is on only for the one game build it was made for; any other disc run
 | [docs/zdxsv/features.md](docs/zdxsv/features.md) | Structure: where zdxsv code meets the emulator, the network paths. Every feature, one line each. |
 | [docs/zdxsv/options.md](docs/zdxsv/options.md) | Every option and setting: name, default, use; the game check. |
 | [docs/zdxsv/lobby.md](docs/zdxsv/lobby.md) | Network defaults, lobby messages, ping test, relay servers, how a lobby battle starts. |
-| [docs/zdxsv/rollback.md](docs/zdxsv/rollback.md) | GGPO library, delta save states, the GGPO session, sync-safe settings and fingerprint, sync checks. |
+| [docs/zdxsv/rollback.md](docs/zdxsv/rollback.md) | GGPO library, delta save states, the GGPO session, sync-safe settings, sync checks. |
 | [docs/zdxsv/replay.md](docs/zdxsv/replay.md) | Replay files, upload, playback and its controls, live spectating. |
 | [docs/zdxsv/desync.md](docs/zdxsv/desync.md) | How to investigate a desync, step by step. |
 | [docs/zdxsv/tools.md](docs/zdxsv/tools.md) | Releases, CI, local build and run scripts, PINE commands. |

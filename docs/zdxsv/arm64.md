@@ -14,8 +14,6 @@ Its options: [options.md](options.md#arm64-cores).
 | VU1 | trace recompiler `pcsx2/arm64/VU1Trace.inl` (included by `pcsx2/VUops.cpp`) on upstream's VU1 interpreter | `PCSX2_VU1_JIT=0` |
 | VU0 | interpreter | - |
 
-The sync fingerprint does not refuse an ARM64 build for its interpreter cores.
-
 ## EE recompiler
 
 Blocks are compiled into native code and calls of the interpreter's handlers,

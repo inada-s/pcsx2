@@ -201,8 +201,8 @@ int main()
 			  info.serverIP == inet_addr("192.168.1.8") && info.serverPort == 8210 && info.users.size() == 4,
 		"battle info: own user, session, code, server, users", (int)info.users.size());
 	Check(info.names.size() == 2 && info.names["AAAAAA"] == "\xe3\x82\xa2\xe3\x83\xa0\xe3\x83\xad" && info.names["BBBBBB"] == "Bob" &&
-			  info.pilots.size() == 1 && info.syncs.size() == 2 && info.syncs["BBBBBB"] == "0123456789abcdef",
-		"battle info: names, pilots, syncs", (int)info.syncs.size());
+			  info.pilots.size() == 1,
+		"battle info: names, pilots", (int)info.names.size());
 	Check(info.ggpo.size() == 1 && info.ggpo["AAAAAA"] == 7001 && info.ggpoSession == 1462212142 && info.ggpoPingMs == 7500 &&
 			  !info.liveUplink && info.relays.empty(),
 		"battle info: ggpo ports, session, ping test", (int)info.ggpo.size());
@@ -267,8 +267,8 @@ int main()
 
 	// match report: these lines encode to zdxsv's testdata/wire/matching_report.json (every field)
 	const std::string report = Zdxsv::EncodeMatchingReport(
-		"battle_code=1696492800000\nuser_id=BBBBBB\nlive_uplink=127.0.0.1:9100\nresult=ggpo\nreason=sync\nsync=0123456789abcdef\n"
-		"sync_differ=0\nposition=1\nplayers=2\nanswered=1\nping_error=timeout\ndelay=2\nmin_delay=1\nfixed_delay=1\n"
+		"battle_code=1696492800000\nuser_id=BBBBBB\nlive_uplink=127.0.0.1:9100\nresult=ggpo\nreason=sync\n"
+		"position=1\nplayers=2\nanswered=1\nping_error=timeout\ndelay=2\nmin_delay=1\nfixed_delay=1\n"
 		"rollback_budget=2.50\nrollback_budget_used=1.25\nrtt_0=12\naddr_0=203.0.113.5:7001\npath_0=direct\nrelays=1\n"
 		"ping_wait_ms=1500\ncut_sends=4\nclose=net battle end\nframes=21563\nrounds=1:3,17;-1:3,0\nrollback_frames=812\n"
 		"mismatches=2\ndisconnected=1\ndisconnected_positions=0\nping_0=201/215/250\nloss_0=3/5\ntimesync=17\n"

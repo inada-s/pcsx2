@@ -81,7 +81,7 @@ options: `docs/zdxsv/`.
 | `InputDefaults.cpp` | Default input settings: no upstream hotkeys, USB keyboard on port 1; one-time migration of older settings files (seam: `DefaultsHooks.h`) |
 | `HostKeyboard.cpp` | The physical key (Windows scan code) of the host key event being dispatched, for the USB keyboard (seam: `KeyboardHooks.h`) |
 | `OnlineLimits.cpp`, `OnlineLimits.h` | PCSX2 features limited while online (lobby or net battle): the switch, forced settings, PINE refusal, macro buttons, refused operations, breakpoints cleared (seams: `PineHooks.h`, `InputHooks.h`, `UiHooks.h`) |
-| `SyncSettings.cpp`, `SyncSettings.h` | Sync-relevant settings forced while the Z game runs (speedhacks during battles only), their fingerprint for the lobby (UI: `ZdxsvSettingsWidget::markSyncForced`) |
+| `SyncSettings.cpp`, `SyncSettings.h` | Sync-relevant settings forced while the Z game runs (speedhacks during battles only) (UI: `ZdxsvSettingsWidget::markSyncForced`) |
 | `LobbyConnection.cpp` | A TCP connection to the lobby (no-DEV9 host socket): platform info message, GGPO lobby setup, lobby filter |
 | `HttpsLatency.cpp` | HTTPS latency test to the cloud regions, sent in the platform info |
 | `SpectateSync.cpp`, `SpectateSync.h` | Four-screen replay: one PCSX2 per position, kept on the same frame through shared memory |

@@ -18,9 +18,9 @@ the facts it needs; the options are in [options.md](options.md), the checks in
 
 ## 2. Rule out a setup difference
 
-- `ZdxsvSync: fingerprint <hex>` must be equal in every player's emulog. A
-  difference cuts lobby battles before they start; in a battle without the
-  lobby it is a cause on its own.
+- The players' builds and sync-relevant settings (`ZdxsvSync: forced to
+  defaults` lines, the CPU settings) must be equal; the lobby does not check
+  them.
 - Game patches from the lobby (`0x9953`, [lobby.md](lobby.md)): the
   `ZdxsvPatch: ... applied` and `... skipped` lines must match across the
   players' emulogs.
@@ -62,7 +62,7 @@ Reproduce with traces on every peer (rig setups: [tests/zdxsv/README.md](../../t
 ## 6. A run that does not reproduce from its own inputs
 
 The machine's state depends on something besides the inputs: the rollback,
-the CPU core or a setting outside the fingerprint.
+the CPU core or a setting outside the forced ones.
 
 - Rollback: the synctest (`ZDXSV_GGPO` without `net=1`; `DIFF` lines name the
   player work offsets) and the delta state self-test (`ZDXSV_DELTA_TEST`).

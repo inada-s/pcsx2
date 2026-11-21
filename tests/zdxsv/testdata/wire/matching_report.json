@@ -15,8 +15,6 @@
   "user_id": "BBBBBB",
   "result": "ggpo",
   "cut_reason": "sync",
-  "sync": "0123456789abcdef",
-  "sync_differ": "0",
   "answered": 1,
   "relay_count": 1,
   "ping_error": "timeout",

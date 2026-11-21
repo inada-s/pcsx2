@@ -124,7 +124,6 @@ Keys (`net=1`, `lobby=1`, `port=`, `delay=`, ...) are parts of `ZDXSV_GGPO`.
 - **Sync-safe settings forced while the Z game runs**: `ZDXSV_SYNC_FORCE=0` turns it off.
 - **Z game patches built in**: the widescreen patch (Graphics → Display → Apply Widescreen Patches); no pnach file (patches, cheats, patches.zip) is read for the Z game; `ZDXSV_EXTENSIONS=0` turns it off.
 - **No patches.zip, no warning**: releases ship no patches.zip; a missing one is skipped without the "Failed to open patches.zip" OSD (other games get no bundled patches); `ZDXSV_EXTENSIONS=0` turns it off.
-- **Sync fingerprint**: cuts a battle whose players' builds or settings differ.
 - **Match report: timesync, inputs, fps, loss**.
 - **Match report sent to the lobby**: `0x9952`.
 - **Match report: who left, ping**.

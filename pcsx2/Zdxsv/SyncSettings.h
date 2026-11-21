@@ -16,6 +16,4 @@ namespace Zdxsv
 	void SyncSettingsReset();
 	// The settings page: a forced setting is greyed out (battle_item: forced only during battles).
 	bool SyncSettingsForced(bool battle_item);
-	// 16 hex digits: the build and the settings forced in a battle; "" until the Z game ran. Any thread.
-	std::string SyncFingerprint();
 } // namespace Zdxsv
