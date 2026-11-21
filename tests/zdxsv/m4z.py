@@ -947,6 +947,11 @@ def main():
         say(l)
     for l in [l for z in zlogs for l in g(z, "Error|失敗")][-4:]:
         say(l[:160])
+    # zproxy logs the game's own end of battle; a client whose link dropped ends without it
+    if not emu:
+        for i in zp:
+            ok(f"p{i} zproxy saw the game end each battle (x{nb})",
+               c(os.path.join(out, f"zproxy-p{i}.log"), "対戦の終了を検出しました") >= nb)
     if pair:
         say(f"1v1 results with a battle code: {nresults()} (counts not checked: 0 in a 1v1)")
         ok(f"every client logged in after each battle (battle result answers x{nc * (nb + 1)})", logins() >= nc * (nb + 1))
