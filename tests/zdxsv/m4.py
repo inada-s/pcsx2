@@ -5,7 +5,8 @@ post-battle login -> BattleResult. Exit 0 = all checks passed.
 Env: TRACE (an `EMU=1 m4z` OUT: lobby.log + zdxsv.db), CARDS (as m4z, the same cards), API (login API port,
   default 9881), BOOT_WAIT (s from launch to the fast boot end, default 60), IP, ZBIN, FAKE_ARGS (fake_lobby.py),
   PCSX2_ENV (extra env for the clients), MAXS (s from battle start to give up on BattleResult x4, default 2100;
-  a headless battle can run 1370 s).
+  a headless battle can run 1370 s), ETH (1 default: DEV9 adapter on, the PS2 joins the battle server over its own
+  TCP: DEV9=1 and launch.py -Eth; 0: no DEV9, which reaches only the lobby, so a battle needs the GGPO hook).
 Every client joins the battle server by TCP (pcsx2 has no UDP bridge; an older pcsx2 build joins over UDP and
   fails the join checks).
 MASH=<drive.py route> MASHP="1": battle input route and the clients it drives (default mash, all 4).
@@ -65,6 +66,9 @@ def main():
     zrig.take()
     zrig.need("RUN", "OUT", "ZDXSV_DIR", "TRACE", "CARDS", "IP")
     os.makedirs(os.environ["OUT"], exist_ok=True)
+    if zrig.env("ETH", "1") == "1":
+        os.environ["DEV9"] = "1"
+        os.environ["LAUNCH_ARGS"] = (zrig.env("LAUNCH_ARGS") + " -Eth").strip()
     os.environ.setdefault("BATTLEREG", os.path.join(os.path.abspath(os.environ["RUN"]), "battlereg" + zrig.EXE))
     if not battlereg():
         print("FAIL battlereg build")
