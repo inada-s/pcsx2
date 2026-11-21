@@ -170,6 +170,13 @@ jobs:
             fi
           done
 
+      # zdxsv: before any other link, which overwrites the ThinLTO objects in build/lto the dSYM reads
+      - name: Extract the dSYM for the zdxsv Release
+        if: inputs.zdxsvAppArtifact != ''
+        run: |
+          dsymutil build/pcsx2*/PCSX2.app/Contents/MacOS/PCSX2 -o PCSX2.dSYM 2>&1 | tee dsymutil.log
+          ! grep -q "no debug symbols" dsymutil.log
+
       - name: Build GSRunner
         if: inputs.arch != 'x86-64'
         working-directory: build
@@ -214,10 +221,7 @@ jobs:
       # zdxsv: the unpacked app for the release's universal merge (tar keeps symlinks and modes)
       - name: Pack the App for the zdxsv Release
         if: inputs.zdxsvAppArtifact != ''
-        run: |
-          dsymutil PCSX2.app/Contents/MacOS/PCSX2 -o PCSX2.dSYM 2>&1 | tee dsymutil.log
-          ! grep -q "no debug symbols" dsymutil.log
-          tar -cf PCSX2.app.tar PCSX2.app PCSX2.dSYM
+        run: tar -cf PCSX2.app.tar PCSX2.app PCSX2.dSYM
 
       # zdxsv: see the step above
       - name: Upload the App for the zdxsv Release
