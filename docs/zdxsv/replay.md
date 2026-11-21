@@ -59,6 +59,11 @@ round, while positions and RNG B stay equal. The state
 hash leaves it out from `log_file_version` 20261121; playback of an older
 file hashes it, so such a file played from another POV than the recorder's
 can differ in state hashes for that round.
+Player-work bytes +0x20a8..+0x20e3 (the next player's rotation and position)
+get an extra update only while that player is in view, so another POV can
+differ there for a few dozen frames. The state hash leaves them out from
+`log_file_version` 20261122; the online desync check then no longer reports
+such frames as a mismatch between teams.
 
 ## Playing
 
