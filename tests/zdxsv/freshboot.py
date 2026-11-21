@@ -15,6 +15,7 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import threading
 import time
 
@@ -260,6 +261,10 @@ def servers(fake_args=(), relays=()):
         start([z, "relay", sess, tok], "relay.log" if k == 1 else f"relay{k}.log", cwd=run,
               env=dict(os.environ, ZDXSV_LOBBY_RELAY_ADDR=addr))
     time.sleep(2)
+    if procs[0].poll() is not None:
+        print(f"FAIL battle server exited (rc {procs[0].returncode}, {o}/battle.log): ZBIN needs a zdxsv "
+              "with the `battle` command and its RPC (README.md, step 4)", flush=True)
+        sys.exit(2)
     start([zrig.PY, "-u", os.path.join(HERE, "fake_lobby.py"), "--trace", trace_log(), "--api", os.environ["API"],
            "--db", os.path.join(os.environ["TRACE"], "zdxsv.db"), "--battle", f"{os.environ['IP']}:8210",
            *fake_args], "fake.log")
