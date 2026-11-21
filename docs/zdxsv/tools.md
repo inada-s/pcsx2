@@ -11,6 +11,10 @@
   (`.github/workflows/scripts/zdxsv/macos-universal-app.sh`, ad-hoc signature,
   no notarization) and publishes `pcsx2-zdxsv-macos.tar.xz`, used by the macOS
   updater and for a first install.
+- A tag run restores the macOS dependency cache only from `zdxsv-master`, where
+  only a manual run of `macos_build_matrix.yml` saves it (GitHub drops a cache
+  unused for 7 days). Without it both macOS release builds first build the
+  dependencies (40-60 min).
 - The release reads the production servers from repository variables
   (Settings > Secrets and variables > Actions > Variables). Each must be set;
   an empty one fails the release before the build, and the release job checks
