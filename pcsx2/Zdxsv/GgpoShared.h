@@ -169,7 +169,7 @@ namespace Zdxsv
 	// The first patch not equal to one built in (ServerPatches.cpp), nullptr if none: a replay or live stream carrying one
 	// does not play.
 	const GamePatch* ServerPatchNotBuiltin(const std::vector<GamePatch>& patches);
-	constexpr int REPLAY_FILE_VERSION = 20261121; // BattleLogFile.log_file_version of the files written here
+	constexpr int REPLAY_FILE_VERSION = 20261122; // BattleLogFile.log_file_version of the files written here
 	// As files of log_file_version `version` hashed the state
 	u32 ReplayStateHash(s64 version = REPLAY_FILE_VERSION);
 	u32 GameRng();

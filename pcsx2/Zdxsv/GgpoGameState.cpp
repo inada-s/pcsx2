@@ -19,6 +19,9 @@ namespace Zdxsv
 		constexpr u32 PW_MS_SLOT = 0x2067;
 		// Depends on the point of view: the same inputs played from another POV can keep it set or clear for the rest of a round
 		constexpr u32 PW_VIEW_FLAG = 0x2074, PW_VIEW_FLAG_BIT = 2;
+		// The next player's rotation and position (its struct +0x150): an extra update runs only while it is in view, so
+		// another POV can differ there for a few dozen frames
+		constexpr u32 PW_VIEW_MATRIX = 0x20a8, PW_VIEW_MATRIX_SIZE = 0x3c;
 		// XXH3 of player p's work with the fields above masked (synctest hash=pw), as files of that version hashed it.
 		u64 PwHash(u32 p, int version = REPLAY_FILE_VERSION)
 		{
@@ -37,6 +40,8 @@ namespace Zdxsv
 				w[PW_MS_SLOT] = 0;
 			if (version >= 20261121)
 				w[PW_VIEW_FLAG] &= static_cast<u8>(~PW_VIEW_FLAG_BIT);
+			if (version >= 20261122)
+				std::memset(&w[PW_VIEW_MATRIX], 0, PW_VIEW_MATRIX_SIZE);
 			return XXH3_64bits(w.data(), PW_SIZE);
 		}
 		std::array<u8, 4 * 12 + 4> PosRng()
