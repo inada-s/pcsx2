@@ -12,8 +12,8 @@
   no notarization) and publishes `pcsx2-zdxsv-macos.tar.xz`, used by the macOS
   updater and for a first install.
 - A tag run restores the macOS dependency cache only from `zdxsv-master`, where
-  only a manual run of `macos_build_matrix.yml` saves it (GitHub drops a cache
-  unused for 7 days). Without it both macOS release builds first build the
+  the macOS arm64 build of each push (`macos_build_arm64.yml`) saves it; GitHub
+  drops a cache unused for 7 days. Without it both macOS release builds first build the
   dependencies (40-60 min).
 - The release reads the production servers from repository variables
   (Settings > Secrets and variables > Actions > Variables). Each must be set;
