@@ -69,14 +69,14 @@ Visual Studio and `lupdate` drop comments when they rewrite these files.
 | File | Where | What |
 |---|---|---|
 | `.gitignore` |  | `# zdxsv rig settings of one machine (tests/zdxsv/README.md)` |
-| `bin/docs/ThirdPartyLicenses.html` |  | a zdxsv dependency --> |
-| `bin/docs/ThirdPartyLicenses.html` |  | a zdxsv dependency --> |
-| `bin/docs/ThirdPartyLicenses.html` |  | a zdxsv dependency --> |
-| `bin/docs/ThirdPartyLicenses.html` |  | a zdxsv dependency --> |
-| `bin/docs/ThirdPartyLicenses.html` |  | a zdxsv dependency --> |
-| `bin/docs/ThirdPartyLicenses.html` |  | a zdxsv dependency --> |
-| `bin/docs/ThirdPartyLicenses.html` |  | a zdxsv dependency --> |
-| `bin/docs/ThirdPartyLicenses.html` |  | a zdxsv dependency --> |
+| `bin/docs/ThirdPartyLicenses.html` |  | a zdxsv dependency |
+| `bin/docs/ThirdPartyLicenses.html` |  | a zdxsv dependency |
+| `bin/docs/ThirdPartyLicenses.html` |  | a zdxsv dependency |
+| `bin/docs/ThirdPartyLicenses.html` |  | a zdxsv dependency |
+| `bin/docs/ThirdPartyLicenses.html` |  | a zdxsv dependency |
+| `bin/docs/ThirdPartyLicenses.html` |  | a zdxsv dependency |
+| `bin/docs/ThirdPartyLicenses.html` |  | a zdxsv dependency |
+| `bin/docs/ThirdPartyLicenses.html` |  | a zdxsv dependency |
 | `bin/resources/GameIndex.yaml` |  | the zdxsv game |
 | `cmake/Pcsx2Utils.cmake` | `function` | release tags are zdxsv-X.Y.Z (the auto updater compares these). |
 | `cmake/SearchForStuff.cmake` | `add_subdirectory` | GGPO, UPnP and TLS libraries |
@@ -95,7 +95,7 @@ Visual Studio and `lupdate` drop comments when they rewrite these files.
 | `common/HTTPDownloaderCurl.cpp` | `HTTPDownloaderCurl::CloseRequest` | replay upload posts multipart |
 | `common/HTTPDownloaderCurl.h` |  | replay upload posts multipart |
 | `common/HTTPDownloaderWinHTTP.cpp` | `HTTPDownloaderWinHttp::StartRequest` | replay upload posts multipart |
-| `common/vsprops/LinkPCSX2Deps.props` |  | Sentry crash reports --> |
+| `common/vsprops/LinkPCSX2Deps.props` |  | Sentry crash reports |
 | `common/vsprops/preBuild.cmd` | `0` | release tags are zdxsv-X.Y.Z (the auto updater compares these). |
 | `pcsx2-qt/AutoUpdaterDialog.cpp` |  | include `Zdxsv/TestOptions.h` |
 | `pcsx2-qt/AutoUpdaterDialog.cpp` |  | zdxsv release updates |
@@ -106,7 +106,9 @@ Visual Studio and `lupdate` drop comments when they rewrite these files.
 | `pcsx2-qt/AutoUpdaterDialog.cpp` | `AutoUpdaterDialog::getLatestReleaseComplete` | `// GitHub releases list, newest first. Take the newest published zdxsv-X.Y.Z release` |
 | `pcsx2-qt/AutoUpdaterDialog.cpp` | `AutoUpdaterDialog::getLatestReleaseComplete` | `ParseZdxsvVersion` |
 | `pcsx2-qt/AutoUpdaterDialog.cpp` | `AutoUpdaterDialog::getLatestReleaseComplete` | zdxsv release updates |
+| `pcsx2-qt/AutoUpdaterDialog.cpp` | `AutoUpdaterDialog::getChangesComplete` | `Zdxsv::TestEnv` |
 | `pcsx2-qt/AutoUpdaterDialog.cpp` | `AutoUpdaterDialog::checkIfUpdateNeeded` | `ParseZdxsvVersion` |
+| `pcsx2-qt/AutoUpdaterDialog.cpp` | `AutoUpdaterDialog::processUpdate` | no usable Trash (a volume without one, a denied Trash): park the old app in the staging directory |
 | `pcsx2-qt/CMakeLists.txt` |  | `Zdxsv/CrashReports.cpp` |
 | `pcsx2-qt/CMakeLists.txt` |  | `ZdxsvSettingsWidget`, `ZdxsvReplayDialog` |
 | `pcsx2-qt/CMakeLists.txt` |  | crash reports (docs/zdxsv/crash-reports.md). |
@@ -148,9 +150,9 @@ Visual Studio and `lupdate` drop comments when they rewrite these files.
 | `pcsx2-qt/SetupWizardDialog.cpp` | `SetupWizardDialog::canShowNextPage` | `Zdxsv::QtSetupWizardControllerConfirm` |
 | `pcsx2-qt/Translations.cpp` |  | include `Zdxsv/QtHooks.h` |
 | `pcsx2-qt/Translations.cpp` | `QtHost::UpdateGlyphRangesAndClearCache` | `Zdxsv::QtFontsDownloadJapanese` |
-| `pcsx2-qt/pcsx2-qt.vcxproj` |  | $(IntDir)Tools, moc output of Tools\ZdxsvReplayDialog --> |
-| `pcsx2-qt/pcsx2-qt.vcxproj` |  | Sentry crash reports --> |
-| `pcsx2-qt/pcsx2-qt.vcxproj` |  | TLS, GGPO and UPnP libraries --> |
+| `pcsx2-qt/pcsx2-qt.vcxproj` |  | $(IntDir)Tools, moc output of Tools\ZdxsvReplayDialog |
+| `pcsx2-qt/pcsx2-qt.vcxproj` |  | Sentry crash reports |
+| `pcsx2-qt/pcsx2-qt.vcxproj` |  | TLS, GGPO and UPnP libraries |
 | `pcsx2-qt/pcsx2-qt.vcxproj` |  | `ZdxsvSettingsWidget`, `ZdxsvReplayDialog` |
 | `pcsx2-qt/pcsx2-qt.vcxproj` |  | `ZdxsvSettingsWidget`, `ZdxsvReplayDialog` |
 | `pcsx2-qt/pcsx2-qt.vcxproj` |  | `<ClInclude Include="Zdxsv\QtHooks.h" />` |
@@ -274,12 +276,19 @@ Visual Studio and `lupdate` drop comments when they rewrite these files.
 | `pcsx2/Patch.cpp` | `Patch::EnumeratePnachFiles` | `zdxsv_pnach`, `Zdxsv::PatchZGamePnach` |
 | `pcsx2/Pcsx2Config.cpp` | `Pcsx2Config::GSOptions::GSOptions` | VSync on by default |
 | `pcsx2/Pcsx2Config.cpp` | `Pcsx2Config::EmulationSpeedOptions::EmulationSpeedOptions` | low-latency present always on |
+| `pcsx2/Pcsx2Config.cpp` | `EmuFolders::SetDataDirectory` | own data directory, apart from an upstream PCSX2 on the same Mac |
 | `pcsx2/R3000A.cpp` |  | include `Zdxsv/CpuHooks.h` |
 | `pcsx2/R3000A.cpp` | `iopEventTest` | `Zdxsv::g_event_log`, `Zdxsv::EventLogIop` |
 | `pcsx2/R5900.cpp` |  | include `Zdxsv/CpuHooks.h` |
 | `pcsx2/R5900.cpp` | `_cpuEventTest_Shared` | `Zdxsv::g_event_log`, `Zdxsv::EventLogEe` |
 | `pcsx2/R5900.h` |  | target of the last taken branch (wait loop detection) |
 | `pcsx2/R5900.h` | `CpuRunsIntBranches` | true when branches, TLB misses and wait loops take the interpreter's paths: the interpreter, or the ARM64 EE recompiler, which runs interpreter code for them (arm64/iR5900.cpp). |
+| `pcsx2/Resources/Info.plist.in` |  | never the default app, so an upstream PCSX2 keeps its file types |
+| `pcsx2/Resources/Info.plist.in` |  | never the default app, so an upstream PCSX2 keeps its file types |
+| `pcsx2/Resources/Info.plist.in` |  | never the default app, so an upstream PCSX2 keeps its file types |
+| `pcsx2/Resources/Info.plist.in` |  | never the default app, so an upstream PCSX2 keeps its file types |
+| `pcsx2/Resources/Info.plist.in` |  | own identifier and name, apart from an upstream PCSX2 on the same Mac |
+| `pcsx2/Resources/Info.plist.in` |  | the net.pcsx2 types belong to upstream PCSX2: imported, not exported |
 | `pcsx2/SIO/Pad/Pad.cpp` |  | include `Zdxsv/InputHooks.h` |
 | `pcsx2/SIO/Pad/Pad.cpp` | `Pad::ControllerInfo::GetBindIndex` | upstream bug, unnamed slots |
 | `pcsx2/SIO/Pad/Pad.cpp` | `Pad::SetDefaultHotkeyConfig` | `ZdxsvReplaySeekBack`, `ZdxsvReplaySeekForward`, `ZdxsvReplayToggleKeys` |
@@ -392,8 +401,8 @@ Visual Studio and `lupdate` drop comments when they rewrite these files.
 | `pcsx2/VUops.cpp` | `VMADDAz` | `Zdxsv::VuCop2Op` |
 | `pcsx2/VUops.cpp` | `VXITOP` | the ARM64 VU1 trace recompiler. |
 | `pcsx2/Vif_Transfer.cpp` | `vifTransferLoop` | NOP can be most of the codes in a packet: same steps as vifCode_Nop, without the indirect call. |
-| `pcsx2/pcsx2.vcxproj` |  | GGPO, TLS, UPnP and JSON libraries --> |
-| `pcsx2/pcsx2.vcxproj` |  | MINIUPNP_STATICLIB --> |
+| `pcsx2/pcsx2.vcxproj` |  | GGPO, TLS, UPnP and JSON libraries |
+| `pcsx2/pcsx2.vcxproj` |  | MINIUPNP_STATICLIB |
 | `pcsx2/pcsx2.vcxproj` |  | `<ClCompile Include="Zdxsv\Lobby.cpp" />` |
 | `pcsx2/pcsx2.vcxproj` |  | `<ClCompile Include="Zdxsv\InputLatency.cpp" />` |
 | `pcsx2/pcsx2.vcxproj` |  | `<ClInclude Include="Zdxsv\Lobby.h" />` |

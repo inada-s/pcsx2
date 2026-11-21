@@ -131,7 +131,7 @@ Keys (`net=1`, `lobby=1`, `port=`, `delay=`, ...) are parts of `ZDXSV_GGPO`.
 - **Match report round data**: mobile suits per round.
 - **Match report log tail**: the last log lines of each GGPO battle.
 - **Relay servers**: battle info with `relay_<k>`.
-- **Lobby game patches**: a lobby with `m_lobby_setting.patches` (notice `0x9953`); GGPO battles only. The battle's replay and live stream carry them (`BattleLogFile.patches`); playback and spectating apply them the same way. A replay or live stream plays only if each patch it carries equals one built in (`ServerPatches.cpp`: `rematch_max5`); else it does not start (`game patch <name> is not built in`). Battles apply the lobby's patches as sent.
+- **Lobby game patches**: a lobby with `m_lobby_setting.patches` (notice `0x9953`); GGPO battles only. The battle's replay and live stream carry them (`BattleLogFile.patches`); playback and spectating apply them the same way. A replay or live stream plays only if each patch it carries has the game and codes of one built in (`ServerPatches.cpp`: `rematch_max5`; its name and write mode are the file's); else it does not start (`game patch <name> is not built in`). Battles apply the lobby's patches as sent.
 - **Custom server messages kept from the game**: every lobby message `0x99xx`, known or not, is consumed by PCSX2; unknown ones are logged once.
 - **Peer without an address in the battle info**.
 - **Path through a relaying peer**.
@@ -221,6 +221,7 @@ stand in for them.
 - **Self-update from the GitHub releases of this fork**: release builds; `ZDXSV_UPDATE_URL`.
 - **Crash reports** ([crash-reports.md](crash-reports.md)): `ZdxsvCrashReports`, on by default in a build with `ZDXSV_SENTRY_DSN`.
 - **Release workflow**: a `zdxsv-X.Y.Z` tag.
+- **Apart from upstream PCSX2 on the same machine**: always. macOS: data in `~/Library/Application Support/PCSX2-zdxsv`, bundle ID `net.zdxsv.pcsx2`, name `PCSX2-zdxsv`, never the default app for its file types; Windows release: `portable.txt`.
 - **CI builds**: Windows CMake + clang-cl and MSBuild, macOS arm64; every push and ready PR.
 - **PINE opcodes `0x30` to `0x32`**: pad input, screenshot, frame count.
 - **EE probe, watch and rerun profile**: `ZDXSV_EE_PROBE`, `ZDXSV_EE_WATCH`, `ZDXSV_EE_PROFILE`.

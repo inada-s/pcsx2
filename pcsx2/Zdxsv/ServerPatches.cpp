@@ -24,14 +24,14 @@ namespace Zdxsv
 		const std::vector<GamePatch>& BuiltinPatches()
 		{
 			static const std::vector<GamePatch> patches = {
-				{"rematch_max5", "SLPS-25419", false, {{32, 0x307ff0, 0x2842000a, 0x28420005}, {32, 0x308044, 0x0c0dccc4, 0x1000ffe7}}},
+				{"rematch_max5", "SLPS-25419", true, {{32, 0x307ff0, 0x2842000a, 0x28420005}, {32, 0x308044, 0x0c0dccc4, 0x1000ffe7}}},
 			};
 			return patches;
 		}
 
 		bool SamePatch(const GamePatch& a, const GamePatch& b)
 		{
-			if (a.name != b.name || a.game != b.game || a.writeOnce != b.writeOnce || a.codes.size() != b.codes.size())
+			if (a.game != b.game || a.codes.size() != b.codes.size())
 				return false;
 			for (size_t i = 0; i < a.codes.size(); i++)
 			{
