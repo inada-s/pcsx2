@@ -9,7 +9,6 @@ be newer than --tag and exist on GitHub (the update dialog loads its change list
 is a modal error that stops the install). ZDXSV_UPDATE_INSTALL=1 presses Download and Install.
 Pass: the old bundle is gone, PCSX2-<offer>.app holds the marker, has no quarantine attribute and
 runs. Control: --offer older than --tag must fail ("No update needed.").
-The account must be allowed to move files to the Trash (the updater trashes the old bundle).
 Exit 0 = pass, 1 = fail, 2 = setup error.
 """
 import argparse

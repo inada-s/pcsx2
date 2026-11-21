@@ -7,6 +7,7 @@
 
 #include "p2p.h"
 #include <chrono>
+#include <new> // zdxsv: placement new for _endpoints
 #include <thread>
 
 #include "sleep.h"
@@ -54,7 +55,10 @@ Peer2PeerBackend::Peer2PeerBackend(GGPOSessionCallbacks *cb,
     */
    _udp.Init(localport, &_poll, this);
 
-   _endpoints = new UdpProtocol[_num_players];
+   // zdxsv: no new[]/delete[]: clang-cl's delete[] of this polymorphic array frees the wrong pointer (heap corruption).
+   _endpoints = static_cast<UdpProtocol *>(::operator new(sizeof(UdpProtocol) * _num_players));
+   for (int i = 0; i < _num_players; i++)
+	   new (&_endpoints[i]) UdpProtocol();
    for (int i = 0; i < _num_players; i++)
 	   _endpoints[i].SetVerificationData(verification, verification_size);
    memset(_local_connect_status, 0, sizeof(_local_connect_status));
@@ -72,7 +76,12 @@ Peer2PeerBackend::Peer2PeerBackend(GGPOSessionCallbacks *cb,
 Peer2PeerBackend::~Peer2PeerBackend()
 {
    _udp.StopNetThread();
-   delete [] _endpoints;
+   // zdxsv: see the constructor
+   if (_endpoints) {
+      for (int i = _num_players - 1; i >= 0; i--)
+         _endpoints[i].~UdpProtocol();
+      ::operator delete(_endpoints);
+   }
 }
 
 void
