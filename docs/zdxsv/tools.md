@@ -53,6 +53,7 @@
 | `tools/zdxsv/upstream_spots.py` | Checks that every changed spot in an upstream file is marked and listed in [upstream.md](upstream.md); `--write` regenerates the list, `--all` prints every spot. Exit 1 on an unmarked spot or a stale list. |
 | `tests/zdxsv/vu1_optest_cmp.py` | `vu1_optest_cmp.py <a.bin> <b.bin> <emulog of a> [cases]`: compares two `ZDXSV_VU1_OPTEST` files (e.g. x86_64 vs ARM64): per op, the cases whose outputs differ, then the first such cases with inputs and both outputs. |
 | `tests/zdxsv/ee_optest_cmp.py` | `ee_optest_cmp.py <a.bin> <b.bin> <emulog of a> [cases] [-ops OP,..] [-fields OUT,..]`: compares two `ZDXSV_EE_OPTEST` files (record size per op: `V*` = COP2): per op, the cases whose outputs differ and which output (Fd/ACC, FCR31; VF3 lanes, status, MAC, clip, Q), then the first such cases with inputs and both outputs. `-ops` limits the ops compared, `-fields` the outputs that count (`fd`, `fcr31`; `vf3x`.., `status`, `mac`, `clip`, `q`). |
+| `tests/zdxsv/cyclecmp.py` | `cyclecmp.py <emulog a> <emulog b> [lines]`: compares the `ZDXSV_CYCLE_LOG` lines of two plays of one replay: per CPU, the frames whose EE or IOP cycles differ, then the first ones. Exit 1 on any difference, a different frame set or fewer than 2 frames. |
 
 `run.py rbk_test` runs a GGPO battle between the instances without a server
 and ends with the sync check. `LAT=ms JITTER=ms LOSS=0..1` send each pair of
