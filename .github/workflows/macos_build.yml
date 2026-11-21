@@ -39,6 +39,11 @@ on:
         required: false
         type: string
         default: ""
+      # zdxsv: the universal dependencies (fat libraries) whatever the arch; they share the arm64 deps cache
+      universalDeps:
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   build_macos:
@@ -108,12 +113,14 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/deps
-          key: ${{ inputs.os }} ${{ inputs.arch }} deps ${{ hashFiles('.github/workflows/scripts/macos/*', '.github/workflows/scripts/common/*.patch') }}
+          # zdxsv: universalDeps keys the arm64 cache
+          key: ${{ inputs.os }} ${{ case(inputs.universalDeps, 'arm64', inputs.arch) }} deps ${{ hashFiles('.github/workflows/scripts/macos/*', '.github/workflows/scripts/common/*.patch') }}
 
       - name: Build Dependencies
         if: steps.cache-deps.outputs.cache-hit != 'true'
         run: |
-          .github/workflows/scripts/macos/build-dependencies${{ case(inputs.arch == 'x86-64', '', '-universal') }}.sh "$HOME/deps"
+          # zdxsv: universalDeps
+          .github/workflows/scripts/macos/build-dependencies${{ case(inputs.arch == 'x86-64' && !inputs.universalDeps, '', '-universal') }}.sh "$HOME/deps"
 
       # -- SETUP CCACHE - https://cristianadam.eu/20200113/speeding-up-c-plus-plus-github-actions-using-ccache/
       - name: Prepare ccache timestamp

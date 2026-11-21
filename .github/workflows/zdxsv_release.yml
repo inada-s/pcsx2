@@ -61,6 +61,7 @@ jobs:
         "-DZDXSV_SERVER_HOST=${{ vars.ZDXSV_SERVER_HOST }}" "-DZDXSV_UDPTEST_URL=${{ vars.ZDXSV_UDPTEST_URL }}" "-DZDXSV_SENTRY_DSN=${{ vars.ZDXSV_SENTRY_DSN }}"
       fetchTags: true
       zdxsvAppArtifact: zdxsv-app-macos-x64
+      universalDeps: true
 
   macos_arm64:
     name: "macOS arm64"
