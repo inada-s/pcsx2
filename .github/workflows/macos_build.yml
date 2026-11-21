@@ -29,6 +29,16 @@ on:
         required: false
         type: boolean
         default: false
+      # zdxsv: extra CMake flags (the release passes the production server defaults)
+      cmakeFlags:
+        required: false
+        type: string
+        default: ""
+      # zdxsv: when set, PCSX2.app is also uploaded as PCSX2.app.tar under this artifact name
+      zdxsvAppArtifact:
+        required: false
+        type: string
+        default: ""
 
 jobs:
   build_macos:
@@ -117,6 +127,7 @@ jobs:
           key: ${{ inputs.os }} ${{ inputs.arch }} ccache ${{ steps.ccache_cache_timestamp.outputs.timestamp }}
           restore-keys: ${{ inputs.os }} ${{ inputs.arch }} ccache
 
+      # zdxsv: inputs.cmakeFlags
       - name: Generate CMake Files
         run: |
           cmake -DCMAKE_PREFIX_PATH="$HOME/deps" \
@@ -128,6 +139,7 @@ jobs:
                 -DCMAKE_C_COMPILER_LAUNCHER=ccache \
                 -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
                 -DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON \
+                ${{ inputs.cmakeFlags }} \
                 -B build .
 
       - name: Build PCSX2
@@ -186,6 +198,20 @@ jobs:
           # Despite what the docs say, I found that this file is required and I had 0 luck
           # passing the issuer id, key, etc through arguments.
           app_store_connect_api_key_json_file: 'key.json'
+
+      # zdxsv: the unpacked app for the release's universal merge (tar keeps symlinks and modes)
+      - name: Pack the App for the zdxsv Release
+        if: inputs.zdxsvAppArtifact != ''
+        run: tar -cf PCSX2.app.tar PCSX2.app
+
+      # zdxsv: see the step above
+      - name: Upload the App for the zdxsv Release
+        if: inputs.zdxsvAppArtifact != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ inputs.zdxsvAppArtifact }}
+          path: PCSX2.app.tar
+          compression-level: 0
 
       - name: Zip Build Artifacts
         if: inputs.arch == 'x86-64'

@@ -1,4 +1,4 @@
-# PCSX2 for zdxsv: setup (Windows)
+# PCSX2 for zdxsv: setup
 
 This build of PCSX2 is set up to play *Mobile Suit Gundam: Gundam vs. Zeta Gundam*
 (PS2, 2004, Japan) online on the zdxsv server (`lbs.zdxsv.net`).
@@ -17,6 +17,19 @@ This build of PCSX2 is set up to play *Mobile Suit Gundam: Gundam vs. Zeta Gunda
    settings, memory cards and save states in this folder. It does not use or change
    the settings of another PCSX2 installation on the same PC.
 3. Start `pcsx2-qt.exe`. The first-run wizard asks for the BIOS folder and the game folder.
+
+## Install on macOS
+
+The macOS build runs natively on Apple silicon and Intel Macs. It is not notarized by Apple.
+
+1. Download `pcsx2-zdxsv-macos.tar.xz` from https://github.com/inada-s/pcsx2/releases and
+   double-click it. Move the `PCSX2-zdxsv-....app` it unpacks to a folder you can write to
+   (for example `Applications`), so updates can replace it.
+2. Open the app. macOS refuses to open it the first time. Open System Settings → Privacy & Security,
+   press "Open Anyway" next to the message about PCSX2, and confirm.
+   This is needed once; updates open without asking.
+3. Settings, memory cards and save states are in `~/Library/Application Support/PCSX2`,
+   the same folder another PCSX2 on the Mac uses.
 
 ## Network settings
 
@@ -135,7 +148,7 @@ To send nothing, turn this off in Settings → zdxsv.
 When PCSX2 starts and a newer zdxsv release exists on
 https://github.com/inada-s/pcsx2/releases, it shows an update window.
 Press "Download and Install...": PCSX2 downloads the new version, closes, replaces its
-files and starts again. Your settings, memory cards and save states are kept.
+files and starts again (on macOS the old app goes to the Trash). Your settings, memory cards and save states are kept.
 "Remind Me Later" asks again on the next start; "Skip This Update" waits for the next version.
 You can also check by hand from the Help menu (Check for Updates).
 If the game shows "PLEASE UPDATE PCSX2" when you connect (PCSX2 also shows "The lobby refused this PCSX2
