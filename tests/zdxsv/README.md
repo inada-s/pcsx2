@@ -329,8 +329,8 @@ Scripts are in `tests/zdxsv/` except `run.py` (repository root) and
 |---|---|---|
 | EE and IOP recompilers with the x86 timing | the same replay with `ZDXSV_CYCLE_LOG` on an ARM64 and an x86_64 build: same cycle lines | none |
 | VU1 trace recompiler | `rplay.py` on an ARM64 build: PASS (replay state check and player work equal to the live battle) | none |
-| FPU and VU math as x86 | `ZDXSV_VU1_OPTEST` and `ZDXSV_EE_OPTEST` on an ARM64 and an x86_64 build, then `vu1_optest_cmp.py` / `ee_optest_cmp.py`: no op differs | none |
-| EE FPU interpreter as the recompiler | none | none |
+| FPU and VU math as x86 | `ZDXSV_VU1_OPTEST` and `ZDXSV_EE_OPTEST` on an ARM64 and an x86_64 build, then `vu1_optest_cmp.py` / `ee_optest_cmp.py`: no op differs | the recompilers against the EE and VU1 interpreters of one x86_64 build (`EnableEE`, `EnableVU1` off): both scripts FAIL |
+| EE FPU interpreter as the recompiler | `eefpu.py` (no network): `ZDXSV_EE_OPTEST` with finite inputs on the EE recompiler and the EE interpreter of one x86_64 build, `ee_optest_cmp.py -fields fd` on ADD, SUB, MUL, DIV and the ACC, MADD, MSUB forms: no case differs. Not covered: SQRT.S (the interpreter keeps -0 on x86_64) | the interpreter without its add/sub operand cut (`Zdxsv::FpuAddSubCut` call removed from `fpuAddSub`): ADD, SUB, MADD, MSUB differ |
 
 ### Releases and tools
 
