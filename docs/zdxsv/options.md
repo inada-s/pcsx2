@@ -96,6 +96,7 @@ page greys it out and its tooltip names the variable.
 | `ZDXSV_TLS_TEST_PIN=1` | off | test | Trusts the zdxsv test CA (`pkg/tlsconf/testdata` in the zdxsv repository), which also turns TLS on. See [lobby.md](lobby.md). |
 | `ZDXSV_PAUSE_LINE_CHECK=0` | on | control | While the VM is paused, leave the lobby's line checks (0x6001) to the game: a pause over 2 min drops the connection. |
 | `ZDXSV_UPDATE_URL=url` | GitHub releases of this fork | test | The updater reads its release list from this URL. |
+| `ZDXSV_UPDATE_INSTALL=1` | off | test | When the updater offers an update, it downloads and installs it as if Download and Install was pressed. |
 | `ZDXSV_SENTRY_DSN=dsn` | the build's DSN | test | Crash reports go to this DSN, with the environment `development`. |
 | `ZDXSV_CRASH_REPORT_TEST=1` | off | test | In a build with a DSN: starts crash reports whatever `ZdxsvCrashReports` says, without changing it, and crashes PCSX2 right after. |
 
