@@ -966,6 +966,15 @@ def main():
             deaths += int(v.get("death_count") or 0)
         ok(f"results agree ({nb} battle codes)",
            len(n) == nb and len(fr) == nb and all(x >= nc for x in n.values()) and kills == deaths)
+        # clients that never link time out alone: battle_count 0, and frames past the rule time
+        res = [dict(x.split(":", 1) for x in l.split()[2:] if ":" in x) for l in rd(rtxt)]
+        ok("a battle was fought (every result battle_count >= 1)",
+           bool(res) and all(int(v.get("battle_count") or 0) >= 1 for v in res))
+        if rule is not None and rule[0][4] > 0:
+            t = rule[0][4]
+            ok(f"every battle within the rule time ({t} s: total_frame <= {t * 60} per battle)",
+               bool(res) and all(int(v.get("total_frame") or 0) <= t * 60 * int(v.get("battle_count") or 0)
+                                 for v in res))
     if rule is not None:
         ans = rule_answers(lobby)
         say(f"0x6914 rule answers (gauge, time): {sorted(set(ans))}")
