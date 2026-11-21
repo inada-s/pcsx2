@@ -20,6 +20,8 @@ def main():
     zrig.take()
     zrig.need("RUN", "OUT")
     run, out = os.path.abspath(os.environ["RUN"]), os.environ["OUT"]
+    # the clients are online at the lobby when PINE saves their state
+    os.environ["PCSX2_ENV"] = ("ZDXSV_ONLINE_REFUSALS=0 " + zrig.env("PCSX2_ENV", "")).strip()
     go = os.path.join(out, "go")
     if os.path.exists(go):
         os.remove(go)

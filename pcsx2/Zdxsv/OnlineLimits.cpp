@@ -49,6 +49,15 @@ namespace Zdxsv
 			return exempt;
 		}
 
+		bool RefusalsOff()
+		{
+			static const bool off = [] {
+				const char* e = TestEnv("ZDXSV_ONLINE_REFUSALS");
+				return e && std::strcmp(e, "0") == 0;
+			}();
+			return off;
+		}
+
 		void SetOnline(bool online)
 		{
 			g_online_limits = online;
@@ -133,7 +142,7 @@ namespace Zdxsv
 
 	bool OnlineRefuses(Error* error)
 	{
-		if (!s_online.online.load(std::memory_order_relaxed))
+		if (!s_online.online.load(std::memory_order_relaxed) || RefusalsOff())
 			return false;
 		const std::string msg = TRANSLATE_STR("Zdxsv", "Not available while online.");
 		Console.WriteLn("ZdxsvOnline: refused while online");
