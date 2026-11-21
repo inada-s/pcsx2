@@ -53,7 +53,7 @@ def describe(lines):
             continue
         # The comment goes on over the next comment-only lines; keep its
         # first sentence.
-        text = m.group(1).strip()
+        text = re.sub(r"\s*-->.*", "", m.group(1)).strip()
         for cont in lines[i + 1:]:
             c = re.match(r"\s*(?://|#(?![a-z]))\s*(.*)", cont)
             if not c or WHY.search(cont) or re.search(r"\.\s*$", text):
