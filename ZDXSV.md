@@ -26,10 +26,10 @@ The macOS build runs natively on Apple silicon and Intel Macs. It is not notariz
    double-click it. Move the `PCSX2-zdxsv-....app` it unpacks to a folder you can write to
    (for example `Applications`), so updates can replace it.
 2. Open the app. macOS refuses to open it the first time. Open System Settings → Privacy & Security,
-   press "Open Anyway" next to the message about PCSX2, and confirm.
+   press "Open Anyway" next to the message about PCSX2-zdxsv, and confirm.
    This is needed once; updates open without asking.
-3. Settings, memory cards and save states are in `~/Library/Application Support/PCSX2`,
-   the same folder another PCSX2 on the Mac uses.
+3. Settings, memory cards and save states are in `~/Library/Application Support/PCSX2-zdxsv`,
+   apart from another PCSX2 on the Mac.
 
 ## Network settings
 
