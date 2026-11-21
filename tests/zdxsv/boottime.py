@@ -6,6 +6,8 @@ ROUTE=top,C = today's menu path + ログイン at TOP), CARD (p1 card name, defa
 SPEED (launch -Speed, default 1), SHOW=1 (windowed), LOBBY=fake (boot_lobby.py instead of the stack:
 only the lobby API login and the lobby up to the user_id list), SAVE_CARD (path: p1's card after the run is copied there).
 ROUTE_END=1: after the user_id screen, wait until the route keys are all sent (MAXS bounds it).
+NEW_USER=1: also fail unless the lobby db gained an account and a user row and the lobby log has the
+DecideUserID (0x6132) answer (a route that registers a new user).
 Fast login on (ZDXSV_FAST_LOGIN=1, no ZDXSV_AUTH_AT_DNAS=1) with no token file: the run writes a token for the
 card's account (LOBBY=fake: its login_key; a card of no account: a new sign-in, the login makes the account)
 and removes the file after.
@@ -13,6 +15,7 @@ Exit 0 = the screen is up within LIMIT s. Logs: OUT/boottime.txt (net step chang
 """
 import os
 import shutil
+import sqlite3
 import subprocess
 import sys
 import time
@@ -134,10 +137,29 @@ def run(out, after=None, prepare=None):
         cleanup()
 
 
+def db_keys(db):
+    with sqlite3.connect(f"file:{db}?mode=ro", uri=True) as c:
+        return ({r[0] for r in c.execute("select login_key from account")},
+                {r[0] for r in c.execute("select user_id from user")})
+
+
+def new_user_check(before):
+    def check(out):
+        acc, users = db_keys(os.path.join(out, "zdxsv.db"))
+        log = os.path.join(out, "lobby.log")
+        ok = [bool(acc - before[0]), bool(users - before[1]),
+              os.path.isfile(log) and bool(zrig.log_lines(log, r"C<-S \[A\] ID:0x6132"))]
+        for good, what in zip(ok, ("a new account row", "a new user row", "DecideUserID (0x6132) answered")):
+            print(f"{'PASS' if good else 'FAIL'} {what}", flush=True)
+        return 0 if all(ok) else 1
+    return check
+
+
 def main():
     zrig.take()
     zrig.need("ZDXSV_DIR", "IP", "OUT", "CARDS")
-    return run(os.environ["OUT"])
+    after = new_user_check(db_keys(os.path.join(os.environ["RUN"], "zdxsv.db"))) if zrig.env("NEW_USER") else None
+    return run(os.environ["OUT"], after)
 
 
 if __name__ == "__main__":
