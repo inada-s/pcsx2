@@ -7,7 +7,8 @@ the lobby hands the PS2 zproxy's address in 0x6916, zproxy relays over UDP to th
 and pings the other zproxies (P2P); the rest dial the battle server over TCP.
 Exit 0 = all checks passed.
   OUT=<dir> python tests/zdxsv/m4z.py
-Env: ZP (clients behind zproxy, default "1 3": one per side), ZPROXY (exe), SHOW ("1 2":
+Env: ZP (clients behind zproxy, default "1 3": one per side), ZPROXY (exe), ZP_USERID (the user id every
+zproxy registers, default its client's; control: one no user has), SHOW ("1 2":
 windowed with GS snapshots), MAXS (s after mash to wait for results).
 GAUGE, COUNT, TIME: the lobby battle rule (戦力ゲージ, 連続対戦数, 作戦時間 s; menu values) as the stack's
 ZDXSV_LOBBY_BATTLE_*, or (server with m_rule) as an m_rule row for lobby 2 in OUT/zdxsv.db, printed. Default GAUGE=1 COUNT=1 (one round, the first shoot-down ends it); `GAUGE=0 COUNT=0`:
@@ -564,7 +565,7 @@ def main():
     # lobby API on 127.0.0.1 = LAN test: the lobby matches the proxy by -userid, not by address
     api = E("ZDXSV_LOBBY_API_ADDR") or "127.0.0.1:9881"
     for i in zp:
-        start([zproxy, "-updatecheck=false", "-upnp=false", "-verbose", f"-userid={users[int(i) - 1]}",
+        start([zproxy, "-updatecheck=false", "-upnp=false", "-verbose", f"-userid={E('ZP_USERID') or users[int(i) - 1]}",
                f"-tcpport={8250 + int(i)}", f"-udpport={8250 + int(i)}", f"-lobbyapi=http://{api}",
                "-stunaddr=127.0.0.1:8201"],
               f"zproxy-p{i}.log")
