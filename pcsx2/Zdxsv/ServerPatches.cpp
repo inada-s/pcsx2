@@ -31,7 +31,7 @@ namespace Zdxsv
 
 		bool SamePatch(const GamePatch& a, const GamePatch& b)
 		{
-			if (a.name != b.name || a.game != b.game || a.writeOnce != b.writeOnce || a.codes.size() != b.codes.size())
+			if (a.game != b.game || a.codes.size() != b.codes.size())
 				return false;
 			for (size_t i = 0; i < a.codes.size(); i++)
 			{
