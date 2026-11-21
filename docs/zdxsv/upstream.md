@@ -107,6 +107,7 @@ Visual Studio and `lupdate` drop comments when they rewrite these files.
 | `pcsx2-qt/AutoUpdaterDialog.cpp` | `AutoUpdaterDialog::getLatestReleaseComplete` | `ParseZdxsvVersion` |
 | `pcsx2-qt/AutoUpdaterDialog.cpp` | `AutoUpdaterDialog::getLatestReleaseComplete` | zdxsv release updates |
 | `pcsx2-qt/AutoUpdaterDialog.cpp` | `AutoUpdaterDialog::checkIfUpdateNeeded` | `ParseZdxsvVersion` |
+| `pcsx2-qt/AutoUpdaterDialog.cpp` | `AutoUpdaterDialog::checkIfUpdateNeeded` | `Zdxsv::TestEnv` |
 | `pcsx2-qt/CMakeLists.txt` |  | `Zdxsv/CrashReports.cpp` |
 | `pcsx2-qt/CMakeLists.txt` |  | `ZdxsvSettingsWidget`, `ZdxsvReplayDialog` |
 | `pcsx2-qt/CMakeLists.txt` |  | crash reports (docs/zdxsv/crash-reports.md). |

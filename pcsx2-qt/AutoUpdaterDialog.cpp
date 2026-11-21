@@ -488,6 +488,8 @@ void AutoUpdaterDialog::checkIfUpdateNeeded()
 
 	// We have to defer this, because it comes back through the timer/HTTP callback...
 	QMetaObject::invokeMethod(this, "exec", Qt::QueuedConnection);
+	if (Zdxsv::TestEnv("ZDXSV_UPDATE_INSTALL"))
+		QMetaObject::invokeMethod(this, &AutoUpdaterDialog::downloadUpdateClicked, Qt::QueuedConnection);
 }
 
 void AutoUpdaterDialog::skipThisUpdateClicked()
