@@ -1,4 +1,4 @@
-name: zdxsv release
+name: zdxsv release dry run
 
 # Push a tag zdxsv-X.Y.Z -> Windows and macOS builds -> GitHub release with
 # pcsx2-zdxsv-windows-x64.7z (auto updater) and .zip (first install), and
@@ -6,8 +6,8 @@ name: zdxsv release
 # A tag with a suffix (zdxsv-0.0.1-rc1) becomes a prerelease, which the updater skips.
 on:
   push:
-    tags:
-      - "zdxsv-*"
+    branches:
+      - ai/i802-release-dryrun
 
 permissions:
   contents: read
@@ -35,19 +35,6 @@ jobs:
         run: |
           if [ -z "$ZDXSV_SENTRY_DSN" ]; then echo "::warning::Repository variable ZDXSV_SENTRY_DSN is empty: this release sends no crash reports"; fi
           if [ -z "$SENTRY_AUTH_TOKEN" ]; then echo "::warning::Secret SENTRY_AUTH_TOKEN is empty: crash reports of this release have no symbols"; fi
-
-  build:
-    name: "Windows"
-    needs: vars
-    uses: ./.github/workflows/windows_build_qt.yml
-    with:
-      jobName: "CMake Clang"
-      artifactPrefixName: "PCSX2-windows-Qt-x64-cmake-clang"
-      configuration: CMake
-      buildSystem: cmake
-      # The production servers: only this build has them as defaults (a build from source has none).
-      cmakeFlags: -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl "-DZDXSV_SERVER_HOST=${{ vars.ZDXSV_SERVER_HOST }}" "-DZDXSV_UDPTEST_URL=${{ vars.ZDXSV_UDPTEST_URL }}" "-DZDXSV_SENTRY_DSN=${{ vars.ZDXSV_SENTRY_DSN }}"
-      fetchTags: true
 
   macos_x64:
     name: "macOS x86_64"
@@ -88,7 +75,7 @@ jobs:
 
       - name: Merge into a universal app
         env:
-          TAG: ${{ github.ref_name }}
+          TAG: zdxsv-0.0.0-dryrun
         run: |
           mkdir arm64 x64 zdxsv-release
           tar -xf zdxsv-app-macos-arm64/PCSX2.app.tar -C arm64
@@ -98,7 +85,7 @@ jobs:
 
       - name: Check the production server defaults
         env:
-          TAG: ${{ github.ref_name }}
+          TAG: zdxsv-0.0.0-dryrun
           ZDXSV_SERVER_HOST: ${{ vars.ZDXSV_SERVER_HOST }}
           ZDXSV_UDPTEST_URL: ${{ vars.ZDXSV_UDPTEST_URL }}
         run: |
@@ -110,7 +97,7 @@ jobs:
 
       - name: Pack
         env:
-          TAG: ${{ github.ref_name }}
+          TAG: zdxsv-0.0.0-dryrun
         run: |
           tar --options xz:compression-level=9 -cJf zdxsv-release/pcsx2-zdxsv-macos.tar.xz "PCSX2-$TAG.app"
           ls -l zdxsv-release
@@ -121,90 +108,3 @@ jobs:
           path: zdxsv-release
           compression-level: 0
 
-  symbols:
-    name: "Upload crash report symbols"
-    needs: build
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    env:
-      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-    steps:
-      - uses: actions/download-artifact@v8
-        if: env.SENTRY_AUTH_TOKEN != ''
-        with:
-          name: zdxsv-release-windows-x64
-          path: zdxsv-release
-
-      - uses: actions/download-artifact@v8
-        if: env.SENTRY_AUTH_TOKEN != ''
-        with:
-          pattern: "*-symbols"
-          merge-multiple: true
-          path: symbols
-
-      - name: Upload binaries and PDBs
-        if: env.SENTRY_AUTH_TOKEN != ''
-        env:
-          SENTRY_ORG: gdxsv-project
-          SENTRY_PROJECT: pcsx2-zdxsv
-          SENTRY_CLI_VERSION: 2.58.6
-          SENTRY_CLI_SHA256: 36b689311b399d9332950d84f4299aee682d2d290a770a77372b30a74f7e7add
-        run: |
-          curl -fsSL -o sentry-cli "https://github.com/getsentry/sentry-cli/releases/download/$SENTRY_CLI_VERSION/sentry-cli-Linux-x86_64"
-          echo "$SENTRY_CLI_SHA256  sentry-cli" | sha256sum -c -
-          chmod +x sentry-cli
-          unzip -q zdxsv-release/pcsx2-zdxsv-windows-x64.zip -d binaries
-          ./sentry-cli debug-files upload --type pe --type pdb --wait binaries symbols
-
-  release:
-    name: "Release"
-    needs: [build, macos]
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-      id-token: write
-      attestations: write
-    steps:
-      - uses: actions/download-artifact@v8
-        with:
-          name: zdxsv-release-windows-x64
-          path: zdxsv-release
-
-      - uses: actions/download-artifact@v8
-        with:
-          name: zdxsv-release-macos
-          path: zdxsv-release
-
-      - name: Check the production server defaults
-        env:
-          ZDXSV_SERVER_HOST: ${{ vars.ZDXSV_SERVER_HOST }}
-          ZDXSV_UDPTEST_URL: ${{ vars.ZDXSV_UDPTEST_URL }}
-        run: |
-          unzip -q zdxsv-release/pcsx2-zdxsv-windows-x64.zip -d check
-          grep -aqF "$ZDXSV_SERVER_HOST" check/pcsx2-qt*.exe
-          grep -aqF "$ZDXSV_UDPTEST_URL" check/pcsx2-qt*.exe
-
-      - name: Checksums
-        working-directory: zdxsv-release
-        run: |
-          sha256sum pcsx2-zdxsv-windows-x64.* pcsx2-zdxsv-macos.tar.xz > SHA256SUMS.txt
-          cat SHA256SUMS.txt
-
-      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
-        with:
-          subject-checksums: zdxsv-release/SHA256SUMS.txt
-
-      - name: Create release
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
-        run: |
-          # A release made by hand for this tag (e.g. on the web, which also creates the tag) is kept:
-          # the build's files are attached to it. A file of the same name already there fails the upload.
-          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
-            gh release upload "$TAG" zdxsv-release/* --repo "$GITHUB_REPOSITORY"
-            exit 0
-          fi
-          PRE=""
-          if ! [[ "$TAG" =~ ^zdxsv-[0-9]+\.[0-9]+\.[0-9]+$ ]]; then PRE="--prerelease"; fi
-          gh release create "$TAG" zdxsv-release/* --repo "$GITHUB_REPOSITORY" --title "$TAG" --generate-notes $PRE
