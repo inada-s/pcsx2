@@ -2,7 +2,7 @@
 ZDXSV_RBK=i/N answers the battle start and connect itself, menus run turbo, the battle runs over GGPO (net=1),
 each pcsx2 exits at its session end. Exit 0 = every client logged its session end and pwcheck found the peers in sync.
   OUT=<dir> python tests/zdxsv/rbk.py [N] [seed]   (N 2|4, default 4: arguments, not env; no seed: host pad = no input)
-Env: RBKSTATES (dir of rbk-p1..p4.p2s), TIME (rule 作戦時間 s, menu 90..270, 30 works too; default 90),
+Env: RBKSTATES (dir of rbk-p1..p4.p2s), IP (no-DEV9 server host, default 127.0.0.1), TIME (rule 作戦時間 s, menu 90..270, 30 works too; default 90),
 COUNT (連続対戦数, default 1; 0 = rematch picked by input), GAUGE (戦力ゲージ, default 1: first shoot-down ends the
 battle, recorded 600), MAXS (default 900),
 SELECT (出撃準備 timer frames via ZDXSV_EE_CLAMP, default 300; SELECT= off), BATTLE (battle timer frames, u16
@@ -72,6 +72,10 @@ def main(argv):
     zrig.take()
     zrig.need("RBKSTATES", "OUT", "RUN")
     out, run = os.environ["OUT"], os.environ["RUN"]
+    # the states are online on the no-DEV9 path: on the DEV9 path the game's other net RPCs reach an IOP
+    # net stack that was never initialized and the IOP jumps to 0
+    if not launch.server_host():
+        os.environ["ZDXSV_SERVER_HOST"] = "127.0.0.1"
     n = int(n_arg or 4)
     if n not in (2, 4):
         print("N=2 or 4")
