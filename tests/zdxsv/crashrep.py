@@ -3,7 +3,7 @@
 
 Usage: crashrep.py <pcsx2-qt exe> <out dir>
 Exit 0 when the upload carries PCSX2.ini without [Folders], [GameList], [Achievements] or absolute
-path values, keeps the other sections, and carries emulog-tail.txt.
+path values, keeps the other sections, and carries emulog-tail.txt (not on macOS: crashpad runs no in-process crash callback there).
 """
 
 import gzip
@@ -16,6 +16,7 @@ import time
 
 SECRET = "CrashRepSecretName"
 KEEP = "crashrep-keep-this-line"
+HDD = f"C:\\Users\\{SECRET}\\hdd.raw" if os.name == "nt" else f"/Users/{SECRET}/hdd.raw"
 
 INI = f"""[UI]
 SettingsVersion = 1
@@ -34,7 +35,7 @@ RecursivePaths = D:\\{SECRET}\\iso
 Username = {SECRET}
 
 [DEV9/Hdd]
-HddFile = C:\\Users\\{SECRET}\\hdd.raw
+HddFile = {HDD}
 
 [CrashRepKeep]
 Marker = {KEEP}
@@ -98,10 +99,11 @@ def main():
         f.write(body)
     checks = {
         "PCSX2.ini attached": b'filename="PCSX2.ini"' in body,
-        "emulog-tail.txt attached": b'filename="emulog-tail.txt"' in body,
         "other sections kept": KEEP.encode() in body,
         "no folder, game list, achievements or path values": SECRET.encode() not in body,
     }
+    if sys.platform != "darwin":
+        checks["emulog-tail.txt attached"] = b'filename="emulog-tail.txt"' in body
     for name, ok in checks.items():
         print(("PASS " if ok else "FAIL ") + name)
     return 0 if all(checks.values()) else 1

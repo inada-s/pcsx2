@@ -167,7 +167,8 @@ namespace Zdxsv
 			s_crash_reports.log_tail_path = StringUtil::UTF8StringToWideString(log_tail);
 			sentry_options_add_attachmentw(options, s_crash_reports.log_tail_path.c_str());
 #else
-			const std::string handler = Path::Combine(EmuFolders::AppRoot, "crashpad_handler");
+			// Not AppRoot: on macOS that is the folder holding the .app bundle.
+			const std::string handler = Path::Combine(Path::GetDirectory(FileSystem::GetProgramPath()), "crashpad_handler");
 			sentry_options_set_handler_path(options, handler.c_str());
 			sentry_options_set_database_path(options, database.c_str());
 			sentry_options_add_attachment(options, ini.c_str());
