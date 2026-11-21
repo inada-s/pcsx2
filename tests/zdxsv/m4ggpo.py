@@ -203,7 +203,7 @@ def main():
             rlog = zrig.log_lines(os.path.join(os.environ["OUT"], "relay.log"), "relay test session")
         except OSError:
             rlog = []
-        ok("relay forwarded", any(re.search(r"forwarded [1-9]", l) for l in rlog))
+        ok("relay forwarded", any(re.search(r'forwarded"?:? [1-9]', l) for l in rlog))
     if lat and not relay:
         try:
             fl = zrig.log_lines(os.path.join(os.environ["OUT"], "fake.log"), r"relay ")
