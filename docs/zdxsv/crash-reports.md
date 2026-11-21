@@ -39,6 +39,6 @@ The crashpad backend runs as a separate process, `crashpad_handler`, shipped nex
 
 ## Symbols
 
-`zdxsv_release.yml` uploads the release binaries and PDBs with a pinned `sentry-cli` release binary,
+`zdxsv_release.yml` uploads the release binaries and PDBs (Windows) and the Mach-O files of the macOS app (symbol table and unwind info only; no dSYM) with a pinned `sentry-cli` release binary,
 checked against its SHA-256 (update both in the workflow together). It needs the
 repository secret `SENTRY_AUTH_TOKEN` and warns when it or the variable `ZDXSV_SENTRY_DSN` is empty.

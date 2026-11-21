@@ -8,7 +8,7 @@
   builds Windows x64 and publishes two files with the same content:
   `pcsx2-zdxsv-windows-x64.7z` for the updater and `.zip` for a first install.
   It also builds macOS arm64 and x86_64, merges them into one universal app
-  (`.github/workflows/scripts/macos/zdxsv-universal-app.sh`, ad-hoc signature,
+  (`.github/workflows/scripts/zdxsv/macos-universal-app.sh`, ad-hoc signature,
   no notarization) and publishes `pcsx2-zdxsv-macos.tar.xz`, used by the macOS
   updater and for a first install.
 - The release reads the production servers from repository variables

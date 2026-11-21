@@ -1,7 +1,7 @@
 #!/bin/bash
 # SPDX-FileCopyrightText: 2026 zdxsv contributors
 # SPDX-License-Identifier: GPL-3.0+
-# Usage: zdxsv-universal-app.sh <arm64 PCSX2.app> <x86_64 PCSX2.app> <output .app>
+# Usage: macos-universal-app.sh <arm64 PCSX2.app> <x86_64 PCSX2.app> <output .app>
 # Copies the arm64 bundle and merges every arm64-only Mach-O file in it with the
 # x86_64 bundle's file of the same path, then signs the result ad-hoc.
 
