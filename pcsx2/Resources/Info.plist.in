@@ -19,6 +19,9 @@
 			<string>PS2 Game</string>
 			<key>CFBundleTypeRole</key>
 			<string>Viewer</string>
+			<!-- zdxsv: never the default app, so an upstream PCSX2 keeps its file types -->
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
 		</dict>
 		<dict>
 			<key>CFBundleTypeExtensions</key>
@@ -31,6 +34,9 @@
 			<string>PS2 Homebrew Application</string>
 			<key>CFBundleTypeRole</key>
 			<string>Viewer</string>
+			<!-- zdxsv: never the default app, so an upstream PCSX2 keeps its file types -->
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
 		</dict>
 		<dict>
 			<key>CFBundleTypeExtensions</key>
@@ -45,6 +51,9 @@
 			<string>PCSX2 GSdump</string>
 			<key>CFBundleTypeRole</key>
 			<string>Viewer</string>
+			<!-- zdxsv: never the default app, so an upstream PCSX2 keeps its file types -->
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
 		</dict>
 		<dict>
 			<key>CFBundleTypeExtensions</key>
@@ -57,14 +66,22 @@
 			<string>PCSX2 Save State</string>
 			<key>CFBundleTypeRole</key>
 			<string>Viewer</string>
+			<!-- zdxsv: never the default app, so an upstream PCSX2 keeps its file types -->
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
 		</dict>
 	</array>
 	<key>CFBundleExecutable</key>
 	<string>PCSX2</string>
 	<key>CFBundleIconFile</key>
 	<string>PCSX2.icns</string>
+	<!-- zdxsv: own identifier and name, apart from an upstream PCSX2 on the same Mac -->
 	<key>CFBundleIdentifier</key>
-	<string>net.pcsx2.pcsx2</string>
+	<string>net.zdxsv.pcsx2</string>
+	<key>CFBundleName</key>
+	<string>PCSX2-zdxsv</string>
+	<key>CFBundleDisplayName</key>
+	<string>PCSX2-zdxsv</string>
 	<key>CFBundleDevelopmentRegion</key>
 	<string>English</string>
 	<key>CFBundlePackageType</key>
@@ -174,9 +191,7 @@
 				</array>
 			</dict>
 		</dict>
-	</array>
-	<key>UTExportedTypeDeclarations</key>
-	<array>
+		<!-- zdxsv: the net.pcsx2 types belong to upstream PCSX2: imported, not exported -->
 		<dict>
 			<key>UTTypeIdentifier</key>
 			<string>net.pcsx2.pnach</string>

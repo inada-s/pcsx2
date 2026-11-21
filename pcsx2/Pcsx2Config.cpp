@@ -2244,7 +2244,8 @@ bool EmuFolders::SetDataDirectory(Error* error)
 				}
 			}
 #elif defined(__APPLE__)
-			static constexpr char MAC_DATA_DIR[] = "Library/Application Support/PCSX2";
+			// zdxsv: own data directory, apart from an upstream PCSX2 on the same Mac
+			static constexpr char MAC_DATA_DIR[] = "Library/Application Support/PCSX2-zdxsv";
 			const char* home_dir = getenv("HOME");
 			if (home_dir)
 				DataRoot = Path::RealPath(Path::Combine(home_dir, MAC_DATA_DIR));
