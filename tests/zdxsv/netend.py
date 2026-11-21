@@ -16,7 +16,8 @@ import zrig
 
 ROUTE = "f3300,C,w3000,C,w4000"
 KEYS = "w2000,Start,w1500" + ",Down,w600" * 7 + ",w400,C,w2500,Up,w800,C"
-STAMP = re.compile(r"^I\d{4} (\d\d:\d\d:\d\d\.\d+)")
+# server log lines: glog (I1121 12:00:00.000) or zap (2026-11-21T12:00:00.000+0900)
+STAMP = re.compile(r"^(?:I\d{4} |\d{4}-\d\d-\d\dT)(\d\d:\d\d:\d\d\.\d+)")
 
 
 def stamp(line):
