@@ -175,7 +175,7 @@ jobs:
         if: inputs.zdxsvAppArtifact != ''
         run: |
           dsymutil build/pcsx2*/PCSX2.app/Contents/MacOS/PCSX2 -o PCSX2.dSYM 2>&1 | tee dsymutil.log
-          ! grep -q "no debug symbols" dsymutil.log
+          ! grep -q -e "no debug symbols" -e "could not find symbol" dsymutil.log
 
       - name: Build GSRunner
         if: inputs.arch != 'x86-64'
