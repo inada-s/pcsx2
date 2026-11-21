@@ -1,3 +1,3 @@
 [
- {"name": "rematch_max5", "game": "SLPS-25419", "write_once": false, "codes": "32,0x307ff0,0x2842000a,0x28420005\n32,0x308044,0x0c0dccc4,0x1000ffe7"}
+ {"name": "rematch_max5", "game": "SLPS-25419", "write_once": true, "codes": "32,0x307ff0,0x2842000a,0x28420005\n32,0x308044,0x0c0dccc4,0x1000ffe7"}
 ]
