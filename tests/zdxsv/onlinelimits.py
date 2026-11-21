@@ -38,6 +38,8 @@ def set_ini(ini, section, values):
         out.append(l)
         if l == section:
             out += [f"{k} = {v}" for k, v in values.items() if not any(x.startswith(f"{k} = ") for x in lines)]
+    if section not in lines:
+        out += ["", section] + [f"{k} = {v}" for k, v in values.items()]
     with open(ini, "w", encoding="utf-8", errors="surrogateescape", newline="\n") as f:
         f.write("\n".join(out) + "\n")
 
