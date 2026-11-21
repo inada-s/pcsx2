@@ -1,6 +1,6 @@
 """Button settings in battle: the synced input record (A, B) uses each player's own in-game button settings.
 
-  OUT=<dir> python tests/zdxsv/padbind.py [seed]   (seed default 1)
+  OUT=<dir> python tests/zdxsv/padbind.py [seed]   (seed default 1; Python 3.14 or later)
 
 Copies $RBKSTATES to $OUT/states with every assignable button of peer p1 moved to another action (guest u16[8] at
 0x7ade6c, the game's button settings of pad port 0); p3 keeps the default settings. Runs `rbk.py 2 <seed>` (random
@@ -82,6 +82,8 @@ def check(trace, pos, slots):
 def main(argv):
     seed = argv[0] if argv else "1"
     zrig.need("RBKSTATES", "OUT")
+    if not hasattr(zipfile, "ZIP_ZSTANDARD"):
+        sys.exit("padbind.py needs Python 3.14 or later: the savestate members are zstd-compressed")
     out = os.environ["OUT"]
     states = os.path.join(out, "states")
     os.makedirs(states, exist_ok=True)
