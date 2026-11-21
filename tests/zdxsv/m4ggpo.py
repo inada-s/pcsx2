@@ -3,6 +3,7 @@ host=/relay=, the peers come from fake_lobby.py --ggpo (ggpo_<user>=PORT+k-1 for
 Env: OUT (required), PORT (7101), GDELAY (GGPO frame delay, 1; auto = no delay=, picked from the ping test rtt),
   GMIN (mindelay=), GGPO_LAT (one-way ms on every GGPO path: fake_lobby.py --ggpo-delay; checks every udprelay.py forwarded),
   GGPO_JITTER (ms), GGPO_LOSS (0..1) with GGPO_LAT: fake_lobby.py --ggpo-jitter/--ggpo-loss,
+  ETH (m4.py; default 0 here: no DEV9, the GGPO hook answers the battle server),
   P2P (v4 default, v6, dual: fake_lobby.py --p2p; peers' addresses IPv4, this box's IPv6, both),
   GGPO_CLIENTS ("1 2 3 4": clients with lobby=1 and a ggpo_ line; fewer = control, expect every client
   cutting the battle connection: a peer has no GGPO address); other env goes to m4.py.
@@ -61,6 +62,7 @@ def has_addr(ip):
 def main():
     zrig.need("RUN")
     run = os.environ["RUN"]
+    os.environ.setdefault("ETH", "0")
     port = int(zrig.env("PORT", "7101"))
     gc = zrig.env("GGPO_CLIENTS", "1 2 3 4").split()
     gdelay = zrig.env("GDELAY", "1")
