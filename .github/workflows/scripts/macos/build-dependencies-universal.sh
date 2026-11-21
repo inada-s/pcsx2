@@ -439,7 +439,8 @@ echo "Building RapidYAML..."
 rm -fr "rapidyaml-$RAPIDYAML-src"
 tar xf "rapidyaml-$RAPIDYAML-src.tgz"
 cd "rapidyaml-$RAPIDYAML-src"
-cmake "${CMAKE_COMMON[@]}" -DBUILD_SHARED_LIBS=ON -B build
+# zdxsv: universal, as the other libraries (the x86_64 release build links these deps)
+cmake "${CMAKE_COMMON[@]}" "$CMAKE_ARCH_UNIVERSAL" -DBUILD_SHARED_LIBS=ON -B build
 make -C build "-j$NPROCS"
 make -C build install
 cd ..
@@ -449,7 +450,7 @@ rm -fr "sentry-native-$SENTRYNATIVE"
 mkdir "sentry-native-$SENTRYNATIVE"
 cd "sentry-native-$SENTRYNATIVE"
 unzip -q "../sentry-native-$SENTRYNATIVE.zip"
-cmake "${CMAKE_COMMON[@]}" -DBUILD_SHARED_LIBS=ON -DSENTRY_BACKEND=crashpad -DSENTRY_BUILD_TESTS=OFF -DSENTRY_BUILD_EXAMPLES=OFF -B build
+cmake "${CMAKE_COMMON[@]}" "$CMAKE_ARCH_UNIVERSAL" -DBUILD_SHARED_LIBS=ON -DSENTRY_BACKEND=crashpad -DSENTRY_BUILD_TESTS=OFF -DSENTRY_BUILD_EXAMPLES=OFF -B build
 make -C build "-j$NPROCS"
 make -C build install
 cd ..
