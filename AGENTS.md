@@ -134,6 +134,15 @@ the agent's context.
 - Every changed spot is listed in `docs/zdxsv/upstream.md` (file, function,
   what and why), in the same PR: `tools/zdxsv/upstream_spots.py --write`.
 
+### Coexisting With Upstream PCSX2
+
+A zdxsv build coexists with upstream PCSX2 installed on the same machine.
+
+- It shares none of these with upstream: the data and settings location, the
+  app identifier (bundle ID and the like), the app name, file associations,
+  the update source.
+- The same holds when adding a platform or a distribution format.
+
 ### Code
 
 - One responsibility per file; split around 800 lines.
