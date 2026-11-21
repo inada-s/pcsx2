@@ -154,6 +154,10 @@ def main():
     fs = [fields(x) for x in res]
     check("a battle was fought (every BATTLE RESULT battles>=1, frames>0)",
           len(fs) >= 4 and all(f["battles"] != "0" and f["frames"] != "0" for f in fs))
+    t = int(zrig.env("TIME", "90"))
+    if t:
+        check(f"every battle within the rule time ({t} s: frames <= {t * 60} per battle)",
+              len(fs) >= 4 and all(int(f["frames"]) <= t * 60 * int(f["battles"]) for f in fs))
     check("results agree", len(fs) >= 4 and len({f["frames"] for f in fs}) == 1
           and sum(int(f["kill"]) for f in fs) == sum(int(f["death"]) for f in fs))
     return ok[0]
