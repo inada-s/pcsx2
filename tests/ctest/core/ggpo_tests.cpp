@@ -213,6 +213,19 @@ namespace
 	}
 
 	void Wait() { std::this_thread::sleep_for(std::chrono::milliseconds(200)); }
+
+	bool HostHasIpv6()
+	{
+		const SOCKET s = socket(AF_INET6, SOCK_DGRAM, 0);
+		if (s == INVALID_SOCKET)
+			return false;
+		sockaddr_in6 a{};
+		a.sin6_family = AF_INET6;
+		a.sin6_addr = in6addr_loopback;
+		const bool ok = bind(s, reinterpret_cast<sockaddr*>(&a), sizeof(a)) == 0;
+		closesocket(s);
+		return ok;
+	}
 } // namespace
 
 // Windows reports the ICMP port unreachable of an earlier send (peer not started yet, or gone)
@@ -237,12 +250,13 @@ TEST(GGPO, UdpReadsPastPortUnreachable)
 // A peer's IPv6 candidate: the socket sends and receives over IPv6 next to IPv4 on the same port.
 TEST(GGPO, UdpDualStack)
 {
+	if (!HostHasIpv6())
+		GTEST_SKIP() << "no IPv6 on this host";
 	Poll poll;
 	MsgCount cb;
 	TestUdp udp;
 	udp.Init(0, &poll, &cb);
-	if (udp.Socket(true) == INVALID_SOCKET)
-		GTEST_SKIP() << "no IPv6 on this host";
+	ASSERT_NE(udp.Socket(true), INVALID_SOCKET);
 
 	SendFromNewSocket(Loopback(AF_INET6, udp.Socket(true)));
 	Wait();
