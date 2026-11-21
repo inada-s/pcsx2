@@ -30,8 +30,8 @@ settings in `local.env`, see Settings):
    checkout (`ZDXSV_DIR`) built into `$ZDXSV_DIR/bin`: `CGO_ENABLED=1 go build -o bin/zdxsv[.exe] ./zdxsv`
    (sqlite needs cgo), `zproxy` from its own module `zproxy/` (`go build -o ../bin/zproxy[.exe] .`);
    Go also builds `battlereg/`. The fake-lobby rigs (`m4.py`, `m4ggpo.py`, `m4relay.py`, `m4lat.py`,
-   `rbkprep.py`, `slowlogin.py`) need a `ZBIN` with the `battle` command and its RPC: zdxsv up to
-   4a33799; later zdxsv runs the battle server only inside `zdxsv all`. `IP` = this machine's LAN IPv4 address. An empty lobby database:
+   `rbkprep.py`, `slowlogin.py`) need a `ZBIN` with the `battle` command and its RPC (`zdxsv battle`, in zdxsv `master`).
+   `IP` = this machine's LAN IPv4 address. An empty lobby database:
    `ZDXSV_DB_NAME=zdxsv.db $ZDXSV_DIR/bin/zdxsv initdb` in `$RUN`.
 5. Registered memory cards, one per client: a new card from PCSX2 (Settings → Memory
    Cards) saved as `$RUN/Mcd001-<blank>.ps2`; per client
