@@ -5,7 +5,7 @@ pine:    ZDXSV_PINE_ONLINE=0; exit 0 = online, then a PINE request fails and the
 state:   PINE save and load (slot 9) are refused (`refused while online` twice) and no state file is written.
 forced:  p1's ini gets manual hardware fixes and texture dumping on (put back after); going online forces both off.
 hotkeys: a shown window gets F1 (save state), F9 (software renderer), Shift+F8 (GS dump): each refused, no state
-         file (p1's ini binds them so; the keys take the foreground for a moment).
+         file (bound in p1's ini for the run; the keys take the foreground for a moment).
 system:  as hotkeys with F11 (reset) and F12 (shut down), bound in p1's ini for the run: both refused, p1 runs on.
 breakpoints: ZDXSV_TEST_BREAKPOINT puts a breakpoint at an address that never runs at boot; going online clears it.
 NOLOBBY=1 (control, must fail): no boot_lobby.py, the game never goes online, nothing is refused or forced.
@@ -65,6 +65,10 @@ def main():
     if case == "forced":
         shutil.copyfile(ini, ini_kept)
         set_ini(ini, "[EmuCore/GS]", {"UserHacks": "true", "DumpReplaceableTextures": "true"})
+    if case == "hotkeys":
+        shutil.copyfile(ini, ini_kept)
+        set_ini(ini, "[Hotkeys]", {"SaveStateToSlot": "Keyboard/F1", "ToggleSoftwareRendering": "Keyboard/F9",
+                                   "GSDumpSingleFrame": "Keyboard/Shift & Keyboard/F8"})
     if case == "system":
         shutil.copyfile(ini, ini_kept)
         set_ini(ini, "[Hotkeys]", {"ResetVM": "Keyboard/F11", "ShutdownVM": "Keyboard/F12"})
