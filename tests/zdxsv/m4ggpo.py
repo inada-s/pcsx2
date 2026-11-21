@@ -1,7 +1,8 @@
 """m4.py with GGPO started from the lobby's battle info (pcsx2 ZDXSV_GGPO net=1,lobby=1): no static
 host=/relay=, the peers come from fake_lobby.py --ggpo (ggpo_<user>=PORT+k-1 for the k-th client).
 Env: OUT (required), PORT (7101), GDELAY (GGPO frame delay, 1; auto = no delay=, picked from the ping test rtt),
-  GMIN (mindelay=), GGPO_LAT (one-way ms on every GGPO path: fake_lobby.py --ggpo-delay),
+  GMIN (mindelay=), GGPO_LAT (one-way ms on every GGPO path: fake_lobby.py --ggpo-delay; checks every udprelay.py forwarded),
+  GGPO_JITTER (ms), GGPO_LOSS (0..1) with GGPO_LAT: fake_lobby.py --ggpo-jitter/--ggpo-loss,
   P2P (v4 default, v6, dual: fake_lobby.py --p2p; peers' addresses IPv4, this box's IPv6, both),
   GGPO_CLIENTS ("1 2 3 4": clients with lobby=1 and a ggpo_ line; fewer = control, expect every client
   cutting the battle connection: a peer has no GGPO address); other env goes to m4.py.
@@ -65,6 +66,10 @@ def main():
     gdelay = zrig.env("GDELAY", "1")
     auto = gdelay == "auto"
     gmin, lat = zrig.env("GMIN"), zrig.env("GGPO_LAT")
+    jit, loss = zrig.env("GGPO_JITTER"), zrig.env("GGPO_LOSS")
+    if (jit or loss) and not lat:
+        print("m4ggpo: GGPO_JITTER and GGPO_LOSS need GGPO_LAT")
+        return 2
     relay, alt = zrig.env("RELAY"), zrig.env("RELAY_ALT")
     # RELAY checks assume the ping test (GDELAY=auto); a fixed delay skips it
     if relay and not auto:
@@ -110,6 +115,7 @@ def main():
         rl, ri = f"127.0.0.1:8261,127.0.0.1:8262,{ra},127.0.0.1:8263", "2"
         os.environ["ZRELAY"] = f"{ra},127.0.0.1:8263"
     fa = f"--ggpo {port} --ggpo-clients {''.join(gc)}" + (f" --ggpo-delay {lat}" if lat else "") + f" --p2p {p2p}" + \
+        (f" --ggpo-jitter {jit}" if jit else "") + (f" --ggpo-loss {loss}" if loss else "") + \
         (f" --bad-session {bad}" if bad else "") + (f" --no-addr {noaddr}" if noaddr else "") + \
         (f" --ggpo-block {gb}" if gb else "") + (f" --relay {rl} --relay-session {rs}" if relay else "")
     RC[0] = subprocess.call([zrig.PY, "-u", os.path.join(zrig.HERE, "m4.py")], env=dict(os.environ, FAKE_ARGS=fa))
@@ -196,6 +202,15 @@ def main():
         except OSError:
             rlog = []
         ok("relay forwarded", any(re.search(r"forwarded [1-9]", l) for l in rlog))
+    if lat and not relay:
+        try:
+            fl = zrig.log_lines(os.path.join(os.environ["OUT"], "fake.log"), r"relay ")
+        except OSError:
+            fl = []
+        pairs = {p for l in fl for p in re.findall(r"relay (\d+<->\d+) delay", l)}
+        last = {p: n for l in fl for n, p in re.findall(r"out (\d+) \((\d+<->\d+)\)", l)}
+        ok(f"every udprelay forwarded ({len(pairs)}: {', '.join(f'{p} out {last.get(p)}' for p in sorted(pairs))})",
+           pairs and all(int(last.get(p, 0)) > 0 for p in pairs))
     if n < 4:
         ok("no ggpo session", not any("ZdxsvGgpo: net player" in l for ls in every for l in ls))
     for i in gc:

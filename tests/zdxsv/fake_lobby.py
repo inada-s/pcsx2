@@ -18,7 +18,7 @@ With --trace (a `zdxsv -v=2 lobby` log of a real battle, lobby_trace.py):
   adopted connection at position k plays the k-th recorded user (0x6913 answers of the
   trace). 0x6915 gets a fresh battle code; 0x6916 the battle server, after the custom 0x9951
   battle info (session, users, p2p_<user>=addr from the STUN answers below, ggpo_<user> with --ggpo;
-  ggpo_session + ggpo_ping_ms as zdxsv (--bad-session K: client K's differs); --no-addr K: client K has no p2p_ / ggpo_ line; --ggpo-delay D: ggpo_ = a udprelay.py per pair, D ms one way,
+  ggpo_session + ggpo_ping_ms as zdxsv (--bad-session K: client K's differs); --no-addr K: client K has no p2p_ / ggpo_ line; --ggpo-delay D: ggpo_ = a udprelay.py per pair, D ms one way (--ggpo-jitter, --ggpo-loss),
   so the GGPO ping test and battle see 2*D ms rtt); --ggpo-block K-L[,K-L...]: no relay for those pairs, so they reach each other only through another peer (K-1,K-2,... with every other client: K reaches nobody); --relay ADDR: relay_0 for a `zdxsv relay` there, ggpo_session from --relay-session.
 - STUN on UDP --port+1 (JSON Ping -> Pong with public_addr). The emulator pings it right
   before its adopted connection sends, so the k-th unbound ping address belongs to the k-th
@@ -209,6 +209,7 @@ class Battle:
                     continue
                 cmd = [sys.executable, "-u", UDPRELAY, "--a", str(port), "--b", str(port + 1),
                        "--p1", str(self.ggpo_port(x)), "--p2", str(self.ggpo_port(y)), "--delay", str(self.args.ggpo_delay),
+                       "--jitter", str(self.args.ggpo_jitter), "--loss", str(self.args.ggpo_loss), "--seed", str(port),
                        "--seconds", "3600", "--idle", "600"]
                 subprocess.Popen(cmd)
                 log("relay %s :%d <-> %s :%d: %d / %d, %g ms one way" % (x.user, self.ggpo_port(x), y.user, self.ggpo_port(y),
@@ -468,6 +469,8 @@ def main():
                     "(adopted connections send no platform info; pcsx2 ZDXSV_GGPO lobby=1,port=GGPO+k-1)")
     ap.add_argument("--ggpo-clients", default="1234", help="adopted clients (1-based) that get a ggpo_ line")
     ap.add_argument("--ggpo-delay", type=float, default=0, help="one-way ms: ggpo_ ports point at a udprelay.py per pair")
+    ap.add_argument("--ggpo-jitter", type=float, default=0, help="--ggpo-delay relays: udprelay.py --jitter (ms)")
+    ap.add_argument("--ggpo-loss", type=float, default=0, help="--ggpo-delay relays: udprelay.py --loss (0..1, seeded by the relay port)")
     ap.add_argument("--ggpo-relay-port", type=int, default=7301, help="first relay port (2 per pair)")
     ap.add_argument("--ggpo-block", default="", help="K-L[,K-L...] (adopted clients, 1-based, with --ggpo-delay): those pairs get relay ports that nothing listens on")
     ap.add_argument("--bad-session", type=int, default=0, help="the k-th adopted client (1-based) gets a different ggpo_session")

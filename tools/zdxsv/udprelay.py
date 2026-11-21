@@ -32,7 +32,7 @@ while time.monotonic() < end and not (got and not q and time.monotonic() - last 
     now = time.monotonic()
     if now >= tick:
         tick = now + o.every
-        print(f'relay stats: packets in {got} lost {lost} out {sent}', flush=True)
+        print(f'relay stats: packets in {got} lost {lost} out {sent} ({o.a}<->{o.b})', flush=True)
     while q and q[0][0] <= now:
         _, _, s, d, data = heapq.heappop(q)
         try:
@@ -53,4 +53,4 @@ while time.monotonic() < end and not (got and not q and time.monotonic() - last 
         out, dest = route[s]
         seq += 1
         heapq.heappush(q, (time.monotonic() + ms / 1000, seq, out, dest, data))
-print(f'relay end: packets in {got} lost {lost} out {sent}', flush=True)
+print(f'relay end: packets in {got} lost {lost} out {sent} ({o.a}<->{o.b})', flush=True)
