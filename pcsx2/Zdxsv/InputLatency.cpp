@@ -393,20 +393,25 @@ namespace Zdxsv
 				return;
 			const GSVector2i size = cur->GetSize();
 			const u32 n = static_cast<u32>(s_cfg.pixels.size());
-			std::unique_ptr<GSDownloadTexture> dl(g_gs_device->CreateDownloadTexture(n, 1, GSTexture::Format::Color));
+			// D3D12 copies into a buffer only at 512-byte aligned offsets (else the command list fails to close).
+			constexpr u32 stride = 512 / sizeof(u32);
+			std::unique_ptr<GSDownloadTexture> dl(g_gs_device->CreateDownloadTexture(n * stride, 1, GSTexture::Format::Color));
 			if (!dl)
 				return;
 			for (u32 i = 0; i < n; i++)
 			{
 				const int x = std::min(s_cfg.pixels[i].first * size.x / real.x, size.x - 1);
 				const int y = std::min(s_cfg.pixels[i].second * size.y / real.y, size.y - 1);
-				dl->CopyFromTexture(GSVector4i(i, 0, i + 1, 1), cur, GSVector4i(x, y, x + 1, y + 1), 0, false);
+				const int dx = static_cast<int>(i * stride);
+				dl->CopyFromTexture(GSVector4i(dx, 0, dx + 1, 1), cur, GSVector4i(x, y, x + 1, y + 1), 0, false);
 			}
 			dl->Flush();
-			if (!dl->Map(GSVector4i(0, 0, n, 1)))
+			if (!dl->Map(GSVector4i(0, 0, n * stride, 1)))
 				return;
 			std::vector<u32> px(n);
-			std::memcpy(px.data(), dl->GetMapPointer(), n * sizeof(u32));
+			const u32* const mapped = reinterpret_cast<const u32*>(dl->GetMapPointer());
+			for (u32 i = 0; i < n; i++)
+				px[i] = mapped[i * stride];
 			dl->Unmap();
 			if (s_pix.last.empty())
 				s_pix.first_v = v;
