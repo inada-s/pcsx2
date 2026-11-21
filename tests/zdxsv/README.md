@@ -104,7 +104,7 @@ USERS=AAAAAA BBBBBB CCCCCC DDDDDD
   `tools/zdxsv/rerunpic.py` (exit 0 PASS). For changes to what rerun frames skip;
   `"ZDXSV_SINGLE_DRAW_LIST=0 ZDXSV_RERUN_TAIL=1"` is its FAIL control. ~4 min, ~0.5 GB of snapshots.
 - Pictures after rollbacks by pixel color: `OUT=<dir> python tests/zdxsv/rerunpix.py ["<env>"]`: the same
-  synctest with a 16-pixel watch instead of snapshots; PASS (exit 0) when every vsync shows a frame and
+  synctest with a 16-pixel watch instead of snapshots; PASS (exit 0) when every vsync of the battle shows a frame and
   no frame after a rollback repeats the one before. `"ZDXSV_SINGLE_DRAW_LIST=0 ZDXSV_RERUN_TAIL=1"` is its
   FAIL control.
 - Input to picture: `OUT=<dir> python tests/zdxsv/inputpic.py ["<env>"]` presses down/up 8 times
