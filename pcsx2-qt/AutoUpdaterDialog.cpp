@@ -789,6 +789,13 @@ bool AutoUpdaterDialog::processUpdate(const std::vector<u8>& data, QProgressDial
 		}
 		QString new_name = UpdateVersionNumberInName(info.completeBaseName(), m_latest_version);
 		std::optional<std::string> trashed_path = CocoaTools::MoveToTrash(*path);
+		// zdxsv: no usable Trash (a volume without one, a denied Trash): park the old app in the staging directory
+		if (!trashed_path.has_value())
+		{
+			const QString parked_path = temp_dir.path() + QStringLiteral("/PCSX2-Old.app");
+			if (QFile::rename(info.filePath(), parked_path))
+				trashed_path = parked_path.toStdString();
+		}
 		if (!trashed_path.has_value())
 		{
 			reportError("Failed to trash old application");
