@@ -445,8 +445,9 @@ GSRendererType D3D::GetPreferredRenderer()
 				}
 				else
 				{
-					Console.WriteLn("Sampler feedback tier 0.9 or Vulkan not found for Intel GPU, using OpenGL.");
-					return GSRendererType::OGL;
+					// zdxsv: Direct3D 11, not OpenGL, on Intel GPUs before Xe: their OpenGL drivers are suspected of frame hitches in net battles (needs testing)
+					Console.WriteLn("Sampler feedback tier 0.9 or Vulkan not found for Intel GPU, using Direct3D 11.");
+					return GSRendererType::DX11;
 				}
 			}
 

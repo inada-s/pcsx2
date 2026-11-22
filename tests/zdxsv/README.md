@@ -316,6 +316,7 @@ Scripts are in `tests/zdxsv/` except `run.py` (repository root) and
 |---|---|---|
 | No save state on shutdown | no test. By hand: close the window during a game: the dialog has no `Save State For Resume`, and no resume state is written to the save state folder; `ZdxsvFeatureLimits = false`: as upstream | none |
 | Round Sprite Full for the Z game | no test. By hand: at 2x or more, the Capcom user registration screen and the loading screens show no lines between sprites; emulog has no `GameDB: Skipping GS Hardware Fix` | none |
+| Direct3D 11 for Intel GPUs before Xe | no test. By hand: on an Intel GPU before Xe with the renderer on Automatic, emulog shows `for Intel GPU, using Direct3D 11.`; a chosen renderer is used as chosen | none |
 | No game properties | no test. By hand: the System menu, the game list context menu and Big Picture have no game properties entry and a saved game settings ini is not loaded (emulog has no `Loading game settings from`); `ZdxsvFeatureLimits = false`: as upstream | none |
 | Mouse wheel volume | no test. By hand: wheel over the game screen, OSD `Volume: N%` steps by 5 and the status bar volume follows; setting off or the wheel bound: no change | none |
 
