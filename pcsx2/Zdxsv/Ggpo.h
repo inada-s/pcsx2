@@ -30,7 +30,6 @@ namespace Zdxsv
 	struct LobbyPlayer
 	{
 		std::string id, name, pilot; // name, pilot: UTF-8, "" if none
-		std::string sync; // "sync_<user>=": its SyncFingerprint, "" if none
 		int team = 0; // 1 / 2, 0 = unknown
 	};
 	void SetLobbyPeers(int me, std::vector<std::vector<Zdxsv::PeerAddr>> byPosition, u32 session, int pingMs, std::string ids,

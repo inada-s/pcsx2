@@ -67,7 +67,6 @@ namespace Zdxsv
 		std::vector<std::string> users; // every player, self included
 		std::map<std::string, std::string> names; // users[].user_name (UTF-8): network status OSD
 		std::map<std::string, std::string> pilots; // users[].pilot_name (UTF-8): OSD
-		std::map<std::string, std::string> syncs; // users[].sync: settings fingerprint (16 hex digits), GgpoLobby LobbyArm
 		std::map<std::string, int> teams; // users[].team: 1 / 2 (entry side); absent when unknown
 		// candidates: UDP addresses of peers that reported them, in users order
 		// (udp_addr public, udp_local, udp_addr6, TCP source); GgpoPeers takes the IPs.

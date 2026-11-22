@@ -117,7 +117,7 @@ namespace Zdxsv
 		constexpr size_t MAX_USERS = 8, MAX_CANDIDATES = 64, MAX_RELAYS = 4;
 		struct User
 		{
-			std::string id, name, pilot, sync;
+			std::string id, name, pilot;
 			int64_t team = 0;
 			int64_t ggpo = 0;
 		};
@@ -151,7 +151,7 @@ namespace Zdxsv
 				[&](const Json& e) {
 					User& u = users.emplace_back();
 					return JsonStr(e, "user_id", u.id) && JsonStr(e, "user_name", u.name) && JsonStr(e, "pilot_name", u.pilot) &&
-						   JsonInt(e, "team", u.team) && JsonInt(e, "ggpo_port", u.ggpo) && JsonStr(e, "sync", u.sync);
+						   JsonInt(e, "team", u.team) && JsonInt(e, "ggpo_port", u.ggpo);
 				}) &&
 			JsonObjects(doc, "candidates", MAX_CANDIDATES,
 				[&](const Json& e) {
@@ -176,16 +176,12 @@ namespace Zdxsv
 			info.users.push_back(u.id);
 		}
 		info.userId = users[peerId].id;
-		static const char* drop_sync = TestEnv("ZDXSV_DROP_SYNC");
 		for (const User& u : users)
 		{
 			if (!u.name.empty())
 				info.names[u.id] = u.name;
 			if (!u.pilot.empty())
 				info.pilots[u.id] = u.pilot;
-			if (u.sync.size() == 16 && u.sync.find_first_not_of("0123456789abcdef") == std::string::npos &&
-				!(drop_sync && std::atoi(drop_sync) == &u - users.data()))
-				info.syncs[u.id] = u.sync;
 			if (u.team == 1 || u.team == 2)
 				info.teams[u.id] = static_cast<int>(u.team);
 			if (u.id != info.userId && u.ggpo > 0 && u.ggpo <= 0xFFFF)
@@ -287,8 +283,8 @@ namespace Zdxsv
 			Kind kind;
 		} FIELDS[] = {{"battle_code", "battle_code", STR}, {"players", "player_count", INT}, {"position", "peer_id", INT},
 			{"close", "close_reason", STR}, {"frames", "frame_count", INT}, {"delay", "input_delay", INT},
-			{"user_id", "user_id", STR}, {"result", "result", STR}, {"reason", "cut_reason", STR}, {"sync", "sync", STR},
-			{"sync_differ", "sync_differ", STR}, {"answered", "answered", INT}, {"relays", "relay_count", INT},
+			{"user_id", "user_id", STR}, {"result", "result", STR}, {"reason", "cut_reason", STR},
+			{"answered", "answered", INT}, {"relays", "relay_count", INT},
 			{"ping_error", "ping_error", STR}, {"ping_wait_ms", "ping_wait_ms", INT}, {"min_delay", "min_delay", INT},
 			{"fixed_delay", "fixed_delay", BOOL}, {"cut_sends", "cut_sends", INT}, {"rollback_frames", "rollback_frames", INT},
 			{"mismatches", "mismatches", INT}, {"disconnected", "disconnected", BOOL}, {"rollback_budget", "rollback_budget", NUM},
