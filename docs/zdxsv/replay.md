@@ -192,7 +192,7 @@ D-pad. While taken over the pad plays the game.
   picked before the start (replay window, `ZDXSV_REPLAY_POV`). A position
   not played yet runs its own battle start from the common state
   (`ZDXSV_REPLAY_POV_AT`, tests).
-- **Control bar**: play or pause, speed, ◀ ▶, round steps, round results,
+- **Control bar**: play or pause, speed, ◀ ▶, round steps,
   takeover, time in the round, frame, and a timeline of the round shown.
   Shown for 3 s after the mouse moves over the bottom quarter or a pad
   control changes.
@@ -230,10 +230,6 @@ D-pad. While taken over the pad plays the game.
   or with a `log_file_version` before 20261116 (its round states lack part
   of that RAM: a later round can load another stage or pick another mobile
   suit), seeks without round states.
-- **Round results**: the bar shows each round's W / L / D for the shown
-  position's team; playback logs a round whose result differs from the file.
-  Hovering them lists each round's mobile suits (the file's `used_ms`, else
-  the ones at the round end): the shown team's, then the other team's.
 - **Takeover**: in a battle only, the shown position plays from
   the current frame with the host pad, input delay `mindelay`. A 1 s
   countdown (a filling circle) runs paused; the replay's input at the

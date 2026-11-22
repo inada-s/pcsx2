@@ -210,7 +210,6 @@ namespace Zdxsv
 						std::lock_guard lock(s_battle_loads_mtx);
 						const size_t i = s_play_loads.results.size();
 						s_play_loads.results.push_back(win);
-						s_play_loads.ms.push_back(MsIds());
 						Console.WriteLn("ZdxsvGgpo: replay: round result %zu: win_team %d at frame %d, MS ids %08x", i + 1, win, f - 1, MsIds());
 						if (i < s_play_loads.file_rounds.size() && s_play_loads.file_rounds[i] != win)
 							Console.Error("ZdxsvGgpo: replay: round result %zu differs from the file's win_team %d", i + 1, s_play_loads.file_rounds[i]);
@@ -449,10 +448,7 @@ namespace Zdxsv
 			// screens, so it is not counted)
 			const size_t ended = std::count_if(s_play.spans.begin(), s_play.spans.end(), [r](const auto& s) { return s.first < r; });
 			for (size_t i = s_play_loads.results.size(); i < std::min(ended, s_play_loads.file_rounds.size()); i++)
-			{
 				s_play_loads.results.push_back(s_play_loads.file_rounds[i]);
-				s_play_loads.ms.push_back(i < s_play_loads.file_ms.size() ? s_play_loads.file_ms[i] : 0xffffffffu);
-			}
 		}
 		if (s_play.hi < r - 1)
 		{
@@ -1054,26 +1050,5 @@ namespace Zdxsv
 	{
 		std::lock_guard lock(s_battle_loads_mtx);
 		return s_play_loads.battle.size() > 2 ? std::vector<int>(s_play_loads.battle.begin() + 2, s_play_loads.battle.end()) : std::vector<int>();
-	}
-
-	std::string ReplayRoundResults()
-	{
-		const int pov = s_bar.pov, players = s_opt.players;
-		if (pov < 0 || players < 1)
-			return {};
-		const int team = pov < players / 2 ? 1 : 2; // team 1 = the first half of the positions
-		std::lock_guard lock(s_battle_loads_mtx);
-		const std::vector<int>& rounds = s_play_loads.file_rounds.empty() ? s_play_loads.results : s_play_loads.file_rounds;
-		std::string s;
-		for (const int win : rounds)
-			s += win == team ? 'W' : win < 0 ? 'D' : 'L';
-		return s;
-	}
-
-	std::vector<u32> ReplayRoundMs(int& players)
-	{
-		players = s_opt.players;
-		std::lock_guard lock(s_battle_loads_mtx);
-		return s_play_loads.file_rounds.empty() ? s_play_loads.ms : s_play_loads.file_ms;
 	}
 } // namespace Zdxsv

@@ -4,7 +4,6 @@
 #include "Zdxsv/UiHooks.h"
 #include "Zdxsv/Ggpo.h"
 #include "Zdxsv/Lobby.h"
-#include "Zdxsv/ReplayList.h"
 #include "Zdxsv/TestOptions.h"
 
 #include "GS/GS.h"
@@ -31,36 +30,6 @@ namespace Zdxsv
 {
 	namespace
 	{
-		// One line per round: "R1 W  own team's MS vs the other team's", positions in order; empty when no MS is known.
-		std::string RoundMsText(const std::string& results, int pov)
-		{
-			int players = 0;
-			const std::vector<u32> ms = Zdxsv::ReplayRoundMs(players);
-			if (players < 2 || players > 4 || pov < 0 || pov >= players)
-				return {};
-			const int half = players / 2;
-			const int own = pov < half ? 0 : half, other = half - own;
-			const auto team = [&](u32 ids, int first) {
-				std::string s;
-				for (int p = first; p < first + half; p++)
-				{
-					const u32 id = (ids >> (p * 8)) & 0xff;
-					s += s.empty() ? "" : " ";
-					const char* name = MsName(id);
-					s += name ? name : "?";
-				}
-				return s;
-			};
-			std::string text;
-			for (size_t r = 0; r < ms.size() && r < results.size(); r++)
-			{
-				if (ms[r] == 0xffffffffu)
-					continue;
-				text += fmt::format("{}R{} {}  {} vs {}", text.empty() ? "" : "\n", r + 1, results[r], team(ms[r], own), team(ms[r], other));
-			}
-			return text;
-		}
-
 		// zdxsv replay key display (ZDXSV_REPLAY_KEY_DISPLAY=1 / hotkey): the shown position's last input changes, newest on top,
 		// each with the frames it was held (capped at 99). Bits: the B word (ZdPadAB).
 		static constexpr struct { u16 bit; const char* icon; } buttons[] = {
@@ -282,28 +251,6 @@ namespace Zdxsv
 				{
 					Console.WriteLn("ZdxsvGgpo: replay bar: round +1 at frame %d", frame);
 					Host::RunOnCPUThread([] { Zdxsv::ReplayJumpRound(1); });
-				}
-				if (const std::string results = Zdxsv::ReplayRoundResults(); !results.empty())
-				{
-					const float tw = text_at(x, results.c_str(), text_col);
-					layout += fmt::format(" results:{} {:.0f}-{:.0f}", results, x, x + tw);
-					if (ImGui::IsMouseHoveringRect(ImVec2(x, y0), ImVec2(x + tw, y0 + bar_h)))
-					{
-						s_idle = 3.0f;
-						if (const std::string tip = RoundMsText(results, pov); !tip.empty())
-						{
-							ImGui::SetTooltip("%s", tip.c_str());
-							static std::string s_tip; // logged when it changes, for test drivers
-							if (tip != s_tip)
-							{
-								s_tip = tip;
-								std::string line = tip;
-								std::replace(line.begin(), line.end(), '\n', '|');
-								Console.WriteLn("ZdxsvGgpo: replay bar: round MS %s", line.c_str());
-							}
-						}
-					}
-					x += tw + pad;
 				}
 				// takeover: take over the own position here; while taken over, retry from its frame or back to the replay
 				int to_phase = 0;

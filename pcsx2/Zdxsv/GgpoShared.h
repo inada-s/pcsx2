@@ -497,7 +497,6 @@ namespace Zdxsv
 	{
 		std::vector<int> battle;
 		std::vector<int> file_rounds, results;
-		std::vector<u32> file_ms, ms; // per round, as MsIds packs them
 	};
 	extern PlayLoads s_play_loads;
 
