@@ -217,6 +217,7 @@ Visual Studio and `lupdate` drop comments when they rewrite these files.
 | `pcsx2/GS/Renderers/Common/GSRenderer.cpp` | `GSRenderer::VSync` | `Zdxsv::g_gs_rerun_frame` |
 | `pcsx2/GS/Renderers/Common/GSRenderer.cpp` | `GSRenderer::VSync` | `Zdxsv::g_gs_rerun_frame` |
 | `pcsx2/GS/Renderers/Common/GSRenderer.cpp` | `GSGetLastDrawRect` | overlays place their text on the game image |
+| `pcsx2/GS/Renderers/DX11/D3D.cpp` | `D3D::GetPreferredRenderer` | Direct3D 11, not OpenGL, on Intel GPUs before Xe: their OpenGL drivers are suspected of frame hitches in net battles (needs testing) |
 | `pcsx2/Gif_Unit.cpp` |  | include `Zdxsv/SaveStateHooks.h` |
 | `pcsx2/Gif_Unit.cpp` | `SaveStateBase::gifPathFreeze` | `Zdxsv::DeltaFreezeMarkScratch` |
 | `pcsx2/Gif_Unit.cpp` | `SaveStateBase::gifPathFreeze` | `Zdxsv::g_delta_freeze_load` |
