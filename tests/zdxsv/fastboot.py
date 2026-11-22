@@ -1,5 +1,6 @@
 """Fast boot: two boottime.py runs with fast boot on and no input. Run 1 must reach the user_id selection
-within LIMIT s of the VM start, twice in a row from a full boot: no fast boot state file is written or loaded.
+within LIMIT s of the VM start, twice in a row from a full boot: no fast boot state file is written or loaded,
+and the old-style state planted before run 1 is deleted.
 Run 2 (an unformatted card it writes) must log that fast boot stopped within 15 s.
   OUT=<dir> python tests/zdxsv/fastboot.py
 Env: LIMIT (s, default 30), CARD (as boottime.py).
@@ -41,6 +42,9 @@ def step(out, name, states):
     if "PASS user_id" not in txt:
         print(f"FAIL {name}: no user_id screen in {limit} s")
         return False
+    if name == "first" and not emulog(out, name, "Zdxsv: fast boot: deleted the old boot state"):
+        print(f"FAIL {name}: the planted old boot state was not deleted")
+        return False
     if not emulog(out, name, "Zdxsv: fast boot: on"):
         print(f"FAIL {name}: no 'fast boot: on' in emulog")
         return False
@@ -58,8 +62,9 @@ def main():
     zrig.need("OUT", "RUN")
     out, run = os.environ["OUT"], os.environ["RUN"]
     states = os.path.join(run, "p1", "PCSX2", "sstates", "* zdxsv-fastboot*.p2s")
-    for f in glob.glob(states):
-        os.remove(f)
+    os.makedirs(os.path.dirname(states), exist_ok=True)
+    with open(states.replace("* zdxsv-fastboot*", "SLPS-25419 zdxsv-fastboot 00000000 0000000000000000"), "wb") as f:
+        f.write(b"not a state")
     os.makedirs(out, exist_ok=True)
     for name in ("first", "second"):
         if not step(out, name, states):

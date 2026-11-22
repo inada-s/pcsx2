@@ -13,6 +13,7 @@
 #include "VMManager.h"
 
 #include "common/Console.h"
+#include "common/FileSystem.h"
 
 #include <deque>
 
@@ -83,6 +84,20 @@ namespace Zdxsv
 			LimiterModeType limiter = LimiterModeType::Nominal;
 		};
 		FastBoot s_boot;
+		bool s_old_states_deleted = false;
+
+		// Boot states of earlier fast boot builds: they keep the patches of the session they were taken in.
+		void DeleteOldBootStates()
+		{
+			FileSystem::FindResultsArray old;
+			FileSystem::FindFiles(EmuFolders::Savestates.c_str(), (VMManager::GetDiscSerial() + " zdxsv-fastboot*.p2s").c_str(),
+				FILESYSTEM_FIND_FILES, &old);
+			for (const FILESYSTEM_FIND_DATA& f : old)
+			{
+				if (FileSystem::DeleteFilePath(f.FileName.c_str()))
+					Console.WriteLn("Zdxsv: fast boot: deleted the old boot state %s", f.FileName.c_str());
+			}
+		}
 
 		u32 Pointer(u32 addr)
 		{
@@ -180,6 +195,11 @@ namespace Zdxsv
 		if (!s_boot.started)
 		{
 			s_boot.started = true;
+			if (!s_old_states_deleted)
+			{
+				s_old_states_deleted = true;
+				DeleteOldBootStates();
+			}
 			if (!BoolSetting("ZdxsvFastBoot", false, "ZDXSV_FAST_BOOT"))
 			{
 				s_boot.done = true;
