@@ -14,6 +14,8 @@
 #include "pcsx2/SPU2/spu2.h"
 #include "pcsx2/VMManager.h"
 
+#include "common/SettingsInterface.h"
+
 #include "fmt/format.h"
 
 #include <algorithm>
@@ -33,6 +35,25 @@ namespace Zdxsv
 
 		WheelVolumeState s_wheel_volume;
 
+		// Same layer choice as the status bar volume menu: the game's settings when they hold a volume.
+		void WheelVolumeSave(u32 volume)
+		{
+			const bool standard = VMManager::GetTargetSpeed() == 1.0f;
+			const char* key = standard ? "StandardVolume" : "FastForwardVolume";
+			(standard ? EmuConfig.SPU2.StandardVolume : EmuConfig.SPU2.FastForwardVolume) = volume;
+
+			auto lock = Host::GetSettingsLock();
+			SettingsInterface* game = Host::Internal::GetGameSettingsLayer();
+			if (game && game->ContainsValue("SPU2/Output", key))
+			{
+				game->SetIntValue("SPU2/Output", key, static_cast<s32>(volume));
+				QtHost::SaveGameSettings(game, true);
+				return;
+			}
+			Host::Internal::GetBaseSettingsLayer()->SetIntValue("SPU2/Output", key, static_cast<s32>(volume));
+			Host::CommitBaseSettingChanges();
+		}
+
 		void WheelVolumeAdjust(s32 delta)
 		{
 			if (!VMManager::HasValidVM())
@@ -48,7 +69,10 @@ namespace Zdxsv
 			const s32 maximum_volume = static_cast<s32>(Pcsx2Config::SPU2Options::MAX_VOLUME);
 			const s32 new_volume = std::clamp(current_volume + delta, 0, maximum_volume);
 			if (current_volume != new_volume)
+			{
 				SPU2::SetOutputVolume(static_cast<u32>(new_volume));
+				WheelVolumeSave(static_cast<u32>(new_volume));
+			}
 
 			const char* icon = new_volume == 0 ? ICON_FA_VOLUME_OFF : (new_volume < 100 ? ICON_FA_VOLUME_LOW : ICON_FA_VOLUME_HIGH);
 			Host::AddIconOSDMessage("VolumeChanged", icon, fmt::format(TRANSLATE_FS("Hotkeys_Volume", "Volume: {}%"), new_volume),
