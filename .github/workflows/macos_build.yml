@@ -57,7 +57,8 @@ jobs:
       CCACHE_DIR: ${{ github.workspace }}/.ccache
       CCACHE_COMPRESS: true
       CCACHE_COMPRESSLEVEL: 9
-      CCACHE_MAXSIZE: 100M
+      # zdxsv: the objects with debug info and LTO bitcode overflow 100M, and an evicted object misses in the release
+      CCACHE_MAXSIZE: 1G
       # Only way to use a secret in an if statement
       SIGN_KEY: ${{ secrets.APPLE_SIGN_P12_B64 }}
 
@@ -134,19 +135,17 @@ jobs:
           key: ${{ inputs.os }} ${{ inputs.arch }} ccache ${{ steps.ccache_cache_timestamp.outputs.timestamp }}
           restore-keys: ${{ inputs.os }} ${{ inputs.arch }} ccache
 
-      # zdxsv: inputs.cmakeFlags; the release app gets debug info for its dSYM
+      # zdxsv: inputs.cmakeFlags; LTO on arm64 too; debug info for the release's dSYM in every build, so the
+      # release's compile commands match the CI builds' and hit their ccache
       - name: Generate CMake Files
         run: |
-          DEBUG_FLAGS=
-          if [ -n "${{ inputs.zdxsvAppArtifact }}" ]; then
-            # ThinLTO objects must outlive the link, or dsymutil finds no debug info
-            DEBUG_FLAGS="-DCMAKE_C_FLAGS=-g -DCMAKE_CXX_FLAGS=-g -DCMAKE_EXE_LINKER_FLAGS=-Wl,-object_path_lto,$PWD/build/lto"
-          fi
+          # ThinLTO objects must outlive the link, or dsymutil finds no debug info
+          DEBUG_FLAGS="-DCMAKE_C_FLAGS=-g -DCMAKE_CXX_FLAGS=-g -DCMAKE_EXE_LINKER_FLAGS=-Wl,-object_path_lto,$PWD/build/lto"
           cmake -DCMAKE_PREFIX_PATH="$HOME/deps" $DEBUG_FLAGS \
                 -DCMAKE_BUILD_TYPE=Release \
                 -DCMAKE_OSX_ARCHITECTURES="${{ case(inputs.arch == 'x86-64', 'x86_64', inputs.arch) }}" \
                 -DDISABLE_ADVANCE_SIMD=ON \
-                -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=${{ case(inputs.arch == 'x86-64', 'ON', 'OFF') }} \
+                -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
                 -DUSE_LINKED_FFMPEG=ON \
                 -DCMAKE_C_COMPILER_LAUNCHER=ccache \
                 -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
