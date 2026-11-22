@@ -200,6 +200,10 @@ A peer is reached through:
 - another peer, when that path is 32 ms faster, or the direct path got no
   answer
 
+Each side picks its relay peer on its own, so the two directions may go
+through different peers: packets of a peer reached through another peer
+are accepted from any directly reached peer.
+
 A relayed peer shows `(R)` on the OSD.
 
 ## Addresses in the log

@@ -563,10 +563,17 @@ void ZdxsvReplayDialog::refreshLive()
 			const bool closed = o["closed"].toBool();
 			running += !closed;
 			QTreeWidgetItem* item = new QTreeWidgetItem(m_live);
-			item->setText(0, FormatDate(static_cast<qint64>(o["start_unix"].toDouble())));
+			const qint64 start = static_cast<qint64>(o["start_unix"].toDouble());
+			item->setText(0, FormatDate(start));
 			item->setText(1, code);
 			item->setText(2, JsonPlayers(o["users"].toArray()));
-			item->setText(3, FormatLength(o["frames"].toInt()));
+			// start_unix is on the lobby's clock: measure it against server_unix; a lobby without it: this PC's clock
+			const qint64 now = o.contains(QStringLiteral("server_unix")) ? static_cast<qint64>(o["server_unix"].toDouble()) : QDateTime::currentSecsSinceEpoch();
+			if (!closed && start > 0)
+			{
+				const qint64 s = std::max<qint64>(0, now - start);
+				item->setText(3, QStringLiteral("%1:%2").arg(s / 60).arg(s % 60, 2, 10, QLatin1Char('0')));
+			}
 			item->setText(4, closed ? tr("Ended") : tr("Live"));
 			item->setText(5, QString::number(o["spectators"].toInt()));
 			item->setData(0, SOURCE_ROLE, QString::fromStdString(Zdxsv::LiveReplaySource(code.toStdString())));

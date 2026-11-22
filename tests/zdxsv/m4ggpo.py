@@ -29,6 +29,8 @@ Checks (besides m4.py's): GGPO clients: `lobby peer position` x(N-1) and `net pl
   BLOCK=K-L (GDELAY=auto, with GGPO_LAT; fake_lobby.py --ggpo-block): clients K and L get no path to each
   other, so each reaches the other through a third peer: K and L `path ... peer` x1 and `(relay)` x1, every
   other path `direct`, K and L take the lobby delay from the peer path rtt (control: the plain checks on those logs fail on K and L).
+  BLOCK=K-L BLOCK_SPLIT=1: K relays through the lowest other position, L through the highest (ZDXSV_PEER_RELAY_PICK);
+  the BLOCK checks plus `path through peer` on K and L.
   UNREACH=K (GDELAY=auto, with GGPO_LAT; fake_lobby.py --ggpo-block K-x for every other client x): nobody has a
   path to client K, not even through a peer: K gets no answer, every other client gets rtt -1 from K only;
   then the BAD_SESSION checks (every client cuts, the game gives up and reconnects to the lobby).
@@ -96,9 +98,21 @@ def main():
     if unreach and (not auto or not lat):
         print("m4ggpo: UNREACH needs GDELAY=auto and GGPO_LAT")
         return 2
+    split = zrig.env("BLOCK_SPLIT")
+    if split and not block:
+        print("m4ggpo: BLOCK_SPLIT needs BLOCK")
+        return 2
+    # BLOCK_SPLIT=1: K relays through the lowest other position, L through the highest
+    pick = {}
+    if split:
+        k, l2 = block.split("-")
+        others = sorted(int(x) - 1 for x in gc if x not in (k, l2))
+        pick = {k: others[0], l2: others[-1]}
+        for x, v in ((k, "first"), (l2, "last")):
+            os.environ[f"PCSX2_ENV_P{x}"] += f" ZDXSV_PEER_RELAY_PICK={v}"
     gb = ",".join(f"{unreach}-{i}" for i in gc if i != unreach) if unreach else block
     cut = bad or unreach
-    if not cut and len(gc) == 4:
+    if len(gc) == 4:
         os.environ.setdefault("JOINS", "0")
     # a bad session's packets arrive and are dropped; an unreachable peer's never arrive
     cutk, dl, dq = ("unreachable", "0 dropped", r" 0 dropped") if unreach else ("bad session", "drops", r" [1-9][0-9]* dropped")
@@ -189,6 +203,8 @@ def main():
             ok(f"p{i} paths direct x2, peer x1", c(r"ZdxsvGgpo: lobby path to position [0-9]: direct") == 2
                and c(r"ZdxsvGgpo: lobby path to position [0-9]: peer [0-9]") == 1)
             ok(f"p{i} peer via relay x1", c(r"ZdxsvGgpo: lobby peer position [0-9] at .* \(relay\)") == 1)
+            if i in pick:
+                ok(f"p{i} path through peer {pick[i]} (BLOCK_SPLIT)", c(rf"ZdxsvGgpo: lobby path to position [0-9]: peer {pick[i]},") == 1)
             rr = [m.group(1) for l in ls for m in re.finditer(r"lobby path to position [0-9]: peer [0-9], rtt ([0-9]*)", l)]
             r = " ".join(rr)
             ok(f"p{i} lobby delay from the peer path (rtt {r})", c(rf"ZdxsvGgpo: lobby delay [0-9]*: slowest peer rtt {re.escape(r) or 'x'} ms"))
@@ -203,7 +219,7 @@ def main():
             rlog = zrig.log_lines(os.path.join(os.environ["OUT"], "relay.log"), "relay test session")
         except OSError:
             rlog = []
-        ok("relay forwarded", any(re.search(r"forwarded [1-9]", l) for l in rlog))
+        ok("relay forwarded", any(re.search(r'forwarded"?:? [1-9]', l) for l in rlog))
     if lat and not relay:
         try:
             fl = zrig.log_lines(os.path.join(os.environ["OUT"], "fake.log"), r"relay ")

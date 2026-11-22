@@ -5,6 +5,7 @@
 
 #include "Zdxsv/Lobby.h"
 #include "Zdxsv/LobbyNet.h"
+#include "Zdxsv/TestOptions.h"
 
 #include <algorithm>
 #include <array>
@@ -496,9 +497,17 @@ namespace Zdxsv
 				PingResult r = direct[p];
 				const bool directOk = r.rtt > 0;
 				int peerJ = -1, peerSum = INT_MAX;
+				// test: first|last forces the lowest|highest usable peer, so the two sides of a blocked pair can differ
+				static const char* pick = TestEnv("ZDXSV_PEER_RELAY_PICK");
+				const int force = !pick ? 0 : !std::strcmp(pick, "first") ? 1 : !std::strcmp(pick, "last") ? 2 : 0;
 				for (int j = 0; j < m_n; j++)
-					if (j != p && j != m_me && m_rtt[m_me][j] && 0 < m_rtt[j][p] && m_rtt[j][p] < 255 && m_rtt[m_me][j] + m_rtt[j][p] < peerSum)
-						peerSum = m_rtt[m_me][j] + m_rtt[j][p], peerJ = j;
+				{
+					if (j == p || j == m_me || !m_rtt[m_me][j] || m_rtt[j][p] == 0 || m_rtt[j][p] >= 255)
+						continue;
+					const int sum = m_rtt[m_me][j] + m_rtt[j][p];
+					if (force == 1 ? peerJ < 0 : force == 2 || sum < peerSum)
+						peerSum = sum, peerJ = j;
+				}
 				bool peerOk = false;
 				int peerRtt = 0;
 				if (peerJ >= 0 && (!directOk || peerSum + 32 < r.rtt) && direct[peerJ].rtt > 0)

@@ -117,7 +117,7 @@ Tools → zdxsv Replays:
   Plays the row's `replay_url`. Add to Favorites keeps the row.
 - **Favorites**: the kept rows (`ZdxsvReplayFavorites`); Play asks the lobby
   API for the battle's `replay_url`.
-- **Live**: the lobby's `/lbs/live` (running battles first, refreshed every 10 s
+- **Live**: the lobby's `/lbs/live` (running battles first; a running battle's elapsed time is `server_unix - start_unix`, both on the lobby's clock, refreshed every 10 s
   while the tab is shown). Plays `live:<API URL>#<code>`.
 - Remote, Live and Favorites ask the lobby API of setting `ZdxsvLobbyApiUrl`
   (ini only, `options.md`).
