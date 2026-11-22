@@ -141,7 +141,10 @@ namespace Zdxsv
 				return;
 			const auto first_load = s_play.rngs.upper_bound(0);
 			const bool first_state = (s_play_round_take || !s_play.round_states.empty()) && first_load != s_play.rngs.end() && f == first_load->first;
-			if (s_play_key_every <= 0 || (f % s_play_key_every != 0 && !first_state))
+			// a later round's MS-select load end: the keys of the rounds before go (as flycast); its round state over the
+			// first load end's key reaches them again
+			const bool round_start = !first_state && s_play.select_starts.contains(f);
+			if (s_play_key_every <= 0 || (f % s_play_key_every != 0 && !first_state && !round_start))
 				return;
 			// after a round jump, up to the next load end the player work still holds the first round's values: a key there
 			// would bring them back without the jump's unchecked frames
@@ -151,7 +154,19 @@ namespace Zdxsv
 				return;
 			if (first_state)
 				s_play_keys.at(f).pinned = true;
-			// older than KEY_RECENT frames: one key in KEY_SPARSE frames (a key holds what changed up to the next one)
+			if (round_start)
+				for (auto it = s_play_keys.begin(); it != s_play_keys.end() && it->first < f;)
+				{
+					const int k = it->first;
+					const bool keep = it->second.pinned;
+					++it;
+					if (!keep)
+					{
+						DeltaStateDrop(k);
+						s_play_keys.erase(k);
+					}
+				}
+			// older than KEY_RECENT frames: one key in KEY_SPARSE frames (a dropped key's delta joins the key before)
 			for (auto it = s_play_keys.begin(); it != s_play_keys.end() && it->first < f - KEY_RECENT;)
 			{
 				const int k = it->first;

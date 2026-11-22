@@ -171,9 +171,12 @@ D-pad. While taken over the pad plays the game.
   run one after another. While paused, input is polled every 8 ms and the
   picture redrawn at most every 33 ms.
 - **Seek**: a key (a delta state in memory + the battle-socket state) is
-  kept every `ZDXSV_REPLAY_KEY` played frames (frame 0 at the battle start);
-  keys older than 600 frames are thinned out to one every 600 frames, but
-  frame 0, the first load end and the takeover frame. A key load drops the
+  kept every `ZDXSV_REPLAY_KEY` played frames (frame 0 at the battle start)
+  and at each mobile-suit-selection load end; there the keys of the rounds
+  before are dropped (an earlier round is reached by a round state, as a
+  round jump). Keys older than 600 frames are thinned out to one every 600
+  frames. Frame 0, the first load end and the takeover frame are always
+  kept. A key load drops the
   keys after it. A replay's load deletes `zdxsv-replay-*.p2s` files in the
   cache folder. A seek loads the newest key at least one frame before the
   target (a key holds no GS memory; at the target only when no earlier key) and

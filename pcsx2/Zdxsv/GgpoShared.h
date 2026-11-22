@@ -507,7 +507,7 @@ namespace Zdxsv
 		RollbackState rb;
 		FrameRings rings;
 		bool step = false; // saved only for frame steps: dropped once out of their reach
-		bool pinned = false; // frame 0, the first load end (round jumps), the takeover frame: never thinned out
+		bool pinned = false; // frame 0, the first load end (round jumps), the takeover frame: never dropped
 	};
 	extern std::map<int, PlayKey> s_play_keys; // of the shown position, by frame
 	extern std::atomic<int> s_play_req; // requested seek target, INT_MIN = none
