@@ -1,7 +1,7 @@
 """Boot-to-lobby time: local stack (stack.py) + p1 from a cold boot; measures from the launch to the
 lobby's user_id selection screen (ID選択, game RAM over PINE: bootwatch.py). No input by default.
   OUT=<dir> python tests/zdxsv/boottime.py
-Env: LIMIT (s, default 5), MAXS (s to wait, default 200), ROUTE (drive.py keys sent from the start;
+Env: LIMIT (s, default 30), MAXS (s to wait, default 200), ROUTE (drive.py keys sent from the start;
 ROUTE=top,C = today's menu path + ログイン at TOP), CARD (p1 card name, default the first of CARDS),
 SPEED (launch -Speed, default 1), SHOW=1 (windowed), LOBBY=fake (boot_lobby.py instead of the stack:
 only the lobby API login and the lobby up to the user_id list), SAVE_CARD (path: p1's card after the run is copied there).
@@ -128,7 +128,7 @@ def run(out, after=None, prepare=None):
         pids = launch.launch([1], speed=zrig.env("SPEED", "1"), memcard=os.path.join(run_, f"Mcd001-{card}.ps2"),
                              headless=not zrig.env("SHOW"), extra_env=ex, eth=not launch.server_host())
         a = [zrig.PY, os.path.join(zrig.HERE, "bootwatch.py"), "--t0", str(t0), "--pid", str(pids[1]),
-             "--emulog", emulog, "--out", out, "--limit", zrig.env("LIMIT", "5"), "--maxs", zrig.env("MAXS", "200")]
+             "--emulog", emulog, "--out", out, "--limit", zrig.env("LIMIT", "30"), "--maxs", zrig.env("MAXS", "200")]
         if zrig.env("ROUTE"):
             a += ["--route", os.environ["ROUTE"]] + (["--route-end"] if zrig.env("ROUTE_END") else [])
         rc = subprocess.call(a)

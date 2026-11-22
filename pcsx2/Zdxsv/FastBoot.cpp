@@ -4,31 +4,18 @@
 #include "Zdxsv/GameAddresses.h"
 #include "Zdxsv/CpuHooks.h"
 #include "Zdxsv/FastLogin.h"
-#include "Zdxsv/GgpoShared.h"
 #include "Zdxsv/MediaHooks.h"
 #include "Zdxsv/Settings.h"
 
 #include "Config.h"
-#include "Host.h"
 #include "Memory.h"
-#include "SaveState.h"
-#include "SIO/Memcard/MemoryCardFile.h"
 #include "SIO/Pad/Pad.h"
 #include "VMManager.h"
 
 #include "common/Console.h"
 #include "common/FileSystem.h"
-#include "common/Path.h"
 
-#include "fmt/format.h"
-#define XXH_INLINE_ALL 1
-#include "xxhash.h"
-
-#include <array>
 #include <deque>
-#include <optional>
-#include <string>
-#include <vector>
 
 namespace Zdxsv
 {
@@ -81,14 +68,11 @@ namespace Zdxsv
 		{
 			bool started = false;
 			bool done = false;
-			bool use_state = false;
-			bool state_handled = false;
 			bool to_lobby = false;
 			bool in_user_id = false;
 			bool user_id_decided = false;
 			u32 user_id_frame = 0;
 			int user_id_pressed_sub = -1;
-			std::string initial_state;
 			u32 frame = 0;
 			u32 next_press = 0;
 			u32 release_at = 0;
@@ -100,6 +84,20 @@ namespace Zdxsv
 			LimiterModeType limiter = LimiterModeType::Nominal;
 		};
 		FastBoot s_boot;
+		bool s_old_states_deleted = false;
+
+		// Boot states of earlier fast boot builds: they keep the patches of the session they were taken in.
+		void DeleteOldBootStates()
+		{
+			FileSystem::FindResultsArray old;
+			FileSystem::FindFiles(EmuFolders::Savestates.c_str(), (VMManager::GetDiscSerial() + " zdxsv-fastboot*.p2s").c_str(),
+				FILESYSTEM_FIND_FILES, &old);
+			for (const FILESYSTEM_FIND_DATA& f : old)
+			{
+				if (FileSystem::DeleteFilePath(f.FileName.c_str()))
+					Console.WriteLn("Zdxsv: fast boot: deleted the old boot state %s", f.FileName.c_str());
+			}
+		}
 
 		u32 Pointer(u32 addr)
 		{
@@ -110,47 +108,6 @@ namespace Zdxsv
 		void Set(Button b, bool down)
 		{
 			Pad::SetControllerState(0, b, down ? 1.0f : 0.0f);
-		}
-
-		// Taken before the NET file load, so it holds no NET file data. The game has auto-loaded its system data from
-		// the card by then: a state serves only a card with the same contents.
-		// The game has probed the network adapter by then: a state stalls on any other path (no DEV9, adapter on, adapter off).
-		std::string BootStatePrefix()
-		{
-			const char* path = g_no_dev9 ? "" : EmuConfig.DEV9.EthEnable ? "-eth" : "-noeth";
-			return fmt::format("{} zdxsv-fastboot{} ", VMManager::GetDiscSerial(), path);
-		}
-
-		// The file card's own checksum is written back only on a clean close: cards copied or killed mid-session share it.
-		u64 CardHash()
-		{
-			if (!EmuConfig.Mcd[0].Enabled)
-				return 0;
-			if (EmuConfig.Mcd[0].Type != MemoryCardType::File)
-				return FileMcd_GetCRC(0, 0);
-			const auto fp = FileSystem::OpenManagedSharedCFile(EmuConfig.FullpathToMcd(0).c_str(), "rb", FileSystem::FileShareMode::DenyNone);
-			const std::optional<std::vector<u8>> data = fp ? FileSystem::ReadBinaryFile(fp.get()) : std::nullopt;
-			return data ? XXH64(data->data(), data->size(), 0) : 0;
-		}
-
-		std::string BootStatePath()
-		{
-			return Path::Combine(EmuFolders::Savestates,
-				fmt::format("{}{:08X} {:016X}.p2s", BootStatePrefix(), g_SaveVersion, CardHash()));
-		}
-
-		void SaveBootState(std::string path)
-		{
-			FileSystem::FindResultsArray old;
-			FileSystem::FindFiles(EmuFolders::Savestates.c_str(), (BootStatePrefix() + "*.p2s").c_str(), FILESYSTEM_FIND_FILES, &old);
-			for (const FILESYSTEM_FIND_DATA& f : old)
-				FileSystem::DeleteFilePath(f.FileName.c_str());
-			Console.WriteLn("Zdxsv: fast boot: saving %s at frame %u", path.c_str(), s_boot.frame);
-			Host::RunOnCPUThread([path = std::move(path)]() {
-				VMManager::SaveState(path.c_str(), true, false, [](const std::string& error) {
-					Console.Error("Zdxsv: fast boot: saving the state failed: %s", error.c_str());
-				});
-			});
 		}
 
 		void Finish(const char* why)
@@ -238,6 +195,11 @@ namespace Zdxsv
 		if (!s_boot.started)
 		{
 			s_boot.started = true;
+			if (!s_old_states_deleted)
+			{
+				s_old_states_deleted = true;
+				DeleteOldBootStates();
+			}
 			if (!BoolSetting("ZdxsvFastBoot", false, "ZDXSV_FAST_BOOT"))
 			{
 				s_boot.done = true;
@@ -246,7 +208,6 @@ namespace Zdxsv
 			s_boot.limiter = VMManager::GetLimiterMode();
 			VMManager::SetLimiterMode(LimiterModeType::Unlimited);
 			Console.WriteLn("Zdxsv: fast boot: on");
-			s_boot.use_state = BoolSetting("ZdxsvFastBootState", true, "ZDXSV_FAST_BOOT_STATE");
 			s_boot.to_lobby = BoolSetting("ZdxsvFastBootLobby", false, "ZDXSV_FAST_BOOT_LOBBY");
 		}
 		s_boot.frame++;
@@ -298,13 +259,6 @@ namespace Zdxsv
 		}
 		if (scene == kMenuNetwork && net == GameNetLoginBrowser && !FastLoginApplied() && s_boot.frame - s_boot.net_entry > kMenuSettleFrames)
 			return Finish("login browser");
-		if (s_boot.use_state && !s_play_src.path && !s_boot.state_handled && scene == kMenuNetwork && net == kNetFileLoad && net_sub == 0)
-		{
-			s_boot.state_handled = true;
-			std::string path = BootStatePath();
-			if (!FileSystem::FileExists(path.c_str()))
-				SaveBootState(std::move(path));
-		}
 
 		if (s_boot.held >= 0)
 		{
@@ -329,17 +283,5 @@ namespace Zdxsv
 	void FastBootReset()
 	{
 		s_boot = FastBoot{};
-	}
-
-	const char* FastBootInitialState()
-	{
-		if (!BoolSetting("ZdxsvFastBoot", false, "ZDXSV_FAST_BOOT") || !BoolSetting("ZdxsvFastBootState", true, "ZDXSV_FAST_BOOT_STATE"))
-			return "";
-		s_boot.initial_state = BootStatePath();
-		if (!FileSystem::FileExists(s_boot.initial_state.c_str()))
-			s_boot.initial_state.clear();
-		else
-			Console.WriteLn("Zdxsv: fast boot: loading %s", s_boot.initial_state.c_str());
-		return s_boot.initial_state.c_str();
 	}
 } // namespace Zdxsv

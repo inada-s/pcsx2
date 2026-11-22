@@ -349,7 +349,7 @@ Visual Studio and `lupdate` drop comments when they rewrite these files.
 | `pcsx2/VMManager.cpp` | `VMManager::LoadCoreSettings` | `Zdxsv::g_z_game`, `Zdxsv::SyncSettingsEnforce`, `Zdxsv::AllyHpLoadSettings` |
 | `pcsx2/VMManager.cpp` | `VMManager::LoadCoreSettings` | `Zdxsv::g_mtvu_off` |
 | `pcsx2/VMManager.cpp` | `VMManager::UpdateGameSettingsLayer` | `Zdxsv::FeaturesLimited` |
-| `pcsx2/VMManager.cpp` | `VMManager::Initialize` | `Zdxsv::GgpoOnVmInitialize`, `Zdxsv::g_z_game`, `Zdxsv::FastBootInitialState` |
+| `pcsx2/VMManager.cpp` | `VMManager::Initialize` | `Zdxsv::GgpoOnVmInitialize` |
 | `pcsx2/VMManager.cpp` | `VMManager::Shutdown` | `Zdxsv::GgpoOnVmShutdown`, `Zdxsv::FeaturesLimited` |
 | `pcsx2/VMManager.cpp` | `VMManager::Reset` | `Zdxsv::g_online_limits`, `Zdxsv::OnlineRefusesReset` |
 | `pcsx2/VMManager.cpp` | `VMManager::Reset` | `Zdxsv::GgpoOnVmShutdown` |
