@@ -7,10 +7,18 @@
 - Pushing a tag `zdxsv-X.Y.Z` runs `.github/workflows/zdxsv_release.yml`. It
   builds Windows x64 and publishes two files with the same content:
   `pcsx2-zdxsv-windows-x64.7z` for the updater and `.zip` for a first install.
+  It also builds macOS arm64 and x86_64, merges them into one universal app
+  (`.github/workflows/scripts/zdxsv/macos-universal-app.sh`, ad-hoc signature,
+  no notarization) and publishes `pcsx2-zdxsv-macos.tar.xz`, used by the macOS
+  updater and for a first install.
+- A tag run restores the macOS dependency cache only from `zdxsv-master`, where
+  the macOS arm64 build of each push (`macos_build_arm64.yml`) saves it; GitHub
+  drops a cache unused for 7 days. Without it both macOS release builds first build the
+  dependencies (40-60 min).
 - The release reads the production servers from repository variables
   (Settings > Secrets and variables > Actions > Variables). Each must be set;
   an empty one fails the release before the build, and the release job checks
-  that the exe contains both values.
+  that the exe and both macOS slices contain both values.
   - `ZDXSV_SERVER_HOST`: the game server host, e.g. `lbs.zdxsv.net`.
   - `ZDXSV_UDPTEST_URL`: the zdxsv udptest function URL.
 - Crash reports use the optional variable `ZDXSV_SENTRY_DSN` and secret `SENTRY_AUTH_TOKEN`: see [crash-reports.md](crash-reports.md).

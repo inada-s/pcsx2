@@ -29,6 +29,21 @@ on:
         required: false
         type: boolean
         default: false
+      # zdxsv: extra CMake flags (the release passes the production server defaults)
+      cmakeFlags:
+        required: false
+        type: string
+        default: ""
+      # zdxsv: when set, PCSX2.app and its PCSX2.dSYM are also uploaded as PCSX2.app.tar under this artifact name
+      zdxsvAppArtifact:
+        required: false
+        type: string
+        default: ""
+      # zdxsv: the universal dependencies (fat libraries) whatever the arch; they share the arm64 deps cache
+      universalDeps:
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   build_macos:
@@ -42,7 +57,8 @@ jobs:
       CCACHE_DIR: ${{ github.workspace }}/.ccache
       CCACHE_COMPRESS: true
       CCACHE_COMPRESSLEVEL: 9
-      CCACHE_MAXSIZE: 100M
+      # zdxsv: the objects with debug info and LTO bitcode overflow 100M, and an evicted object misses in the release
+      CCACHE_MAXSIZE: 1G
       # Only way to use a secret in an if statement
       SIGN_KEY: ${{ secrets.APPLE_SIGN_P12_B64 }}
 
@@ -98,12 +114,14 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ~/deps
-          key: ${{ inputs.os }} ${{ inputs.arch }} deps ${{ hashFiles('.github/workflows/scripts/macos/*', '.github/workflows/scripts/common/*.patch') }}
+          # zdxsv: universalDeps keys the arm64 cache
+          key: ${{ inputs.os }} ${{ case(inputs.universalDeps, 'arm64', inputs.arch) }} deps ${{ hashFiles('.github/workflows/scripts/macos/*', '.github/workflows/scripts/common/*.patch') }}
 
       - name: Build Dependencies
         if: steps.cache-deps.outputs.cache-hit != 'true'
         run: |
-          .github/workflows/scripts/macos/build-dependencies${{ case(inputs.arch == 'x86-64', '', '-universal') }}.sh "$HOME/deps"
+          # zdxsv: universalDeps
+          .github/workflows/scripts/macos/build-dependencies${{ case(inputs.arch == 'x86-64' && !inputs.universalDeps, '', '-universal') }}.sh "$HOME/deps"
 
       # -- SETUP CCACHE - https://cristianadam.eu/20200113/speeding-up-c-plus-plus-github-actions-using-ccache/
       - name: Prepare ccache timestamp
@@ -117,17 +135,22 @@ jobs:
           key: ${{ inputs.os }} ${{ inputs.arch }} ccache ${{ steps.ccache_cache_timestamp.outputs.timestamp }}
           restore-keys: ${{ inputs.os }} ${{ inputs.arch }} ccache
 
+      # zdxsv: inputs.cmakeFlags; LTO on arm64 too; debug info for the release's dSYM in every build, so the
+      # release's compile commands match the CI builds' and hit their ccache
       - name: Generate CMake Files
         run: |
-          cmake -DCMAKE_PREFIX_PATH="$HOME/deps" \
+          # ThinLTO objects must outlive the link, or dsymutil finds no debug info
+          DEBUG_FLAGS="-DCMAKE_C_FLAGS=-g -DCMAKE_CXX_FLAGS=-g -DCMAKE_EXE_LINKER_FLAGS=-Wl,-object_path_lto,$PWD/build/lto"
+          cmake -DCMAKE_PREFIX_PATH="$HOME/deps" $DEBUG_FLAGS \
                 -DCMAKE_BUILD_TYPE=Release \
                 -DCMAKE_OSX_ARCHITECTURES="${{ case(inputs.arch == 'x86-64', 'x86_64', inputs.arch) }}" \
                 -DDISABLE_ADVANCE_SIMD=ON \
-                -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=${{ case(inputs.arch == 'x86-64', 'ON', 'OFF') }} \
+                -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON \
                 -DUSE_LINKED_FFMPEG=ON \
                 -DCMAKE_C_COMPILER_LAUNCHER=ccache \
                 -DCMAKE_CXX_COMPILER_LAUNCHER=ccache \
                 -DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON \
+                ${{ inputs.cmakeFlags }} \
                 -B build .
 
       - name: Build PCSX2
@@ -145,6 +168,13 @@ jobs:
               exit 1
             fi
           done
+
+      # zdxsv: before any other link, which overwrites the ThinLTO objects in build/lto the dSYM reads
+      - name: Extract the dSYM for the zdxsv Release
+        if: inputs.zdxsvAppArtifact != ''
+        run: |
+          dsymutil build/pcsx2*/PCSX2.app/Contents/MacOS/PCSX2 -o PCSX2.dSYM 2>&1 | tee dsymutil.log
+          ! grep -q -e "no debug symbols" -e "could not find symbol" dsymutil.log
 
       - name: Build GSRunner
         if: inputs.arch != 'x86-64'
@@ -186,6 +216,20 @@ jobs:
           # Despite what the docs say, I found that this file is required and I had 0 luck
           # passing the issuer id, key, etc through arguments.
           app_store_connect_api_key_json_file: 'key.json'
+
+      # zdxsv: the unpacked app for the release's universal merge (tar keeps symlinks and modes)
+      - name: Pack the App for the zdxsv Release
+        if: inputs.zdxsvAppArtifact != ''
+        run: tar -cf PCSX2.app.tar PCSX2.app PCSX2.dSYM
+
+      # zdxsv: see the step above
+      - name: Upload the App for the zdxsv Release
+        if: inputs.zdxsvAppArtifact != ''
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ inputs.zdxsvAppArtifact }}
+          path: PCSX2.app.tar
+          compression-level: 0
 
       - name: Zip Build Artifacts
         if: inputs.arch == 'x86-64'

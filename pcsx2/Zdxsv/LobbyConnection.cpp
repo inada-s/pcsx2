@@ -143,7 +143,7 @@ namespace Zdxsv
 		{
 			if (const char* env = TestEnv("ZDXSV_UDPTEST_URL"))
 				return env;
-			return Host::GetStringSettingValue("DEV9/Eth", "ZdxsvUdpTestUrl", UDPTEST_URL);
+			return Host::GetStringSettingValue("DEV9/Eth", "ZdxsvUdpTestUrl", UdpTestUrlDefault());
 		}
 
 		bool AskUdpReach(const std::string& url, const std::string& addr, const std::atomic<bool>* stop)
