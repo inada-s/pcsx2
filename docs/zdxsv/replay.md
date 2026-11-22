@@ -218,12 +218,9 @@ D-pad. While taken over the pad plays the game.
   running every frame from the start. The jump empties the mobile suit
   cache, so the battle load reloads every mobile suit's assets and sounds
   (the key holds another round's); the slots it picks can differ from the
-  recording's. Without that key (a point of view
-  switched to after a jump), the seek runs to the first load end first, then
+  recording's. Without that key (dropped by a load before it), the seek runs to the first load end first, then
   jumps. State hashes are not checked up to the
-  next load end (the player work still holds the first round's values); the
-  first checked frame after it that differs drops the round states and the
-  keys after the jump and seeks again the usual way. A round's
+  next load end (the player work still holds the first round's values). A round's
   mobile-suit-selection load end is the load end before its briefing; a
   room that shows a rematch screen loads it before the selection, one that
   plays a set number of games does not. A file without the field,

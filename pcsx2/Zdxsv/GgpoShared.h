@@ -487,7 +487,6 @@ namespace Zdxsv
 		std::vector<GamePatch> patches; // the file's, applied from each common start
 		std::map<int, RoundState> round_states; // the file's, by frame (a round jump writes one over the key of the first)
 		s64 version = 0; // the file's log_file_version
-		bool states_off = false; // a round jump differed: no more round states
 		int jump_check = -1; // after a round jump to this frame: state hashes are not checked up to the next load end
 		std::set<int> select_starts; // the file's MS-select load ends (the first load end and the one before each span)
 		std::vector<int> loads; // the file's load ends, in order (as s_play_loads.battle)

@@ -167,7 +167,7 @@ namespace Zdxsv
 			if (!states)
 				return;
 			s_play.round_states.clear();
-			if (s_play.version >= 20261116 && !s_play.states_off)
+			if (s_play.version >= 20261116)
 				for (RoundState& s : r.round_states)
 					if (s_play.select_starts.contains(s.frame))
 						s_play.round_states.insert_or_assign(s.frame, std::move(s));
@@ -385,7 +385,6 @@ namespace Zdxsv
 			if (r.start_rng)
 				s_play.rngs[0] = *r.start_rng;
 			s_play.version = r.version;
-			s_play.states_off = false;
 			// Before 20261116 round states lack the MS-select menu state and part of the MS slot table, which the file
 			// cannot rebuild: those rounds are reached by seeking.
 			if (r.version < 20261116)

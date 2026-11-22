@@ -275,7 +275,6 @@ namespace Zdxsv
 		// The file's state hash and RNGs of frame f against the emulated state (a desync check; nothing changes).
 		void PlayCheckState(int f)
 		{
-			const int bad0 = s_check.hash_bad + s_check.rng_bad;
 			if (s_cycle_log > 0 && f % s_cycle_log == 0)
 				Console.WriteLn("ZdxsvGgpo: cycles at frame %d: ee %llu iop %llu", f, static_cast<unsigned long long>(cpuRegs.cycle), static_cast<unsigned long long>(psxRegs.cycle));
 			// own load late past PlayLoadWait's bound: the file released the play-start barrier, this machine
@@ -321,22 +320,7 @@ namespace Zdxsv
 				Console.WriteLn("ZdxsvGgpo: replay rng at frame %d: file %08x, here %08x%s", f, it->second, rng, bad ? " DIFFERS" : "");
 			}
 			if (s_play.jump_check >= 0 && !jumped && !cut && f > s_play.jump_check)
-			{
-				if (s_check.hash_bad + s_check.rng_bad > bad0)
-				{
-					Console.Error("ZdxsvGgpo: replay round jump from %d: state differs at frame %d, seeking again without round states", s_play.jump_check, f);
-					s_play.round_states.clear();
-					s_play.states_off = true;
-					// the newest stays in the delta store (it holds the pages written since), unlisted: a load before it drops it
-					for (auto it = s_play_keys.upper_bound(s_play.jump_check); it != s_play_keys.end();)
-					{
-						DeltaStateDrop(it->first);
-						it = s_play_keys.erase(it);
-					}
-					s_play_req = s_play.target >= 0 ? s_play.target : f;
-				}
 				s_play.jump_check = -1;
-			}
 		}
 	} // namespace
 

@@ -217,7 +217,7 @@ See [replay.md](replay.md).
 | `ZDXSV_REPLAY_SYNC=0` | on | test | Four-screen control: members publish their frame but neither wait nor seek to the newest. |
 | `ZDXSV_REPLAY_KEY_NOHLE=1` | off | control | Seek keys restore no battle-socket state. The replay then drifts. |
 | `ZDXSV_REPLAY_ROUND_TAKE=1` | off | test | Playback takes a round state at each load end the file has none for, as recording does, so a later seek can round-jump on a file recorded without them. |
-| `ZDXSV_REPLAY_ROUND_BAD=1` | off | control | A round jump flips a bit of RNG B after writing the round state: the check after it must catch it and seek again without round states. |
+| `ZDXSV_REPLAY_ROUND_BAD=1` | off | control | A round jump flips a bit of RNG B after writing the round state: the replay state check must count it. |
 
 ## Delta state self-test
 
