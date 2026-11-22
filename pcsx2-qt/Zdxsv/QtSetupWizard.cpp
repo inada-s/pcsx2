@@ -3,7 +3,7 @@
 
 #include "Zdxsv/QtHooks.h"
 
-#include "QtHost.h"
+#include "QtUtils.h"
 
 #include "SettingWidgetBinder.h"
 
@@ -107,9 +107,15 @@ namespace Zdxsv
 				}
 				m_cancel = std::make_shared<std::atomic<bool>>(false);
 				update(TrSettings("Finish the sign-in in your browser..."));
+				// The wizard runs before the main window exists, so Host::OpenURL and QtHost::RunOnUIThread drop calls.
 				std::thread([panel = QPointer<SignInPanel>(this), cancel = m_cancel]() {
-					const std::string error = AuthSignIn(AuthOpenBrowser, *cancel);
-					QtHost::RunOnUIThread([panel, cancel, error]() {
+					const std::string error = AuthSignIn(
+						[](const std::string& url) {
+							QMetaObject::invokeMethod(QCoreApplication::instance(),
+								[url]() { QtUtils::OpenURL(nullptr, QString::fromStdString(url)); }, Qt::QueuedConnection);
+						},
+						*cancel);
+					QMetaObject::invokeMethod(QCoreApplication::instance(), [panel, cancel, error]() {
 						if (!panel || panel->m_cancel != cancel)
 							return;
 						panel->m_cancel.reset();
@@ -120,7 +126,7 @@ namespace Zdxsv
 						}
 						panel->update(error.empty() ? QString() :
 													  TrSettings("Sign-in failed: %1").arg(QString::fromStdString(error)));
-					});
+					}, Qt::QueuedConnection);
 				}).detach();
 			}
 
