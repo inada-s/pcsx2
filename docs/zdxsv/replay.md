@@ -11,6 +11,7 @@ battles save to the replay folder without it (settings `ZdxsvSaveReplay`,
 `<data dir>/replays`).
 
 - The file name is `<battle_code>.pb`, else `rbk-<start time>-p<position>.pb`.
+  The file is gzip encoded (builds before zdxsv-1.1.4 wrote it plain and cannot read a gzip one).
 - Only frames GGPO confirmed are written, so every peer's file of one battle
   holds the same inputs.
 - The file is written when the session stops, also on a VM shutdown or reset,
@@ -69,8 +70,8 @@ such frames as a mismatch between teams.
 
 `ZDXSV_REPLAY=<file.pb>` plays a replay; `http(s)://` downloads a `.pb`, or
 the first battle of the lobby's public API
-`http://<lobby api>/lbs/replay?battle_code=<code>`. A download
-that starts with the gzip magic (the lobby's bucket serves them gzip encoded) is
+`http://<lobby api>/lbs/replay?battle_code=<code>`. A file or download
+that starts with the gzip magic (saved files, the lobby's bucket) is
 decompressed first. A file over 256 MiB (decompressed) or with a repeated field
 over 4096 values is not played; a download stops past 256 MiB received, a live
 stream past 256 MiB of records.

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 zdxsv contributors
 // SPDX-License-Identifier: GPL-3.0+
 
-// zdxsv replay file (<battle_code>.pb). Field numbers below 40 are shared with other replay readers: keep them; PCSX2 fields
+// zdxsv replay file (<battle_code>.pb, gzip encoded; plain from older builds). Field numbers below 40 are shared with other replay readers: keep them; PCSX2 fields
 // from 40 on. Written by ReplayWrite, read by PlayLoadFile with the codec in Proto.h; not compiled into PCSX2.
 syntax = "proto3";
 

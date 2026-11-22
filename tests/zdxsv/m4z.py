@@ -104,7 +104,6 @@ the live card is put back after (m4.py's lobby states use it). A post-battle pro
 data on the card, after which `top` lands in an offline battle.
 """
 import atexit
-import filecmp
 import json
 import os
 import re
@@ -1033,10 +1032,11 @@ def main():
             codes = sorted(db_codes())
             for code in codes:
                 pb = os.path.join(out, "upload", "replays", f"{code}.pb")
-                # each client's file is its own (position, frame 0 state): the first upload is kept
+                # each client's file is its own (position, frame 0 state): the first upload is kept; the store holds it plain, a
+                # client saves it gzip encoded
                 same = sum(1 for i in gclients if os.path.isfile(pb) and
                            os.path.isfile(os.path.join(run, f"p{i}", "PCSX2", "replays", f"{code}.pb")) and
-                           filecmp.cmp(pb, os.path.join(run, f"p{i}", "PCSX2", "replays", f"{code}.pb"), shallow=False))
+                           replay_check.read_pb(pb) == replay_check.read_pb(os.path.join(run, f"p{i}", "PCSX2", "replays", f"{code}.pb")))
                 ok(f"{code}: stored .pb = exactly one client's saved .pb", same == 1)
                 ok(f"{code}: {ngc} match reports, same round_data, {ngc} used_ms per round", round_data_ok(code, ngc))
                 ok(f"{code}: every db record's used_ms_list = the stored .pb's round_data used_ms at its pos",
