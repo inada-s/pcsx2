@@ -53,9 +53,7 @@ namespace Zdxsv
 			std::memcpy(&b[50], &eeMem->Main[RNG_B], 2);
 			return b;
 		}
-		// Result records by position, equal on all peers: u8 wins at +0, u8 losses at +1. A round end (0x307e70) adds a
-		// win to each player of the winning team and a loss to each of the other, a time-up a loss to all (a draw), in
-		// one frame. The team it reads is the round's (G+0x74 + position), which a team rotation patch changes per battle.
+		// Result records by position: u8 wins, u8 losses. A round end (0x307e70) counts them by the round's team (PLAYER_TEAM).
 		static constexpr u32 PLAYER_RECORD = 0xc227f0, PLAYER_RECORD_SIZE = 0x14;
 		static constexpr u32 PLAYER_TEAM = 0x838fb0 + 0x74; // u8 by position: 0 / 1, else no player
 	} // namespace
@@ -94,8 +92,7 @@ namespace Zdxsv
 		std::memcpy(&b, &eeMem->Main[RNG_B], 2);
 		return (static_cast<u32>(a) << 16) | b;
 	}
-	// Wins and losses summed by team, team 1 = position 0's: u8 team 1 wins, team 1 losses, team 2 wins, team 2 losses.
-	// A team change between battles only moves counts between the teams, so RoundResult sees no round in it.
+	// u8 wins, losses of team 1 (position 0's), then of team 2. A team change between battles moves counts, adds none.
 	u32 RoundRecord()
 	{
 		u8 sum[4] = {};

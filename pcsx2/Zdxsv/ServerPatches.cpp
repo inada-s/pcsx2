@@ -22,8 +22,7 @@ namespace Zdxsv
 		};
 		ServerPatchState s_server_patches;
 
-		// Teams change every battle of a series: the series counter step (0x307c10) jumps to a cave that, with 4
-		// players, sets the slot team bytes (0xba4703 + 6 * slot; MS select and the battle read them) to slot 0 and
+		// With 4 players, the series counter step (0x307c10) sets the slot teams (0xba4703 + 6 * slot): slot 0 and
 		// slot ((battle - 1) % 3) + 1 against the other two. The cave is free RAM after the single draw list's.
 		GamePatch TeamRotatePatch()
 		{
