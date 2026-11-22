@@ -1111,7 +1111,7 @@ bool InputManager::InvokeEvents(InputBindingKey key, float value, GenericInputBi
 {
 	if (DoEventHook(key, value))
 		return true;
-	if (Zdxsv::g_replay_child_unfocused && key.source_type != InputSourceType::Keyboard && key.source_type != InputSourceType::Pointer)
+	if (Zdxsv::g_replay_unfocused && key.source_type != InputSourceType::Keyboard && key.source_type != InputSourceType::Pointer)
 		return false;
 
 	// If imgui ate the event, don't fire our handlers.

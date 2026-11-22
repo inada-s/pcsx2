@@ -66,6 +66,23 @@ namespace Zdxsv
 		{
 			return Path::Combine(EmuFolders::DataRoot, "replay-child");
 		}
+
+		void UnfocusedUpdate()
+		{
+			const bool running = s_replay_child.running && s_replay_child.running->state() != QProcess::NotRunning;
+			g_replay_unfocused = (s_replay_child.child || running) && qApp->applicationState() != Qt::ApplicationActive;
+		}
+
+		void UnfocusedWatch()
+		{
+			static bool connected = false;
+			if (!connected)
+			{
+				QObject::connect(qApp, &QGuiApplication::applicationStateChanged, qApp, [](Qt::ApplicationState) { UnfocusedUpdate(); });
+				connected = true;
+			}
+			UnfocusedUpdate();
+		}
 	} // namespace
 
 	bool QtReplayChildParseArg(const char* arg_cstr)
@@ -127,9 +144,7 @@ namespace Zdxsv
 	{
 		if (!s_replay_child.child)
 			return;
-		g_replay_child_unfocused = qApp->applicationState() != Qt::ApplicationActive;
-		QObject::connect(qApp, &QGuiApplication::applicationStateChanged, parent,
-			[](Qt::ApplicationState state) { g_replay_child_unfocused = state != Qt::ApplicationActive; });
+		UnfocusedWatch();
 		QTimer* timer = new QTimer(parent);
 		QObject::connect(timer, &QTimer::timeout, parent, [timer]() {
 			if (ProcessAlive(s_replay_child.parent_pid))
@@ -156,6 +171,7 @@ namespace Zdxsv
 		}
 		QProcess* p = new QProcess(qApp);
 		QObject::connect(p, &QProcess::finished, p, &QObject::deleteLater);
+		QObject::connect(p, &QProcess::finished, qApp, [] { UnfocusedUpdate(); });
 		const QString arg = QStringLiteral("%1:%2:%3").arg(pov).arg(QCoreApplication::applicationPid()).arg(QString::fromUtf8(src));
 		p->setProgram(QCoreApplication::applicationFilePath());
 		// -datapath appends "PCSX2" to its argument, so the parent's own data path choice is passed on, not DataRoot.
@@ -174,6 +190,7 @@ namespace Zdxsv
 			return false;
 		}
 		s_replay_child.running = p;
+		UnfocusedWatch();
 		Console.WriteLn("Zdxsv: replay child %lld started", static_cast<long long>(p->processId()));
 		return true;
 	}
