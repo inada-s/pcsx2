@@ -2116,6 +2116,14 @@ Unread messages: {2}</translation>
   <context>
     <name>AutoUpdaterDialog</name>
     <message>
+      <source>Update Now</source>
+      <translation>今すぐ更新</translation>
+    </message>
+    <message>
+      <source>Later</source>
+      <translation>後で</translation>
+    </message>
+    <message>
       <location filename="../AutoUpdaterDialog.ui" line="17"/>
       <location filename="../AutoUpdaterDialog.cpp" line="483"/>
       <location filename="../AutoUpdaterDialog.cpp" line="548"/>
@@ -28831,6 +28839,18 @@ Steps:
     <message>
       <source>The same setting as Graphics → Display → Apply Widescreen Patches.</source>
       <translation>グラフィック → 画面 → ワイドスクリーンパッチを有効化 と同じ設定です。</translation>
+    </message>
+    <message>
+      <source>Install updates automatically</source>
+      <translation>アップデートを自動でインストール</translation>
+    </message>
+    <message>
+      <source>Install Updates Automatically</source>
+      <translation>アップデートを自動でインストール</translation>
+    </message>
+    <message>
+      <source>When PCSX2 starts and a newer version exists, it downloads and installs it, then restarts. Unchecked: it asks first.</source>
+      <translation>PCSX2 の起動時に新しいバージョンがあれば、ダウンロードしてインストールし、再起動します。オフにすると、先に確認します。</translation>
     </message>
   </context>
 </TS>

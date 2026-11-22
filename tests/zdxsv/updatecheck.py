@@ -1,15 +1,16 @@
 """Check the startup update check of a tagged Devel build (pcsx2-qt AutoUpdaterDialog).
 
-  python updatecheck.py --exe pcsx2-qtx64.exe --inis DIR [--offer zdxsv-X.Y.Z] [--timeout S]
+  python updatecheck.py --exe pcsx2-qtx64.exe --inis DIR [--offer zdxsv-X.Y.Z] [--no-auto-install] [--timeout S]
 
 The build must be at a zdxsv-X.Y.Z tag: only a tagged build checks for updates. A Release build
 ignores ZDXSV_UPDATE_URL and fetches the real list (requests 0: FAIL). A local server
 answers the release list (ZDXSV_UPDATE_URL) with one release, --offer (default zdxsv-999.0.0),
 that has this platform's asset. PCSX2 starts without a game in a new data dir whose PCSX2.ini is
-copied from DIR, with the startup check on. Pass: the release list was fetched once and the log
-names the offered version and "Update needed.". Control: --offer zdxsv-0.0.0 (older than any
-release) must fail ("No update needed."). PCSX2 is closed once the check logged its result, so
-the update dialog fetches nothing else.
+copied from DIR, with the startup check on. Pass: the release list was fetched once, the log
+names the offered version and "Update needed.", and the update download was requested without a
+click (the served file is not an update, so nothing is installed). --no-auto-install sets
+[AutoUpdater] ZdxsvAutoInstall = false: pass when the download is not requested within 10 s.
+Control: --offer zdxsv-0.0.0 (older than any release) must fail ("No update needed.").
 Exit 0 = pass, 1 = fail, 2 = setup error.
 """
 import argparse
@@ -29,6 +30,7 @@ ap = argparse.ArgumentParser()
 ap.add_argument("--exe", required=True)
 ap.add_argument("--inis", required=True, help="inis dir of a set-up PCSX2 data dir (PCSX2.ini copied)")
 ap.add_argument("--offer", default="zdxsv-999.0.0")
+ap.add_argument("--no-auto-install", action="store_true")
 ap.add_argument("--timeout", type=float, default=60)
 args = ap.parse_args()
 
@@ -63,20 +65,21 @@ src = os.path.join(args.inis, "PCSX2.ini")
 if not os.path.isfile(src):
     print("FAIL: no %s" % src)
     sys.exit(2)
+updater = ["CheckAtStartup = true"] + (["ZdxsvAutoInstall = false"] if args.no_auto_install else [])
 out, section = [], None
 for line in open(src, encoding="utf-8-sig").read().splitlines():
     if line.startswith("["):
         section = line
     # startup check on, no skipped version; GS Null renderer
-    if section == "[AutoUpdater]" and line.split("=")[0].strip() in ("CheckAtStartup", "LastVersion"):
+    if section == "[AutoUpdater]" and line.split("=")[0].strip() in ("CheckAtStartup", "LastVersion", "ZdxsvAutoInstall"):
         continue
     if section == "[EmuCore/GS]" and line.split("=")[0].strip() == "Renderer":
         line = "Renderer = 11"
     out.append(line)
     if line == "[AutoUpdater]":
-        out.append("CheckAtStartup = true")
+        out += updater
 if "[AutoUpdater]" not in out:
-    out += ["", "[AutoUpdater]", "CheckAtStartup = true"]
+    out += ["", "[AutoUpdater]"] + updater
 open(os.path.join(inis, "PCSX2.ini"), "w", encoding="utf-8").write("\n".join(out) + "\n")
 
 env = dict(os.environ, ZDXSV_UPDATE_URL="http://127.0.0.1:%d/releases" % port)
@@ -90,8 +93,11 @@ while time.time() < end and proc.poll() is None:
         text = open(log, encoding="utf-8", errors="replace").read()
         result = next((r for r in ("No update needed.", "Update needed.", "Updater Error") if r in text), None)
         if result:
-            time.sleep(0.5)
             break
+if result == "Update needed.":
+    wait_end = time.time() + 10
+    while time.time() < wait_end and proc.poll() is None and "/none" not in requests:
+        time.sleep(0.5)
 proc.kill()
 proc.wait()
 server.shutdown()
@@ -100,7 +106,9 @@ for line in text.splitlines():
         print(line.strip())
 shutil.rmtree(data, ignore_errors=True)
 
-ok = len(requests) == 1 and ("Latest version: " + args.offer) in text and result == "Update needed."
-print("release list requests %d, result %s" % (len(requests), result))
+lists = sum(1 for r in requests if r != "/none")
+downloaded = "/none" in requests
+ok = lists == 1 and ("Latest version: " + args.offer) in text and result == "Update needed." and downloaded != args.no_auto_install
+print("release list requests %d, download requested %s, result %s" % (lists, downloaded, result))
 print("PASS" if ok else "FAIL")
 sys.exit(0 if ok else 1)

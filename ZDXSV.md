@@ -133,10 +133,10 @@ To send nothing, turn this off in Settings → zdxsv.
 ## Updates
 
 When PCSX2 starts and a newer zdxsv release exists on
-https://github.com/inada-s/pcsx2/releases, it shows an update window.
-Press "Download and Install...": PCSX2 downloads the new version, closes, replaces its
-files and starts again. Your settings, memory cards and save states are kept.
-"Remind Me Later" asks again on the next start; "Skip This Update" waits for the next version.
+https://github.com/inada-s/pcsx2/releases, it updates itself: it downloads the new version,
+closes, replaces its files and starts again. Your settings, memory cards and save states are kept.
+To be asked first, turn off "Install updates automatically" in Settings → zdxsv; the update
+window then waits: "Update Now" updates, "Later" asks again on the next start.
 You can also check by hand from the Help menu (Check for Updates).
 If the game shows "PLEASE UPDATE PCSX2" when you connect (PCSX2 also shows "The lobby refused this PCSX2
 as outdated"), the server no longer accepts your

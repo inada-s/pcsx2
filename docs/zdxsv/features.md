@@ -218,6 +218,7 @@ stand in for them.
 ## Releases and tools ([tools.md](tools.md))
 
 - **Self-update from the GitHub releases of this fork**: release builds; `ZDXSV_UPDATE_URL`.
+- **Updates install at startup** (changed default): a newer release found by the startup check downloads and installs without a click; the update window has Update Now (default) and Later, no Skip This Update; `[AutoUpdater] ZdxsvAutoInstall`.
 - **Crash reports** ([crash-reports.md](crash-reports.md)): `ZdxsvCrashReports`, on by default in a build with `ZDXSV_SENTRY_DSN`.
 - **Release workflow**: a `zdxsv-X.Y.Z` tag.
 - **Apart from upstream PCSX2 on the same machine**: always. macOS: data in `~/Library/Application Support/PCSX2-zdxsv`, bundle ID `net.zdxsv.pcsx2`, name `PCSX2-zdxsv`, never the default app for its file types; Windows release: `portable.txt`.
