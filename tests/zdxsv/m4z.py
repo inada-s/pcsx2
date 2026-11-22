@@ -723,7 +723,7 @@ def main():
            and not c(zl, "対戦サーバとの接続に失敗"))
     if E("SYNC_SALT"):
         # the lobby starts a battle only among equal sync fingerprints
-        fps = {m[1] for l in g(lobby, "platform emu map") for m in [re.search(r" sync:([0-9a-f]+)", l)] if m}
+        fps = {m[1] for l in g(lobby, '"platform": "emu"') for m in [re.search(r'"sync":"([0-9a-f]+)"', l)] if m}
         say(f"sync fingerprints at the lobby: {' '.join(sorted(fps))}")
         ok(f"lobby got {nc} different sync fingerprints", len(fps) == nc)
         ok(f"every client entered the lobby battle (x{nc})", c(lobby, r"C->S \[Q\] ID:0x640E") >= nc)
