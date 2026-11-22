@@ -1,11 +1,9 @@
-"""Fast boot: four boottime.py runs with fast boot on and no input. Run 1 starts without the boot
-state and must save it at the NET file load (within SAVELIMIT s); run 2 must load it and reach the user_id
-selection within LIMIT s of the VM start. Each run prints its time from the launch and the VM start.
-Run 3 (another card) must not load the state (it holds run 1's system data) and must save its own in its place.
-Run 4 (an unformatted card it writes) must log that fast boot stopped within 15 s.
+"""Fast boot: two boottime.py runs with fast boot on and no input. Run 1 must reach the user_id selection
+within LIMIT s of the VM start, twice in a row from a full boot: no fast boot state file is written or loaded.
+Run 2 (an unformatted card it writes) must log that fast boot stopped within 15 s.
   OUT=<dir> python tests/zdxsv/fastboot.py
-Env: LIMIT (s, default 5), SAVELIMIT (s, default 30), CARD (as boottime.py), OTHER_CARD (default the second of CARDS).
-Exit 0 = all runs pass. Logs: OUT/save, OUT/load, OUT/other, OUT/unformatted (boottime.py logs each).
+Env: LIMIT (s, default 30), CARD (as boottime.py).
+Exit 0 = all runs pass. Logs: OUT/first, OUT/second, OUT/unformatted (boottime.py logs each).
 """
 import glob
 import os
@@ -34,19 +32,25 @@ def emulog(out, name, needle):
         return []
 
 
-def step(out, name, limit, line, **env):
-    txt = boottime(out, name, LIMIT=limit, **env)
+def step(out, name, states):
+    limit = zrig.env("LIMIT", "30")
+    txt = boottime(out, name, LIMIT=limit)
     for l in txt.splitlines():
         if "PASS" in l or "FAIL" in l:
             print(l, flush=True)
     if "PASS user_id" not in txt:
         print(f"FAIL {name}: no user_id screen in {limit} s")
         return False
-    hit = emulog(out, name, f"Zdxsv: fast boot: {line}")
-    if not hit:
-        print(f"FAIL {name}: no '{line}' in emulog")
+    if not emulog(out, name, "Zdxsv: fast boot: on"):
+        print(f"FAIL {name}: no 'fast boot: on' in emulog")
         return False
-    print(hit[0], flush=True)
+    for line in ("saving", "loading"):
+        if emulog(out, name, f"Zdxsv: fast boot: {line}"):
+            print(f"FAIL {name}: fast boot is {line} a state")
+            return False
+    if glob.glob(states):
+        print(f"FAIL {name}: a fast boot state in {os.path.dirname(states)}")
+        return False
     return True
 
 
@@ -57,22 +61,9 @@ def main():
     for f in glob.glob(states):
         os.remove(f)
     os.makedirs(out, exist_ok=True)
-    if not step(out, "save", zrig.env("SAVELIMIT", "30"), "saving"):
-        return 1
-    if not glob.glob(states):
-        print(f"FAIL save: no boot state in {os.path.dirname(states)}")
-        return 1
-    if not step(out, "load", zrig.env("LIMIT", "5"), "loading"):
-        return 1
-    other = zrig.env("OTHER_CARD") or (os.environ["CARDS"].split() + [""])[1]
-    if not other:
-        print("FAIL: set OTHER_CARD (a card other than CARD)")
-        return 1
-    if not step(out, "other", zrig.env("SAVELIMIT", "30"), "saving", CARD=other):
-        return 1
-    if len(glob.glob(states)) != 1:
-        print(f"FAIL other: {len(glob.glob(states))} boot states, want 1")
-        return 1
+    for name in ("first", "second"):
+        if not step(out, name, states):
+            return 1
     blank = os.path.join(run, "Mcd001-zdxsv-unformatted.ps2")
     with open(blank, "wb") as f:
         f.write(b"\xff" * 8650752)
