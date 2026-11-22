@@ -101,13 +101,14 @@ Visual Studio and `lupdate` drop comments when they rewrite these files.
 | `pcsx2-qt/AutoUpdaterDialog.cpp` |  | zdxsv release updates |
 | `pcsx2-qt/AutoUpdaterDialog.cpp` |  | zdxsv release updates |
 | `pcsx2-qt/AutoUpdaterDialog.cpp` |  | updates come from the GitHub releases of inada-s/pcsx2, tagged zdxsv-X.Y.Z (.github/workflows/zdxsv_release.yml). |
+| `pcsx2-qt/AutoUpdaterDialog.cpp` | `AutoUpdaterDialog::AutoUpdaterDialog` | two buttons, Update Now as the default. |
 | `pcsx2-qt/AutoUpdaterDialog.cpp` | `AutoUpdaterDialog::queueUpdateCheck` | `Zdxsv::TestEnv` |
 | `pcsx2-qt/AutoUpdaterDialog.cpp` | `ParseZdxsvVersion` | `ParseZdxsvVersion` |
 | `pcsx2-qt/AutoUpdaterDialog.cpp` | `AutoUpdaterDialog::getLatestReleaseComplete` | `// GitHub releases list, newest first. Take the newest published zdxsv-X.Y.Z release` |
 | `pcsx2-qt/AutoUpdaterDialog.cpp` | `AutoUpdaterDialog::getLatestReleaseComplete` | `ParseZdxsvVersion` |
 | `pcsx2-qt/AutoUpdaterDialog.cpp` | `AutoUpdaterDialog::getLatestReleaseComplete` | zdxsv release updates |
-| `pcsx2-qt/AutoUpdaterDialog.cpp` | `AutoUpdaterDialog::getChangesComplete` | `Zdxsv::TestEnv` |
-| `pcsx2-qt/AutoUpdaterDialog.cpp` | `AutoUpdaterDialog::checkIfUpdateNeeded` | `ParseZdxsvVersion` |
+| `pcsx2-qt/AutoUpdaterDialog.cpp` | `AutoUpdaterDialog::getChangesComplete` | Enter presses Update Now |
+| `pcsx2-qt/AutoUpdaterDialog.cpp` | `AutoUpdaterDialog::checkIfUpdateNeeded` | no Skip This Update, so a version skipped before is offered again. |
 | `pcsx2-qt/AutoUpdaterDialog.cpp` | `AutoUpdaterDialog::processUpdate` | no usable Trash (a volume without one, a denied Trash): park the old app in the staging directory |
 | `pcsx2-qt/CMakeLists.txt` |  | `Zdxsv/CrashReports.cpp` |
 | `pcsx2-qt/CMakeLists.txt` |  | `ZdxsvSettingsWidget`, `ZdxsvReplayDialog` |
