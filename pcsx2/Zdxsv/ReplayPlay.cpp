@@ -26,8 +26,9 @@ namespace Zdxsv
 		constexpr int LOAD_WAIT_MAX = 600;
 		const int s_play_key_every = [] {
 			const char* e = TestEnv("ZDXSV_REPLAY_KEY");
-			return e ? std::atoi(e) : 600;
+			return e ? std::atoi(e) : 60;
 		}();
+		constexpr int KEY_RECENT = 600, KEY_SPARSE = 600;
 		const bool s_play_key_nohle = TestEnv("ZDXSV_REPLAY_KEY_NOHLE") != nullptr;
 		const bool s_play_round_take = TestEnv("ZDXSV_REPLAY_ROUND_TAKE") != nullptr;
 		const bool s_play_round_bad = TestEnv("ZDXSV_REPLAY_ROUND_BAD") != nullptr;
@@ -133,47 +134,52 @@ namespace Zdxsv
 			}
 		}
 
-		// At the start of frame f, before its inputs (the point of the frame 0 state).
-		// The state before frame f runs, zipped to `name` in the cache folder on a thread.
-		std::unique_ptr<PlayKey> PlayKeyMake(int f, const std::string& name)
-		{
-			Error error;
-			std::unique_ptr<ArchiveEntryList> list = SaveState_DownloadState(&error);
-			if (!list)
-			{
-				Console.Error("ZdxsvGgpo: replay key %d: state download failed: %s", f, error.GetDescription().c_str());
-				return nullptr;
-			}
-			auto key = std::make_unique<PlayKey>();
-			PlayKey* k = key.get();
-			k->path = Path::Combine(EmuFolders::Cache, name);
-			k->rb = s_rb;
-			k->rings = s_rings;
-			k->zip = std::thread([list = std::move(list), k]() mutable {
-				Error error;
-				k->ok = SaveState_ZipToDisk(std::move(list), nullptr, k->path.c_str(), &error);
-				if (!k->ok)
-					Console.Error("ZdxsvGgpo: replay key: state zip failed: %s", error.GetDescription().c_str());
-			});
-			return key;
-		}
-
 		void PlayKeySave(int f)
 		{
+			// taken over: the takeover frame stays the newest key, for a retry or the way back
+			if (s_to_shared.phase != TO_OFF || ReplayBenchOn())
+				return;
 			const auto first_load = s_play.rngs.upper_bound(0);
 			const bool first_state = (s_play_round_take || !s_play.round_states.empty()) && first_load != s_play.rngs.end() && f == first_load->first;
-			if (s_play_key_every <= 0 || (f % s_play_key_every != 0 && !first_state) || s_play_keys[s_battle.me].contains(f))
+			// a later round's MS-select load end: the keys of the rounds before go (as flycast); its round state over the
+			// first load end's key reaches them again
+			const bool round_start = !first_state && s_play.select_starts.contains(f);
+			if (s_play_key_every <= 0 || (f % s_play_key_every != 0 && !first_state && !round_start))
 				return;
 			// after a round jump, up to the next load end the player work still holds the first round's values: a key there
 			// would bring them back without the jump's unchecked frames
 			if (s_play.jump_check >= 0 && f > s_play.jump_check)
 				return;
-			Common::Timer timer;
-			std::unique_ptr<PlayKey> key = PlayKeyMake(f, fmt::format("zdxsv-replay-key-p{}-{}.p2s", s_battle.me, f));
-			if (!key)
+			if (!PlayKeyStore(f, false))
 				return;
-			s_play_keys[s_battle.me].emplace(f, std::move(key));
-			Console.WriteLn("ZdxsvGgpo: replay key %d (download %.1f ms)", f, timer.GetTimeMilliseconds());
+			if (first_state)
+				s_play_keys.at(f).pinned = true;
+			if (round_start)
+				for (auto it = s_play_keys.begin(); it != s_play_keys.end() && it->first < f;)
+				{
+					const int k = it->first;
+					const bool keep = it->second.pinned;
+					++it;
+					if (!keep)
+					{
+						DeltaStateDrop(k);
+						s_play_keys.erase(k);
+					}
+				}
+			// older than KEY_RECENT frames: one key in KEY_SPARSE frames (a dropped key's delta joins the key before)
+			for (auto it = s_play_keys.begin(); it != s_play_keys.end() && it->first < f - KEY_RECENT;)
+			{
+				const int k = it->first;
+				const bool keep = it->second.pinned || it->second.step || k % KEY_SPARSE == 0;
+				++it;
+				if (!keep)
+				{
+					DeltaStateDrop(k);
+					s_play_keys.erase(k);
+				}
+			}
+			if (f % 3600 == 0)
+				Console.WriteLn("ZdxsvGgpo: replay keys at frame %d: %zu, %zu MB", f, s_play_keys.size(), DeltaStateBytes() >> 20);
 		}
 
 		Input PadFromB(u16 b)
@@ -284,7 +290,6 @@ namespace Zdxsv
 		// The file's state hash and RNGs of frame f against the emulated state (a desync check; nothing changes).
 		void PlayCheckState(int f)
 		{
-			const int bad0 = s_check.hash_bad + s_check.rng_bad;
 			if (s_cycle_log > 0 && f % s_cycle_log == 0)
 				Console.WriteLn("ZdxsvGgpo: cycles at frame %d: ee %llu iop %llu", f, static_cast<unsigned long long>(cpuRegs.cycle), static_cast<unsigned long long>(psxRegs.cycle));
 			// own load late past PlayLoadWait's bound: the file released the play-start barrier, this machine
@@ -330,18 +335,7 @@ namespace Zdxsv
 				Console.WriteLn("ZdxsvGgpo: replay rng at frame %d: file %08x, here %08x%s", f, it->second, rng, bad ? " DIFFERS" : "");
 			}
 			if (s_play.jump_check >= 0 && !jumped && !cut && f > s_play.jump_check)
-			{
-				if (s_check.hash_bad + s_check.rng_bad > bad0)
-				{
-					Console.Error("ZdxsvGgpo: replay round jump from %d: state differs at frame %d, seeking again without round states", s_play.jump_check, f);
-					s_play.round_states.clear();
-					s_play.states_off = true;
-					auto& keys = s_play_keys[s_battle.me];
-					keys.erase(keys.upper_bound(s_play.jump_check), keys.end());
-					s_play_req = s_play.target >= 0 ? s_play.target : f;
-				}
 				s_play.jump_check = -1;
-			}
 		}
 	} // namespace
 
@@ -360,7 +354,7 @@ namespace Zdxsv
 	PlayState s_play;
 	PlayLoads s_play_loads;
 	std::mutex s_battle_loads_mtx;
-	std::map<int, std::unique_ptr<PlayKey>> s_play_keys[GGPO_MAX_PLAYERS]; // by point of view (position)
+	std::map<int, PlayKey> s_play_keys;
 	std::atomic<int> s_play_req{INT_MIN}; // requested seek target, INT_MIN = none
 	// Skip MS selection: from frame 0 the replay runs unlimited to the briefing (the end of battle load 1).
 	bool s_play_skip_ms = true;
@@ -416,6 +410,43 @@ namespace Zdxsv
 		s_rings = k.rings;
 	}
 
+	bool PlayKeyStore(int f, bool step)
+	{
+		if (const auto it = s_play_keys.find(f); it != s_play_keys.end())
+		{
+			it->second.step = it->second.step && step;
+			return true;
+		}
+		if (!DeltaStateSave(f))
+		{
+			Console.Error("ZdxsvGgpo: replay key %d: save failed", f);
+			return false;
+		}
+		s_play_keys[f] = {s_rb, s_rings, step};
+		return true;
+	}
+
+	bool PlayKeyLoad(int f, bool hle)
+	{
+		const auto it = s_play_keys.find(f);
+		if (it == s_play_keys.end() || !DeltaStateLoad(f))
+		{
+			Console.Error("ZdxsvGgpo: replay key %d: load failed", f);
+			return false;
+		}
+		s_play_keys.erase(std::next(it), s_play_keys.end());
+		if (hle)
+			PlayKeyApply(it->second);
+		PlayHideAfterLoad();
+		return true;
+	}
+
+	void PlayKeysClear()
+	{
+		DeltaStateClear();
+		s_play_keys.clear();
+	}
+
 	// The file's round state nearest at or before target, if past `from`: written over the key of the first load end.
 	// Returns its frame, -1 if none was applied (nothing changed).
 	int PlayRoundJump(int target, int from)
@@ -424,18 +455,14 @@ namespace Zdxsv
 		auto st = states.upper_bound(target);
 		if (states.empty() || st == states.begin() || (--st)->first <= from || st == states.begin())
 			return -1;
-		const auto key = s_play_keys[s_battle.me].find(states.begin()->first);
-		if (key == s_play_keys[s_battle.me].end())
+		const auto key = s_play_keys.find(states.begin()->first);
+		if (key == s_play_keys.end())
 			return -1;
-		PlayKey& k = *key->second;
-		if (k.zip.joinable())
-			k.zip.join();
+		const int key_frame = key->first;
 		Common::Timer timer;
-		Error error;
-		PlayStepRingClear();
-		if (!k.ok || !ReplayLoadState(k.path.c_str(), &error) || (PlayKeyApply(k), !RoundStateApply(st->second, s_play.inputs)))
+		if (!PlayKeyLoad(key_frame) || !RoundStateApply(st->second, s_play.inputs))
 		{
-			Console.Error("ZdxsvGgpo: replay round jump to %d failed: %s", st->first, error.GetDescription().c_str());
+			Console.Error("ZdxsvGgpo: replay round jump to %d failed", st->first);
 			return -1;
 		}
 		const int r = st->first;
@@ -460,7 +487,7 @@ namespace Zdxsv
 		if (s_play_round_bad)
 			eeMem->Main[RNG_B] ^= 1;
 		s_play.jump_check = r;
-		Console.WriteLn("ZdxsvGgpo: replay round jump: key %d + round state %d (%.1f ms)", key->first, r, timer.GetTimeMilliseconds());
+		Console.WriteLn("ZdxsvGgpo: replay round jump: key %d + round state %d (%.1f ms)", key_frame, r, timer.GetTimeMilliseconds());
 		return r;
 	}
 
@@ -473,72 +500,44 @@ namespace Zdxsv
 			return -1;
 		const int first = states.begin()->first;
 		auto st = states.upper_bound(target);
-		if (st == states.begin() || (--st)->first <= first || s_play_keys[s_battle.me].contains(first))
+		if (st == states.begin() || (--st)->first <= first || s_play_keys.contains(first))
 			return -1;
 		return first;
 	}
 
-	// Returns the frame to run next. pov_switch: s_battle.me just changed, so a key of it is always loaded (the
-	// running state is the old point of view's).
-	int PlaySeek(int target, bool pov_switch)
+	// Returns the frame to run next.
+	int PlaySeek(int target)
 	{
 		const u64 t0 = Common::Timer::GetCurrentValue();
 		target = std::clamp(target, 0, s_play.frames - 1);
 		const int next = s_battle.frame + 1;
 		int from = next;
-		bool loaded = false;
-		auto& keys = s_play_keys[s_battle.me];
-		// A key load resets the GS, so it has no picture until frames run after it.
-		auto it = keys.upper_bound(target - SEEK_DRAWN_FRAMES);
-		if (it == keys.begin())
-			it = keys.upper_bound(target);
-		if (const int l = (pov_switch || target >= next) ? -1 : PlayStepRingLoad(target); l >= 0)
+		// A key holds no GS memory: at least two frames run after its load to show the target's picture.
+		auto it = s_play_keys.upper_bound(target - 1);
+		if (it == s_play_keys.begin())
+			it = s_play_keys.upper_bound(target);
+		if (it != s_play_keys.begin() && !(target >= next && std::prev(it)->first <= next)) // else running on is as close
 		{
-			from = l;
-			loaded = true;
-			it = keys.begin();
-		}
-		while (it != keys.begin())
-		{
-			--it;
-			if (!pov_switch && target >= next && it->first <= next)
-				break; // running on is as close
-			PlayKey& k = *it->second;
-			if (k.zip.joinable())
-				k.zip.join();
-			if (!k.ok)
-				continue;
+			const int k = std::prev(it)->first;
 			Common::Timer timer;
-			Error error;
-			PlayStepRingClear();
-			if (!ReplayLoadState(k.path.c_str(), &error))
-			{
-				Console.Error("ZdxsvGgpo: replay seek: key %d load failed: %s", it->first, error.GetDescription().c_str());
-				return pov_switch ? -1 : next;
-			}
-			if (!s_play_key_nohle)
-				PlayKeyApply(k);
-			from = it->first;
-			loaded = true;
+			if (!PlayKeyLoad(k, !s_play_key_nohle))
+				return next;
+			from = k;
 			Console.WriteLn("ZdxsvGgpo: replay seek: key %d loaded (%.1f ms)", from, timer.GetTimeMilliseconds());
-			break;
 		}
 		s_play.then = -1;
 		if (const int r = PlayRoundJump(target, from); r >= 0)
-		{
 			from = r;
-			loaded = true;
-		}
 		else if (const int first = PlayRoundJumpFirst(target, from); first >= 0)
 		{
 			Console.WriteLn("ZdxsvGgpo: replay seek: no key at the first load end %d, running there before the round jump", first);
 			s_play.then = target;
 			target = first;
 		}
-		if (from > target || (pov_switch && !loaded))
+		if (from > target)
 		{
 			Console.Error("ZdxsvGgpo: replay seek %d -> %d: no key at or before it", s_battle.frame, target);
-			return pov_switch ? -1 : next;
+			return next;
 		}
 		Console.WriteLn("ZdxsvGgpo: replay seek %d -> %d: from %d, %d frames to run", s_battle.frame, target, from, target - from);
 		if (from < target)
@@ -589,9 +588,9 @@ namespace Zdxsv
 			Console.Error("ZdxsvGgpo: replay takeover at frame %d: not within the replay (%d frames)", t, s_play.frames);
 			return false;
 		}
-		s_to.key = PlayKeyMake(t, fmt::format("zdxsv-replay-takeover-p{}.p2s", s_battle.me));
-		if (!s_to.key)
+		if (!PlayKeyStore(t, false))
 			return false;
+		s_play_keys.at(t).pinned = true;
 		const size_t pos = std::min(s_rb.net_pos, s_battle.sent.size());
 		s_to.sent.assign(s_battle.sent.begin(), s_battle.sent.begin() + pos);
 		s_to.sent_at.assign(s_battle.sent_at.begin(), s_battle.sent_at.begin() + pos);
@@ -630,16 +629,9 @@ namespace Zdxsv
 	// Back to the state before T with the own sent msgs of then. Returns T, or -1.
 	int TakeoverLoad()
 	{
-		PlayKey& k = *s_to.key;
-		if (k.zip.joinable())
-			k.zip.join();
-		Error error;
-		if (!k.ok || !ReplayLoadState(k.path.c_str(), &error))
-		{
-			Console.Error("ZdxsvGgpo: replay takeover: state load failed: %s", error.GetDescription().c_str());
+		s_to.hold_until = s_battle.frame;
+		if (!PlayKeyLoad(s_to.frame))
 			return -1;
-		}
-		PlayKeyApply(k);
 		s_battle.sent = s_to.sent;
 		s_battle.sent_at = s_to.sent_at;
 		s_battle.out.clear();
@@ -664,7 +656,6 @@ namespace Zdxsv
 	{
 		s_to_shared.phase = TO_OFF;
 		s_to.queue.clear();
-		s_to.key.reset();
 		Console.WriteLn("ZdxsvGgpo: replay takeover %s at frame %d, vsync %u", why, s_battle.frame, g_FrameCount);
 	}
 
@@ -673,6 +664,9 @@ namespace Zdxsv
 		if (s_to_shared.phase == TO_ON)
 		{
 			PlayHide(false, false);
+			// the pause before the start played on past T: a present before that frame would step the picture back
+			if (f <= s_to.hold_until)
+				g_replay_hidden_frame = true;
 			PlayFrameTakeover(f);
 			return;
 		}
@@ -792,16 +786,7 @@ namespace Zdxsv
 		SyncStop();
 		ReplayBenchReset();
 		s_sync_chase = false;
-		for (auto& keys : s_play_keys)
-		{
-			for (auto& [f, k] : keys)
-			{
-				if (k->zip.joinable())
-					k->zip.join();
-				FileSystem::DeleteFilePath(k->path.c_str());
-			}
-			keys.clear();
-		}
+		PlayKeysClear();
 		s_live_down.reset();
 		LivePaceReset();
 		s_live_wait.reset();
@@ -833,13 +818,12 @@ namespace Zdxsv
 
 	namespace
 	{
-		// within the 64 frames of FrameRings::net_seq_at, which a load leaves in place
+		// frames a step back reaches without running from a regular key
 		constexpr int STEP_RING_FRAMES = 60;
 
 		struct
 		{
 			bool resume = false;
-			bool ring = false;
 			Common::Timer::Value t0 = 0;
 		} s_play_step;
 
@@ -859,47 +843,43 @@ namespace Zdxsv
 
 	void PlayStepRingClear()
 	{
-		if (std::exchange(s_play_step.ring, false))
-			DeltaStateClear();
+		for (auto it = s_play_keys.begin(); it != s_play_keys.end();)
+		{
+			const int f = it->first;
+			const bool step = it->second.step && std::next(it) != s_play_keys.end();
+			++it;
+			if (step)
+			{
+				DeltaStateDrop(f);
+				s_play_keys.erase(f);
+			}
+		}
 	}
 
-	// While stepping, the last frames are kept as delta states, so a step back loads one instead of a key file.
-	// Their EE RAM tracking costs every frame: off outside steps.
+	// While stepping, every frame is a key, so a step back loads the frame before instead of running from a regular
+	// key; the step keys older than STEP_RING_FRAMES are dropped.
 	void PlayStepRingSave(int f)
 	{
-		if (!g_replay_step_hold || (s_play.target >= 0 && f < s_play.target - STEP_RING_FRAMES))
+		if (ReplayBenchOn())
+			return;
+		if (!g_replay_step_hold || s_to_shared.phase != TO_OFF || (s_play.target >= 0 && f < s_play.target - STEP_RING_FRAMES))
 		{
 			PlayStepRingClear();
 			return;
 		}
-		if (DeltaStateGetState(f) || !DeltaStateSave(f))
+		if (!PlayKeyStore(f, true))
 			return;
-		s_play_step.ring = true;
-		DeltaStateDiscardBefore(f - STEP_RING_FRAMES);
-	}
-
-	// The newest ring frame in (target - STEP_RING_FRAMES, target - 1], loaded; -1 if none.
-	// Not target itself: a ring state has no GS memory, and the picture shown at a vsync was drawn in the
-	// frame before it, so at least 2 frames must run after the load to show the target's picture.
-	int PlayStepRingLoad(int target)
-	{
-		if (!s_play_step.ring || !g_replay_step_hold)
-			return -1;
-		for (int l = target - 1; l > target - STEP_RING_FRAMES && l >= 0; l--)
+		for (auto it = s_play_keys.begin(); it != s_play_keys.end() && it->first < f - STEP_RING_FRAMES;)
 		{
-			if (!DeltaStateGetState(l))
-				continue;
-			Common::Timer timer;
-			if (!DeltaStateLoad(l))
+			const int old = it->first;
+			const bool step = it->second.step;
+			++it;
+			if (step)
 			{
-				PlayStepRingClear();
-				return -1;
+				DeltaStateDrop(old);
+				s_play_keys.erase(old);
 			}
-			s_rb = s_net_at[l & 127];
-			Console.WriteLn("ZdxsvGgpo: replay seek: step frame %d loaded (%.1f ms)", l, timer.GetTimeMilliseconds());
-			return l;
 		}
-		return -1;
 	}
 
 	void PlayStepResume()

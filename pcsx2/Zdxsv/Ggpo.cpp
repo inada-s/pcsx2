@@ -780,9 +780,7 @@ namespace Zdxsv
 			LobbyReset();
 			return;
 		}
-		size_t keys = 0;
-		for (const auto& k : s_play_keys)
-			keys += k.size();
+		const size_t keys = s_play_keys.size();
 		Console.WriteLn("ZdxsvGgpo: %s: session %d, replay recording %d, replay keys %zu", what, g_ggpo_active && !s_play_src.path ? 1 : 0,
 			s_replay_rec ? 1 : 0, keys);
 		if (s_play_src.path)

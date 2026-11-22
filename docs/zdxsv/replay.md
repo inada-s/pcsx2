@@ -165,34 +165,36 @@ D-pad. While taken over the pad plays the game.
   ends. A file without play starts skips the first mobile suit selection
   only (from frame 0 to the briefing).
 - **Step** (paused): runs one frame (back: a seek to the frame before; while
-  stepping, the last 60 frames are kept in memory, so it loads one of them
-  instead of a key) and
+  stepping, each of the last 60 frames is a key) and
   pauses again. The audio output stays paused and the step's sound is dropped;
   play resumes it. Steps pressed while a step runs are queued (up to 30) and
   run one after another. While paused, input is polled every 8 ms and the
   picture redrawn at most every 33 ms.
-- **Seek**: a key (full state + battle-socket state) is kept every
-  `ZDXSV_REPLAY_KEY` played frames, per position, as `zdxsv-replay-*.p2s`
-  in the cache folder; the VM's close or reset deletes them, and a replay's
-  load deletes any a killed process left (also half-written ones). A seek loads the newest
-  key at least two frames before the target (a key load leaves no picture
-  until frames run after it; at the target only when no earlier key) and
+- **Seek**: a key (a delta state in memory + the battle-socket state) is
+  kept every `ZDXSV_REPLAY_KEY` played frames (frame 0 at the battle start)
+  and at each mobile-suit-selection load end; there the keys of the rounds
+  before are dropped (an earlier round is reached by a round state, as a
+  round jump). Keys older than 600 frames are thinned out to one every 600
+  frames. Frame 0, the first load end and the takeover frame are always
+  kept. A key load drops the
+  keys after it. A replay's load deletes `zdxsv-replay-*.p2s` files in the
+  cache folder. A seek loads the newest key at least one frame before the
+  target (a key holds no GS memory; at the target only when no earlier key) and
   runs to it unthrottled (the limiter mode stays, so the vsync mode does not
   change); the frames it
   runs are not drawn or heard but the last two, and the picture stays until
   a drawn one is ready (no present of a frame not drawn, nor right after a
   state load). Forward seeks run every frame. A seek stays
   in the round shown (rounds only on). A seek or a round jump from a pause
-  pauses again at its target. Key files are deleted on a VM shutdown or
-  reset.
+  pauses again at its target.
 - **Speed**: the emulator's speed stays 100 %. Above it, of
   every 2 or 3 frames one is shown, heard and throttled and the others run
   silent and unthrottled; below it, each frame is held one or two frame
   times. Not while spectating live.
 - **Point of view**: one file plays every position; the point of view is
-  picked before the start (replay window, `ZDXSV_REPLAY_POV`). A position
-  not played yet runs its own battle start from the common state
-  (`ZDXSV_REPLAY_POV_AT`, tests).
+  picked before the start (replay window, `ZDXSV_REPLAY_POV`). A switch
+  while playing (`ZDXSV_REPLAY_POV_AT`, tests) runs the new position's
+  battle start from the common state, then seeks.
 - **Control bar**: play or pause, speed, ◀ ▶, round steps,
   takeover, time in the round, frame, and a timeline of the round shown.
   Shown for 3 s after the mouse moves over the bottom quarter or a pad
@@ -219,12 +221,9 @@ D-pad. While taken over the pad plays the game.
   running every frame from the start. The jump empties the mobile suit
   cache, so the battle load reloads every mobile suit's assets and sounds
   (the key holds another round's); the slots it picks can differ from the
-  recording's. Without that key (a point of view
-  switched to after a jump), the seek runs to the first load end first, then
+  recording's. Without that key (dropped by a load before it), the seek runs to the first load end first, then
   jumps. State hashes are not checked up to the
-  next load end (the player work still holds the first round's values); the
-  first checked frame after it that differs drops the round states and the
-  keys after the jump and seeks again the usual way. A round's
+  next load end (the player work still holds the first round's values). A round's
   mobile-suit-selection load end is the load end before its briefing; a
   room that shows a rematch screen loads it before the selection, one that
   plays a set number of games does not. A file without the field,
@@ -232,7 +231,9 @@ D-pad. While taken over the pad plays the game.
   of that RAM: a later round can load another stage or pick another mobile
   suit), seeks without round states.
 - **Takeover**: in a battle only, the shown position plays from
-  the current frame with the host pad, input delay `mindelay`. A 1 s
+  the current frame with the host pad, input delay `mindelay`. The
+  takeover frame is a key, kept while taken over (no other keys are saved);
+  the start, a retry and "Replay" load it. A 1 s
   countdown (a filling circle) runs paused; the replay's input at the
   frame is shown as a guide (matched green, missing yellow, extra white)
   and the countdown does not wait for it. START while taken over retries

@@ -2,9 +2,8 @@
 # SPDX-License-Identifier: GPL-3.0+
 """Round jump from a recorded round state: rplay.py with a jump to round ROUND at frame AT (default 400).
 
-Pass: rplay.py passes, the jump loaded a round state, the check after it found no difference and the replay state
-check has 0 differing hashes and rngs. Same env and arguments as rplay.py (FILE, OUT, RUN, traces ...).
-Control: PCSX2_ENV=ZDXSV_REPLAY_ROUND_BAD=1 fails (the check catches the changed state).
+Pass: rplay.py passes, the jump loaded a round state and the replay state check has 0 differing hashes and rngs. Same env and arguments as rplay.py (FILE, OUT, RUN, traces ...).
+Control: PCSX2_ENV=ZDXSV_REPLAY_ROUND_BAD=1 fails (the replay state check counts the changed state).
 """
 import os
 import re
@@ -30,8 +29,6 @@ def main(argv):
         fails.append(f"rplay.py rc {rc}")
     if not re.search(r"replay round jump: key \d+ \+ round state \d+", log):
         fails.append("no round jump from a round state")
-    if "state differs at frame" in log:
-        fails.append("state after the jump differs from the file")
     m = re.findall(r"replay state check: hashes (\d+) checked, (\d+) differ.*?rngs (\d+) checked, (\d+) differ", log)
     if not m or m[-1][1] != "0" or m[-1][3] != "0" or m[-1][0] == "0":
         fails.append(f"replay state check {m[-1] if m else 'missing'}")

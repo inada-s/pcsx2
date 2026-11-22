@@ -24,6 +24,10 @@ namespace Zdxsv
 	bool DeltaStateLoad(int frame);
 	// Drops the saved frames before frame, except the newest.
 	void DeltaStateDiscardBefore(int frame);
+	// Drops one saved frame that is not the newest; the frames before and after it stay loadable.
+	void DeltaStateDrop(int frame);
+	// Bytes held by the saved frames (states and page copies).
+	size_t DeltaStateBytes();
 	// The state of a saved frame without EE, IOP and SPU2 RAM, or nullptr.
 	const std::vector<u8>* DeltaStateGetState(int frame);
 	// Hash of the state of the last saved frame, without its scratch bytes (DeltaFreezeScratch).

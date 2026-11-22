@@ -465,6 +465,7 @@ namespace Zdxsv
 		std::vector<u8> ms_rel, re_rel; // the same for the MS-select and round-end barriers
 		int frames = 0;
 		int rearm_seek = -1; // a switch's common start: the frame to seek to from its key 0
+		RollbackState file_rb0; // the file's HLE state at frame 0 (its recorder's), compared at the common start
 		bool booted_saved = false; // ZDXSV_REPLAY_STATE empty: the booted state is in the cache (PlayCommonState)
 		std::deque<std::pair<int, int>> seeks; // ZDXSV_REPLAY_SEEK
 		bool at_end = false; // paused after the last frame (no ZDXSV_REPLAY_EXIT)
@@ -486,7 +487,6 @@ namespace Zdxsv
 		std::vector<GamePatch> patches; // the file's, applied from each common start
 		std::map<int, RoundState> round_states; // the file's, by frame (a round jump writes one over the key of the first)
 		s64 version = 0; // the file's log_file_version
-		bool states_off = false; // a round jump differed: no more round states
 		int jump_check = -1; // after a round jump to this frame: state hashes are not checked up to the next load end
 		std::set<int> select_starts; // the file's MS-select load ends (the first load end and the one before each span)
 		std::vector<int> loads; // the file's load ends, in order (as s_play_loads.battle)
@@ -500,29 +500,29 @@ namespace Zdxsv
 	};
 	extern PlayLoads s_play_loads;
 
-	// Seek key: the full state as .p2s in the cache folder (zipped on a thread) plus the HLE state outside it.
-	// A seek loads the newest key at or before the target and runs up to it unlimited.
+	// Seek key: a delta state (DeltaState.h) of the frame, plus the HLE state outside it. A seek loads the newest key
+	// at or before the target and runs up to it unlimited; a load drops the keys after it.
 	struct PlayKey
 	{
-		std::string path;
-		std::thread zip;
-		std::atomic<bool> ok{false};
 		RollbackState rb;
 		FrameRings rings;
-		~PlayKey()
-		{
-			if (zip.joinable())
-				zip.join();
-		}
+		bool step = false; // saved only for frame steps: dropped once out of their reach
+		bool pinned = false; // frame 0, the first load end (round jumps), the takeover frame: never dropped
 	};
-	extern std::map<int, std::unique_ptr<PlayKey>> s_play_keys[GGPO_MAX_PLAYERS]; // by point of view (position)
+	extern std::map<int, PlayKey> s_play_keys; // of the shown position, by frame
 	extern std::atomic<int> s_play_req; // requested seek target, INT_MIN = none
 	extern bool s_play_skip_ms;
 	extern std::atomic<bool> s_keys_on; // replay key display
 	extern std::mutex s_battle_loads_mtx;
 	extern std::atomic<int> s_play_round_req; // requested round, 0 = briefing, INT_MIN = none (with spans: 1 = the first span)
 	void PlayKeyApply(const PlayKey& k);
-	int PlaySeek(int target, bool pov_switch = false);
+	// At the start of frame f, before its inputs (the point of the frame 0 state). Keys are saved in frame order.
+	bool PlayKeyStore(int f, bool step);
+	// The key of frame f; the keys after it are dropped. hle: its HLE state too.
+	bool PlayKeyLoad(int f, bool hle = true);
+	// Before a full state load: drops every key.
+	void PlayKeysClear();
+	int PlaySeek(int target);
 	// The span holding frame f, else the next one, else the last; -1 = no spans or skipping off.
 	int PlaySpanAt(int f);
 	// Spectating live past the last shown round (between rounds): the next round, not started yet, is shown.
@@ -539,9 +539,10 @@ namespace Zdxsv
 	bool PlayStepPaused(int f);
 	extern std::atomic<int> s_play_step_queue; // step presses made while a step ran, + forward / - back
 	void PlayStepRingSave(int f);
-	int PlayStepRingLoad(int target);
 	void PlayStepRingClear();
 	void ReplayBenchStart();
+	// ZDXSV_REPLAY_BENCH runs: the delta store is the bench's, no keys are saved.
+	bool ReplayBenchOn();
 	void ReplayBenchSave(int f);
 	void ReplayBenchNext(int next);
 	void ReplayBenchReset();
@@ -569,7 +570,7 @@ namespace Zdxsv
 		int delay = 0;
 		bool start_held = false;
 		int pause_in = 0;
-		std::unique_ptr<PlayKey> key; // the state before T
+		int hold_until = -1; // after a load: no present up to this frame, played before it (its picture is the one shown)
 		std::vector<std::vector<u8>> sent; // own sends before T
 		std::vector<int> sent_at;
 		std::deque<NetOut> out; // own kind-3 msgs before T not in the file's own inputs up to T + delay - 1
@@ -651,7 +652,7 @@ namespace Zdxsv
 	void SyncFrame(int next);
 	extern u32 s_play_gen; // bumped by PlayReset: a call queued before it compares it and drops out
 	void PlayReset();
-	void PlayKeysPrune(); // deletes the cache folder's seek keys a killed or crashed replay left
+	void PlayKeysPrune(); // deletes the zdxsv-replay-*.p2s files left in the cache folder
 	void PlayLoad();
 	void PlayFetchStop(); // cancels and joins the replay downloads
 	bool PlayCommonArm(int pov, int seek = -1);

@@ -181,6 +181,7 @@ namespace Zdxsv
 
 	bool ReplayLoadState(const char* path, Error* error)
 	{
+		PlayKeysClear(); // the keys are deltas of the running state
 		s_limits.own_load = true;
 		const bool ok = VMManager::LoadState(path, error);
 		s_limits.own_load = false;
