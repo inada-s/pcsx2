@@ -179,7 +179,7 @@ Keys (`net=1`, `lobby=1`, `port=`, `delay=`, ...) are parts of `ZDXSV_GGPO`.
 - **Rounds only** (skip mobile suit selection, rematch screens): `ZdxsvReplaySkipMs`.
 - **Round jump**: Shift+PageUp, Shift+PageDown, bar step buttons.
 - **Round states**: recorded in each replay; a jump past the played frames starts from one (always on, files without them seek as before).
-- **Takeover**: bar "Take over" / "Retry" / "Replay", hotkey "Take Over / Retry".
+- **Takeover**: bar buttons, pad START, hotkey "Take Over / Retry".
 - **Four-screen replay**: `ZDXSV_REPLAY_FOUR=1`.
 
 ## Game window
