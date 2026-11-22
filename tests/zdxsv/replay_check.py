@@ -12,6 +12,7 @@ State hashes are judged from the play start, as pwcheck.py (earlier differing fr
 --frames N: frames must be N.
 Exit 1 on any failure.
 """
+import gzip
 import sys
 
 # replay.proto BattleLogFile: field number -> key
@@ -63,9 +64,15 @@ def packed(b):
     return out
 
 
+def read_pb(path):
+    """The .pb bytes, gzip decoded when the file is gzip encoded (as pcsx2 saves it)."""
+    b = open(path, "rb").read()
+    return gzip.decompress(b) if b.startswith(bytes([0x1F, 0x8B])) else b
+
+
 def load(path):
     h = {"users": [], "lobby_answers": [], "round_data": [], "used_ms": [], **{k: [] for k in PACKED}}
-    for f, wt, v in fields(open(path, "rb").read()):
+    for f, wt, v in fields(read_pb(path)):
         k = FIELDS.get(f)
         if k == "round_data":
             # BattleLogRound.win_team: int32, -1 = a 10-byte varint

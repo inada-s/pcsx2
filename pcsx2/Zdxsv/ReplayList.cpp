@@ -14,9 +14,12 @@
 
 #include "fmt/format.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <mutex>
+
+#include <zlib.h>
 
 namespace Zdxsv
 {
@@ -115,6 +118,100 @@ namespace Zdxsv
 		return fallback;
 	}
 
+	bool ReplayIsGzip(const u8* data, size_t size)
+	{
+		return size >= 2 && data[0] == 0x1f && data[1] == 0x8b;
+	}
+
+	std::vector<u8> ReplayGzip(const std::vector<u8>& pb)
+	{
+		z_stream z = {};
+		if (deflateInit2(&z, Z_DEFAULT_COMPRESSION, Z_DEFLATED, 16 + MAX_WBITS, 8, Z_DEFAULT_STRATEGY) != Z_OK)
+			return {};
+		std::vector<u8> out(deflateBound(&z, static_cast<uLong>(pb.size())));
+		z.next_in = const_cast<Bytef*>(pb.data());
+		z.avail_in = static_cast<uInt>(pb.size());
+		z.next_out = out.data();
+		z.avail_out = static_cast<uInt>(out.size());
+		const int rc = deflate(&z, Z_FINISH);
+		out.resize(z.total_out);
+		deflateEnd(&z);
+		return rc == Z_STREAM_END ? out : std::vector<u8>();
+	}
+
+	int ReplayGunzip(const u8* data, size_t size, size_t max, std::vector<u8>& out)
+	{
+		out.clear();
+		z_stream z = {};
+		if (inflateInit2(&z, 16 + MAX_WBITS) != Z_OK)
+			return 2;
+		z.next_in = const_cast<Bytef*>(data);
+		z.avail_in = static_cast<uInt>(size);
+		int rc = Z_OK;
+		while (rc == Z_OK && out.size() < max)
+		{
+			out.resize(std::min(out.size() + std::max<size_t>(size * 4, 1 << 16), max));
+			z.next_out = out.data() + z.total_out;
+			z.avail_out = static_cast<uInt>(out.size() - z.total_out);
+			rc = inflate(&z, Z_NO_FLUSH);
+		}
+		out.resize(z.total_out);
+		inflateEnd(&z);
+		return rc == Z_STREAM_END ? 0 : rc == Z_OK ? 1 : 2;
+	}
+
+	namespace
+	{
+		constexpr size_t INFO_MAX_USERS = 4;
+		constexpr u64 INFO_MAX_HEADER_BYTES = 4096;
+		constexpr size_t INFO_MAX_GZIP_BYTES = 64u << 20;
+		constexpr size_t INFO_MAX_PB_BYTES = 256u << 20;
+
+		bool InfoUser(const u8* b, size_t n, ReplayFileInfo* info)
+		{
+			ReplayFileUser u;
+			PbReader user{b, b + n};
+			if (!user.Fields([&u](uint32_t f, uint32_t uwt, uint64_t uv, const uint8_t* ub, size_t un) {
+					if (uwt == 2 && (f == 2 || f == 3))
+						(f == 2 ? u.name : u.pilot).assign(reinterpret_cast<const char*>(ub), un);
+					else if (uwt == 0 && f == 12)
+						u.pos = static_cast<int>(uv);
+					return true;
+				}))
+				return false;
+			info->users.push_back(std::move(u));
+			return true;
+		}
+
+		bool InfoFromGzip(std::FILE* fp, s64 size, ReplayFileInfo* info)
+		{
+			if (size > static_cast<s64>(INFO_MAX_GZIP_BYTES))
+				return false;
+			std::vector<u8> gz(static_cast<size_t>(size)), pb;
+			if (std::fread(gz.data(), 1, gz.size(), fp) != gz.size() || ReplayGunzip(gz.data(), gz.size(), INFO_MAX_PB_BYTES, pb) != 0)
+				return false;
+			PbReader rd{pb.data(), pb.data() + pb.size()};
+			return rd.Fields([info](uint32_t f, uint32_t wt, uint64_t v, const uint8_t* b, size_t n) {
+				if (wt == 0)
+				{
+					if (f == 20)
+						info->start_at = static_cast<s64>(v);
+					else if (f == 40)
+						info->players = static_cast<int>(v);
+					else if (f == 48)
+						info->frames = static_cast<int>(v);
+				}
+				else if (wt == 2 && f == 3 && n <= INFO_MAX_HEADER_BYTES)
+					info->battle_code.assign(reinterpret_cast<const char*>(b), n);
+				else if (wt == 2 && f == 11 && n <= INFO_MAX_HEADER_BYTES && info->users.size() < INFO_MAX_USERS)
+					return InfoUser(b, n, info);
+				else if (wt == 2 && f == 18)
+					info->rounds++;
+				return true;
+			});
+		}
+	} // namespace
+
 	bool ReadReplayInfo(const std::string& path, ReplayFileInfo* info)
 	{
 		const auto fp = FileSystem::OpenManagedCFile(path.c_str(), "rb");
@@ -122,6 +219,16 @@ namespace Zdxsv
 			return false;
 		const s64 size = FileSystem::FSize64(fp.get());
 		if (size < 0)
+			return false;
+		*info = {};
+		u8 magic[2] = {};
+		const size_t got = std::fread(magic, 1, 2, fp.get());
+		if (ReplayIsGzip(magic, got))
+		{
+			FileSystem::FSeek64(fp.get(), 0, SEEK_SET);
+			return InfoFromGzip(fp.get(), size, info);
+		}
+		if (FileSystem::FSeek64(fp.get(), 0, SEEK_SET) != 0)
 			return false;
 		const auto varint = [f = fp.get()](u64& v) {
 			v = 0;
@@ -137,9 +244,6 @@ namespace Zdxsv
 			return false;
 		};
 		constexpr int max_fields = 4096;
-		constexpr u64 max_header_bytes = 4096;
-		constexpr size_t max_users = 4;
-		*info = {};
 		std::vector<u8> buf;
 		for (int fields = 0;; fields++)
 		{
@@ -174,7 +278,7 @@ namespace Zdxsv
 			const s64 body = FileSystem::FTell64(fp.get());
 			if (body < 0 || body > size || v > static_cast<u64>(size - body))
 				return false;
-			if (wt == 2 && (field == 3 || field == 11) && v <= max_header_bytes && (field == 3 || info->users.size() < max_users))
+			if (wt == 2 && (field == 3 || field == 11) && v <= INFO_MAX_HEADER_BYTES && (field == 3 || info->users.size() < INFO_MAX_USERS))
 			{
 				buf.resize(static_cast<size_t>(v));
 				if (std::fread(buf.data(), 1, buf.size(), fp.get()) != buf.size())
@@ -184,17 +288,8 @@ namespace Zdxsv
 					info->battle_code.assign(reinterpret_cast<const char*>(buf.data()), buf.size());
 					continue;
 				}
-				ReplayFileUser u;
-				PbReader user{buf.data(), buf.data() + buf.size()};
-				if (!user.Fields([&u](uint32_t f, uint32_t uwt, uint64_t uv, const uint8_t* ub, size_t un) {
-						if (uwt == 2 && (f == 2 || f == 3))
-							(f == 2 ? u.name : u.pilot).assign(reinterpret_cast<const char*>(ub), un);
-						else if (uwt == 0 && f == 12)
-							u.pos = static_cast<int>(uv);
-						return true;
-					}))
+				if (!InfoUser(buf.data(), buf.size(), info))
 					return false;
-				info->users.push_back(std::move(u));
 				continue;
 			}
 			if (wt == 2 && field == 18)

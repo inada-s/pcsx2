@@ -14,7 +14,6 @@
 #include "mbedtls/sha256.h"
 #include "rapidjson/document.h"
 
-#include <zlib.h>
 
 namespace Zdxsv
 {
@@ -206,30 +205,16 @@ namespace Zdxsv
 		// whatever the request's Accept-Encoding, and the HTTP clients do not decode them.
 		std::optional<std::vector<u8>> Gunzip(const std::string& url, const std::vector<u8>& in)
 		{
-			z_stream z = {};
-			if (inflateInit2(&z, 16 + MAX_WBITS) != Z_OK)
-				return std::nullopt;
-			z.next_in = const_cast<Bytef*>(in.data());
-			z.avail_in = static_cast<uInt>(in.size());
 			std::vector<u8> out;
-			int rc = Z_OK;
-			while (rc == Z_OK && out.size() < REPLAY_MAX_BYTES)
-			{
-				out.resize(std::min(out.size() + std::max<size_t>(in.size() * 4, 1 << 16), REPLAY_MAX_BYTES));
-				z.next_out = out.data() + z.total_out;
-				z.avail_out = static_cast<uInt>(out.size() - z.total_out);
-				rc = inflate(&z, Z_NO_FLUSH);
-			}
-			out.resize(z.total_out);
-			inflateEnd(&z);
-			if (rc == Z_OK)
+			const int rc = ReplayGunzip(in.data(), in.size(), REPLAY_MAX_BYTES, out);
+			if (rc == 1)
 			{
 				Console.Error("ZdxsvGgpo: replay %s: gzip data over %zu MiB", url.c_str(), REPLAY_MAX_BYTES >> 20);
 				return std::nullopt;
 			}
-			if (rc != Z_STREAM_END)
+			if (rc != 0)
 			{
-				Console.Error("ZdxsvGgpo: replay %s: bad gzip data (zlib %d)", url.c_str(), rc);
+				Console.Error("ZdxsvGgpo: replay %s: bad gzip data", url.c_str());
 				return std::nullopt;
 			}
 			Console.WriteLn("ZdxsvGgpo: replay %s: gzip %zu -> %zu bytes", url.c_str(), in.size(), out.size());
@@ -259,7 +244,7 @@ namespace Zdxsv
 				Console.Error("ZdxsvGgpo: replay %s: over %zu MiB", url.c_str(), REPLAY_MAX_BYTES >> 20);
 				return std::nullopt;
 			}
-			if (got && got->size() >= 2 && (*got)[0] == 0x1f && (*got)[1] == 0x8b)
+			if (got && ReplayIsGzip(got->data(), got->size()))
 				got = Gunzip(url, *got);
 			return got;
 		}
@@ -341,8 +326,10 @@ namespace Zdxsv
 				Console.Error("ZdxsvGgpo: replay %s: over %zu MiB", path.c_str(), REPLAY_MAX_BYTES >> 20);
 				return -1;
 			}
-			const std::optional<std::vector<u8>> file =
+			std::optional<std::vector<u8>> file =
 				live ? LiveOpen(path) : http ? HttpOpen(path) : FileSystem::ReadBinaryFile(native.c_str());
+			if (file && !live && !http && ReplayIsGzip(file->data(), file->size()))
+				file = Gunzip(path, *file);
 			const std::string_view all = file ? std::string_view(reinterpret_cast<const char*>(file->data()), file->size()) : std::string_view();
 			ReplayFile r;
 			if (all.empty() || all.size() > REPLAY_MAX_BYTES || !ReplayParse(all, r) || r.version <= 0)

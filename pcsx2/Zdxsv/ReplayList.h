@@ -7,6 +7,7 @@
 
 #include "common/Pcsx2Types.h"
 
+#include <cstddef>
 #include <string>
 #include <vector>
 
@@ -41,8 +42,14 @@ namespace Zdxsv
 		int players = 0, rounds = 0, frames = 0;
 		std::vector<ReplayFileUser> users;
 	};
-	// The header fields of a .pb (replay.proto BattleLogFile), seeking past the others (inputs, states); any thread. false = not
-	// readable.
+	// A .pb as saved and uploaded is gzip encoded; older builds saved it plain, which never starts with the gzip magic.
+	bool ReplayIsGzip(const u8* data, size_t size);
+	// The gzip encoding of pb; empty on a zlib failure.
+	std::vector<u8> ReplayGzip(const std::vector<u8>& pb);
+	// Decodes gzip data into out, at most max bytes: 0 = done, 1 = over max, 2 = not gzip data.
+	int ReplayGunzip(const u8* data, size_t size, size_t max, std::vector<u8>& out);
+	// The header fields of a .pb (replay.proto BattleLogFile), plain: seeking past the others (inputs, states), gzip: decoded
+	// whole; any thread. false = not readable.
 	bool ReadReplayInfo(const std::string& path, ReplayFileInfo* info);
 
 	// [DEV9/Eth] ZdxsvLobbyApiUrl: the lobby's public API (http://host:port, /lbs/replay and /lbs/live); default the release build's server, "" = none.

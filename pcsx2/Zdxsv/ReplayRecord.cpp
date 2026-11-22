@@ -158,10 +158,10 @@ namespace Zdxsv
 			return DnsUsedServerHost() ? Zdxsv::LobbyApiUrl() : std::string();
 		}
 
-		// Every player posts <battle_code>.pb (multipart field "file") and its round_data used_ms (field "used_ms",
-		// JSON: one array per round) to the uploader, which keeps the first one (409 for the others). The query names the
-		// battle and its ggpo_session (the uploader refuses an upload without them). Detached: a slow upload blocks
-		// neither the next battle nor the exit.
+		// Every player posts <battle_code>.pb (multipart field "file", gzip encoded; the uploader stores a gzip file as it
+		// is) and its round_data used_ms (field "used_ms", JSON: one array per round) to the uploader, which keeps the
+		// first one (409 for the others). The query names the battle and its ggpo_session (the uploader refuses an upload
+		// without them). Detached: neither the compression nor a slow upload blocks the next battle or the exit.
 		void ReplayUpload(const std::string& name, u32 session, const std::vector<uint8_t>& pb, const std::string& used_ms)
 		{
 			std::string url = ReplayUploadUrl();
@@ -169,14 +169,17 @@ namespace Zdxsv
 				return;
 			url += fmt::format("{}battle_code={}&session_id={}", url.find('?') == std::string::npos ? '?' : '&', name,
 				static_cast<int32_t>(session));
-			const std::string boundary = fmt::format("zdxsv{:016x}", XXH64(pb.data(), pb.size(), 0));
-			std::string body = fmt::format("--{0}\r\nContent-Disposition: form-data; name=\"used_ms\"\r\n\r\n{1}\r\n"
-										   "--{0}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{2}.pb\"\r\n"
-										   "Content-Type: application/octet-stream\r\n\r\n",
-				boundary, used_ms, name);
-			body.append(reinterpret_cast<const char*>(pb.data()), pb.size());
-			body += fmt::format("\r\n--{}--\r\n", boundary);
-			std::thread([url, body = std::move(body), type = "multipart/form-data; boundary=" + boundary]() mutable {
+			std::thread([url, name, pb, used_ms]() {
+				const std::vector<u8> gz = ReplayGzip(pb);
+				const std::string boundary = fmt::format("zdxsv{:016x}", XXH64(pb.data(), pb.size(), 0));
+				std::string body = fmt::format("--{0}\r\nContent-Disposition: form-data; name=\"used_ms\"\r\n\r\n{1}\r\n"
+											   "--{0}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{2}.pb\"\r\n"
+											   "Content-Type: application/octet-stream\r\n\r\n",
+					boundary, used_ms, name);
+				const std::vector<u8>& file = gz.empty() ? pb : gz;
+				body.append(reinterpret_cast<const char*>(file.data()), file.size());
+				body += fmt::format("\r\n--{}--\r\n", boundary);
+				std::string type = "multipart/form-data; boundary=" + boundary;
 				std::unique_ptr<HTTPDownloader> http = HTTPDownloader::Create(Host::GetHTTPUserAgent());
 				if (!http)
 				{
@@ -188,8 +191,8 @@ namespace Zdxsv
 				const size_t size = body.size();
 				http->CreatePostRequest(url, std::move(body), [&](s32 status, const std::string&, HTTPDownloader::Request::Data) {
 					if (status == HTTPDownloader::HTTP_STATUS_OK || status == 409)
-						Console.WriteLn("ZdxsvGgpo: replay upload %s: %s, %zu bytes, %.0f ms", url.c_str(),
-							status == 409 ? "already there" : "ok", size, timer.GetTimeMilliseconds());
+						Console.WriteLn("ZdxsvGgpo: replay upload %s: %s, %zu bytes (file %zu, gzip %zu), %.0f ms", url.c_str(),
+							status == 409 ? "already there" : "ok", size, pb.size(), gz.size(), timer.GetTimeMilliseconds());
 					else
 						Console.Error("ZdxsvGgpo: replay upload %s failed: status %d", url.c_str(), status);
 				}, nullptr, std::move(type));
@@ -424,10 +427,13 @@ namespace Zdxsv
 			return pb;
 		}
 
+		// Gzip encoded (plain on a zlib failure).
 		bool ReplaySaveFile(const std::string& path, const std::vector<uint8_t>& pb)
 		{
 			const std::string part = path + ".part";
-			if (FileSystem::WriteBinaryFile(part.c_str(), pb.data(), pb.size()) && FileSystem::RenamePath(part.c_str(), path.c_str()))
+			const std::vector<u8> gz = ReplayGzip(pb);
+			const std::vector<u8>& file = gz.empty() ? pb : gz;
+			if (FileSystem::WriteBinaryFile(part.c_str(), file.data(), file.size()) && FileSystem::RenamePath(part.c_str(), path.c_str()))
 				return true;
 			FileSystem::DeleteFilePath(part.c_str());
 			Console.Error("ZdxsvGgpo: replay: write %s failed", path.c_str());
