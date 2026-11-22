@@ -319,6 +319,9 @@ def main():
     run = os.path.abspath(os.environ["RUN"])
     ip = os.environ["IP"]
     emu, ext_off, ggpo = E("EMU"), E("EXT_OFF"), E("GGPO")
+    if ext_off:
+        # every client runs on the DEV9 adapter: drive.py's routes follow this environment
+        os.environ["DEV9"] = "1"
     # no DEV9 connects only to the lobby: these clients log in by fast login with a token for the card's account
     fl = bool(emu) and not ext_off
     if fl and par != "1":
