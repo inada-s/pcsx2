@@ -150,7 +150,7 @@ Tools → zdxsv Replays:
 | Speed down / up (33, 50, 100, 200, 300 %) | Down / Up | | ▼ / ▲ around the speed |
 | Toggle key display | | End | |
 | Previous / next round | | Shift+PageUp / Shift+PageDown | step buttons around the round number |
-| Take over / retry | (taken over: START retries) | "Take Over / Retry" | "Take over", "Retry", "Replay" |
+| Take over / retry | START (paused: takes over; countdown: cancels; taken over: retries) | "Take Over / Retry" | take over / retry icon, "Replay" |
 
 Hotkeys are under Settings > Hotkeys, group "Zdxsv Replay". The pad's
 controls are read before the game; the left stick works as the
@@ -230,13 +230,14 @@ D-pad. While taken over the pad plays the game.
   or with a `log_file_version` before 20261116 (its round states lack part
   of that RAM: a later round can load another stage or pick another mobile
   suit), seeks without round states.
-- **Takeover**: in a battle only, the shown position plays from
+- **Takeover**: in a battle only, the bar's gamepad icon or, paused, START
+  on the pad: the shown position plays from
   the current frame with the host pad, input delay `mindelay`. The
   takeover frame is a key, kept while taken over (no other keys are saved);
   the start, a retry and "Replay" load it. A 1 s
   countdown (a filling circle) runs paused; the replay's input at the
   frame is shown as a guide (matched green, missing yellow, extra white)
-  and the countdown does not wait for it. START while taken over retries
+  and the countdown does not wait for it; START cancels it (the panel says so for 1 s, then the replay plays). START while taken over retries
   from the takeover frame and is not sent to the game; the end of the
   battle retries too. "Replay" goes back to the replay. Not while
   spectating live.

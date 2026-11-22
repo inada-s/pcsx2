@@ -69,6 +69,14 @@ namespace Zdxsv
 			PAD_SLOWER = 8,
 			PAD_PAUSE = 16
 		};
+		// START: paused, a press takes over; in the takeover countdown, a press cancels it. A press is a change from
+		// released, so the press that took over does not cancel.
+		struct PadStart
+		{
+			bool held = false;
+			bool pressed = false; // at the last ReplayPadPoll
+			Common::Timer::Value cancel_t0 = 0; // the countdown's cancel: shown 1 s, still paused, then the replay plays
+		} s_pad_start;
 		constexpr int PAD_SEEK_FRAMES = 60;
 		constexpr int MAX_STEP_QUEUE = 30;
 		constexpr double IDLE_PRESENT_MS = 33.0;
@@ -84,15 +92,18 @@ namespace Zdxsv
 			std::atomic<int> speed_percent{100};
 			std::atomic<u16> to_current{0};
 			std::atomic<float> to_left{0.0f};
+			std::atomic<bool> to_ending{false};
 		} s_ctl;
 	} // namespace
 
 	void ReplayControlsReset()
 	{
 		s_pad = {};
+		s_pad_start = {};
 		s_ctl.speed_percent = 100;
 		s_ctl.to_current = 0;
 		s_ctl.to_left = 0.0f;
+		s_ctl.to_ending = false;
 	}
 
 
@@ -125,12 +136,22 @@ namespace Zdxsv
 
 	void ReplayPadPoll()
 	{
+		using I = PadDualshock2::Inputs;
+		const bool start = s_host[I::PAD_START] >= 0.5f;
+		s_pad_start.pressed = start && !s_pad_start.held;
+		s_pad_start.held = start;
 		if (!s_play_src.path || s_play.frames <= 0 || !g_ggpo_active || s_to_shared.phase != TO_OFF)
 		{
 			s_pad = {};
 			return;
 		}
-		using I = PadDualshock2::Inputs;
+		if (s_pad_start.pressed && VMManager::GetState() == VMState::Paused && !s_play.at_end && ReplayCanTakeOver())
+		{
+			Console.WriteLn("ZdxsvGgpo: replay pad: takeover at frame %d", s_battle.frame);
+			ReplayTakeover();
+			s_pad = {};
+			return;
+		}
 		const auto on = [](I a, I b) { return s_host[a] >= 0.5f || s_host[b] >= 0.5f; };
 		const u32 now = (on(I::PAD_LEFT, I::PAD_L_LEFT) ? PAD_BACK : 0) | (on(I::PAD_RIGHT, I::PAD_L_RIGHT) ? PAD_FORWARD : 0) |
 		                (on(I::PAD_UP, I::PAD_L_UP) ? PAD_FASTER : 0) | (on(I::PAD_DOWN, I::PAD_L_DOWN) ? PAD_SLOWER : 0) |
@@ -258,6 +279,11 @@ namespace Zdxsv
 		return true;
 	}
 
+	bool ReplayTakeoverEnding()
+	{
+		return s_ctl.to_ending;
+	}
+
 	bool ReplayIdleFastPoll()
 	{
 		return s_play_src.path && g_ggpo_active;
@@ -276,11 +302,30 @@ namespace Zdxsv
 	{
 		ReplayPadPoll();
 		if (s_to_shared.phase != TO_COUNT)
+		{
+			s_pad_start.cancel_t0 = 0;
+			s_ctl.to_ending = false;
 			return;
+		}
+		const Common::Timer::Value now = Common::Timer::GetCurrentValue();
+		if (s_pad_start.cancel_t0 == 0 && s_pad_start.pressed)
+		{
+			Console.WriteLn("ZdxsvGgpo: replay pad: takeover countdown cancelled");
+			s_pad_start.cancel_t0 = now;
+			s_ctl.to_ending = true;
+		}
+		if (s_pad_start.cancel_t0 != 0)
+		{
+			if (Common::Timer::ConvertValueToMilliseconds(now - s_pad_start.cancel_t0) >= 1000.0)
+			{
+				s_pad_start.cancel_t0 = 0;
+				ReplayTakeoverCancel();
+			}
+			return;
+		}
 		u16 a, b;
 		ZdPadAB(TakeoverHostInput(), a, b);
 		s_ctl.to_current = b;
-		const Common::Timer::Value now = Common::Timer::GetCurrentValue();
 		if (s_to.count_t0 == 0)
 			s_to.count_t0 = now;
 		const double ms = Common::Timer::ConvertValueToMilliseconds(now - s_to.count_t0);

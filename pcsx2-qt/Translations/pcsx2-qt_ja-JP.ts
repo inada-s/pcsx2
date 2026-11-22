@@ -27141,6 +27141,66 @@ Skipped {}, last: {}</source>
       <source>Online play: {} set to the defaults.</source>
       <translation>オンライン対戦: {} を既定値にしました。</translation>
     </message>
+    <message>
+      <source>Play / Pause (Circle)</source>
+      <translation>再生 / 一時停止 (○)</translation>
+    </message>
+    <message>
+      <source>Slower (D-pad Down)</source>
+      <translation>遅く (方向キー下)</translation>
+    </message>
+    <message>
+      <source>Faster (D-pad Up)</source>
+      <translation>速く (方向キー上)</translation>
+    </message>
+    <message>
+      <source>-1 s, paused: -1 frame (D-pad Left; hold to repeat)</source>
+      <translation>-1 秒、一時停止中は -1 フレーム (方向キー左、長押しで連続)</translation>
+    </message>
+    <message>
+      <source>+1 s, paused: +1 frame (D-pad Right; hold to repeat)</source>
+      <translation>+1 秒、一時停止中は +1 フレーム (方向キー右、長押しで連続)</translation>
+    </message>
+    <message>
+      <source>Previous round</source>
+      <translation>前のラウンド</translation>
+    </message>
+    <message>
+      <source>Next round</source>
+      <translation>次のラウンド</translation>
+    </message>
+    <message>
+      <source>Retry (START)</source>
+      <translation>やり直す (START)</translation>
+    </message>
+    <message>
+      <source>Take over (paused: START)</source>
+      <translation>操作を引き継ぐ (一時停止中は START)</translation>
+    </message>
+    <message>
+      <source>Ending takeover</source>
+      <translation>引き継ぎを終了します</translation>
+    </message>
+    <message>
+      <source>Get Ready!</source>
+      <translation>Get Ready!</translation>
+    </message>
+    <message>
+      <source>Input:</source>
+      <translation>入力:</translation>
+    </message>
+    <message>
+      <source>Neutral</source>
+      <translation>ニュートラル</translation>
+    </message>
+    <message>
+      <source>Matching is optional. START now cancels; during Takeover, START retries.</source>
+      <translation>入力合わせは任意です。今 START を押すと取り消し、引き継ぎ中は START でやり直します。</translation>
+    </message>
+    <message>
+      <source>Not available during a replay.</source>
+      <translation>リプレイ中は使用できません。</translation>
+    </message>
   </context>
   <context>
     <name>ZdxsvMs</name>

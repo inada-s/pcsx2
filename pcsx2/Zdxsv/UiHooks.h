@@ -70,6 +70,8 @@ namespace Zdxsv
 	// Takeover state for the overlay (GS thread): phase 0 off, 2 countdown, 3 taken over; target / current = (B) bits
 	// of the replay's input at the frame / of the host pad. False when no replay plays.
 	bool ReplayTakeoverInfo(int& phase, u16& target, u16& current, float& countdown);
+	// START cancelled the countdown: its panel says so until the replay plays again
+	bool ReplayTakeoverEnding();
 	// Paused replay (VMManager idle, CPU thread): the host pad's replay controls and the takeover countdown.
 	void ReplayTakeoverIdle();
 	// The paused idle poll runs at the fullscreen UI rate: a step from the pad or the control bar waits for it.

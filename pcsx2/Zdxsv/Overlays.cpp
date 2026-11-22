@@ -257,10 +257,9 @@ namespace Zdxsv
 				u16 to_target, to_current;
 				float to_left;
 				Zdxsv::ReplayTakeoverInfo(to_phase, to_target, to_current, to_left);
-				const std::string retry_label = fmt::format(ICON_FA_ROTATE_LEFT " {}", TRANSLATE_SV("Zdxsv", "Retry"));
-				const std::string takeover_label = fmt::format(ICON_FA_GAMEPAD " {}", TRANSLATE_SV("Zdxsv", "Take over"));
 				const std::string toreplay_label = fmt::format(ICON_FA_FILM " {}", TRANSLATE_SV("Zdxsv", "Replay"));
-				if (button("##takeover", to_phase == 3 ? retry_label.c_str() : takeover_label.c_str(), (to_phase == 0 && Zdxsv::ReplayCanTakeOver()) || to_phase == 3))
+				if (button("##takeover", to_phase == 3 ? ICON_FA_ROTATE_LEFT : ICON_FA_GAMEPAD, (to_phase == 0 && Zdxsv::ReplayCanTakeOver()) || to_phase == 3,
+						to_phase == 3 ? TRANSLATE("Zdxsv", "Retry (START)") : TRANSLATE("Zdxsv", "Take over (paused: START)")))
 				{
 					Console.WriteLn("ZdxsvGgpo: replay bar: takeover at frame %d", frame);
 					Host::RunOnCPUThread([] { Zdxsv::ReplayTakeover(); });
@@ -353,6 +352,7 @@ namespace Zdxsv
 					ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings |
 						ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav))
 			{
+				const bool ending = Zdxsv::ReplayTakeoverEnding();
 				const float radius = std::ceil(30.0f * scale);
 				const float win_w = ImGui::GetWindowSize().x;
 				ImGui::Dummy(ImVec2(0.0f, 10.0f * scale));
@@ -360,9 +360,10 @@ namespace Zdxsv
 				const ImVec2 center(ImGui::GetWindowPos().x + win_w * 0.5f, at.y + radius);
 				ImGui::Dummy(ImVec2(0.0f, radius * 2.0f));
 				ImDrawList* dl = ImGui::GetWindowDrawList();
-				dl->AddCircleFilled(center, radius, IM_COL32(255, 255, 255, 40), 30);
+				if (!ending)
+					dl->AddCircleFilled(center, radius, IM_COL32(255, 255, 255, 40), 30);
 				const float progress = std::clamp(1.0f - left, 0.0f, 1.0f);
-				if (progress > 0.0f)
+				if (!ending && progress > 0.0f)
 				{
 					const float a0 = -IM_PI * 0.5f;
 					dl->PathLineTo(center);
@@ -371,7 +372,7 @@ namespace Zdxsv
 					dl->PathFillConvex(IM_COL32(255, 255, 255, 200));
 				}
 				ImGui::Dummy(ImVec2(0.0f, 5.0f * scale));
-				const char* ready = TRANSLATE("Zdxsv", "Get Ready!");
+				const char* ready = ending ? TRANSLATE("Zdxsv", "Ending takeover") : TRANSLATE("Zdxsv", "Get Ready!");
 				ImGui::SetCursorPosX((win_w - ImGui::CalcTextSize(ready).x) * 0.5f);
 				ImGui::TextUnformatted(ready);
 				ImGui::Separator();
@@ -400,7 +401,7 @@ namespace Zdxsv
 				for (const auto& b : buttons)
 					show(b.bit, b.icon);
 				ImGui::PushTextWrapPos(0.0f);
-				ImGui::TextDisabled("%s", TRANSLATE("Zdxsv", "Matching is optional. During Takeover, press START to retry."));
+				ImGui::TextDisabled("%s", TRANSLATE("Zdxsv", "Matching is optional. START now cancels; during Takeover, START retries."));
 				ImGui::PopTextWrapPos();
 				if (ImGui::Button(TRANSLATE("Zdxsv", "Cancel")))
 				{
