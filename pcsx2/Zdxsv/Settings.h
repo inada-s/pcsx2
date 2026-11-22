@@ -12,18 +12,6 @@
 #include <cstdlib>
 #include <string>
 
-// The release build sets them (CMake ZDXSV_SERVER_HOST, ZDXSV_API_URL, ZDXSV_UDPTEST_URL): a build from source
-// connects to a local zdxsv (its scripts/run-local.sh).
-#ifndef ZDXSV_SERVER_HOST
-#define ZDXSV_SERVER_HOST "127.0.0.1"
-#endif
-#ifndef ZDXSV_API_URL
-#define ZDXSV_API_URL "http://127.0.0.1:8203"
-#endif
-#ifndef ZDXSV_UDPTEST_URL
-#define ZDXSV_UDPTEST_URL ""
-#endif
-
 namespace Zdxsv
 {
 	// default of ZdxsvReplayStateUrl: the post-entry state a replay starts from
@@ -31,22 +19,13 @@ namespace Zdxsv
 	// SHA-256 of the file at REPLAY_STATE_URL: a new file there needs a new client
 	inline constexpr const char* REPLAY_STATE_SHA256 = "bd6db1b5ed73e3f8321161601a89846ea5fce125b3cf194e6cf938ef30f72fdb";
 	// default of ZdxsvUdpTestUrl: the udptest function (zdxsv infra/udptest)
-	inline constexpr const char* UDPTEST_URL = ZDXSV_UDPTEST_URL;
+	const char* UdpTestUrlDefault();
 
 	// the host the game's server names are looked up as; "" = none
-	inline const char* ServerHost()
-	{
-		const char* e = TestEnv("ZDXSV_SERVER_HOST");
-		return e ? e : ZDXSV_SERVER_HOST;
-	}
+	const char* ServerHost();
 
 	// the zdxsv public API + path; "" without one
-	inline std::string ServerApiUrl(const char* path)
-	{
-		const char* e = TestEnv("ZDXSV_API_URL");
-		const std::string base = e ? e : ZDXSV_API_URL;
-		return base.empty() ? base : base + path;
-	}
+	std::string ServerApiUrl(const char* path);
 
 	// env: "0" = off, any other value = on
 	inline bool BoolSetting(const char* key, bool default_value, const char* env)

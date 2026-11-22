@@ -3,7 +3,8 @@ name: 🍎 MacOS arm64 Build
 # zdxsv fork: arm64 players join the same battles as x86_64 players, so the
 # arm64 cores are compiled (and the unit tests run) on every push and PR.
 # Compile only: no signing, no artifact. No secrets: none are used.
-# The x86_64 macOS build stays manual (macos_build_matrix.yml).
+# x86_64 builds on pushes only: it fills the ccache the release's x86_64 job
+# restores (a tag run reads the default branch's caches).
 
 on:
   push:
@@ -26,3 +27,13 @@ jobs:
       jobName: "MacOS arm64 Build"
       artifactPrefixName: "PCSX2-macos-Qt-arm64"
       arch: arm64
+
+  build_macos_qt_x64:
+    name: "x86_64"
+    if: github.repository != 'PCSX2/pcsx2' && github.event_name != 'pull_request'
+    uses: ./.github/workflows/macos_build.yml
+    with:
+      jobName: "MacOS x86_64 Build"
+      artifactPrefixName: "PCSX2-macos-Qt-x64"
+      arch: x86-64
+      universalDeps: true # as the release's x86_64 job: the same deps, so the same compile commands
