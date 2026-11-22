@@ -243,7 +243,7 @@ Visual Studio and `lupdate` drop comments when they rewrite these files.
 | `pcsx2/ImGui/ImGuiOverlays.cpp` |  | include `Zdxsv/UiHooks.h` |
 | `pcsx2/ImGui/ImGuiOverlays.cpp` | `ImGuiManager::RenderOverlays` | `Zdxsv::g_ggpo_enabled`, `Zdxsv::DrawOverlays` |
 | `pcsx2/Input/InputManager.cpp` |  | include `Zdxsv/InputHooks.h` |
-| `pcsx2/Input/InputManager.cpp` | `InputManager::InvokeEvents` | `Zdxsv::g_replay_child_unfocused` |
+| `pcsx2/Input/InputManager.cpp` | `InputManager::InvokeEvents` | `Zdxsv::g_replay_unfocused` |
 | `pcsx2/Interpreter.cpp` |  | include `Zdxsv/CpuHooks.h` |
 | `pcsx2/Interpreter.cpp` |  | cpuBlockCycles and intLastBranchTo not static, the ARM64 EE recompiler shares them. |
 | `pcsx2/Interpreter.cpp` | `execI` | `Zdxsv::IntHooksOn`, `Zdxsv::IntRunHooks` |
