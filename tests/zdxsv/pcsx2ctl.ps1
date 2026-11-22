@@ -16,6 +16,11 @@ Add-Type @"
 using System; using System.Runtime.InteropServices;
 public static class W {
   [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr h);
+  [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
+  [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr h, IntPtr p);
+  [DllImport("user32.dll")] public static extern bool AttachThreadInput(uint a, uint b, bool attach);
+  [DllImport("user32.dll")] public static extern bool BringWindowToTop(IntPtr h);
+  [DllImport("kernel32.dll")] public static extern uint GetCurrentThreadId();
   [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr h, int c);
   [DllImport("user32.dll")] public static extern void keybd_event(byte vk, byte scan, uint flags, UIntPtr extra);
   [DllImport("user32.dll")] public static extern uint MapVirtualKey(uint code, uint type);
@@ -119,8 +124,19 @@ if ($Seq) {
   if ($un.Count) { $un | ForEach-Object { "FAIL key not bound: $_" }; exit 2 }
 }
 if ($Check) { "keycheck ok: $Seq"; exit 0 }
+# Windows refuses SetForegroundWindow to a process without recent input: the keys then go to another window.
+function Set-Foreground {
+  if ([W]::SetForegroundWindow($h) -and [W]::GetForegroundWindow() -eq $h) { return }
+  $me = [W]::GetCurrentThreadId(); $fg = [W]::GetWindowThreadProcessId([W]::GetForegroundWindow(), [IntPtr]::Zero)
+  [void][W]::AttachThreadInput($me, $fg, $true)
+  [W]::keybd_event(0x12, 0, 0, [UIntPtr]::Zero); [W]::keybd_event(0x12, 0, 2, [UIntPtr]::Zero)
+  [void][W]::BringWindowToTop($h); [void][W]::SetForegroundWindow($h)
+  [void][W]::AttachThreadInput($me, $fg, $false)
+  Start-Sleep -Milliseconds 100
+  if ([W]::GetForegroundWindow() -ne $h) { "FAIL foreground: pcsx2 window $h not focused, keys not sent"; exit 4 }
+}
 if ($Seq) {
-  [void][W]::ShowWindow($h, 9); [void][W]::SetForegroundWindow($h); Start-Sleep -Milliseconds 150
+  [void][W]::ShowWindow($h, 9); Set-Foreground; Start-Sleep -Milliseconds 150
   foreach ($tok in $Seq.Split(',')) {
     $t = $tok.Trim(); if (!$t) { continue }
     if ($t -match '^w(\d+)$') { Start-Sleep -Milliseconds ([int]$Matches[1]); continue }
