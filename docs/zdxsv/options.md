@@ -199,7 +199,7 @@ See [replay.md](replay.md).
 | `ZDXSV_REPLAY_SKIP_MS=0` / `=1` | the setting | feature | Play everything / the rounds only, over `ZdxsvReplaySkipMs`. |
 | `ZDXSV_FRAME_OSD=0` / `=1` | the setting | feature | Frame time OSD off / on, over `ZdxsvFrameOsd`; on, every 600 frames a `frame osd` log line with the stage means. |
 | `ZDXSV_ALLY_HP=0` / `=1` | the setting | feature | Teammate HP on the HUD off / on, over `ZdxsvAllyHp`. |
-| `ZDXSV_REPLAY_KEY=n` | 600 | tuning | Interval of the seek keys in frames. 0 = none: no backward seek. |
+| `ZDXSV_REPLAY_KEY=n` | 60 | tuning | Interval of the seek keys in frames (keys older than 600 frames: one in 600 kept). 0 = none: no backward seek. |
 | `ZDXSV_REPLAY_TURBO=1` | off | test | Play turbo. |
 | `ZDXSV_REPLAY_EXIT=1` | off | test | Exit at the end (the VM closes at the end anyway). |
 | `ZDXSV_CYCLE_LOG=n` | off | test | Log `ZdxsvGgpo: cycles at frame f: ee .. iop ..` every n played frames. Two builds that differ in the CPU core must log the same values; the state hash does not catch an EE cycle shift. |
@@ -207,8 +207,8 @@ See [replay.md](replay.md).
 | `ZDXSV_LIVE_NEXT=N` | the setting | test | Live auto-next for N more battles (0 = off), over `ZdxsvLiveAutoNext`. |
 | `ZDXSV_LIVE_PACING=0` | on | test | Live: no speed trim, only the wait for 60 frames at the newest one (control). |
 | `ZDXSV_REPLAY_SEEK=at:to[,at:to...]` | off | test | Seek to frame `to` when frame `at` is reached. |
-| `ZDXSV_REPLAY_BENCH=at:depth:reps` | off | diagnostic | Replay benchmark of the rollback cycle: from frame `at`, every frame saved as a delta state; after each `depth` (1-60) played frames the first is loaded and the frames rerun as rollback reruns, `reps` times. Logs `replay bench` lines: wall ms of a played frame, a rerun frame, a save and a load (mean, median, p10, p90, max). |
-| `ZDXSV_REPLAY_POV_AT=frame:P[,...]` | off | test | Switch to position P when that frame is reached. |
+| `ZDXSV_REPLAY_BENCH=at:depth:reps` | off | diagnostic | Replay benchmark of the rollback cycle (no seek keys while it runs): from frame `at`, every frame saved as a delta state; after each `depth` (1-60) played frames the first is loaded and the frames rerun as rollback reruns, `reps` times. Logs `replay bench` lines: wall ms of a played frame, a rerun frame, a save and a load (mean, median, p10, p90, max). |
+| `ZDXSV_REPLAY_POV_AT=frame:P[,...]` | off | test | Switch to position P when that frame is reached: its battle start runs from the common state, then a seek. |
 | `ZDXSV_REPLAY_ROUND_AT=frame:N[,...]` | off | test | Jump to round N (0 = the briefing) when that frame is reached. |
 | `ZDXSV_REPLAY_TAKEOVER=frame[:src]` | off | test | Take over at that frame with no input matching. No src: the host pad plays; `replay` = the file's own input `delay` frames ahead (the replay must play unchanged); `rand` = random buttons (a control: differs from the replay soon after the frame). |
 | `ZDXSV_REPLAY_TAKEOVER_RETRY=frame` | off | test | While taken over, retry from the takeover frame when that frame is reached. |

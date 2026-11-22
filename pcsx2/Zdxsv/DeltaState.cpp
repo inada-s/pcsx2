@@ -514,6 +514,45 @@ namespace Zdxsv
 		}
 	}
 
+	void DeltaStateDrop(int frame)
+	{
+		const auto state = s_store.states.find(frame);
+		if (state == s_store.states.end() || std::next(state) == s_store.states.end())
+			return;
+		// A page missing from the delta before is unchanged from that save to this one, so this delta's copy is
+		// its data at the earlier save too.
+		const auto delta = s_store.deltas.find(frame);
+		if (delta != s_store.deltas.end())
+		{
+			if (state != s_store.states.begin())
+			{
+				Delta& before = s_store.deltas[std::prev(state)->first];
+				std::vector<bool> has(ALL_PAGES, false);
+				for (const SavedPage& p : before)
+					has[p.page] = true;
+				for (SavedPage& p : delta->second)
+				{
+					if (!has[p.page])
+						before.push_back(std::move(p));
+				}
+			}
+			ReleaseDelta(delta->second);
+			s_store.deltas.erase(delta);
+		}
+		s_store.buffer_pool.push_back(std::move(state->second));
+		s_store.states.erase(state);
+	}
+
+	size_t DeltaStateBytes()
+	{
+		size_t bytes = 0;
+		for (const auto& [frame, state] : s_store.states)
+			bytes += state.size();
+		for (const auto& [frame, delta] : s_store.deltas)
+			bytes += delta.size() * PAGE_BYTES;
+		return bytes + s_store.open.size() * PAGE_BYTES;
+	}
+
 	void DeltaStateArm(size_t states)
 	{
 		if (s_store.armed || !s_store.states.empty())

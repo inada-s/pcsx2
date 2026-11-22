@@ -115,7 +115,13 @@ namespace Zdxsv
 			return;
 		}
 		s_bench.from = s_bench.at;
+		PlayKeysClear();
 		Console.WriteLn("ZdxsvGgpo: replay bench: from frame %d, %d rollbacks of %d frames", s_bench.at, s_bench.reps, s_bench.depth);
+	}
+
+	bool ReplayBenchOn()
+	{
+		return s_bench.at >= 0;
 	}
 
 	void ReplayBenchSave(int f)

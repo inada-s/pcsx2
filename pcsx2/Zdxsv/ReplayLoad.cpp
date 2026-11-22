@@ -402,16 +402,9 @@ namespace Zdxsv
 			s_play.rng_pos = static_cast<int>(me);
 			s_play.patches = std::move(r.patches);
 			s_opt.players = static_cast<int>(players);
-			// key 0 of each position: its state is saved at its common start's arm (PlayCommonStart); the HLE state
-			// here (the recorder's) is only compared there
 			for (int p = 0; p < s_opt.players; p++)
-			{
-				auto k = std::make_unique<PlayKey>();
-				k->path = Path::Combine(EmuFolders::Cache, fmt::format("zdxsv-replay-p{}.p2s", p));
-				s_play_keys[p].emplace(0, std::move(k));
 				s_play.pov_ok[p] = true;
-			}
-			RollbackState& rb = s_play_keys[me].at(0)->rb;
+			RollbackState& rb = s_play.file_rb0;
 			rb.net_rx.assign(r.rx0.begin(), r.rx0.end());
 			rb.ps = {static_cast<u8>(h[0]), static_cast<u8>(h[1]), h[2] != 0, h[3] != 0};
 			for (int p = 0; p < 4; p++)
@@ -584,19 +577,10 @@ namespace Zdxsv
 			swap_sent(pov);
 			s_battle.me = pov;
 			Console.WriteLn("ZdxsvGgpo: replay: point of view %d -> %d at frame %d, vsync %u", old, pov, target, g_FrameCount);
-			if (!s_play_keys[pov].at(0)->ok) // never played: its own battle start first
-			{
-				if (PlayCommonArm(pov, std::clamp(target, 0, s_play.frames - 1)))
-					return -2;
-				Console.Error("ZdxsvGgpo: replay: point of view %d: no common state", pov);
-				swap_sent(pov);
-				swap_sent(old);
-				s_battle.me = old;
-				return s_battle.frame + 1;
-			}
-			const int next = PlaySeek(target, true);
-			if (next >= 0)
-				return next;
+			// the keys are the shown position's: the new one runs its own battle start
+			if (PlayCommonArm(pov, std::clamp(target, 0, s_play.frames - 1)))
+				return -2;
+			Console.Error("ZdxsvGgpo: replay: point of view %d: no common state", pov);
 			swap_sent(pov);
 			swap_sent(old);
 			s_battle.me = old;
@@ -850,28 +834,24 @@ namespace Zdxsv
 	}
 
 	// Returned at the arm of a common start = GGPO frame 0 as ReplayBegin sees it live: this state becomes key 0
-	// of the point of view, then the replay starts from it as from a file's state.
+	// of the point of view, then the replay starts from it.
 	void PlayCommonStart()
 	{
 		s_play_common.on = false;
 		const int me = s_battle.me;
-		PlayKey& k0 = *s_play_keys[me].at(0);
-		const bool hle_same = k0.rb.net_rx == s_rb.net_rx && k0.rb.ps == s_rb.ps && k0.rb.ms == s_rb.ms && k0.rb.re == s_rb.re;
+		const RollbackState& f0 = s_play.file_rb0;
+		const bool hle_same = f0.net_rx == s_rb.net_rx && f0.ps == s_rb.ps && f0.ms == s_rb.ms && f0.re == s_rb.re;
 		MsSlotsClear();
 		ServerPatchesBegin(s_play.patches);
-		Error error;
-		std::unique_ptr<ArchiveEntryList> list = SaveState_DownloadState(&error);
-		if (!list || !SaveState_ZipToDisk(std::move(list), nullptr, k0.path.c_str(), &error))
-		{
-			Console.Error("ZdxsvGgpo: replay: common start: state save failed: %s", error.GetDescription().c_str());
+		PlayKeysClear();
+		if (!PlayKeyStore(0, false))
 			return;
-		}
-		k0.rb = s_rb;
-		k0.ok = true;
+		s_play_keys.at(0).rings = {};
+		s_play_keys.at(0).pinned = true;
 		// the file's HLE state is its recorder's position's
 		Console.WriteLn("ZdxsvGgpo: replay: common start armed at vsync %u as position %d (asked %d), frame 0 HLE state %s",
 			g_FrameCount, me, s_rbk.me, me != s_play.rng_pos ? "not compared" : hle_same ? "equals the file's" : "differs from the file's");
-		// PlayBegin loads that state as PlayLoad does
+		// PlayBegin loads key 0 back: the VM runs on until it
 		s_battle.started = false;
 		g_ggpo_active = false;
 		Host::RunOnCPUThread([me, gen = s_play_gen] {
@@ -882,16 +862,12 @@ namespace Zdxsv
 
 	void PlayBegin(int me)
 	{
-		const PlayKey& k0 = *s_play_keys[me].at(0);
-		Error error;
-		if (!ReplayLoadState(k0.path.c_str(), &error))
-		{
-			Console.Error("ZdxsvGgpo: replay: state load failed: %s", error.GetDescription().c_str());
+		if (!PlayKeyLoad(0))
 			return;
-		}
+		// as a full state load: no code recompiled in the frames run since the arm
+		VMManager::Internal::ClearCPUExecutionCaches();
 		s_opt.net = true;
 		s_battle.me = me;
-		PlayKeyApply(k0);
 		s_battle.armed = true;
 		s_battle.started = true;
 		g_ggpo_active = true;
