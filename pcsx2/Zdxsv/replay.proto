@@ -29,7 +29,7 @@ message BattleLogFile {
   int64 start_at = 20;  // unix seconds
   int64 end_at = 21;
   string close_reason = 24;
-  repeated BattleLogRound round_data = 18;  // from the team result records (0xc227f0, 0xc22804)
+  repeated BattleLogRound round_data = 18;  // from the result records by position (0xc227f0, 0x14 each), summed by the round's teams
 
   // zdxsv (PCSX2)
   int32 players = 40;
