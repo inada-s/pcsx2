@@ -1,8 +1,9 @@
-"""Check the startup update check of a release build (pcsx2-qt AutoUpdaterDialog).
+"""Check the startup update check of a tagged Devel build (pcsx2-qt AutoUpdaterDialog).
 
   python updatecheck.py --exe pcsx2-qtx64.exe --inis DIR [--offer zdxsv-X.Y.Z] [--timeout S]
 
-The build must be at a zdxsv-X.Y.Z tag: only a tagged build checks for updates. A local server
+The build must be at a zdxsv-X.Y.Z tag: only a tagged build checks for updates. A Release build
+ignores ZDXSV_UPDATE_URL and fetches the real list (requests 0: FAIL). A local server
 answers the release list (ZDXSV_UPDATE_URL) with one release, --offer (default zdxsv-999.0.0),
 that has this platform's asset. PCSX2 starts without a game in a new data dir whose PCSX2.ini is
 copied from DIR, with the startup check on. Pass: the release list was fetched once and the log
