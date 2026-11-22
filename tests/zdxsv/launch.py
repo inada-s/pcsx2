@@ -94,6 +94,9 @@ def _ini(path, slot, renderer, speed, eth):
     os.replace(path + ".new", path)
     # Each startup check of a tagged build spends one of GitHub's 60 unauthenticated API calls per hour per IP.
     zrig.ini_set(path, "AutoUpdater", "CheckAtStartup", "false")
+    # A host game controller bound to the pad would overwrite the pad input PINE sets (drive.py): the cursor stops.
+    for source in ("SDL", "XInput", "DInput"):
+        zrig.ini_set(path, "InputSources", source, "false")
 
 
 def _hide_window(pid):

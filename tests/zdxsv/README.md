@@ -14,6 +14,8 @@ Each script's usage and knobs are in its header comment.
 - The DEV9 adapter is off in every rig: `launch.py` writes `EthEnable` at each
   launch. Only clients that play as a PS2 (`m4z.py` without `EMU`, or
   `EXT_OFF`) get it on (`launch.py -Eth`).
+- Game controllers are off in every rig: `launch.py` writes `[InputSources]` `SDL`, `XInput`,
+  `DInput` = false at each launch (a host controller bound to the pad overwrites PINE's pad input).
 
 Steps, in order (`rigcheck.py` checks their results and names the step of each missing one;
 settings in `local.env`, see Settings):
