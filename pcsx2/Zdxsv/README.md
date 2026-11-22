@@ -77,7 +77,7 @@ options: `docs/zdxsv/`.
 | `Proto.h` | Minimal protobuf wire codec for replay files |
 | `replay.proto` | Replay file schema (`BattleLogFile` + PCSX2 fields); documentation, not compiled |
 | `GamePatches.cpp` | The Z game's patches (widescreen), built in in place of pnach files; a missing patches.zip is no warning (seam: `PatchHooks.h`) |
-| `ServerPatches.cpp` | Game patches from the lobby (notice `0x9953`): checked against the disc serial and original values, written at the GGPO session start (write-once) or every frame, restored at the session end; the same for a replay or live stream's patches during playback, which must all equal a built-in one (`rematch_max5`) |
+| `ServerPatches.cpp` | Game patches from the lobby (notice `0x9953`): checked against the disc serial and original values, written at the GGPO session start (write-once) or every frame, restored at the session end; the same for a replay or live stream's patches during playback, which must all equal a built-in one (`rematch_max5`, `team_rotate`) |
 | `InputDefaults.cpp` | Default input settings: no upstream hotkeys, USB keyboard on port 1; one-time migration of older settings files (seam: `DefaultsHooks.h`) |
 | `HostKeyboard.cpp` | The physical key (Windows scan code) of the host key event being dispatched, for the USB keyboard (seam: `KeyboardHooks.h`) |
 | `OnlineLimits.cpp`, `OnlineLimits.h` | PCSX2 features limited while online (lobby or net battle): the switch, forced settings, PINE refusal, macro buttons, refused operations, breakpoints cleared (seams: `PineHooks.h`, `InputHooks.h`, `UiHooks.h`) |

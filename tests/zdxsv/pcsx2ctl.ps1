@@ -4,7 +4,7 @@
 # -ProcId : pcsx2 pid (default: first pcsx2-qtx64 or pcsx2-qtx64-dev). Keys go via SetForegroundWindow + keybd_event.
 # Mouse tokens in -Seq (pixels of the render surface = the child window of the bar's layout size):
 #   mv:X:Y move; ck:X:Y move + left click; bar:show moves over the bottom (shows the replay control bar);
-#   bar:NAME[:F] clicks a bar element (pause back forward prevround nextround results timeline pov) at fraction F of its width (default
+#   bar:NAME[:F] clicks a bar element (pause back forward prevround nextround timeline pov) at fraction F of its width (default
 #   0.5), from the last `replay bar: layout` line in the instance's emulog. shot:out.png = winshot.ps1 (overlays).
 # -Check -Ini PCSX2.ini : only the binding check of -Seq against that ini, no process, nothing sent (rc 2 = unbound;
 #   rplay.py runs it on every KEYS step before launch).

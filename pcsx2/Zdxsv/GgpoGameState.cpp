@@ -53,9 +53,9 @@ namespace Zdxsv
 			std::memcpy(&b[50], &eeMem->Main[RNG_B], 2);
 			return b;
 		}
-		// Team result records, equal on all peers (team 1 = position 0's side): u8 wins at +0, u8 losses at +1. A round
-		// adds a win to the winner and a loss to the loser, a time-up a loss to both (a draw), in one frame.
-		static constexpr u32 TEAM_RECORD[2] = {0xc227f0, 0xc22804};
+		// Result records by position: u8 wins, u8 losses. A round end (0x307e70) counts them by the round's team (PLAYER_TEAM).
+		static constexpr u32 PLAYER_RECORD = 0xc227f0, PLAYER_RECORD_SIZE = 0x14;
+		static constexpr u32 PLAYER_TEAM = 0x838fb0 + 0x74; // u8 by position: 0 / 1, else no player
 	} // namespace
 
 	// ZDXSV_PW_HASH=1: per GGPO frame, each player's position hash and the game RNGs, written as
@@ -92,12 +92,22 @@ namespace Zdxsv
 		std::memcpy(&b, &eeMem->Main[RNG_B], 2);
 		return (static_cast<u32>(a) << 16) | b;
 	}
+	// u8 wins, losses of team 1 (position 0's), then of team 2. A team change between battles moves counts, adds none.
 	u32 RoundRecord()
 	{
-		u32 v = 0;
-		for (int t = 0; t < 2; t++)
-			v |= static_cast<u32>(eeMem->Main[TEAM_RECORD[t]] | eeMem->Main[TEAM_RECORD[t] + 1] << 8) << (t * 16);
-		return v;
+		u8 sum[4] = {};
+		const u8 team0 = eeMem->Main[PLAYER_TEAM];
+		for (u32 p = 0; p < 4; p++)
+		{
+			const u8 team = eeMem->Main[PLAYER_TEAM + p];
+			if (team > 1)
+				continue;
+			const u8* rec = &eeMem->Main[PLAYER_RECORD + PLAYER_RECORD_SIZE * p];
+			const int t = team == team0 ? 0 : 2;
+			sum[t] += rec[0];
+			sum[t + 1] += rec[1];
+		}
+		return sum[0] | sum[1] << 8 | sum[2] << 16 | static_cast<u32>(sum[3]) << 24;
 	}
 	// u8 MS id per player work (= position; 0 = Gundam), set from the battle setup at each round start (0x2bc6d0)
 	static constexpr u32 PW_MS_ID = 0x1f2a;

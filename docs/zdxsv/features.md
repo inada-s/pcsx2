@@ -130,7 +130,7 @@ Keys (`net=1`, `lobby=1`, `port=`, `delay=`, ...) are parts of `ZDXSV_GGPO`.
 - **Match report round data**: mobile suits per round.
 - **Match report log tail**: the last log lines of each GGPO battle.
 - **Relay servers**: battle info with `relay_<k>`.
-- **Lobby game patches**: a lobby with `m_lobby_setting.patches` (notice `0x9953`); GGPO battles only. The battle's replay and live stream carry them (`BattleLogFile.patches`); playback and spectating apply them the same way. A replay or live stream plays only if each patch it carries has the game and codes of one built in (`ServerPatches.cpp`: `rematch_max5`; its name and write mode are the file's); else it does not start (`game patch <name> is not built in`). Battles apply the lobby's patches as sent.
+- **Lobby game patches**: a lobby with `m_lobby_setting.patches` (notice `0x9953`); GGPO battles only. The battle's replay and live stream carry them (`BattleLogFile.patches`); playback and spectating apply them the same way. A replay or live stream plays only if each patch it carries has the game and codes of one built in (`ServerPatches.cpp`: `rematch_max5`, `team_rotate`; its name and write mode are the file's); else it does not start (`game patch <name> is not built in`). Battles apply the lobby's patches as sent.
 - **Custom server messages kept from the game**: every lobby message `0x99xx`, known or not, is consumed by PCSX2; unknown ones are logged once.
 - **Peer without an address in the battle info**.
 - **Path through a relaying peer**.
@@ -179,7 +179,6 @@ Keys (`net=1`, `lobby=1`, `port=`, `delay=`, ...) are parts of `ZDXSV_GGPO`.
 - **Rounds only** (skip mobile suit selection, rematch screens): `ZdxsvReplaySkipMs`.
 - **Round jump**: Shift+PageUp, Shift+PageDown, bar step buttons.
 - **Round states**: recorded in each replay; a jump past the played frames starts from one (always on, files without them seek as before).
-- **Round mobile suits**: hover the round results on the bar.
 - **Takeover**: bar "Take over" / "Retry" / "Replay", hotkey "Take Over / Retry".
 - **Four-screen replay**: `ZDXSV_REPLAY_FOUR=1`.
 

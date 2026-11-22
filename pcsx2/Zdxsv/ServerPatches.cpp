@@ -7,6 +7,7 @@
 #include "Zdxsv/TestOptions.h"
 
 #include <algorithm>
+#include <iterator>
 
 #include "Memory.h"
 #include "VMManager.h"
@@ -21,10 +22,28 @@ namespace Zdxsv
 		};
 		ServerPatchState s_server_patches;
 
+		// With 4 players, the series counter step (0x307c10) sets the slot teams (0xba4703 + 6 * slot): slot 0 and
+		// slot ((battle - 1) % 3) + 1 against the other two. The cave is free RAM after the single draw list's.
+		GamePatch TeamRotatePatch()
+		{
+			static constexpr u32 kCave[] = {
+				0x3c0500ba, 0x24a54703, 0x80a40001, 0x04800018, 0x80a40007, 0x04800016, 0x80a4000d, 0x04800014,
+				0x80a40013, 0x04800012, 0x00000000, 0x28640004, 0x5080fffe, 0x2463fffd, 0x00031880, 0x34046ac6,
+				0x00642006, 0x30860001, 0xa0a60000, 0x00043042, 0x30c60001, 0xa0a60006, 0x00043082, 0x30c60001,
+				0xa0a6000c, 0x000430c2, 0x30c60001, 0xa0a60012, 0x03e00008, 0x00000000,
+			};
+			GamePatch p{"team_rotate", "SLPS-25419", true, {}};
+			for (u32 i = 0; i < std::size(kCave); i++)
+				p.codes.push_back({32, 0xf0100 + i * 4, 0, kCave[i]});
+			p.codes.push_back({32, 0x307c38, 0x03e00008, 0x0803c040});
+			return p;
+		}
+
 		const std::vector<GamePatch>& BuiltinPatches()
 		{
 			static const std::vector<GamePatch> patches = {
 				{"rematch_max5", "SLPS-25419", true, {{32, 0x307ff0, 0x2842000a, 0x28420005}, {32, 0x308044, 0x0c0dccc4, 0x1000ffe7}}},
+				TeamRotatePatch(),
 			};
 			return patches;
 		}
