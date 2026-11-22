@@ -81,6 +81,13 @@ AutoUpdaterDialog::AutoUpdaterDialog(QWidget* parent /* = nullptr */)
 	connect(m_ui.skipThisUpdate, &QPushButton::clicked, this, &AutoUpdaterDialog::skipThisUpdateClicked);
 	connect(m_ui.remindMeLater, &QPushButton::clicked, this, &AutoUpdaterDialog::remindMeLaterClicked);
 
+	// zdxsv: two buttons, Update Now as the default. No skip: the lobby refuses outdated versions.
+	m_ui.downloadAndInstall->setText(tr("Update Now"));
+	m_ui.remindMeLater->setText(tr("Later"));
+	m_ui.skipThisUpdate->hide();
+	m_ui.remindMeLater->setDefault(false);
+	m_ui.downloadAndInstall->setDefault(true);
+
 	m_http = HTTPDownloader::Create(Host::GetHTTPUserAgent());
 	if (!m_http)
 		Console.Error("Failed to create HTTP downloader, auto updater will not be available.");
@@ -365,7 +372,10 @@ void AutoUpdaterDialog::getChangesComplete(s32 status_code, std::vector<u8> data
 	}
 
 	m_ui.downloadAndInstall->setEnabled(true);
-	if (Zdxsv::TestEnv("ZDXSV_UPDATE_INSTALL"))
+	m_ui.downloadAndInstall->setFocus(); // zdxsv: Enter presses Update Now
+	// zdxsv: the startup check installs without a click unless [AutoUpdater] ZdxsvAutoInstall is off.
+	if (Zdxsv::TestEnv("ZDXSV_UPDATE_INSTALL") ||
+		(!m_display_messages && isVisible() && Host::GetBaseBoolSettingValue("AutoUpdater", "ZdxsvAutoInstall", true)))
 		QMetaObject::invokeMethod(this, &AutoUpdaterDialog::downloadUpdateClicked, Qt::QueuedConnection);
 }
 
@@ -457,7 +467,8 @@ void AutoUpdaterDialog::checkIfUpdateNeeded()
 	const std::optional<std::array<int, 3>> current = ParseZdxsvVersion(QString(BuildVersion::GitTag));
 	const std::optional<std::array<int, 3>> latest = ParseZdxsvVersion(m_latest_version);
 	const bool newer = latest && (!current || *latest > *current);
-	if (!newer || m_latest_version == last_checked_version)
+	// zdxsv: no Skip This Update, so a version skipped before is offered again.
+	if (!newer)
 	{
 		Console.WriteLn(Color_StrongGreen, "No update needed.");
 

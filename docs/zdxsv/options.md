@@ -63,6 +63,7 @@ page greys it out and its tooltip names the variable.
 | `[DEV9/Eth] ZdxsvAllyHp` | `true` | feature | In battle, the own HP display shows the teammate's HP in place of the own max HP. Applied when settings change. `ZDXSV_ALLY_HP` overrides it. |
 | `[DEV9/Eth] ZdxsvStickMessageButton` | `Start` | feature | While this pad button is held, the D-pad and the left stick also tilt the right stick (the team messages); the real right stick still works. `None` (Off), `Start`, `Select`, `L1`, `L2`, `R1`, `R2`, `L3`, `R3`, `Triangle`, `Circle`, `Cross`, `Square`. The Z game only. Applied when settings change. |
 | `[UI] ZdxsvWheelVolume` | `true` | feature | The mouse wheel over the game screen changes the volume (5% a notch, not saved) with an OSD. Off: the wheel is input, as upstream. Ini only. |
+| `[AutoUpdater] ZdxsvAutoInstall` | `true` | feature | Release builds: when the startup update check finds a newer release, the update window installs it without a click. Off: it waits for Update Now (upstream). Settings → zdxsv. |
 | `[DEV9/Eth] ZdxsvCrashReports` | `true` | feature | Send crash reports ([crash-reports.md](crash-reports.md)), in a build with a DSN. Settings → zdxsv. |
 | `[DEV9/Eth] ZdxsvReplaySkipMs` | `true` | feature | A replay plays its rounds only: it skips the mobile suit selections and the rematch screens (a file without round frames: the first mobile suit selection). `ZDXSV_REPLAY_SKIP_MS` overrides it. |
 | `[DEV9/Eth] ZdxsvReplayKeyDisplay` | `true` | feature | Replays start with the key display on. `ZDXSV_REPLAY_KEY_DISPLAY` overrides it. |
@@ -168,19 +169,19 @@ turns GGPO off and leaves the other extensions on. Any other value turns it on. 
 | `ZDXSV_ROLLBACK_BUDGET=1` | off | test | The lobby delay subtracts the learned `ZdxsvRollbackBudget` instead of 0. |
 | `ZDXSV_NET_TAIL=n` | 60 | tuning | Frames run after the battle end message is confirmed, before the session stops. |
 | `ZDXSV_NET_DISCONNECT_MS=ms` | 10000 | tuning | GGPO disconnect timeout. |
+| `ZDXSV_PEER_RELAY_PICK=first` / `=last` | the lowest path rtt sum | test | The ping test sends a peer without a path of its own through the lowest / highest usable other position instead of the one with the lowest rtt sum, so the two sides of a blocked pair can relay through different peers. |
 | `ZDXSV_NET_BARRIER_MS=ms` | 60000 | test | A load barrier held longer than this ends the net battle as a connection failure (`ZdxsvGgpo: load barrier held over`). |
 | `GGPO_NETWORK_DELAY=ms` | 0 | test | GGPO holds each sent packet ms * (2/3 .. 1) before sending it ([rollback.md](rollback.md)). |
 | `GGPO_NETWORK_JAM_DELAY=ms` | 0 | test | GGPO packet jams: about once in 600 sends a jam starts and holds the send queue until its first packet is ms old. |
 | `GGPO_OOP_PERCENT=n` | 0 | test | GGPO sends n % of packets out of order, each held a random time. |
 | `GGPO_TEST_LOG=1` | off | test | GGPO logs `RBKTEST` lines: the relay server path in use, relay forwards and relayed packets dropped as returns to the sender. |
 | `ZDXSV_NET_SESSION=s` | battle code | test | GGPO session code sent in the sync handshake instead of the battle code; a peer with another code is refused (`session mismatch`). |
-| `ZDXSV_SYNC_FORCE=0` | forced | control | Sync-relevant settings are not forced (`Zdxsv/SyncSettings.cpp`); the log names those that would have been (`ZdxsvSync: ZDXSV_SYNC_FORCE=0, not forced:`). The fingerprint is sent anyway. |
+| `ZDXSV_SYNC_FORCE=0` | forced | control | Sync-relevant settings are not forced (`Zdxsv/SyncSettings.cpp`); the log names those that would have been (`ZdxsvSync: ZDXSV_SYNC_FORCE=0, not forced:`). |
 | `ZDXSV_PINE_ONLINE=1` | unset (refused) | test | PINE answers while the Z game is online (lobby or net battle); the rigs set it unless set. |
 | `ZDXSV_ONLINE_REFUSALS=0` | refused | test | Nothing is refused while online (save states, hotkeys, GS dumps); `rbkprep.py` saves its states at the lobby with it. |
 | `ZDXSV_PATCHES_ANY=1` | unset (built-in only) | test | A replay or live stream plays with game patches that are not built in (the rigs' test patches in `tests/zdxsv/server_patches*.json`). |
 | `ZDXSV_TEST_BREAKPOINT=<hex address>` | unset | test | The Z game: an EE breakpoint at that address at the first vsync, as if set in the debugger (the address must never run); going online clears it. |
-| `ZDXSV_SYNC_SALT=s` | none | test | s is mixed into the sync fingerprint, as another build would be: a lobby battle with this client is cut. |
-| `ZDXSV_DROP_SYNC=p` | none | test | The sync fingerprint of position p is left out of the received battle info, as a lobby that missed it: this client cuts the battle, its peers do not. |
+| `ZDXSV_LOBBY_CUT=1` | none | test | This client cuts every lobby battle (`test cut`), its peers do not. |
 | `ZDXSV_VM_TEST=frame:shutdown`, `frame:reset`, `frame:mute` or `frame:ui` | off | test | Shut down or reset the VM once a session or replay reaches that GGPO frame; `mute`: drop every GGPO packet sent and received from then on (the battle TCP stays up); `ui`: ask for Turbo, a frame advance, a slot 1 state load, a pause and the pause menu, as the hotkeys do. |
 
 ## Replay playback

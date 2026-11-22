@@ -7,7 +7,6 @@
 #include "Zdxsv/Ggpo.h"
 #include "Zdxsv/Lobby.h"
 #include "Zdxsv/Settings.h"
-#include "Zdxsv/SyncSettings.h"
 #include "Zdxsv/TestOptions.h"
 #include "Zdxsv/Upnp.h"
 
@@ -128,11 +127,9 @@ namespace Zdxsv
 					{
 						const auto name = info.names.find(u);
 						const auto pilot = info.pilots.find(u);
-						const auto sync = info.syncs.find(u);
 						const auto team = info.teams.find(u);
 						players.push_back({u, name == info.names.end() ? std::string() : name->second,
-							pilot == info.pilots.end() ? std::string() : pilot->second,
-							sync == info.syncs.end() ? std::string() : sync->second, team == info.teams.end() ? 0 : team->second});
+							pilot == info.pilots.end() ? std::string() : pilot->second, team == info.teams.end() ? 0 : team->second});
 					}
 					std::string ids = "battle_code=" + info.battleCode + "\nuser_id=" + info.userId + "\n";
 					if (info.liveUplink)
@@ -328,9 +325,6 @@ namespace Zdxsv
 		body += std::string("version=") + BuildVersion::GitRev + "\n";
 		if (const std::string version = ClientVersion(); !version.empty())
 			body += "pcsx2=" + version + "\n";
-		// the lobby passes it to the battle's peers (sync_<user>); no battle unless all agree (LobbyArm)
-		if (const std::string sync = SyncFingerprint(); !sync.empty())
-			body += "sync=" + sync + "\n";
 #if defined(_WIN32)
 		body += "os=windows\n";
 #elif defined(__APPLE__)

@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-3.0+
 
 #include "ZdxsvSettingsWidget.h"
+#include "AutoUpdaterDialog.h"
 #include "SettingWidgetBinder.h"
 #include "GameFixSettingsWidget.h"
 #include "SettingsWindow.h"
@@ -89,6 +90,18 @@ ZdxsvSettingsWidget::ZdxsvSettingsWidget(SettingsWindow* settings_dialog, QWidge
 	SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvSaveReplay, "DEV9/Eth", "ZdxsvSaveReplay", true);
 	SettingWidgetBinder::BindWidgetToFolderSetting(sif, m_ui.zdxsvReplayPath, m_ui.zdxsvReplayPathBrowse, m_ui.zdxsvReplayPathOpen,
 		m_ui.zdxsvReplayPathReset, "DEV9/Eth", "ZdxsvReplayPath", Path::Combine(EmuFolders::DataRoot, "replays"));
+
+	if (AutoUpdaterDialog::isSupported() && !dialog()->isPerGameSettings())
+	{
+		SettingWidgetBinder::BindWidgetToBoolSetting(sif, m_ui.zdxsvAutoUpdateInstall, "AutoUpdater", "ZdxsvAutoInstall", true);
+		dialog()->registerWidgetHelp(m_ui.zdxsvAutoUpdateInstall, tr("Install Updates Automatically"), tr("Checked"),
+			tr("When PCSX2 starts and a newer version exists, it downloads and installs it, then restarts. "
+			   "Unchecked: it asks first."));
+	}
+	else
+	{
+		m_ui.zdxsvAutoUpdateInstall->hide();
+	}
 
 	if (Zdxsv::CrashReportsAvailable() && !dialog()->isPerGameSettings())
 	{

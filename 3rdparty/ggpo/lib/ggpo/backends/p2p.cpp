@@ -103,6 +103,18 @@ Peer2PeerBackend::AddRemotePlayer(char *ip,
          _endpoints[queue].UseRelayServer(_relay_servers[k].addr, k, _relay_servers[k].known);
       }
    }
+   // zdxsv: each side picks its relay player on its own, so a relayed player's packets may come through
+   // any directly reached player, not only the one this peer sends through.
+   for (int j = 0; j < _num_players; j++) {
+      if (j == queue || !_endpoints[j].IsInitialized() || _endpoints[j].IsRelay() == relay) {
+         continue;
+      }
+      if (relay) {
+         _endpoints[queue].AddRelaySource(_endpoints[j].PeerAddress());
+      } else {
+         _endpoints[j].AddRelaySource(_endpoints[queue].PeerAddress());
+      }
+   }
    _endpoints[queue].SetDisconnectTimeout(_disconnect_timeout);
    _endpoints[queue].SetDisconnectNotifyStart(_disconnect_notify_start);
    _endpoints[queue].Synchronize();

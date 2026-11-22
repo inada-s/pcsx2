@@ -31,8 +31,9 @@ rebase of the fork.
    `.github/workflows/scripts/common/check-vs-projects.py`.
 6. Sync: changes to the EE, IOP, VU, SPU2, DEV9 or save states can change
    what a frame computes. Run the rollback, delta state and replay tests of
-   [tests/zdxsv/README.md](../../tests/zdxsv/README.md) before the PR. All
-   players must run the same build: the sync fingerprint holds the build.
+   [tests/zdxsv/README.md](../../tests/zdxsv/README.md) before the PR. Players
+   of different releases battle each other: a release that does not sync with
+   the last one raises the lobby's `min_pcsx2_version`.
 7. One PR with only the merge and its conflict resolutions.
 
 ## Cutting a release

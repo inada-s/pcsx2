@@ -124,7 +124,6 @@ Keys (`net=1`, `lobby=1`, `port=`, `delay=`, ...) are parts of `ZDXSV_GGPO`.
 - **Sync-safe settings forced while the Z game runs**: `ZDXSV_SYNC_FORCE=0` turns it off.
 - **Z game patches built in**: the widescreen patch (Graphics → Display → Apply Widescreen Patches); no pnach file (patches, cheats, patches.zip) is read for the Z game; `ZDXSV_EXTENSIONS=0` turns it off.
 - **No patches.zip, no warning**: releases ship no patches.zip; a missing one is skipped without the "Failed to open patches.zip" OSD (other games get no bundled patches); `ZDXSV_EXTENSIONS=0` turns it off.
-- **Sync fingerprint**: cuts a battle whose players' builds or settings differ.
 - **Match report: timesync, inputs, fps, loss**.
 - **Match report sent to the lobby**: `0x9952`.
 - **Match report: who left, ping**.
@@ -219,6 +218,7 @@ stand in for them.
 ## Releases and tools ([tools.md](tools.md))
 
 - **Self-update from the GitHub releases of this fork**: release builds; `ZDXSV_UPDATE_URL`.
+- **Updates install at startup** (changed default): a newer release found by the startup check downloads and installs without a click; the update window has Update Now (default) and Later, no Skip This Update; `[AutoUpdater] ZdxsvAutoInstall`.
 - **Crash reports** ([crash-reports.md](crash-reports.md)): `ZdxsvCrashReports`, on by default in a build with `ZDXSV_SENTRY_DSN`.
 - **Release workflow**: a `zdxsv-X.Y.Z` tag.
 - **Apart from upstream PCSX2 on the same machine**: always. macOS: data in `~/Library/Application Support/PCSX2-zdxsv`, bundle ID `net.zdxsv.pcsx2`, name `PCSX2-zdxsv`, never the default app for its file types; Windows release: `portable.txt`.

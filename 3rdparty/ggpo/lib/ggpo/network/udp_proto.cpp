@@ -1076,6 +1076,17 @@ void UdpProtocol::UseRelayServer(const sockaddr_storage &server, int index, cons
    }
 }
 
+void UdpProtocol::AddRelaySource(const sockaddr_storage &addr)
+{
+   std::lock_guard<std::mutex> lock(_send_mutex);
+   for (const auto &s : _relay_sources) {
+      if (SameAddress(s, addr)) {
+         return;
+      }
+   }
+   _relay_sources.push_back(addr);
+}
+
 void UdpProtocol::SendUnmanagedMsg(UdpMsg* msg, int len, const sockaddr_storage &from)
 {
     if (_udp == nullptr)

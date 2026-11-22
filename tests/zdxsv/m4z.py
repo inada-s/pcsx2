@@ -43,7 +43,8 @@ EMU=1: the 4 clients are emulators instead (platform info, no zproxy by default;
   (OUT/trace-live.txt). Checks: one client was the uplink, the spectator's stream closed at the uplink's saved
   .pb frame count, the lobby logged the close with that count; with PWTRACE=1 its player work + rng = the
   players' (pwcheck). It gets CENV and CENV<N>, as the clients (their ZDXSV_EE_CLAMP: else it diverges).
-  LIVE_AT=S (LIVE): the spectator starts S s after the uplink, a late join. Checks (one battle): the round
+  LIVE_AT=S (LIVE): the spectator starts S s after the uplink and after the first round result reached the
+  uplink, a late join. Checks (one battle): the round
   results the uplink sent = the ones the spectator got from the stream, none differs from its own playback;
   with LIVE_AT the spectator had some at its open.
   LIVE_NEXT=K (with BATTLES=K+1): the spectator moves on to the next battle K times (ZDXSV_LIVE_NEXT); the
@@ -61,9 +62,7 @@ EMU=1: the 4 clients are emulators instead (platform info, no zproxy by default;
   checks: cut + cut ended per client, no GGPO session, no result with frames.
   GGPO_CLIENTS without a client of CLIENTS (GGPO): that client has no GGPO port (ZDXSV_GGPO=0), so every
   GGPO client cuts (`a peer has no GGPO address`); the same wait and checks as BAD_SESSION.
-  SYNC_SALT=K (GGPO): client K gets ZDXSV_SYNC_SALT=m4z (another sync fingerprint, as another build):
-  the lobby gets two fingerprints, every client enters the battle, no battle starts (the lobby matches equal ones only).
-  DROP_SYNC=K (GGPO): client K gets ZDXSV_DROP_SYNC=0 (position 0's sync missing from its battle info): only
+  LOBBY_CUT=K (GGPO): client K gets ZDXSV_LOBBY_CUT=1 (it cuts every lobby battle): only
   client K cuts, the others start GGPO; checks: K refuses their GGPO session, each other client closes on
   `another session` within 3 s of `net armed` (not the 10 s start timeout), every client back in the lobby;
   REPORT=1: K reports `cut`, the others `ggpo` closed on `session mismatch`.
@@ -319,6 +318,9 @@ def main():
     run = os.path.abspath(os.environ["RUN"])
     ip = os.environ["IP"]
     emu, ext_off, ggpo = E("EMU"), E("EXT_OFF"), E("GGPO")
+    if ext_off:
+        # every client runs on the DEV9 adapter: drive.py's routes follow this environment
+        os.environ["DEV9"] = "1"
     # no DEV9 connects only to the lobby: these clients log in by fast login with a token for the card's account
     fl = bool(emu) and not ext_off
     if fl and par != "1":
@@ -370,10 +372,8 @@ def main():
         # CENV="K=V ...": extra env for every emulator client (e.g. a battle timer ZDXSV_EE_CLAMP for a time-up)
         e.update(freshboot.assigns(E("CENV")))
         e.update(freshboot.assigns(E(f"CENV{i}")))
-        if i == E("SYNC_SALT"):
-            e["ZDXSV_SYNC_SALT"] = "m4z"
-        if i == E("DROP_SYNC"):
-            e["ZDXSV_DROP_SYNC"] = "0"
+        if i == E("LOBBY_CUT"):
+            e["ZDXSV_LOBBY_CUT"] = "1"
         if i == E("BREAK"):
             e["ZDXSV_VM_TEST"] = f"{E('BREAK_FRAME', '1500')}:{E('BREAK_MODE', 'shutdown')}"
         if ggpo and i == E("GGPO_DEFAULT"):
@@ -493,6 +493,11 @@ def main():
             log(f"live uplink after {int(time.time() - t1)} s: spectator p{n}")
             if E("LIVE_AT"):
                 time.sleep(float(E("LIVE_AT")))
+                t2 = time.time()
+                rx = "ZdxsvGgpo: live: round result win_team .* to the uplink"
+                while not any(c(el(i), rx) for i in clients) and time.time() - t2 < 600:
+                    time.sleep(2)
+                log(f"first round result at the uplink {int(time.time() - t2)} s after LIVE_AT")
             env = {**freshboot.assigns(E("CENV")), **freshboot.assigns(E(f"CENV{n}"))}
             env.update(ZDXSV_REPLAY="live:http://127.0.0.1:9881", ZDXSV_LIVE_NEXT=E("LIVE_NEXT", "0"), ZDXSV_REPLAY_EXIT="1",
                        ZDXSV_PW_HASH="1", ZDXSV_NET_TRACE=os.path.join(out, "trace-live.txt"))
@@ -718,14 +723,6 @@ def main():
            and c(lobby, f'zproxy user.*"user_id": "{u}"'))
         ok(f"p{i} PS2 -> zproxy -> UDP", c(zl, "PS2との接続に成功しました") and c(zl, "UDP通信を開始します")
            and not c(zl, "対戦サーバとの接続に失敗"))
-    if E("SYNC_SALT"):
-        # the lobby starts a battle only among equal sync fingerprints
-        fps = {m[1] for l in g(lobby, "platform emu map") for m in [re.search(r" sync:([0-9a-f]+)", l)] if m}
-        say(f"sync fingerprints at the lobby: {' '.join(sorted(fps))}")
-        ok(f"lobby got {nc} different sync fingerprints", len(fps) == nc)
-        ok(f"every client entered the lobby battle (x{nc})", c(lobby, r"C->S \[Q\] ID:0x640E") >= nc)
-        ok("no battle between different sync fingerprints", c(battle, "join udp peer|join success") == 0)
-        return RC[0]
     # a GGPO lobby battle: the emulator answers the battle server's part, the game never connects to it
     ee = sum(1 for i in clients if c(el(i), "ZdxsvGgpo: battle server answered on the EE"))
     if ee:
@@ -802,15 +799,13 @@ def main():
     def nresults():
         return c(rtxt, "^result")
 
-    # a cut: BAD_SESSION, SYNC_SALT, or a client without GGPO (not in GGPO_CLIENTS)
+    # a cut: BAD_SESSION, LOBBY_CUT, or a client without GGPO (not in GGPO_CLIENTS)
     cut = ""
     if E("BAD_SESSION"):
         cut = "ping"
     if ggpo and ngc < nc:
         cut = "noport"
-    if E("SYNC_SALT"):
-        cut = "sync"
-    if E("DROP_SYNC"):
+    if E("LOBBY_CUT"):
         cut = "drop"
 
     # vsyncs from the cut to its end (the game closed the battle sock), "?" if a line is missing
@@ -838,7 +833,7 @@ def main():
                 say(l[:200])
         for i in gclients:
             f = el(i)
-            if cut == "drop" and i != E("DROP_SYNC"):
+            if cut == "drop" and i != E("LOBBY_CUT"):
                 a, dt = 0.0, None
                 for l in rd(f):
                     if "ZdxsvGgpo: net armed" in l:
@@ -859,9 +854,6 @@ def main():
                 ok(f"p{i} connection cut (unanswered ping test), no ggpo session",
                    c(f, f"ZdxsvGgpo: lobby battle connection cut: [0-9] of {nc - 1} peers answered the ping test")
                    and not c(f, "ZdxsvGgpo: net player"))
-            elif cut == "sync":
-                ok(f"p{i} connection cut (sync fingerprints differ), no ggpo session",
-                   c(f, "ZdxsvGgpo: lobby battle connection cut: settings or build differ") and not c(f, "ZdxsvGgpo: net player"))
             else:
                 ok(f"p{i} connection cut (a peer has no GGPO port), no ggpo session",
                    c(f, "ZdxsvGgpo: lobby battle connection cut: a peer has no GGPO address") and not c(f, "ZdxsvGgpo: net player"))

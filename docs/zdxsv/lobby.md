@@ -103,7 +103,7 @@ outside `users`. Unknown keys are ignored. Fixture: `tests/zdxsv/testdata/wire/b
 | `session_id` | id of the battle in the ping test packets (zdxsv: random per battle). 0: no GGPO. |
 | `peer_id` | own index in `users` |
 | `ping_test_duration` | length of the ping test in ms, at most 10000 |
-| `users` | every player in battle order: `user_id`, `user_name`, `pilot_name` (OSD, replay), `team` (entry side 1 / 2: the ping test diagram rows), `ggpo_port`, `sync` (settings fingerprint) |
+| `users` | every player in battle order: `user_id`, `user_name`, `pilot_name` (OSD, replay), `team` (entry side 1 / 2: the ping test diagram rows), `ggpo_port` |
 | `candidates` | UDP addresses of the other players: `user_id`, `peer_id`, `ip`, `port` |
 | `relays` | relay servers: `ip`, `port`, `token`, `ip6`, `port6` |
 | `spectator_uplink` | this client streams the battle for live spectating ([replay.md](replay.md)) |
@@ -133,7 +133,7 @@ line with the JSON as received.
 | `total_timesync`, `input_block_count` | GGPO battle | frames slept so a peer could catch up; frames that waited for a peer's input (GGPO prediction limit) |
 | `fps_history` | GGPO battle, after 1 s | frames run in each second of the session (at most 3600 entries) |
 | `log_tail` | GGPO battle | the last log lines (info level and above, at most 100), newest kept; cut so the report stays within 32767 bytes, beyond which no report is sent |
-| `answered` (45), `cut_sends` (51), `sync` (43), `sync_differ` (44) | cut | peers that answered, sends dropped during the cut, differing settings |
+| `answered` (45), `cut_sends` (51) | cut | peers that answered, sends dropped during the cut |
 
 ## How a lobby battle starts
 
@@ -199,6 +199,10 @@ A peer is reached through:
 - relay server k, when that path is 16 ms faster than the direct one
 - another peer, when that path is 32 ms faster, or the direct path got no
   answer
+
+Each side picks its relay peer on its own, so the two directions may go
+through different peers: packets of a peer reached through another peer
+are accepted from any directly reached peer.
 
 A relayed peer shows `(R)` on the OSD.
 

@@ -292,7 +292,7 @@ budget is the part of the one-way latency left to rollbacks.
 after battle entry, as position i of N. The emulator answers the lobby calls
 itself, runs turbo until the battle, and exits when the session ends.
 
-## Sync-safe settings and fingerprint
+## Sync-safe settings
 
 - While the game runs (`Zdxsv/SyncSettings.cpp`), as in RetroAchievements
   hardcore mode: cheats off; recompilers, EE/VU rounding and clamping, game
@@ -301,10 +301,6 @@ itself, runs turbo until the battle, and exits when the session ends.
   emulation speed, frame rate and sync to host refresh rate (off: it runs
   the game up to 5 % off nominal speed). An OSD message names the overridden
   settings; the settings page greys them out.
-- Sync fingerprint: a hash of the build, those settings and the recompiler
-  settings (not the BIOS), sent in the platform info and logged as
-  `ZdxsvSync: fingerprint <hex>`. A lobby battle whose players' fingerprints
-  differ is cut, and the players return to the lobby.
 
 ## Sync checks
 

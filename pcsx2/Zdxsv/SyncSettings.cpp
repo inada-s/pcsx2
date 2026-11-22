@@ -4,15 +4,13 @@
 // Sync-safe settings of the Z game, as RetroAchievements hardcore mode enforces its own
 // (VMManager::EnforceAchievementsChallengeModeSettings): the settings that change what the emulated
 // machine computes are forced to PCSX2's defaults while the game runs, its speedhacks only during
-// battles (GGPO sessions: online battles, replay playback, live spectating). Peers compare a
-// fingerprint of these settings and the build before a lobby battle (GgpoLobby.cpp LobbyArm).
+// battles (GGPO sessions: online battles, replay playback, live spectating).
 
 #include "Zdxsv/SyncSettings.h"
 #include "Zdxsv/CpuHooks.h"
 #include "Zdxsv/OnlineLimits.h"
 #include "Zdxsv/TestOptions.h"
 
-#include "BuildVersion.h"
 #include "Config.h"
 #include "GameDatabase.h"
 #include "Host.h"
@@ -22,7 +20,6 @@
 #include "common/Console.h"
 
 #include <cstring>
-#include <mutex>
 
 namespace Zdxsv
 {
@@ -31,8 +28,6 @@ namespace Zdxsv
 		struct SyncState
 		{
 			bool battle = false; // a GGPO session runs and its settings were applied
-			std::mutex mtx;
-			std::string fingerprint; // SyncFingerprint(), set on the CPU thread
 		};
 		SyncState s_sync;
 
@@ -102,34 +97,6 @@ namespace Zdxsv
 			note(c.EmulationSpeed.SyncToHostRefreshRate, "sync to host refresh rate");
 			c.EmulationSpeed.SyncToHostRefreshRate = false;
 		}
-
-		// FNV-1a 64 of the build and the forced settings (round modes, not FPCR bits: x86 and ARM builds agree)
-		std::string Fingerprint(const Pcsx2Config& c)
-		{
-			u64 h = 14695981039346656037ull;
-			const auto add = [&h](const void* p, size_t n) {
-				for (size_t i = 0; i < n; i++)
-					h = (h ^ static_cast<const u8*>(p)[i]) * 1099511628211ull;
-			};
-			const auto add32 = [&add](u32 v) { add(&v, sizeof(v)); };
-			add(BuildVersion::GitRev, std::strlen(BuildVersion::GitRev));
-			// ZDXSV_SYNC_SALT=s (test): mixed in, as another build would be
-			if (static const char* salt = TestEnv("ZDXSV_SYNC_SALT"); salt)
-				add(salt, std::strlen(salt));
-			add32(c.Cpu.Recompiler.bitset);
-			for (const FPControlRegister& r : {c.Cpu.FPUFPCR, c.Cpu.FPUDivFPCR, c.Cpu.VU0FPCR, c.Cpu.VU1FPCR})
-				add32(static_cast<u32>(r.GetRoundMode()) | (r.GetDenormalsAreZero() ? 0x10 : 0) | (r.GetFlushToZero() ? 0x20 : 0));
-			add32(c.Cpu.ExtraMemory);
-			add32(c.Gamefixes.bitset);
-			add32(c.Speedhacks.bitset);
-			add32(static_cast<u32>(c.Speedhacks.EECycleRate) & 0xff);
-			add32(c.Speedhacks.EECycleSkip);
-			add32(static_cast<u32>(c.GS.HWDownloadMode));
-			add32(c.EnableCheats);
-			char hex[17];
-			std::snprintf(hex, sizeof(hex), "%016llx", static_cast<unsigned long long>(h));
-			return hex;
-		}
 	} // namespace
 
 	void SyncSettingsEnforce()
@@ -137,15 +104,6 @@ namespace Zdxsv
 		if (!g_z_game || VMManager::GetState() == VMState::Shutdown)
 			return;
 		EmuConfig.EmulationSpeed.LowLatencyPresent = LowLatencyPresentOn();
-		Pcsx2Config copy = EmuConfig;
-		Force(copy, true, nullptr);
-		{
-			std::string fp = Fingerprint(copy);
-			std::lock_guard lock(s_sync.mtx);
-			if (fp != s_sync.fingerprint)
-				Console.WriteLn("ZdxsvSync: fingerprint %s", fp.c_str());
-			s_sync.fingerprint = std::move(fp);
-		}
 		std::string changed;
 		if (ForceOff())
 		{
@@ -183,11 +141,5 @@ namespace Zdxsv
 	bool SyncSettingsForced(bool battle_item)
 	{
 		return g_z_game && !ForceOff() && VMManager::GetState() != VMState::Shutdown && (!battle_item || s_sync.battle);
-	}
-
-	std::string SyncFingerprint()
-	{
-		std::lock_guard lock(s_sync.mtx);
-		return s_sync.fingerprint;
 	}
 } // namespace Zdxsv
