@@ -164,6 +164,7 @@ namespace Zdxsv
 			const kern_return_t r3 = thread_policy_set(s_thread, THREAD_TIME_CONSTRAINT_POLICY, reinterpret_cast<thread_policy_t>(&tc),
 				THREAD_TIME_CONSTRAINT_POLICY_COUNT);
 			Console.WriteLn("ZdxsvGgpo: CPU thread priority: fixed %d, importance %d, time constraint %d", r1, r2, r3);
+			g_limiter_precise_sleep = r3 == KERN_SUCCESS;
 		}
 		else if (!high && s_thread != MACH_PORT_NULL)
 		{
@@ -172,6 +173,7 @@ namespace Zdxsv
 			thread_precedence_policy_data_t precedence = {};
 			thread_policy_set(s_thread, THREAD_PRECEDENCE_POLICY, reinterpret_cast<thread_policy_t>(&precedence), THREAD_PRECEDENCE_POLICY_COUNT);
 			s_thread = MACH_PORT_NULL;
+			g_limiter_precise_sleep = false;
 		}
 #endif
 	}
@@ -298,6 +300,18 @@ namespace Zdxsv
 	bool g_mtvu_off = false; // GgpoOnVmInitialize, cleared at VM shutdown
 	s32 g_frame_period_trim_us = 0;
 	bool g_limiter_no_catch_up = false;
+	bool g_limiter_precise_sleep = false;
+
+	void LimiterPreciseSleep(u64 frame_end_ticks)
+	{
+#ifdef __APPLE__
+		// GetCPUTicks is mach_absolute_time. Measured wake: within about 0.25 ms of the target at this priority; the margin leaves room for load.
+		const u64 margin = GetTickFrequency() / 1000; // 1 ms
+		if (frame_end_ticks > GetCPUTicks() + margin)
+			mach_wait_until(frame_end_ticks - margin);
+#endif
+	}
+
 	// The ZDXSV_GGPO options of this VM: the variable, else DEFAULT_OPTIONS for the Z game, else empty = off.
 	// Set by GgpoOnVmInitialize before the CPU runs.
 	bool g_z_game = false;

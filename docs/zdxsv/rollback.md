@@ -252,7 +252,8 @@ the advance, so GGPO's frame delay is the battle delay + 1, for the same frame.
 During a battle the limiter does not pay a late frame back with shorter ones:
 the next frame waits a full period from the late one. For the session the process
 runs at high priority (Windows), and the CPU thread at a fixed priority with a time
-constraint (macOS), so the limiter's sleep wakes on time.
+constraint (macOS), so the limiter's sleep wakes on time; there it sleeps to 1 ms
+before the frame end and spins the rest (elsewhere: whole milliseconds, then a spin of 1-2 ms).
 
 ### Frame time OSD
 

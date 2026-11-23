@@ -88,6 +88,10 @@ namespace Zdxsv
 	// In VMManager::Internal::Throttle. Net session: a late frame is not paid back by shorter ones: the cause of the
 	// delay (a rollback, the prediction barrier) is usually still there, and the frame interval would swing.
 	extern bool g_limiter_no_catch_up;
+	// In VMManager::Internal::Throttle, macOS while the net session's CPU thread priority is set (Ggpo.cpp GgpoPriority):
+	// its sleep wakes on time, so the limiter sleeps to 1 ms before the frame end and spins the rest.
+	extern bool g_limiter_precise_sleep;
+	void LimiterPreciseSleep(u64 frame_end_ticks);
 	// In VSyncStart.
 	void GgpoOnVsync();
 	// In VSyncStart with LowLatencyPresent, after the present. true: a session frame ended, and

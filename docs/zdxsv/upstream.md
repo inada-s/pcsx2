@@ -361,6 +361,7 @@ Visual Studio and `lupdate` drop comments when they rewrite these files.
 | `pcsx2/VMManager.cpp` | `VMManager::SetLimiterMode` | `Zdxsv::g_ggpo_active`, `Zdxsv::GgpoBattleRefuses` |
 | `pcsx2/VMManager.cpp` | `VMManager::Internal::Throttle` | `Zdxsv::g_frame_period_trim_us` |
 | `pcsx2/VMManager.cpp` | `VMManager::Internal::Throttle` | `Zdxsv::g_limiter_no_catch_up` |
+| `pcsx2/VMManager.cpp` | `VMManager::Internal::Throttle` | else, the precise sleep above |
 | `pcsx2/VMManager.cpp` | `VMManager::FrameAdvance` | `Zdxsv::g_ggpo_active`, `Zdxsv::GgpoBattleRefuses` |
 | `pcsx2/VMManager.cpp` | `VMManager::ChangeDisc` | `Zdxsv::g_online_limits`, `Zdxsv::OnlineRefuses`, `Zdxsv::g_ggpo_enabled` |
 | `pcsx2/VMManager.cpp` | `VMManager::InitializeCPUProviders` | ARM64 EE and IOP recompilers (pcsx2/arm64/) |

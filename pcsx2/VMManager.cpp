@@ -2351,7 +2351,9 @@ void VMManager::Internal::Throttle()
 	// If any integer value of milliseconds exists, sleep it off.
 	// Prior comments suggested that 1-2 ms sleeps were inaccurate on some OSes;
 	// further testing suggests instead that this was utter bullshit.
-	if (msec > 1)
+	if (Zdxsv::g_limiter_precise_sleep)
+		Zdxsv::LimiterPreciseSleep(uExpectedEnd);
+	else if (msec > 1) // zdxsv: else, the precise sleep above
 	{
 		Threading::Sleep(msec - 1);
 	}
