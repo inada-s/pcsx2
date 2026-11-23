@@ -17,3 +17,13 @@ TEST(ZdxsvSleep, SleepUntilWaitsForTheTarget)
 		EXPECT_GE(GetCPUTicks() + GetTickFrequency() / 1000, target);
 	}
 }
+
+TEST(ZdxsvSleep, SleepWaitsTheMilliseconds)
+{
+	for (int i = 0; i < 5; i++)
+	{
+		const u64 start = GetCPUTicks();
+		Threading::Sleep(20);
+		EXPECT_GE(GetCPUTicks() - start + GetTickFrequency() / 1000, GetTickFrequency() / 50);
+	}
+}

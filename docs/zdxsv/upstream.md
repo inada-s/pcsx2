@@ -86,7 +86,10 @@ Visual Studio and `lupdate` drop comments when they rewrite these files.
 | `common/Console.cpp` | `Log::UpdateMaxLevel` | log tail (Zdxsv/LogTail.cpp) |
 | `common/Console.cpp` | `Log::ExecuteCallbacks` | log tail (Zdxsv/LogTail.cpp) |
 | `common/Console.h` |  | a second callback output, independent of the host one (Zdxsv/LogTail.cpp) |
+| `common/Darwin/DarwinMisc.cpp` |  | EINTR in Threading::Sleep |
+| `common/Darwin/DarwinMisc.cpp` | `Threading::Sleep` | nanosleep; a signal does not cut the sleep short, it sleeps again for the rest |
 | `common/Darwin/DarwinMisc.cpp` | `Threading::SleepUntil` | ticks to ns is * numer / denom (Apple silicon 125 / 3; Intel 1 / 1) |
+| `common/Darwin/DarwinMisc.cpp` | `Threading::SleepUntil` | after a signal, again for the rest |
 | `common/HTTPDownloader.cpp` | `HTTPDownloader::CreateRequest` | replay upload posts multipart |
 | `common/HTTPDownloader.cpp` | `HTTPDownloader::CreatePostRequest` | replay upload posts multipart |
 | `common/HTTPDownloader.h` |  | replay upload posts multipart |

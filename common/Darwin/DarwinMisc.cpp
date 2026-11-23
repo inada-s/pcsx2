@@ -13,6 +13,7 @@
 #include "common/HostSys.h"
 #include "fmt/format.h"
 
+#include <cerrno> // zdxsv: EINTR in Threading::Sleep
 #include <csignal>
 #include <cstring>
 #include <cstdlib>
@@ -217,7 +218,11 @@ void Common::DetachMousePositionCb()
 
 void Threading::Sleep(int ms)
 {
-	usleep(1000 * ms);
+	// zdxsv: nanosleep; a signal does not cut the sleep short, it sleeps again for the rest
+	struct timespec ts = {ms / 1000, (ms % 1000) * 1000000L};
+	while (nanosleep(&ts, &ts) != 0 && errno == EINTR)
+	{
+	}
 }
 
 void Threading::SleepUntil(u64 ticks)
@@ -235,7 +240,9 @@ void Threading::SleepUntil(u64 ticks)
 	struct timespec ts;
 	ts.tv_sec = nanos / 1000000000ULL;
 	ts.tv_nsec = nanos % 1000000000ULL;
-	nanosleep(&ts, nullptr);
+	while (nanosleep(&ts, &ts) != 0 && errno == EINTR) // zdxsv: after a signal, again for the rest
+	{
+	}
 }
 
 std::vector<DarwinMisc::CPUClass> DarwinMisc::GetCPUClasses()
