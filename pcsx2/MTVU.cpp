@@ -58,6 +58,8 @@ bool SaveStateBase::mtvuFreeze()
 		vu1Thread.WriteDataMem(0, VU1.Mem, 0x4000);
 		vu1Thread.WriteVIRegs(&VU1.VI[0]);
 		vu1Thread.WriteVFRegs(&VU1.VF[0]);
+		// zdxsv: the VU thread runs even with MTVU off; without this wait it can write the old VU1 memory over the state's
+		vu1Thread.WaitVU();
 	}
 	for (size_t i = 0; i < 4; ++i)
 	{
