@@ -52,6 +52,7 @@ page greys it out and its tooltip names the variable.
 | Setting | Default | Use | Meaning |
 |---|---|---|---|
 | `[DEV9/Eth] ZdxsvGgpoMinDelay` | `2` | feature | Lowest GGPO input delay (frames, 2..6) a lobby battle picks, and the replay takeover delay. Read when the game starts. `mindelay=` overrides it. |
+| `[Zdxsv] TakeoverButtons` | none | feature | The game's button settings at the last online battle's start, written by the emulator; a replay takeover maps the pad with them (none: the replay's own). Ini only. |
 | `[DEV9/Eth] ZdxsvRollbackBudget` | `1.0` | internal | Rollback budget learned per PC (frames, 0..1.5), saved after each long net battle (`rollback.md`). |
 | `[DEV9/Eth] ZdxsvGgpoPort` | `0` | feature | UDP port of lobby battles (ping test and GGPO). 0 or out of range: a random port in 29700..29800, picked when the game starts with `lobby=1` and saved to the setting. `port=` overrides it. |
 | `[EmuCore/GS] VsyncEnable` | `true` | feature | Upstream VSync, on by default in this build (upstream: off); Settings → Emulation. |

@@ -870,6 +870,7 @@ namespace Zdxsv
 		s_battle.armed = true;
 		s_battle.started = true;
 		g_ggpo_active = true;
+		PadBindsLoad();
 		if (const int seek = std::exchange(s_play.rearm_seek, -1); seek >= 0)
 		{
 			// a switch: the rest of the first start (options, four-screen) stays

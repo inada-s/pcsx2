@@ -750,6 +750,8 @@ namespace Zdxsv
 			if (me >= 0)
 				s_battle.me = me;
 			Console.WriteLn("ZdxsvGgpo: net armed at vsync %u, position %d", g_FrameCount, s_battle.me);
+			if (!s_play_src.path)
+				PadBindsSave();
 		}
 		if (*reinterpret_cast<const s16*>(ram + NET_NOWAIT) != 0)
 			s_ns.nowait++;
@@ -847,7 +849,61 @@ namespace Zdxsv
 		constexpr u32 PAD_BIND_SLOTS = 0x7ade6c;
 		constexpr u16 PAD_ACTIONS[9] = {0x0200, 0x0100, 0x0040, 0x0080, 0x0300, 0x0180, 0x0280, 0x0020, 0x0000};
 		constexpr u16 PAD_DEFAULT_SLOTS[8] = {0, 1, 7, 3, 2, 4, 6, 5};
+		constexpr const char* OWN_BINDS_KEY = "TakeoverButtons"; // [Zdxsv]
+
+		struct OwnBinds
+		{
+			bool on = false;
+			u16 slots[8] = {};
+		} s_own_binds;
+
+		// A zeroed block is RAM before the game set it, not a choice.
+		bool PadBindsValid(const u16 (&s)[8])
+		{
+			bool any = false;
+			for (const u16 v : s)
+			{
+				if (v >= std::size(PAD_ACTIONS))
+					return false;
+				any |= v != 0;
+			}
+			return any;
+		}
 	} // namespace
+
+	void PadBindsSave()
+	{
+		u16 cfg[8];
+		std::memcpy(cfg, eeMem->Main + PAD_BIND_SLOTS, sizeof(cfg));
+		if (!PadBindsValid(cfg))
+			return;
+		const std::string value = fmt::format("{},{},{},{},{},{},{},{}", cfg[0], cfg[1], cfg[2], cfg[3], cfg[4], cfg[5], cfg[6], cfg[7]);
+		if (Host::GetBaseStringSettingValue("Zdxsv", OWN_BINDS_KEY) == value)
+			return;
+		Host::SetBaseStringSettingValue("Zdxsv", OWN_BINDS_KEY, value.c_str());
+		Host::CommitBaseSettingChanges();
+		Console.WriteLn("ZdxsvGgpo: own button settings saved: %s", value.c_str());
+	}
+
+	void PadBindsLoad()
+	{
+		s_own_binds = {};
+		const std::string value = Host::GetBaseStringSettingValue("Zdxsv", OWN_BINDS_KEY);
+		u16 cfg[8];
+		size_t n = 0;
+		for (const std::string_view part : StringUtil::SplitString(value, ','))
+		{
+			const std::optional<u16> v = StringUtil::FromChars<u16>(part);
+			if (!v || n == std::size(cfg))
+				return;
+			cfg[n++] = *v;
+		}
+		if (n != std::size(cfg) || !PadBindsValid(cfg))
+			return;
+		std::memcpy(s_own_binds.slots, cfg, sizeof(cfg));
+		s_own_binds.on = true;
+		Console.WriteLn("ZdxsvGgpo: replay takeover button settings: %s", value.c_str());
+	}
 
 	// The game's input record (A, B) of a host pad, A with the game's button settings (OR-linear; B bit 0 = game
 	// state, left 0). A stick counts as a direction at axis <= 0x40 / >= 0xc0: the left stick sets the D-pad's B
@@ -863,7 +919,9 @@ namespace Zdxsv
 			{I::PAD_UP, 0, 0x2000, -1}, {I::PAD_SELECT, 0, 0x4000, -1}, {I::PAD_START, 0x8000, 0x8000, -1}};
 		u16 slots[8];
 		std::memcpy(slots, PAD_DEFAULT_SLOTS, sizeof(slots));
-		if (eeMem)
+		if (s_play_src.path && s_own_binds.on)
+			std::memcpy(slots, s_own_binds.slots, sizeof(slots));
+		else if (eeMem)
 		{
 			u16 cfg[8];
 			std::memcpy(cfg, eeMem->Main + PAD_BIND_SLOTS, sizeof(cfg));

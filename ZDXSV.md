@@ -131,7 +131,7 @@ skipped; Settings → zdxsv turns this off). Controls on the pad: Circle play /
 pause, Left / Right 1 s back / forward (paused: one frame), Up / Down
 playback speed. The bar at the bottom shows when you move the mouse there.
 Start while paused (or the gamepad button on the bar) lets you play on from
-the current moment in a battle.
+the current moment in a battle, with the button settings of your last online battle.
 
 ## Crash reports
 

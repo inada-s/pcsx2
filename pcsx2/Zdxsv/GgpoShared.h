@@ -429,6 +429,10 @@ namespace Zdxsv
 	extern u32 s_game_gp; // game gp, latched in OnNetRpc
 	extern std::FILE* s_net_trace;
 	void ZdPadAB(const Input& in, u16& a, u16& b);
+	// The game's button settings at an online battle's arm are kept in the settings; a replay (PlayBegin) reads them, so
+	// a takeover maps the host pad as the player's own game does, not as the replay's state does.
+	void PadBindsSave();
+	void PadBindsLoad();
 
 	// One key slot per frame: counter c (6 bits), game-wide k and X (X only in records), and for an
 	// input record its A/B words. Key msg (kind 2) = 2 slots: `(0x80|c, k)` or `00 c A0 A1 X k B0 B1`.
