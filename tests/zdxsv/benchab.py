@@ -35,6 +35,7 @@ def values(line):
 
 def main(argv):
     zrig.need("OUT")
+    zrig.take()
     out = os.environ["OUT"]
     a, b, reps = (argv + ["", "", ""])[:3]
     reps = reps or "2"

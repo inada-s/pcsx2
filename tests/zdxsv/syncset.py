@@ -59,6 +59,7 @@ def main(argv):
             print("\t".join(c))
         return 0
     zrig.need("OUT", "RUN")
+    zrig.take()
     out = os.environ["OUT"]
     os.makedirs(out, exist_ok=True)
     rc = 0
