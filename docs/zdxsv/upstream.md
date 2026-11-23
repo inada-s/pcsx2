@@ -269,6 +269,7 @@ Visual Studio and `lupdate` drop comments when they rewrite these files.
 | `pcsx2/MTGS.cpp` | `MTGS::PostVsyncStart` | `Zdxsv::g_ggpo_in_rollback`, `Zdxsv::g_fast_boot_hidden_frame`, `Zdxsv::g_replay_hidden_frame` |
 | `pcsx2/MTGS.cpp` | `MTGS::MainLoop` | `Zdxsv::g_gs_rerun_frame`, `Zdxsv::g_input_latency_enabled`, `Zdxsv::InputLatencyOnPresentStart` |
 | `pcsx2/MTGS.cpp` | `MTGS::ToggleSoftwareRendering` | `Zdxsv::g_online_limits`, `Zdxsv::OnlineRefuses` |
+| `pcsx2/MTVU.cpp` | `SaveStateBase::mtvuFreeze` | the VU thread runs even with MTVU off; without this wait it can write the old VU1 memory over the state's |
 | `pcsx2/PINE.cpp` |  | rig opcodes |
 | `pcsx2/PINE.cpp` |  | include `Zdxsv/PineHooks.h` |
 | `pcsx2/PINE.cpp` |  | `MsgPadSet = 0x30, /**< zdxsv: set pad input (pad u8, bind u8, value u8 0-255). */` |
