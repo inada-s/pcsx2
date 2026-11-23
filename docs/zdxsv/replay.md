@@ -266,7 +266,8 @@ A lobby GGPO battle is streamed to the lobby while it runs
   their start until the upload ends. The lobby does not parse them. Both the
   uplink and the lobby send 3 times a second (an empty batch: a keep-alive
   record), on their own threads.
-- Live stream: `ZLV1`, then records: u8 type, u32 LE payload length, payload.
+- Live stream: `ZLV2`, then one zlib stream (flushed at each send) of
+  records: u8 type, u32 LE payload length, payload.
   Types: 0 keep-alive (empty), 1 header (a `BattleLogFile` without inputs),
   2 inputs (u32 LE `frame_bytes`, then frames, in order), 3 round (one
   `round_data` entry), 4 end (the close reason, UTF-8), 5 round frames
