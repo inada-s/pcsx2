@@ -3,7 +3,7 @@
 
 #pragma once
 
-// zdxsv hooks of the video and audio output: GSRenderer.cpp (GS thread), SPU2 spu2.cpp (CPU thread),
+// zdxsv hooks of the video and audio output: GSRenderer.cpp and GSDeviceMTL.mm (GS thread), SPU2 spu2.cpp (CPU thread),
 // Host/AudioStream.cpp (audio device thread).
 // Only flags and declarations (AGENTS.md, Seams With Upstream Code).
 
@@ -36,4 +36,12 @@ namespace Zdxsv
 	// Audio device thread (Host/AudioStream.cpp ReadFrames), diagnostic: the samples the device reads.
 	extern const bool g_audio_tap;
 	void AudioTapWrite(const float* samples, u32 num_frames, u32 channels, u32 rate);
+
+	// ZDXSV_HOST_LATENCY (debug, macOS, HostLatency.cpp), GSDeviceMTL, times in CACurrentMediaTime seconds: BeginPresent
+	// around nextDrawable; per drawable its frame start (HostLatencyFrameStart), present submit and presentedTime
+	// (0 = never shown; on a Metal completion thread).
+	extern const bool g_host_latency_enabled;
+	void HostLatencyOnDrawableWait(double start_s, double end_s);
+	double HostLatencyFrameStart();
+	void HostLatencyOnPresented(double start_s, double submit_s, double presented_s);
 } // namespace Zdxsv

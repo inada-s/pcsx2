@@ -3,7 +3,7 @@
 
 #pragma once
 
-// zdxsv hooks of the pad code (SIO/Pad). Only flags and declarations (AGENTS.md, Seams With Upstream Code).
+// zdxsv hooks of the pad code (SIO/Pad) and the host input sources (Input/). Only flags and declarations (AGENTS.md, Seams With Upstream Code).
 
 #include "common/Pcsx2Defs.h"
 
@@ -27,4 +27,9 @@ namespace Zdxsv
 
 	// CPU thread, SIO2 pad poll that returns the button word to the game (active low).
 	void InputLatencyOnPadPoll(u8 unifiedSlot, u32 buttons);
+
+	// ZDXSV_HOST_LATENCY (debug, macOS, HostLatency.cpp).
+	extern const bool g_host_latency_enabled;
+	// CPU thread, SDLInputSource: a gamepad button event (SDL_GamepadButton).
+	void HostLatencyOnSdlButton(u32 button, bool down);
 } // namespace Zdxsv

@@ -180,6 +180,7 @@ Scripts are in `tests/zdxsv/` except `run.py` (repository root) and
 | VSync on by default | no test: by hand, a fresh data dir shows VSync on (Settings → Graphics) | none |
 | Low-latency present | `latency.py`: press-to-present time on the main menu | `latency.py -LowLatency 0`, or `ZDXSV_GAME_CRC=0` (not the Z game): the time is longer |
 | Input latency measurement | it is the tool of the test above; `m4lat.py` uses it in a battle (`M4=m4ggpo.py`: over GGPO, frame pacing split by rollback) | the controls of the row above: the tool measures the longer time |
+| Host input and display latency (macOS) | no committed test (needs a window on an awake display and, for input, face button presses by hand). By hand: `ZDXSV_HOST_LATENCY=every=60` on the BIOS screen logs `window frame -> on display` each second; press the face buttons for `press HID -> SDL event` (0-17 ms: the 60 Hz poll) | none |
 | Input to picture by pixel color | `inputpic.py` (title main menu, 8 presses): every press has a change, prints the offsets; `inputpic.py "ZDXSV_SINGLE_DRAW_LIST=0"`: 2 vsyncs later | `inputpic.py "ZDXSV_INPUT_LATENCY=...,pixel=40:10"` (not on the cursor): exit 1 |
 
 ### Boot to lobby

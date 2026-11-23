@@ -26,6 +26,8 @@ skips does not run on that path.
 | PINE opcodes (`PINE.cpp`, changed in place: `0x30` to `0x32`) | — | pad input, screenshot, frame count |
 | Counters (vsync), VMManager | `Ggpo`, `Replay*`, `NoDev9`, `FastBoot`, `OnlineLimits`, `AllyHp` | GGPO frame loop, teammate HP on the HUD, replay playback and its unthrottled fast frames, VM start / reset / shutdown cleanup, online switch of the limited features |
 | MTGS, GS, SPU2 | `DeltaFreeze`, `SingleDrawList`, `InputLatency`, `Overlays`, `FastBoot`, `ReplayPlay` | rerun frame skips, replay seek frames not drawn or heard, fast boot shows every 8th frame, single draw list, input latency, OSD |
+| Metal device (`MediaHooks.h`, `GSDeviceMTL`) | `HostLatency` | display latency measurement (macOS) |
+| SDL input source (`InputHooks.h`, `SDLInputSource`) | `HostLatency` | pad input latency measurement (macOS) |
 | Pad | `Ggpo`, `ReplayPlay` | inputs to and from GGPO and replays |
 | SPU2 mixer, register and DMA access, freeze (`SpuHooks.h`) | `SpuLazyVoices` | stopped voices stepped lazily (faster frames, same emulated state) |
 | Hotkeys, ImGui, GS draw rect | `Overlays`, `ReplayPlay`, `GgpoOsd` | replay hotkeys, bar and key display on the game picture, refused pause and speed changes, network status panel |
@@ -83,6 +85,7 @@ this table says it is missing.
 - **Net battle pacing**: input sent before the limiter sleep, no limiter catch-up after a late frame, high process priority; `ZDXSV_EXTENSIONS=0`. See [rollback.md](rollback.md).
 - **Input latency measurement**: `ZDXSV_INPUT_LATENCY`.
 - **Input to picture by pixel color**: `ZDXSV_INPUT_LATENCY` key `pixel=`.
+- **Host input and display latency (macOS)**: `ZDXSV_HOST_LATENCY`.
 
 ## Boot to lobby
 

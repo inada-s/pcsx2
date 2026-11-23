@@ -151,6 +151,7 @@ set(pcsx2Sources
 	vtlb.cpp
 	VU0.cpp
 	VUmicro.cpp
+	Zdxsv/HostLatency.cpp
 	Zdxsv/InputLatency.cpp
 	Zdxsv/DeltaState.cpp
 	Zdxsv/Overlays.cpp

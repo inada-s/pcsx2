@@ -64,6 +64,8 @@ namespace Zdxsv
 	void StickMessageLoadSettings(SettingsInterface& si);
 	// In GgpoOnVmShutdown.
 	void StickMessageReset();
+	// In GgpoOnVmShutdown: stops the ZDXSV_HOST_LATENCY HID watch (HostLatency.cpp).
+	void HostLatencyReset();
 	// Z game with a server host: online with or without DEV9, the net RPCs answered on the EE (NoDev9.cpp).
 	extern bool g_no_dev9;
 	void NoDev9OnVmInitialize();

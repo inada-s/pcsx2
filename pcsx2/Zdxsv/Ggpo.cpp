@@ -769,6 +769,7 @@ namespace Zdxsv
 		FastBootReset();
 		SingleDrawListReset();
 		StickMessageReset();
+		HostLatencyReset();
 		// A reset boots the same game again: it needs the net RPC answers from its first network menu on.
 		if (std::strcmp(what, "vm reset") == 0)
 			NoDev9OnVmInitialize();

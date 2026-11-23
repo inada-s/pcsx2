@@ -8,6 +8,7 @@
 #include "GS/Renderers/Metal/GSTextureMTL.h"
 #include "GS/GSPerfMon.h"
 #include "GS/GSShaderCompileIndicator.h"
+#include "Zdxsv/MediaHooks.h"
 
 #include "common/Console.h"
 #include "common/HostSys.h"
@@ -1455,7 +1456,10 @@ GSDevice::PresentResult GSDeviceMTL::BeginPresent(bool frame_skip)
 		return PresentResult::FrameSkipped;
 	}
 	id<MTLCommandBuffer> buf = GetRenderCmdBuf();
+	const double zdxsv_acquire_s = Zdxsv::g_host_latency_enabled ? CACurrentMediaTime() : 0;
 	m_current_drawable = MRCRetain([m_layer nextDrawable]);
+	if (Zdxsv::g_host_latency_enabled)
+		Zdxsv::HostLatencyOnDrawableWait(zdxsv_acquire_s, CACurrentMediaTime());
 	EndRenderPass();
 	if (!m_current_drawable)
 	{
@@ -1483,6 +1487,8 @@ void GSDeviceMTL::EndPresent()
 		const bool use_present_drawable = m_use_present_drawable == UsePresentDrawable::Always ||
 			(m_use_present_drawable == UsePresentDrawable::IfVsync && m_vsync_mode == GSVSyncMode::FIFO);
 
+		if (Zdxsv::g_host_latency_enabled)
+			[m_current_drawable addPresentedHandler:[start_s = Zdxsv::HostLatencyFrameStart(), submit_s = CACurrentMediaTime()](id<MTLDrawable> d) { Zdxsv::HostLatencyOnPresented(start_s, submit_s, d.presentedTime); }];
 		if (use_present_drawable)
 			[m_current_render_cmdbuf presentDrawable:m_current_drawable];
 		else

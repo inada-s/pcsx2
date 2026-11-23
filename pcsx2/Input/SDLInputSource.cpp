@@ -5,6 +5,7 @@
 #include "Input/SDLInputSource.h"
 #include "Input/InputManager.h"
 #include "Host.h"
+#include "Zdxsv/InputHooks.h"
 
 #include "ImGui/FullscreenUI.h"
 
@@ -1602,6 +1603,8 @@ bool SDLInputSource::HandleGamepadButtonEvent(const SDL_GamepadButtonEvent* ev)
 	const GenericInputBinding generic_key = (ev->button < std::size(s_sdl_generic_binding_button_mapping)) ?
 	                                            s_sdl_generic_binding_button_mapping[ev->button] :
 	                                            GenericInputBinding::Unknown;
+	if (Zdxsv::g_host_latency_enabled)
+		Zdxsv::HostLatencyOnSdlButton(ev->button, ev->down);
 	InputManager::InvokeEvents(key, static_cast<float>(ev->down), generic_key);
 	return true;
 }

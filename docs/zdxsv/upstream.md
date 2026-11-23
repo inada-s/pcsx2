@@ -167,7 +167,7 @@ Visual Studio and `lupdate` drop comments when they rewrite these files.
 | `pcsx2/CDVD/InputIsoFile.cpp` | `InputIsoFile::BeginRead2` | a save state load can start a read while another is in flight. |
 | `pcsx2/CMakeLists.txt` | `target_compile_options` | production server defaults, given only by the official release build (docs/zdxsv/options.md) |
 | `pcsx2/CMakeLists.txt` |  | ARM64 always has FMA: contracted a*b+c in the interpreters rounds unlike the PS2 and the x86 build. |
-| `pcsx2/CMakeLists.txt` |  | `Zdxsv/InputLatency.cpp` |
+| `pcsx2/CMakeLists.txt` |  | `Zdxsv/HostLatency.cpp` |
 | `pcsx2/CMakeLists.txt` |  | `Zdxsv/InputLatency.h` |
 | `pcsx2/CMakeLists.txt` |  | `Zdxsv/Lobby.cpp` |
 | `pcsx2/CMakeLists.txt` |  | `Zdxsv/Lobby.h` |
@@ -218,6 +218,9 @@ Visual Studio and `lupdate` drop comments when they rewrite these files.
 | `pcsx2/GS/Renderers/Common/GSRenderer.cpp` | `GSRenderer::VSync` | `Zdxsv::g_gs_rerun_frame` |
 | `pcsx2/GS/Renderers/Common/GSRenderer.cpp` | `GSGetLastDrawRect` | overlays place their text on the game image |
 | `pcsx2/GS/Renderers/DX11/D3D.cpp` | `D3D::GetPreferredRenderer` | Direct3D 11, not OpenGL, on Intel GPUs before Xe: their OpenGL drivers are suspected of frame hitches in net battles (needs testing) |
+| `pcsx2/GS/Renderers/Metal/GSDeviceMTL.mm` |  | include `Zdxsv/MediaHooks.h` |
+| `pcsx2/GS/Renderers/Metal/GSDeviceMTL.mm` | `GSDeviceMTL::BeginPresent` | `zdxsv_acquire_s`, `Zdxsv::g_host_latency_enabled`, `Zdxsv::HostLatencyOnDrawableWait` |
+| `pcsx2/GS/Renderers/Metal/GSDeviceMTL.mm` | `GSDeviceMTL::EndPresent` | `Zdxsv::g_host_latency_enabled`, `Zdxsv::HostLatencyFrameStart`, `Zdxsv::HostLatencyOnPresented` |
 | `pcsx2/Gif_Unit.cpp` |  | include `Zdxsv/SaveStateHooks.h` |
 | `pcsx2/Gif_Unit.cpp` | `SaveStateBase::gifPathFreeze` | `Zdxsv::DeltaFreezeMarkScratch` |
 | `pcsx2/Gif_Unit.cpp` | `SaveStateBase::gifPathFreeze` | `Zdxsv::g_delta_freeze_load` |
@@ -245,6 +248,8 @@ Visual Studio and `lupdate` drop comments when they rewrite these files.
 | `pcsx2/ImGui/ImGuiOverlays.cpp` | `ImGuiManager::RenderOverlays` | `Zdxsv::g_ggpo_enabled`, `Zdxsv::DrawOverlays` |
 | `pcsx2/Input/InputManager.cpp` |  | include `Zdxsv/InputHooks.h` |
 | `pcsx2/Input/InputManager.cpp` | `InputManager::InvokeEvents` | `Zdxsv::g_replay_unfocused` |
+| `pcsx2/Input/SDLInputSource.cpp` |  | include `Zdxsv/InputHooks.h` |
+| `pcsx2/Input/SDLInputSource.cpp` | `SDLInputSource::HandleGamepadButtonEvent` | `Zdxsv::g_host_latency_enabled`, `Zdxsv::HostLatencyOnSdlButton` |
 | `pcsx2/Interpreter.cpp` |  | include `Zdxsv/CpuHooks.h` |
 | `pcsx2/Interpreter.cpp` |  | cpuBlockCycles and intLastBranchTo not static, the ARM64 EE recompiler shares them. |
 | `pcsx2/Interpreter.cpp` | `execI` | `Zdxsv::IntHooksOn`, `Zdxsv::IntRunHooks` |
@@ -406,7 +411,7 @@ Visual Studio and `lupdate` drop comments when they rewrite these files.
 | `pcsx2/pcsx2.vcxproj` |  | GGPO, TLS, UPnP and JSON libraries |
 | `pcsx2/pcsx2.vcxproj` |  | MINIUPNP_STATICLIB |
 | `pcsx2/pcsx2.vcxproj` |  | `<ClCompile Include="Zdxsv\Lobby.cpp" />` |
-| `pcsx2/pcsx2.vcxproj` |  | `<ClCompile Include="Zdxsv\InputLatency.cpp" />` |
+| `pcsx2/pcsx2.vcxproj` |  | `<ClCompile Include="Zdxsv\HostLatency.cpp" />` |
 | `pcsx2/pcsx2.vcxproj` |  | `<ClInclude Include="Zdxsv\Lobby.h" />` |
 | `pcsx2/pcsx2.vcxproj` |  | `<ClInclude Include="Zdxsv\InputLatency.h" />` |
 | `pcsx2/pcsx2.vcxproj.filters` |  | `<Filter Include="Zdxsv">` |

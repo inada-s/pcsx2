@@ -265,6 +265,22 @@ are not shown, so they are no samples: their time (state load + reruns) is the
 | `pixel=x:y[;x:y]` | off | test | Watch these pixels (game frame coordinates, up to 16) of each shown frame (a one-row readback, nothing written) and log, per press, the vsync of the first change. |
 | `tol=N` | 0 | test | With `pixel=`: a pixel changes only when a color channel differs from the shown frame before by more than N. For translucent HUD parts whose color moves by 1-2 every frame. |
 
+## Host input and display latency (macOS)
+
+`ZDXSV_HOST_LATENCY="key=value,..."` (any value, even empty, turns it on; macOS, diagnostic):
+the host side of the pad-to-picture path, which `ZDXSV_INPUT_LATENCY` does not see.
+Log lines start with `ZdxsvHostLatency`.
+
+- input: a face button's HID report reaches the OS (a HID watch of its own, next to SDL's) -> the
+  CPU thread gets the SDL button event; a line per press and a summary every 10 presses.
+- window (Metal): BeginPresent's wait in `nextDrawable`, present submit -> `presentedTime`, and
+  frame -> on the display (both); a summary every `every=` frames.
+
+| Key | Default | Use | Meaning |
+|---|---|---|---|
+| `skip=S` | 20 | diagnostic | Seconds after the first present before samples count (boot paces frames unevenly). |
+| `every=N` | 600 | diagnostic | Frames per window summary (10..100000). |
+
 ## Traces and dumps
 
 | Option | Use | Meaning |

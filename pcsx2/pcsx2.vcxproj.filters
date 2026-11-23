@@ -2499,6 +2499,9 @@
     <ClCompile Include="Zdxsv\TlsTunnel.cpp">
       <Filter>Zdxsv</Filter>
     </ClCompile>
+    <ClCompile Include="Zdxsv\HostLatency.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
     <ClCompile Include="Zdxsv\InputLatency.cpp">
       <Filter>Zdxsv</Filter>
     </ClCompile>

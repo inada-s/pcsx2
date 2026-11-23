@@ -458,6 +458,7 @@
     <ClCompile Include="vtlb.cpp" />
     <ClCompile Include="MTVU.cpp" />
     <ClCompile Include="VUmicro.cpp" />
+    <ClCompile Include="Zdxsv\HostLatency.cpp" />
     <ClCompile Include="Zdxsv\InputLatency.cpp" />
     <ClCompile Include="Zdxsv\VuOpTest.cpp" />
     <ClCompile Include="Zdxsv\EeOpTest.cpp" />

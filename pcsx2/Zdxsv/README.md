@@ -99,6 +99,7 @@ options: `docs/zdxsv/`.
 | `Upnp.cpp`, `Upnp.h` | UPnP mapping of the GGPO port on the router (`3rdparty/miniupnpc`), removed at exit |
 | `TlsTunnel.cpp` | TLS to the zdxsv server: the game's TCP connections go through a local tunnel, the server is checked by its public-key pins |
 | `InputLatency.cpp`, `InputLatency.h` | Debug: pad input latency measurement |
+| `HostLatency.cpp` | Debug, macOS: host pad input (HID -> SDL event) and Metal display latency (`ZDXSV_HOST_LATENCY`) |
 | `RecHooks.cpp`, `RecHooks.h` | EE recompiler: emits the hook calls (net RPC, recv, step copy, load step) before an instruction |
 | `IntHooks.cpp` | EE interpreter and ARM64 EE recompiler: the hook calls of `RecHooks.cpp` but the probes |
 | `RecProbe.cpp` | Debug: EE recompiler probes and store watches (`ZDXSV_EE_PROBE`, `ZDXSV_EE_WATCH`) |
