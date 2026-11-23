@@ -4,6 +4,7 @@ add_pcsx2_test(common_test
 	path_tests.cpp
 	small_string_tests.cpp
 	string_util_tests.cpp
+	ZdxsvSleepTests.cpp
 )
 
 if(ARCH_X86)

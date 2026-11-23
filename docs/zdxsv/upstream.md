@@ -86,6 +86,7 @@ Visual Studio and `lupdate` drop comments when they rewrite these files.
 | `common/Console.cpp` | `Log::UpdateMaxLevel` | log tail (Zdxsv/LogTail.cpp) |
 | `common/Console.cpp` | `Log::ExecuteCallbacks` | log tail (Zdxsv/LogTail.cpp) |
 | `common/Console.h` |  | a second callback output, independent of the host one (Zdxsv/LogTail.cpp) |
+| `common/Darwin/DarwinMisc.cpp` | `Threading::SleepUntil` | ticks to ns is * numer / denom (Apple silicon 125 / 3; Intel 1 / 1) |
 | `common/HTTPDownloader.cpp` | `HTTPDownloader::CreateRequest` | replay upload posts multipart |
 | `common/HTTPDownloader.cpp` | `HTTPDownloader::CreatePostRequest` | replay upload posts multipart |
 | `common/HTTPDownloader.h` |  | replay upload posts multipart |
@@ -430,6 +431,7 @@ Visual Studio and `lupdate` drop comments when they rewrite these files.
 | `pcsx2/x86/ix86-32/iR5900.cpp` | `Zdxsv::recEeBlockPc` | `Zdxsv::recEeBlockPc` |
 | `pcsx2/x86/microVU.cpp` |  | include `Zdxsv/CpuHooks.h` |
 | `pcsx2/x86/microVU.cpp` | `recMicroVU1::Execute` | `Zdxsv::g_rerun_split_time`, `Zdxsv::g_ggpo_in_rollback`, `Zdxsv::g_rerun_vu1_ticks` |
+| `tests/ctest/common/CMakeLists.txt` | `add_pcsx2_test` | `ZdxsvSleepTests` |
 | `tests/ctest/core/CMakeLists.txt` | `add_pcsx2_test` | GGPO tests |
 | `tests/ctest/core/CMakeLists.txt` |  | ggpo_tests.cpp tests GGPO's internal socket class; its headers throw (see 3rdparty/ggpo); no PCH, which is built without exceptions |
 | `updater/Updater.cpp` | `Updater::StageUpdate` | an empty file (portable.txt) writes 0 items; that is complete, not a failure. |

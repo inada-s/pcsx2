@@ -227,7 +227,8 @@ void Threading::SleepUntil(u64 ticks)
 	if (diff <= 0)
 		return;
 
-	const u64 nanos = (static_cast<u64>(diff) * static_cast<u64>(s_timebase_info.denom)) / static_cast<u64>(s_timebase_info.numer);
+	// zdxsv: ticks to ns is * numer / denom (Apple silicon 125 / 3; Intel 1 / 1)
+	const u64 nanos = (static_cast<u64>(diff) * static_cast<u64>(s_timebase_info.numer)) / static_cast<u64>(s_timebase_info.denom);
 	if (nanos == 0)
 		return;
 
