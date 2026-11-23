@@ -208,6 +208,10 @@ namespace Zdxsv
 
 		if (!s.FreezeInternals(error))
 			return false;
+		// Loading the MTVU section queues the VU1 memory found before this load to the VU thread, also with
+		// MTVU off: let it land before the VU1 memory below is loaded, or it can overwrite it.
+		if (s.IsLoading())
+			vu1Thread.WaitVU();
 
 		mark("iopMem");
 		if (!g_delta_freeze_paged_ram)
