@@ -13,6 +13,8 @@
 
 #include "fmt/format.h"
 
+#include <zlib.h>
+
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -41,7 +43,7 @@ namespace Zdxsv
 		constexpr size_t LIVE_MAX_RECORD = 1 << 20;
 		constexpr size_t LIVE_MAX_STREAM = 256u << 20; // a battle sends 132 bytes a frame and well under 1 MiB a round
 		constexpr std::string_view LIVE_SCHEME = "live:";
-		constexpr std::string_view LIVE_MAGIC = "ZLV1";
+		constexpr std::string_view LIVE_MAGIC = "ZLV2";
 
 		enum : uint8_t
 		{
@@ -74,6 +76,44 @@ namespace Zdxsv
 			PutU32(out, static_cast<uint32_t>(len));
 			out.append(static_cast<const char*>(data), len);
 		}
+
+		struct Deflater
+		{
+			z_stream z = {};
+			bool ok = deflateInit(&z, Z_DEFAULT_COMPRESSION) == Z_OK;
+			~Deflater()
+			{
+				if (ok)
+					deflateEnd(&z);
+			}
+			bool Flush(const std::string& in, std::string& out)
+			{
+				z.next_in = reinterpret_cast<Bytef*>(const_cast<char*>(in.data()));
+				z.avail_in = static_cast<uInt>(in.size());
+				char buf[16384];
+				do
+				{
+					z.next_out = reinterpret_cast<Bytef*>(buf);
+					z.avail_out = sizeof(buf);
+					const int rc = deflate(&z, Z_SYNC_FLUSH);
+					if (rc != Z_OK && rc != Z_BUF_ERROR)
+						return false;
+					out.append(buf, sizeof(buf) - z.avail_out);
+				} while (z.avail_out == 0);
+				return true;
+			}
+		};
+
+		struct Inflater
+		{
+			z_stream z = {};
+			bool ok = inflateInit(&z) == Z_OK;
+			~Inflater()
+			{
+				if (ok)
+					inflateEnd(&z);
+			}
+		};
 
 		std::string StreamUrl(const std::string& api, const std::string& query)
 		{
@@ -379,16 +419,23 @@ namespace Zdxsv
 
 			void Run()
 			{
-				bool started = false, ended = false;
+				bool started = false, ended = false, zfail = false;
 				auto tick = Clock::now();
 				size_t sent = 0;
-				const NextChunk next = [&](std::string& out) {
+				Deflater z;
+				std::string plain;
+				const NextChunk next = [&](std::string& wire) {
+					if (!z.ok || zfail)
+						return false;
+					std::string& out = plain;
+					out.clear();
 					if (!started)
 					{
 						started = true;
-						out.append(LIVE_MAGIC);
+						wire.append(LIVE_MAGIC);
 						PutRecord(out, REC_HEADER, header.data(), header.size());
-						return true;
+						zfail = !z.Flush(out, wire);
+						return !zfail;
 					}
 					if (ended || quit)
 						return false;
@@ -423,10 +470,13 @@ namespace Zdxsv
 					}
 					if (out.empty())
 						PutRecord(out, REC_KEEPALIVE, nullptr, 0);
-					return true;
+					zfail = !z.Flush(out, wire);
+					return !zfail;
 				};
 				std::string error;
 				const int status = HttpPost(url, next, error);
+				if (!z.ok || zfail)
+					error += std::string(error.empty() ? "" : ", ") + "deflate failed";
 				LobbyLog("live: uplink " + code + (ended && status == 204 ? " closed: " : " gave up on the close: ") + std::to_string(sent) +
 					", HTTP " + std::to_string(status) + (error.empty() ? "" : " (" + error + ")"));
 				std::lock_guard lock(mtx);
@@ -524,22 +574,47 @@ namespace Zdxsv
 			size_t bytes = 0;
 			Clock::time_point rx = Clock::now();
 			std::string error;
-			std::string buf; // bytes not parsed yet
+			std::string buf; // inflated bytes not parsed yet
+			std::string head; // the magic so far
 			bool magic = false;
+			Inflater z;
 			std::atomic<bool> quit{false};
 
-			// false: a malformed stream.
-			bool Parse()
+			// false: a malformed stream. Parses after each inflated piece: a small input inflating to much stops at LIVE_MAX_RECORD.
+			bool Feed(const char* p, size_t n)
 			{
 				if (!magic)
 				{
-					if (buf.size() < LIVE_MAGIC.size())
+					const size_t take = std::min(n, LIVE_MAGIC.size() - head.size());
+					head.append(p, take);
+					p += take;
+					n -= take;
+					if (head.size() < LIVE_MAGIC.size())
 						return true;
-					if (std::string_view(buf).substr(0, LIVE_MAGIC.size()) != LIVE_MAGIC)
+					if (head != LIVE_MAGIC || !z.ok)
 						return false;
 					magic = true;
-					buf.erase(0, LIVE_MAGIC.size());
 				}
+				z.z.next_in = reinterpret_cast<Bytef*>(const_cast<char*>(p));
+				z.z.avail_in = static_cast<uInt>(n);
+				char out[16384];
+				for (;;)
+				{
+					z.z.next_out = reinterpret_cast<Bytef*>(out);
+					z.z.avail_out = sizeof(out);
+					const int rc = inflate(&z.z, Z_NO_FLUSH);
+					if (rc != Z_OK && rc != Z_BUF_ERROR && rc != Z_STREAM_END)
+						return false;
+					buf.append(out, sizeof(out) - z.z.avail_out);
+					if (!Parse())
+						return false;
+					if (rc == Z_STREAM_END || z.z.avail_out != 0)
+						return true;
+				}
+			}
+
+			bool Parse()
+			{
 				size_t pos = 0;
 				while (buf.size() - pos >= 5)
 				{
@@ -606,8 +681,7 @@ namespace Zdxsv
 					[&](const char* p, size_t n) {
 						std::lock_guard lock(mtx);
 						rx = Clock::now();
-						buf.append(p, n);
-						if (!Parse())
+						if (!Feed(p, n))
 						{
 							err = "malformed stream";
 							return false;
