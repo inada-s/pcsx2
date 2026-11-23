@@ -232,7 +232,8 @@ D-pad. While taken over the pad plays the game.
   suit), seeks without round states.
 - **Takeover**: in a battle only, the bar's gamepad icon or, paused, START
   on the pad: the shown position plays from
-  the current frame with the host pad, input delay `mindelay`. The
+  the current frame with the host pad, input delay `mindelay`, with the
+  button settings of the last online battle (`[Zdxsv] TakeoverButtons`). The
   takeover frame is a key, kept while taken over (no other keys are saved);
   the start, a retry and "Replay" load it. A 1 s
   countdown (a filling circle) runs paused; the replay's input at the
