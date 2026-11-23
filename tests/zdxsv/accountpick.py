@@ -1,6 +1,6 @@
 """Fast login with a picked account: tokenlogin.py with two accounts of one Discord identity.
   OUT=<dir> [PICK=2] python tests/zdxsv/accountpick.py
-Env as boottime.py. The server (ZBIN) must take /lbs/login form `account`. The test migrates OUT's copy
+Env as boottime.py (ROUTE=top, LIMIT=200 preset). The server (ZBIN) must take /lbs/login form `account`. The test migrates OUT's copy
 of the db, links the two oldest accounts with users to one provider identity (in that order), stores a
 token for the first, writes the token file and `ZdxsvAccount = PICK` in p1's ini (both removed after).
 Exit 0 = tokenlogin.py's checks hold for the picked account (PICK 0 or 1: the first, 2: the second).
@@ -71,6 +71,8 @@ def prepare(out):
 
 
 def main():
+    os.environ.setdefault("ROUTE", "top")
+    os.environ.setdefault("LIMIT", "200")
     zrig.take()
     zrig.need("ZDXSV_DIR", "IP", "OUT", "CARDS")
     try:

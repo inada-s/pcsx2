@@ -1,6 +1,6 @@
 """Fast login by an emulator token: boottime.py with a token file in p1's settings folder.
   OUT=<dir> python tests/zdxsv/tokenlogin.py
-Env as boottime.py. The server (ZBIN) must have token logins (/lbs/login form token). The test
+Env as boottime.py (ROUTE=top, LIMIT=200 preset). The server (ZBIN) must have token logins (/lbs/login form token). The test
 migrates OUT's copy of the db, stores a token for an account with users, writes it to
 <p1>/inis/zdxsv_auth_token.txt (removed after the run).
 Exit 0 = the game reached the user_id screen, emulog has `fast login: by token` and a session, and the
@@ -115,6 +115,8 @@ def last_login(out, key):
 
 
 def main():
+    os.environ.setdefault("ROUTE", "top")
+    os.environ.setdefault("LIMIT", "200")
     zrig.take()
     zrig.need("ZDXSV_DIR", "IP", "OUT", "CARDS")
     try:
