@@ -82,6 +82,7 @@ def check(trace, pos, slots):
 def main(argv):
     seed = argv[0] if argv else "1"
     zrig.need("RBKSTATES", "OUT")
+    zrig.take()
     if not hasattr(zipfile, "ZIP_ZSTANDARD"):
         sys.exit("padbind.py needs Python 3.14 or later: the savestate members are zstd-compressed")
     out = os.environ["OUT"]

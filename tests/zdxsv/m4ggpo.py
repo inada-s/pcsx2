@@ -63,6 +63,7 @@ def has_addr(ip):
 
 def main():
     zrig.need("RUN")
+    zrig.take()
     run = os.environ["RUN"]
     os.environ.setdefault("ETH", "0")
     port = int(zrig.env("PORT", "7101"))

@@ -13,6 +13,7 @@ import zrig
 
 def main():
     zrig.need("OUT")
+    zrig.take()
     e = dict(os.environ, GGPO_LAT=zrig.env("DELAY", "30"), GGPO_JITTER=zrig.env("JITTER", "0"),
              GGPO_LOSS=zrig.env("LOSS", "0"))
     return subprocess.call([zrig.PY, "-u", os.path.join(zrig.HERE, "m4ggpo.py")], env=e)

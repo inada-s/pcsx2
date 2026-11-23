@@ -40,6 +40,7 @@ def main():
     out = zrig.env("OUT")
     if not out:
         sys.exit("OUT=<dir> required")
+    zrig.take()
     dump = os.path.join(out, "dump")
     os.makedirs(dump, exist_ok=True)
     env = dict(os.environ)

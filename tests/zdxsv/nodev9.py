@@ -19,6 +19,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 
 def main():
     zrig.need("IP", "OUT")
+    zrig.take()
     ip, out = os.environ["IP"], os.environ["OUT"]
     nodev9 = zrig.env("NODEV9", ip)
     maxs = zrig.env("MAXS", "200")

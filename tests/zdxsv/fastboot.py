@@ -60,6 +60,7 @@ def step(out, name, states):
 
 def main():
     zrig.need("OUT", "RUN")
+    zrig.take()
     out, run = os.environ["OUT"], os.environ["RUN"]
     states = os.path.join(run, "p1", "PCSX2", "sstates", "* zdxsv-fastboot*.p2s")
     os.makedirs(os.path.dirname(states), exist_ok=True)

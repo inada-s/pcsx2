@@ -79,6 +79,7 @@ def check(trace):
 def main(argv):
     seed = argv[0] if argv else ""
     zrig.need("RBKSTATES", "OUT")
+    zrig.take()
     run = os.path.join(os.environ["OUT"], "rbk")
     env = dict(os.environ, OUT=run)
     trace = os.path.join(run, "trace-p1.txt")
