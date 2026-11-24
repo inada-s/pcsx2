@@ -178,6 +178,7 @@ Scripts are in `tests/zdxsv/` except `run.py` (repository root) and
 | Feature | Test | Control |
 |---|---|---|
 | VSync on by default | no test: by hand, a fresh data dir shows VSync on (Settings → Graphics) | none |
+| 2 Metal drawables with VSync (macOS) | no test: by hand, play with VSync on: no hitches; a frame waits at most 2 vsyncs for the display (needs proper testing on other Macs and displays) | Disable Mailbox Presentation: 3 drawables |
 | Low-latency present | `latency.py`: press-to-present time on the main menu | `latency.py -LowLatency 0`, or `ZDXSV_GAME_CRC=0` (not the Z game): the time is longer |
 | Input latency measurement | it is the tool of the test above; `m4lat.py` uses it in a battle (`M4=m4ggpo.py`: over GGPO, frame pacing split by rollback) | the controls of the row above: the tool measures the longer time |
 | Input to picture by pixel color | `inputpic.py` (title main menu, 8 presses): every press has a change, prints the offsets; `inputpic.py "ZDXSV_SINGLE_DRAW_LIST=0"`: 2 vsyncs later | `inputpic.py "ZDXSV_INPUT_LATENCY=...,pixel=40:10"` (not on the cursor): exit 1 |

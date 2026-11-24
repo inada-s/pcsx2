@@ -230,6 +230,7 @@ public:
 	MRCOwned<MTLRenderPassDescriptor*> m_pass_desc;
 	u32 m_capture_start_frame;
 	UsePresentDrawable m_use_present_drawable;
+	u32 m_zdxsv_drawables = 3; // zdxsv: CAMetalLayer maximumDrawableCount, 2 for VSync mailbox (GSDeviceMTL::Create)
 	bool m_gpu_timing_enabled = false;
 	double m_accumulated_gpu_time = 0;
 	double m_last_gpu_time_end = 0;

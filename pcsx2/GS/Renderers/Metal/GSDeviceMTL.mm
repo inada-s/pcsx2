@@ -1041,6 +1041,10 @@ bool GSDeviceMTL::Create(GSVSyncMode vsync_mode, bool allow_present_throttle)
 		});
 
 		// Metal does not support mailbox.
+		// zdxsv: for mailbox 2 drawables: when the emulation runs ahead of the display every drawable waits for its
+		// vsync, 2 frames instead of 3 (the default).
+		m_zdxsv_drawables = (m_vsync_mode == GSVSyncMode::Mailbox) ? 2 : 3;
+		[m_layer setMaximumDrawableCount:m_zdxsv_drawables]; // zdxsv
 		m_vsync_mode = (m_vsync_mode == GSVSyncMode::Mailbox) ? GSVSyncMode::FIFO : m_vsync_mode;
 		[m_layer setDisplaySyncEnabled:m_vsync_mode == GSVSyncMode::FIFO];
 	}
@@ -1373,6 +1377,7 @@ bool GSDeviceMTL::UpdateWindow()
 		return true;
 
 	OnMainThread([this] { AttachSurfaceOnMainThread(); });
+	[m_layer setMaximumDrawableCount:m_zdxsv_drawables]; // zdxsv: the new layer has the default 3
 	return true;
 }
 
@@ -1547,9 +1552,13 @@ void GSDeviceMTL::SetVSyncMode(GSVSyncMode mode, bool allow_present_throttle)
 {
 	m_allow_present_throttle = allow_present_throttle;
 
-	if (m_vsync_mode == mode)
+	// zdxsv: drawables as in Create; FIFO after Mailbox is the same m_vsync_mode, so compare the drawables too
+	const u32 zdxsv_drawables = (mode == GSVSyncMode::Mailbox) ? 2 : 3;
+	if (m_vsync_mode == mode && m_zdxsv_drawables == zdxsv_drawables) // zdxsv: the drawables compared too
 		return;
 
+	m_zdxsv_drawables = zdxsv_drawables; // zdxsv
+	[m_layer setMaximumDrawableCount:m_zdxsv_drawables]; // zdxsv
 	m_vsync_mode = (mode == GSVSyncMode::Mailbox) ? GSVSyncMode::FIFO : mode;
 	[m_layer setDisplaySyncEnabled:m_vsync_mode == GSVSyncMode::FIFO];
 }

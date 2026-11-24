@@ -219,6 +219,10 @@ Visual Studio and `lupdate` drop comments when they rewrite these files.
 | `pcsx2/GS/Renderers/Common/GSRenderer.cpp` | `GSRenderer::VSync` | `Zdxsv::g_gs_rerun_frame` |
 | `pcsx2/GS/Renderers/Common/GSRenderer.cpp` | `GSGetLastDrawRect` | overlays place their text on the game image |
 | `pcsx2/GS/Renderers/DX11/D3D.cpp` | `D3D::GetPreferredRenderer` | Direct3D 11, not OpenGL, on Intel GPUs before Xe: their OpenGL drivers are suspected of frame hitches in net battles (needs testing) |
+| `pcsx2/GS/Renderers/Metal/GSDeviceMTL.h` |  | CAMetalLayer maximumDrawableCount, 2 for VSync mailbox (GSDeviceMTL::Create) |
+| `pcsx2/GS/Renderers/Metal/GSDeviceMTL.mm` | `GSDeviceMTL::Create` | for mailbox 2 drawables: when the emulation runs ahead of the display every drawable waits for its vsync, 2 frames instead of 3 (the default). |
+| `pcsx2/GS/Renderers/Metal/GSDeviceMTL.mm` | `GSDeviceMTL::UpdateWindow` | the new layer has the default 3 |
+| `pcsx2/GS/Renderers/Metal/GSDeviceMTL.mm` | `GSDeviceMTL::SetVSyncMode` | drawables as in Create; FIFO after Mailbox is the same m_vsync_mode, so compare the drawables too |
 | `pcsx2/Gif_Unit.cpp` |  | include `Zdxsv/SaveStateHooks.h` |
 | `pcsx2/Gif_Unit.cpp` | `SaveStateBase::gifPathFreeze` | `Zdxsv::DeltaFreezeMarkScratch` |
 | `pcsx2/Gif_Unit.cpp` | `SaveStateBase::gifPathFreeze` | `Zdxsv::g_delta_freeze_load` |
