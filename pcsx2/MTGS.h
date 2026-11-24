@@ -56,7 +56,7 @@ namespace MTGS
 
 	/// Waits for the GS to empty out the entire ring buffer contents.
 	void WaitGS(bool syncRegs = true, bool weakWait = false, bool isMTVU = false);
-	void SetEvent(); // zdxsv: wakes the GS thread for queued packets (Zdxsv::DeltaFreezeWaitGifPaths)
+	void SetEvent(); // zdxsv: Zdxsv::DeltaFreezeWaitGifPaths wakes the GS thread
 	void ResetGS(bool hardware_reset);
 
 	bool WaitForOpen();

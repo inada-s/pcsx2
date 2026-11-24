@@ -131,25 +131,17 @@ namespace Zdxsv
 
 	bool g_delta_freeze_load = false;
 	bool g_delta_freeze_save = false;
-
-	// A delta save is taken every frame of a session. Waiting for the whole GS queue there also waits for
-	// the present at its end, which with VSync on can block until a drawable frees up (a vsync). The save
-	// only needs the path buffers read: gifPathFreeze realigns them. Needs proper testing.
-	void DeltaFreezeWaitGifPaths()
-	{
-		for (;;)
-		{
-			bool read = true;
-			for (Gif_Path& path : gifUnit.gifPath)
-				read = read && path.getReadAmount() == 0;
-			if (read || !MTGS::IsOpen())
-				return;
-			MTGS::SetEvent();
-			std::this_thread::yield();
-		}
-	}
 	bool g_delta_freeze_paged_ram = false;
 	static bool s_delta_paged_ram = false;
+
+	// The whole GS queue ends with the present, which with VSync on can wait for a vsync. gifPathFreeze
+	// needs only the path buffers read. Needs proper testing.
+	void DeltaFreezeWaitGifPaths()
+	{
+		MTGS::SetEvent();
+		while (MTGS::IsOpen() && !std::ranges::all_of(gifUnit.gifPath, [](Gif_Path& p) { return p.getReadAmount() == 0; }))
+			std::this_thread::yield();
+	}
 
 	void DeltaFreezeSetPagedRam(bool on)
 	{

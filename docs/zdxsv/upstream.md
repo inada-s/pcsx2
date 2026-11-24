@@ -266,12 +266,12 @@ Visual Studio and `lupdate` drop comments when they rewrite these files.
 | `pcsx2/IopCounters.cpp` |  | include `Zdxsv/SaveStateHooks.h` |
 | `pcsx2/IopCounters.cpp` | `SaveStateBase::psxRcntFreeze` | `Zdxsv::g_delta_freeze_load` |
 | `pcsx2/MTGS.cpp` |  | include `Zdxsv/CpuHooks.h` |
-| `pcsx2/MTGS.cpp` |  | not static, MTGS.h declares it (Zdxsv::DeltaFreezeWaitGifPaths) |
+| `pcsx2/MTGS.cpp` |  | SetEvent is declared in MTGS.h |
 | `pcsx2/MTGS.cpp` |  | :g_ggpo_in_rollback |
 | `pcsx2/MTGS.cpp` | `MTGS::PostVsyncStart` | `Zdxsv::g_ggpo_in_rollback`, `Zdxsv::g_fast_boot_hidden_frame`, `Zdxsv::g_replay_hidden_frame` |
 | `pcsx2/MTGS.cpp` | `MTGS::MainLoop` | `Zdxsv::g_gs_rerun_frame`, `Zdxsv::g_input_latency_enabled`, `Zdxsv::InputLatencyOnPresentStart` |
 | `pcsx2/MTGS.cpp` | `MTGS::ToggleSoftwareRendering` | `Zdxsv::g_online_limits`, `Zdxsv::OnlineRefuses` |
-| `pcsx2/MTGS.h` |  | wakes the GS thread for queued packets (Zdxsv::DeltaFreezeWaitGifPaths) |
+| `pcsx2/MTGS.h` |  | Zdxsv::DeltaFreezeWaitGifPaths wakes the GS thread |
 | `pcsx2/MTVU.cpp` | `SaveStateBase::mtvuFreeze` | the VU thread runs even with MTVU off; without this wait it can write the old VU1 memory over the state's |
 | `pcsx2/PINE.cpp` |  | rig opcodes |
 | `pcsx2/PINE.cpp` |  | include `Zdxsv/PineHooks.h` |
