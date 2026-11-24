@@ -242,6 +242,11 @@ Four mechanisms keep the peers on the same frame:
 - **Round handshake lag** (`ZDXSV_K3_LAG`): a round-handshake message goes
   into the input a fixed number of GGPO frames after the game sent it, more
   than GGPO's prediction window, so it does not depend on network timing.
+  A rollback's rerun replaces the earlier timeline's messages in order: a
+  queued one takes the rerun's content and frame, one the rerun did not send
+  is dropped (`dropped` in the `net sends` line), and one the rerun sends
+  where the earlier timeline sent none is queued then. Only a message already
+  in an input stays as it was (`late`, with a `went into an input` warning).
 
 ### Frame order and pacing (`net=1`)
 

@@ -49,6 +49,52 @@ namespace Zdxsv
 		constexpr u32 NET_NOWAIT = 0xc22c10; // s16: the wrapper takes the nowait RPC path if nonzero
 		constexpr u32 NET_RX_MAX = 0x384; // the battle recv's max
 
+		bool IsKind3(const std::vector<u8>& m)
+		{
+			return m.size() >= 2 && (m[1] >> 4) == 3;
+		}
+
+		std::deque<NetOut>::iterator OutAt(size_t i)
+		{
+			return std::find_if(s_battle.out.begin(), s_battle.out.end(), [i](const NetOut& o) { return o.idx == i; });
+		}
+
+		void NetLateWarning(const char* what, size_t i)
+		{
+			if (s_ns.late++ < 20)
+				Console.Warning("ZdxsvGgpo: net rerun %s send %zu of frame %d after it went into an input (frame %d)", what, i,
+					s_battle.sent_at[i], s_battle.frame);
+		}
+
+		// Send i of a rerun takes the place of the earlier timeline's send i. A kind-3 msg still queued is ours
+		// to change; one already in a local input reached the peers as it was.
+		void NetResend(size_t i, std::vector<u8> m)
+		{
+			const auto it = OutAt(i);
+			const bool same = s_battle.sent[i] == m && s_battle.sent_at[i] == s_battle.frame;
+			if (it != s_battle.out.end())
+			{
+				if (!IsKind3(m))
+					s_battle.out.erase(it);
+				else if (!same)
+					it->frame = s_battle.frame, it->m = m, s_ns.restamp++;
+			}
+			else if (IsKind3(s_battle.sent[i]))
+			{
+				if (!same)
+					NetLateWarning("changed", i);
+			}
+			else if (IsKind3(m))
+			{
+				const auto at = std::find_if(s_battle.out.begin(), s_battle.out.end(), [i](const NetOut& o) { return o.idx > i; });
+				s_battle.out.insert(at, {s_battle.frame, i, m});
+			}
+			if (s_net_trace && !same)
+				std::fprintf(s_net_trace, "%u OM %zu %d %d\n", g_FrameCount, i, s_battle.sent_at[i], s_battle.frame);
+			s_battle.sent[i] = std::move(m);
+			s_battle.sent_at[i] = s_battle.frame;
+		}
+
 		void NetSend(std::vector<u8> m)
 		{
 			s_ns.msgs++;
@@ -83,23 +129,13 @@ namespace Zdxsv
 						std::snprintf(h, sizeof(h), "%02x", v), b += h;
 					Console.Warning("ZdxsvGgpo: net rerun send %zu differs (frame %d) sent %s rerun %s", s_rb.net_pos, s_battle.frame, a.c_str(), b.c_str());
 				}
-				if (s_battle.sent_at[s_rb.net_pos] != s_battle.frame && m.size() >= 2 && (m[1] >> 4) == 3)
-				{
-					auto it = std::find_if(s_battle.out.begin(), s_battle.out.end(), [](const NetOut& o) { return o.idx == s_rb.net_pos; });
-					if (it != s_battle.out.end())
-						it->frame = s_battle.frame, s_ns.restamp++;
-					else if (s_ns.late++ < 20)
-						Console.Warning("ZdxsvGgpo: net rerun send %zu moved %d -> %d after it went into an input", s_rb.net_pos, s_battle.sent_at[s_rb.net_pos], s_battle.frame);
-					if (s_net_trace)
-						std::fprintf(s_net_trace, "%u OM %zu %d %d\n", g_FrameCount, s_rb.net_pos, s_battle.sent_at[s_rb.net_pos], s_battle.frame);
-				}
-				s_battle.sent_at[s_rb.net_pos] = s_battle.frame;
+				NetResend(s_rb.net_pos, std::move(m));
 			}
 			else
 			{
 				s_battle.sent.push_back(m);
 				s_battle.sent_at.push_back(s_battle.frame);
-				if (m.size() >= 2 && (m[1] >> 4) == 3)
+				if (IsKind3(m))
 					s_battle.out.push_back({s_battle.frame, s_rb.net_pos, std::move(m)});
 				s_ns.maxq = std::max<u32>(s_ns.maxq, static_cast<u32>(s_battle.out.size()));
 			}
@@ -481,6 +517,28 @@ namespace Zdxsv
 			std::fprintf(s_net_trace, "STATS msgs=%u keymsgs=%u slots=%u recs=%u unknown=%u kbad=%u xbad=%u rebuilt_bad=%u\n",
 				s_rs.msgs, s_rs.keymsgs, s_rs.slots, s_rs.recs, s_rs.unknown, s_rs.kbad, s_rs.xbad, s_rs.rebuilt_bad);
 		std::fflush(s_net_trace);
+	}
+
+	// The sends of the earlier timeline past the rerun's last one did not happen: drop them.
+	void NetRerunEnd()
+	{
+		const size_t pos = s_rb.net_pos;
+		for (size_t i = pos; i < s_battle.sent.size(); i++)
+		{
+			const auto it = OutAt(i);
+			if (it != s_battle.out.end())
+				s_battle.out.erase(it);
+			else if (IsKind3(s_battle.sent[i]))
+				NetLateWarning("dropped", i);
+			if (s_net_trace)
+				std::fprintf(s_net_trace, "%u OD %zu %d\n", g_FrameCount, i, s_battle.sent_at[i]);
+		}
+		if (pos < s_battle.sent.size())
+		{
+			s_ns.dropped += static_cast<u32>(s_battle.sent.size() - pos);
+			s_battle.sent.resize(pos);
+			s_battle.sent_at.resize(pos);
+		}
 	}
 
 	// Own input of frame (live: GGPO adds the delay; replay takeover: PlayFrame): pad 0 undelayed to
