@@ -745,9 +745,10 @@ namespace Zdxsv
 		g_ps_hook = true;
 		if (!s_config.options.empty() || std::strcmp(serial, GAME_SERIAL) == 0)
 			Console.WriteLn("ZdxsvGgpo: options '%s' (serial %s)", s_config.options.c_str(), serial);
-		// Delta saves and loads, replay keys: VU1 memory is copied while the MTVU thread may still run on it.
-		// The settings were loaded before this; VMManager::LoadCoreSettings keeps it off on later reloads.
-		g_mtvu_off = g_ggpo_enabled || g_delta_state_test_enabled;
+		// ZDXSV_MTVU=0 (test): the MTVU speedhack off for a VM with GGPO, a replay or ZDXSV_DELTA_TEST, the control of
+		// MTVU in those. The settings were loaded before this; VMManager::LoadCoreSettings keeps it off on later reloads.
+		const char* mtvu = Zdxsv::TestEnv("ZDXSV_MTVU");
+		g_mtvu_off = mtvu && std::strcmp(mtvu, "0") == 0 && (g_ggpo_enabled || g_delta_state_test_enabled);
 		if (g_mtvu_off && EmuConfig.Speedhacks.vuThread)
 		{
 			EmuConfig.Speedhacks.vuThread = false;

@@ -49,7 +49,10 @@ void vu1Finish(bool add_cycles) {
 
 void vu1ExecMicro(u32 addr)
 {
-	if (THREAD_VU1) {
+	// zdxsv: a skipped rerun microprogram is not queued to the VU thread either
+	if (Zdxsv::g_rerun_vu1_skip && THREAD_VU1)
+		vu1Thread.WaitVU();
+	if (THREAD_VU1 && !Zdxsv::g_rerun_vu1_skip) {
 		VU0.VI[REG_VPU_STAT].UL &= ~0xFF00;
 		// Okay this is a little bit of a hack, but with good reason.
 		// Most of the time with MTVU we want to pretend the VU has finished quickly as to gain the benefit from running another thread

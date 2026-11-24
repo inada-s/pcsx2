@@ -171,6 +171,7 @@ turns GGPO off and leaves the other extensions on. Any other value turns it on. 
 | `ZDXSV_NET_DISCONNECT_MS=ms` | 10000 | tuning | GGPO disconnect timeout. |
 | `ZDXSV_PEER_RELAY_PICK=first` / `=last` | the lowest path rtt sum | test | The ping test sends a peer without a path of its own through the lowest / highest usable other position instead of the one with the lowest rtt sum, so the two sides of a blocked pair can relay through different peers. |
 | `ZDXSV_NET_BARRIER_MS=ms` | 60000 | test | A load barrier held longer than this ends the net battle as a connection failure (`ZdxsvGgpo: load barrier held over`). |
+| `ZDXSV_MTVU=0` | off | test | The MTVU speedhack off for a VM with GGPO, a replay or `ZDXSV_DELTA_TEST` (`ZdxsvGgpo: MTVU speedhack off for this VM`); otherwise it keeps the setting. |
 | `ZDXSV_NET_DROP_K3=n` | off | test | The process's n-th own round-handshake (kind-3) message never goes into an input, so the peers wait for it (`ZdxsvGgpo: test: own kind-3 msg n ... dropped`). |
 | `GGPO_NETWORK_DELAY=ms` | 0 | test | GGPO holds each sent packet ms * (2/3 .. 1) before sending it ([rollback.md](rollback.md)). |
 | `GGPO_NETWORK_JAM_DELAY=ms` | 0 | test | GGPO packet jams: about once in 600 sends a jam starts and holds the send queue until its first packet is ms old. |

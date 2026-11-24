@@ -207,7 +207,11 @@ bool SaveStateBase::gifPathFreeze(u32 path)
 	Zdxsv::DeltaFreezeMarkScratch(GetCurrentPos() + offsetof(Gif_Path, readAmount), sizeof(gifPath.readAmount));
 	Zdxsv::DeltaFreezeMarkScratch(GetCurrentPos() + offsetof(Gif_Path, buffer), sizeof(gifPath.buffer)); // host pointer, restored below
 	FreezeMem(&gifPath, sizeof(gifPath) - sizeof(gifPath.mtvu));
-	FreezeMem(bufferPtr, gifPath.curSize);
+	// zdxsv: a delta state of the MTVU path (not realigned) holds its unread bytes only: the rest is drawn, up to MBs
+	if ((Zdxsv::g_delta_freeze_save || Zdxsv::g_delta_freeze_load) && gifPath.isMTVU())
+		FreezeMem(bufferPtr + gifPath.curOffset, gifPath.curSize - gifPath.curOffset);
+	else
+		FreezeMem(bufferPtr, gifPath.curSize);
 	gifPath.buffer = bufferPtr;
 	if (!IsSaving())
 	{

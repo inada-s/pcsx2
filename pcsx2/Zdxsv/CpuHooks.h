@@ -25,7 +25,7 @@ namespace Zdxsv
 	void VuOpTest();
 	// ZDXSV_EE_OPTEST: in VSyncStart; at vsync 300 runs the COP1 op test as guest code, restores at its end (EeOpTest.cpp)
 	void EeOpTestOnVsync();
-	// GGPO, a replay or ZDXSV_DELTA_TEST in this VM: the MTVU speedhack stays off (VMManager::LoadCoreSettings)
+	// ZDXSV_MTVU=0 with GGPO, a replay or ZDXSV_DELTA_TEST in this VM: the MTVU speedhack stays off (VMManager::LoadCoreSettings)
 	extern bool g_mtvu_off;
 	// live spectating (Ggpo.cpp LivePace, CPU thread): microseconds added to the frame limiter's period at nominal
 	// speed, to hold a distance behind the live edge without whole-frame stalls

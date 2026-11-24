@@ -50,9 +50,19 @@ Supporting changes in the core:
   during a read otherwise leaves the new read with the old read's sector.
 - While GGPO runs, the EE and IOP recompilers end blocks only at branches and
   page boundaries, so a rerun times events as the first run did.
-- The MTVU speedhack is off for a VM with GGPO, a replay or
-  `ZDXSV_DELTA_TEST`: a delta state copies VU1 memory without waiting for the
-  VU1 thread. The setting itself is not changed.
+- With the MTVU speedhack on, a delta save waits for the VU1 thread (a load
+  already did), and a microprogram skipped in a rerun frame is not queued to
+  it. The save first freezes what the thread never touches (SPU2, DEV9, USB,
+  pad), so the wait overlaps that work. A delta load does not copy VU1 memory
+  through the thread's queue (it writes VU1 memory itself), and a delta state
+  holds only the unread bytes of GIF path 1, which MTVU never realigns. The
+  VU1 cycle counts and GS interrupt flags the thread sets are not compared
+  between two delta states. The thread does not change what the game computes: with the battle's
+  speedhacks (VU1 instant, no EE cycle skip) the EE takes no cycle count or
+  busy flag from it, and what VU1 sends the GS does not reach the game state
+  (a rerun frame that skips VU1 hashes like the frame it repeats). Peers may
+  differ in the setting. `ZDXSV_MTVU=0` turns it off for a VM with GGPO, a replay or
+  `ZDXSV_DELTA_TEST` (test control).
 - DEV9 (network adapter) is part of a delta state when DEV9 is in save
   states. Host connections are kept on a load; frames the adapter received
   after the loaded save are received again.
