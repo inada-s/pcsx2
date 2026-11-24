@@ -568,6 +568,11 @@ namespace Zdxsv
 				GgpoStop("failed");
 			return;
 		}
+		if (s_run.game_left)
+		{
+			GgpoStop("game left");
+			return;
+		}
 		// net: the input is read and sent before the rollback, so its age does not depend on the rollback's length.
 		if (s_opt.net)
 		{

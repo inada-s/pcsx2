@@ -49,6 +49,13 @@ namespace Zdxsv
 		constexpr u32 NET_NOWAIT = 0xc22c10; // s16: the wrapper takes the nowait RPC path if nonzero
 		constexpr u32 NET_RX_MAX = 0x384; // the battle recv's max
 
+		// ZDXSV_NET_DROP_K3=n (test): the process's n-th own kind-3 msg never reaches the peers, so they wait for it.
+		const u32 s_drop_k3 = [] {
+			const char* e = Zdxsv::TestEnv("ZDXSV_NET_DROP_K3");
+			return e ? static_cast<u32>(std::max(0, std::atoi(e))) : 0u;
+		}();
+		u32 s_k3_sent;
+
 		bool IsKind3(const std::vector<u8>& m)
 		{
 			return m.size() >= 2 && (m[1] >> 4) == 3;
@@ -135,7 +142,9 @@ namespace Zdxsv
 			{
 				s_battle.sent.push_back(m);
 				s_battle.sent_at.push_back(s_battle.frame);
-				if (IsKind3(m))
+				if (IsKind3(m) && s_drop_k3 && ++s_k3_sent == s_drop_k3)
+					Console.Warning("ZdxsvGgpo: test: own kind-3 msg %u (send %zu) dropped", s_k3_sent, s_rb.net_pos);
+				else if (IsKind3(m))
 					s_battle.out.push_back({s_battle.frame, s_rb.net_pos, std::move(m)});
 				s_ns.maxq = std::max<u32>(s_ns.maxq, static_cast<u32>(s_battle.out.size()));
 			}
@@ -769,6 +778,13 @@ namespace Zdxsv
 				cpuRegs.pc = cpuRegs.GPR.n.ra.UL[0];
 				return true;
 			}
+		}
+		// The game connects only before a battle and after its end: one mid-battle has given the battle up (a
+		// load that never ended), and the session would keep its frames from the lobby it goes back to.
+		if (fno == NET_FNO_CONNECT && s_battle.armed && !g_ggpo_in_rollback && !s_play_src.path && !s_run.game_left)
+		{
+			s_run.game_left = true;
+			Console.Warning("ZdxsvGgpo: the game connects elsewhere at frame %d: it left the battle", s_battle.frame);
 		}
 		if (s_rbk.on && !s_battle.armed && !key) // connect (fno 7) has the address in the sock field
 			return RbkCall(fno, len, d);

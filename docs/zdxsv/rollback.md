@@ -214,6 +214,10 @@ The game runs with its own input delay 0; GGPO adds the input delay.
   game's end msg (kind 0xf); without a close the game resends it once a
   second and gives up only after ~100 s. After a disconnect the game shows
   its own connection error at once instead of after its countdown.
+- The game connects only before and after a battle. A connect while the
+  session runs means the game gave the battle up (a load it waited on too
+  long) and goes back to the lobby: the session ends at once as `game left`,
+  which the peers see as a disconnect.
 - A VM shutdown or reset ends the session at once, as a disconnect: the
   replay is saved, the old VM's states are dropped.
 - An input send splits the pending inputs over packets of at most 8192 bits
