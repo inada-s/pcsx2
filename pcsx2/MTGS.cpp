@@ -62,7 +62,7 @@ namespace MTGS
 	static void _FinishSimplePacket();
 	static u8* GetDataPacketPtr();
 
-	static void SetEvent();
+	// zdxsv: SetEvent is declared in MTGS.h
 
 	alignas(__cachelinesize) BufferedData RingBuffer;
 

@@ -42,6 +42,9 @@ Supporting changes in the core:
 
 - Saved scratch fields are skipped when two states are compared.
 - Counters and the GIF path keep their bookkeeping when a delta state loads.
+- A delta save waits only until the GS thread has read the GIF path buffers, not
+  for its whole queue: with VSync on, the present at the end of the queue can
+  wait for a vsync. Full saves and every load wait for the whole queue.
 - SPU2 DMA IRQ flags are part of the state.
 - A disc read started while another is in flight waits for it: loading a state
   during a read otherwise leaves the new read with the old read's sector.

@@ -7,6 +7,8 @@
 #include "Cache.h"
 #include "Counters.h"
 #include "DEV9/DEV9.h"
+#include "Gif_Unit.h"
+#include "MTGS.h"
 #include "MTVU.h"
 #include "R3000A.h"
 #include "SIO/Pad/Pad.h"
@@ -25,6 +27,7 @@
 
 #include <algorithm>
 #include <cstring>
+#include <thread>
 
 using namespace R5900;
 
@@ -127,8 +130,18 @@ namespace Zdxsv
 	static std::vector<std::pair<const char*, size_t>> s_delta_marks;
 
 	bool g_delta_freeze_load = false;
+	bool g_delta_freeze_save = false;
 	bool g_delta_freeze_paged_ram = false;
 	static bool s_delta_paged_ram = false;
+
+	// The whole GS queue ends with the present, which with VSync on can wait for a vsync. gifPathFreeze
+	// needs only the path buffers read. Needs proper testing.
+	void DeltaFreezeWaitGifPaths()
+	{
+		MTGS::SetEvent();
+		while (MTGS::IsOpen() && !std::ranges::all_of(gifUnit.gifPath, [](Gif_Path& p) { return p.getReadAmount() == 0; }))
+			std::this_thread::yield();
+	}
 
 	void DeltaFreezeSetPagedRam(bool on)
 	{
@@ -281,8 +294,10 @@ namespace Zdxsv
 		Error error;
 		s_delta_scratch.ranges.clear();
 		s_delta_scratch.saving = true;
+		g_delta_freeze_save = true;
 		g_delta_freeze_paged_ram = s_delta_paged_ram;
 		const bool saved = DeltaFreezeAll(s, &error);
+		g_delta_freeze_save = false;
 		s_delta_scratch.saving = false;
 		g_delta_freeze_paged_ram = false;
 		if (!saved)
