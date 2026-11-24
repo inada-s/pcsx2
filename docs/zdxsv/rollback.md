@@ -253,8 +253,9 @@ The press is that much older when the frame runs. The input joins GGPO before
 the advance, so GGPO's frame delay is the battle delay + 1, for the same frame.
 
 During a battle the limiter does not pay a late frame back with shorter ones:
-the next frame waits a full period from the late one. The process runs at high
-priority (Windows) for the session.
+the next frame waits a full period from the late one. For the session the process
+runs at high priority (Windows), and the CPU thread at a fixed priority with a time
+constraint (macOS), so the limiter's sleep wakes on time.
 
 ### Frame time OSD
 
