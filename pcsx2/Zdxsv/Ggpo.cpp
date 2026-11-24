@@ -774,9 +774,9 @@ namespace Zdxsv
 
 	void NetReport()
 	{
-		Console.WriteLn("ZdxsvGgpo: net sends %u msgs %u (sent %zu, unsent %zu) recvs %u rxmsgs %u rxbytes %u polls %u other %u nowait %u senddiff %u toolong %u maxq %u waits %d sync %d (max %.1f ms) k3lag %d restamp %u late %u",
+		Console.WriteLn("ZdxsvGgpo: net sends %u msgs %u (sent %zu, unsent %zu) recvs %u rxmsgs %u rxbytes %u polls %u other %u nowait %u senddiff %u toolong %u maxq %u waits %d sync %d (max %.1f ms) k3lag %d restamp %u late %u dropped %u",
 			s_ns.sends, s_ns.msgs, s_battle.sent.size(), s_battle.out.size(), s_ns.recvs, s_ns.rxmsgs, s_ns.rxbytes, s_ns.polls,
-			s_ns.other, s_ns.nowait, s_ns.senddiff, s_ns.toolong, s_ns.maxq, s_run.waits, s_run.sync_frames, s_run.sync_max_ms, s_k3_lag, s_ns.restamp, s_ns.late);
+			s_ns.other, s_ns.nowait, s_ns.senddiff, s_ns.toolong, s_ns.maxq, s_run.waits, s_run.sync_frames, s_run.sync_max_ms, s_k3_lag, s_ns.restamp, s_ns.late, s_ns.dropped);
 		Console.WriteLn("ZdxsvGgpo: zd steps %u changed %u echo %u skip %u k3 %d/%d/%d/%d rel %d (fwd %u)", s_battle.zd_steps, s_battle.zd_changed, s_battle.zds_echo, s_battle.zds_skip,
 			s_rb.zds_seen[0], s_rb.zds_seen[1], s_rb.zds_seen[2], s_rb.zds_seen[3], s_rb.zds_rel, s_battle.zds_k3rel);
 		Console.WriteLn("ZdxsvGgpo: zd steps per frame: repeats %u gaps %u (frames %d..%d)", s_battle.zd_repeats, s_battle.zd_gaps,

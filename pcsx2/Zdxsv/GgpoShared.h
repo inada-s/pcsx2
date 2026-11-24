@@ -262,7 +262,7 @@ namespace Zdxsv
 	extern BattleNet s_battle;
 	struct NetStats
 	{
-		u32 sends, msgs, recvs, rxmsgs, rxbytes, polls, other, nowait, senddiff, toolong, maxq, restamp, late;
+		u32 sends, msgs, recvs, rxmsgs, rxbytes, polls, other, nowait, senddiff, toolong, maxq, restamp, late, dropped;
 	};
 	extern NetStats s_ns;
 
@@ -452,6 +452,7 @@ namespace Zdxsv
 	void NetSaved(int frame);
 	Input RandInput();
 	NetInput NetPack(const Input& pad, int frame);
+	void NetRerunEnd(); // after a rollback's last rerun frame
 	void NetApply(const NetInput* in);
 	void NetRelease(const NetInput* in);
 	extern const int s_net_barrier_ms;

@@ -156,6 +156,8 @@ namespace Zdxsv
 			const bool ok = GgpoRunFrame();
 			if (g_rerun_draw_skip)
 				RerunKeepAfterRerunFrame(s_run.reruns_left == 0);
+			if (s_opt.net && s_run.reruns_left == 0)
+				NetRerunEnd();
 			g_rerun_vu1_skip = g_rerun_draw_skip = false;
 			s_stats.rerun_mcycles.Add((cpuRegs.cycle - cycle0) / 1e6);
 			s_stats.rerun_ms.Add(timer.GetTimeMilliseconds());
