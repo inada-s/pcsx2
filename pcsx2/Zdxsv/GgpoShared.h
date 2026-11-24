@@ -283,6 +283,7 @@ namespace Zdxsv
 	{
 		bool running = false; // net: GGPO_EVENTCODE_RUNNING seen
 		bool disconnected = false;
+		bool game_left = false; // net: the game connected elsewhere mid-battle (it gave the battle up)
 		int disconnected_until = -1; // net: last frame run after a peer left before the end msg
 		int frames_ahead = 0; // net: last GGPO_EVENTCODE_TIMESYNC
 		int waits = 0; // net: frames that waited for a peer
