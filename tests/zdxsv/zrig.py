@@ -99,7 +99,9 @@ def _procs():
         for line in txt.splitlines():
             m = re.match(r"\s*(\d+)\s+(\d+)\s+(\S+)\s+(.*)", line)
             if m:
-                out.append((int(m[1]), int(m[2]), os.path.basename(m[3]), m[4]))
+                # comm is cut to 16 characters on macOS: the name of a long path comes from args
+                exe = m[4].split(" ")[0] if m[4].startswith(m[3]) else m[3]
+                out.append((int(m[1]), int(m[2]), os.path.basename(exe), m[4]))
         return out
     # ps is denied under some runners: pgrep for pid + args (ppid: ppid())
     for line in run(["pgrep"] + PGA + ["-lf", "."]).stdout.splitlines():
