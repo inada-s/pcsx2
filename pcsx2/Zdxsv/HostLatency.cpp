@@ -69,6 +69,14 @@ namespace Zdxsv
 			std::deque<u64> presses; // HID face button presses not yet seen by SDL, ns
 			Samples input;
 			u64 unpaired = 0;
+
+			// A process with no VM shutdown (the replay parent) still has the thread at exit.
+			~HidWatch()
+			{
+				stop.store(true, std::memory_order_release);
+				if (thread.joinable())
+					thread.join();
+			}
 		};
 		HidWatch s_hid;
 
