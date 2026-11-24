@@ -80,7 +80,7 @@ this table says it is missing.
 
 - **VSync on by default**: `[EmuCore/GS] VsyncEnable`.
 - **Low-latency present**: present before the limiter sleep; always on, no setting; `ZDXSV_LOW_LATENCY_PRESENT=0` turns it off.
-- **Net battle pacing**: input sent before the limiter sleep, no limiter catch-up after a late frame, high process priority; `ZDXSV_EXTENSIONS=0`. See [rollback.md](rollback.md).
+- **Net battle pacing**: input sent before the limiter sleep, no limiter catch-up after a late frame, high priority (Windows: the process; macOS: the CPU thread); `ZDXSV_EXTENSIONS=0`. See [rollback.md](rollback.md).
 - **Input latency measurement**: `ZDXSV_INPUT_LATENCY`.
 - **Input to picture by pixel color**: `ZDXSV_INPUT_LATENCY` key `pixel=`.
 

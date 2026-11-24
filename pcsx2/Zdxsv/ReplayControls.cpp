@@ -58,8 +58,10 @@ namespace Zdxsv
 		{
 			u32 held = 0;
 			Common::Timer::Value seek_since = 0;
-			Common::Timer::Value idle_present = 0;
 		} s_pad;
+		// A paused replay's last redraw (ReplayIdlePresentDue). Not in s_pad, which ReplayPadPoll clears in a takeover
+		// countdown: with display sync each redraw waits a vsync, and redraws at every idle poll queue up on the GS thread.
+		Common::Timer::Value s_idle_present = 0;
 
 		enum : u32
 		{
@@ -99,6 +101,7 @@ namespace Zdxsv
 	void ReplayControlsReset()
 	{
 		s_pad = {};
+		s_idle_present = 0;
 		s_pad_start = {};
 		s_ctl.speed_percent = 100;
 		s_ctl.to_current = 0;
@@ -292,9 +295,9 @@ namespace Zdxsv
 	bool ReplayIdlePresentDue()
 	{
 		const Common::Timer::Value now = Common::Timer::GetCurrentValue();
-		if (Common::Timer::ConvertValueToMilliseconds(now - s_pad.idle_present) < IDLE_PRESENT_MS)
+		if (Common::Timer::ConvertValueToMilliseconds(now - s_idle_present) < IDLE_PRESENT_MS)
 			return false;
-		s_pad.idle_present = now;
+		s_idle_present = now;
 		return true;
 	}
 

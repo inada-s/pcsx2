@@ -13,6 +13,11 @@
 #include "Input/InputManager.h"
 #ifdef _WIN32
 #include "common/RedtapeWindows.h"
+#elif defined(__APPLE__)
+#include <mach/mach.h>
+#include <mach/mach_time.h>
+#include <mach/thread_policy.h>
+#include <pthread.h>
 #endif
 #include "ImGui/FullscreenUI.h"
 
@@ -117,7 +122,10 @@ namespace Zdxsv
 	bool s_vm_closing = false; // in GgpoOnVmShutdown: GgpoStop does not shut the VM down (rbk)
 	std::mt19937 s_ggpo_rng;
 
-	// A net session runs the process at high priority: other programs delay the limiter's wake and the frame less.
+	// A net session runs at high priority: other programs delay the limiter's wake and the frame less.
+	// Windows: the process. macOS: the CPU thread (it runs the limiter), fixed priority and time constraint; a normal
+	// thread's sleep can wake up to about 3 ms late (timer coalescing), this one within about 0.05 ms. Needs proper testing on
+	// slow Macs: a time-constraint thread that runs past its computation is demoted by the kernel.
 	void GgpoPriority(bool high)
 	{
 #ifdef _WIN32
@@ -131,6 +139,39 @@ namespace Zdxsv
 		{
 			SetPriorityClass(GetCurrentProcess(), s_normal);
 			s_normal = 0;
+		}
+#elif defined(__APPLE__)
+		static thread_act_t s_thread = MACH_PORT_NULL;
+		if (high && s_thread == MACH_PORT_NULL)
+		{
+			s_thread = pthread_mach_thread_np(pthread_self());
+			thread_extended_policy_data_t extended = {};
+			extended.timeshare = 0;
+			thread_precedence_policy_data_t precedence = {};
+			precedence.importance = 63;
+			mach_timebase_info_data_t tb;
+			mach_timebase_info(&tb);
+			const auto ms_to_abs = [&tb](u64 ms) { return static_cast<uint32_t>(ms * 1000000 * tb.denom / tb.numer); };
+			thread_time_constraint_policy_data_t tc = {};
+			tc.period = 0;
+			tc.computation = ms_to_abs(50);
+			tc.constraint = ms_to_abs(100);
+			tc.preemptible = FALSE;
+			const kern_return_t r1 = thread_policy_set(s_thread, THREAD_EXTENDED_POLICY, reinterpret_cast<thread_policy_t>(&extended),
+				THREAD_EXTENDED_POLICY_COUNT);
+			const kern_return_t r2 = thread_policy_set(s_thread, THREAD_PRECEDENCE_POLICY, reinterpret_cast<thread_policy_t>(&precedence),
+				THREAD_PRECEDENCE_POLICY_COUNT);
+			const kern_return_t r3 = thread_policy_set(s_thread, THREAD_TIME_CONSTRAINT_POLICY, reinterpret_cast<thread_policy_t>(&tc),
+				THREAD_TIME_CONSTRAINT_POLICY_COUNT);
+			Console.WriteLn("ZdxsvGgpo: CPU thread priority: fixed %d, importance %d, time constraint %d", r1, r2, r3);
+		}
+		else if (!high && s_thread != MACH_PORT_NULL)
+		{
+			thread_standard_policy_data_t standard = {};
+			thread_policy_set(s_thread, THREAD_STANDARD_POLICY, reinterpret_cast<thread_policy_t>(&standard), THREAD_STANDARD_POLICY_COUNT);
+			thread_precedence_policy_data_t precedence = {};
+			thread_policy_set(s_thread, THREAD_PRECEDENCE_POLICY, reinterpret_cast<thread_policy_t>(&precedence), THREAD_PRECEDENCE_POLICY_COUNT);
+			s_thread = MACH_PORT_NULL;
 		}
 #endif
 	}
