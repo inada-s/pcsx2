@@ -223,7 +223,11 @@ bool SaveStateBase::gifFreeze()
 {
 	bool mtvuMode = THREAD_VU1;
 	pxAssert(vu1Thread.IsDone());
-	MTGS::WaitGS();
+	// zdxsv: a delta save waits only for the GIF path buffers, not for the rest of the GS queue
+	if (Zdxsv::g_delta_freeze_save)
+		Zdxsv::DeltaFreezeWaitGifPaths();
+	else
+		MTGS::WaitGS();
 	if (!FreezeTag("Gif Unit"))
 		return false;
 

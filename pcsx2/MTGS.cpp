@@ -62,7 +62,7 @@ namespace MTGS
 	static void _FinishSimplePacket();
 	static u8* GetDataPacketPtr();
 
-	static void SetEvent();
+	// zdxsv: not static, MTGS.h declares it (Zdxsv::DeltaFreezeWaitGifPaths)
 
 	alignas(__cachelinesize) BufferedData RingBuffer;
 
