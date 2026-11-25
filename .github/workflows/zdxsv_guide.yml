@@ -1,0 +1,45 @@
+name: zdxsv guide
+
+# Builds guide/ (Jekyll) and publishes it to GitHub Pages. Pull requests build only.
+on:
+  push:
+    branches: [zdxsv-master]
+    paths: ["guide/**", ".github/workflows/zdxsv_guide.yml"]
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths: ["guide/**", ".github/workflows/zdxsv_guide.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: zdxsv-guide-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    if: ${{ !(github.event_name == 'pull_request' && github.event.pull_request.draft) }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/jekyll-build-pages@v1
+        with:
+          source: ./guide
+          destination: ./_site
+      - uses: actions/upload-pages-artifact@v5
+        if: github.event_name != 'pull_request'
+
+  deploy:
+    needs: build
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/zdxsv-master'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

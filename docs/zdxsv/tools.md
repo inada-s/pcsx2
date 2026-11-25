@@ -24,7 +24,12 @@
 - Crash reports use the optional variable `ZDXSV_SENTRY_DSN` and secret `SENTRY_AUTH_TOKEN`: see [crash-reports.md](crash-reports.md).
 - A tag with a suffix, such as `zdxsv-0.0.1-rc1`, becomes a prerelease. The
   updater skips prereleases.
-- The release zip holds `portable.txt`, `ZDXSV.md` and `ZDXSV.ja.md`.
+- The release zip holds `portable.txt`.
+- A push to `zdxsv-master` that changes `guide/` runs
+  `.github/workflows/zdxsv_guide.yml`, which publishes the player guide to
+  GitHub Pages at `https://pcsx2.zdxsv.net/` (repository Settings → Pages →
+  Source: GitHub Actions, Custom domain: `pcsx2.zdxsv.net`; DNS: a CNAME
+  record `pcsx2` → `inada-s.github.io`).
 - Each release also has `SHA256SUMS.txt` and a GitHub build provenance
   attestation for both files: `gh attestation verify <file> -R inada-s/pcsx2`.
 - A release that already exists for the tag (e.g. made on the web) is kept and
@@ -41,6 +46,8 @@
     builds: MSBuild `Release`); compile only.
   - macOS arm64 (`macos_build_arm64.yml`); builds and runs the unit tests,
     no artifact.
+- A change only under `guide/` runs neither build; its required check
+  `CMake / CMake Clang` stays pending, so the owner merges it as admin.
 - The Linux and macOS x86_64 workflows only run by hand (`workflow_dispatch`).
 - These builds get a read-only token. The upstream `pull_request_target` workflows
   (`check_pr_commits.yml`, `windows_deps_dispatch.yml`) run only in `PCSX2/pcsx2`.

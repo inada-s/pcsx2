@@ -5,14 +5,17 @@ name: 🍎 MacOS arm64 Build
 # Compile only: no signing, no artifact. No secrets: none are used.
 # x86_64 builds on pushes only: it fills the ccache the release's x86_64 job
 # restores (a tag run reads the default branch's caches).
+# A change only under guide/ (the player guide) is not built.
 
 on:
   push:
     branches:
       - "zdxsv-master"
       - "ai/zdxsv"
+    paths-ignore: ["guide/**"]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
+    paths-ignore: ["guide/**"]
   workflow_dispatch:
 
 permissions:

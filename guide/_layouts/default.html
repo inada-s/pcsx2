@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="{{ site.lang }}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% if page.title %}{{ page.title }} - {% endif %}{{ site.title }}</title>
+<link rel="stylesheet" href="{{ '/assets/style.css' | relative_url }}">
+</head>
+<body>
+<header>
+<a class="site-title" href="{{ '/' | relative_url }}">{{ site.title }}</a>
+<nav>
+<a href="{{ '/' | relative_url }}">はじめに</a>
+<a href="{{ '/windows' | relative_url }}">インストール (Windows)</a>
+<a href="{{ '/mac' | relative_url }}">インストール (Mac)</a>
+<a href="{{ '/first-run' | relative_url }}">初回設定</a>
+<a href="{{ '/play' | relative_url }}">遊び方と設定</a>
+<a href="{{ '/about' | relative_url }}">その他</a>
+</nav>
+</header>
+<main>
+{{ content }}
+</main>
+<footer>
+PCSX2 for zdxsv は GPL-3.0+ のフリーソフトウェアです。ソースコード: <a href="https://github.com/inada-s/pcsx2">github.com/inada-s/pcsx2</a>
+</footer>
+</body>
+</html>

@@ -7,14 +7,17 @@ name: 🖥️ Windows Builds
 # stacked PR is built too and its check stays on the commit when it is retargeted.
 # A draft PR is not built: the build starts when the PR is marked ready for review.
 # No secrets: none are used.
+# A change only under guide/ (the player guide) is not built.
 
 on:
   push:
     branches:
       - "zdxsv-master"
       - "ai/zdxsv"
+    paths-ignore: ["guide/**"]
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
+    paths-ignore: ["guide/**"]
   workflow_dispatch:
 
 permissions:

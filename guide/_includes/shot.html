@@ -1,0 +1,9 @@
+{%- assign shot_path = "/images/" | append: include.file -%}
+{%- assign shot_found = site.static_files | where: "path", shot_path | first -%}
+<figure class="shot">
+{%- if shot_found -%}
+<img src="{{ shot_path | relative_url }}" alt="{{ include.alt }}" loading="lazy">
+{%- else -%}
+<div class="shot-missing">画像準備中: {{ include.alt }}</div>
+{%- endif -%}
+</figure>

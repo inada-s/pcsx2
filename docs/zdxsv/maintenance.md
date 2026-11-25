@@ -38,7 +38,7 @@ rebase of the fork.
 
 ## Cutting a release
 
-1. `zdxsv-master` builds green; `ZDXSV.md` and `ZDXSV.ja.md` describe the
+1. `zdxsv-master` builds green; the guide (`guide/`) describes the
    visible changes.
 2. The repository variables of [tools.md](tools.md) (Releases and updates) are set.
 3. Optional trial: tag `zdxsv-X.Y.Z-rc1` and push it. It becomes a
