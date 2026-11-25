@@ -200,11 +200,11 @@ namespace Zdxsv
 		const int io = s.IsSaving() ? 0 : 1;
 		s_delta_times.calls[io]++;
 		size_t section = 0;
-		const char* current = "internals";
+		const char* current = nullptr;
 		const bool timed = Zdxsv::g_rerun_split_time;
 		Common::Timer::Value t = timed ? Common::Timer::GetCurrentValue() : 0;
 		auto mark = [&](const char* name) {
-			if (timed)
+			if (timed && current)
 			{
 				const Common::Timer::Value now = Common::Timer::GetCurrentValue();
 				if (section >= s_delta_times.ms[io].size())
@@ -219,27 +219,8 @@ namespace Zdxsv
 		if (s.IsSaving())
 			s_delta_marks.clear();
 
-		if (!s.FreezeInternals(error))
-			return false;
-
-		mark("iopMem");
-		if (!g_delta_freeze_paged_ram)
-			DeltaFreezeCode(s, iopMem->Main, Ps2MemSize::ExposedIopRam, ClearIop);
-		mark("eeHw");
-		s.FreezeMem(eeHw, sizeof(eeHw));
-		mark("iopHw");
-		s.FreezeMem(iopHw, sizeof(iopHw));
-		mark("Scratch");
-		s.FreezeMem(eeMem->Scratch, sizeof(eeMem->Scratch));
-		mark("VU0Mem");
-		s.FreezeMem(vuRegs[0].Mem, VU0_MEMSIZE);
-		mark("VU1Mem");
-		s.FreezeMem(vuRegs[1].Mem, VU1_MEMSIZE);
-		mark("VU0Micro");
-		DeltaFreezeCode(s, vuRegs[0].Micro, VU0_PROGSIZE, [](u32 addr, u32 n) { CpuVU0->Clear(addr, n); });
-		mark("VU1Micro");
-		DeltaFreezeCode(s, vuRegs[1].Micro, VU1_PROGSIZE, [](u32 addr, u32 n) { CpuVU1->Clear(addr, n); });
-
+		// Blocks the VU thread never touches first: a save waits for the VU1 thread (and the GS thread for its
+		// GIF path 1 packets) only before the internals, after this work.
 		mark("SPU2");
 		freezeData fP = {};
 		SPU2freeze(FreezeAction::Size, &fP);
@@ -283,9 +264,35 @@ namespace Zdxsv
 			return false;
 
 		mark("Pad");
-		const bool ok = DeltaFreezeWrapper(s, &Pad::Freeze);
+		if (!DeltaFreezeWrapper(s, &Pad::Freeze))
+			return false;
+
+		mark("internals");
+		if (s.IsSaving() && THREAD_VU1)
+			vu1Thread.WaitVU();
+		if (!s.FreezeInternals(error))
+			return false;
+
+		mark("iopMem");
+		if (!g_delta_freeze_paged_ram)
+			DeltaFreezeCode(s, iopMem->Main, Ps2MemSize::ExposedIopRam, ClearIop);
+		mark("eeHw");
+		s.FreezeMem(eeHw, sizeof(eeHw));
+		mark("iopHw");
+		s.FreezeMem(iopHw, sizeof(iopHw));
+		mark("Scratch");
+		s.FreezeMem(eeMem->Scratch, sizeof(eeMem->Scratch));
+		mark("VU0Mem");
+		s.FreezeMem(vuRegs[0].Mem, VU0_MEMSIZE);
+		mark("VU1Mem");
+		s.FreezeMem(vuRegs[1].Mem, VU1_MEMSIZE);
+		mark("VU0Micro");
+		DeltaFreezeCode(s, vuRegs[0].Micro, VU0_PROGSIZE, [](u32 addr, u32 n) { CpuVU0->Clear(addr, n); });
+		mark("VU1Micro");
+		DeltaFreezeCode(s, vuRegs[1].Micro, VU1_PROGSIZE, [](u32 addr, u32 n) { CpuVU1->Clear(addr, n); });
+
 		mark(nullptr);
-		return ok;
+		return true;
 	}
 
 	bool DeltaFreezeSave(std::vector<u8>& buffer)

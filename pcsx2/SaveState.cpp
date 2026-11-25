@@ -174,7 +174,8 @@ bool SaveStateBase::FreezeBios()
 bool SaveStateBase::FreezeInternals(Error* error)
 {
 	// Print this until the MTVU problem in gifPathFreeze is taken care of (rama)
-	if (THREAD_VU1)
+	// zdxsv: not for delta states (one per frame), which wait for the VU thread and the GIF paths
+	if (THREAD_VU1 && !Zdxsv::g_delta_freeze_save && !Zdxsv::g_delta_freeze_load)
 		Console.Warning("MTVU speedhack is enabled, saved states may not be stable");
 
 	if (!vmFreeze())

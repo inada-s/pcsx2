@@ -13,7 +13,7 @@ frame-identical; TURBO= nominal), SHOWN=1 (a shown display window instead of the
 sync not judged), PCSX2_ENV (extra env for all), ENV0 (extra env for position 0 only: controls), DELAY (GGPO input
 delay, default 2), GGPO (ZDXSV_GGPO value, default net=1,players=N,delay=DELAY).
 TSCALE (turbo cap, ini TurboScalar, default 4; TSCALE= = pcsx2 default 2). MTVU=1: MTVU speedhack on in the ini;
-pcsx2 must turn it off for the VM. N=4 plays p1..p4. N=2 plays p1 (position 0) + p3 (position 1).
+it stays on for the VM (with ZDXSV_MTVU=0 in PCSX2_ENV pcsx2 turns it off: the control). N=4 plays p1..p4. N=2 plays p1 (position 0) + p3 (position 1).
 INI0="Section:Key=Value;..." (syncset): ini entries for peer 0 only; its ini before them is kept in PCSX2.ini.rbk0
 and put back by the next run. SPEED0=X: peer 0 runs at speed X.
 LAT (one-way ms; set = a udprelay.py per peer pair), JITTER (ms, 0), LOSS (0..1, 0).
@@ -232,12 +232,8 @@ def main(argv):
         if not lines(l, r"rbk exit \(net battle end\)"):
             print(f"FAIL p{p}: no session end", flush=True)
             ok = 1
-        w = len(lines(l, "MTVU speedhack is enabled"))
-        if w:
-            print(f"FAIL p{p}: {w} state saves/loads with MTVU on", flush=True)
-            ok = 1
-        if opt("MTVU", "") == "1" and not lines(l, "ZdxsvGgpo: MTVU speedhack off"):
-            print(f"FAIL p{p}: MTVU=1 not turned off", flush=True)
+        if opt("MTVU", "") == "1" and "ZDXSV_MTVU=0" not in opt("PCSX2_ENV", "") and lines(l, "ZdxsvGgpo: MTVU speedhack off"):
+            print(f"FAIL p{p}: MTVU=1 turned off", flush=True)
             ok = 1
     pw = os.path.join(out, "pwcheck.txt")
     if not trace:

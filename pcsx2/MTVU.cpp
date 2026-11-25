@@ -6,6 +6,7 @@
 #include "MTVU.h"
 #include "VMManager.h"
 #include "Vif_Dynarec.h"
+#include "Zdxsv/SaveStateHooks.h"
 
 #include <thread>
 
@@ -54,13 +55,20 @@ bool SaveStateBase::mtvuFreeze()
 		vu1Thread.Reset();
 		vu1Thread.WriteCol(vif1);
 		vu1Thread.WriteRow(vif1);
-		vu1Thread.WriteMicroMem(0, VU1.Micro, 0x4000);
-		vu1Thread.WriteDataMem(0, VU1.Mem, 0x4000);
-		vu1Thread.WriteVIRegs(&VU1.VI[0]);
-		vu1Thread.WriteVFRegs(&VU1.VF[0]);
+		// zdxsv: a delta load writes VU1 memory and registers itself (the thread waits idle): no 32 KB through the ring
+		if (!Zdxsv::g_delta_freeze_load)
+		{
+			vu1Thread.WriteMicroMem(0, VU1.Micro, 0x4000);
+			vu1Thread.WriteDataMem(0, VU1.Mem, 0x4000);
+			vu1Thread.WriteVIRegs(&VU1.VI[0]);
+			vu1Thread.WriteVFRegs(&VU1.VF[0]);
+		}
 		// zdxsv: the VU thread runs even with MTVU off; without this wait it can write the old VU1 memory over the state's
 		vu1Thread.WaitVU();
 	}
+	// zdxsv: the thread sets these on its own schedule; a delta compare skips them (with the battle's VU1-instant
+	// speedhack and no EE cycle skip they never reach the game, as reruns that skip VU1 show)
+	const size_t thread_set = GetCurrentPos();
 	for (size_t i = 0; i < 4; ++i)
 	{
 		unsigned int v = vu1Thread.vuCycles[i].load();
@@ -78,6 +86,7 @@ bool SaveStateBase::mtvuFreeze()
 	vu1Thread.gsLabel.store(gsLabel);
 
 	Freeze(vu1Thread.vuCycleIdx);
+	Zdxsv::DeltaFreezeMarkScratch(thread_set, GetCurrentPos() - thread_set);
 	return IsOkay();
 }
 

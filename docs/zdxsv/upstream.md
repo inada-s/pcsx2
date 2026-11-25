@@ -224,7 +224,7 @@ Visual Studio and `lupdate` drop comments when they rewrite these files.
 | `pcsx2/GS/Renderers/Metal/GSDeviceMTL.mm` | `GSDeviceMTL::UpdateWindow` | the new layer has the default 3 |
 | `pcsx2/GS/Renderers/Metal/GSDeviceMTL.mm` | `GSDeviceMTL::SetVSyncMode` | drawables as in Create; FIFO after Mailbox is the same m_vsync_mode, so compare the drawables too |
 | `pcsx2/Gif_Unit.cpp` |  | include `Zdxsv/SaveStateHooks.h` |
-| `pcsx2/Gif_Unit.cpp` | `SaveStateBase::gifPathFreeze` | `Zdxsv::DeltaFreezeMarkScratch` |
+| `pcsx2/Gif_Unit.cpp` | `SaveStateBase::gifPathFreeze` | a delta state of the MTVU path (not realigned) holds its unread bytes only: the rest is drawn, up to MBs |
 | `pcsx2/Gif_Unit.cpp` | `SaveStateBase::gifPathFreeze` | `Zdxsv::g_delta_freeze_load` |
 | `pcsx2/Gif_Unit.cpp` | `SaveStateBase::gifFreeze` | a delta save waits only for the GIF path buffers, not for the rest of the GS queue |
 | `pcsx2/Host/AudioStream.cpp` |  | include `Zdxsv/MediaHooks.h` |
@@ -276,7 +276,9 @@ Visual Studio and `lupdate` drop comments when they rewrite these files.
 | `pcsx2/MTGS.cpp` | `MTGS::MainLoop` | `Zdxsv::g_gs_rerun_frame`, `Zdxsv::g_input_latency_enabled`, `Zdxsv::InputLatencyOnPresentStart` |
 | `pcsx2/MTGS.cpp` | `MTGS::ToggleSoftwareRendering` | `Zdxsv::g_online_limits`, `Zdxsv::OnlineRefuses` |
 | `pcsx2/MTGS.h` |  | Zdxsv::DeltaFreezeWaitGifPaths wakes the GS thread |
-| `pcsx2/MTVU.cpp` | `SaveStateBase::mtvuFreeze` | the VU thread runs even with MTVU off; without this wait it can write the old VU1 memory over the state's |
+| `pcsx2/MTVU.cpp` |  | include `Zdxsv/SaveStateHooks.h` |
+| `pcsx2/MTVU.cpp` | `SaveStateBase::mtvuFreeze` | a delta load writes VU1 memory and registers itself (the thread waits idle): no 32 KB through the ring |
+| `pcsx2/MTVU.cpp` | `SaveStateBase::mtvuFreeze` | `Zdxsv::DeltaFreezeMarkScratch` |
 | `pcsx2/PINE.cpp` |  | rig opcodes |
 | `pcsx2/PINE.cpp` |  | include `Zdxsv/PineHooks.h` |
 | `pcsx2/PINE.cpp` |  | `MsgPadSet = 0x30, /**< zdxsv: set pad input (pad u8, bind u8, value u8 0-255). */` |
@@ -344,6 +346,7 @@ Visual Studio and `lupdate` drop comments when they rewrite these files.
 | `pcsx2/SPU2/spu2sys.cpp` | `CheckDMAProgress` | `Zdxsv::SpuLazyWake` |
 | `pcsx2/SPU2/spu2sys.cpp` | `TimeUpdate` | `zdxsv_t0`, `Zdxsv::g_rerun_split_time`, `Zdxsv::g_ggpo_in_rollback` |
 | `pcsx2/SaveState.cpp` |  | include `Zdxsv/SaveStateHooks.h` |
+| `pcsx2/SaveState.cpp` | `SaveStateBase::FreezeInternals` | not for delta states (one per frame), which wait for the VU thread and the GIF paths |
 | `pcsx2/SaveState.cpp` | `SaveStateBase::FreezeInternals` | `Zdxsv::DeltaFreezeMarkScratch` |
 | `pcsx2/SaveState.cpp` | `SaveStateBase::FreezeInternals` | not in the state, the interpreter's uncommitted cycles belong to the replaced state (a load from inside the interpreter's loop would add them to the loaded one). |
 | `pcsx2/SaveState.cpp` | `MemorySavestateEntry::FreezeIn` | `Zdxsv::DeltaStateHostWrite` |
@@ -385,6 +388,7 @@ Visual Studio and `lupdate` drop comments when they rewrite these files.
 | `pcsx2/VU0.cpp` | `CTC2` | as x86 recCTC2, only the sticky flags are written |
 | `pcsx2/VU0microInterp.cpp` | `_vu0Exec` | zeroed, some regs functions (SQ, SQI, ...) leave VFwxyzw unset, and the FMAC pipe keeps it. |
 | `pcsx2/VU1micro.cpp` |  | include `Zdxsv/CpuHooks.h` |
+| `pcsx2/VU1micro.cpp` | `vu1ExecMicro` | a skipped rerun microprogram is not queued to the VU thread either |
 | `pcsx2/VU1micro.cpp` | `vu1ExecMicro` | `Zdxsv::g_vu_op_test`, `Zdxsv::VuOpTest`, `Zdxsv::g_rerun_vu1_skip` |
 | `pcsx2/VU1microInterp.cpp` |  | ARM64 VU1 trace recompiler. |
 | `pcsx2/VU1microInterp.cpp` | `_vu1EndProgram` | the E-bit end below as a function the ARM64 VU1 trace recompiler also calls. |

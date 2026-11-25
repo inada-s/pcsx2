@@ -85,7 +85,7 @@ namespace Zdxsv
 			if (!battle)
 				return;
 			Pcsx2Config::SpeedhackOptions hacks;
-			hacks.vuThread = false; // g_mtvu_off
+			hacks.vuThread = c.Speedhacks.vuThread && !g_mtvu_off; // machine-local: the VU thread does not change what the game computes
 			note(c.Speedhacks != hacks, "speedhacks");
 			c.Speedhacks = hacks;
 			note(c.EmulationSpeed.NominalScalar != 1.0f, "speed");
