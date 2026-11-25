@@ -193,7 +193,7 @@ bool SaveStateBase::gifPathFreeze(u32 path)
 	Gif_Path& gifPath = gifUnit.gifPath[path];
 	pxAssertMsg(Zdxsv::g_delta_freeze_save || !gifPath.readAmount, "Gif Path readAmount should be 0!");
 	pxAssertMsg(!gifPath.gsPack.readAmount, "GS Pack readAmount should be 0!");
-	pxAssertMsg(!gifPath.GetPendingGSPackets(), "MTVU GS Pack Queue should be 0!");
+	pxAssertMsg(Zdxsv::g_delta_freeze_save || !gifPath.GetPendingGSPackets(), "MTVU GS Pack Queue should be 0!");
 
 	// zdxsv: no realign in a delta save: its blank GS packet queues behind the present and the next delta load waits for it
 	if (!gifPath.isMTVU() && !Zdxsv::g_delta_freeze_save)

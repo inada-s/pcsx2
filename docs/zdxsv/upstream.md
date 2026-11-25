@@ -224,7 +224,6 @@ Visual Studio and `lupdate` drop comments when they rewrite these files.
 | `pcsx2/GS/Renderers/Metal/GSDeviceMTL.mm` | `GSDeviceMTL::UpdateWindow` | the new layer has the default 3 |
 | `pcsx2/GS/Renderers/Metal/GSDeviceMTL.mm` | `GSDeviceMTL::SetVSyncMode` | drawables as in Create; FIFO after Mailbox is the same m_vsync_mode, so compare the drawables too |
 | `pcsx2/Gif_Unit.cpp` |  | include `Zdxsv/SaveStateHooks.h` |
-| `pcsx2/Gif_Unit.cpp` | `SaveStateBase::gifPathFreeze` | `Zdxsv::g_delta_freeze_save` |
 | `pcsx2/Gif_Unit.cpp` | `SaveStateBase::gifPathFreeze` | no realign in a delta save: its blank GS packet queues behind the present and the next delta load waits for it |
 | `pcsx2/Gif_Unit.cpp` | `SaveStateBase::gifPathFreeze` | a delta state (not realigned) holds the bytes from its packet in progress only: the rest is drawn, up to MBs |
 | `pcsx2/Gif_Unit.cpp` | `SaveStateBase::gifPathFreeze` | `Zdxsv::g_delta_freeze_load` |
