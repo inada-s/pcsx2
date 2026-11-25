@@ -224,10 +224,8 @@ Visual Studio and `lupdate` drop comments when they rewrite these files.
 | `pcsx2/GS/Renderers/Metal/GSDeviceMTL.mm` | `GSDeviceMTL::UpdateWindow` | the new layer has the default 3 |
 | `pcsx2/GS/Renderers/Metal/GSDeviceMTL.mm` | `GSDeviceMTL::SetVSyncMode` | drawables as in Create; FIFO after Mailbox is the same m_vsync_mode, so compare the drawables too |
 | `pcsx2/Gif_Unit.cpp` |  | include `Zdxsv/SaveStateHooks.h` |
-| `pcsx2/Gif_Unit.cpp` | `SaveStateBase::gifPathFreeze` | no realign in a delta save: its blank GS packet queues behind the present and the next delta load waits for it |
-| `pcsx2/Gif_Unit.cpp` | `SaveStateBase::gifPathFreeze` | a delta state (not realigned) holds the bytes from its packet in progress only: the rest is drawn, up to MBs |
-| `pcsx2/Gif_Unit.cpp` | `SaveStateBase::gifPathFreeze` | `Zdxsv::g_delta_freeze_load` |
-| `pcsx2/Gif_Unit.cpp` | `SaveStateBase::gifFreeze` | a delta load waits only for the GIF path buffers, not for the rest of the GS queue; a delta save (no realign) only reads what the GS thread does not write |
+| `pcsx2/Gif_Unit.cpp` | `SaveStateBase::gifPathFreeze` | `Zdxsv::g_delta_freeze_save`, `Zdxsv::g_delta_freeze_load`, `Zdxsv::DeltaFreezeGifPath` |
+| `pcsx2/Gif_Unit.cpp` | `SaveStateBase::gifFreeze` | a delta state waits for the GS thread per GIF path, only where it must |
 | `pcsx2/Host/AudioStream.cpp` |  | include `Zdxsv/MediaHooks.h` |
 | `pcsx2/Host/AudioStream.cpp` | `AudioStream::ReadFrames` | `Zdxsv::g_audio_tap`, `Zdxsv::AudioTapWrite` |
 | `pcsx2/Hotkeys.cpp` |  | include `Zdxsv/UiHooks.h` |
@@ -277,7 +275,7 @@ Visual Studio and `lupdate` drop comments when they rewrite these files.
 | `pcsx2/MTGS.cpp` | `MTGS::PostVsyncStart` | `Zdxsv::g_ggpo_in_rollback`, `Zdxsv::g_fast_boot_hidden_frame`, `Zdxsv::g_replay_hidden_frame` |
 | `pcsx2/MTGS.cpp` | `MTGS::MainLoop` | `Zdxsv::g_gs_rerun_frame`, `Zdxsv::g_input_latency_enabled`, `Zdxsv::InputLatencyOnPresentStart` |
 | `pcsx2/MTGS.cpp` | `MTGS::ToggleSoftwareRendering` | `Zdxsv::g_online_limits`, `Zdxsv::OnlineRefuses` |
-| `pcsx2/MTGS.h` |  | Zdxsv::DeltaFreezeWaitGifPaths wakes the GS thread |
+| `pcsx2/MTGS.h` |  | Zdxsv::DeltaFreezeGifPath wakes the GS thread |
 | `pcsx2/MTVU.cpp` |  | include `Zdxsv/SaveStateHooks.h` |
 | `pcsx2/MTVU.cpp` | `SaveStateBase::mtvuFreeze` | a delta load writes VU1 memory and registers itself (the thread waits idle): no 32 KB through the ring |
 | `pcsx2/MTVU.cpp` | `SaveStateBase::mtvuFreeze` | `Zdxsv::DeltaFreezeMarkScratch` |

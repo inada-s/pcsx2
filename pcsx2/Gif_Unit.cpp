@@ -191,12 +191,13 @@ bool SaveStateBase::gifPathFreeze(u32 path)
 {
 
 	Gif_Path& gifPath = gifUnit.gifPath[path];
-	pxAssertMsg(Zdxsv::g_delta_freeze_save || !gifPath.readAmount, "Gif Path readAmount should be 0!");
+	if (Zdxsv::g_delta_freeze_save || Zdxsv::g_delta_freeze_load)
+		return Zdxsv::DeltaFreezeGifPath(*this, gifPath);
+	pxAssertMsg(!gifPath.readAmount, "Gif Path readAmount should be 0!");
 	pxAssertMsg(!gifPath.gsPack.readAmount, "GS Pack readAmount should be 0!");
-	pxAssertMsg(Zdxsv::g_delta_freeze_save || !gifPath.GetPendingGSPackets(), "MTVU GS Pack Queue should be 0!");
+	pxAssertMsg(!gifPath.GetPendingGSPackets(), "MTVU GS Pack Queue should be 0!");
 
-	// zdxsv: no realign in a delta save: its blank GS packet queues behind the present and the next delta load waits for it
-	if (!gifPath.isMTVU() && !Zdxsv::g_delta_freeze_save)
+	if (!gifPath.isMTVU())
 	{ // FixMe: savestate freeze bug (Gust games) with MTVU enabled
 		if (IsSaving())
 		{                            // Move all the buffered data to the start of buffer
@@ -205,23 +206,13 @@ bool SaveStateBase::gifPathFreeze(u32 path)
 	}
 	u8* bufferPtr = gifPath.buffer; // Backup current buffer ptr
 	Freeze(gifPath.mtvu.fakePackets);
-	Zdxsv::DeltaFreezeMarkScratch(GetCurrentPos() + offsetof(Gif_Path, readAmount), sizeof(gifPath.readAmount));
-	Zdxsv::DeltaFreezeMarkScratch(GetCurrentPos() + offsetof(Gif_Path, buffer), sizeof(gifPath.buffer)); // host pointer, restored below
 	FreezeMem(&gifPath, sizeof(gifPath) - sizeof(gifPath.mtvu));
-	// zdxsv: a delta state (not realigned) holds the bytes from its packet in progress only: the rest is drawn, up to MBs
-	if (Zdxsv::g_delta_freeze_save || Zdxsv::g_delta_freeze_load)
-	{
-		const u32 start = gifPath.curOffset - (gifPath.isMTVU() ? 0 : gifPath.gsPack.size);
-		FreezeMem(bufferPtr + start, gifPath.curSize - start);
-	}
-	else
-		FreezeMem(bufferPtr, gifPath.curSize);
+	FreezeMem(bufferPtr, gifPath.curSize);
 	gifPath.buffer = bufferPtr;
 	if (!IsSaving())
 	{
 		gifPath.readAmount = 0;
-		if (!Zdxsv::g_delta_freeze_load) // EE side bookkeeping of RealignPacket, kept as saved
-			gifPath.gsPack.readAmount = 0;
+		gifPath.gsPack.readAmount = 0;
 	}
 
 	return IsOkay();
@@ -231,11 +222,8 @@ bool SaveStateBase::gifFreeze()
 {
 	bool mtvuMode = THREAD_VU1;
 	pxAssert(vu1Thread.IsDone());
-	// zdxsv: a delta load waits only for the GIF path buffers, not for the rest of the GS queue; a delta save (no
-	// realign) only reads what the GS thread does not write
-	if (Zdxsv::g_delta_freeze_load)
-		Zdxsv::DeltaFreezeWaitGifPaths();
-	else if (!Zdxsv::g_delta_freeze_save)
+	// zdxsv: a delta state waits for the GS thread per GIF path, only where it must
+	if (!Zdxsv::g_delta_freeze_save && !Zdxsv::g_delta_freeze_load)
 		MTGS::WaitGS();
 	if (!FreezeTag("Gif Unit"))
 		return false;
