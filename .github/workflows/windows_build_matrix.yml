@@ -7,6 +7,8 @@ name: 🖥️ Windows Builds
 # stacked PR is built too and its check stays on the commit when it is retargeted.
 # A draft PR is not built: the build starts when the PR is marked ready for review.
 # No secrets: none are used.
+# A change only under guide/ (the player guide) runs the build jobs as skipped,
+# which pass the required check.
 
 on:
   push:
@@ -21,11 +23,44 @@ permissions:
   contents: read
 
 jobs:
+  changes:
+    name: Changed Paths
+    if: (github.repository != 'PCSX2/pcsx2' || github.event_name == 'pull_request') && !(github.event_name == 'pull_request' && github.event.pull_request.draft)
+    runs-on: ubuntu-latest
+    outputs:
+      guide_only: ${{ steps.diff.outputs.guide_only }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Check whether only guide/ changed
+        id: diff
+        env:
+          EVENT: ${{ github.event_name }}
+          PR_BASE: ${{ github.event.pull_request.base.sha }}
+          PR_HEAD: ${{ github.event.pull_request.head.sha }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.event.after }}
+        run: |
+          case "$EVENT" in
+            pull_request) range="$PR_BASE...$PR_HEAD" ;;
+            push) range="$BEFORE..$AFTER" ;;
+            *) range="" ;;
+          esac
+          only=false
+          if [ -n "$range" ] && files=$(git diff --name-only "$range") && [ -n "$files" ] && ! grep -qv '^guide/' <<< "$files"; then
+            only=true
+          fi
+          echo "guide_only=$only" >> "$GITHUB_OUTPUT"
+
   build_qt_msbuild:
     name: "MSBuild"
     if: (github.repository != 'PCSX2/pcsx2' || github.event_name == 'pull_request') && !(github.event_name == 'pull_request' && github.event.pull_request.draft)
+    needs: changes
     uses: ./.github/workflows/windows_build_qt.yml
     with:
+      skip: ${{ needs.changes.outputs.guide_only == 'true' }}
       jobName: "MSVC Devel AVX2"
       artifactPrefixName: "PCSX2-windows-Qt-x64-msbuild-devel"
       configuration: Devel AVX2
@@ -35,8 +70,10 @@ jobs:
   build_qt_cmake_clang:
     name: "CMake"
     if: (github.repository != 'PCSX2/pcsx2' || github.event_name == 'pull_request') && !(github.event_name == 'pull_request' && github.event.pull_request.draft)
+    needs: changes
     uses: ./.github/workflows/windows_build_qt.yml
     with:
+      skip: ${{ needs.changes.outputs.guide_only == 'true' }}
       jobName: "CMake Clang"
       artifactPrefixName: "PCSX2-windows-Qt-x64-cmake-clang"
       configuration: CMake

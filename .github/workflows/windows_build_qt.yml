@@ -44,10 +44,16 @@ on:
         required: false
         type: boolean
         default: false
+      # zdxsv: true skips the job; a skipped job still passes as a required check.
+      skip:
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   build_windows_qt:
     name: ${{ inputs.jobName }}
+    if: ${{ !inputs.skip }} # zdxsv: see the skip input
     runs-on: ${{ inputs.os }}
     # Set some sort of timeout in the event of run-away builds.  We are limited on concurrent jobs so, get rid of them.
     timeout-minutes: 90
