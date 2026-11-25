@@ -1,0 +1,11 @@
+title: PCSX2 for zdxsv セットアップガイド
+lang: ja
+baseurl: ""
+url: https://pcsx2.zdxsv.net
+markdown: kramdown
+kramdown:
+  auto_ids: true
+defaults:
+  - scope: { path: "" }
+    values: { layout: default }
+exclude: [README.md]

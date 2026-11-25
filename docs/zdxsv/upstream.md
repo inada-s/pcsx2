@@ -27,7 +27,7 @@ features are in [features.md](features.md), their options in
 | `pcsx2/arm64/` | ARM64 EE, IOP and VU1 recompilers ([arm64.md](arm64.md)) |
 | `pcsx2-qt/Settings/ZdxsvSettingsWidget.*`, `pcsx2-qt/Tools/ZdxsvReplayDialog.*`, `pcsx2-qt/resources/icons/*/svg/zdxsv-line.svg` | zdxsv settings page, replay dialog, its icon |
 | `tests/zdxsv/`, `tools/zdxsv/`, `docs/zdxsv/` | rig tests, tools, documents |
-| `ZDXSV.md`, `ZDXSV.ja.md`, `run.py`, `build-local.sh` | player notes; local scripts ([tools.md](tools.md)) |
+| `guide/`, `run.py`, `build-local.sh` | player notes; local scripts ([tools.md](tools.md)) |
 
 ## Changed third-party code
 
