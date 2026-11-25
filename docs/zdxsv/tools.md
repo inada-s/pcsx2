@@ -46,9 +46,8 @@
     builds: MSBuild `Release`); compile only.
   - macOS arm64 (`macos_build_arm64.yml`); builds and runs the unit tests,
     no artifact.
-- A change only under `guide/` builds nothing: macOS does not run, and the
-  Windows build jobs run as skipped, which passes the required check
-  `CMake / CMake Clang`.
+- A change only under `guide/` runs neither build; its required check
+  `CMake / CMake Clang` stays pending, so the owner merges it as admin.
 - The Linux and macOS x86_64 workflows only run by hand (`workflow_dispatch`).
 - These builds get a read-only token. The upstream `pull_request_target` workflows
   (`check_pr_commits.yml`, `windows_deps_dispatch.yml`) run only in `PCSX2/pcsx2`.
