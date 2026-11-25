@@ -135,7 +135,8 @@ namespace Zdxsv
 	static bool s_delta_paged_ram = false;
 
 	// The whole GS queue ends with the present, which with VSync on can wait for a vsync. gifPathFreeze
-	// needs only the path buffers read. Needs proper testing.
+	// needs only the path buffers read before a load writes them: the GS thread keeps its own copy of the
+	// registers. Needs proper testing.
 	void DeltaFreezeWaitGifPaths()
 	{
 		MTGS::SetEvent();
