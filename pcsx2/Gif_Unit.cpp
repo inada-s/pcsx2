@@ -191,6 +191,8 @@ bool SaveStateBase::gifPathFreeze(u32 path)
 {
 
 	Gif_Path& gifPath = gifUnit.gifPath[path];
+	if (Zdxsv::g_delta_freeze_save || Zdxsv::g_delta_freeze_load)
+		return Zdxsv::DeltaFreezeGifPath(*this, gifPath);
 	pxAssertMsg(!gifPath.readAmount, "Gif Path readAmount should be 0!");
 	pxAssertMsg(!gifPath.gsPack.readAmount, "GS Pack readAmount should be 0!");
 	pxAssertMsg(!gifPath.GetPendingGSPackets(), "MTVU GS Pack Queue should be 0!");
@@ -204,20 +206,13 @@ bool SaveStateBase::gifPathFreeze(u32 path)
 	}
 	u8* bufferPtr = gifPath.buffer; // Backup current buffer ptr
 	Freeze(gifPath.mtvu.fakePackets);
-	Zdxsv::DeltaFreezeMarkScratch(GetCurrentPos() + offsetof(Gif_Path, readAmount), sizeof(gifPath.readAmount));
-	Zdxsv::DeltaFreezeMarkScratch(GetCurrentPos() + offsetof(Gif_Path, buffer), sizeof(gifPath.buffer)); // host pointer, restored below
 	FreezeMem(&gifPath, sizeof(gifPath) - sizeof(gifPath.mtvu));
-	// zdxsv: a delta state of the MTVU path (not realigned) holds its unread bytes only: the rest is drawn, up to MBs
-	if ((Zdxsv::g_delta_freeze_save || Zdxsv::g_delta_freeze_load) && gifPath.isMTVU())
-		FreezeMem(bufferPtr + gifPath.curOffset, gifPath.curSize - gifPath.curOffset);
-	else
-		FreezeMem(bufferPtr, gifPath.curSize);
+	FreezeMem(bufferPtr, gifPath.curSize);
 	gifPath.buffer = bufferPtr;
 	if (!IsSaving())
 	{
 		gifPath.readAmount = 0;
-		if (!Zdxsv::g_delta_freeze_load) // EE side bookkeeping of RealignPacket, kept as saved
-			gifPath.gsPack.readAmount = 0;
+		gifPath.gsPack.readAmount = 0;
 	}
 
 	return IsOkay();
@@ -227,10 +222,8 @@ bool SaveStateBase::gifFreeze()
 {
 	bool mtvuMode = THREAD_VU1;
 	pxAssert(vu1Thread.IsDone());
-	// zdxsv: a delta save waits only for the GIF path buffers, not for the rest of the GS queue
-	if (Zdxsv::g_delta_freeze_save)
-		Zdxsv::DeltaFreezeWaitGifPaths();
-	else
+	// zdxsv: a delta state waits for the GS thread per GIF path, only where it must
+	if (!Zdxsv::g_delta_freeze_save && !Zdxsv::g_delta_freeze_load)
 		MTGS::WaitGS();
 	if (!FreezeTag("Gif Unit"))
 		return false;

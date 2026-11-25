@@ -134,13 +134,65 @@ namespace Zdxsv
 	bool g_delta_freeze_paged_ram = false;
 	static bool s_delta_paged_ram = false;
 
-	// The whole GS queue ends with the present, which with VSync on can wait for a vsync. gifPathFreeze
-	// needs only the path buffers read. Needs proper testing.
-	void DeltaFreezeWaitGifPaths()
+	// The whole GS queue ends with the present, which with VSync on can wait for a vsync: wait only for a path's
+	// unread bytes. The GS thread keeps its own copy of the registers.
+	static void DeltaFreezeWaitGifPath(Gif_Path& path)
 	{
 		MTGS::SetEvent();
-		while (MTGS::IsOpen() && !std::ranges::all_of(gifUnit.gifPath, [](Gif_Path& p) { return p.getReadAmount() == 0; }))
+		while (MTGS::IsOpen() && path.getReadAmount() != 0)
 			std::this_thread::yield();
+	}
+
+	// A delta state holds a path's bytes from its packet in progress on, not realigned: the rest is drawn. The GS
+	// thread reads its unread bytes (readAmount, which a load keeps) at the offsets they were queued with, ending
+	// where the current packet starts, so a load puts the state's packet there instead of waiting for them.
+	bool DeltaFreezeGifPath(SaveStateBase& s, Gif_Path& path)
+	{
+		const auto packet_start = [&path] { return path.curOffset - (path.isMTVU() ? 0 : path.gsPack.size); };
+		u8* const buffer = path.buffer;
+		const u32 here = packet_start();
+		const bool here_realigned = path.gsPack.readAmount != 0;
+		s.Freeze(path.mtvu.fakePackets);
+		const size_t pos = s.GetCurrentPos();
+		DeltaFreezeMarkScratch(pos + offsetof(Gif_Path, readAmount), sizeof(path.readAmount));
+		DeltaFreezeMarkScratch(pos + offsetof(Gif_Path, buffer), sizeof(path.buffer));
+		DeltaFreezeMarkScratch(pos + offsetof(Gif_Path, curSize), sizeof(path.curSize));
+		DeltaFreezeMarkScratch(pos + offsetof(Gif_Path, curOffset), sizeof(path.curOffset));
+		DeltaFreezeMarkScratch(pos + offsetof(Gif_Path, gsPack) + offsetof(GS_Packet, offset), sizeof(path.gsPack.offset));
+		constexpr size_t frozen = sizeof(Gif_Path) - sizeof(Gif_Path_MTVU);
+		if (s.IsSaving())
+		{
+			s.FreezeMem(&path, frozen);
+			const u32 start = packet_start();
+			s.FreezeMem(buffer + start, path.curSize - start);
+			return s.IsOkay();
+		}
+
+		alignas(Gif_Path) u8 saved[frozen];
+		s.FreezeMem(saved, frozen);
+		if (!s.IsOkay())
+			return false;
+		constexpr size_t from = offsetof(Gif_Path, buffer);
+		std::memcpy(reinterpret_cast<u8*>(&path) + from, saved + from, frozen - from);
+		path.buffer = buffer;
+		const u32 start = packet_start();
+		const u32 size = path.curSize - start;
+		const s32 unread = path.readAmount.load(std::memory_order_acquire);
+		const s32 read_pos = static_cast<s32>(here) - unread;
+		const bool fits = here + size <= path.buffSize && (read_pos >= 0 || static_cast<s32>(path.buffLimit) + read_pos >= static_cast<s32>(here + size));
+		if (unread == 0 || here_realigned || path.gsPack.readAmount != 0 || !fits)
+		{
+			DeltaFreezeWaitGifPath(path);
+		}
+		else
+		{
+			const u32 shift = here - start;
+			path.curOffset += shift;
+			path.curSize += shift;
+			path.gsPack.offset += shift;
+		}
+		s.FreezeMem(buffer + packet_start(), size);
+		return s.IsOkay();
 	}
 
 	void DeltaFreezeSetPagedRam(bool on)
@@ -219,8 +271,8 @@ namespace Zdxsv
 		if (s.IsSaving())
 			s_delta_marks.clear();
 
-		// Blocks the VU thread never touches first: a save waits for the VU1 thread (and the GS thread for its
-		// GIF path 1 packets) only before the internals, after this work.
+		// Blocks the VU thread never touches first: a save waits for the VU1 thread only before the internals,
+		// after this work.
 		mark("SPU2");
 		freezeData fP = {};
 		SPU2freeze(FreezeAction::Size, &fP);
