@@ -28,6 +28,8 @@ namespace Zdxsv
 		constexpr double kSlackStep = 0.05;
 		constexpr int kSlackBuckets = 201;
 		constexpr double kFrameMs = 1000.0 / 59.94;
+		constexpr double kBusyStep = 0.1;
+		constexpr int kBusyBuckets = 1000;
 		// The learned budget stays unused until rollbacks cost less on PS2.
 		constexpr bool kBudgetUsed = false;
 		constexpr const char* kBudgetKey = "ZdxsvRollbackBudget";
@@ -37,6 +39,9 @@ namespace Zdxsv
 			std::mutex mtx;
 			std::array<int, kSlackBuckets> hist{};
 			int frames = 0;
+			std::array<int, kBusyBuckets> busy_hist{};
+			int busy_frames = 0, busy_over = 0;
+			double busy_sum = 0, busy_max = 0;
 			bool have_prev = false;
 			Common::Timer::Value prev = 0;
 			double prev_rerun = 0, prev_wait = 0, prev_sleep = 0;
@@ -72,6 +77,12 @@ namespace Zdxsv
 			const double busy = Common::Timer::ConvertValueToMilliseconds(now - s_budget.prev) - (sleep_ms - s_budget.prev_sleep);
 			const double slack = kFrameMs - (busy - rerun);
 			const double emulation = busy - wait - rerun;
+			const double ee = busy - wait;
+			s_budget.busy_hist[std::clamp(static_cast<int>(ee / kBusyStep), 0, kBusyBuckets - 1)]++;
+			s_budget.busy_frames++;
+			s_budget.busy_over += ee > kFrameMs;
+			s_budget.busy_sum += ee;
+			s_budget.busy_max = std::max(s_budget.busy_max, ee);
 			if (emulation > 0)
 			{
 				const double fits = std::max(0.0, slack) / emulation;
@@ -99,6 +110,19 @@ namespace Zdxsv
 			s_budget.hist.fill(0);
 			s_budget.frames = 0;
 			s_budget.have_prev = false;
+			if (s_budget.busy_frames > 0)
+			{
+				const int n = s_budget.busy_frames;
+				int i = 0;
+				for (int below = 0; i < kBusyBuckets - 1 && (below += s_budget.busy_hist[i]) * 100LL < n * 99LL; i++)
+					;
+				Console.WriteLn("ZdxsvGgpo: frame busy ms (no limiter sleep, no net wait): mean %.2f p99 %.1f max %.1f | "
+								"over %.2f ms %d of %d",
+					s_budget.busy_sum / n, (i + 1) * kBusyStep, s_budget.busy_max, kFrameMs, s_budget.busy_over, n);
+			}
+			s_budget.busy_hist.fill(0);
+			s_budget.busy_frames = s_budget.busy_over = 0;
+			s_budget.busy_sum = s_budget.busy_max = 0;
 		}
 		if (!learn || frames < kBudgetMinFrames)
 			return;

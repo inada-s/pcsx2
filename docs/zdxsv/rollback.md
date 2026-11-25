@@ -299,6 +299,10 @@ budget is the part of the one-way latency left to rollbacks.
   `kBudgetUsed` in `GgpoBudget.cpp` (`ZDXSV_ROLLBACK_BUDGET=1` for tests).
 - The lobby log line `lobby delay` and the match report (`rollback_budget`,
   `rollback_budget_used`) carry the learned and the used budget.
+- At the session end the log line `frame busy ms` gives the same frames'
+  busy time (emulation, delta save and load, reruns, GGPO; limiter sleep and
+  net waits left out): mean, 99th percentile (0.1 ms steps), max and the
+  frames over the frame period, the ones that drop a frame at normal speed.
 ### Rollback test mode
 
 `ZDXSV_RBK=i/N` runs a battle without any server, from a save state taken
