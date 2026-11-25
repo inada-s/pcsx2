@@ -623,6 +623,12 @@ ImFont* ImGuiManager::AddTextFont()
 		cfg.FontNo = GetFontIndex(info);
 		cfg.SizePixels = FONT_BASE_SIZE;
 		ImFont* font = ImGui::GetIO().Fonts->AddFontFromMemoryTTF(const_cast<u8*>(info.data.data()), static_cast<int>(info.data.size()), 0, &cfg, nullptr);
+		// zdxsv: skip a font that does not load (a broken file); the next one would merge into an empty atlas and crash.
+		if (!font)
+		{
+			Console.ErrorFmt("Failed to load text font '{}'", info.face_name ? info.face_name : "");
+			continue;
+		}
 		if (!cfg.MergeMode)
 		{
 			cfg.MergeMode = true;

@@ -247,6 +247,7 @@ Visual Studio and `lupdate` drop comments when they rewrite these files.
 | `pcsx2/ImGui/FullscreenUI_Settings.cpp` | `FullscreenUI::DrawEmulationSettingsPage` | VSync on by default |
 | `pcsx2/ImGui/FullscreenUI_Settings.cpp` | `FullscreenUI::DrawEmulationSettingsPage` | VSync on by default |
 | `pcsx2/ImGui/FullscreenUI_Settings.cpp` | `FullscreenUI::ResetControllerSettings` | `Zdxsv::InputDefaultsHotkeys`, `Zdxsv::InputDefaultsUsb` |
+| `pcsx2/ImGui/ImGuiManager.cpp` | `ImGuiManager::AddTextFont` | skip a font that does not load (a broken file); the next one would merge into an empty atlas and crash. |
 | `pcsx2/ImGui/ImGuiOverlays.cpp` |  | include `Zdxsv/UiHooks.h` |
 | `pcsx2/ImGui/ImGuiOverlays.cpp` | `ImGuiManager::RenderOverlays` | `Zdxsv::g_ggpo_enabled`, `Zdxsv::DrawOverlays` |
 | `pcsx2/Input/InputManager.cpp` |  | include `Zdxsv/InputHooks.h` |
