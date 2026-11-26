@@ -161,6 +161,11 @@ answered, and a pong counts for the candidate it names, whatever its source.
 A relay pong with the battle's relay token counts from any
 source (a multi-homed or NATed relay); up to 2 such sources per relay path
 are kept, and GGPO accepts that relay's packets from them too.
+While a peer has no direct RTT to us or we to it, each 100 ms tick also
+sends it our RTT rows (type 3, rows only: no candidate, not answered)
+through every relay that answered, on its faster family; the relay server
+forwards only type 3. A player that reaches no other directly thus still
+shares its relay RTTs and gets a relay path.
 
 Address candidates of a peer, in order: its public IPv4 address (its local
 one when behind the same public IP), its other IPv4 address, its IPv6
