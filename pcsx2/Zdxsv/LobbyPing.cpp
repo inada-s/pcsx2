@@ -105,7 +105,8 @@ namespace Zdxsv
 #pragma pack(pop)
 		static_assert(sizeof(PingPacket) == 44 && sizeof(PingPacketRelays) == 60 && sizeof(RelayPacket) == 28);
 		constexpr uint32_t PING_MAGIC = 2205246188u;
-		constexpr uint8_t PING_TYPE = 1, PONG_TYPE = 2;
+		// RTTS_TYPE: the rtt rows only, sent through relay servers to a peer missing a direct rtt either way
+		constexpr uint8_t PING_TYPE = 1, PONG_TYPE = 2, RTTS_TYPE = 3;
 		constexpr uint32_t RELAY_MAGIC = 0x594c4552;
 		constexpr uint8_t RELAY_PING = 1, RELAY_PONG = 2;
 
@@ -210,6 +211,7 @@ namespace Zdxsv
 				, m_cand(m_n)
 				, m_rpath(m_nr)
 				, m_pongsIn(m_n, 0)
+				, m_rttsIn(m_n, 0)
 			{
 				for (int p = 0; p < m_n; p++)
 					for (const PeerAddr& a : m_byPosition[p])
@@ -349,6 +351,27 @@ namespace Zdxsv
 						rp.timestamp = NowMs();
 						sendto(c.s, reinterpret_cast<const char*>(&rp), sizeof(rp), 0, reinterpret_cast<const sockaddr*>(&c.sa), c.len);
 					}
+				// a peer that cannot reach us directly, or we it, learns our relay rtts only this way
+				for (int k = 0; k < m_nr; k++)
+				{
+					const int f = RelayBest(k);
+					if (f < 0)
+						continue;
+					const Cand& c = m_rpath[k][f];
+					for (int p = 0; p < m_n; p++)
+					{
+						if (p == m_me || (m_rtt[m_me][p] && m_rtt[p][m_me]))
+							continue;
+						PingPacketRelays pk{};
+						pk.magic = PING_MAGIC;
+						pk.sessionId = m_session;
+						pk.type = RTTS_TYPE;
+						pk.fromPeer = static_cast<uint8_t>(m_me);
+						pk.toPeer = static_cast<uint8_t>(p);
+						pk.sendTimestamp = NowMs();
+						Send(pk, c.s, c.sa, c.len);
+					}
+				}
 			}
 
 			// One datagram from s: a relay pong, a peer's ping (answered) or pong, else dropped.
@@ -428,6 +451,11 @@ namespace Zdxsv
 					c.Pong(static_cast<int64_t>(NowMs() - pk.pingTimestamp));
 					ok = true;
 				}
+				else if (head && pk.type == RTTS_TYPE)
+				{
+					ok = true;
+					m_rttsIn[pk.fromPeer]++;
+				}
 				else
 					m_dropped++;
 				if (ok) // the sender's own row of the rtt matrix, the relay rows it knows
@@ -461,7 +489,7 @@ namespace Zdxsv
 						if (score > best)
 							best = score, direct[p] = {r, c.addr};
 					}
-					line += ", " + std::to_string(m_pongsIn[p]) + " pings answered, picked " +
+					line += ", " + std::to_string(m_pongsIn[p]) + " pings answered, " + std::to_string(m_rttsIn[p]) + " rtts by relay, picked " +
 							(direct[p].rtt > 0 ? direct[p].addr.Masked() : std::string("none"));
 				}
 				return direct;
@@ -554,7 +582,7 @@ namespace Zdxsv
 			const int m_pkSize;
 			std::vector<std::vector<Cand>> m_cand;
 			std::vector<std::array<Cand, 2>> m_rpath;
-			std::vector<int64_t> m_pongsIn;
+			std::vector<int64_t> m_pongsIn, m_rttsIn;
 			uint8_t m_rtt[4][4] = {}, m_relayRtt[4][4] = {};
 			int m_dropped = 0;
 		};

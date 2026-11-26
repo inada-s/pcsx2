@@ -112,7 +112,8 @@ def main():
         for x, v in ((k, "first"), (l2, "last")):
             os.environ[f"PCSX2_ENV_P{x}"] += f" ZDXSV_PEER_RELAY_PICK={v}"
     gb = ",".join(f"{unreach}-{i}" for i in gc if i != unreach) if unreach else block
-    cut = bad or unreach
+    # UNREACH with RELAY: K reaches the others only through the relay server
+    cut = bad or (unreach and not relay)
     if len(gc) == 4:
         os.environ.setdefault("JOINS", "0")
     # a bad session's packets arrive and are dropped; an unreachable peer's never arrive
@@ -200,6 +201,9 @@ def main():
                 ok(f"p{i} relay answers from 127.0.0.1", any("pongs) answers from 127.0.0.1:8203" in l for l in ping))
             ok(f"p{i} paths relay {ri} x3", c(rf"ZdxsvGgpo: lobby path to position [0-9]: relay {ri}") == 3)
             ok(f"p{i} peers via relay x3", c(r"ZdxsvGgpo: lobby peer position [0-9] at " + re.escape(ra) + r" \(relay\)") == 3)
+            if unreach:
+                ok(f"p{i} rtts by relay " + ("from x3" if i == unreach else "x1+"),
+                   any(len(re.findall(r", [1-9][0-9]* rtts by relay", l)) >= (3 if i == unreach else 1) for l in ping))
         elif blk:
             ok(f"p{i} paths direct x2, peer x1", c(r"ZdxsvGgpo: lobby path to position [0-9]: direct") == 2
                and c(r"ZdxsvGgpo: lobby path to position [0-9]: peer [0-9]") == 1)
@@ -221,6 +225,8 @@ def main():
         except OSError:
             rlog = []
         ok("relay forwarded", any(re.search(r'forwarded"?:? [1-9]', l) for l in rlog))
+        if unreach:
+            ok("relay forwarded rtts", any(re.search(r'rtts"?:? [1-9]', l) for l in rlog))
     if lat and not relay:
         try:
             fl = zrig.log_lines(os.path.join(os.environ["OUT"], "fake.log"), r"relay ")
