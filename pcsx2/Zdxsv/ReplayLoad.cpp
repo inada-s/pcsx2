@@ -308,8 +308,11 @@ namespace Zdxsv
 			}).detach();
 		}
 
-		// Reads the file; returns its recorder's position, -1 = not used. One file holds every position's inputs, so it
-		// plays any point of view: each starts from the common state with its own lobby answers (PlayCommonStart).
+		constexpr int PLAY_FILE_NEWER = -2;
+
+		// Reads the file; returns its recorder's position, -1 = not used, PLAY_FILE_NEWER = written by a newer build. One file
+		// holds every position's inputs, so it plays any point of view: each starts from the common state with its own lobby
+		// answers (PlayCommonStart).
 		int PlayLoadFile(const std::string& path)
 		{
 			const bool live = path.starts_with("live:");
@@ -336,6 +339,11 @@ namespace Zdxsv
 			{
 				Console.Error("ZdxsvGgpo: replay %s: not a replay file", path.c_str());
 				return -1;
+			}
+			if (r.version > REPLAY_FILE_VERSION)
+			{
+				Console.Error("ZdxsvGgpo: replay %s: file version %lld is newer than %d", path.c_str(), r.version, REPLAY_FILE_VERSION);
+				return PLAY_FILE_NEWER;
 			}
 			const s64 players = r.players, me = r.me, frames = r.frames;
 			// each bound before the next product: the values are any s64
@@ -751,11 +759,21 @@ namespace Zdxsv
 		void PlayLoadFiles(const std::string& paths, bool fetched)
 		{
 			int me = -1;
+			bool newer = false;
 			for (const std::string_view path : StringUtil::SplitString(paths, ';'))
-				if (const int p = PlayLoadFile(std::string(path)); me < 0)
+			{
+				const int p = PlayLoadFile(std::string(path));
+				newer |= p == PLAY_FILE_NEWER;
+				if (me < 0)
 					me = p;
+			}
 			if (me < 0 && paths.starts_with("live:") && LiveAutoNext(true))
 				return; // a live battle that does not play is skipped, the wait goes on
+			if (me < 0 && newer)
+			{
+				PlayFailed(TRANSLATE_STR("Zdxsv", "Failed to start the replay. It was recorded by a newer version: update PCSX2."));
+				return;
+			}
 			if (me < 0)
 			{
 				PlayFailed(TRANSLATE_STR("Zdxsv", "Failed to start the replay. The replay file could not be read, or it is corrupted or outdated."));
