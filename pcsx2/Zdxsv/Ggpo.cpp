@@ -410,7 +410,7 @@ namespace Zdxsv
 			Console.WriteLn("ZdxsvGgpo: rbk env pos=%d/%d rand=%s turbo=%s clamp=%s ggpo=%s", s_rbk.me, s_rbk.n,
 				env("ZDXSV_RAND_INPUT"), env("ZDXSV_RBK_TURBO"), env("ZDXSV_EE_CLAMP"), env("ZDXSV_GGPO"));
 		}
-		// ZDXSV_VM_TEST=frame:shutdown|reset|mute|ui (tests of GgpoOnVmShutdown; mute: the GGPO network goes silent): once, when a session or replay reaches GGPO frame `frame`
+		// ZDXSV_VM_TEST=frame:shutdown|reset|mute|ui|mtvu (tests of GgpoOnVmShutdown; mute: the GGPO network goes silent): once, when a session or replay reaches GGPO frame `frame`
 		static const char* vm_test = TestEnv("ZDXSV_VM_TEST");
 		if (vm_test && g_ggpo_active && !g_ggpo_in_rollback && s_battle.frame == std::atoi(vm_test))
 		{
@@ -422,6 +422,15 @@ namespace Zdxsv
 				Host::RunOnCPUThread([] {
 					OnlineAllowReset();
 					VMManager::Reset();
+				});
+			else if (std::strstr(test, ":mtvu"))
+				Host::RunOnCPUThread([] {
+					{
+						const auto lock = Host::GetSettingsLock();
+						Host::Internal::GetBaseSettingsLayer()->SetBoolValue("EmuCore/Speedhacks", "vuThread", !EmuConfig.Speedhacks.vuThread);
+					}
+					VMManager::ApplySettings();
+					Console.WriteLn("ZdxsvGgpo: vm test mtvu: %s", EmuConfig.Speedhacks.vuThread ? "on" : "off");
 				});
 			else if (std::strstr(test, ":ui"))
 				Host::RunOnCPUThread([] {

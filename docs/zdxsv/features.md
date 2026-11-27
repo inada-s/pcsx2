@@ -117,7 +117,7 @@ Keys (`net=1`, `lobby=1`, `port=`, `delay=`, ...) are parts of `ZDXSV_GGPO`.
 - **VM shutdown or reset ends the session**.
 - **A lobby battle that breaks after the start goes back to the lobby**.
 - **Pause and speed refused in a net battle**: pause, speed, frame advance, state loads, pause menu.
-- **MTVU in GGPO battles and replays**: the MTVU speedhack keeps the player's setting; delta states wait for the VU thread, skipped rerun microprograms are not queued to it; `ZDXSV_MTVU=0` turns it off (test).
+- **MTVU in GGPO battles and replays**: the MTVU speedhack keeps the player's setting (a change during a battle applies at its end); delta states wait for the VU thread, skipped rerun microprograms are not queued to it; `ZDXSV_MTVU=0` turns it off (test).
 - **GGPO battle from the battle info of the lobby**: `net=1,lobby=1`.
 - **Input delay from the ping test**: lobby battle without `delay=`.
 - **Ping test failure cuts the battle connection, OSD with the reason**.

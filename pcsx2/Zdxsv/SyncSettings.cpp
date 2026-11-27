@@ -28,6 +28,7 @@ namespace Zdxsv
 		struct SyncState
 		{
 			bool battle = false; // a GGPO session runs and its settings were applied
+			bool vu_thread = false; // MTVU at the battle start
 		};
 		SyncState s_sync;
 
@@ -85,7 +86,11 @@ namespace Zdxsv
 			if (!battle)
 				return;
 			Pcsx2Config::SpeedhackOptions hacks;
-			hacks.vuThread = c.Speedhacks.vuThread && !g_mtvu_off; // machine-local: the VU thread does not change what the game computes
+			// machine-local: the VU thread does not change what the game computes. Kept from the battle start: a switch
+			// can run inside a rollback, and it changes how GIF path 1 and VU1 are saved.
+			hacks.vuThread = s_sync.battle ? s_sync.vu_thread : c.Speedhacks.vuThread && !g_mtvu_off;
+			note(c.Speedhacks.vuThread != hacks.vuThread, "MTVU (applies after the battle)");
+			c.Speedhacks.vuThread = hacks.vuThread;
 			note(c.Speedhacks != hacks, "speedhacks");
 			c.Speedhacks = hacks;
 			note(c.EmulationSpeed.NominalScalar != 1.0f, "speed");
@@ -127,6 +132,7 @@ namespace Zdxsv
 		if (battle == s_sync.battle)
 			return;
 		s_sync.battle = battle;
+		s_sync.vu_thread = EmuConfig.Speedhacks.vuThread && !g_mtvu_off;
 		if (!g_z_game || ForceOff() || VMManager::GetState() == VMState::Shutdown)
 			return;
 		Console.WriteLn("ZdxsvSync: battle %s: settings reloaded", battle ? "start" : "end");
