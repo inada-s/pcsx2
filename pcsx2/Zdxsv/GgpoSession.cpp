@@ -85,7 +85,10 @@ namespace Zdxsv
 			if (!s_opt.sync && ggpo_get_last_confirmed_frame(s_session, &confirmed) == GGPO_OK && frame <= confirmed)
 				s_run.save_skipped++;
 			else if (!Zdxsv::DeltaStateSave(frame))
+			{
+				Console.Error("ZdxsvGgpo: save of frame %d failed: a rollback to it fails", frame);
 				return false;
+			}
 			if (s_opt.net)
 				NetSaved(frame);
 			s_stats.save_ms.Add(timer.GetTimeMilliseconds());
@@ -285,6 +288,8 @@ namespace Zdxsv
 		ServerPatchesEnd();
 		ggpo_set_log_function(nullptr);
 		g_ggpo_active = false;
+		g_limiter_no_catch_up = false;
+		GgpoPriority(false);
 		if (!s_vm_closing)
 			Host::RunOnCPUThread([] { SyncSettingsOnBattle(false); });
 		Zdxsv::DeltaStateClear();
