@@ -22,6 +22,8 @@ EXPECT="regex=N;regex>=N": FAILs unless the emulog has exactly N (at least N) li
 PNACH=1: a pnach file for the Z game in the instance's patches/ and cheats/ (removed at exit); FAILs unless only
 `zdxsv built-in patches` are loaded.
 BAD=1: FILE is not a playable replay: exit 0 if the player is told it did not start (`replay: not started`).
+HANG_PORT=p (with BAD=1, FILE=live:http://127.0.0.1:p): a lobby there accepts and never answers; FAILs unless vsyncs
+ran between `replay: downloading` and `replay: downloads done` (the live open does not hold the CPU thread).
 """
 import atexit
 import glob
@@ -29,8 +31,10 @@ import hashlib
 import os
 import re
 import shutil
+import socket
 import subprocess
 import sys
+import threading
 import time
 
 import launch
@@ -41,6 +45,29 @@ HOTKEYS = ("ZdxsvReplaySeekBack = Keyboard/PageUp", "ZdxsvReplaySeekForward = Ke
            "ZdxsvReplayPrevRound = Keyboard/Shift & Keyboard/PageUp",
            "ZdxsvReplayNextRound = Keyboard/Shift & Keyboard/PageDown",
            "ZdxsvReplayStepBack = Keyboard/Home", "ZdxsvReplayStepForward = Keyboard/Insert")
+
+
+def hang_serve(port):
+    """A lobby on 127.0.0.1:PORT that accepts and never answers, for the rest of the run."""
+    s = socket.create_server(("127.0.0.1", int(port)))
+    held = []
+
+    def run():
+        while True:
+            held.append(s.accept()[0])
+
+    threading.Thread(target=run, daemon=True).start()
+
+
+def open_ran(emulog):
+    """0 when vsyncs ran between the start and the end of the replay downloads (the live open off the CPU thread)."""
+    v = [int(m.group(1)) for x in grep(emulog, r"ZdxsvGgpo: replay: (downloading|downloads done)")
+         for m in [re.search(r"at vsync ([0-9]+)", x)] if m]
+    if len(v) == 2 and v[1] > v[0]:
+        print(f"PASS {v[1] - v[0]} vsyncs ran during the live open")
+        return 0
+    print(f"FAIL no vsync ran during the live open (download vsyncs {v})")
+    return 1
 
 
 def files_digest(root):
@@ -98,6 +125,9 @@ def main(live):
     window, four = zrig.env("WINDOW") == "1", zrig.env("FOUR") == "1"
     pov, keys_env, players = zrig.env("POV"), zrig.env("KEYS"), int(zrig.env("PLAYERS", "2"))
     port = zrig.env("API_PORT", "9891")
+    hang = zrig.env("HANG_PORT")
+    if hang:
+        hang_serve(hang)
     os.makedirs(out, exist_ok=True)
     child = zrig.env("CHILD") == "1"
     data = os.path.join(run, f"p{n}", "PCSX2")
@@ -233,7 +263,7 @@ def main(live):
         for _ in range(5):
             if grep(l, "ZdxsvGgpo: replay: not started"):
                 print("PASS not started, player told")
-                return 0
+                return open_ran(l) if hang else 0
             time.sleep(1)
         print("FAIL no not started line")
         return 1

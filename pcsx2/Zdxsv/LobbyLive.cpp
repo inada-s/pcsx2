@@ -711,7 +711,7 @@ namespace Zdxsv
 		m->s->quit = true;
 	}
 
-	std::unique_ptr<LiveDown> LiveDown::Open(const std::string& url, int timeoutMs, std::string& error)
+	std::unique_ptr<LiveDown> LiveDown::Open(const std::string& url, int timeoutMs, std::string& error, const std::atomic<bool>* stop)
 	{
 		std::unique_ptr<LiveDown> d(new LiveDown());
 		const std::shared_ptr<Impl::State> s = d->m->s;
@@ -722,7 +722,7 @@ namespace Zdxsv
 		}
 		std::thread([s] { s->Run(); }).detach();
 		const auto until = Clock::now() + std::chrono::milliseconds(timeoutMs);
-		while (Clock::now() < until)
+		while (Clock::now() < until && !(stop && stop->load()))
 		{
 			{
 				std::lock_guard lock(s->mtx);

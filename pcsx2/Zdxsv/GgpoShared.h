@@ -640,7 +640,15 @@ namespace Zdxsv
 		std::string url; // the battle auto-next moved on to, "" = ZDXSV_REPLAY
 	};
 	extern LiveNextState s_live_next;
-	std::optional<std::vector<u8>> LiveOpen(const std::string& url);
+	struct LiveConnect
+	{
+		std::unique_ptr<Zdxsv::LiveDown> down;
+		std::string error; // why down is null
+	};
+	// Any thread: blocks until the stream has a frame, it fails, or stop is set.
+	LiveConnect LiveConnectOpen(const std::string& url, const std::atomic<bool>* stop);
+	// The opened stream as a replay file's bytes (header, frames so far, start state).
+	std::optional<std::vector<u8>> LiveOpen(const std::string& url, LiveConnect c);
 	// A live stream's round frames (and with `states` its round states) as the file's: spans, MS-select starts, round states.
 	void PlayLiveRoundFrames(const std::vector<u8>& round_frames, const std::vector<u8>& states, bool with_states);
 	void PlayFileRels(u8 ps0, u8 ms0, u8 re0);

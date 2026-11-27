@@ -140,8 +140,8 @@ namespace Zdxsv
 	{
 	public:
 		~LiveDown(); // the thread stops on its own
-		// Opens the stream and waits up to timeoutMs for the header and a frame (or the close).
-		static std::unique_ptr<LiveDown> Open(const std::string& url, int timeoutMs, std::string& error);
+		// Opens the stream and waits up to timeoutMs for the header and a frame (or the close); stop set ends the wait.
+		static std::unique_ptr<LiveDown> Open(const std::string& url, int timeoutMs, std::string& error, const std::atomic<bool>* stop = nullptr);
 		std::string Code();
 		// The battle code a pull without one gets from api: with skip empty the newest live battle
 		// (running ones first), else the newest running one not in skip (auto-next); "" = none or no answer

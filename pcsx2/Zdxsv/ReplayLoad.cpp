@@ -180,6 +180,7 @@ namespace Zdxsv
 			std::thread worker;
 			std::atomic<bool> stop{false};
 			std::map<std::string, std::optional<std::vector<u8>>> got; // CPU thread: the worker's replay files by URL
+			std::map<std::string, LiveConnect> live; // CPU thread: the worker's live streams by source
 			std::string common_fetched; // the common state URL a broken copy was deleted of: once per URL per run
 			bool common_fresh = false; // the common state was just downloaded and checked
 			u32 id = 0; // bumped by PlayFetchStop: a queued end of an earlier fetch drops out
@@ -288,6 +289,16 @@ namespace Zdxsv
 			return got;
 		}
 
+		std::optional<std::vector<u8>> LiveFetched(const std::string& src)
+		{
+			const auto it = s_fetch.live.find(src);
+			if (it == s_fetch.live.end())
+				return LiveOpen(src, {nullptr, "not opened"});
+			LiveConnect c = std::move(it->second);
+			s_fetch.live.erase(it);
+			return LiveOpen(src, std::move(c));
+		}
+
 		// Counted only for a pick of the replay list, whose remote replays come from LobbyApiUrl(): a ZDXSV_REPLAY url may
 		// come from another server than the setting names.
 		void ReplayPlayed(const std::string& code)
@@ -330,7 +341,7 @@ namespace Zdxsv
 				return -1;
 			}
 			std::optional<std::vector<u8>> file =
-				live ? LiveOpen(path) : http ? HttpOpen(path) : FileSystem::ReadBinaryFile(native.c_str());
+				live ? LiveFetched(path) : http ? HttpOpen(path) : FileSystem::ReadBinaryFile(native.c_str());
 			if (file && !live && !http && ReplayIsGzip(file->data(), file->size()))
 				file = Gunzip(path, *file);
 			const std::string_view all = file ? std::string_view(reinterpret_cast<const char*>(file->data()), file->size()) : std::string_view();
@@ -493,13 +504,16 @@ namespace Zdxsv
 			s_fetch.worker = std::thread([urls = std::move(urls), common, c, then = std::move(then), id = s_fetch.id]() mutable {
 				Threading::SetNameOfCurrentThread("Zdxsv Replay Download");
 				auto got = std::make_shared<std::map<std::string, std::optional<std::vector<u8>>>>();
+				auto live = std::make_shared<std::map<std::string, LiveConnect>>();
 				for (const std::string& url : urls)
-					if (!s_fetch.stop)
+					if (!s_fetch.stop && url.starts_with("live:"))
+						(*live)[url] = LiveConnectOpen(url, &s_fetch.stop);
+					else if (!s_fetch.stop)
 						(*got)[url] = HttpFetch(url);
 				const bool downloaded = common && !s_fetch.stop && CommonStateDownload(c);
 				if (s_fetch.stop)
 					return;
-				Host::RunOnCPUThread([got, downloaded, then = std::move(then), id] {
+				Host::RunOnCPUThread([got, live, downloaded, then = std::move(then), id] {
 					if (id != s_fetch.id)
 						return;
 					if (s_fetch.worker.joinable())
@@ -507,8 +521,10 @@ namespace Zdxsv
 					Console.WriteLn("ZdxsvGgpo: replay: downloads done at vsync %u", g_FrameCount);
 					s_fetch.common_fresh = downloaded;
 					s_fetch.got = std::move(*got);
+					s_fetch.live = std::move(*live);
 					then();
 					s_fetch.got.clear();
+					s_fetch.live.clear();
 				});
 			});
 		}
@@ -727,6 +743,7 @@ namespace Zdxsv
 		s_fetch.stop = false;
 		s_fetch.id++;
 		s_fetch.got.clear();
+		s_fetch.live.clear();
 		s_fetch.common_fresh = false;
 	}
 
@@ -799,7 +816,7 @@ namespace Zdxsv
 		std::string paths = s_live_next.url.empty() ? s_play_src.path : s_live_next.url;
 		std::vector<std::string> urls;
 		for (const std::string_view path : StringUtil::SplitString(paths, ';'))
-			if (path.starts_with("http://") || path.starts_with("https://"))
+			if (path.starts_with("http://") || path.starts_with("https://") || path.starts_with("live:"))
 				urls.emplace_back(path);
 		const bool common = CommonStateMissing();
 		if (urls.empty() && !common)
