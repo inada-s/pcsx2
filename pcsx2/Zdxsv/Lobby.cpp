@@ -34,6 +34,8 @@ namespace Zdxsv
 		BattleInfo g_info;
 		std::function<void(const BattleInfo&)> g_listener;
 		std::vector<std::vector<uint8_t>> g_startAnswers; // LobbyNoteFrame, under g_mtx
+		bool g_startAnswersOver = false; // under g_mtx
+		constexpr size_t LOBBY_START_ANSWERS_MAX = 64;
 
 		std::string AddrString(uint32_t ip, uint16_t port)
 		{
@@ -175,11 +177,18 @@ namespace Zdxsv
 		const LobbyFrameView f{frame};
 		if (f.Direction() != LobbyToClient || f.Command() < LobbyMatchStart || f.Command() > LobbyMatchLast)
 			return;
-		std::lock_guard lock(g_mtx);
-		if (f.Command() == LobbyMatchStart)
-			g_startAnswers.clear();
-		else
-			g_startAnswers.emplace_back(frame, frame + size);
+		bool over = false;
+		{
+			std::lock_guard lock(g_mtx);
+			if (f.Command() == LobbyMatchStart)
+				g_startAnswers.clear(), g_startAnswersOver = false;
+			else if (g_startAnswers.size() < LOBBY_START_ANSWERS_MAX)
+				g_startAnswers.emplace_back(frame, frame + size);
+			else
+				over = !std::exchange(g_startAnswersOver, true);
+		}
+		if (over)
+			LobbyLog("battle start answers over " + std::to_string(LOBBY_START_ANSWERS_MAX) + ", the rest dropped");
 	}
 
 	std::vector<std::vector<uint8_t>> LobbyStartAnswers()
