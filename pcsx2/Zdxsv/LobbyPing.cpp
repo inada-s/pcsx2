@@ -570,6 +570,26 @@ namespace Zdxsv
 	// either is), a relaying peer j's legs from j's own row, a relay server's from both rows.
 	// A relaying peer must beat direct by 32 ms (it spends its own bandwidth), a relay server by
 	// 16 ms; of the two the lower sum wins, ties to the server and to the lower index.
+	namespace
+	{
+		// x and y use their direct path whatever else the matrices offer: neither a relay server nor any
+		// peer could be picked instead. A relaying peer forwards only for players it reaches directly.
+		bool PingDirectWins(const uint8_t (&rtt)[4][4], const uint8_t (&relayRtt)[4][4], int n, int nr, int x, int y)
+		{
+			const int direct = rtt[x][y] && rtt[y][x] ? std::max(rtt[x][y], rtt[y][x]) : 0;
+			if (!direct || direct >= 255)
+				return false;
+			for (int k = 0; k < nr; k++)
+				if (0 < relayRtt[x][k] && relayRtt[x][k] < 255 && 0 < relayRtt[y][k] && relayRtt[y][k] < 255 &&
+					relayRtt[x][k] + relayRtt[y][k] + 16 < direct)
+					return false;
+			for (int j = 0; j < n; j++)
+				if (j != x && j != y && rtt[j][x] && rtt[j][x] < 255 && rtt[j][y] && rtt[j][y] < 255 && rtt[j][x] + rtt[j][y] + 32 < direct)
+					return false;
+			return true;
+		}
+	} // namespace
+
 	PingResult PingPickPath(const uint8_t (&rtt)[4][4], const uint8_t (&relayRtt)[4][4], int n, int nr, int me, int p, int peerForce)
 	{
 		PingResult r;
@@ -581,7 +601,7 @@ namespace Zdxsv
 		int peerJ = -1, peerSum = INT_MAX;
 		for (int j = 0; j < n; j++)
 		{
-			if (j == p || j == me || !rtt[j][me] || rtt[j][me] >= 255 || !rtt[j][p] || rtt[j][p] >= 255)
+			if (j == p || j == me || !PingDirectWins(rtt, relayRtt, n, nr, me, j) || !PingDirectWins(rtt, relayRtt, n, nr, j, p))
 				continue;
 			const int sum = rtt[j][me] + rtt[j][p];
 			if (peerForce == 1 ? peerJ < 0 : peerForce == 2 || sum < peerSum)
