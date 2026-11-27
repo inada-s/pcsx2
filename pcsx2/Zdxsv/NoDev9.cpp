@@ -296,7 +296,8 @@ namespace Zdxsv
 			}
 			if (!s_state.lobby[id])
 				return true;
-			for (int n; (n = recv(s, reinterpret_cast<char*>(buf), sizeof(buf), 0)) > 0;)
+			// the rest waits in the socket until the game takes what is ready
+			for (int n; s_state.lobby[id]->Ready() < LOBBY_READY_MAX && (n = recv(s, reinterpret_cast<char*>(buf), sizeof(buf), 0)) > 0;)
 				LobbyFeed(*s_state.lobby[id], static_cast<uptr>(s), buf, n);
 			return true;
 		}

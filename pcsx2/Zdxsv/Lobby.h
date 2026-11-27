@@ -266,6 +266,7 @@ namespace Zdxsv
 	// Output is queued: Take() hands out at most what the game's window allows.
 	// answerLineChecks (the game is paused): line check questions 0x6001 are consumed and
 	// their answers queued for the server (TakeAnswers), as the game would answer them.
+	constexpr size_t LOBBY_READY_MAX = 1 << 20; // bytes of frames waiting for the game before the socket is not read
 	class LobbyFilter
 	{
 	public:
