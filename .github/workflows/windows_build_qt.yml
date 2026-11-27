@@ -209,6 +209,7 @@ jobs:
         uses: baptiste0928/cargo-install@f204293d9709061b7bc1756fec3ec4e2cd57dec0
         with:
           crate: dump_syms
+          version: "=2.3.9" # zdxsv: pinned, it runs in the release build
 
       - name: Generate Breakpad Symbols # Also flatten pdbs to a 'symbols' directory for upload-artifact
         if: inputs.package
