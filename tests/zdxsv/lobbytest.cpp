@@ -572,6 +572,9 @@ int main()
 		const uint8_t no03[4][4] = {{0, 200, 200, 0}, {200, 0, 200, 200}, {200, 200, 0, 200}, {0, 200, 200, 0}};
 		const Zdxsv::PingResult peer03 = Zdxsv::PingPickPath(no03, noRelay, 4, 0, 0, 3);
 		Check(same(no03, noRelay, 4, 0, 0, 3, 1) && peer03.rtt == 400, "path: no direct 0-3, every other pair direct: 0-3 through a peer", peer03.rtt);
+		const uint8_t no03Row3Missing[4][4] = {{0, 33, 33, 0}, {34, 0, 35, 35}, {33, 33, 0, 35}, {}};
+		const Zdxsv::PingResult missing03 = Zdxsv::PingPickPath(no03Row3Missing, noRelay, 4, 0, 0, 3);
+		Check(missing03.via == 1 && missing03.relay == 2 && missing03.rtt == 68, "path: no direct 0-3, 3's row never arrived: 0-3 through a peer", missing03.rtt);
 		const uint8_t serverBut3[4][4] = {{2}, {2}, {2}, {0}};
 		const Zdxsv::PingResult none03 = Zdxsv::PingPickPath(no03, serverBut3, 4, 1, 0, 3);
 		Check(same(no03, serverBut3, 4, 1, 0, 3, 0) && none03.rtt < 0,
