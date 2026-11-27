@@ -285,11 +285,15 @@ namespace
 		a.sin_family = AF_INET;
 		a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
 		bind(s, reinterpret_cast<sockaddr*>(&a), sizeof(a));
-		int len = sizeof(a);
+		socklen_t len = sizeof(a);
 		getsockname(s, reinterpret_cast<sockaddr*>(&a), &len);
 		*port = ntohs(a.sin_port);
+#ifdef _WIN32
 		u_long nonblocking = 1;
 		ioctlsocket(s, FIONBIO, &nonblocking);
+#else
+		fcntl(s, F_SETFL, O_NONBLOCK);
+#endif
 		return s;
 	}
 
