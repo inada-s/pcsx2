@@ -184,7 +184,7 @@ turns GGPO off and leaves the other extensions on. Any other value turns it on. 
 | `ZDXSV_PATCHES_ANY=1` | unset (built-in only) | test | A replay or live stream plays with game patches that are not built in (the rigs' test patches in `tests/zdxsv/server_patches*.json`). |
 | `ZDXSV_TEST_BREAKPOINT=<hex address>` | unset | test | The Z game: an EE breakpoint at that address at the first vsync, as if set in the debugger (the address must never run); going online clears it. |
 | `ZDXSV_LOBBY_CUT=1` | none | test | This client cuts every lobby battle (`test cut`), its peers do not. |
-| `ZDXSV_VM_TEST=frame:shutdown`, `frame:reset`, `frame:mute` or `frame:ui` | off | test | Shut down or reset the VM once a session or replay reaches that GGPO frame; `mute`: drop every GGPO packet sent and received from then on (the battle TCP stays up); `ui`: ask for Turbo, a frame advance, a slot 1 state load, a pause and the pause menu, as the hotkeys do. |
+| `ZDXSV_VM_TEST=frame:shutdown`, `frame:reset`, `frame:mute`, `frame:ui` or `frame:mtvu` | off | test | Shut down or reset the VM once a session or replay reaches that GGPO frame; `mtvu`: switch the MTVU speedhack in the settings and apply them, as the settings page does; `mute`: drop every GGPO packet sent and received from then on (the battle TCP stays up); `ui`: ask for Turbo, a frame advance, a slot 1 state load, a pause and the pause menu, as the hotkeys do. |
 
 ## Replay playback
 
