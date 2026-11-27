@@ -251,6 +251,8 @@ Visual Studio and `lupdate` drop comments when they rewrite these files.
 | `pcsx2/ImGui/ImGuiOverlays.cpp` | `ImGuiManager::RenderOverlays` | `Zdxsv::g_ggpo_enabled`, `Zdxsv::DrawOverlays` |
 | `pcsx2/Input/InputManager.cpp` |  | include `Zdxsv/InputHooks.h` |
 | `pcsx2/Input/InputManager.cpp` | `InputManager::InvokeEvents` | `Zdxsv::g_replay_unfocused` |
+| `pcsx2/Input/InputManager.cpp` | `InputManager::ClearControllerBindState` | an unfocused replay window drops controller events, releases too: nothing may stay held |
+| `pcsx2/Input/InputManager.h` |  | clears every bind of a controller source (not keyboard or pointer) |
 | `pcsx2/Interpreter.cpp` |  | include `Zdxsv/CpuHooks.h` |
 | `pcsx2/Interpreter.cpp` |  | cpuBlockCycles and intLastBranchTo not static, the ARM64 EE recompiler shares them. |
 | `pcsx2/Interpreter.cpp` | `execI` | `Zdxsv::IntHooksOn`, `Zdxsv::IntRunHooks` |

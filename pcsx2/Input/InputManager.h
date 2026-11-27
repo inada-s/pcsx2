@@ -279,6 +279,9 @@ namespace InputManager
 	/// Clears internal state for any binds with a matching source/index.
 	void ClearBindStateFromSource(InputBindingKey key);
 
+	// zdxsv: clears every bind of a controller source (not keyboard or pointer)
+	void ClearControllerBindState();
+
 	/// Sets a hook which can be used to intercept events before they're processed by the normal bindings.
 	/// This is typically used when binding new controls to detect what gets pressed.
 	void SetHook(InputInterceptHook::Callback callback);

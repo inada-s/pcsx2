@@ -1296,6 +1296,24 @@ void InputManager::ClearBindStateFromSource(InputBindingKey key)
 	} while (matched);
 }
 
+// zdxsv: an unfocused replay window drops controller events, releases too: nothing may stay held
+void InputManager::ClearControllerBindState()
+{
+	std::vector<InputBindingKey> sources;
+	for (const auto& [key, binding] : s_binding_map)
+	{
+		if (key.source_type == InputSourceType::Keyboard || key.source_type == InputSourceType::Pointer)
+			continue;
+		bool seen = false;
+		for (const InputBindingKey& s : sources)
+			seen |= s.source_type == key.source_type && s.source_subtype == key.source_subtype && s.source_index == key.source_index;
+		if (!seen)
+			sources.push_back(key);
+	}
+	for (const InputBindingKey& source : sources)
+		ClearBindStateFromSource(source);
+}
+
 bool InputManager::PreprocessEvent(InputBindingKey key, float value, GenericInputBinding generic_key,
 	GenericInputBinding axis_neg_key, GenericInputBinding axis_pos_key)
 {

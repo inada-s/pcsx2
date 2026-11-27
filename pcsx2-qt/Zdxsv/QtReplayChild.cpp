@@ -7,7 +7,9 @@
 #include "QtHost.h"
 
 #include "pcsx2/Config.h"
+#include "pcsx2/Host.h"
 #include "pcsx2/INISettingsInterface.h"
+#include "pcsx2/Input/InputManager.h"
 #include "pcsx2/Zdxsv/InputHooks.h"
 #include "pcsx2/Zdxsv/UiHooks.h"
 #include "pcsx2/Zdxsv/ReplayList.h"
@@ -70,7 +72,10 @@ namespace Zdxsv
 		void UnfocusedUpdate()
 		{
 			const bool running = s_replay_child.running && s_replay_child.running->state() != QProcess::NotRunning;
+			const bool was = g_replay_unfocused;
 			g_replay_unfocused = (s_replay_child.child || running) && qApp->applicationState() != Qt::ApplicationActive;
+			if (g_replay_unfocused && !was)
+				Host::RunOnCPUThread([] { InputManager::ClearControllerBindState(); });
 		}
 
 		void UnfocusedWatch()
