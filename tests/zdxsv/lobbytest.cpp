@@ -555,6 +555,40 @@ int main()
 		closesocket(pa);
 		Check(bound && r.size() == 2 && r[1].rtt > 0 && r[1].rtt < 50, "every 4th pong 400 ms late: rtt is the median (rtt)", r.size() == 2 ? r[1].rtt : -2);
 	}
+	// both ends of a pair pick the same path from the same matrices, whatever each measured
+	{
+		auto same = [](const uint8_t (&rtt)[4][4], const uint8_t (&relayRtt)[4][4], int n, int nr, int a, int b, int wantVia) {
+			const Zdxsv::PingResult x = Zdxsv::PingPickPath(rtt, relayRtt, n, nr, a, b), y = Zdxsv::PingPickPath(rtt, relayRtt, n, nr, b, a);
+			return x.via == y.via && x.relay == y.relay && (wantVia < 0 || x.via == wantVia);
+		};
+		const uint8_t serverRelay[4][4] = {{20}, {20}};
+		const uint8_t direct60and50[4][4] = {{0, 60}, {50, 0}};
+		Check(same(direct60and50, serverRelay, 2, 1, 0, 1, 2), "path: direct 60 / 50 ms, relay server 40 ms: both relay", 0);
+		const uint8_t oneRow[4][4] = {{0, 30}};
+		Check(same(oneRow, serverRelay, 2, 1, 0, 1, 2), "path: only one side's pongs came back: both relay", 0);
+		const uint8_t noRelay[4][4] = {};
+		const uint8_t viaPeer2[4][4] = {{0, 100, 20}, {70, 0, 40}, {20, 20, 0}};
+		Check(same(viaPeer2, noRelay, 3, 0, 0, 1, 1), "path: direct 100 / 70 ms, peer 2 legs 20 + 20: both through peer 2", 0);
+		uint32_t seed = 868;
+		auto next = [&seed](int mod) { seed = seed * 1103515245u + 12345u; return static_cast<int>((seed >> 16) % mod); };
+		int differ = 0;
+		for (int t = 0; t < 20000; t++)
+		{
+			uint8_t rtt[4][4] = {}, relayRtt[4][4] = {};
+			const int n = 2 + next(3), nr = next(3);
+			for (int i = 0; i < n; i++)
+			{
+				for (int j = 0; j < n; j++)
+					rtt[i][j] = i == j || !next(5) ? 0 : static_cast<uint8_t>(1 + next(255));
+				for (int k = 0; k < nr; k++)
+					relayRtt[i][k] = !next(4) ? 0 : static_cast<uint8_t>(1 + next(255));
+			}
+			for (int a = 0; a < n; a++)
+				for (int b = a + 1; b < n; b++)
+					differ += !same(rtt, relayRtt, n, nr, a, b, -1);
+		}
+		Check(differ == 0, "path: 20000 random matrices, pairs whose ends pick differently", differ);
+	}
 	// relay rtts of a peer behind a symmetric NAT reach us only through the peer that reaches it (peer 3)
 	{
 		uint8_t mine[4][4] = {{18, 67}};

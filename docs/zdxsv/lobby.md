@@ -205,6 +205,13 @@ A peer is reached through:
 - another peer, when that path is 32 ms faster, or the direct path got no
   answer
 
+Both ends of a pair decide from the shared matrices only, so they pick the
+same kind of path: direct counts as the slower of the two sides' RTTs (none
+if either side got no answer), a relaying peer's legs come from that peer's
+own row, a relay server's from both sides' rows. The own row used is the one
+last sent, not updated after the last ping. Rows a peer did not get (all
+packets lost at the end) can still make the two ends differ.
+
 Each side picks its relay peer on its own, so the two directions may go
 through different peers: packets of a peer reached through another peer
 are accepted from any directly reached peer.
