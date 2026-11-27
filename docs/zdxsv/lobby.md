@@ -203,7 +203,10 @@ A peer is reached through:
 
 - relay server k, when that path is 16 ms faster than the direct one
 - another peer, when that path is 32 ms faster, or the direct path got no
-  answer
+  answer, and that peer uses the direct path for both players (no relay
+  server or other peer would beat it): a relaying peer forwards only between
+  players it reaches directly. No such peer and no relay server: no path,
+  the battle connection is cut
 
 Both ends of a pair decide from the shared matrices only, so they pick the
 same kind of path: direct counts as the slower of the two sides' RTTs (none

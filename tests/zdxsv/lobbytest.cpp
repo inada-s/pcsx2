@@ -569,6 +569,13 @@ int main()
 		const uint8_t noRelay[4][4] = {};
 		const uint8_t viaPeer2[4][4] = {{0, 100, 20}, {70, 0, 40}, {20, 20, 0}};
 		Check(same(viaPeer2, noRelay, 3, 0, 0, 1, 1), "path: direct 100 / 70 ms, peer 2 legs 20 + 20: both through peer 2", 0);
+		const uint8_t no03[4][4] = {{0, 200, 200, 0}, {200, 0, 200, 200}, {200, 200, 0, 200}, {0, 200, 200, 0}};
+		const Zdxsv::PingResult peer03 = Zdxsv::PingPickPath(no03, noRelay, 4, 0, 0, 3);
+		Check(same(no03, noRelay, 4, 0, 0, 3, 1) && peer03.rtt == 400, "path: no direct 0-3, every other pair direct: 0-3 through a peer", peer03.rtt);
+		const uint8_t serverBut3[4][4] = {{2}, {2}, {2}, {0}};
+		const Zdxsv::PingResult none03 = Zdxsv::PingPickPath(no03, serverBut3, 4, 1, 0, 3);
+		Check(same(no03, serverBut3, 4, 1, 0, 3, 0) && none03.rtt < 0,
+			"path: no direct 0-3, 3 reaches no relay server, the others use it: 0-3 has no path (a peer relays only between direct pairs)", none03.rtt);
 		uint32_t seed = 868;
 		auto next = [&seed](int mod) { seed = seed * 1103515245u + 12345u; return static_cast<int>((seed >> 16) % mod); };
 		int differ = 0;

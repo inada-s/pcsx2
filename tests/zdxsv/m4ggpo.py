@@ -31,9 +31,10 @@ Checks (besides m4.py's): GGPO clients: `lobby peer position` x(N-1) and `net pl
   other path `direct`, K and L take the lobby delay from the peer path rtt (control: the plain checks on those logs fail on K and L).
   BLOCK=K-L BLOCK_SPLIT=1: K relays through the lowest other position, L through the highest (ZDXSV_PEER_RELAY_PICK);
   the BLOCK checks plus `path through peer` on K and L.
-  RELAY=1 BLOCK=K-L RELAY_BLOCK=L (fake_lobby.py --relay-block L): L reaches no relay server, so K reaches L
-  through a peer it reaches through the relay server, and that peer forwards for K: per client the paths
-  relay 0 / direct / peer: L 0/2/1, K 2/0/1, the others 2/1/0; the battle ends clean.
+  RELAY=1 BLOCK=K-L RELAY_BLOCK=L (fake_lobby.py --relay-block L): L reaches no relay server and every peer
+  that reaches L directly uses the relay server for K, so no peer may relay K-L: per client the paths
+  relay 0 / direct / peer: L 0/2/0, K 2/0/0, the others 2/1/0; K and L cut (`2 of 3 peers answered`), the
+  others arm and their session ends unstarted; nobody logs `net peers not synchronized`; m4.py NORESULT=reconnect.
   UNREACH=K (GDELAY=auto, with GGPO_LAT; fake_lobby.py --ggpo-block K-x for every other client x): nobody has a
   path to client K, not even through a peer: K gets no answer, every other client gets rtt -1 from K only;
   then the BAD_SESSION checks (every client cuts, the game gives up and reconnects to the lobby).
@@ -124,7 +125,7 @@ def main():
     # UNREACH with RELAY: K reaches the others only through the relay server
     cut = bad or (unreach and not relay)
     if rblk:
-        os.environ["NORESULT"] = "1"
+        os.environ["NORESULT"] = "reconnect"
         os.environ.setdefault("MAXS", "360")
     if len(gc) == 4:
         os.environ.setdefault("JOINS", "0")
@@ -175,7 +176,16 @@ def main():
         if n != 4:
             ok(f"p{i} connection cut (a peer has no GGPO port)", c(r"ZdxsvGgpo: lobby battle connection cut: a peer has no GGPO address"))
             continue
-        if not cut:
+        if rblk:
+            # K and L have no path to each other and cut; the others arm, then their session ends unstarted
+            if blk:
+                ok(f"p{i} cut ended, no lobby peers, no ggpo session", c(r"ZdxsvGgpo: lobby battle connection cut ended")
+                   and not c(r"ZdxsvGgpo: lobby peer position") and not c(r"ZdxsvGgpo: net (armed|player)"))
+            else:
+                ok(f"p{i} lobby peers x3, net armed, no ggpo session", c(r"ZdxsvGgpo: lobby peer position") == 3
+                   and c(r"ZdxsvGgpo: net armed") and not c(r"ZdxsvGgpo: net player"))
+            ok(f"p{i} ping test 3 peers", any(re.search(r"rtt [0-9].*rtt [0-9].*rtt [0-9]", l) for l in ping))
+        elif not cut:
             ok(f"p{i} lobby peers x3", c(r"ZdxsvGgpo: lobby peer position") == 3)
             ok(f"p{i} ggpo session", c(r"ZdxsvGgpo: net player"))
             if auto:
