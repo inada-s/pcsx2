@@ -3,7 +3,8 @@
 
 Usage: crashrep.py <pcsx2-qt exe> <out dir>
 Exit 0 when the upload carries PCSX2.ini without [Folders], [GameList], [Achievements] or absolute
-path values, keeps the other sections, and carries emulog-tail.txt (not on macOS: crashpad runs no in-process crash callback there).
+path values, keeps the other sections, and carries emulog-tail.txt (not on macOS: crashpad runs no in-process crash callback there)
+with the home folder name of its paths masked (the data path sits under Users/<name>).
 """
 
 import gzip
@@ -42,12 +43,22 @@ Marker = {KEEP}
 """
 
 
+def attachment(body, name):
+    at = body.find(f'filename="{name}"'.encode())
+    if at < 0:
+        return None
+    start = body.find(b"\r\n\r\n", at) + 4
+    end = body.find(b"\r\n--", start)
+    return body[start:end if end >= 0 else len(body)]
+
+
 def main():
     if len(sys.argv) != 3:
         print(__doc__)
         return 2
     exe, out = os.path.abspath(sys.argv[1]), os.path.abspath(sys.argv[2])
-    inis = os.path.join(out, "data", "PCSX2", "inis")
+    data = os.path.join(out, "Users", SECRET, "data")
+    inis = os.path.join(data, "PCSX2", "inis")
     os.makedirs(inis, exist_ok=True)
     with open(os.path.join(inis, "PCSX2.ini"), "w", encoding="utf-8") as f:
         f.write(INI)
@@ -81,7 +92,7 @@ def main():
     env = dict(os.environ)
     env["ZDXSV_SENTRY_DSN"] = f"http://k@127.0.0.1:{server.server_port}/1"
     env["ZDXSV_CRASH_REPORT_TEST"] = "1"
-    proc = subprocess.Popen([exe, "-datapath", os.path.join(out, "data")], env=env)
+    proc = subprocess.Popen([exe, "-datapath", data], env=env)
 
     deadline = time.time() + 60
     while time.time() < deadline and not any("minidump" in p for p, _ in bodies):
@@ -97,13 +108,15 @@ def main():
     body = uploads[0]
     with open(os.path.join(out, "upload.bin"), "wb") as f:
         f.write(body)
+    ini, tail = attachment(body, "PCSX2.ini"), attachment(body, "emulog-tail.txt")
     checks = {
-        "PCSX2.ini attached": b'filename="PCSX2.ini"' in body,
-        "other sections kept": KEEP.encode() in body,
-        "no folder, game list, achievements or path values": SECRET.encode() not in body,
+        "PCSX2.ini attached": ini is not None,
+        "other sections kept": KEEP.encode() in (ini or b""),
+        "no folder, game list, achievements or path values": SECRET.encode() not in (ini or b""),
     }
     if sys.platform != "darwin":
-        checks["emulog-tail.txt attached"] = b'filename="emulog-tail.txt"' in body
+        checks["emulog-tail.txt attached"] = tail is not None
+        checks["log tail: home folder name masked"] = os.path.join("Users", "*").encode() in (tail or b"") and SECRET.encode() not in (tail or b"")
     for name, ok in checks.items():
         print(("PASS " if ok else "FAIL ") + name)
     return 0 if all(checks.values()) else 1

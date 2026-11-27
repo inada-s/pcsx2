@@ -4,6 +4,7 @@
 // Replay recording of a GGPO battle (.pb), its upload and the live stream.
 
 #include "Zdxsv/GgpoShared.h"
+#include "Zdxsv/Lobby.h"
 #include "Zdxsv/ReplayList.h"
 #include "Zdxsv/ServerHosts.h"
 
@@ -167,9 +168,10 @@ namespace Zdxsv
 			std::string url = ReplayUploadUrl();
 			if (url.empty())
 				return;
-			url += fmt::format("{}battle_code={}&session_id={}", url.find('?') == std::string::npos ? '?' : '&', name,
-				static_cast<int32_t>(session));
-			std::thread([url, name, pb, used_ms]() {
+			url += fmt::format("{}battle_code={}&session_id=", url.find('?') == std::string::npos ? '?' : '&', name);
+			const std::string logged = url + MaskSessionId(session);
+			url += std::to_string(static_cast<int32_t>(session));
+			std::thread([url, logged, name, pb, used_ms]() {
 				const std::vector<u8> gz = ReplayGzip(pb);
 				const std::string boundary = fmt::format("zdxsv{:016x}", XXH64(pb.data(), pb.size(), 0));
 				std::string body = fmt::format("--{0}\r\nContent-Disposition: form-data; name=\"used_ms\"\r\n\r\n{1}\r\n"
@@ -191,10 +193,10 @@ namespace Zdxsv
 				const size_t size = body.size();
 				http->CreatePostRequest(url, std::move(body), [&](s32 status, const std::string&, HTTPDownloader::Request::Data) {
 					if (status == HTTPDownloader::HTTP_STATUS_OK || status == 409)
-						Console.WriteLn("ZdxsvGgpo: replay upload %s: %s, %zu bytes (file %zu, gzip %zu), %.0f ms", url.c_str(),
+						Console.WriteLn("ZdxsvGgpo: replay upload %s: %s, %zu bytes (file %zu, gzip %zu), %.0f ms", logged.c_str(),
 							status == 409 ? "already there" : "ok", size, pb.size(), gz.size(), timer.GetTimeMilliseconds());
 					else
-						Console.Error("ZdxsvGgpo: replay upload %s failed: status %d", url.c_str(), status);
+						Console.Error("ZdxsvGgpo: replay upload %s failed: status %d", logged.c_str(), status);
 				}, nullptr, std::move(type));
 				http->WaitForAllRequests();
 			}).detach();

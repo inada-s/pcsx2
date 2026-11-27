@@ -185,7 +185,7 @@ namespace Zdxsv
 
 			sentry_user_consent_give();
 			s_crash_reports.running = true;
-			Console.WriteLn("Zdxsv: crash reports on");
+			Console.WriteLn("Zdxsv: crash reports on, kept in %s", database.c_str());
 		}
 #endif
 	} // namespace

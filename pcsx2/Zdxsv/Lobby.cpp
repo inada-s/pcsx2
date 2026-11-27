@@ -90,6 +90,13 @@ namespace Zdxsv
 		return out;
 	}
 
+	std::string MaskSessionId(uint32_t session)
+	{
+		std::string s = std::to_string(static_cast<int32_t>(session));
+		std::fill(s.begin(), s.size() > 2 ? s.end() - 2 : s.end(), '*');
+		return s;
+	}
+
 	void SetBattleInfo(const BattleInfo& info)
 	{
 		std::function<void(const BattleInfo&)> listener;

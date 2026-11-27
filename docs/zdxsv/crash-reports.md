@@ -20,7 +20,8 @@ release (`pcsx2-zdxsv@<git rev>`), the environment, the operating system and a r
 ID (the event's user ID, kept in the database folder `sentry` in the data directory). A copy of the settings file `PCSX2.ini`, attached
 from the database folder: written when crash reports start and each time the settings are saved, without the sections
 `[Folders]`, `[GameList]` and `[Achievements]` and without any line whose value is an absolute path
-(sign-in tokens are kept in other files). The last 100 log lines (info level and above), kept in memory
+(sign-in tokens are kept in other files). The last 100 log lines (info level and above; in paths, the folder name after
+`Users` or `home` becomes `*`, as it is the OS account name), kept in memory
 whatever the log settings and written at the crash as `emulog-tail.txt` in the database folder;
 not on macOS, where crashpad runs no in-process crash callback. Sentry also gets
 the sender's IP address and derives a location from it. Sessions, tracing, the rest of the log and per-game

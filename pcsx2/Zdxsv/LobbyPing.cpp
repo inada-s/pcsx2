@@ -263,7 +263,7 @@ namespace Zdxsv
 			// Our row stays as last sent: PickPath must see the matrix the peers got.
 			void Finish(PingTest& t)
 			{
-				std::string line = "ping test: session " + std::to_string(m_session) + ", position " + std::to_string(m_me);
+				std::string line = "ping test: session " + MaskSessionId(m_session) + ", position " + std::to_string(m_me);
 				const std::vector<PingResult> direct = PickDirect(line);
 				AddRelayServers(line, t.servers);
 				for (int p = 0; p < m_n; p++)

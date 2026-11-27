@@ -30,6 +30,10 @@ namespace Zdxsv
 	// "[2001:db8:1:x::x]:7001").
 	std::string MaskIpAddress(const std::string& addr);
 
+	// A battle's session id for logs: the live and replay uploads take it as their credential. All digits
+	// but the last two become '*'.
+	std::string MaskSessionId(uint32_t session);
+
 	// A peer's UDP address: numeric IPv4 ("1.2.3.4") or IPv6 ("2001:db8::1") ip, host order port.
 	struct PeerAddr
 	{

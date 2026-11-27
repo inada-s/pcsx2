@@ -13,6 +13,7 @@
 #include "mbedtls/sha256.h"
 #include "rapidjson/document.h"
 
+#include <algorithm>
 #include <array>
 #include <cctype>
 #include <chrono>
@@ -30,9 +31,11 @@
 #define AUTH_SOCKET_TYPE SOCKET
 #else
 #include <arpa/inet.h>
+#include <fcntl.h>
 #include <netinet/in.h>
 #include <sys/select.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <unistd.h>
 #define AUTH_SOCKET_TYPE int
 #define INVALID_SOCKET (-1)
@@ -48,12 +51,27 @@ namespace Zdxsv
 		constexpr const char* kTokenFile = "zdxsv_auth_token.txt";
 		constexpr size_t kMaxTokenLen = 128;
 		constexpr size_t kMaxCarryLen = 16;
+		constexpr int kMaxAccountSlots = 8;
 		constexpr auto kSignInTimeout = std::chrono::minutes(10);
 		constexpr size_t kMaxRequestBytes = 4096;
 
 		std::string TokenPath()
 		{
 			return Path::Combine(EmuFolders::Settings, kTokenFile);
+		}
+
+		bool TokenWrite(const std::string& token)
+		{
+#ifdef _WIN32
+			return FileSystem::WriteStringToFile(TokenPath().c_str(), token);
+#else
+			const int fd = open(TokenPath().c_str(), O_WRONLY | O_CREAT | O_TRUNC | O_CLOEXEC, 0600);
+			if (fd < 0)
+				return false;
+			bool ok = fchmod(fd, 0600) == 0 && write(fd, token.data(), token.size()) == static_cast<ssize_t>(token.size());
+			ok = close(fd) == 0 && ok;
+			return ok;
+#endif
 		}
 
 		bool ValidToken(const std::string& s)
@@ -312,7 +330,7 @@ namespace Zdxsv
 		const std::string token(it->value.GetString(), it->value.GetStringLength());
 		if (!ValidToken(token))
 			return "bad token response";
-		if (!FileSystem::WriteStringToFile(TokenPath().c_str(), token))
+		if (!TokenWrite(token))
 			return "cannot write the token file";
 		Console.WriteLn("Zdxsv: auth: signed in");
 		return {};
@@ -381,8 +399,8 @@ namespace Zdxsv
 				return doc.HasMember(name) && doc[name].IsInt() ? doc[name].GetInt() : 0;
 			};
 			list->default_account = get_int("default");
-			list->max_new = get_int("max_new");
-			list->max_carried = get_int("max_carried");
+			list->max_new = std::clamp(get_int("max_new"), 0, kMaxAccountSlots);
+			list->max_carried = std::clamp(get_int("max_carried"), 0, kMaxAccountSlots);
 			list->added = get_int("added");
 			return {};
 		}
