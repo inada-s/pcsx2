@@ -272,7 +272,7 @@ int main()
 		"rollback_budget=2.50\nrollback_budget_used=1.25\nrtt_0=12\naddr_0=203.0.113.5:7001\npath_0=direct\nrelays=1\n"
 		"ping_wait_ms=1500\ncut_sends=4\nclose=net battle end\nframes=21563\nrounds=1:3,17;-1:3,0\nrollback_frames=812\n"
 		"mismatches=2\ndisconnected=1\ndisconnected_positions=0\nping_0=201/215/250\nloss_0=3/5\ntimesync=17\n"
-		"input_blocks=42\nfps_history=60,59,60\n");
+		"input_blocks=42\ndesync_checks=3\ndesync_frame=1200\nfps_history=60,59,60\nlog_000=first\nlog_001=last\n");
 	Check(SameJson(report, Fixture("matching_report.json")), "report: every field as in matching_report.json", (int)report.size());
 	const std::string sparse =
 		Zdxsv::EncodeMatchingReport("position=0\nrtt_1=30\ndisconnected=0\ndisconnected_positions=\nping_1=-1/-1/-1\nfps_history=\n");
@@ -289,6 +289,21 @@ int main()
 		Check(big.size() <= Zdxsv::MATCHING_REPORT_MAX_BYTES && big.find("x99\"]}") != std::string::npos &&
 				  big.find("x0\"") == std::string::npos,
 			"report: log tail cut from the oldest within the size limit", (int)big.size());
+	}
+
+	// game patches: zdxsv's 0x9953 notice testdata/wire/game_patches.json
+	{
+		std::vector<Zdxsv::GamePatch> patches;
+		const bool ok = Zdxsv::ParseGamePatches(Fixture("game_patches.json"), patches);
+		const auto code = [&](size_t p, size_t c, uint8_t size, uint32_t address, uint32_t original, uint32_t changed) {
+			const Zdxsv::GamePatchCode& x = patches[p].codes[c];
+			return x.size == size && x.address == address && x.original == original && x.changed == changed;
+		};
+		Check(ok && patches.size() == 2 && patches[0].name == "once" && patches[0].game == "SLPS-25419" && patches[0].writeOnce &&
+				  patches[0].codes.size() == 2 && code(0, 0, 32, 0x3080a0, 0x24020001, 0x24020002) && code(0, 1, 8, 0x1f0003, 0, 255) &&
+				  patches[1].name == "frame" && !patches[1].writeOnce && patches[1].codes.size() == 1 &&
+				  code(1, 0, 16, 0x400000, 0x1234, 0xabcd),
+			"game patches: every field of game_patches.json", (int)patches.size());
 	}
 
 	// STUN Ping / Pong: zdxsv's testdata/wire/ping.json and its answer pong.json

@@ -60,3 +60,5 @@ jobs:
         run: python3 tests/zdxsv/featurecheck.py
       - name: Check upstream spots are marked and listed
         run: python3 tools/zdxsv/upstream_spots.py
+      - name: Check wire fixtures equal zdxsv's
+        run: python3 tests/zdxsv/wirecheck.py
