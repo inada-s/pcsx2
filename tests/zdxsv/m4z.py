@@ -74,9 +74,9 @@ EMU=1: the 4 clients are emulators instead (platform info, no zproxy by default;
   REPORT=1: the lobby logged one 0x9952 match report per
   client for the results' battle code: result=ggpo + close_reason=net battle end + 0 mismatches (cut: result=cut).
   PAUSE=S (SHOW: the clients to pause): after the logins every SHOW client is paused (TogglePause = Space)
-  for S s, then resumed. Checks: the lobby closed no connection for silence (Recv Timeout), each paused
+  for S s, then resumed. Checks: the lobby closed no connection for silence (recv timeout), each paused
   client answered >= S/10-2 line checks. PAUSE_ONLY=1: exit after these checks. Control:
-  CENV=ZDXSV_PAUSE_LINE_CHECK=0 (S > 120: Recv Timeout).
+  CENV=ZDXSV_PAUSE_LINE_CHECK=0 (S > 120: recv timeout).
   OSD=1: each GGPO client's last `osd frame` log line (-> osd-pN.txt)
   has its delay and every opponent's user id, name (battle info name_), pilot name (pilot_) and ping;
   names, pilot names = zdxsv.db (osdname.py).
@@ -652,7 +652,7 @@ def main():
         for i in show:
             zrig.ctl(cpid[i], "Space")
         time.sleep(12)
-        ok(f"paused {ps} s: no lobby Recv Timeout", not c(lobby, "Recv Timeout"))
+        ok(f"paused {ps} s: no lobby Recv Timeout", not c(lobby, r"(?i)recv timeout"))
         for i in show:
             f = el(i)
             ok(f"p{i} paused + resumed, line checks answered paused >= {ps // 10 - 2}",
