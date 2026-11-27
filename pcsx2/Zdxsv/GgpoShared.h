@@ -377,6 +377,7 @@ namespace Zdxsv
 	{
 		std::vector<Zdxsv::PeerAddr> peers; // per position, picked when armed
 		std::vector<int> via; // per position: PingResult.via (0 direct, 1 peer relay, 2 relay server)
+		std::vector<std::vector<Zdxsv::PeerAddr>> sources; // per position: PingResult.sources
 		std::vector<Zdxsv::RelayServerAddr> servers; // relay servers, registered with GGPO in order
 		std::vector<LobbyPlayer> players;
 		std::vector<GamePatch> patches;

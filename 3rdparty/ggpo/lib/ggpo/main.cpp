@@ -301,6 +301,14 @@ GGPOErrorCode ggpo_add_relay_server_source(GGPOSession *ggpo, const char *ip, un
 	return ggpo->AddRelayServerSource(ip, port);
 }
 
+GGPOErrorCode ggpo_add_player_source(GGPOSession *ggpo, GGPOPlayerHandle player, const char *ip, unsigned short port)
+{
+	if (ggpo == nullptr)
+		return GGPO_ERRORCODE_INVALID_SESSION;
+
+	return ggpo->AddPlayerSource(player, ip, port);
+}
+
 GGPOErrorCode ggpo_set_mute(GGPOSession *ggpo, bool mute)
 {
 	if (ggpo == nullptr)

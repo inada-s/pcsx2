@@ -225,6 +225,7 @@ namespace Zdxsv
 		PeerAddr addr; // where GGPO sends: the peer, the relaying peer or the relay server
 		int via = 0; // 0 direct, 1 through the peer at position relay, 2 through relay server relay
 		int relay = -1;
+		std::vector<PeerAddr> sources; // where the peer's own ping packets came from (ggpo_add_player_source)
 	};
 	// Relay server k as GGPO registers it (ggpo_add_relay_server): addr = the faster family that
 	// answered (IPv4 if none did), alt = the other family's address, empty if none.

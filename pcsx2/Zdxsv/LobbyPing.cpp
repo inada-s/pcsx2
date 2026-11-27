@@ -270,7 +270,10 @@ namespace Zdxsv
 				{
 					if (p == m_me)
 						continue;
-					const PingResult r = PickPath(p, direct, t.servers);
+					PingResult r = PickPath(p, direct, t.servers);
+					for (const Cand& c : m_cand[p])
+						if (c.sends)
+							r.sources.push_back(c.addr);
 					t.result[p] = r;
 					line += "; path " + std::to_string(p) + " " +
 							(r.via == 2 ? "relay " + std::to_string(r.relay) : r.via == 1 ? "peer " + std::to_string(r.relay) : std::string("direct")) +

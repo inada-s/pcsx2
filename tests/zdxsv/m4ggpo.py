@@ -31,6 +31,9 @@ Checks (besides m4.py's): GGPO clients: `lobby peer position` x(N-1) and `net pl
   other path `direct`, K and L take the lobby delay from the peer path rtt (control: the plain checks on those logs fail on K and L).
   BLOCK=K-L BLOCK_SPLIT=1: K relays through the lowest other position, L through the highest (ZDXSV_PEER_RELAY_PICK);
   the BLOCK checks plus `path through peer` on K and L.
+  RELAY=1 BLOCK=K-L RELAY_BLOCK=L (fake_lobby.py --relay-block L): L reaches no relay server, so K reaches L
+  through a peer it reaches through the relay server, and that peer forwards for K: per client the paths
+  relay 0 / direct / peer: L 0/2/1, K 2/0/1, the others 2/1/0; the battle ends clean.
   UNREACH=K (GDELAY=auto, with GGPO_LAT; fake_lobby.py --ggpo-block K-x for every other client x): nobody has a
   path to client K, not even through a peer: K gets no answer, every other client gets rtt -1 from K only;
   then the BAD_SESSION checks (every client cuts, the game gives up and reconnects to the lobby).
@@ -111,6 +114,12 @@ def main():
         pick = {k: others[0], l2: others[-1]}
         for x, v in ((k, "first"), (l2, "last")):
             os.environ[f"PCSX2_ENV_P{x}"] += f" ZDXSV_PEER_RELAY_PICK={v}"
+    # RELAY_BLOCK=L with RELAY and BLOCK=K-L: client L reaches no relay server, so K reaches L through a peer
+    # that K and the others reach through the relay server
+    rblk = zrig.env("RELAY_BLOCK")
+    if rblk and (not relay or not block or rblk not in block.split("-")):
+        print("m4ggpo: RELAY_BLOCK=L needs RELAY and BLOCK=K-L")
+        return 2
     gb = ",".join(f"{unreach}-{i}" for i in gc if i != unreach) if unreach else block
     # UNREACH with RELAY: K reaches the others only through the relay server
     cut = bad or (unreach and not relay)
@@ -135,7 +144,8 @@ def main():
     fa = f"--ggpo {port} --ggpo-clients {''.join(gc)}" + (f" --ggpo-delay {lat}" if lat else "") + f" --p2p {p2p}" + \
         (f" --ggpo-jitter {jit}" if jit else "") + (f" --ggpo-loss {loss}" if loss else "") + \
         (f" --bad-session {bad}" if bad else "") + (f" --no-addr {noaddr}" if noaddr else "") + \
-        (f" --ggpo-block {gb}" if gb else "") + (f" --relay {rl} --relay-session {rs}" if relay else "")
+        (f" --ggpo-block {gb}" if gb else "") + (f" --relay {rl} --relay-session {rs}" if relay else "") + \
+        (f" --relay-block {rblk}" if rblk else "")
     RC[0] = subprocess.call([zrig.PY, "-u", os.path.join(zrig.HERE, "m4.py")], env=dict(os.environ, FAKE_ARGS=fa))
     n = len(gc)
     e = int(gmin or 2)
@@ -179,7 +189,7 @@ def main():
             else:
                 ok(f"p{i} 2 peers answered, p{cut} rtt -1, {dl}",
                    any(re.search(r"rtt [0-9].*rtt [0-9]", l) and "rtt -1" in l and re.search(dq, l) for l in ping))
-        if auto and not cut and not blk:
+        if auto and not cut and not blk and not rblk:
             d = e
             if not relay:
                 # the measured rtt is 2*GGPO_LAT plus a few ms of frame pacing, enough to cross a 32 ms step
@@ -194,7 +204,11 @@ def main():
             ok(f"p{i} IPv6 candidates answered x3", sum(len(re.findall(r"\]:[0-9]* rtt [0-9]", l)) for l in ping) == 3)
         if p2p != "v4":
             ok(f"p{i} own IPv6", c(r"zdxsv: udp: port.*IPv6 \["))
-        if relay and not cut:
+        if rblk:
+            want = (0, 2, 1) if i == rblk else (2, 0, 1) if blk else (2, 1, 0)
+            got = tuple(c(rf"ZdxsvGgpo: lobby path to position [0-9]: {k}") for k in ("relay 0", "direct", "peer [0-9]"))
+            ok(f"p{i} paths relay, direct, peer x{want} (RELAY_BLOCK)", got == want)
+        elif relay and not cut:
             for a in rl.split(","):
                 ok(f"p{i} relay server {a} registered", c(r"ZdxsvGgpo: relay server " + re.escape(a)))
             if alt:

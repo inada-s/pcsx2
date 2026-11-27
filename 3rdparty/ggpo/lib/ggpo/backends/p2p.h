@@ -36,6 +36,7 @@ public:
    GGPOErrorCode SetDisconnectWithoutRollback(bool allow) override;
    GGPOErrorCode AddRelayServer(const char *ip, unsigned short port, const char *alt_ip) override;
    GGPOErrorCode AddRelayServerSource(const char *ip, unsigned short port) override;
+   GGPOErrorCode AddPlayerSource(GGPOPlayerHandle player, const char *ip, unsigned short port) override;
    GGPOErrorCode SendMessage(const void *msg, int len, bool spectators) override;
    GGPOErrorCode GetCurrentFrame(int* frame) override { *frame = _sync.GetFrameCount(); return GGPO_OK; }
    GGPOErrorCode GetLastConfirmedFrame(int* frame) override { *frame = _sync.GetLastConfirmedFrame(); return GGPO_OK; }
@@ -87,8 +88,8 @@ protected:
    bool                  _disconnect_without_rollback;
    int                   _test_log;       /* GGPO_TEST_LOG: count relay forwards for tools/rbk_test */
    int                   _relay_forwards;
-   // zdxsv: a directly reached player's own address, kept when its endpoint moves to a relay server.
-   std::vector<sockaddr_storage> _direct_addrs;
+   // zdxsv: per player, the addresses its own packets come from (its endpoint when direct, ggpo_add_player_source).
+   std::vector<std::vector<sockaddr_storage>> _player_sources;
    struct RelayServer {
       sockaddr_storage addr;                  /* where this peer sends */
       std::vector<sockaddr_storage> known;    /* addr, the other IP family's address and those it answers from */

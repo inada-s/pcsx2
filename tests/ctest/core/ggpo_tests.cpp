@@ -346,7 +346,7 @@ namespace
 	}
 } // namespace
 
-// A relay packet is forwarded only for a player reached directly, and carries that player's index
+// A relay packet is forwarded only from an address known as a player's, and carries that player's index
 // whatever index the packet names.
 TEST(GGPO, RelayForwardsOnlyFromPlayers)
 {

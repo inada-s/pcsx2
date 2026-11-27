@@ -123,6 +123,9 @@ namespace Zdxsv
 			if (!pingError.empty())
 				rtts += "ping_error=" + pingError + "\n";
 			s_net.via = std::move(via);
+			s_net.sources.assign(n, {});
+			for (size_t p = 0; p < pings.size() && p < s_net.sources.size(); p++)
+				s_net.sources[p] = pings[p].sources;
 			s_net.servers = std::move(servers);
 			rtts += "ping_wait_ms=" + std::to_string(static_cast<int>(wait.GetTimeMilliseconds())) + "\n";
 			// no GGPO unless every peer answered the ping test (same
@@ -154,6 +157,7 @@ namespace Zdxsv
 			report("ggpo");
 			s_report += "delay=" + std::to_string(s_opt.delay) + "\nfixed_delay=1\n";
 			s_net.via.clear();
+			s_net.sources.clear();
 			s_net.servers.clear();
 		}
 		s_opt.players = n;
@@ -264,6 +268,7 @@ namespace Zdxsv
 		s_lobby.ids.clear();
 		s_net.peers.clear();
 		s_net.via.clear();
+		s_net.sources.clear();
 		s_net.servers.clear();
 		s_net.players.clear();
 		s_net.patches.clear();

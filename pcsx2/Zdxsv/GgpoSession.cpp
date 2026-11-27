@@ -242,6 +242,10 @@ namespace Zdxsv
 				}
 				if (ggpo_add_player(s_session, &player, &s_handles[p]) != GGPO_OK)
 					return "start failed";
+				if (player.type == GGPO_PLAYERTYPE_REMOTE && s_opt.lobby && p < static_cast<int>(s_net.sources.size()))
+					for (const Zdxsv::PeerAddr& a : s_net.sources[p])
+						if (ggpo_add_player_source(s_session, s_handles[p], a.ip.c_str(), a.port) != GGPO_OK)
+							return "start failed";
 				if (player.type == GGPO_PLAYERTYPE_LOCAL)
 					ggpo_set_frame_delay(s_session, s_handles[p], s_opt.delay + 1); // + 1: the input is added before the advance
 			}

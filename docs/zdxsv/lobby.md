@@ -208,7 +208,8 @@ A peer is reached through:
 Each side picks its relay peer on its own, so the two directions may go
 through different peers: packets of a peer reached through another peer
 are accepted from any directly reached peer. A peer forwards a relayed packet
-only when it comes from a directly reached player, and names that player as
+only when it comes from an address a player's ping test packets came from
+(that player reached directly or through a relay server), and names that player as
 its sender. Until the sync handshake gives a peer's magic number, only sync
 messages from it count.
 

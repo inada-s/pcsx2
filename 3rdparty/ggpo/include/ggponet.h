@@ -645,6 +645,15 @@ GGPO_API GGPOErrorCode __cdecl ggpo_add_relay_server(GGPOSession*, const char *i
 GGPO_API GGPOErrorCode __cdecl ggpo_add_relay_server_source(GGPOSession*, const char *ip, unsigned short port);
 
 /*
+ * ggpo_add_player_source --
+ *
+ * Adds an address the remote player's own packets come from, for a player
+ * reached through a relay. Relay packets from it are forwarded as that
+ * player's; packets from addresses not known as a player's are not.
+ */
+GGPO_API GGPOErrorCode __cdecl ggpo_add_player_source(GGPOSession*, GGPOPlayerHandle player, const char *ip, unsigned short port);
+
+/*
  * ggpo_set_mute --
  *
  * Tests: true drops every packet the session sends and receives, as a network
