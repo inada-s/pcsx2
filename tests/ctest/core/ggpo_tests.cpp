@@ -527,3 +527,65 @@ TEST(GGPO, PeerInputsDoNotEndSession)
 		closesocket(peer);
 	}
 }
+
+namespace
+{
+	// The newest frame of the peer that the session reports back in its own input packets.
+	int ReportedPeerFrame(GGPOSession* session, SOCKET peer)
+	{
+		uint16_t input = 0;
+		EXPECT_EQ(ggpo_add_local_input(session, 1, &input, sizeof(input)), GGPO_OK);
+		int frame = -2;
+		for (int k = 0; k < 20; k++)
+		{
+			std::this_thread::sleep_for(std::chrono::milliseconds(5));
+			EXPECT_EQ(ggpo_idle(session, 0), GGPO_OK);
+			char buf[2048];
+			int len;
+			while ((len = recv(peer, buf, sizeof(buf), 0)) >= static_cast<int>(sizeof(UdpMsg::hdr)))
+			{
+				const UdpMsg* m = reinterpret_cast<const UdpMsg*>(buf);
+				if (m->hdr.type == UdpMsg::Input)
+					frame = m->u.input.peer_connect_status[1].last_frame;
+			}
+		}
+		return frame;
+	}
+} // namespace
+
+// The session keeps taking a peer's inputs after a forged far-ahead frame and stops at what its queue holds.
+TEST(GGPO, PeerInputsBounded)
+{
+	struct Packet
+	{
+		uint32 start_frame;
+		int frames;
+		int last_frame;
+	};
+	struct Case
+	{
+		const char* what;
+		std::vector<Packet> packets;
+		int reported;
+	};
+	const Case cases[] = {
+		{"forged far-ahead last frame", {{0, 1, 1000000}, {0, 2, 1}}, 1},
+		{"more frames than the input queue holds", {{0, 50, -1}, {50, 50, -1}, {100, 50, -1}, {150, 50, -1}}, 127},
+	};
+	for (const Case& c : cases)
+	{
+		unsigned short peer_port;
+		SOCKET peer = BoundLoopbackSocket(&peer_port);
+		const unsigned short local_port = FreeLoopbackPort();
+		GGPOSession* session = StartSyncedWithPeer(peer, peer_port, local_port);
+		uint16 seq = 1;
+		for (const Packet& p : c.packets)
+		{
+			SendInput(peer, local_port, seq++, p.start_frame, p.frames, p.last_frame);
+			IdleExpectOk(session, c.what);
+		}
+		EXPECT_EQ(ReportedPeerFrame(session, peer), c.reported) << c.what;
+		ggpo_close_session(session);
+		closesocket(peer);
+	}
+}

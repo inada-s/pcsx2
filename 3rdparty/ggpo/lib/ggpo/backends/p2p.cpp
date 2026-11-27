@@ -150,6 +150,10 @@ GGPOErrorCode
 Peer2PeerBackend::DoPoll(int timeout)
 {
    if (!_sync.InRollback()) {
+      // zdxsv: inputs past a queue's room are left unacked and sent again, not added past its length.
+      for (int i = 0; i < _num_players; i++) {
+         _endpoints[i].SetInputQueueRoom(_sync.GetInputQueueRoom(i));
+      }
       _poll.Pump(0);
       if (timeout < 0) return GGPO_OK;
 

@@ -64,7 +64,8 @@ UdpProtocol::UdpProtocol() :
    _disconnect_notify_start(0),
    _disconnect_notify_sent(false),
    _next_send_seq(0),
-   _next_recv_seq(0)
+   _next_recv_seq(0),
+   _input_queue_room(INPUT_QUEUE_LENGTH)
 {
    _last_sent_input.init(-1, NULL, 1);
    _last_received_input.init(-1, NULL, 1);
@@ -784,6 +785,18 @@ UdpProtocol::OnInput(UdpMsg *msg, int len)
        */
       UdpMsg::connect_status* remote_status = msg->u.input.peer_connect_status;
       // zdxsv: a peer's frames never go back; a packet that says so is dropped, not asserted on.
+      // A frame further ahead of every frame we know than an input queue holds is forged: kept by the MAX
+      // below, it would make every real packet look like going back.
+      int newest_known_frame = -1;
+      for (unsigned i = 0; _local_connect_status && i < UDP_MSG_MAX_PLAYERS; i++) {
+         newest_known_frame = MAX(newest_known_frame, _local_connect_status[i].last_frame);
+      }
+      for (unsigned i = 0; i < ARRAY_SIZE(_peer_connect_status); i++) {
+         if (remote_status[i].last_frame > newest_known_frame + INPUT_QUEUE_LENGTH) {
+            Log("udpproto%d | dropping input: peer %d last frame %d too far ahead", _queue, i, (int)remote_status[i].last_frame);
+            return false;
+         }
+      }
       for (unsigned i = 0; i < ARRAY_SIZE(_peer_connect_status); i++) {
          if (!_peer_connect_status[i].disconnected && !remote_status[i].disconnected
                && remote_status[i].last_frame < _peer_connect_status[i].last_frame) {
@@ -828,7 +841,7 @@ UdpProtocol::OnInput(UdpMsg *msg, int len)
          ASSERT(currentFrame <= (_last_received_input.frame + 1));
          bool useInputs = currentFrame == _last_received_input.frame + 1;
          // zdxsv: room for the disconnect and resume events of this packet. The frames left are sent again.
-         if (useInputs && _event_queue.size() >= EVENT_QUEUE_SIZE - 1 - 2) {
+         if (useInputs && (_event_queue.size() >= EVENT_QUEUE_SIZE - 1 - 2 || (int)_event_queue.size() >= _input_queue_room)) {
             break;
          }
 
