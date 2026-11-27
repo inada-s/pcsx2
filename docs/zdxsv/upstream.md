@@ -98,6 +98,7 @@ Visual Studio and `lupdate` drop comments when they rewrite these files.
 | `common/HTTPDownloaderWinHTTP.cpp` | `HTTPDownloaderWinHttp::StartRequest` | replay upload posts multipart |
 | `common/vsprops/LinkPCSX2Deps.props` |  | Sentry crash reports |
 | `common/vsprops/preBuild.cmd` | `0` | release tags are zdxsv-X.Y.Z (the auto updater compares these). |
+| `pcsx2-qt/AutoUpdaterDialog.cpp` |  | include `Zdxsv/QtHooks.h` |
 | `pcsx2-qt/AutoUpdaterDialog.cpp` |  | include `Zdxsv/TestOptions.h` |
 | `pcsx2-qt/AutoUpdaterDialog.cpp` |  | zdxsv release updates |
 | `pcsx2-qt/AutoUpdaterDialog.cpp` |  | zdxsv release updates |
@@ -105,12 +106,15 @@ Visual Studio and `lupdate` drop comments when they rewrite these files.
 | `pcsx2-qt/AutoUpdaterDialog.cpp` | `AutoUpdaterDialog::AutoUpdaterDialog` | two buttons, Update Now as the default. |
 | `pcsx2-qt/AutoUpdaterDialog.cpp` | `AutoUpdaterDialog::queueUpdateCheck` | `Zdxsv::TestEnv` |
 | `pcsx2-qt/AutoUpdaterDialog.cpp` | `ParseZdxsvVersion` | `ParseZdxsvVersion` |
-| `pcsx2-qt/AutoUpdaterDialog.cpp` | `AutoUpdaterDialog::getLatestReleaseComplete` | `// GitHub releases list, newest first. Take the newest published zdxsv-X.Y.Z release` |
-| `pcsx2-qt/AutoUpdaterDialog.cpp` | `AutoUpdaterDialog::getLatestReleaseComplete` | `ParseZdxsvVersion` |
+| `pcsx2-qt/AutoUpdaterDialog.cpp` | `AutoUpdaterDialog::getLatestReleaseComplete` | the newest release has files from elsewhere |
+| `pcsx2-qt/AutoUpdaterDialog.cpp` | `AutoUpdaterDialog::getLatestReleaseComplete` | the update and SHA256SUMS.txt, both at this fork's release URLs, or no update. |
 | `pcsx2-qt/AutoUpdaterDialog.cpp` | `AutoUpdaterDialog::getLatestReleaseComplete` | zdxsv release updates |
 | `pcsx2-qt/AutoUpdaterDialog.cpp` | `AutoUpdaterDialog::getChangesComplete` | Enter presses Update Now |
+| `pcsx2-qt/AutoUpdaterDialog.cpp` | `AutoUpdaterDialog::downloadUpdateClicked` | SHA256SUMS.txt of the release first; the update is installed only if its SHA-256 matches. |
+| `pcsx2-qt/AutoUpdaterDialog.cpp` | `AutoUpdaterDialog::downloadUpdateClicked` | never install a file that differs from the release's SHA256SUMS.txt. |
 | `pcsx2-qt/AutoUpdaterDialog.cpp` | `AutoUpdaterDialog::checkIfUpdateNeeded` | no Skip This Update, so a version skipped before is offered again. |
 | `pcsx2-qt/AutoUpdaterDialog.cpp` | `AutoUpdaterDialog::processUpdate` | no usable Trash (a volume without one, a denied Trash): park the old app in the staging directory |
+| `pcsx2-qt/AutoUpdaterDialog.h` |  | SHA256SUMS.txt of the same release |
 | `pcsx2-qt/CMakeLists.txt` |  | `Zdxsv/CrashReports.cpp` |
 | `pcsx2-qt/CMakeLists.txt` |  | `ZdxsvSettingsWidget`, `ZdxsvReplayDialog` |
 | `pcsx2-qt/CMakeLists.txt` |  | crash reports (docs/zdxsv/crash-reports.md). |

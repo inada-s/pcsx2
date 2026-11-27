@@ -171,6 +171,7 @@ target_sources(pcsx2-qt PRIVATE
 	Zdxsv/QtOnlineLimits.cpp
 	Zdxsv/QtReplayChild.cpp
 	Zdxsv/QtWheelVolume.cpp
+	Zdxsv/QtUpdateVerify.cpp
 	Zdxsv/QtSetupWizard.cpp
 	Zdxsv/QtHooks.h
 	Settings/DEV9UiCommon.cpp

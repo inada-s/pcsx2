@@ -30,7 +30,8 @@
   GitHub Pages at `https://pcsx2.zdxsv.net/` (repository Settings → Pages →
   Source: GitHub Actions, Custom domain: `pcsx2.zdxsv.net`; DNS: a CNAME
   record `pcsx2` → `inada-s.github.io`).
-- Each release also has `SHA256SUMS.txt` and a GitHub build provenance
+- Each release also has `SHA256SUMS.txt` (the auto updater refuses a release
+  without it and a file whose SHA-256 differs) and a GitHub build provenance
   attestation for both files: `gh attestation verify <file> -R inada-s/pcsx2`.
 - A release that already exists for the tag (e.g. made on the web) is kept and
   gets the files; a file of the same name already attached fails the release

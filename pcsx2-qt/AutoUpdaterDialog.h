@@ -71,6 +71,7 @@ private:
 	QString m_latest_version;
 	QDateTime m_latest_version_timestamp;
 	QString m_download_url;
+	QString m_sums_url; // zdxsv: SHA256SUMS.txt of the same release
 	int m_download_size = 0;
 
 	bool m_display_messages = false;

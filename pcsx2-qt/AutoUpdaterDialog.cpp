@@ -6,6 +6,7 @@
 #include "QtHost.h"
 #include "QtProgressCallback.h"
 #include "QtUtils.h"
+#include "Zdxsv/QtHooks.h"
 
 #include "pcsx2/BuildVersion.h"
 #include "pcsx2/Host.h"
@@ -65,6 +66,7 @@ static constexpr u32 HTTP_POLL_INTERVAL = 10;
 #elif defined(__APPLE__)
 #define UPDATE_ASSET_NAME "pcsx2-zdxsv-macos.tar.xz"
 #endif
+#define UPDATE_SUMS_NAME "SHA256SUMS.txt" // zdxsv: the update must match its line
 
 // One release channel.
 static const char* UPDATE_TAGS[] = {"zdxsv"};
@@ -238,6 +240,7 @@ void AutoUpdaterDialog::getLatestReleaseComplete(s32 status_code, std::vector<u8
 	// GitHub releases list, newest first. Take the newest published zdxsv-X.Y.Z release
 	// that has an asset for this platform.
 	bool found_update_info = false;
+	bool refused = false; // zdxsv: the newest release has files from elsewhere
 	if (status_code == HTTPDownloader::HTTP_STATUS_OK)
 	{
 		QJsonParseError parse_error;
@@ -251,24 +254,44 @@ void AutoUpdaterDialog::getLatestReleaseComplete(s32 status_code, std::vector<u8
 				if (release["draft"].toBool() || release["prerelease"].toBool() || !ParseZdxsvVersion(tag))
 					continue;
 
+				// zdxsv: the update and SHA256SUMS.txt, both at this fork's release URLs, or no update.
+				QString download_url, sums_url;
+				int download_size = 0;
 				for (const QJsonValue& asset_value : release["assets"].toArray())
 				{
 					const QJsonObject asset(asset_value.toObject());
-					if (asset["name"].toString() != QStringLiteral(UPDATE_ASSET_NAME))
-						continue;
-
-					m_latest_version = tag;
-					m_latest_version_timestamp = QDateTime::fromString(release["published_at"].toString(), Qt::ISODate);
-					m_download_url = asset["browser_download_url"].toString();
-					m_download_size = asset["size"].toInt();
-					found_update_info = true;
+					const QString name(asset["name"].toString());
+					if (name == QStringLiteral(UPDATE_ASSET_NAME))
+					{
+						download_url = asset["browser_download_url"].toString();
+						download_size = asset["size"].toInt();
+					}
+					else if (name == QStringLiteral(UPDATE_SUMS_NAME))
+					{
+						sums_url = asset["browser_download_url"].toString();
+					}
+				}
+				if (download_url.isEmpty())
+					continue;
+				if (download_url != Zdxsv::QtUpdateAssetUrl(tag, QStringLiteral(UPDATE_ASSET_NAME)) ||
+					sums_url != Zdxsv::QtUpdateAssetUrl(tag, QStringLiteral(UPDATE_SUMS_NAME)))
+				{
+					refused = true;
+					reportError("%s refused: %s and %s must be files of its release in this repository",
+						tag.toUtf8().constData(), UPDATE_ASSET_NAME, UPDATE_SUMS_NAME);
 					break;
 				}
-				if (found_update_info)
-					break;
+
+				m_latest_version = tag;
+				m_latest_version_timestamp = QDateTime::fromString(release["published_at"].toString(), Qt::ISODate);
+				m_download_url = download_url;
+				m_sums_url = sums_url;
+				m_download_size = download_size;
+				found_update_info = true;
+				break;
 			}
 
-			if (!found_update_info)
+			if (!found_update_info && !refused)
 				reportError("no %s release with %s found", UPDATE_TAG_PREFIX, UPDATE_ASSET_NAME);
 		}
 		else
@@ -409,9 +432,29 @@ void AutoUpdaterDialog::downloadUpdateClicked()
 	progress.GetDialog().setWindowIcon(windowIcon());
 	progress.SetCancellable(true);
 
+	// zdxsv: SHA256SUMS.txt of the release first; the update is installed only if its SHA-256 matches.
+	std::optional<QByteArray> sums;
+	m_http_poll_timer->stop();
+	m_http->CreateRequest(
+		m_sums_url.toStdString(),
+		[this, &sums](s32 status_code, const std::string&, std::vector<u8> data) {
+			if (status_code == HTTPDownloader::HTTP_STATUS_OK && !data.empty() && data.size() <= 65536)
+				sums = QByteArray(reinterpret_cast<const char*>(data.data()), static_cast<qsizetype>(data.size()));
+			else if (status_code != HTTPDownloader::HTTP_STATUS_CANCELLED)
+				reportError("Download of " UPDATE_SUMS_NAME " failed: %d, %zu bytes", status_code, data.size());
+		},
+		&progress);
+	while (m_http->HasAnyRequests())
+	{
+		QApplication::processEvents(QEventLoop::AllEvents, HTTP_POLL_INTERVAL);
+		m_http->PollRequests();
+	}
+	if (!sums)
+		return;
+
 	m_http->CreateRequest(
 		m_download_url.toStdString(),
-		[this, &download_result, &progress](s32 status_code, const std::string&, std::vector<u8> data) {
+		[this, &download_result, &progress, &sums](s32 status_code, const std::string&, std::vector<u8> data) {
 			if (status_code == HTTPDownloader::HTTP_STATUS_CANCELLED)
 				return;
 
@@ -425,6 +468,15 @@ void AutoUpdaterDialog::downloadUpdateClicked()
 			if (data.empty())
 			{
 				reportError("Download failed: Update is empty");
+				download_result = false;
+				return;
+			}
+
+			// zdxsv: never install a file that differs from the release's SHA256SUMS.txt.
+			QString sums_error;
+			if (!Zdxsv::QtUpdateSumsMatch(*sums, QStringLiteral(UPDATE_ASSET_NAME), data.data(), data.size(), &sums_error))
+			{
+				reportError("Update refused: %s", sums_error.toUtf8().constData());
 				download_result = false;
 				return;
 			}
