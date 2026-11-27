@@ -226,6 +226,11 @@ namespace Zdxsv
 		int via = 0; // 0 direct, 1 through the peer at position relay, 2 through relay server relay
 		int relay = -1;
 	};
+	// The path from position me to p, from the shared rtt matrices only, so that p picks the same
+	// path back: rtt[i][j] = i's best direct rtt to j, relayRtt[i][k] = i's to relay server k
+	// (0 = none, 255 = 255 ms or more). peerForce: 0 lowest sum, 1 lowest usable peer, 2 highest.
+	// Sets via, relay and, for a relayed path, rtt (its sum); addr stays empty.
+	PingResult PingPickPath(const uint8_t (&rtt)[4][4], const uint8_t (&relayRtt)[4][4], int n, int nr, int me, int p, int peerForce = 0);
 	// Relay server k as GGPO registers it (ggpo_add_relay_server): addr = the faster family that
 	// answered (IPv4 if none did), alt = the other family's address, empty if none.
 	// sources: addresses its pongs came from other than addr/alt (ggpo_add_relay_server_source).

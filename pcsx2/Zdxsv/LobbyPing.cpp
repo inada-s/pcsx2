@@ -260,9 +260,9 @@ namespace Zdxsv
 			}
 
 			// Fills t.result (path per position) and t.servers (GGPO's relay server addresses), logs the test.
+			// Our row stays as last sent: PickPath must see the matrix the peers got.
 			void Finish(PingTest& t)
 			{
-				OwnRow();
 				std::string line = "ping test: session " + std::to_string(m_session) + ", position " + std::to_string(m_me);
 				const std::vector<PingResult> direct = PickDirect(line);
 				AddRelayServers(line, t.servers);
@@ -518,40 +518,18 @@ namespace Zdxsv
 				}
 			}
 
-			// a relaying peer must beat direct by 32 ms (it spends its
-			// own bandwidth), a relay server by 16 ms; of the two the lower rtt wins
 			PingResult PickPath(int p, const std::vector<PingResult>& direct, const std::vector<RelayServerAddr>& servers) const
 			{
-				PingResult r = direct[p];
-				const bool directOk = r.rtt > 0;
-				int peerJ = -1, peerSum = INT_MAX;
 				// test: first|last forces the lowest|highest usable peer, so the two sides of a blocked pair can differ
 				static const char* pick = TestEnv("ZDXSV_PEER_RELAY_PICK");
 				const int force = !pick ? 0 : !std::strcmp(pick, "first") ? 1 : !std::strcmp(pick, "last") ? 2 : 0;
-				for (int j = 0; j < m_n; j++)
-				{
-					if (j == p || j == m_me || !m_rtt[m_me][j] || m_rtt[j][p] == 0 || m_rtt[j][p] >= 255)
-						continue;
-					const int sum = m_rtt[m_me][j] + m_rtt[j][p];
-					if (force == 1 ? peerJ < 0 : force == 2 || sum < peerSum)
-						peerSum = sum, peerJ = j;
-				}
-				bool peerOk = false;
-				int peerRtt = 0;
-				if (peerJ >= 0 && (!directOk || peerSum + 32 < r.rtt) && direct[peerJ].rtt > 0)
-					peerOk = true, peerRtt = direct[peerJ].rtt + m_rtt[peerJ][p];
-				int server = -1, serverSum = INT_MAX;
-				for (int k = 0; k < m_nr; k++)
-				{
-					const int mine = m_relayRtt[m_me][k], theirs = m_relayRtt[p][k];
-					if (0 < mine && mine < 255 && 0 < theirs && theirs < 255 && mine + theirs < serverSum)
-						serverSum = mine + theirs, server = k;
-				}
-				const bool serverOk = server >= 0 && (!directOk || serverSum + 16 < r.rtt) && RelayBest(server) >= 0;
-				if (serverOk && (!peerOk || serverSum <= peerRtt))
-					r = {serverSum, servers[server].addr, 2, server};
-				else if (peerOk)
-					r = {peerRtt, direct[peerJ].addr, 1, peerJ};
+				PingResult r = PingPickPath(m_rtt, m_relayRtt, m_n, m_nr, m_me, p, force);
+				if (r.via == 2 && RelayBest(r.relay) >= 0)
+					r.addr = servers[r.relay].addr;
+				else if (r.via == 1 && direct[r.relay].rtt > 0)
+					r.addr = direct[r.relay].addr;
+				else
+					r = direct[p];
 				return r;
 			}
 
@@ -587,6 +565,43 @@ namespace Zdxsv
 			int m_dropped = 0;
 		};
 	} // namespace
+
+	// Every input is a value both ends of a pair hold: direct = the slower of the two rows (0 if
+	// either is), a relaying peer j's legs from j's own row, a relay server's from both rows.
+	// A relaying peer must beat direct by 32 ms (it spends its own bandwidth), a relay server by
+	// 16 ms; of the two the lower sum wins, ties to the server and to the lower index.
+	PingResult PingPickPath(const uint8_t (&rtt)[4][4], const uint8_t (&relayRtt)[4][4], int n, int nr, int me, int p, int peerForce)
+	{
+		PingResult r;
+		n = std::min(n, 4);
+		nr = std::min(nr, 4);
+		if (me < 0 || me >= n || p < 0 || p >= n || me == p)
+			return r;
+		const int direct = rtt[me][p] && rtt[p][me] ? std::max(rtt[me][p], rtt[p][me]) : 0;
+		int peerJ = -1, peerSum = INT_MAX;
+		for (int j = 0; j < n; j++)
+		{
+			if (j == p || j == me || !rtt[j][me] || rtt[j][me] >= 255 || !rtt[j][p] || rtt[j][p] >= 255)
+				continue;
+			const int sum = rtt[j][me] + rtt[j][p];
+			if (peerForce == 1 ? peerJ < 0 : peerForce == 2 || sum < peerSum)
+				peerSum = sum, peerJ = j;
+		}
+		const bool peerOk = peerJ >= 0 && (!direct || peerSum + 32 < direct);
+		int server = -1, serverSum = INT_MAX;
+		for (int k = 0; k < nr; k++)
+		{
+			const int mine = relayRtt[me][k], theirs = relayRtt[p][k];
+			if (0 < mine && mine < 255 && 0 < theirs && theirs < 255 && mine + theirs < serverSum)
+				serverSum = mine + theirs, server = k;
+		}
+		const bool serverOk = server >= 0 && (!direct || serverSum + 16 < direct);
+		if (serverOk && (!peerOk || serverSum <= peerSum))
+			r = {serverSum, {}, 2, server};
+		else if (peerOk)
+			r = {peerSum, {}, 1, peerJ};
+		return r;
+	}
 
 	void StartPingTest(uint32_t session, int me, const std::vector<std::vector<PeerAddr>>& byPosition, uint16_t port, int durationMs,
 		const std::vector<BattleInfo::Relay>& relays, const std::vector<int>& teams)
