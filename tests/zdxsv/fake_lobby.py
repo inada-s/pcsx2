@@ -246,7 +246,9 @@ class Battle:
                 # the relay knows one session (zdxsv relay <id> <token>); zdxsv gives every battle its own
                 sid, token = self.args.relay_session.split(":")
                 h = int(sid)
-                m["relays"] = [dict(ip=ip, port=int(port), token=int(token, 16))
+                # --relay-block K: client K is told a relay address nothing listens on, so it reaches no relay server
+                dead = self.args.relay_block and self.conns.index(conn) + 1 == self.args.relay_block
+                m["relays"] = [dict(ip=ip, port=self.args.relay_block_port if dead else int(port), token=int(token, 16))
                                for ip, port in (addr.rsplit(":", 1) for addr in self.args.relay.split(","))]
             if self.args.bad_session and self.conns.index(conn) + 1 == self.args.bad_session:
                 h ^= 0x5A5A5A5A  # negative test: this client's ping packets carry a foreign session
@@ -482,6 +484,8 @@ def main():
     ap.add_argument("--v6", help="IPv6 address for --p2p v6/dual (default: this box's global one)")
     ap.add_argument("--relay", help="relay server ip:port[,ip:port...] (`zdxsv relay` runs): battle info relay_0, relay_1, ..., as zdxsv with ZDXSV_LOBBY_RELAY_ADDR")
     ap.add_argument("--relay-session", default="1234:abcd", help="--relay: ggpo_session:hex token, as given to `zdxsv relay`")
+    ap.add_argument("--relay-block", type=int, default=0, help="--relay: the k-th adopted client (1-based) is told --relay-block-port for every relay")
+    ap.add_argument("--relay-block-port", type=int, default=8269, help="--relay-block: a port nothing listens on")
     ap.add_argument("--api", type=int, default=0, help="login API port (POST /lbs/login, pcsx2 fast login); 0: off")
     ap.add_argument("--db", help="--api: zdxsv.db whose account sessions the logins get (the trace's recording)")
     ap.add_argument("--battlereg",default=os.environ.get("BATTLEREG", os.path.join(here, "battlereg", "battlereg.exe")))
