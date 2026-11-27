@@ -224,7 +224,7 @@ def main(live):
     print(f"p{n} pid {pid} slot {28010 + int(n)}", flush=True)
     # start check: the replay header line within 30 s, else stop
     for _ in range(30):
-        if grep(l, r"ZdxsvGgpo: replay .*: (recorded at position|not a|bad|no lobby answers)|replay: state load failed"):
+        if grep(l, r"ZdxsvGgpo: replay .*: (recorded at position|not a|bad|no lobby answers|file version)|replay: state load failed"):
             break
         time.sleep(1)
     for x in grep(l, "ZdxsvGgpo: replay"):
