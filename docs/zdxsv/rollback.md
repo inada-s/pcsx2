@@ -337,7 +337,10 @@ itself, runs turbo until the battle, and exits when the session ends.
   defaults. During battles, replays and live spectating also speedhacks,
   emulation speed, frame rate and sync to host refresh rate (off: it runs
   the game up to 5 % off nominal speed). An OSD message names the overridden
-  settings; the settings page greys them out.
+  settings; the settings page greys them out. A change during a battle is
+  forced again when applied. Controller type and USB device changes are not
+  forced: a delta state records the device type, a load across the change
+  restores the device it saved, the game state stays in sync.
 
 ## Sync checks
 
