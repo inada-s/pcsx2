@@ -70,7 +70,12 @@ such frames as a mismatch between teams.
 
 `ZDXSV_REPLAY=<file.pb>` plays a replay; `http(s)://` downloads a `.pb`, or
 the first battle of the lobby's public API
-`http://<lobby api>/lbs/replay?battle_code=<code>`. A file or download
+`http://<lobby api>/lbs/replay?battle_code=<code>`. Only a URL whose path ends
+in `/lbs/replay` is read as that JSON answer; its `replay_url` is fetched once
+and only over http(s). Any other download is a replay file whatever its bytes.
+Several sources split by `;` play only from `ZDXSV_REPLAY`; a replay window
+pick is one source. A pick of a lobby URL counts a play for its battle code
+(`/lbs/replay_played`) once the file loads. A file or download
 that starts with the gzip magic (saved files, the lobby's bucket) is
 decompressed first. A file over 256 MiB (decompressed) or with a repeated field
 over 4096 values is not played; a download stops past 256 MiB received, a live
@@ -115,7 +120,7 @@ Tools → zdxsv Replays:
   pilot name (a part of the name matches), user ID, player count, mobile suit
   (used by a player matching the name filters) and rated
   battles only, newest first (or oldest first), 100 per page.
-  Plays the row's `replay_url`. Add to Favorites keeps the row.
+  Play asks the lobby API for the battle's `replay_url`, as Favorites do. Add to Favorites keeps the row.
 - **Favorites**: the kept rows (`ZdxsvReplayFavorites`); Play asks the lobby
   API for the battle's `replay_url`.
 - **Live**: the lobby's `/lbs/live` (running battles first; a running battle's elapsed time is `server_unix - start_unix`, both on the lobby's clock, refreshed every 10 s

@@ -1,6 +1,7 @@
 # apiserve.py PORT FILE [gzip]: stand-in for the lobby's public /lbs/replay (rplay.py API=1). Any battle_code gets a JSON list
 # whose replay_url (/pb) serves FILE; FILE=none: an answer without replay_url. gzip: /pb serves FILE gzip encoded with
 # Content-Encoding: gzip whatever the request's Accept-Encoding, as GCS does for the lobby's objects (Cache-Control: no-transform).
+# /json.pb: a stored object whose bytes are such a JSON list (an uploader's choice); a client must not follow it to /pb.
 import gzip, http.server, json, sys
 
 port, pb = int(sys.argv[1]), sys.argv[2]
@@ -15,6 +16,8 @@ class H(http.server.BaseHTTPRequestHandler):
             if pb != "none":
                 rec["replay_url"] = "http://127.0.0.1:%d/pb" % port
             body = json.dumps([rec]).encode()
+        elif self.path == "/json.pb":
+            body = json.dumps([{"battle_code": "json", "replay_url": "http://127.0.0.1:%d/pb" % port}]).encode()
         elif self.path == "/pb" and pb != "none":
             body = open(pb, "rb").read()
             if gz:

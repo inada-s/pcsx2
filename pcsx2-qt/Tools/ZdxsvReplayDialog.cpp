@@ -513,9 +513,8 @@ void ZdxsvReplayDialog::searchRemote(int page)
 		{
 			const QJsonObject o = v.toObject();
 			const QString code = o["battle_code"].toString();
-			QString src = o["replay_url"].toString();
-			if (src.isEmpty()) // the replay loader asks the API for the replay_url itself
-				src = QString::fromStdString(api) + QStringLiteral("/lbs/replay?battle_code=") + code;
+			// The replay loader asks the API for the replay_url itself: it counts the play for this code and checks the URL.
+			const QString src = QString::fromStdString(api) + QStringLiteral("/lbs/replay?battle_code=") + QString::fromLatin1(QUrl::toPercentEncoding(code));
 			QTreeWidgetItem* item = new QTreeWidgetItem(m_remote);
 			const qint64 start = static_cast<qint64>(o["start_unix"].toDouble());
 			item->setText(0, FormatDate(start));

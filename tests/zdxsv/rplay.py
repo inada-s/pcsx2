@@ -18,6 +18,8 @@ guest's trace (trace-play-povP.txt) is pwchecked too, and the host's `spread` li
 Control bar: KEYS="15:bar:show,w600,bar:timeline:0.7,shot:$OUT/a.png" (pcsx2ctl mouse tokens).
 API=1: plays ZDXSV_REPLAY=http://127.0.0.1:API_PORT/lbs/replay?battle_code=<FILE's name> from apiserve.py (API_PORT,
 default 9891), whose replay_url serves FILE; checks the replay_url line too. GZIP=1: replay_url serves FILE gzip encoded (Content-Encoding: gzip), as GCS serves the lobby's objects.
+API=json (with BAD=1): plays apiserve.py's /json.pb, a replay object whose bytes are a JSON list naming a replay_url;
+FAILs if the client requests that url.
 EXPECT="regex=N;regex>=N": FAILs unless the emulog has exactly N (at least N) lines matching each regex.
 PNACH=1: a pnach file for the Z game in the instance's patches/ and cheats/ (removed at exit); FAILs unless only
 `zdxsv built-in patches` are loaded.
@@ -197,6 +199,11 @@ def main(live):
                                     stdin=subprocess.DEVNULL, stdout=f, stderr=subprocess.STDOUT))
         name = os.path.basename(file_)
         play = f"http://127.0.0.1:{port}/lbs/replay?battle_code={name[:-3] if name.endswith('.pb') else name}"
+    if zrig.env("API") == "json":
+        f = open(os.path.join(out, "apiserve.log"), "wb")
+        api.append(subprocess.Popen([zrig.PY, "-I", os.path.join(zrig.HERE, "apiserve.py"), port, file_],
+                                    stdin=subprocess.DEVNULL, stdout=f, stderr=subprocess.STDOUT))
+        play = f"http://127.0.0.1:{port}/json.pb"
     e = {"ZDXSV_REPLAY": play, "ZDXSV_REPLAY_EXIT": "1", "ZDXSV_PW_HASH": "1",
          "ZDXSV_NET_TRACE": os.path.join(out, "trace-play.txt")}
     if pov:
@@ -229,6 +236,9 @@ def main(live):
         time.sleep(1)
     for x in grep(l, "ZdxsvGgpo: replay"):
         print(x[:200])
+    if zrig.env("API") == "json" and grep(os.path.join(out, "apiserve.log"), r"GET /pb "):
+        print("FAIL the client followed the replay_url of a downloaded replay object")
+        return 1
     if zrig.env("BAD") == "1":
         for _ in range(5):
             if grep(l, "ZdxsvGgpo: replay: not started"):
