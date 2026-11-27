@@ -1,0 +1,4 @@
+[
+ {"name": "test-once", "game": "SLPS-25419", "write_once": true, "codes": "32,0x3bdcc0,0x3c0100ce,0x3c0100cf"},
+ {"name": "test-gif", "game": "SLPS-25419", "write_once": true, "codes": "# GIF_CTRL, a hardware register outside EE RAM\n32,0x10003000,0x0,0x1"}
+]

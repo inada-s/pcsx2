@@ -133,7 +133,7 @@ namespace Zdxsv
 			uint64_t token = 0;
 		};
 		rapidjson::Document doc;
-		doc.Parse(body.data(), body.size());
+		doc.Parse<rapidjson::kParseIterativeFlag>(body.data(), body.size());
 		if (doc.HasParseError() || !doc.IsObject())
 			return false;
 		std::vector<User> users;
@@ -215,7 +215,8 @@ namespace Zdxsv
 
 	bool GamePatchCodeOk(uint64_t size, uint64_t address, uint64_t original, uint64_t changed)
 	{
-		return (size == 8 || size == 16 || size == 32) && address <= 0xFFFFFFFFu && address % (size / 8) == 0 &&
+		return (size == 8 || size == 16 || size == 32) && address >= GAME_PATCH_RAM_BEGIN && address < GAME_PATCH_RAM_END &&
+			   address % (size / 8) == 0 &&
 			   (original >> size) == 0 && (changed >> size) == 0;
 	}
 
@@ -223,13 +224,13 @@ namespace Zdxsv
 	{
 		constexpr size_t MAX_PATCHES = 16, MAX_CODES = 256;
 		rapidjson::Document doc;
-		doc.Parse(body.data(), body.size());
+		doc.Parse<rapidjson::kParseIterativeFlag>(body.data(), body.size());
 		if (doc.HasParseError() || !doc.IsObject())
 			return false;
 		std::vector<GamePatch> patches;
 		const bool ok = JsonObjects(doc, "patches", MAX_PATCHES, [&](const Json& e) {
 			GamePatch& p = patches.emplace_back();
-			return JsonStr(e, "name", p.name) && JsonStr(e, "game", p.game) && JsonBool(e, "write_once", p.writeOnce) &&
+			return JsonStr(e, "name", p.name) && JsonStr(e, "game", p.game) && !p.game.empty() && JsonBool(e, "write_once", p.writeOnce) &&
 				   JsonObjects(e, "codes", MAX_CODES, [&](const Json& c) {
 					   uint64_t size = 0, address = 0, original = 0, changed = 0;
 					   if (!JsonUint(c, "size", size) || !JsonUint(c, "address", address) || !JsonUint(c, "original", original) ||

@@ -67,8 +67,15 @@ The game's own notice `0x6003` still reaches the game; one whose text has
 
 Codes written in EE RAM during the next GGPO battle. The client rejects a
 message that is not valid JSON or is over the limits: 16 patches, 256 codes
-each, strings over 256 bytes, a size other than 8, 16 or 32 bits, an unaligned
-address or a value wider than its size.
+each, strings over 256 bytes, a patch without a `game` serial, a size other
+than 8, 16 or 32 bits, an unaligned address, an address outside EE main RAM
+above the kernel (`0x80000` to `0x1ffffff`) or a value wider than its size.
+One bad patch drops the whole message: the battle runs without patches.
+
+Any patch within these limits is applied; there is no allow-list, so a lobby
+setting can add a patch without a client release. A replay or live stream
+plays only built-in patches (`ZDXSV_PATCHES_ANY` in
+[options.md](options.md)), since its file can come from anyone.
 
 ### Platform info `0x9950`
 

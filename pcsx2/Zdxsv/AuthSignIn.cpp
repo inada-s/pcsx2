@@ -305,7 +305,7 @@ namespace Zdxsv
 		if (status != HTTPDownloader::HTTP_STATUS_OK)
 			return "token request failed (" + std::to_string(status) + ")";
 		rapidjson::Document doc;
-		doc.Parse(body.data(), body.size());
+		doc.Parse<rapidjson::kParseIterativeFlag>(body.data(), body.size());
 		const auto it = doc.IsObject() ? doc.FindMember("token") : doc.MemberEnd();
 		if (!doc.IsObject() || it == doc.MemberEnd() || !it->value.IsString())
 			return "bad token response";
@@ -359,7 +359,7 @@ namespace Zdxsv
 		std::string ParseAccounts(const std::string& body, AuthAccountList* list)
 		{
 			rapidjson::Document doc;
-			doc.Parse(body.data(), body.size());
+			doc.Parse<rapidjson::kParseIterativeFlag>(body.data(), body.size());
 			if (!doc.IsObject() || !doc.HasMember("accounts") || !doc["accounts"].IsArray())
 				return "bad account response";
 			*list = {};

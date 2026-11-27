@@ -137,7 +137,7 @@ namespace Zdxsv
 		std::optional<LoginResult> Parse(const std::string& body)
 		{
 			rapidjson::Document doc;
-			if (doc.Parse(body.data(), body.size()).HasParseError() || !doc.IsObject())
+			if (doc.Parse<rapidjson::kParseIterativeFlag>(body.data(), body.size()).HasParseError() || !doc.IsObject())
 				return std::nullopt;
 			LoginResult r;
 			std::optional<std::string> v;

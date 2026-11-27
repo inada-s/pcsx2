@@ -52,7 +52,7 @@ namespace Zdxsv
 	};
 	struct GamePatch
 	{
-		std::string name, game; // game: the disc serial, empty = any
+		std::string name, game; // game: the disc serial
 		bool writeOnce = false; // false: written every frame
 		std::vector<GamePatchCode> codes;
 	};
@@ -188,8 +188,12 @@ namespace Zdxsv
 	// limits (8 users, 64 candidates, 4 relays, 256-byte strings) or without its own user.
 	bool ParseBattleInfo(const std::string& body, BattleInfo& out);
 
+	// EE main RAM above the kernel's 512 KB: the game executable, its data and free RAM a patch may use.
+	constexpr uint64_t GAME_PATCH_RAM_BEGIN = 0x80000, GAME_PATCH_RAM_END = 0x2000000;
+
 	// Notice 0x9953 as JSON. False if malformed or over the limits (16 patches, 256 codes each, 256-byte strings),
-	// a size not 8, 16 or 32, an unaligned address or a value wider than its size.
+	// a patch without a game serial, a size not 8, 16 or 32, an unaligned address or one outside
+	// [GAME_PATCH_RAM_BEGIN, GAME_PATCH_RAM_END), or a value wider than its size.
 	bool ParseGamePatches(const std::string& body, std::vector<GamePatch>& out);
 	bool GamePatchCodeOk(uint64_t size, uint64_t address, uint64_t original, uint64_t changed);
 
