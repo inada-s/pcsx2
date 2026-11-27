@@ -266,15 +266,20 @@ namespace Zdxsv
 		return e ? std::atoi(e) : -1;
 	}()};
 
-	// The live stream as a replay file's bytes (header, frames so far, start state).
-	std::optional<std::vector<u8>> LiveOpen(const std::string& url)
+	LiveConnect LiveConnectOpen(const std::string& url, const std::atomic<bool>* stop)
 	{
-		std::string error;
-		s_live_down = Zdxsv::LiveDown::Open(url, LIVE_OPEN_MS, error);
+		LiveConnect c;
+		c.down = Zdxsv::LiveDown::Open(url, LIVE_OPEN_MS, c.error, stop);
+		return c;
+	}
+
+	std::optional<std::vector<u8>> LiveOpen(const std::string& url, LiveConnect c)
+	{
+		s_live_down = std::move(c.down);
 		if (!s_live_down)
 		{
-			Console.Error("ZdxsvGgpo: live %s: %s", url.c_str(), error.c_str());
-			s_live_open_error = std::move(error);
+			Console.Error("ZdxsvGgpo: live %s: %s", url.c_str(), c.error.c_str());
+			s_live_open_error = std::move(c.error);
 			return std::nullopt;
 		}
 		s_live_open_error.clear();
