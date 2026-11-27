@@ -118,6 +118,8 @@ def main(argv):
             os.replace(ini + ".rbk0", ini)
         zrig.ini_set(ini, "Framerate", "TurboScalar", tscale or None)
         zrig.ini_set(ini, "EmuCore/Speedhacks", "vuThread", "true" if opt("MTVU", "") == "1" else None)
+        zrig.ini_set(ini, "Pad1", "Type", "DualShock2")
+        zrig.ini_set(ini, "USB1", "Type", "hidkbd")
     ini0 = zrig.env("INI0")
     if ini0:
         ini = os.path.join(run, f"p{peers[0]}", "PCSX2", "inis", "PCSX2.ini")
