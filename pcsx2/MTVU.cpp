@@ -365,6 +365,8 @@ void VU_Thread::Get_MTVUChanges()
 	u32 interrupts = mtvuInterrupts.load(std::memory_order_relaxed);
 	if (!interrupts)
 		return;
+	pxAssertMsg(!Zdxsv::g_ggpo_active || !(interrupts & (InterruptFlagSignal | InterruptFlagFinish | InterruptFlagLabel)),
+		"VU1 GS SIGNAL, FINISH or LABEL in a GGPO session: the EE takes it at a host-timed cycle");
 
 	if (interrupts & InterruptFlagSignal)
 	{
