@@ -180,6 +180,7 @@ namespace Zdxsv
 			std::thread worker;
 			std::atomic<bool> stop{false};
 			std::map<std::string, std::optional<std::vector<u8>>> got; // CPU thread: the worker's replay files by URL
+			std::map<std::string, LiveConnect> live; // CPU thread: the worker's live streams by source
 			std::string common_fetched; // the common state URL a broken copy was deleted of: once per URL per run
 			bool common_fresh = false; // the common state was just downloaded and checked
 			u32 id = 0; // bumped by PlayFetchStop: a queued end of an earlier fetch drops out
@@ -317,6 +318,16 @@ namespace Zdxsv
 			return got;
 		}
 
+		std::optional<std::vector<u8>> LiveFetched(const std::string& src)
+		{
+			const auto it = s_fetch.live.find(src);
+			if (it == s_fetch.live.end())
+				return LiveOpen(src, {nullptr, "not opened"});
+			LiveConnect c = std::move(it->second);
+			s_fetch.live.erase(it);
+			return LiveOpen(src, std::move(c));
+		}
+
 		// Counted only for a pick of the replay list, whose remote replays come from LobbyApiUrl(): a ZDXSV_REPLAY url may
 		// come from another server than the setting names.
 		void ReplayPlayed(const std::string& code)
@@ -337,8 +348,11 @@ namespace Zdxsv
 			}).detach();
 		}
 
-		// Reads the file; returns its recorder's position, -1 = not used. One file holds every position's inputs, so it
-		// plays any point of view: each starts from the common state with its own lobby answers (PlayCommonStart).
+		constexpr int PLAY_FILE_NEWER = -2;
+
+		// Reads the file; returns its recorder's position, -1 = not used, PLAY_FILE_NEWER = written by a newer build. One file
+		// holds every position's inputs, so it plays any point of view: each starts from the common state with its own lobby
+		// answers (PlayCommonStart).
 		int PlayLoadFile(const std::string& path)
 		{
 			const bool live = path.starts_with("live:");
@@ -356,7 +370,7 @@ namespace Zdxsv
 				return -1;
 			}
 			std::optional<std::vector<u8>> file =
-				live ? LiveOpen(path) : http ? HttpOpen(path) : FileSystem::ReadBinaryFile(native.c_str());
+				live ? LiveFetched(path) : http ? HttpOpen(path) : FileSystem::ReadBinaryFile(native.c_str());
 			if (file && !live && !http && ReplayIsGzip(file->data(), file->size()))
 				file = Gunzip(path, *file);
 			const std::string_view all = file ? std::string_view(reinterpret_cast<const char*>(file->data()), file->size()) : std::string_view();
@@ -365,6 +379,11 @@ namespace Zdxsv
 			{
 				Console.Error("ZdxsvGgpo: replay %s: not a replay file", path.c_str());
 				return -1;
+			}
+			if (r.version > REPLAY_FILE_VERSION)
+			{
+				Console.Error("ZdxsvGgpo: replay %s: file version %lld is newer than %d", path.c_str(), r.version, REPLAY_FILE_VERSION);
+				return PLAY_FILE_NEWER;
 			}
 			const s64 players = r.players, me = r.me, frames = r.frames;
 			// each bound before the next product: the values are any s64
@@ -514,13 +533,16 @@ namespace Zdxsv
 			s_fetch.worker = std::thread([urls = std::move(urls), common, c, then = std::move(then), id = s_fetch.id]() mutable {
 				Threading::SetNameOfCurrentThread("Zdxsv Replay Download");
 				auto got = std::make_shared<std::map<std::string, std::optional<std::vector<u8>>>>();
+				auto live = std::make_shared<std::map<std::string, LiveConnect>>();
 				for (const std::string& url : urls)
-					if (!s_fetch.stop)
+					if (!s_fetch.stop && url.starts_with("live:"))
+						(*live)[url] = LiveConnectOpen(url, &s_fetch.stop);
+					else if (!s_fetch.stop)
 						(*got)[url] = HttpFetch(url);
 				const bool downloaded = common && !s_fetch.stop && CommonStateDownload(c);
 				if (s_fetch.stop)
 					return;
-				Host::RunOnCPUThread([got, downloaded, then = std::move(then), id] {
+				Host::RunOnCPUThread([got, live, downloaded, then = std::move(then), id] {
 					if (id != s_fetch.id)
 						return;
 					if (s_fetch.worker.joinable())
@@ -528,8 +550,10 @@ namespace Zdxsv
 					Console.WriteLn("ZdxsvGgpo: replay: downloads done at vsync %u", g_FrameCount);
 					s_fetch.common_fresh = downloaded;
 					s_fetch.got = std::move(*got);
+					s_fetch.live = std::move(*live);
 					then();
 					s_fetch.got.clear();
+					s_fetch.live.clear();
 				});
 			});
 		}
@@ -748,6 +772,7 @@ namespace Zdxsv
 		s_fetch.stop = false;
 		s_fetch.id++;
 		s_fetch.got.clear();
+		s_fetch.live.clear();
 		s_fetch.common_fresh = false;
 	}
 
@@ -788,11 +813,21 @@ namespace Zdxsv
 		void PlayLoadFiles(const std::string& paths, bool fetched)
 		{
 			int me = -1;
+			bool newer = false;
 			for (const std::string_view path : PlaySources(paths))
-				if (const int p = PlayLoadFile(std::string(path)); me < 0)
+			{
+				const int p = PlayLoadFile(std::string(path));
+				newer |= p == PLAY_FILE_NEWER;
+				if (me < 0)
 					me = p;
+			}
 			if (me < 0 && paths.starts_with("live:") && LiveAutoNext(true))
 				return; // a live battle that does not play is skipped, the wait goes on
+			if (me < 0 && newer)
+			{
+				PlayFailed(TRANSLATE_STR("Zdxsv", "Failed to start the replay. It was recorded by a newer version: update PCSX2."));
+				return;
+			}
 			if (me < 0)
 			{
 				PlayFailed(TRANSLATE_STR("Zdxsv", "Failed to start the replay. The replay file could not be read, or it is corrupted or outdated."));
@@ -818,7 +853,7 @@ namespace Zdxsv
 		std::string paths = s_live_next.url.empty() ? s_play_src.path : s_live_next.url;
 		std::vector<std::string> urls;
 		for (const std::string_view path : PlaySources(paths))
-			if (IsHttpUrl(path))
+			if (IsHttpUrl(path) || path.starts_with("live:"))
 				urls.emplace_back(path);
 		const bool common = CommonStateMissing();
 		if (urls.empty() && !common)

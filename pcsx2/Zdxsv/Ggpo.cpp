@@ -410,7 +410,7 @@ namespace Zdxsv
 			Console.WriteLn("ZdxsvGgpo: rbk env pos=%d/%d rand=%s turbo=%s clamp=%s ggpo=%s", s_rbk.me, s_rbk.n,
 				env("ZDXSV_RAND_INPUT"), env("ZDXSV_RBK_TURBO"), env("ZDXSV_EE_CLAMP"), env("ZDXSV_GGPO"));
 		}
-		// ZDXSV_VM_TEST=frame:shutdown|reset|mute|ui (tests of GgpoOnVmShutdown; mute: the GGPO network goes silent): once, when a session or replay reaches GGPO frame `frame`
+		// ZDXSV_VM_TEST=frame:shutdown|reset|mute|ui|mtvu|ini=Section:Key=Value (tests of GgpoOnVmShutdown; mute: the GGPO network goes silent): once, when a session or replay reaches GGPO frame `frame`
 		static const char* vm_test = TestEnv("ZDXSV_VM_TEST");
 		if (vm_test && g_ggpo_active && !g_ggpo_in_rollback && s_battle.frame == std::atoi(vm_test))
 		{
@@ -422,6 +422,31 @@ namespace Zdxsv
 				Host::RunOnCPUThread([] {
 					OnlineAllowReset();
 					VMManager::Reset();
+				});
+			else if (std::strstr(test, ":mtvu"))
+				Host::RunOnCPUThread([] {
+					{
+						const auto lock = Host::GetSettingsLock();
+						Host::Internal::GetBaseSettingsLayer()->SetBoolValue("EmuCore/Speedhacks", "vuThread", !EmuConfig.Speedhacks.vuThread);
+					}
+					VMManager::ApplySettings();
+					Console.WriteLn("ZdxsvGgpo: vm test mtvu: %s", EmuConfig.Speedhacks.vuThread ? "on" : "off");
+				});
+			else if (const char* ini = std::strstr(test, ":ini="))
+				Host::RunOnCPUThread([arg = std::string(ini + 5)] {
+					const size_t colon = arg.find(':'), eq = arg.find('=', colon);
+					if (colon == std::string::npos || eq == std::string::npos)
+						return;
+					const std::string section = arg.substr(0, colon), key = arg.substr(colon + 1, eq - colon - 1);
+					{
+						const auto lock = Host::GetSettingsLock();
+						Host::Internal::GetBaseSettingsLayer()->SetStringValue(section.c_str(), key.c_str(), arg.c_str() + eq + 1);
+					}
+					VMManager::ApplySettings();
+					const PadBase* p = Pad::GetPad(0);
+					const Pad::ControllerInfo* ci = p ? Pad::GetControllerInfo(p->GetType()) : nullptr;
+					Console.WriteLn("ZdxsvGgpo: vm test ini %s: pad 1 %s, usb 1 %s", arg.c_str(), ci ? ci->name : "-",
+						EmuConfig.USB.Ports[0].DeviceType >= 0 ? "attached" : "none");
 				});
 			else if (std::strstr(test, ":ui"))
 				Host::RunOnCPUThread([] {

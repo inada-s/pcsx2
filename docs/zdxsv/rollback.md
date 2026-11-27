@@ -62,11 +62,16 @@ Supporting changes in the core:
   through the thread's queue (it writes VU1 memory itself), and a delta state
   holds only the unread bytes of GIF path 1, which MTVU never realigns. The
   VU1 cycle counts and GS interrupt flags the thread sets are not compared
-  between two delta states. The thread does not change what the game computes: with the battle's
+  between two delta states. In the game's battles VU1 packets write no GS
+  SIGNAL, FINISH or LABEL (with MTVU the EE would take them at a host-timed
+  cycle), and no path 1 packet waits for the GIF at a frame start, so a delta
+  load leaves the count of packets the GS thread still expects as it was.
+  Devel builds assert both. The thread does not change what the game computes: with the battle's
   speedhacks (VU1 instant, no EE cycle skip) the EE takes no cycle count or
   busy flag from it, and what VU1 sends the GS does not reach the game state
   (a rerun frame that skips VU1 hashes like the frame it repeats). Peers may
-  differ in the setting. `ZDXSV_MTVU=0` turns it off for a VM with GGPO, a replay or
+  differ in the setting. A change during a battle applies at its end: it could
+  run inside a rollback, and the mode changes how GIF path 1 is saved. `ZDXSV_MTVU=0` turns it off for a VM with GGPO, a replay or
   `ZDXSV_DELTA_TEST` (test control).
 - DEV9 (network adapter) is part of a delta state when DEV9 is in save
   states. Host connections are kept on a load; frames the adapter received
@@ -332,7 +337,10 @@ itself, runs turbo until the battle, and exits when the session ends.
   defaults. During battles, replays and live spectating also speedhacks,
   emulation speed, frame rate and sync to host refresh rate (off: it runs
   the game up to 5 % off nominal speed). An OSD message names the overridden
-  settings; the settings page greys them out.
+  settings; the settings page greys them out. A change during a battle is
+  forced again when applied. Controller type and USB device changes are not
+  forced: a delta state records the device type, a load across the change
+  restores the device it saved, the game state stays in sync.
 
 ## Sync checks
 

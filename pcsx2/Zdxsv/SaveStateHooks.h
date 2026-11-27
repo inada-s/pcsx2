@@ -27,6 +27,7 @@ namespace Zdxsv
 	void DeltaFreezeMarkScratch(size_t pos, size_t size);
 
 	extern bool g_ggpo_enabled; // GGPO options (ZDXSV_GGPO, else on by default) or a replay
+	extern bool g_ggpo_active; // a session runs
 
 	// DEV9 state in full and delta states. Only with ZDXSV_GGPO or ZDXSV_REPLAY; otherwise a DEV9.bin
 	// in a state is ignored, as upstream. Replay states need it: the IOP's SMAP driver (restored) and

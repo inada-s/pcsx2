@@ -711,7 +711,7 @@ namespace Zdxsv
 		m->s->quit = true;
 	}
 
-	std::unique_ptr<LiveDown> LiveDown::Open(const std::string& url, int timeoutMs, std::string& error)
+	std::unique_ptr<LiveDown> LiveDown::Open(const std::string& url, int timeoutMs, std::string& error, const std::atomic<bool>* stop)
 	{
 		std::unique_ptr<LiveDown> d(new LiveDown());
 		const std::shared_ptr<Impl::State> s = d->m->s;
@@ -722,7 +722,7 @@ namespace Zdxsv
 		}
 		std::thread([s] { s->Run(); }).detach();
 		const auto until = Clock::now() + std::chrono::milliseconds(timeoutMs);
-		while (Clock::now() < until)
+		while (Clock::now() < until && !(stop && stop->load()))
 		{
 			{
 				std::lock_guard lock(s->mtx);
@@ -776,9 +776,16 @@ namespace Zdxsv
 		}
 		s.inputs.insert(s.inputs.end(), g.inputs.begin(), g.inputs.end());
 		g.inputs.clear();
-		s.rounds = g.rounds;
+		// g.rounds and g.states only grow: s holds a prefix of each unless the caller reset it
+		const auto takeNew = [](std::vector<uint8_t>& dst, const std::vector<uint8_t>& src) {
+			if (dst.size() > src.size())
+				dst = src;
+			else
+				dst.insert(dst.end(), src.begin() + dst.size(), src.end());
+		};
+		takeNew(s.rounds, g.rounds);
 		s.round_frames = g.round_frames;
-		s.states = g.states;
+		takeNew(s.states, g.states);
 		s.frameBytes = g.frameBytes;
 		s.closed = g.closed;
 		s.close = g.close;
