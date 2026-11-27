@@ -98,6 +98,10 @@ Peer2PeerBackend::AddRemotePlayer(char *ip,
    // zdxsv: TryForward reads the endpoint addresses on the network thread.
    std::lock_guard<std::mutex> lock(_udp.NetMutex());
    _endpoints[queue].Init(&_udp, _poll, queue, ip, port, relay, _local_connect_status);
+   if ((int)_direct_addrs.size() < _num_players) {
+      _direct_addrs.resize(_num_players);
+   }
+   _direct_addrs[queue] = relay ? sockaddr_storage{} : _endpoints[queue].PeerAddress();
    for (int k = 0; k < (int)_relay_servers.size(); k++) {
       if (relay && _endpoints[queue].IsPeerAddress(_relay_servers[k].addr)) {
          _endpoints[queue].UseRelayServer(_relay_servers[k].addr, k, _relay_servers[k].known);
@@ -740,7 +744,19 @@ Peer2PeerBackend::TryForward(sockaddr_storage &from, UdpMsg *msg, int len)
       int i = msg->hdr.relay_to_endpoint;
       // Only relay real message types; the receiver validates the payload itself.
       const bool valid_type = UdpMsg::SyncRequest <= msg->hdr.org_type && msg->hdr.org_type <= UdpMsg::AppData;
-      if (i < _num_players && valid_type) {
+      // zdxsv: the receiver trusts a forwarded packet as the sender's, so forward only for a player
+      // reached directly, and name it by its source address, not by the index it wrote.
+      int sender = -1;
+      for (int j = 0; j < (int)_direct_addrs.size(); j++) {
+         if (j != _local_player_queue && UdpProtocol::SameAddress(_direct_addrs[j], from)) {
+            sender = j;
+            break;
+         }
+      }
+      if (sender == -1 || sender == i) {
+         Log("Relay msg to %d dropped: not from a directly reached player", i);
+      } else if (i < _num_players && valid_type) {
+         msg->hdr.remote_endpoint = (uint8)sender;
          Log("Relay msg %d->%d->%d type:%d seq:%d", msg->hdr.remote_endpoint, _local_player_queue, msg->hdr.relay_to_endpoint, msg->hdr.org_type, msg->hdr.sequence_number);
          msg->hdr.type = msg->hdr.org_type;
          msg->hdr.org_type = UdpMsg::Invalid;

@@ -87,6 +87,8 @@ protected:
    bool                  _disconnect_without_rollback;
    int                   _test_log;       /* GGPO_TEST_LOG: count relay forwards for tools/rbk_test */
    int                   _relay_forwards;
+   // zdxsv: a directly reached player's own address, kept when its endpoint moves to a relay server.
+   std::vector<sockaddr_storage> _direct_addrs;
    struct RelayServer {
       sockaddr_storage addr;                  /* where this peer sends */
       std::vector<sockaddr_storage> known;    /* addr, the other IP family's address and those it answers from */

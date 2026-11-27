@@ -9,6 +9,9 @@
 
 #include "../ggpo_types.h"
 #include "bitvector.h"
+#include "input_queue.h"
+
+#include <random>
 
 static const int UDP_HEADER_SIZE = 28;     /* Size of IP + UDP headers */
 static const int NUM_SYNC_PACKETS = 5;
@@ -20,6 +23,17 @@ static const int QUALITY_REPORT_INTERVAL = 1000;
 static const int NETWORK_STATS_INTERVAL  = 1000;
 static const int UDP_SHUTDOWN_TIMER = 5000;
 static const int MAX_SEQ_DISTANCE = (1 << 15);
+
+// zdxsv: the magic and the sync random are all that tell a peer's packets from forged ones. rand() is
+// predictable: the Windows CRT keeps its state per thread, so a thread that never called srand starts from seed 1.
+static uint32
+UnpredictableRandom()
+{
+   static std::mutex mutex;
+   static std::random_device device;
+   std::lock_guard<std::mutex> lock(mutex);
+   return device();
+}
 
 UdpProtocol::UdpProtocol() :
    _udp(NULL),
@@ -38,6 +52,8 @@ UdpProtocol::UdpProtocol() :
    _stats_start_time(0),
    _recv_packet_loss(0),
    _send_packet_loss(0),
+   _quality_pings{0, 0},
+   _quality_ping_index(0),
    _local_frame_advantage(0),
    _remote_frame_advantage(0),
    _last_send_time(0),
@@ -116,7 +132,7 @@ UdpProtocol::Init(Udp *udp,
    }
 
    do {
-      _magic_number = (uint16)rand();
+      _magic_number = (uint16)UnpredictableRandom();
    } while (_magic_number == 0);
    poll.RegisterLoop(this);
 }
@@ -255,6 +271,9 @@ UdpProtocol::OnLoopPoll(void *cookie)
       if (!_state.running.last_quality_report_time || _state.running.last_quality_report_time + QUALITY_REPORT_INTERVAL < now) {
          UdpMsg *msg = new UdpMsg(UdpMsg::QualityReport);
          msg->u.quality_report.ping = GGPOPlatform::GetCurrentTimeMS();
+         // zdxsv: the reply is only taken for a ping we sent; one second late still counts.
+         _quality_pings[_quality_ping_index] = msg->u.quality_report.ping;
+         _quality_ping_index ^= 1;
          msg->u.quality_report.frame_advantage = (uint8)_local_frame_advantage;
          SendMsg(msg);
          _state.running.last_quality_report_time = now;
@@ -318,7 +337,7 @@ UdpProtocol::Disconnect()
 void
 UdpProtocol::SendSyncRequest()
 {
-   _state.sync.random = rand() & 0xFFFF;
+   _state.sync.random = UnpredictableRandom();
    UdpMsg *msg = new UdpMsg(UdpMsg::SyncRequest);
    msg->u.sync_request.random_request = _state.sync.random;
    msg->verification_size = verification.size();
@@ -469,7 +488,7 @@ UdpProtocol::OnReceived(sockaddr_storage &from, UdpMsg *msg, int len)
       return;
    }
    if (!_udp || msg->hdr.remote_endpoint != _queue || !IsFromPeer(from)
-       || msg->hdr.const_magic != CONST_MAGIC || msg->hdr.magic != _remote_magic_number
+       || msg->hdr.const_magic != CONST_MAGIC || _remote_magic_number == 0 || msg->hdr.magic != _remote_magic_number
        || !IsValidMsgLength(msg, len)) {
       return;
    }
@@ -479,7 +498,11 @@ UdpProtocol::OnReceived(sockaddr_storage &from, UdpMsg *msg, int len)
       reply->u.quality_reply.packet_loss = _recv_packet_loss;
       SendMsg(reply);
    } else {
-      int rtt = int(GGPOPlatform::GetCurrentTimeMS() - msg->u.quality_reply.pong);
+      const uint32 pong = msg->u.quality_reply.pong;
+      if (pong == 0 || (pong != _quality_pings[0] && pong != _quality_pings[1])) {
+         return;
+      }
+      int rtt = int(GGPOPlatform::GetCurrentTimeMS() - pong);
       _round_trip_time = rtt;
       _smooth_round_trip_time = _smooth_round_trip_time == 0 ? rtt : int(0.5 + 0.75 * _smooth_round_trip_time + 0.25 * rtt);
       _send_packet_loss = msg->u.quality_reply.packet_loss;
@@ -517,7 +540,8 @@ UdpProtocol::OnMsg(UdpMsg *msg, int len)
    uint16 seq = msg->hdr.sequence_number;
    if (msg->hdr.type != UdpMsg::SyncRequest &&
        msg->hdr.type != UdpMsg::SyncReply) {
-      if (msg->hdr.magic != _remote_magic_number) {
+      // zdxsv: the remote magic is 0 until sync ends; a magic of 0 must not pass for it.
+      if (_remote_magic_number == 0 || msg->hdr.magic != _remote_magic_number) {
          LogMsg("recv rejecting", msg);
          return;
       }
@@ -585,6 +609,12 @@ void
 UdpProtocol::QueueEvent(const UdpProtocol::Event &evt)
 {
    LogEvent("Queuing event", evt);
+   // zdxsv: a full queue (N - 1 events) throws; OnInput stops before it fills, so only a flood of other
+   // events is dropped.
+   if (_event_queue.size() >= EVENT_QUEUE_SIZE - 1) {
+      Log("udpproto%d | event queue full, dropping event %d", _queue, evt.type);
+      return;
+   }
    _event_queue.push(evt);
 }
 
@@ -753,9 +783,17 @@ UdpProtocol::OnInput(UdpMsg *msg, int len)
        * of the network.
        */
       UdpMsg::connect_status* remote_status = msg->u.input.peer_connect_status;
+      // zdxsv: a peer's frames never go back; a packet that says so is dropped, not asserted on.
+      for (unsigned i = 0; i < ARRAY_SIZE(_peer_connect_status); i++) {
+         if (!_peer_connect_status[i].disconnected && !remote_status[i].disconnected
+               && remote_status[i].last_frame < _peer_connect_status[i].last_frame) {
+            Log("udpproto%d | dropping input: peer %d last frame went back (%d < %d)", _queue, i,
+                (int)remote_status[i].last_frame, (int)_peer_connect_status[i].last_frame);
+            return false;
+         }
+      }
       for (unsigned i = 0; i < ARRAY_SIZE(_peer_connect_status); i++) {
          _peer_connect_status[i].disconnected |= remote_status[i].disconnected;
-         if (!_peer_connect_status[i].disconnected) ASSERT(remote_status[i].last_frame >= _peer_connect_status[i].last_frame);
          _peer_connect_status[i].last_frame = MAX(_peer_connect_status[i].last_frame, remote_status[i].last_frame);
       }
    }
@@ -767,6 +805,11 @@ UdpProtocol::OnInput(UdpMsg *msg, int len)
    // zdxsv: a packet that starts past the next frame (an earlier split packet was lost) is skipped; the sender
    // sends again from its oldest unacked frame
    const bool gap = _last_received_input.frame >= 0 && (int)msg->u.input.start_frame > _last_received_input.frame + 1;
+   // zdxsv: the remote input queue fills every frame before the first one; past its length it throws.
+   if (_last_received_input.frame < 0 && msg->u.input.num_bits && msg->u.input.start_frame >= INPUT_QUEUE_LENGTH) {
+      Log("udpproto%d | dropping input: first frame %u", _queue, msg->u.input.start_frame);
+      return false;
+   }
    if (msg->u.input.num_bits && !gap) {
       int offset = 0;
       uint8 *bits = (uint8 *)msg->u.input.bits;
@@ -784,6 +827,10 @@ UdpProtocol::OnInput(UdpMsg *msg, int len)
           */
          ASSERT(currentFrame <= (_last_received_input.frame + 1));
          bool useInputs = currentFrame == _last_received_input.frame + 1;
+         // zdxsv: room for the disconnect and resume events of this packet. The frames left are sent again.
+         if (useInputs && _event_queue.size() >= EVENT_QUEUE_SIZE - 1 - 2) {
+            break;
+         }
 
          while (BitVector_ReadBit(bits, &offset)) {
             int on = BitVector_ReadBit(bits, &offset);
