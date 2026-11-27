@@ -62,7 +62,11 @@ Supporting changes in the core:
   through the thread's queue (it writes VU1 memory itself), and a delta state
   holds only the unread bytes of GIF path 1, which MTVU never realigns. The
   VU1 cycle counts and GS interrupt flags the thread sets are not compared
-  between two delta states. The thread does not change what the game computes: with the battle's
+  between two delta states. In the game's battles VU1 packets write no GS
+  SIGNAL, FINISH or LABEL (with MTVU the EE would take them at a host-timed
+  cycle), and no path 1 packet waits for the GIF at a frame start, so a delta
+  load leaves the count of packets the GS thread still expects as it was.
+  Devel builds assert both. The thread does not change what the game computes: with the battle's
   speedhacks (VU1 instant, no EE cycle skip) the EE takes no cycle count or
   busy flag from it, and what VU1 sends the GS does not reach the game state
   (a rerun frame that skips VU1 hashes like the frame it repeats). Peers may

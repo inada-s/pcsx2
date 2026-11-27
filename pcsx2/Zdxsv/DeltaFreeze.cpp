@@ -152,7 +152,9 @@ namespace Zdxsv
 		u8* const buffer = path.buffer;
 		const u32 here = packet_start();
 		const bool here_realigned = path.gsPack.readAmount != 0;
+		const u32 fake_packets = path.mtvu.fakePackets;
 		s.Freeze(path.mtvu.fakePackets);
+		pxAssertMsg(!path.isMTVU() || path.mtvu.fakePackets == fake_packets, "MTVU path 1 fake packets differ from the live GS queue");
 		const size_t pos = s.GetCurrentPos();
 		DeltaFreezeMarkScratch(pos + offsetof(Gif_Path, readAmount), sizeof(path.readAmount));
 		DeltaFreezeMarkScratch(pos + offsetof(Gif_Path, buffer), sizeof(path.buffer));

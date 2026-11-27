@@ -279,6 +279,7 @@ Visual Studio and `lupdate` drop comments when they rewrite these files.
 | `pcsx2/MTVU.cpp` |  | include `Zdxsv/SaveStateHooks.h` |
 | `pcsx2/MTVU.cpp` | `SaveStateBase::mtvuFreeze` | a delta load writes VU1 memory and registers itself (the thread waits idle): no 32 KB through the ring |
 | `pcsx2/MTVU.cpp` | `SaveStateBase::mtvuFreeze` | `Zdxsv::DeltaFreezeMarkScratch` |
+| `pcsx2/MTVU.cpp` | `VU_Thread::Get_MTVUChanges` | `Zdxsv::g_ggpo_active` |
 | `pcsx2/PINE.cpp` |  | rig opcodes |
 | `pcsx2/PINE.cpp` |  | include `Zdxsv/PineHooks.h` |
 | `pcsx2/PINE.cpp` |  | `MsgPadSet = 0x30, /**< zdxsv: set pad input (pad u8, bind u8, value u8 0-255). */` |
