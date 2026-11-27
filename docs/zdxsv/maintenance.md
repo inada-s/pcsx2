@@ -48,7 +48,10 @@ rebase of the fork.
    git tag zdxsv-X.Y.Z <commit>
    git push origin zdxsv-X.Y.Z
    ```
-   `zdxsv_release.yml` builds and publishes the release.
+   `zdxsv_release.yml` builds and publishes the release. On a commit with both
+   tags the build takes `zdxsv-X.Y.Z`; a build whose tag differs from the
+   pushed one fails before compiling (a rerun of the rc tag's run after step 4
+   fails too).
 5. Check the release: `SHA256SUMS.txt`,
    `gh attestation verify <file> -R inada-s/pcsx2`; an install of the previous
    release offers the update.

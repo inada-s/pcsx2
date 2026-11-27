@@ -39,6 +39,11 @@ on:
         required: false
         type: string
         default: ""
+      # zdxsv: when set, the build fails unless it carries this tag (the pushed release tag)
+      zdxsvReleaseTag:
+        required: false
+        type: string
+        default: ""
       # zdxsv: the universal dependencies (fat libraries) whatever the arch; they share the arm64 deps cache
       universalDeps:
         required: false
@@ -152,6 +157,12 @@ jobs:
                 -DCMAKE_DISABLE_PRECOMPILE_HEADERS=ON \
                 ${{ inputs.cmakeFlags }} \
                 -B build .
+
+      - name: Check the zdxsv release version
+        if: inputs.zdxsvReleaseTag != ''
+        env:
+          TAG: ${{ inputs.zdxsvReleaseTag }}
+        run: bash .github/workflows/scripts/zdxsv/check-release-version.sh build/common/include/svnrev.h "$TAG"
 
       - name: Build PCSX2
         working-directory: build

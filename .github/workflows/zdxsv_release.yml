@@ -48,6 +48,7 @@ jobs:
       # The production servers: only this build has them as defaults (a build from source has none).
       cmakeFlags: -DCMAKE_C_COMPILER=clang-cl -DCMAKE_CXX_COMPILER=clang-cl "-DZDXSV_SERVER_HOST=${{ vars.ZDXSV_SERVER_HOST }}" "-DZDXSV_UDPTEST_URL=${{ vars.ZDXSV_UDPTEST_URL }}" "-DZDXSV_SENTRY_DSN=${{ vars.ZDXSV_SENTRY_DSN }}"
       fetchTags: true
+      zdxsvReleaseTag: ${{ github.ref_name }}
 
   macos_x64:
     name: "macOS x86_64"
@@ -60,6 +61,7 @@ jobs:
       cmakeFlags: >-
         "-DZDXSV_SERVER_HOST=${{ vars.ZDXSV_SERVER_HOST }}" "-DZDXSV_UDPTEST_URL=${{ vars.ZDXSV_UDPTEST_URL }}" "-DZDXSV_SENTRY_DSN=${{ vars.ZDXSV_SENTRY_DSN }}"
       fetchTags: true
+      zdxsvReleaseTag: ${{ github.ref_name }}
       zdxsvAppArtifact: zdxsv-app-macos-x64
       universalDeps: true
 
@@ -74,6 +76,7 @@ jobs:
       cmakeFlags: >-
         "-DZDXSV_SERVER_HOST=${{ vars.ZDXSV_SERVER_HOST }}" "-DZDXSV_UDPTEST_URL=${{ vars.ZDXSV_UDPTEST_URL }}" "-DZDXSV_SENTRY_DSN=${{ vars.ZDXSV_SENTRY_DSN }}"
       fetchTags: true
+      zdxsvReleaseTag: ${{ github.ref_name }}
       zdxsvAppArtifact: zdxsv-app-macos-arm64
 
   macos:
