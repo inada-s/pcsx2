@@ -32,6 +32,11 @@ if !ERRORLEVEL! EQU 0 (
 FOR /F "tokens=* USEBACKQ" %%i IN (`git tag --points-at HEAD`) DO (
   set GIT_TAG=%%i
 )
+:: zdxsv: a release tag wins over an rc tag on the same commit (zdxsv-1.2.3 sorts before zdxsv-1.2.3-rc1).
+FOR /F "tokens=* USEBACKQ" %%i IN (`git tag --points-at HEAD`) DO (
+  echo %%i|FINDSTR /R "^zdxsv-[0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*$" > NUL
+  if !ERRORLEVEL! EQU 0 set GIT_TAG=%%i
+)
 
 FOR /F "tokens=* USEBACKQ" %%i IN (`git rev-parse HEAD`) DO (
   set GIT_HASH=%%i

@@ -40,6 +40,11 @@ on:
         required: false
         type: boolean
         default: true
+      # zdxsv: when set, the build fails unless it carries this tag (the pushed release tag)
+      zdxsvReleaseTag:
+        required: false
+        type: string
+        default: ""
       stableBuild:
         required: false
         type: boolean
@@ -139,6 +144,13 @@ jobs:
           clang-cl --version
           cmake . -B build ${{ inputs.cmakeFlags }} "-DCMAKE_PREFIX_PATH=%cd%\deps" -DQT_BUILD=ON -DCMAKE_BUILD_TYPE=Release -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON -DDISABLE_ADVANCE_SIMD=ON -G Ninja
 
+      - name: Check the zdxsv release version
+        if: inputs.zdxsvReleaseTag != ''
+        shell: bash
+        env:
+          TAG: ${{ inputs.zdxsvReleaseTag }}
+        run: bash .github/workflows/scripts/zdxsv/check-release-version.sh build/common/include/svnrev.h "$TAG"
+
       - name: Build PCSX2
         shell: cmd
         run: |
@@ -180,7 +192,13 @@ jobs:
           7z a -tzip ../zdxsv-release/pcsx2-zdxsv-windows-x64.zip . $X > /dev/null
           cd ..
           ls -l zdxsv-release
-          7z l zdxsv-release/pcsx2-zdxsv-windows-x64.7z | tr -d '\r' | grep -E " (pcsx2-qt(x64)?|updater)\.exe$| portable\.txt$"
+          for a in 7z zip; do
+            7z l -slt zdxsv-release/pcsx2-zdxsv-windows-x64.$a | tr -d '\r' | sed -n 's/^Path = //p' > files.txt
+            for f in 'pcsx2-qt(x64)?\.exe' 'updater\.exe' 'portable\.txt'; do
+              grep -qxE "$f" files.txt || { echo "::error::$f is not at the top level of the .$a"; exit 1; }
+            done
+          done
+          rm files.txt
 
       - name: Upload zdxsv release files
         if: inputs.package

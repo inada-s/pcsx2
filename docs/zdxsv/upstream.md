@@ -78,6 +78,7 @@ Visual Studio and `lupdate` drop comments when they rewrite these files.
 | `bin/docs/ThirdPartyLicenses.html` |  | a zdxsv dependency |
 | `bin/docs/ThirdPartyLicenses.html` |  | a zdxsv dependency |
 | `bin/resources/GameIndex.yaml` |  | the zdxsv game |
+| `cmake/Pcsx2Utils.cmake` | `function` | a release tag wins over an rc tag on the same commit (zdxsv-1.2.3 sorts before zdxsv-1.2.3-rc1). |
 | `cmake/Pcsx2Utils.cmake` | `function` | release tags are zdxsv-X.Y.Z (the auto updater compares these). |
 | `cmake/SearchForStuff.cmake` | `add_subdirectory` | GGPO, UPnP and TLS libraries |
 | `common/Console.cpp` |  | log tail (Zdxsv/LogTail.cpp) |
@@ -97,6 +98,7 @@ Visual Studio and `lupdate` drop comments when they rewrite these files.
 | `common/HTTPDownloaderCurl.h` |  | replay upload posts multipart |
 | `common/HTTPDownloaderWinHTTP.cpp` | `HTTPDownloaderWinHttp::StartRequest` | replay upload posts multipart |
 | `common/vsprops/LinkPCSX2Deps.props` |  | Sentry crash reports |
+| `common/vsprops/preBuild.cmd` | `IN` | a release tag wins over an rc tag on the same commit (zdxsv-1.2.3 sorts before zdxsv-1.2.3-rc1). |
 | `common/vsprops/preBuild.cmd` | `0` | release tags are zdxsv-X.Y.Z (the auto updater compares these). |
 | `pcsx2-qt/AutoUpdaterDialog.cpp` |  | include `Zdxsv/QtHooks.h` |
 | `pcsx2-qt/AutoUpdaterDialog.cpp` |  | include `Zdxsv/TestOptions.h` |
