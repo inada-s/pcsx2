@@ -22,7 +22,7 @@ skips does not run on that path.
 | Audio output (`MediaHooks.h`, `Host/AudioStream.cpp`) | `AudioTap` | audio to a WAV file (`ZDXSV_AUDIO_WAV`) |
 | VIF transfer loop (`Vif_Transfer.cpp`, changed in place, no hook) | — | NOP codes run inline (same emulated state) |
 | HTTP downloader (`common/HTTPDownloader*`: POST content type) | `AuthSignIn`, `FastLogin`, `LobbyConnection`, `ReplayRecord` | JSON and multipart POSTs (sign-in, login API, replay upload) |
-| Auto updater (`pcsx2-qt/AutoUpdaterDialog.cpp`, changed in place) | `TestOptions.h` | self-update from this fork's releases (`ZDXSV_UPDATE_URL`) |
+| Auto updater (`pcsx2-qt/AutoUpdaterDialog.cpp`, changed in place) | `TestOptions.h`, `QtHooks.h` | self-update from this fork's releases, checked against `SHA256SUMS.txt` (`ZDXSV_UPDATE_URL`) |
 | PINE opcodes (`PINE.cpp`, changed in place: `0x30` to `0x32`) | — | pad input, screenshot, frame count |
 | Counters (vsync), VMManager | `Ggpo`, `Replay*`, `NoDev9`, `FastBoot`, `OnlineLimits`, `AllyHp` | GGPO frame loop, teammate HP on the HUD, replay playback and its unthrottled fast frames, VM start / reset / shutdown cleanup, online switch of the limited features |
 | MTGS, GS, SPU2 | `DeltaFreeze`, `SingleDrawList`, `InputLatency`, `Overlays`, `FastBoot`, `ReplayPlay` | rerun frame skips, replay seek frames not drawn or heard, fast boot shows every 8th frame, single draw list, input latency, OSD |
@@ -219,7 +219,7 @@ stand in for them.
 
 ## Releases and tools ([tools.md](tools.md))
 
-- **Self-update from the GitHub releases of this fork**: release builds; `ZDXSV_UPDATE_URL`.
+- **Self-update from the GitHub releases of this fork**: release builds; installs only a file from this fork's release URL whose SHA-256 matches the release's `SHA256SUMS.txt`; `ZDXSV_UPDATE_URL`.
 - **Updates install at startup** (changed default): a newer release found by the startup check downloads and installs without a click; the update window has Update Now (default) and Later, no Skip This Update; `[AutoUpdater] ZdxsvAutoInstall`.
 - **Crash reports** ([crash-reports.md](crash-reports.md)): `ZdxsvCrashReports`, on by default in a build with `ZDXSV_SENTRY_DSN`.
 - **Release workflow**: a `zdxsv-X.Y.Z` tag.

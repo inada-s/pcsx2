@@ -5,8 +5,12 @@
 
 #include "common/Pcsx2Defs.h"
 
+class HTTPDownloader;
 class INISettingsInterface;
+class ProgressCallback;
+class QByteArray;
 class QObject;
+class QString;
 class QWidget;
 
 namespace Zdxsv
@@ -30,4 +34,10 @@ namespace Zdxsv
 	// After the main window exists: the child exits when its parent is gone.
 	void QtReplayChildWatchParent(QObject* parent);
 	bool QtReplayChildLaunch(QWidget* dialog_parent, const char* disc, const char* src, int pov);
+	// The only download URL the updater accepts for file <name> of release <tag>: this fork's GitHub release.
+	QString QtUpdateAssetUrl(const QString& tag, const QString& name);
+	// True when the SHA-256 of data matches the line for <name> in a SHA256SUMS.txt; else false and *error.
+	bool QtUpdateSumsMatch(const QByteArray& sums, const QString& name, const u8* data, size_t size, QString* error);
+	// Blocks until the SHA256SUMS.txt at url is in *sums. False when it is not: *error set, or left empty on cancel.
+	bool QtUpdateFetchSums(HTTPDownloader* http, const QString& url, ProgressCallback* progress, QByteArray* sums, QString* error);
 } // namespace Zdxsv

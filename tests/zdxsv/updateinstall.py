@@ -4,7 +4,7 @@
 
 --app is a Devel build at the zdxsv-X.Y.Z tag --tag (only a tagged build checks for updates). It is
 copied as PCSX2-<tag>.app into a new directory, and a second copy with a marker file is packed as the
-offered update. A local server answers the release list (ZDXSV_UPDATE_URL) with --offer, which must
+offered update with its SHA256SUMS.txt. A local server answers the release list (ZDXSV_UPDATE_URL) with --offer, which must
 be newer than --tag. ZDXSV_UPDATE_INSTALL=1 presses Download and Install once the change list from
 GitHub has loaded or failed (an unknown tag or the API rate limit only logs an error).
 Pass: the old bundle is gone, PCSX2-<offer>.app holds the marker, has no quarantine attribute and
@@ -12,6 +12,7 @@ runs. Control: --offer older than --tag must fail ("No update needed.").
 Exit 0 = pass, 1 = fail, 2 = setup error.
 """
 import argparse
+import hashlib
 import http.server
 import json
 import os
@@ -61,6 +62,8 @@ asset = os.path.join(work, ASSET)
 subprocess.run(["tar", "-cJf", asset, "-C", os.path.dirname(pkg_app), os.path.basename(pkg_app)],
                check=True, env=dict(os.environ, XZ_OPT="-1"))
 data = open(asset, "rb").read()
+base = "/inada-s/pcsx2/releases/download/%s/" % args.offer
+sums = ("%s  %s\n" % (hashlib.sha256(data).hexdigest(), ASSET)).encode()
 
 requests = []
 
@@ -71,10 +74,13 @@ class Handler(http.server.BaseHTTPRequestHandler):
         if self.path == "/releases":
             body = json.dumps([{
                 "tag_name": args.offer, "draft": False, "prerelease": False, "published_at": "2026-01-01T00:00:00Z",
-                "body": "", "assets": [{"name": ASSET, "size": len(data),
-                                        "browser_download_url": "http://127.0.0.1:%d/asset" % port}],
+                "body": "", "assets": [{"name": ASSET, "size": len(data), "browser_download_url": "http://127.0.0.1:%d%s%s" % (port, base, ASSET)},
+                                       {"name": "SHA256SUMS.txt", "size": len(sums),
+                                        "browser_download_url": "http://127.0.0.1:%d%sSHA256SUMS.txt" % (port, base)}],
             }]).encode()
-        elif self.path == "/asset":
+        elif self.path == base + "SHA256SUMS.txt":
+            body = sums
+        elif self.path == base + ASSET:
             body = data
         else:
             self.send_response(404)
@@ -143,7 +149,7 @@ has_marker = os.path.isfile(os.path.join(new_app, marker))
 quarantine = subprocess.run(["xattr", "-p", "com.apple.quarantine", new_app], capture_output=True).returncode == 0
 old_gone = not os.path.exists(old_app)
 print("downloads %d, old bundle gone %s, new bundle marker %s, quarantine %s, new process %s" %
-      (requests.count("/asset"), old_gone, has_marker, quarantine, bool(running)))
+      (requests.count(base + ASSET), old_gone, has_marker, quarantine, bool(running)))
 shutil.rmtree(work, ignore_errors=True)
 
 ok = old_gone and has_marker and not quarantine and bool(running)
