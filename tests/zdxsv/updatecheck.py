@@ -1,7 +1,7 @@
 """Check the startup update check of a tagged Devel build (pcsx2-qt AutoUpdaterDialog).
 
   python updatecheck.py --exe pcsx2-qtx64.exe --inis DIR [--offer zdxsv-X.Y.Z] [--no-auto-install]
-                        [--sums ok|bad|missing|host] [--timeout S]
+                        [--sums ok|bad|missing|host|gone] [--timeout S]
 
 The build must be at a zdxsv-X.Y.Z tag: only a tagged build checks for updates. A Release build
 ignores ZDXSV_UPDATE_URL and fetches the real list (requests 0: FAIL). A local server
@@ -15,7 +15,8 @@ update, so nothing is installed). --no-auto-install sets [AutoUpdater] ZdxsvAuto
 pass when nothing is downloaded within 10 s.
 --sums bad: SHA256SUMS.txt lists another hash; pass when the update is downloaded and refused
 ("Update refused"). --sums missing (no SHA256SUMS.txt in the release) and --sums host (the asset URL
-on another host name): pass when the release is refused and nothing is downloaded.
+on another host name): pass when the release is refused and nothing is downloaded. --sums gone
+(SHA256SUMS.txt listed, answered 404): pass when its download fails and the update is not downloaded.
 Control: --offer zdxsv-0.0.0 (older than any release) must fail ("No update needed.").
 Exit 0 = pass, 1 = fail, 2 = setup error.
 """
@@ -40,7 +41,7 @@ ap.add_argument("--exe", required=True)
 ap.add_argument("--inis", required=True, help="inis dir of a set-up PCSX2 data dir (PCSX2.ini copied)")
 ap.add_argument("--offer", default="zdxsv-999.0.0")
 ap.add_argument("--no-auto-install", action="store_true")
-ap.add_argument("--sums", choices=("ok", "bad", "missing", "host"), default="ok")
+ap.add_argument("--sums", choices=("ok", "bad", "missing", "host", "gone"), default="ok")
 ap.add_argument("--timeout", type=float, default=60)
 args = ap.parse_args()
 
@@ -55,6 +56,9 @@ class Handler(http.server.BaseHTTPRequestHandler):
         requests.append(self.path)
         if self.path == base + ASSET:
             body = PAYLOAD
+        elif self.path == base + SUMS and args.sums == "gone":
+            self.send_error(404)
+            return
         elif self.path == base + SUMS:
             body = sums_text
         else:
@@ -119,7 +123,8 @@ if result == "Update needed.":
     while time.time() < wait_end and proc.poll() is None:
         time.sleep(0.5)
         text = open(log, encoding="utf-8", errors="replace").read()
-        if base + ASSET in requests and "Download failed" not in text and text.count("Updater Error") > text.count("change list"):
+        if ("Download of %s failed" % SUMS) in text or (base + ASSET in requests and "Download failed" not in text
+                                                        and text.count("Updater Error") > text.count("change list")):
             break
     time.sleep(1)
     text = open(log, encoding="utf-8", errors="replace").read()
@@ -138,6 +143,8 @@ refused_release = (args.offer + " refused:") in text
 refused_update = "Update refused:" in text
 if args.sums in ("missing", "host"):
     ok = lists == 1 and refused_release and not got_sums and not got_asset
+elif args.sums == "gone":
+    ok = lists == 1 and got_sums and not got_asset and ("Download of %s failed: 404" % SUMS) in text
 elif args.no_auto_install:
     ok = lists == 1 and result == "Update needed." and not got_sums and not got_asset
 else:

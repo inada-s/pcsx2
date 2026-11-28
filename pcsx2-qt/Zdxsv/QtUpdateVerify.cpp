@@ -5,11 +5,14 @@
 
 #include "pcsx2/Zdxsv/TestOptions.h"
 
+#include "common/HTTPDownloader.h"
+
 #include <QtCore/QByteArray>
 #include <QtCore/QCryptographicHash>
 #include <QtCore/QList>
 #include <QtCore/QString>
 #include <QtCore/QUrl>
+#include <QtWidgets/QApplication>
 
 namespace Zdxsv
 {
@@ -43,5 +46,31 @@ namespace Zdxsv
 		}
 		*error = QStringLiteral("SHA256SUMS.txt has no line for %1").arg(name);
 		return false;
+	}
+
+	bool QtUpdateFetchSums(HTTPDownloader* http, const QString& url, ProgressCallback* progress, QByteArray* sums, QString* error)
+	{
+		static constexpr size_t MAX_SUMS_SIZE = 65536;
+		bool ok = false;
+		http->CreateRequest(
+			url.toStdString(),
+			[&](s32 status_code, const std::string&, std::vector<u8> data) {
+				if (status_code == HTTPDownloader::HTTP_STATUS_OK && !data.empty() && data.size() <= MAX_SUMS_SIZE)
+				{
+					*sums = QByteArray(reinterpret_cast<const char*>(data.data()), static_cast<qsizetype>(data.size()));
+					ok = true;
+				}
+				else if (status_code != HTTPDownloader::HTTP_STATUS_CANCELLED)
+				{
+					*error = QStringLiteral("Download of SHA256SUMS.txt failed: %1, %2 bytes").arg(status_code).arg(static_cast<qulonglong>(data.size()));
+				}
+			},
+			progress);
+		while (http->HasAnyRequests())
+		{
+			QApplication::processEvents(QEventLoop::AllEvents, 10);
+			http->PollRequests();
+		}
+		return ok;
 	}
 } // namespace Zdxsv

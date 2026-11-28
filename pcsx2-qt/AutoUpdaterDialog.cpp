@@ -433,24 +433,15 @@ void AutoUpdaterDialog::downloadUpdateClicked()
 	progress.SetCancellable(true);
 
 	// zdxsv: SHA256SUMS.txt of the release first; the update is installed only if its SHA-256 matches.
-	std::optional<QByteArray> sums;
 	m_http_poll_timer->stop();
-	m_http->CreateRequest(
-		m_sums_url.toStdString(),
-		[this, &sums](s32 status_code, const std::string&, std::vector<u8> data) {
-			if (status_code == HTTPDownloader::HTTP_STATUS_OK && !data.empty() && data.size() <= 65536)
-				sums = QByteArray(reinterpret_cast<const char*>(data.data()), static_cast<qsizetype>(data.size()));
-			else if (status_code != HTTPDownloader::HTTP_STATUS_CANCELLED)
-				reportError("Download of " UPDATE_SUMS_NAME " failed: %d, %zu bytes", status_code, data.size());
-		},
-		&progress);
-	while (m_http->HasAnyRequests())
+	QByteArray sums;
+	QString fetch_error;
+	if (!Zdxsv::QtUpdateFetchSums(m_http.get(), m_sums_url, &progress, &sums, &fetch_error))
 	{
-		QApplication::processEvents(QEventLoop::AllEvents, HTTP_POLL_INTERVAL);
-		m_http->PollRequests();
-	}
-	if (!sums)
+		if (!fetch_error.isEmpty())
+			reportError("%s", fetch_error.toUtf8().constData());
 		return;
+	}
 
 	m_http->CreateRequest(
 		m_download_url.toStdString(),
@@ -474,7 +465,7 @@ void AutoUpdaterDialog::downloadUpdateClicked()
 
 			// zdxsv: never install a file that differs from the release's SHA256SUMS.txt.
 			QString sums_error;
-			if (!Zdxsv::QtUpdateSumsMatch(*sums, QStringLiteral(UPDATE_ASSET_NAME), data.data(), data.size(), &sums_error))
+			if (!Zdxsv::QtUpdateSumsMatch(sums, QStringLiteral(UPDATE_ASSET_NAME), data.data(), data.size(), &sums_error))
 			{
 				reportError("Update refused: %s", sums_error.toUtf8().constData());
 				download_result = false;
