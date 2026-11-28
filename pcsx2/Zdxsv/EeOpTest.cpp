@@ -52,7 +52,7 @@ namespace
 	constexpr u32 V(u32 vu) { return 0x4a000000 | (vu & 0x01ffffff); }
 	constexpr u32 U(u32 fn, u32 fd = 3, u32 dest = 0xf, u32 fs = 1, u32 ft = 2) { return (dest << 21) | (ft << 16) | (fs << 11) | (fd << 6) | fn; }
 	constexpr u32 US(u32 t, u32 idx, u32 dest = 0xf, u32 ft = 2) { return U(0x3c + t, idx, dest, 1, ft); }
-	constexpr u32 L(u32 t, u32 idx, u32 dest) { return (dest << 21) | (2 << 16) | (1 << 11) | (idx << 6) | (0x3c + t); }
+	constexpr u32 L(u32 t, u32 idx, u32 dest, u32 fs = 1) { return (dest << 21) | (2 << 16) | (fs << 11) | (idx << 6) | (0x3c + t); }
 
 	constexpr u8 S = 0x10, W = 0x14, C2 = 0;
 	const EeTestOp s_ops[] = {
@@ -81,6 +81,13 @@ namespace
 		{"MIN_FdFt", S, 0x29, FT_FS_FT, false},
 		{"MAX_Fd5", S, 0x28, F5_FS_FT, false},
 		{"MIN_Fd5", S, 0x29, F5_FS_FT, false},
+		{"ADD_FdFt", S, 0x00, FT_FS_FT, false},
+		{"ADD_Fd5", S, 0x00, F5_FS_FT, false},
+		{"SUB_FdFt", S, 0x01, FT_FS_FT, false},
+		{"SUB_Fd5", S, 0x01, F5_FS_FT, false},
+		{"MUL_FdFt", S, 0x02, FT_FS_FT, false},
+		{"MUL_Fd5", S, 0x02, F5_FS_FT, false},
+		{"DIV_FdFt", S, 0x03, FT_FS_FT, false},
 		{"C.F", S, 0x30, CMP, false},
 		{"C.EQ", S, 0x32, CMP, false},
 		{"C.LT", S, 0x34, CMP, false},
@@ -89,8 +96,15 @@ namespace
 		{"VDIV", C2, 0, V_Q, false, {V(L(0, 0x0e, 0x2))}},
 		{"VSQRT", C2, 0, V_Q, false, {V(L(1, 0x0e, 0x2))}},
 		{"VRSQRT", C2, 0, V_Q, false, {V(L(2, 0x0e, 0x2))}},
+		{"VDIV_VF0w", C2, 0, V_Q, false, {V(L(0, 0x0e, 0x3, 0))}},
+		{"VDIV_VF0x", C2, 0, V_Q, false, {V(L(0, 0x0e, 0x0, 0))}},
+		{"VRSQRT_VF0w", C2, 0, V_Q, false, {V(L(2, 0x0e, 0x3, 0))}},
 		{"VADD", C2, 0, V_FD, false, {V(U(0x28))}},
 		{"VSUB", C2, 0, V_FD, false, {V(U(0x2c))}},
+		{"VSUB_xz", C2, 0, V_FD, false, {V(U(0x2c, 3, 0xa))}},
+		{"VSUB_FsFt", C2, 0, V_FD, false, {V(U(0x2c, 3, 0xf, 1, 1))}},
+		{"VSUB_FsFt_xz", C2, 0, V_FD, false, {V(U(0x2c, 3, 0xa, 1, 1))}},
+		{"VSUBA_FsFt", C2, 0, V_ACC, false, {V(U(0x3c, 0x0b, 0xf, 1, 1))}},
 		{"VMUL", C2, 0, V_FD, false, {V(U(0x2a))}},
 		{"VMADD", C2, 0, V_FD, false, {V(U(0x29))}},
 		{"VMSUB", C2, 0, V_FD, false, {V(U(0x2d))}},
