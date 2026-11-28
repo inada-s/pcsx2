@@ -32,6 +32,8 @@ namespace
 	// Upper op <fn>, dest xyzw, fs = VF1, ft = VF2, fd = VF3; special forms: fn = 0x3c + t, fd = idx.
 	constexpr u32 U(u32 fn, u32 fd = 3, u32 dest = 0xf) { return (dest << 21) | (2 << 16) | (1 << 11) | (fd << 6) | fn; }
 	constexpr u32 US(u32 t, u32 idx, u32 dest = 0xf) { return U(0x3c + t, idx, dest); }
+	constexpr u32 SameFsFt(u32 code) { return (code & ~(0x1fu << 16)) | (1 << 16); }
+	constexpr u32 FsVf0(u32 code) { return code & ~(0x1fu << 11); }
 
 	const VuTestOp s_ops[] = {
 		{"DIV", NOP_U, L(0, 0x0e, 0x2), NOP_U, NOP_L},
@@ -83,6 +85,15 @@ namespace
 		{"FTOI15", US(3, 0x05), NOP_L, NOP_U, NOP_L},
 		{"ABS", US(1, 0x07), NOP_L, NOP_U, NOP_L},
 		{"CLIP", US(3, 0x07, 0xe), NOP_L, NOP_U, NOP_L},
+		{"SUB_xz", U(0x2c, 3, 0xa), NOP_L, NOP_U, NOP_L},
+		{"MADD_yw", U(0x29, 3, 0x5), NOP_L, NOP_U, NOP_L},
+		{"SUB_FsFt", SameFsFt(U(0x2c)), NOP_L, NOP_U, NOP_L},
+		{"SUB_FsFt_xz", SameFsFt(U(0x2c, 3, 0xa)), NOP_L, NOP_U, NOP_L},
+		{"SUBA_FsFt", SameFsFt(US(0, 0x0b)), NOP_L, NOP_U, NOP_L},
+		{"ADD_FsFt", SameFsFt(U(0x28)), NOP_L, NOP_U, NOP_L},
+		{"DIV_VF0w", NOP_U, FsVf0(L(0, 0x0e, 0x3)), NOP_U, NOP_L},
+		{"DIV_VF0x", NOP_U, FsVf0(L(0, 0x0e, 0x0)), NOP_U, NOP_L},
+		{"RSQRT_VF0w", NOP_U, FsVf0(L(2, 0x0e, 0x3)), NOP_U, NOP_L},
 	};
 
 	u32 s_rng = 0x12345678;
