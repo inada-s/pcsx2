@@ -554,8 +554,8 @@ static void (*recComOpXMM_to_XMM_REV[])(x86SSERegType, x86SSERegType) = { //reve
 int recCommutativeOp(int info, int regd, int op)
 {
 	int t0reg = _allocTempXMMreg(XMMT_FPS);
-	// zdxsv: regd holds Ft, fs Fs. MAXSS/MINSS return the second operand on equal ones (+0, -0), so the reversed
-	// order gave Fs or Ft by register allocation; the Z game always gets Ft (FpuMaxMinX86).
+	// zdxsv: MAX/MIN with the operands reversed give Ft on +0 vs -0 for the Z game (FpuMaxMinX86), not Fs or Ft by
+	// register allocation. MAXSS/MINSS return the second operand on equal ones; regd holds Ft, fs Fs.
 	const auto rev = [&](int fs) {
 		if (op >= 2 && Zdxsv::g_z_game)
 		{
