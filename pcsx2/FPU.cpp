@@ -326,7 +326,7 @@ void MADDA_S() {
 
 void MAX_S() {
 #ifdef ARCH_ARM64
-	_FdValUl_ = Zdxsv::FpuMaxMinX86(_FsValUl_, _FtValUl_, _Fd_ == _Ft_, true); // recMAX_S_xmm keeps O and U
+	_FdValUl_ = Zdxsv::FpuMaxMinX86(_FsValUl_, _FtValUl_, true); // recMAX_S_xmm keeps O and U
 	return;
 #endif
 	_FdValUl_  = fp_max( _FsValUl_, _FtValUl_ );
@@ -340,7 +340,7 @@ void MFC1() {
 
 void MIN_S() {
 #ifdef ARCH_ARM64
-	_FdValUl_ = Zdxsv::FpuMaxMinX86(_FsValUl_, _FtValUl_, _Fd_ == _Ft_, false); // recMIN_S_xmm keeps O and U
+	_FdValUl_ = Zdxsv::FpuMaxMinX86(_FsValUl_, _FtValUl_, false); // recMIN_S_xmm keeps O and U
 	return;
 #endif
 	_FdValUl_ = fp_min(_FsValUl_, _FtValUl_);

@@ -199,7 +199,7 @@ Keys (`net=1`, `lobby=1`, `port=`, `delay=`, ...) are parts of `ZDXSV_GGPO`.
 
 - **EE and IOP recompilers with the x86 timing**: `EnableEE`, `EnableIOP`.
 - **VU1 trace recompiler**: `PCSX2_VU1_JIT=0` turns it off.
-- **FPU and VU math as x86**.
+- **FPU and VU math as x86**; on x86_64 the Z game gets MAX.S/MIN.S on +0 vs -0 as on ARM64 (Ft, not by register allocation).
 - **EE FPU interpreter as the recompiler**: all builds.
 
 ## Development and rig paths

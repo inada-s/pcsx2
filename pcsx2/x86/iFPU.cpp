@@ -5,6 +5,7 @@
 #include "R5900OpcodeTables.h"
 #include "iR5900.h"
 #include "iFPU.h"
+#include "Zdxsv/CpuHooks.h"
 
 using namespace x86Emitter;
 
@@ -553,6 +554,18 @@ static void (*recComOpXMM_to_XMM_REV[])(x86SSERegType, x86SSERegType) = { //reve
 int recCommutativeOp(int info, int regd, int op)
 {
 	int t0reg = _allocTempXMMreg(XMMT_FPS);
+	// zdxsv: MAX/MIN with the operands reversed give Ft on +0 vs -0 for the Z game (FpuMaxMinX86), not Fs or Ft by
+	// register allocation. MAXSS/MINSS return the second operand on equal ones; regd holds Ft, fs Fs.
+	const auto rev = [&](int fs) {
+		if (op >= 2 && Zdxsv::g_z_game)
+		{
+			xMOVSS(xRegisterSSE(t0reg), xRegisterSSE(fs));
+			recComOpXMM_to_XMM[op](t0reg, regd);
+			xMOVSS(xRegisterSSE(regd), xRegisterSSE(t0reg));
+		}
+		else
+			recComOpXMM_to_XMM_REV[op](regd, fs);
+	};
 
 	switch (info & (PROCESS_EE_S | PROCESS_EE_T))
 	{
@@ -575,7 +588,7 @@ int recCommutativeOp(int info, int regd, int op)
 					fpuFloat2(regd);
 					fpuFloat2(EEREC_S);
 				}
-				recComOpXMM_to_XMM_REV[op](regd, EEREC_S);
+				rev(EEREC_S); // zdxsv: Ft on equal operands
 			}
 			break;
 		case PROCESS_EE_T:
@@ -587,7 +600,7 @@ int recCommutativeOp(int info, int regd, int op)
 					fpuFloat2(regd);
 					fpuFloat2(t0reg);
 				}
-				recComOpXMM_to_XMM_REV[op](regd, t0reg);
+				rev(t0reg); // zdxsv: Ft on equal operands
 			}
 			else
 			{
@@ -608,7 +621,7 @@ int recCommutativeOp(int info, int regd, int op)
 					fpuFloat2(regd);
 					fpuFloat2(EEREC_S);
 				}
-				recComOpXMM_to_XMM_REV[op](regd, EEREC_S);
+				rev(EEREC_S); // zdxsv: Ft on equal operands
 			}
 			else
 			{
