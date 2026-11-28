@@ -3135,6 +3135,8 @@ void MainWindow::updateDisplayWidgetCursor()
 	pxAssertRel(m_display_surface, "Should have a display widget");
 	m_display_surface->updateRelativeMode(s_vm_valid && !s_vm_paused && m_relative_mouse_mode);
 	m_display_surface->updateCursor(s_vm_valid && !s_vm_paused && shouldHideMouseCursor());
+	Zdxsv::QtCursorMoveUpdate(m_display_surface, s_vm_valid && !s_vm_paused && shouldHideMouseCursor(),
+		!m_relative_mouse_mode && !m_hide_mouse_cursor);
 }
 
 void MainWindow::setupMouseMoveHandler()

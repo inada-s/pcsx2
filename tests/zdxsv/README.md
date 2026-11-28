@@ -336,6 +336,7 @@ Scripts are in `tests/zdxsv/` except `run.py` (repository root) and
 | Direct3D 11 for Intel GPUs before Xe | no test. By hand: on an Intel GPU before Xe with the renderer on Automatic, emulog shows `for Intel GPU, using Direct3D 11.`; a chosen renderer is used as chosen | none |
 | No game properties | no test. By hand: the System menu, the game list context menu and Big Picture have no game properties entry and a saved game settings ini is not loaded (emulog has no `Loading game settings from`); `ZdxsvFeatureLimits = false`: as upstream | none |
 | Mouse wheel volume | no test. By hand: wheel over the game screen, OSD `Volume: N%` steps by 5 and the status bar volume follows; setting off or the wheel bound: no change | none |
+| Cursor shown on mouse move | `python tests/zdxsv/cursormove.py` (Windows): hidden after 6 s still, shown within 0.5 s of a move and through 4 s of moves, hidden 4.5 s after the last; shown while paused, hidden on resume | `cursormove.py --off`, `--relative` (a pointer bind): hidden through the moves, shown only while paused |
 
 ### Upstream fixes
 

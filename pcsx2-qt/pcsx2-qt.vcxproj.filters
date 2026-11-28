@@ -839,6 +839,9 @@
     <ClCompile Include="Zdxsv\QtUpdateVerify.cpp">
       <Filter>Zdxsv</Filter>
     </ClCompile>
+    <ClCompile Include="Zdxsv\QtCursorMove.cpp">
+      <Filter>Zdxsv</Filter>
+    </ClCompile>
     <ClCompile Include="Zdxsv\QtWheelVolume.cpp">
       <Filter>Zdxsv</Filter>
     </ClCompile>
