@@ -1043,6 +1043,9 @@ static const VU1FmacDesc* _vuJitFmacDesc(const VU1FmacDesc* ops, size_t count, F
 			desc = &ops[i];
 	if (!desc || (!desc->acc && ((code >> 6) & 0x1f) == 0))
 		return nullptr;
+	// SUB/SUBA Fs, Fs: the handler writes +0 as x86 microVU does.
+	if (desc->op == VU1FmacOp::Sub && desc->bc == VU1_BC_VEC && ((code >> 11) & 0x1f) == ((code >> 16) & 0x1f))
+		return nullptr;
 	return desc;
 }
 
@@ -2150,8 +2153,23 @@ static bool _vu1JitEmitFdivOp(FnPtr_VuVoid f, u32 code)
 		}
 		armAsm->Fmov(a64::s0, a64::w0);
 		armAsm->Fdiv(a64::s0, a64::s0, a64::s1);
-		_vu1JitEmitFdivClamp(a64::s0, false);
-		armAsm->Fmov(a64::w3, a64::s0);
+		if (fs != 0)
+		{
+			_vu1JitEmitFdivClamp(a64::s0, false);
+			armAsm->Fmov(a64::w3, a64::s0);
+		}
+		else
+		{
+			// Fs = VF0: no clamp, a NaN divisor passes quieted (Zdxsv::VuDivX86).
+			armAsm->Fmov(a64::w3, a64::s0);
+			if (f == VU1MI_RSQRT)
+				armAsm->And(a64::w5, a64::w1, 0x7fffffff);
+			else
+				armAsm->Mov(a64::w5, a64::w1);
+			armAsm->Orr(a64::w5, a64::w5, 0x400000);
+			armAsm->Fcmp(a64::s1, a64::s1);
+			armAsm->Csel(a64::w3, a64::w5, a64::w3, a64::vs);
+		}
 	}
 	armAsm->Bind(&store);
 	armAsm->Str(a64::w3, _vu1JitMem(_vu1Off(VU1.q.UL)));

@@ -572,7 +572,10 @@ static __fi void applyBinaryMACOp(VURegs* VU)
 	const u32 c = _vuClampOperands(VU);
 	if (_vuX86FmacOf<Fn>() != Zdxsv::VuX86Op::None && _vuX86Fmac(VU))
 	{
-		const VECTOR xs = Zdxsv::VuX86In(VU->VF[_Fs_], c & 2), xt = Zdxsv::VuX86In(VU->VF[_Ft_], c & 1);
+		// zdxsv: x86 microVU writes +0 for SUB/SUBA Fs, Fs (also Inf and NaN lanes).
+		const bool zero = Fn == _vuOpSUB && _Fs_ == _Ft_;
+		const VECTOR xs = zero ? VECTOR{} : Zdxsv::VuX86In(VU->VF[_Fs_], c & 2);
+		const VECTOR xt = zero ? VECTOR{} : Zdxsv::VuX86In(VU->VF[_Ft_], c & 1);
 		Zdxsv::VuX86Apply<_vuX86FmacOf<Fn>(), Dst == MACOpDst::Acc>(VU->code, VU->macflag, dst, xs, xs, xt);
 		VU_STAT_UPDATE(VU);
 		return;
@@ -1046,7 +1049,7 @@ static __fi void _vuCLIP(VURegs* VU)
 #ifdef ARCH_ARM64
 static __fi void _vuDIV(VURegs* VU)
 {
-	VU->q.UL = Zdxsv::VuDivX86(VU == &VU1 ? 1 : 0, VU->statusflag, VU->VF[_Fs_].UL[_Fsf_], VU->VF[_Ft_].UL[_Ftf_]);
+	VU->q.UL = Zdxsv::VuDivX86(VU == &VU1 ? 1 : 0, VU->statusflag, VU->VF[_Fs_].UL[_Fsf_], VU->VF[_Ft_].UL[_Ftf_], _Fs_ == 0);
 }
 
 static __fi void _vuSQRT(VURegs* VU)
@@ -1056,7 +1059,7 @@ static __fi void _vuSQRT(VURegs* VU)
 
 static __fi void _vuRSQRT(VURegs* VU)
 {
-	VU->q.UL = Zdxsv::VuRsqrtX86(VU == &VU1 ? 1 : 0, VU->statusflag, VU->VF[_Fs_].UL[_Fsf_], VU->VF[_Ft_].UL[_Ftf_]);
+	VU->q.UL = Zdxsv::VuRsqrtX86(VU == &VU1 ? 1 : 0, VU->statusflag, VU->VF[_Fs_].UL[_Fsf_], VU->VF[_Ft_].UL[_Ftf_], _Fs_ == 0);
 }
 #else
 static __fi void _vuDIV(VURegs* VU)
