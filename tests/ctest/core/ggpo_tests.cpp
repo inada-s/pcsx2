@@ -275,3 +275,320 @@ TEST(GGPO, UdpDualStack)
 	EXPECT_EQ(peer_cb.msgs, 1);
 	EXPECT_EQ(peer_cb.family, AF_INET6);
 }
+
+namespace
+{
+	SOCKET BoundLoopbackSocket(unsigned short* port)
+	{
+		SOCKET s = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+		sockaddr_in a{};
+		a.sin_family = AF_INET;
+		a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+		bind(s, reinterpret_cast<sockaddr*>(&a), sizeof(a));
+		socklen_t len = sizeof(a);
+		getsockname(s, reinterpret_cast<sockaddr*>(&a), &len);
+		*port = ntohs(a.sin_port);
+#ifdef _WIN32
+		u_long nonblocking = 1;
+		ioctlsocket(s, FIONBIO, &nonblocking);
+#else
+		fcntl(s, F_SETFL, O_NONBLOCK);
+#endif
+		return s;
+	}
+
+	unsigned short FreeLoopbackPort()
+	{
+		unsigned short port;
+		closesocket(BoundLoopbackSocket(&port));
+		return port;
+	}
+
+	constexpr uint16 kForgedMagic = 0x5555;
+	constexpr uint16 kForgedSeq = 0x4321;
+
+	void SendRelay(SOCKET s, unsigned short to_port, int relay_to)
+	{
+		UdpMsg m(UdpMsg::KeepAlive);
+		m.hdr.const_magic = CONST_MAGIC;
+		m.hdr.magic = kForgedMagic;
+		m.hdr.sequence_number = kForgedSeq;
+		m.hdr.remote_endpoint = 0;
+		m.hdr.type = UdpMsg::Relay;
+		m.hdr.relay_magic = RELAY_MAGIC;
+		m.hdr.relay_to_endpoint = static_cast<uint8>(relay_to);
+		m.hdr.org_type = UdpMsg::KeepAlive;
+		sockaddr_in a{};
+		a.sin_family = AF_INET;
+		a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+		a.sin_port = htons(to_port);
+		sendto(s, reinterpret_cast<const char*>(&m), sizeof(m.hdr), 0, reinterpret_cast<sockaddr*>(&a), sizeof(a));
+	}
+
+	// remote_endpoint of the forwarded copy of a SendRelay packet read from s, or -1 if none came
+	int ForwardedSender(GGPOSession* session, SOCKET s)
+	{
+		int sender = -1;
+		for (int k = 0; k < 30; k++)
+		{
+			ggpo_idle(session, 0);
+			std::this_thread::sleep_for(std::chrono::milliseconds(10));
+			char buf[2048];
+			int len;
+			while ((len = recv(s, buf, sizeof(buf), 0)) >= static_cast<int>(sizeof(UdpMsg::hdr)))
+			{
+				const UdpMsg* m = reinterpret_cast<const UdpMsg*>(buf);
+				if (m->hdr.type == UdpMsg::KeepAlive && m->hdr.magic == kForgedMagic && m->hdr.sequence_number == kForgedSeq)
+					sender = m->hdr.remote_endpoint;
+			}
+		}
+		return sender;
+	}
+} // namespace
+
+// A relay packet is forwarded only for a player reached directly, and carries that player's index
+// whatever index the packet names.
+TEST(GGPO, RelayForwardsOnlyFromPlayers)
+{
+	unsigned short port_b, port_c, port_x;
+	SOCKET b = BoundLoopbackSocket(&port_b);
+	SOCKET c = BoundLoopbackSocket(&port_c);
+	SOCKET x = BoundLoopbackSocket(&port_x);
+	const unsigned short local_port = FreeLoopbackPort();
+
+	GGPOSessionCallbacks cb{};
+	cb.begin_game = BeginGame;
+	cb.save_game_state = SaveGameState;
+	cb.load_game_state = LoadGameState;
+	cb.log_game_state = LogGameState;
+	cb.free_buffer = FreeBuffer;
+	cb.advance_frame = AdvanceFrame;
+	cb.on_event = OnEvent;
+	GGPOSession* session = nullptr;
+	ASSERT_EQ(ggpo_start_session(&session, &cb, "ggpo_test", 3, sizeof(uint16_t), local_port, nullptr, 0), GGPO_OK);
+
+	const unsigned short ports[] = {0, port_b, port_c};
+	for (int i = 0; i < 3; i++)
+	{
+		GGPOPlayer player{};
+		player.size = sizeof(player);
+		player.player_num = i + 1;
+		player.type = i == 0 ? GGPO_PLAYERTYPE_LOCAL : GGPO_PLAYERTYPE_REMOTE;
+		if (i != 0)
+		{
+			std::strcpy(player.u.remote.ip_address, "127.0.0.1");
+			player.u.remote.port = ports[i];
+		}
+		GGPOPlayerHandle handle;
+		ASSERT_EQ(ggpo_add_player(session, &player, &handle), GGPO_OK);
+	}
+
+	SendRelay(x, local_port, 2);
+	EXPECT_EQ(ForwardedSender(session, c), -1) << "forwarded for an unknown source";
+
+	SendRelay(b, local_port, 2);
+	EXPECT_EQ(ForwardedSender(session, c), 1) << "not forwarded for a player, or not named by its source";
+
+	SendRelay(c, local_port, 2);
+	EXPECT_EQ(ForwardedSender(session, c), -1) << "forwarded back to its sender";
+
+	EXPECT_EQ(ggpo_close_session(session), GGPO_OK);
+	closesocket(b);
+	closesocket(c);
+	closesocket(x);
+}
+
+namespace
+{
+	constexpr uint16 kPeerMagic = 0x2468;
+
+	void SendToLocal(SOCKET s, unsigned short port, const UdpMsg& m, int len)
+	{
+		sockaddr_in a{};
+		a.sin_family = AF_INET;
+		a.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+		a.sin_port = htons(port);
+		sendto(s, reinterpret_cast<const char*>(&m), len, 0, reinterpret_cast<sockaddr*>(&a), sizeof(a));
+	}
+
+	// Two players: the local one and a peer played by socket peer, which answers the sync requests.
+	GGPOSession* StartSyncedWithPeer(SOCKET peer, unsigned short peer_port, unsigned short local_port)
+	{
+		GGPOSessionCallbacks cb{};
+		cb.begin_game = BeginGame;
+		cb.save_game_state = SaveGameState;
+		cb.load_game_state = LoadGameState;
+		cb.log_game_state = LogGameState;
+		cb.free_buffer = FreeBuffer;
+		cb.advance_frame = AdvanceFrame;
+		cb.on_event = OnEvent;
+		GGPOSession* session = nullptr;
+		EXPECT_EQ(ggpo_start_session(&session, &cb, "ggpo_test", 2, sizeof(uint16_t), local_port, nullptr, 0), GGPO_OK);
+		for (int i = 0; i < 2; i++)
+		{
+			GGPOPlayer player{};
+			player.size = sizeof(player);
+			player.player_num = i + 1;
+			player.type = i == 0 ? GGPO_PLAYERTYPE_LOCAL : GGPO_PLAYERTYPE_REMOTE;
+			if (i != 0)
+			{
+				std::strcpy(player.u.remote.ip_address, "127.0.0.1");
+				player.u.remote.port = peer_port;
+			}
+			GGPOPlayerHandle handle;
+			EXPECT_EQ(ggpo_add_player(session, &player, &handle), GGPO_OK);
+		}
+		// The peer socket sends nothing but the test's packets: on a slow runner the disconnect
+		// timeout would drop the peer before the test reads what the session took.
+		EXPECT_EQ(ggpo_set_disconnect_timeout(session, 0), GGPO_OK);
+		int replies = 0;
+		for (int k = 0; k < 200 && replies < 5; k++)
+		{
+			EXPECT_EQ(ggpo_idle(session, 0), GGPO_OK);
+			std::this_thread::sleep_for(std::chrono::milliseconds(5));
+			char buf[2048];
+			int len;
+			while ((len = recv(peer, buf, sizeof(buf), 0)) >= static_cast<int>(sizeof(UdpMsg::hdr)))
+			{
+				const UdpMsg* req = reinterpret_cast<const UdpMsg*>(buf);
+				if (req->hdr.type != UdpMsg::SyncRequest)
+					continue;
+				UdpMsg reply(UdpMsg::SyncReply);
+				reply.hdr.const_magic = CONST_MAGIC;
+				reply.hdr.magic = kPeerMagic;
+				reply.hdr.sequence_number = 0;
+				reply.hdr.remote_endpoint = 1;
+				reply.u.sync_reply.random_reply = req->u.sync_request.random_request;
+				reply.u.sync_reply.verification_failure = 0;
+				SendToLocal(peer, local_port, reply, sizeof(reply.hdr) + sizeof(reply.u.sync_reply));
+				replies++;
+			}
+		}
+		EXPECT_GE(replies, 5) << "sync never finished";
+		return session;
+	}
+
+	void SendInput(SOCKET peer, unsigned short local_port, uint16 seq, uint32 start_frame, int frames, int peer_last_frame)
+	{
+		UdpMsg m(UdpMsg::Input);
+		m.hdr.const_magic = CONST_MAGIC;
+		m.hdr.magic = kPeerMagic;
+		m.hdr.sequence_number = seq;
+		m.hdr.remote_endpoint = 1;
+		for (auto& s : m.u.input.peer_connect_status)
+		{
+			s.disconnected = 0;
+			s.last_frame = peer_last_frame;
+		}
+		m.u.input.start_frame = start_frame;
+		m.u.input.disconnect_requested = 0;
+		m.u.input.ack_frame = 0;
+		m.u.input.num_bits = static_cast<uint16>(frames);
+		m.u.input.input_size = sizeof(uint16_t);
+		std::memset(m.u.input.bits, 0, sizeof(m.u.input.bits));
+		const int len = static_cast<int>(reinterpret_cast<const char*>(&m.u.input.bits[(frames + 7) / 8]) - reinterpret_cast<const char*>(&m));
+		SendToLocal(peer, local_port, m, len);
+	}
+
+	void IdleExpectOk(GGPOSession* session, const char* what)
+	{
+		for (int k = 0; k < 20; k++)
+		{
+			std::this_thread::sleep_for(std::chrono::milliseconds(5));
+			ASSERT_EQ(ggpo_idle(session, 0), GGPO_OK) << what;
+		}
+	}
+} // namespace
+
+// A synced peer's malformed inputs are dropped; none of them ends the session.
+TEST(GGPO, PeerInputsDoNotEndSession)
+{
+	struct Case
+	{
+		const char* what;
+		uint32 start_frame;
+		int frames;
+		int first_last_frame;
+		int second_last_frame;
+	};
+	const Case cases[] = {
+		{"first frame far ahead", 1000000, 1, -1, -1},
+		{"peer last frame goes back", 0, 1, 10, 5},
+		{"more frames than the event queue holds", 0, 200, -1, -1},
+	};
+	for (const Case& c : cases)
+	{
+		unsigned short peer_port;
+		SOCKET peer = BoundLoopbackSocket(&peer_port);
+		const unsigned short local_port = FreeLoopbackPort();
+		GGPOSession* session = StartSyncedWithPeer(peer, peer_port, local_port);
+		SendInput(peer, local_port, 1, c.start_frame, c.frames, c.first_last_frame);
+		IdleExpectOk(session, c.what);
+		SendInput(peer, local_port, 2, c.start_frame + c.frames, 1, c.second_last_frame);
+		IdleExpectOk(session, c.what);
+		ggpo_close_session(session);
+		closesocket(peer);
+	}
+}
+
+namespace
+{
+	// The newest frame of the peer that the session reports back in its own input packets.
+	int ReportedPeerFrame(GGPOSession* session, SOCKET peer)
+	{
+		uint16_t input = 0;
+		EXPECT_EQ(ggpo_add_local_input(session, 1, &input, sizeof(input)), GGPO_OK);
+		int frame = -2;
+		for (int k = 0; k < 20; k++)
+		{
+			std::this_thread::sleep_for(std::chrono::milliseconds(5));
+			EXPECT_EQ(ggpo_idle(session, 0), GGPO_OK);
+			char buf[2048];
+			int len;
+			while ((len = recv(peer, buf, sizeof(buf), 0)) >= static_cast<int>(sizeof(UdpMsg::hdr)))
+			{
+				const UdpMsg* m = reinterpret_cast<const UdpMsg*>(buf);
+				if (m->hdr.type == UdpMsg::Input)
+					frame = m->u.input.peer_connect_status[1].last_frame;
+			}
+		}
+		return frame;
+	}
+} // namespace
+
+// The session keeps taking a peer's inputs after a forged far-ahead frame and stops at what its queue holds.
+TEST(GGPO, PeerInputsBounded)
+{
+	struct Packet
+	{
+		uint32 start_frame;
+		int frames;
+		int last_frame;
+	};
+	struct Case
+	{
+		const char* what;
+		std::vector<Packet> packets;
+		int reported;
+	};
+	const Case cases[] = {
+		{"forged far-ahead last frame", {{0, 1, 1000000}, {0, 2, 1}}, 1},
+		{"more frames than the input queue holds", {{0, 50, -1}, {50, 50, -1}, {100, 50, -1}, {150, 50, -1}}, 127},
+	};
+	for (const Case& c : cases)
+	{
+		unsigned short peer_port;
+		SOCKET peer = BoundLoopbackSocket(&peer_port);
+		const unsigned short local_port = FreeLoopbackPort();
+		GGPOSession* session = StartSyncedWithPeer(peer, peer_port, local_port);
+		uint16 seq = 1;
+		for (const Packet& p : c.packets)
+		{
+			SendInput(peer, local_port, seq++, p.start_frame, p.frames, p.last_frame);
+			IdleExpectOk(session, c.what);
+		}
+		EXPECT_EQ(ReportedPeerFrame(session, peer), c.reported) << c.what;
+		ggpo_close_session(session);
+		closesocket(peer);
+	}
+}

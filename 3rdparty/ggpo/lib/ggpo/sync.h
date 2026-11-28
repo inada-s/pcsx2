@@ -60,6 +60,8 @@ public:
    int GetLastConfirmedFrame() { return _last_confirmed_frame; }
    bool InRollback() { return _rollingback; }
    int GetPredictedFrames(int queue) { return _framecount - _last_confirmed_frame; }
+   // zdxsv: what a remote queue still takes before its length assert throws.
+   int GetInputQueueRoom(int queue) { return INPUT_QUEUE_LENGTH - _input_queues[queue].GetLength(); }
 
    bool GetEvent(Event &e);
 

@@ -112,6 +112,8 @@ public:
 
    void SetDisconnectTimeout(int timeout);
    void SetDisconnectNotifyStart(int timeout);
+   // zdxsv: OnInput queues no more input events than the remote input queue takes.
+   void SetInputQueueRoom(int room) { _input_queue_room = room; }
 
 protected:
    enum State {
@@ -190,6 +192,8 @@ protected:
    int            _stats_start_time;
    int            _recv_packet_loss;
    std::atomic<int> _send_packet_loss;
+   std::atomic<uint32> _quality_pings[2];
+   int            _quality_ping_index;
 
    /*
     * The state machine
@@ -242,7 +246,10 @@ protected:
    /*
     * Event queue
     */
-   RingBuffer<UdpProtocol::Event, 64>  _event_queue;
+   static constexpr int EVENT_QUEUE_SIZE = 64;
+   RingBuffer<UdpProtocol::Event, EVENT_QUEUE_SIZE>  _event_queue;
+   // zdxsv
+   int                        _input_queue_room;
 };
 
 #endif
