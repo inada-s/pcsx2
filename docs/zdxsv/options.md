@@ -100,6 +100,7 @@ page greys it out and its tooltip names the variable.
 | `ZDXSV_UPDATE_INSTALL=1` | off | test | When the update dialog has loaded its change list (or failed to), it downloads and installs the update as if Download and Install was pressed. |
 | `ZDXSV_SENTRY_DSN=dsn` | the build's DSN | test | Crash reports go to this DSN, with the environment `development`. |
 | `ZDXSV_CRASH_REPORT_TEST=1` | off | test | In a build with a DSN: starts crash reports whatever `ZdxsvCrashReports` says, without changing it, and crashes PCSX2 right after. |
+| `ZDXSV_CRASH_REPORT_TEST_LOG=<text>` | none | test | With `ZDXSV_CRASH_REPORT_TEST=1`: logs `<text>` as one line just before the crash. |
 
 ## ZDXSV_GGPO
 
