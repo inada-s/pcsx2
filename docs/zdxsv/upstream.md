@@ -410,7 +410,7 @@ Visual Studio and `lupdate` drop comments when they rewrite these files.
 | `pcsx2/VUops.cpp` |  | include `Zdxsv/VuX86.h` |
 | `pcsx2/VUops.cpp` | `_vuFDIVAdd` | D/I also set their sticky bits (DS/IS), as x86 microVU does. |
 | `pcsx2/VUops.cpp` | `_getDst` | `Zdxsv::VuX86ClampOperands`, `Zdxsv::VuCop2Op`, `Zdxsv::VuX86Fmac` |
-| `pcsx2/VUops.cpp` | `applyBinaryMACOp` | `Zdxsv::VuX86Op`, `Zdxsv::VuX86In`, `Zdxsv::VuX86Apply` |
+| `pcsx2/VUops.cpp` | `applyBinaryMACOp` | x86 microVU writes +0 for SUB/SUBA Fs, Fs (also Inf and NaN lanes). |
 | `pcsx2/VUops.cpp` | `applyBinaryMACOpBroadcast` | `Zdxsv::VuX86Op`, `Zdxsv::VuX86In`, `Zdxsv::VuX86Apply` |
 | `pcsx2/VUops.cpp` | `applyTernaryMACOp` | `Zdxsv::VuX86Op`, `Zdxsv::VuX86In`, `Zdxsv::VuX86Apply` |
 | `pcsx2/VUops.cpp` | `applyTernaryMACOpBroadcast` | `Zdxsv::VuX86Op`, `Zdxsv::VuX86In`, `Zdxsv::VuX86Apply` |

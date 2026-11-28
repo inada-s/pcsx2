@@ -178,7 +178,8 @@ namespace Zdxsv
 
 	// DIV/SQRT/RSQRT (x86/microVU_Lower.inl): the register bits unclamped, zero = exponent 0 (DAZ),
 	// negative = sign bit (also -0), I/D as microVU sets them, the quotient clamped by MINSS/MAXSS
-	// (a NaN becomes +max). Each returns Q and sets the I/D bits of status.
+	// (a NaN becomes +max) unless Fs is VF0: microVU never clamps a register loaded from VF0, so a NaN
+	// divisor passes quieted. Each returns Q and sets the I/D bits of status.
 	inline bool VuFdivZero(u32 v)
 	{
 		return (v & 0x7f800000) == 0;
@@ -193,7 +194,7 @@ namespace Zdxsv
 		return r > min ? r : min;
 	}
 
-	inline u32 VuDivX86(int vu, u32& status, u32 fs, u32 ft)
+	inline u32 VuDivX86(int vu, u32& status, u32 fs, u32 ft, bool fs_vf0)
 	{
 		status &= ~0x30;
 		if (VuFdivZero(ft))
@@ -201,6 +202,8 @@ namespace Zdxsv
 			status |= VuFdivZero(fs) ? 0x10 : 0x20;
 			return ((fs ^ ft) & 0x80000000) | 0x7f7fffff;
 		}
+		if (fs_vf0 && VuIsNaN(ft))
+			return ft | 0x400000;
 		return std::bit_cast<u32>(VuFdivClamp(vu, std::bit_cast<float>(fs) / std::bit_cast<float>(ft)));
 	}
 
@@ -216,7 +219,7 @@ namespace Zdxsv
 		return std::bit_cast<u32>(std::sqrt(t));
 	}
 
-	inline u32 VuRsqrtX86(int vu, u32& status, u32 fs, u32 ft)
+	inline u32 VuRsqrtX86(int vu, u32& status, u32 fs, u32 ft, bool fs_vf0)
 	{
 		const float s = std::sqrt(std::bit_cast<float>(ft & 0x7fffffff));
 		status &= ~0x30;
@@ -226,6 +229,8 @@ namespace Zdxsv
 			return (fs & 0x80000000) | 0x7f7fffff;
 		}
 		status |= ft >> 31 ? 0x10 : 0;
+		if (fs_vf0 && VuIsNaN(ft))
+			return (ft & 0x7fffffff) | 0x400000;
 		return std::bit_cast<u32>(VuFdivClamp(vu, std::bit_cast<float>(fs) / s));
 	}
 
