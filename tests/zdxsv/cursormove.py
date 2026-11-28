@@ -6,6 +6,8 @@ Boots the game fullscreen with [UI] HideMouseCursor = true in instance p9, the m
 centre, and reads the cursor pcsx2 set after 6 s still, then while and after the mouse moves.
 exit 0: still -> hidden; moved -> shown within 0.5 s and through 4 s of moves; 4.5 s after the last move -> hidden.
 Then a move, pause (TogglePause = Space): shown 4.5 s later; resume: hidden within 0.5 s.
+With a mouse attached (SM_MOUSEPRESENT), every read also needs GetCursorInfo CURSOR_SHOWING (the cursor Windows
+draws) to agree; without one that check is skipped and the result line says drawn=no-mouse.
 --off: ZdxsvCursorShowOnMove = false (control); exit 0 when the cursor stays hidden except while paused.
 --relative: pad 1 right stick bound to the mouse X axis (relative mouse mode); exit 0 as --off.
 """
@@ -30,6 +32,13 @@ class MOUSEINPUT(ctypes.Structure):
 
 class INPUT(ctypes.Structure):
     _fields_ = [("type", wt.DWORD), ("mi", MOUSEINPUT)]
+
+
+class CURSORINFO(ctypes.Structure):
+    _fields_ = [("cbSize", wt.DWORD), ("flags", wt.DWORD), ("hCursor", wt.HANDLE), ("pt", wt.POINT)]
+
+
+DRAWN_MISMATCH = []
 
 
 def user32():
@@ -59,6 +68,12 @@ def shown(u, arrow, pid):
         h = u.GetCursor()
     finally:
         u.AttachThreadInput(me, tid, False)
+    if u.GetSystemMetrics(19):
+        ci = CURSORINFO(cbSize=ctypes.sizeof(CURSORINFO))
+        if not u.GetCursorInfo(ctypes.byref(ci)):
+            raise OSError(ctypes.get_last_error(), "GetCursorInfo")
+        if bool(ci.flags & 1) != (h == arrow):
+            DRAWN_MISMATCH.append(f"app={h == arrow} flags={ci.flags}")
     if os.environ.get("CURSORMOVE_TRACE"):
         print(f"cursor={h} arrow={arrow} pt=({pt.x},{pt.y})", flush=True)
     return h == arrow
@@ -121,10 +136,13 @@ def main():
         time.sleep(0.5)
         resumed = shown(u, arrow, pid)
         print(f"still={still} moved={after_move} moving={kept} idle={idle} paused={paused} resumed={resumed} off={off} relative={relative}")
+        drawn = "no-mouse" if not u.GetSystemMetrics(19) else ("ok" if not DRAWN_MISMATCH else "; ".join(DRAWN_MISMATCH))
+        print(f"drawn={drawn}")
         if off or relative:
             ok = not (still or after_move or kept or idle or resumed) and paused
         else:
             ok = not still and after_move and kept and not idle and paused and not resumed
+        ok = ok and not DRAWN_MISMATCH
         print("PASS" if ok else "FAIL")
         return 0 if ok else 1
     finally:
