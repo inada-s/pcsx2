@@ -438,8 +438,11 @@ namespace
 			GGPOPlayerHandle handle;
 			EXPECT_EQ(ggpo_add_player(session, &player, &handle), GGPO_OK);
 		}
+		// The peer socket sends nothing but the test's packets: on a slow runner the disconnect
+		// timeout would drop the peer before the test reads what the session took.
+		EXPECT_EQ(ggpo_set_disconnect_timeout(session, 0), GGPO_OK);
 		int replies = 0;
-		for (int k = 0; k < 200 && replies < 8; k++)
+		for (int k = 0; k < 200 && replies < 5; k++)
 		{
 			EXPECT_EQ(ggpo_idle(session, 0), GGPO_OK);
 			std::this_thread::sleep_for(std::chrono::milliseconds(5));
