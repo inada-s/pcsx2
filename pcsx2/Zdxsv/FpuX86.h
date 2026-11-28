@@ -48,13 +48,11 @@ namespace Zdxsv
 	}
 
 	// MAXSS/MINSS on clamped operands with denormals as zero: on equal operands (+0 vs -0) SSE returns
-	// the second one, which recCommutativeOp makes Ft, or Fs when Fd == Ft.
-	inline u32 FpuMaxMinX86(u32 fs, u32 ft, bool fd_is_ft, bool max)
+	// the second one, which recCommutativeOp makes Ft for the Z game.
+	inline u32 FpuMaxMinX86(u32 fs, u32 ft, bool max)
 	{
 		u32 a = FpuClampX86(fs);
 		u32 b = FpuClampX86(ft);
-		if (fd_is_ft)
-			std::swap(a, b);
 		if (!(a & 0x7f800000))
 			a &= 0x80000000;
 		if (!(b & 0x7f800000))

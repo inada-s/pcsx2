@@ -152,8 +152,8 @@ the default clamp mode (other clamp modes keep upstream's code).
   - CFC1 masks FCR31 and reads FCR0 for 0..15.
   - SQRT/RSQRT set I on any sign bit (also -0); RSQRT x/0 takes the sign of Fs
     and sets I for 0/0.
-  - MAX/MIN clamp NaN/Inf, count denormals as 0, on +0 vs -0 return Ft (Fs when
-    Fd = Ft), keep O/U.
+  - MAX/MIN clamp NaN/Inf, count denormals as 0, on +0 vs -0 return Ft (x86:
+    for the Z game; else Fs or Ft by register allocation), keep O/U.
 
 ### VU (interpreter `pcsx2/VUops.cpp`, VU1 recompiler, native COP2 macro ops)
 

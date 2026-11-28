@@ -443,6 +443,8 @@ Visual Studio and `lupdate` drop comments when they rewrite these files.
 | `pcsx2/vtlb.cpp` | `mmap_ResetBlockTracking` | `// zdxsv delta state: watched pages stay read-only.` |
 | `pcsx2/vtlb.h` |  | delta state hooks below |
 | `pcsx2/vtlb.h` |  | `// zdxsv delta state: copy-on-write tracking of EE RAM pages (page = offset >> __pageshift).` |
+| `pcsx2/x86/iFPU.cpp` |  | include `Zdxsv/CpuHooks.h` |
+| `pcsx2/x86/iFPU.cpp` | `recCommutativeOp` | MAX/MIN with the operands reversed: Ft on +0 vs -0 for the Z game (`Zdxsv::g_z_game`), as `Zdxsv::FpuMaxMinX86`; else Fs or Ft by register allocation. |
 | `pcsx2/x86/ix86-32/iR5900.cpp` |  | include `Zdxsv/CpuHooks.h` |
 | `pcsx2/x86/ix86-32/iR5900.cpp` |  | word view, the copy holds RAM words at their word index (indexing the u8 array by word overlapped neighbouring blocks' copies). |
 | `pcsx2/x86/ix86-32/iR5900.cpp` | `recompileNextInstruction` | `Zdxsv::RecHooksOn`, `Zdxsv::RecEmitHooks` |
