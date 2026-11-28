@@ -89,6 +89,9 @@ USERS=AAAAAA BBBBBB CCCCCC DDDDDD
   leaves the ini setting.
 - `launch.py` runs `probelint.py` first and refuses a PCSX2 build older than
   its sources (an exe outside a PCSX2 tree, e.g. a copied `bin/`: no age check).
+  `probelint.py --stamp --exe <exe>` right after a build or a copy into `bin/`
+  records the built sources, so a later checkout or copy of the same content
+  still passes; a changed source is still refused.
 - Every script that starts PCSX2 sources the network pins (`launch.py`: `pcsx2_env`;
   `replayui.ps1`, `settingsui.ps1`: `localnet.ps1`, kept equal): fast login off and its API URL local, no-DEV9 names resolved to the box `IP`,
   so no run reaches the production server, also with a release exe.
