@@ -2,6 +2,8 @@
 every rig; exit 1 = do not run.
 
   python probelint.py [--exe pcsx2.exe] [pcsx2 tree, default this repository] [file ...]
+  python probelint.py --stamp --exe pcsx2.exe [tree]   record the as-built sha1s now, no lint (after a build or a
+    copy into bin/: a later checkout/cp of the same content bumps mtimes before any lint saw the file older)
 
 Rules, each from a run that read a bad probe:
 - tag: two trace line formats on one FILE with the same tag (first token after the frame,
@@ -167,12 +169,23 @@ def stale(exe, paths):
 
 
 def main(argv):
-    exe = None
+    exe, stamp_only = None, argv[:1] == ["--stamp"]
+    argv = argv[stamp_only:]
     if argv[:1] == ["--exe"]:
         exe, argv = argv[1], argv[2:]
     tree = argv[0] if argv else os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
     paths = argv[1:] or sorted(glob.glob(os.path.join(tree, "pcsx2", "Zdxsv", "*.cpp")) +
                                [os.path.join(tree, "pcsx2", "x86", "ix86-32", "iR5900.cpp")])
+    if stamp_only:
+        if not exe or not os.path.exists(exe):
+            print("probelint: --stamp needs an existing --exe")
+            return 2
+        # Only files older than the exe are recorded: a newer one may not be in this build.
+        paths = [p for p in paths if os.path.exists(p)]
+        newer = stale(exe, paths)
+        print("probelint: stamped %s: %d of %d files as built, %d newer and not stamped" % (
+            exe, len(paths) - len(newer), len(paths), len(newer)))
+        return 0
     errs = [e for p in paths if os.path.exists(p) for e in lint(p)]
     if not argv[1:] and not glob.glob(os.path.join(tree, "pcsx2", "Zdxsv", "*.cpp")):
         errs.append("%s: no pcsx2/Zdxsv/*.cpp to check" % tree.replace("\\", "/"))
