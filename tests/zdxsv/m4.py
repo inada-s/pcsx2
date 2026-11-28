@@ -23,7 +23,8 @@ POST=<route>: driven on all 4 after mash (default none: every post-battle screen
 Checks: battlereg 4 users; `join success` (TCP) xJOINS (4; m4ggpo: 0, the EE answers for the battle server), no `join udp peer`, no `BattleInfo not found`;
   `BATTLE RESULT` x4, each with battles>=1 and frames>0, the same total_frame and kills = deaths.
 NORESULT=1 (a battle that must fail): wait for 8 lobby conns (4 + each client's reconnect) instead;
-  checks every `BATTLE RESULT` has battles=0, conn from x8.
+  checks every `BATTLE RESULT` has battles=0, conn from x8. NORESULT=reconnect: conn from x8 only (a client whose
+  session ended unstarted counts the battle it entered).
 """
 import os
 import re
@@ -151,7 +152,8 @@ def main():
     for x in res:
         print(" ".join(x.split()[2:11]), flush=True)
     if zrig.env("NORESULT"):
-        check("no battle fought (every BATTLE RESULT battles=0)", all(fields(x)["battles"] == "0" for x in res))
+        if zrig.env("NORESULT") != "reconnect":
+            check("no battle fought (every BATTLE RESULT battles=0)", all(fields(x)["battles"] == "0" for x in res))
         check("every client reconnected to the lobby (conn from x8)", grep_all("fake.log", "conn from") >= 8)
         return ok[0]
     check("BATTLE RESULT x4", len(res) >= 4)
