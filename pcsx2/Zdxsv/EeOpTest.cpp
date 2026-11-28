@@ -29,6 +29,7 @@ namespace
 		FD_FS_FT, // fd = f0, fs = f1, ft = f2
 		FS_FS_FT, // fd = fs = f1, ft = f2
 		FT_FS_FT, // fd = ft = f2, fs = f1
+		F5_FS_FT, // fd = f5 (not loaded by the loop), fs = f1, ft = f2
 		FD_FS, // ABS, MOV, NEG, CVT
 		FD_FT, // SQRT
 		ACC_FS_FT, // ADDA, SUBA, MULA, MADDA, MSUBA: ACC read back by MADD.S f0, f4, f4 (ACC + 0 * 0)
@@ -78,6 +79,8 @@ namespace
 		{"MAX_FdFt", S, 0x28, FT_FS_FT, false},
 		{"MIN_FdFs", S, 0x29, FS_FS_FT, false},
 		{"MIN_FdFt", S, 0x29, FT_FS_FT, false},
+		{"MAX_Fd5", S, 0x28, F5_FS_FT, false},
+		{"MIN_Fd5", S, 0x29, F5_FS_FT, false},
 		{"C.F", S, 0x30, CMP, false},
 		{"C.EQ", S, 0x32, CMP, false},
 		{"C.LT", S, 0x34, CMP, false},
@@ -198,9 +201,10 @@ namespace
 			case FD_FS: p.push_back(COP1(op.fmt, 0, 1, 0, op.func)); break;
 			case FS_FS_FT: p.push_back(COP1(op.fmt, 2, 1, 1, op.func)); break;
 			case FT_FS_FT: p.push_back(COP1(op.fmt, 2, 1, 2, op.func)); break;
+			case F5_FS_FT: p.push_back(COP1(op.fmt, 2, 1, 5, op.func)); break;
 			default: p.push_back(COP1(op.fmt, 2, 1, 0, op.func)); break;
 		}
-		const u32 fd = op.form == FS_FS_FT ? 1 : op.form == FT_FS_FT ? 2 : 0;
+		const u32 fd = op.form == FS_FS_FT ? 1 : op.form == FT_FS_FT ? 2 : op.form == F5_FS_FT ? 5 : 0;
 		p.push_back(CFC1(T3, 31));
 		if (op.form == ACC_FS_FT)
 			p.push_back(COP1(S, 4, 4, 0, 0x1c)); // madd.s f0, f4, f4
