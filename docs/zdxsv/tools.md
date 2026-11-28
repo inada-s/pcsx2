@@ -11,6 +11,10 @@
   (`.github/workflows/scripts/zdxsv/macos-universal-app.sh`, ad-hoc signature,
   no notarization) and publishes `pcsx2-zdxsv-macos.tar.xz`, used by the macOS
   updater and for a first install.
+- A tag on a commit that is not on `zdxsv-master` fails the release at its
+  first job. The release jobs and the build workflows they call
+  (`windows_build_qt.yml`, `macos_build.yml`) use actions pinned by commit SHA,
+  the Windows build a pinned `dump_syms`.
 - A tag run restores the macOS dependency cache only from `zdxsv-master`, where
   the macOS arm64 build of each push (`macos_build_arm64.yml`) saves it; GitHub
   drops a cache unused for 7 days. Without it both macOS release builds first build the
