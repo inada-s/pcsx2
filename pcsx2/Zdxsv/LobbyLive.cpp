@@ -495,7 +495,7 @@ namespace Zdxsv
 		s.code = std::move(code);
 		s.header = std::move(header);
 		s.frameBytes = frameBytes;
-		LobbyLog("live: uplink " + s.code + " to " + s.url);
+		LobbyLog("live: uplink " + s.code + " to " + StreamUrl(api, "battle_code=" + s.code + "&session_id=" + MaskSessionId(session)));
 		std::thread([s = m->s] { s->Run(); }).detach();
 	}
 

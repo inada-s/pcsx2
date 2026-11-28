@@ -215,7 +215,11 @@ namespace Zdxsv
 		CrashReportsInit();
 
 		if (s_crash_reports.running && test_crash)
+		{
+			if (const char* const line = TestEnv("ZDXSV_CRASH_REPORT_TEST_LOG"))
+				Console.WriteLn("Zdxsv: crash report test: %s", line);
 			*static_cast<volatile int*>(nullptr) = 0;
+		}
 #endif
 	}
 
