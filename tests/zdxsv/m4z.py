@@ -27,6 +27,7 @@ EMU=1: the 4 clients are emulators instead (platform info, no zproxy by default;
   GOPT=opts (GGPO): appended to every ZDXSV_GGPO (e.g. GOPT=replay=0: saving off; live streams anyway).
   PATCHES=file.json (GGPO, a server with m_patch): m_patch rows for the emu lobby the clients enter (e.g. server_patches.json); checks each
     GGPO client applied every patch once per battle and, at its end, every code held its change and got its original back.
+    PATCHES_REFUSED=1: instead, each GGPO client refused every battle's patch notice and applied none (server_patches_bad.json).
   UPLOAD=1 (GGPO): replay upload. Clients post (ZDXSV_GGPO upload=) to the lobby's public api on
   127.0.0.1:9881 (/lbs/replay_upload, db migrated first), stored in OUT/upload (ZDXSV_LOBBY_REPLAY_DIR, served
   at /lbs/replays/). Checks per battle code: the stored .pb = one client's saved one,
@@ -1011,6 +1012,10 @@ def main():
         for i in gclients if patch_names else []:
             for l in g(el(i), "ZdxsvPatch: "):
                 say(f"p{i} {l[:200]}")
+            if E("PATCHES_REFUSED"):
+                ok(f"p{i} patch notice refused x{nb}, no patch applied",
+                   len(g(el(i), "bad game patch notice")) == nb and not g(el(i), "ZdxsvPatch: "))
+                continue
             for n in patch_names:
                 ok(f"p{i} patch {n} applied x{nb}", len(g(el(i), f"ZdxsvPatch: {re.escape(n)} applied")) == nb)
             back = [re.search(r"codes (\d+), held changed (\d+), original back (\d+)", l) for l in g(el(i), "ZdxsvPatch: .* restored")]

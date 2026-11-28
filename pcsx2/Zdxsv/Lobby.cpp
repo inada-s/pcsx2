@@ -290,7 +290,7 @@ namespace Zdxsv
 	{
 		pkt = StunPacket{};
 		rapidjson::Document doc;
-		doc.Parse(reinterpret_cast<const char*>(data), len);
+		doc.Parse<rapidjson::kParseIterativeFlag>(reinterpret_cast<const char*>(data), len);
 		if (doc.HasParseError() || !doc.IsObject())
 			return false;
 		const auto str = [&doc](const char* key, std::string& out) {

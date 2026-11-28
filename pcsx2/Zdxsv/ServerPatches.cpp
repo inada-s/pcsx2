@@ -102,7 +102,7 @@ namespace Zdxsv
 		const std::string serial = VMManager::GetDiscSerial();
 		for (const GamePatch& p : patches)
 		{
-			if (!p.game.empty() && p.game != serial)
+			if (p.game != serial)
 			{
 				Console.WriteLn("ZdxsvPatch: %s skipped: for %s, running %s", p.name.c_str(), p.game.c_str(), serial.c_str());
 				continue;

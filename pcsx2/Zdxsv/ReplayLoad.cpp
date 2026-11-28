@@ -254,7 +254,7 @@ namespace Zdxsv
 		std::string JsonReplayUrl(std::string_view json)
 		{
 			rapidjson::Document doc;
-			if (doc.Parse(json.data(), json.size()).HasParseError() || !doc.IsArray() || doc.Empty() || !doc[0].IsObject())
+			if (doc.Parse<rapidjson::kParseIterativeFlag>(json.data(), json.size()).HasParseError() || !doc.IsArray() || doc.Empty() || !doc[0].IsObject())
 				return {};
 			const auto it = doc[0].FindMember("replay_url");
 			if (it == doc[0].MemberEnd() || !it->value.IsString())
