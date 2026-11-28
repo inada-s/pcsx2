@@ -12,6 +12,7 @@ class QByteArray;
 class QObject;
 class QString;
 class QWidget;
+class QWindow;
 
 namespace Zdxsv
 {
@@ -26,6 +27,8 @@ namespace Zdxsv
 	bool QtSetupWizardControllerConfirm(QWidget* wizard);
 	// UI thread. True: the wheel event changed the volume and is not passed on as input.
 	bool QtWheelVolumeTakes(int angle_delta_y);
+	// After the display surface cursor changes. Hidden only by the fullscreen option: a mouse move shows it for a few seconds.
+	void QtCursorMoveUpdate(QWindow* surface, bool hidden, bool fullscreen_option_only);
 	// Command line `-zdxsvreplay <pov>:<parent pid>:<source>`: this process only plays that replay or live battle.
 	bool QtReplayChildParseArg(const char* arg);
 	bool QtReplayChild();

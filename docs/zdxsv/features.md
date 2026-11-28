@@ -37,6 +37,7 @@ skips does not run on that path.
 | Qt fonts | `pcsx2-qt/Zdxsv/QtFonts` | Noto Sans JP download before the OSD fonts load |
 | Replay child (`QtHooks.h`, `QtHost`; `UiHooks.h`, `VMManager` play time; `InputHooks.h`, `InputManager` unfocused pads) | `pcsx2-qt/Zdxsv/QtReplayChild` | replays in a second process |
 | Qt game window wheel (`QtHooks.h`, `DisplayWidget`) | `pcsx2-qt/Zdxsv/QtWheelVolume` | mouse wheel volume |
+| Qt game window cursor (`QtHooks.h`, `MainWindow`) | `pcsx2-qt/Zdxsv/QtCursorMove` | cursor shown on mouse move |
 | VMManager shutdown, shutdown dialog, Big Picture menus, settings dialogs, game list menus, debugger (`UiHooks.h`) | `FeatureLimits` | no save state on shutdown, no game properties |
 | VMManager, GS, MTGS, hotkeys, Qt main window (`UiHooks.h`, `QtHooks.h`) | `OnlineLimits`, `pcsx2-qt/Zdxsv/QtOnlineLimits`, `ReplayControls` | operations refused while online or during a replay, debugger window close, replay step hotkeys, audio output kept paused through a replay stepd |
 | Qt host start, exit and settings save (`CrashReportHooks.h`), setup wizard (`QtHooks.h`), log output (`Log::SetTapOutputLevel` in `common/Console`) | `pcsx2-qt/Zdxsv/CrashReports` | crash reports, the last log lines they carry |
@@ -191,6 +192,7 @@ Keys (`net=1`, `lobby=1`, `port=`, `delay=`, ...) are parts of `ZDXSV_GGPO`.
 - **2 Metal drawables with VSync** (changed default): on macOS with VSync on and mailbox presentation, the Metal layer keeps 2 drawables, not 3, so at most 2 frames wait for the display; no setting (Disable Mailbox Presentation keeps 3).
 - **No game properties** (changed default): the per-game settings dialog is not offered, in the Qt menus, the game list and Big Picture, and settings already saved for a game are not read; `ZdxsvFeatureLimits`.
 - **Mouse wheel volume**: the wheel over the game screen changes the volume in 5% steps, OSD with the new volume; not while a menu takes the mouse or the wheel is bound to an input; `ZdxsvWheelVolume`.
+- **Cursor shown on mouse move** (changed default): with Hide Cursor In Fullscreen on, moving the mouse over the fullscreen game shows the cursor until 3 s without a move; not while the cursor is grabbed for a pointer bind or a bind hides it; paused and windowed as upstream; `ZdxsvCursorShowOnMove`.
 - **Keyboard and hotkeys**: the host keyboard is a USB keyboard on USB port 1 (in-game chat; Settings > Controllers > USB Port 1, None turns it off); on Windows it sends the physical key, so a Japanese keyboard types its own symbols (@ : ^ and the shifted ones) as a Japanese keyboard; no upstream PCSX2 hotkeys are bound by default, the zdxsv replay ones stay (bind any under Settings > Hotkeys). Settings files from before get both once on start (`[Zdxsv] InputDefaultsVersion`).
 
 ## ARM64 builds ([arm64.md](arm64.md))

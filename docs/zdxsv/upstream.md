@@ -134,6 +134,7 @@ Visual Studio and `lupdate` drop comments when they rewrite these files.
 | `pcsx2-qt/MainWindow.cpp` | `MainWindow::requestExit` | `Zdxsv::QtOnlineExitAllows` |
 | `pcsx2-qt/MainWindow.cpp` | `MainWindow::onGameListEntryContextMenuRequested` | `Zdxsv::FeaturesLimited` |
 | `pcsx2-qt/MainWindow.cpp` | `MainWindow::closeEvent` | `Zdxsv::QtOnlineExitAllows` |
+| `pcsx2-qt/MainWindow.cpp` | `MainWindow::updateDisplayWidgetCursor` | `Zdxsv::QtCursorMoveUpdate` |
 | `pcsx2-qt/MainWindow.cpp` | `MainWindow::openDebugger` | `Zdxsv::OnlineRefuses` |
 | `pcsx2-qt/QtHost.cpp` |  | include `Zdxsv/AuthHooks.h` |
 | `pcsx2-qt/QtHost.cpp` | `EmuThread::startBackgroundControllerPollTimer` | `Zdxsv::ReplayIdleFastPoll` |

@@ -113,6 +113,7 @@ options: `docs/zdxsv/`.
 | `pcsx2-qt/Zdxsv/QtFonts.cpp` | Noto Sans JP download at UI start, for the panel's Japanese names (`QtHooks.h`, seam in `pcsx2-qt/Translations.cpp`) |
 | `pcsx2-qt/Zdxsv/QtReplayChild.cpp` | Replay child: launch from the replay window, its settings overrides, its exit with the parent (`QtHooks.h`, seams in `pcsx2-qt/QtHost.cpp`; play time `UiHooks.h`, `pcsx2/VMManager.cpp`; unfocused pads `InputHooks.h`, `pcsx2/Input/InputManager.cpp`) |
 | `pcsx2-qt/Zdxsv/QtWheelVolume.cpp` | Mouse wheel over the game screen changes the volume, OSD (`QtHooks.h`, seam in `pcsx2-qt/DisplayWidget.cpp`) |
+| `pcsx2-qt/Zdxsv/QtCursorMove.cpp` | Hidden fullscreen cursor shown while the mouse moves (`QtHooks.h`, seam in `pcsx2-qt/MainWindow.cpp`) |
 | `pcsx2-qt/Zdxsv/QtUpdateVerify.cpp` | Auto updater: the accepted release URLs, the `SHA256SUMS.txt` download and check (`QtHooks.h`, seams in `pcsx2-qt/AutoUpdaterDialog.cpp`) |
 | `pcsx2-qt/Zdxsv/CrashReports.cpp` | Crash reports: Sentry setup at Qt host start, the setting, the wizard page ([crash-reports.md](../../docs/zdxsv/crash-reports.md)) |
 | `CpuHooks.h` | Hook header: recompilers, counters, MTGS, VMManager |

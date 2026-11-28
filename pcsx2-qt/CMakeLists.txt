@@ -170,6 +170,7 @@ target_sources(pcsx2-qt PRIVATE
 	Zdxsv/QtFonts.cpp
 	Zdxsv/QtOnlineLimits.cpp
 	Zdxsv/QtReplayChild.cpp
+	Zdxsv/QtCursorMove.cpp
 	Zdxsv/QtWheelVolume.cpp
 	Zdxsv/QtUpdateVerify.cpp
 	Zdxsv/QtSetupWizard.cpp
