@@ -262,17 +262,46 @@ namespace Zdxsv
 			return std::string(it->value.GetString(), it->value.GetStringLength());
 		}
 
-		// ZDXSV_REPLAY=http(s)://...: a replay file, or the lobby's /lbs/replay?battle_code=C answer
-		// (a JSON list, newest first), whose first battle's replay_url is then fetched.
+		bool IsHttpUrl(std::string_view url)
+		{
+			return url.starts_with("http://") || url.starts_with("https://");
+		}
+
+		// The battle_code of a lobby /lbs/replay query URL (empty if it names none); nullopt = another URL.
+		std::optional<std::string> LobbyReplayCode(std::string_view url)
+		{
+			if (!IsHttpUrl(url))
+				return std::nullopt;
+			const size_t host = url.find("://") + 3;
+			const size_t q = url.find('?', host);
+			const size_t slash = url.find('/', host);
+			if (q == std::string_view::npos || slash >= q || !url.substr(slash, q - slash).ends_with("/lbs/replay"))
+				return std::nullopt;
+			std::string_view query = url.substr(q + 1);
+			query = query.substr(0, query.find('#'));
+			for (const std::string_view kv : StringUtil::SplitString(query, '&'))
+				if (kv.starts_with("battle_code="))
+					return std::string(kv.substr(12));
+			return std::string();
+		}
+
+		// ZDXSV_REPLAY=http(s)://...: a replay file, or the lobby's /lbs/replay?battle_code=C answer (a JSON list,
+		// newest first), whose first battle's replay_url is then fetched. Only the lobby query URL is read as JSON: a
+		// replay file comes from whoever uploaded it, and must not name what the client fetches next.
 		std::optional<std::vector<u8>> HttpFetch(const std::string& url)
 		{
 			std::optional<std::vector<u8>> got = HttpGet(url);
-			if (!got || got->empty() || got->front() != '[') // a .pb starts with field 1 (0x08)
+			if (!got || !LobbyReplayCode(url))
 				return got;
 			const std::string pb = JsonReplayUrl(std::string_view(reinterpret_cast<const char*>(got->data()), got->size()));
 			if (pb.empty())
 			{
 				Console.Error("ZdxsvGgpo: replay %s: no replay_url in the answer", url.c_str());
+				return std::nullopt;
+			}
+			if (!IsHttpUrl(pb))
+			{
+				Console.Error("ZdxsvGgpo: replay %s: replay_url %s is not http(s)", url.c_str(), pb.c_str());
 				return std::nullopt;
 			}
 			Console.WriteLn("ZdxsvGgpo: replay %s: replay_url %s", url.c_str(), pb.c_str());
@@ -440,8 +469,8 @@ namespace Zdxsv
 				(r.start_rng ? 1 : 0) + std::min(r.load_frames.size(), r.load_rngs.size()));
 			if (s_net_trace) // battle start marker: pwcheck.py --battle splits a multi-battle trace (live auto-next)
 				std::fprintf(s_net_trace, "%u B %s\n", g_FrameCount, r.code.empty() ? "-" : r.code.c_str());
-			if (http && s_play_src.listed)
-				ReplayPlayed(r.code);
+			if (const std::optional<std::string> picked = s_play_src.listed ? LobbyReplayCode(path) : std::nullopt; picked)
+				ReplayPlayed(*picked);
 			return static_cast<int>(me);
 		}
 
@@ -773,11 +802,19 @@ namespace Zdxsv
 			PlayFailed(TRANSLATE_STR("Zdxsv", "Failed to start the replay. The common start state could not be downloaded or loaded."));
 		}
 
+		// ZDXSV_REPLAY may list sources split by ';'; the replay list's pick is one source, a file name may hold ';'.
+		std::vector<std::string_view> PlaySources(std::string_view paths)
+		{
+			if (s_play_src.listed)
+				return {paths};
+			return StringUtil::SplitString(paths, ';');
+		}
+
 		void PlayLoadFiles(const std::string& paths, bool fetched)
 		{
 			int me = -1;
 			bool newer = false;
-			for (const std::string_view path : StringUtil::SplitString(paths, ';'))
+			for (const std::string_view path : PlaySources(paths))
 			{
 				const int p = PlayLoadFile(std::string(path));
 				newer |= p == PLAY_FILE_NEWER;
@@ -815,8 +852,8 @@ namespace Zdxsv
 		PlayKeysPrune();
 		std::string paths = s_live_next.url.empty() ? s_play_src.path : s_live_next.url;
 		std::vector<std::string> urls;
-		for (const std::string_view path : StringUtil::SplitString(paths, ';'))
-			if (path.starts_with("http://") || path.starts_with("https://") || path.starts_with("live:"))
+		for (const std::string_view path : PlaySources(paths))
+			if (IsHttpUrl(path) || path.starts_with("live:"))
 				urls.emplace_back(path);
 		const bool common = CommonStateMissing();
 		if (urls.empty() && !common)
