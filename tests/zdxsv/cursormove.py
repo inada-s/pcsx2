@@ -5,7 +5,8 @@ usage: cursormove.py [--off]   (RUN, ISO, PCSX2_EXE as launch.py; Windows; no ne
 Boots the game fullscreen with [UI] HideMouseCursor = true in instance p9, the mouse on the primary screen
 centre, and reads the cursor pcsx2 set after 6 s still, then while and after the mouse moves.
 exit 0: still -> hidden; moved -> shown within 0.5 s and through 4 s of moves; 4.5 s after the last move -> hidden.
---off: ZdxsvCursorShowOnMove = false (control); exit 0 when the cursor stays hidden through the moves.
+Then a move, pause (TogglePause = Space): shown 4.5 s later; resume: hidden within 0.5 s.
+--off: ZdxsvCursorShowOnMove = false (control); exit 0 when the cursor stays hidden except while paused.
 """
 import ctypes
 import ctypes.wintypes as wt
@@ -87,6 +88,7 @@ def main():
     ini = os.path.join(pd, "inis", "PCSX2.ini")
     zrig.ini_set(ini, "UI", "HideMouseCursor", "true")
     zrig.ini_set(ini, "UI", "ZdxsvCursorShowOnMove", "false" if off else "true")
+    zrig.ini_set(ini, "Hotkeys", "TogglePause", "Keyboard/Space")
     u.SetCursorPos(u.GetSystemMetrics(0) // 2, u.GetSystemMetrics(1) // 2)
     pid = launch.launch(ns=(N,), extra_args=["-fullscreen"])[N]
     try:
@@ -107,11 +109,19 @@ def main():
             kept = kept and shown(u, arrow, pid)
         time.sleep(4.5)
         idle = shown(u, arrow, pid)
-        print(f"still={still} moved={after_move} moving={kept} idle={idle} off={off}")
+        move(u, 40)
+        time.sleep(0.5)
+        zrig.ctl(pid, "Space")
+        time.sleep(4.5)
+        paused = shown(u, arrow, pid)
+        zrig.ctl(pid, "Space")
+        time.sleep(0.5)
+        resumed = shown(u, arrow, pid)
+        print(f"still={still} moved={after_move} moving={kept} idle={idle} paused={paused} resumed={resumed} off={off}")
         if off:
-            ok = not (still or after_move or kept or idle)
+            ok = not (still or after_move or kept or idle or resumed) and paused
         else:
-            ok = not still and after_move and kept and not idle
+            ok = not still and after_move and kept and not idle and paused and not resumed
         print("PASS" if ok else "FAIL")
         return 0 if ok else 1
     finally:
